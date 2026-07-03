@@ -256,7 +256,7 @@ function updateTotals(){
 
 document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();renderPlate();});
 document.getElementById('printBtn').addEventListener('click',()=>{const n=document.getElementById('plateName').value.trim();
-  document.getElementById('dHead').textContent=n?('PLATE: '+n.toUpperCase()):"SCOOPY'S KITCHEN — DOCKET";window.print();});
+  document.getElementById('dHead').textContent=n?('PLATE: '+n.toUpperCase()):"EZPLATE — DOCKET";window.print();});
 
 /* ---------- add-ingredient modal ---------- */
 const modal=document.getElementById('modal');
