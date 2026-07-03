@@ -3,23 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F6F3EE" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#161213" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F7F3EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191412" media="(prefers-color-scheme: dark)">
 <script>(function(){try{var t=localStorage.getItem('cafeCost_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-<title>Café Costing</title>
+<title>EzPlate — plate costing made easy</title>
+<meta name="description" content="EzPlate — plate costing made easy. Cost menu items, track supplier prices, protect margins.">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap" rel="stylesheet">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="CaféCost">
+<meta name="apple-mobile-web-app-title" content="EzPlate">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
+<div id="splash" aria-hidden="true">
+  <svg class="sp-mark" viewBox="0 0 64 64" role="img" aria-label="EzPlate is loading">
+    <circle cx="32" cy="32" r="26" fill="none" stroke="#F3EDE5" stroke-width="6"/>
+    <path class="arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#F08A3C" stroke-width="6" stroke-linecap="round"/>
+  </svg>
+  <div class="sp-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 46" role="img" aria-label="EzPlate">
+    <path d="M4.992 40.0H22.459999999999997V34.236000000000004H11.02V26.668H21.976V20.904H11.02V13.248000000000001H22.459999999999997V7.484000000000002H4.992Z M24.704 40.0H43.272000000000006V34.764H31.700000000000003L42.436 20.86V15.624000000000002H25.936V20.86H35.44L24.704 34.764Z" fill="#F08A3C"/><path d="M47.056 40.0H53.084V27.636000000000003H55.019999999999996C59.64 27.636000000000003 61.751999999999995 27.284 63.556 26.184C66.196 24.556 67.824 21.256 67.824 17.516000000000002C67.824 13.776 66.24 10.696000000000002 63.424 8.98C61.576 7.880000000000003 59.42 7.484000000000002 55.108 7.484000000000002H47.056ZM53.084 21.872V13.248000000000001H55.108C59.728 13.248000000000001 61.751999999999995 14.172 61.751999999999995 17.604000000000003C61.751999999999995 20.42 60.256 21.872 54.844 21.872Z M70.11200000000001 40.0H75.964V7.484000000000002H70.11200000000001Z M78.868 27.9C78.868 35.248 84.016 40.572 91.144 40.572C94.576 40.572 96.908 39.472 99.24000000000001 36.832V40.0H104.608V15.624000000000002H99.24000000000001V18.880000000000003C97.21600000000001 16.196 94.79599999999999 15.052000000000003 91.276 15.052000000000003C84.06 15.052000000000003 78.868 20.464000000000002 78.868 27.9ZM84.764 28.032C84.764 23.588 87.712 20.42 91.892 20.42C96.072 20.42 99.064 23.544 99.064 27.988C99.064 32.036 96.424 35.204 91.98 35.204C87.712 35.204 84.764 32.3 84.764 28.032Z M106.236 20.948H109.096V40.0H114.94800000000001V20.948H118.468V15.624000000000002H114.94800000000001V7.484000000000002H109.096V15.624000000000002H106.236Z M119.47999999999999 27.9C119.47999999999999 35.028 125.244 40.572 132.68 40.572C137.608 40.572 142.668 37.8 144.296 32.784H137.916C136.42 34.544 134.968 35.204 132.548 35.204C129.072 35.204 126.52 33.356 125.816 30.408H144.692C144.868 29.572000000000003 144.912 29.044 144.912 28.164C144.912 20.596 139.588 15.052000000000003 132.328 15.052000000000003C125.15599999999999 15.052000000000003 119.47999999999999 20.728 119.47999999999999 27.9ZM125.64 25.26C126.564 22.136000000000003 128.94 20.42 132.416 20.42C136.024 20.42 138.4 22.136000000000003 139.148 25.26Z" fill="#F3EDE5"/></svg></div>
+  <p class="sp-tag">Plate costing made easy</p>
+</div>
 <header><div class="wrap">
   <div class="brand">
-    <span class="brand-logo"><img src="icons/logo.jpg" alt="Scoopy's Family Cafe" onerror="if(!this.dataset.tried){this.dataset.tried=1;console.error('[logo] failed to load, retrying icons/logo.png — attempted:',this.getAttribute('src'));this.src='icons/logo.png';}else{console.error('[logo] logo did not load. Expected file at icons/logo.jpg (or icons/logo.png) — attempted:',this.getAttribute('src'));}"></span>
-    <span class="brand-text"><b>Plate Costing</b><small>Ingredient &amp; menu pricing</small></span>
+    <span class="brand-logo"><svg viewBox="0 0 64 64" role="img" aria-label="EzPlate logo"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg></span>
+    <span class="brand-text"><b><span class="ez">Ez</span>Plate</b><small>Plate costing made easy</small></span>
   </div>
   <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle light / dark">
     <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
@@ -56,7 +70,7 @@
       <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
     </div>
     <div class="docket-head" style="margin-top:14px">
-      <span id="dHead">SCOOPY'S KITCHEN — DOCKET</span><span id="dCount">0 items</span>
+      <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
     </div>
     <div id="lines"></div>
     <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
@@ -229,7 +243,7 @@
 <!-- Install banner -->
 <div id="installBanner" class="install-banner" style="display:none" role="dialog" aria-label="Install app">
   <div class="ib-text">
-    <strong>Install Café Costing</strong>
+    <strong>Install EzPlate</strong>
     <span>Add it to your home screen for quick, offline access.</span>
     <span id="iosHint" class="ios-hint" style="display:none">On iPhone: tap the Share button, then &ldquo;Add to Home Screen&rdquo;.</span>
   </div>
@@ -258,6 +272,15 @@
     if(next==='dark'||next==='light') root.setAttribute('data-theme',next);
     try{localStorage.setItem(KEY,next);}catch(e){}
   });
+})();
+</script>
+<script>
+(function(){
+  var s=document.getElementById('splash'); if(!s) return;
+  function done(){ s.classList.add('hide'); setTimeout(function(){ s.remove(); }, 450); }
+  if(document.readyState==='complete'){ setTimeout(done, 500); }
+  else { window.addEventListener('load', function(){ setTimeout(done, 350); }); }
+  setTimeout(done, 4000);  /* failsafe: never trap the user behind the splash */
 })();
 </script>
 </body>
