@@ -1,8 +1,8 @@
-/* Café Costing service worker */
-const CACHE = 'cafecost-v13';
+/* EzPlate service worker */
+const CACHE = 'ezplate-v1';
 const ASSETS = [
   './', './index.html', './css/style.css', './js/app.js',
-  './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/logo.jpg'
+  './manifest.json', './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', function(e){
   self.skipWaiting();
