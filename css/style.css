@@ -1,5 +1,5 @@
 /* ==========================================================================
-   SCOOPY'S FAMILY CAFE — Plate Costing
+   EzPlate — plate costing made easy
    Complete visual layer. No JS hooks changed: every class and ID used by
    app.js and index.html is preserved and styled here.
 
@@ -28,13 +28,15 @@
    ========================================================================== */
 
 /* ----------------------------------------------------------------------
-   1. DESIGN TOKENS
+   1. DESIGN TOKENS — EzPlate
+   Palette: Espresso #3E2C26 (brand ink) · Marmalade #B84E0C (CTA accent)
+   Paper #F7F3EC (bg) · Sage #2E6B44 (healthy margin) · Brick #B03A2E (danger)
    ---------------------------------------------------------------------- */
 :root{
-  /* type */
-  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  /* type — Nunito Sans loaded in <head>; falls back to system-ui offline */
+  --ui:'Nunito Sans',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
-  --fs-xs:11px; --fs-sm:12.5px; --fs-base:15px; --fs-md:16px; --fs-lg:18px; --fs-xl:24px;
+  --fs-xs:12px; --fs-sm:13px; --fs-base:15px; --fs-md:16px; --fs-lg:18px; --fs-xl:24px;
 
   /* spacing scale (4px base) */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
@@ -46,51 +48,60 @@
   --ease:cubic-bezier(.2,.7,.3,1); --t-fast:.14s; --t-med:.22s;
 }
 
-/* Light — the Scoopy's brand default: warm off-white paper + crimson */
+/* Light — EzPlate default: warm paper, espresso ink, marmalade accent */
 :root[data-theme="light"], :root{
-  --bg:#F6F3EE; --surface:#FFFFFF; --surface2:#FAF7F2; --field:#FFFFFF;
-  --text:#241F20; --text2:#5D5352; --muted2:#8C817D;
-  --border:#ECE6DD; --border2:#DBD2C6; --hover:#F6F0E7;
-  --accent:#B8232F; --accent-press:#971A25; --accent-weak:rgba(184,35,47,.09); --on-accent:#FFFFFF;
-  --good:#1E7A46; --good-bg:rgba(30,122,70,.11);
-  --warn:#A96206; --warn-bg:rgba(169,98,6,.12);
-  --bad:#B8232F;  --bad-bg:rgba(184,35,47,.10);
-  --shadow:0 1px 2px rgba(56,38,30,.05),0 6px 18px rgba(56,38,30,.07);
-  --shadow-lg:0 22px 56px rgba(56,38,30,.24);
+  --bg:#F7F3EC; --surface:#FFFDF9; --surface2:#F2EADF; --field:#FFFDF9;
+  --text:#2A1F1A; --text2:#6B5D54; --muted2:#8A7C72;
+  --border:#E8DFD3; --border2:#D9CDBD; --hover:#F2EADF;
+  --brand:#3E2C26;                                   /* espresso — headings, eyebrows, docket */
+  --accent:#B84E0C; --accent-press:#A34509;          /* marmalade — CTAs only */
+  --accent-weak:rgba(184,78,12,.10); --on-accent:#FFFFFF;
+  --good:#2E6B44;  --good-bg:rgba(46,107,68,.12);    /* sage — healthy margin */
+  --warn:#A96206;  --warn-bg:rgba(169,98,6,.12);     /* toasted amber — check this */
+  --bad:#B03A2E;   --bad-bg:rgba(176,58,46,.10);     /* brick — losses & deletes */
+  --shadow:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
+  --shadow-lg:0 22px 56px rgba(41,28,22,.24);
+  --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   /* legacy token remap — any untouched legacy rule follows the theme */
   --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
-  --navy:var(--accent); --maroon:var(--accent);
+  --navy:var(--brand); --maroon:var(--brand);
   --line:var(--border); --line2:var(--border2);
   --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
 }
 :root[data-theme="dark"]{
-  --bg:#161213; --surface:#201B1C; --surface2:#282122; --field:#251F20;
-  --text:#F5F0EB; --text2:#C7BDB8; --muted2:#968B87;
-  --border:#352D2E; --border2:#463C3D; --hover:#2D2627;
-  --accent:#E85763; --accent-press:#D6414E; --accent-weak:rgba(232,87,99,.16); --on-accent:#FFFFFF;
-  --good:#4BC183; --good-bg:rgba(75,193,131,.16);
-  --warn:#E39B3E; --warn-bg:rgba(227,155,62,.16);
-  --bad:#F2707B;  --bad-bg:rgba(242,112,123,.16);
+  --bg:#191412; --surface:#241E1B; --surface2:#2C2521; --field:#221C19;
+  --text:#F3EDE5; --text2:#C9BBAF; --muted2:#97897E;
+  --border:#392F2A; --border2:#4A3E37; --hover:#2C2521;
+  --brand:#F3EDE5;
+  --accent:#F08A3C; --accent-press:#E2792A;
+  --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+  --good:#5BBF85;  --good-bg:rgba(91,191,133,.16);
+  --warn:#E2A54B;  --warn-bg:rgba(226,165,75,.16);
+  --bad:#E76D5C;   --bad-bg:rgba(231,109,92,.16);
   --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
   --shadow-lg:0 28px 68px rgba(0,0,0,.6);
+  --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
-  --navy:var(--accent); --maroon:var(--accent);
+  --navy:var(--brand); --maroon:var(--brand);
   --line:var(--border); --line2:var(--border2);
   --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#161213; --surface:#201B1C; --surface2:#282122; --field:#251F20;
-    --text:#F5F0EB; --text2:#C7BDB8; --muted2:#968B87;
-    --border:#352D2E; --border2:#463C3D; --hover:#2D2627;
-    --accent:#E85763; --accent-press:#D6414E; --accent-weak:rgba(232,87,99,.16); --on-accent:#FFFFFF;
-    --good:#4BC183; --good-bg:rgba(75,193,131,.16);
-    --warn:#E39B3E; --warn-bg:rgba(227,155,62,.16);
-    --bad:#F2707B;  --bad-bg:rgba(242,112,123,.16);
+    --bg:#191412; --surface:#241E1B; --surface2:#2C2521; --field:#221C19;
+    --text:#F3EDE5; --text2:#C9BBAF; --muted2:#97897E;
+    --border:#392F2A; --border2:#4A3E37; --hover:#2C2521;
+    --brand:#F3EDE5;
+    --accent:#F08A3C; --accent-press:#E2792A;
+    --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+    --good:#5BBF85;  --good-bg:rgba(91,191,133,.16);
+    --warn:#E2A54B;  --warn-bg:rgba(226,165,75,.16);
+    --bad:#E76D5C;   --bad-bg:rgba(231,109,92,.16);
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
     --shadow-lg:0 28px 68px rgba(0,0,0,.6);
+    --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
     --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
-    --navy:var(--accent); --maroon:var(--accent);
+    --navy:var(--brand); --maroon:var(--brand);
     --line:var(--border); --line2:var(--border2);
     --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
   }
@@ -128,13 +139,12 @@ header{
 }
 header .wrap{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4)}
 .brand{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
-.brand-logo{
-  display:inline-flex;flex:0 0 auto;background:#fff;border:1px solid var(--border);
-  border-radius:12px;padding:4px;box-shadow:var(--shadow);
-}
-.brand-logo img{height:40px;width:auto;display:block;border-radius:9px}
+.brand-logo{display:inline-flex;flex:0 0 auto;color:var(--brand)}
+.brand-logo svg{height:40px;width:40px;display:block}
+.brand-logo img{height:40px;width:auto;display:block;border-radius:9px} /* legacy fallback */
 .brand-text{display:flex;flex-direction:column;line-height:1.2;min-width:0}
-.brand-text b{font-size:17px;font-weight:800;letter-spacing:-.015em;color:var(--text)}
+.brand-text b{font-size:17px;font-weight:800;letter-spacing:-.015em;color:var(--brand)}
+.brand-text b .ez{color:var(--accent)}
 .brand-text small{font-size:var(--fs-sm);color:var(--muted2)}
 header h1{margin:0;font-size:20px}
 header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
@@ -180,7 +190,7 @@ header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
 }
 .panel h2{
   font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--accent);margin:0;padding:var(--sp-4) var(--sp-5) var(--sp-3);
+  color:var(--brand);margin:0;padding:var(--sp-4) var(--sp-5) var(--sp-3);
   border-bottom:1px solid var(--border);
 }
 .pad{padding:var(--sp-5)}
@@ -404,7 +414,7 @@ input[type=checkbox]{
 /* ----------------------------------------------------------------------
    11. LEGACY PRICING / MARGIN ROWS (kept for compatibility)
    ---------------------------------------------------------------------- */
-.pricing-head{font-size:var(--fs-xs);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);padding:var(--sp-4) var(--sp-5) 0;border-top:1px dashed var(--border2);margin-top:4px;font-weight:800}
+.pricing-head{font-size:var(--fs-xs);letter-spacing:.12em;text-transform:uppercase;color:var(--brand);padding:var(--sp-4) var(--sp-5) 0;border-top:1px dashed var(--border2);margin-top:4px;font-weight:800}
 .pricing{padding:6px var(--sp-5) 4px}
 .prow{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-3);padding:8px 0;border-bottom:1px dotted var(--border)}
 .prow:last-child{border-bottom:0}
@@ -465,7 +475,7 @@ input[type=checkbox]{
 .atable tr.sec{background:none;margin:var(--sp-4) var(--sp-1) var(--sp-2)}
 .atable tr.sec td{
   display:block;padding:0;background:none;font-weight:800;font-size:var(--fs-xs);
-  letter-spacing:.12em;text-transform:uppercase;color:var(--accent);
+  letter-spacing:.12em;text-transform:uppercase;color:var(--brand);
 }
 
 /* item cards */
@@ -510,7 +520,7 @@ input[type=checkbox]{
   .atable tr.sec{margin:0}
   .atable tr.sec td{
     display:table-cell;background:var(--surface2);font-weight:800;font-size:var(--fs-xs);
-    letter-spacing:.1em;text-transform:uppercase;color:var(--accent);padding:10px 12px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:10px 12px;
   }
   .atable tr.muted td{color:var(--muted2)}
   .atable:not(.invtable) tbody tr:not(.sec) td:nth-child(6){position:static;top:auto;right:auto;padding:12px}
@@ -752,7 +762,7 @@ input[type=checkbox]{
   .wrap{padding:0 var(--sp-3)}
   header .wrap{padding:10px var(--sp-3)}
   header h1{font-size:19px}
-  .brand-logo img{height:34px}
+  .brand-logo svg,.brand-logo img{height:34px;width:34px}
   .brand-text b{font-size:15px}
   .pad{padding:var(--sp-4)}
   .panel{margin-top:var(--sp-4)}
@@ -818,3 +828,65 @@ input[type=checkbox]{
   .mbadge{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;vertical-align:middle}
   .mbadge.ok{background:rgba(18,138,43,.14);color:var(--good)}
   .mbadge.warn{background:rgba(184,120,20,.16);color:var(--warn)}
+
+
+/* ----------------------------------------------------------------------
+   23. EMPTY STATE — the plate waiting for its first ingredient
+   (pure CSS: app.js still renders <div class="empty">…; we add the
+   illustration above the text with a themed data-URI, no JS changes)
+   ---------------------------------------------------------------------- */
+#lines .empty::before{
+  content:"";display:block;width:156px;height:112px;margin:4px auto 14px;
+  background:var(--empty-illust) center/contain no-repeat;
+}
+@media print{#lines .empty::before{display:none}}
+
+/* ----------------------------------------------------------------------
+   24. SPLASH — shown instantly, hidden by the inline loader script
+   ---------------------------------------------------------------------- */
+#splash{
+  position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:24px;background:#3E2C26;
+  transition:opacity .35s var(--ease);
+}
+#splash.hide{opacity:0;pointer-events:none}
+#splash .sp-mark{width:88px;height:88px}
+#splash .sp-mark .arc{
+  stroke-dasharray:36.4;stroke-dashoffset:36.4;
+  animation:ez-draw 1.1s var(--ease) .2s forwards;
+}
+#splash .sp-word{width:150px}
+#splash .sp-word svg{width:100%;height:auto;display:block}
+#splash .sp-tag{
+  margin:0;font-family:var(--ui);font-size:12px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:rgba(243,237,229,.55);
+}
+@keyframes ez-draw{to{stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){#splash .sp-mark .arc{animation:none;stroke-dashoffset:0}}
+
+/* ----------------------------------------------------------------------
+   25. EZPLATE DESIGN-SYSTEM ALIASES
+   New component classes for future markup; existing app selectors
+   (.btn.primary, .navbtn, .modal…) are bridged to the same styles above.
+   ---------------------------------------------------------------------- */
+.btn-primary{background:var(--accent);color:var(--on-accent);border:1.5px solid var(--accent);
+  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
+.btn-primary:hover{background:var(--accent-press);border-color:var(--accent-press)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1.5px solid var(--border2);
+  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
+.btn-secondary:hover{background:var(--hover)}
+.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid transparent;
+  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
+.btn-ghost:hover{background:var(--hover);color:var(--text)}
+.btn-danger{background:transparent;color:var(--bad);border:1.5px solid var(--bad);
+  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
+.btn-danger:hover{background:var(--bad);color:#fff}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:var(--radius-pill);
+  font-size:var(--fs-xs);font-weight:600;background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.badge-success{background:var(--good-bg);color:var(--good);border-color:transparent}
+.badge-warning{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.badge-danger{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.badge-accent{background:var(--accent-weak);color:var(--accent);border-color:transparent}
+.toast-success{background:var(--good);color:#fff}
+.toast-error{background:var(--bad);color:#fff}
+.toast-warning{background:var(--warn);color:#fff}
