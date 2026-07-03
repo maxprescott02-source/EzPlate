@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F6F3EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161213" media="(prefers-color-scheme: dark)">
+<script>(function(){try{var t=localStorage.getItem('cafeCost_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<title>Café Costing</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CaféCost">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand">
+    <span class="brand-logo"><img src="icons/logo.jpg" alt="Scoopy's Family Cafe" onerror="if(!this.dataset.tried){this.dataset.tried=1;console.error('[logo] failed to load, retrying icons/logo.png — attempted:',this.getAttribute('src'));this.src='icons/logo.png';}else{console.error('[logo] logo did not load. Expected file at icons/logo.jpg (or icons/logo.png) — attempted:',this.getAttribute('src'));}"></span>
+    <span class="brand-text"><b>Plate Costing</b><small>Ingredient &amp; menu pricing</small></span>
+  </div>
+  <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle light / dark">
+    <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+    <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  </button>
+</div></header>
+<div id="syncBanner" class="sync-banner" hidden></div>
+
+<div class="wrap">
+  <div id="tab-builder">
+  <div class="panel search-card">
+    <h2>Add ingredient</h2>
+    <div class="pad">
+      <label class="f" for="q">Search by name or category</label>
+      <div class="search-wrap">
+        <input id="q" type="text" autocomplete="off" placeholder="Try: patty, chips, cheese, barra…" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
+        <div id="drop" class="drop" role="listbox"></div>
+      </div>
+      <p class="hint">Type to filter. Click a result to add it. Liquids are priced per ml, eggs and the like per unit.</p>
+      <div class="db-tools">
+        <button class="btn primary newbtn" id="newBtn" type="button">+ Add new ingredient</button>
+        <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
+      </div>
+      <p class="hint" id="lastImport" style="margin:8px 2px 0">No invoice imported yet</p>
+    </div>
+  </div>
+
+  <div class="panel" id="docketPanel">
+    <h2>The plate</h2>
+    <div class="pad" style="padding-bottom:0">
+      <label class="f" for="plateName">Plate name</label>
+      <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
+      <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+      <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
+    </div>
+    <div class="docket-head" style="margin-top:14px">
+      <span id="dHead">SCOOPY'S KITCHEN — DOCKET</span><span id="dCount">0 items</span>
+    </div>
+    <div id="lines"></div>
+    <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
+    <div class="flag" id="flag" style="display:none"></div>
+    <select id="menuLink" style="display:none" aria-hidden="true"></select>
+    <div class="actions">
+      <button class="btn primary btn-stack" id="addMenuBtn" type="button"><span class="bt-title" id="addMenuTitle">Publish to Menu</span><span class="bt-sub" id="addMenuSub">Makes this a live menu item with pricing</span></button>
+      <button class="btn btn-stack" id="saveBtn" type="button"><span class="bt-title">Save to Library</span><span class="bt-sub">Keeps the ingredient list for later — doesn't change the menu</span></button>
+      <button class="btn" id="printBtn" type="button">Print docket</button>
+      <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
+    </div>
+  </div>
+
+  <p class="hint" style="margin:14px 2px 0">Tap any price (e.g. $/kg) on a plate row to update it. The new price applies everywhere that ingredient is used, and saves automatically.</p>
+  </div><!-- /tab-builder -->
+
+  <div id="tab-analysis" style="display:none">
+    <div class="panel">
+      <h2>Menu analysis</h2>
+      <div class="an-controls">
+        <div class="cogs-set">
+          <label for="cogsTarget">Target food cost (COGS %)</label>
+          <div class="cogs-in"><input id="cogsTarget" type="number" min="1" max="99" step="1" value="40" inputmode="numeric"><span class="pct">%</span></div>
+          <p class="cogs-help">This is what percentage of the sell price goes to ingredients. Lower = higher margin.</p>
+        </div>
+        <div class="menu-search">
+          <input id="menuSearch" type="search" placeholder="Search menu items or category…" autocomplete="off">
+          <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear" style="display:none">&times;</button>
+        </div>
+      </div>
+      <div class="akey">
+        <span><span class="dot green"></span>at or above suggested</span>
+        <span><span class="dot amber"></span>up to 15% under</span>
+        <span><span class="dot red"></span>more than 15% under</span>
+      </div>
+      <p class="hint" style="padding:6px 16px 0">Every menu item is listed below. Cost a plate in the Builder and save it against an item to fill in its costs. Tap a suggested price to see how it was worked out.</p>
+      <div class="atable-wrap">
+        <table class="atable">
+          <thead><tr><th>Plate / menu item</th><th>Ingredient cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Current menu price</th><th>Variance</th><th>Light</th></tr></thead>
+          <tbody id="aBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /tab-analysis -->
+</div>
+
+<!-- Add-ingredient modal -->
+<div class="modal-overlay" id="modal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="mhead"><h3 id="mTitle">Add new ingredient</h3><button class="x" id="mClose" type="button" aria-label="Close">×</button></div>
+    <div class="mbody">
+      <div class="ferr" id="ferr"></div>
+      <div class="grid">
+        <div class="field full"><label for="f_desc">Product name *</label><input id="f_desc" type="text" placeholder="e.g. Cheese Tasty Block"></div>
+        <div class="field"><label for="f_brand">Brand / supplier</label><input id="f_brand" type="text"></div>
+        <div class="field"><label for="f_category">Category *</label><input id="f_category" list="catlist" type="text"></div>
+        <div class="field"><label for="f_sub">Sub-category</label><input id="f_sub" type="text"></div>
+        <div class="field"><label for="f_type">Item type</label><input id="f_type" list="typelist" type="text" placeholder="e.g. cheese"></div>
+        <div class="field full"><label for="f_alias">Search aliases (comma-separated)</label><input id="f_alias" type="text" placeholder="cheddar, tasty"></div>
+        <div class="field"><label for="f_base">Priced by *</label><select id="f_base"><option value="g">Weight (per gram)</option><option value="ml">Volume (per ml)</option><option value="ea">Count (per unit)</option></select></div>
+        <div class="field"><label id="lab_cpbu" for="f_cpbu">Cost per gram ($) *</label><input id="f_cpbu" type="number" min="0" step="0.0001" placeholder="e.g. 0.0125"></div>
+        <div class="field"><label for="f_pack">Pack size</label><input id="f_pack" type="text" placeholder="e.g. 6 X 2KG"></div>
+        <div class="field"><label for="f_sold">Sold by</label><input id="f_sold" type="text" placeholder="e.g. carton"></div>
+        <div class="field"><label for="f_price">Pack price ex-GST ($)</label><input id="f_price" type="number" min="0" step="0.01"></div>
+        <div class="field"><label for="f_basis">Cost basis</label><input id="f_basis" type="text" readonly value="$/g"></div>
+        <div class="field full"><label class="chk"><input id="f_food" type="checkbox" checked> Food item (appears in ingredient search)</label></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn primary" id="mSave" type="button">Add ingredient</button></div>
+  </div>
+</div>
+<datalist id="catlist"></datalist><datalist id="typelist"></datalist>
+<div class="toast" id="toast" role="status"></div>
+
+
+<!-- Load plate modal -->
+<!-- Add plate to menu modal -->
+<div class="modal-overlay" id="menuModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Add plate to menu">
+    <div class="mhead"><h3 id="menuModalTitle">Publish to menu</h3><button class="x" id="menuClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="ferr" id="mi_err" style="display:none"></div>
+      <div class="grid">
+        <div class="field full"><label for="mi_name">Menu item name *</label><input id="mi_name" type="text"></div>
+        <div class="field full"><label for="mi_cat">Menu category</label>
+          <div class="cat-wrap">
+            <input id="mi_cat" type="text" autocomplete="off" placeholder="Type to search categories…" role="combobox" aria-expanded="false" aria-controls="mi_catDrop">
+            <div id="mi_catDrop" class="cat-drop" style="display:none"></div>
+          </div>
+          <div id="mi_catNew" class="cat-new" style="display:none"></div>
+        </div>
+        <div class="field"><label for="mi_price">Current sell price ($) *</label><input id="mi_price" type="number" min="0" step="0.10"></div>
+        <div class="field full"><label for="mi_notes">Notes</label><input id="mi_notes" type="text" placeholder="optional"></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn ghost" id="menuCancel" type="button">Cancel</button><button class="btn primary" id="menuSave" type="button">Publish</button></div>
+  </div>
+</div>
+
+
+<!-- Import invoice modal -->
+<div class="modal-overlay" id="invModal" aria-hidden="true">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Import invoice">
+    <div class="mhead"><h3>Import invoice &mdash; price update</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="ferr" id="invFileErr" style="display:none"></div>
+      <div class="inv-upload">
+        <input type="file" id="invFile" accept="application/pdf,.pdf,text/csv,.csv,text/plain" style="display:none">
+        <button class="btn" id="invFileBtn" type="button">Upload PDF or CSV</button>
+        <span class="hint" id="invFileName"></span>
+      </div>
+      <p class="hint" style="margin:12px 0 6px">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
+      <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
+      <div style="margin-top:10px"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
+      <div id="invReview" style="display:none;margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog (two-tap) -->
+<div class="modal-overlay" id="confirmModal" aria-hidden="true">
+  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="mhead"><h3 id="confirmTitle">Confirm</h3><button class="x" id="confirmClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody"><p id="confirmMsg" class="confirm-msg"></p></div>
+    <div class="mfoot"><button class="btn ghost" id="confirmCancel" type="button">Cancel</button><button class="btn primary" id="confirmOk" type="button">Confirm</button></div>
+  </div>
+</div>
+
+<!-- Edit menu item modal -->
+<div class="modal-overlay" id="editModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <div class="mhead"><h3 id="editTitle">Edit menu item</h3><button class="x" id="editClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="ferr" id="ed_err" style="display:none"></div>
+      <div class="grid">
+        <div class="field full"><label for="ed_name">Menu item name *</label><input id="ed_name" type="text"></div>
+        <div class="field full" id="ed_catField"><label for="ed_cat">Menu category</label>
+          <div class="cat-wrap">
+            <input id="ed_cat" type="text" autocomplete="off" placeholder="Type to search categories…" role="combobox" aria-expanded="false" aria-controls="ed_catDrop">
+            <div id="ed_catDrop" class="cat-drop" style="display:none"></div>
+          </div>
+          <div id="ed_catNew" class="cat-new" style="display:none"></div>
+        </div>
+        <div class="field" id="ed_priceField"><label for="ed_price">Current sell price ($) *</label><input id="ed_price" type="number" min="0" step="0.10"></div>
+      </div>
+      <button class="btn" id="ed_openBuilder" type="button" style="margin-top:12px">Open in Plate Builder</button>
+      <div id="ed_plateActions" style="display:none;margin-top:12px">
+        <button class="btn" id="ed_restore" type="button">Restore to Menu</button>
+        <a class="del-link" id="ed_permDelete" role="button" tabindex="0" style="margin-left:12px">Permanently delete</a>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn ghost" id="editCancel" type="button">Cancel</button><button class="btn primary" id="editSave" type="button">Save changes</button></div>
+    <div class="edit-delete-row" id="ed_deleteRow"><a class="del-link" id="ed_delete" role="button" tabindex="0">Delete item</a></div>
+  </div>
+</div>
+
+<!-- Delete choice modal -->
+<div class="modal-overlay" id="delChoiceModal" aria-hidden="true">
+  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delChoiceTitle">
+    <div class="mhead"><h3 id="delChoiceTitle">Delete menu item</h3><button class="x" id="delChoiceClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody"><p id="delChoiceMsg" class="confirm-msg"></p></div>
+    <div class="mfoot del-choice-foot">
+      <button class="btn ghost" id="delChoiceCancel" type="button">Cancel</button>
+      <button class="btn" id="delChoiceMenuOnly" type="button">Delete from menu only</button>
+      <button class="btn primary" id="delChoiceAll" type="button">Delete everything</button>
+    </div>
+  </div>
+</div>
+
+<!-- Install banner -->
+<div id="installBanner" class="install-banner" style="display:none" role="dialog" aria-label="Install app">
+  <div class="ib-text">
+    <strong>Install Café Costing</strong>
+    <span>Add it to your home screen for quick, offline access.</span>
+    <span id="iosHint" class="ios-hint" style="display:none">On iPhone: tap the Share button, then &ldquo;Add to Home Screen&rdquo;.</span>
+  </div>
+  <button id="installBtn" class="ib-install" type="button">Install</button>
+  <button id="installClose" class="ib-x" type="button" aria-label="Dismiss">&times;</button>
+</div>
+
+<!-- Bottom navigation -->
+<nav class="bottomnav" aria-label="Main sections">
+  <button class="navbtn active" data-tab="builder" type="button" aria-label="Plate builder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg><span class="nl">Builder</span></button>
+  <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
+</nav>
+
+<script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/app.js"></script>
+<script>
+(function(){
+  var root=document.documentElement, KEY='cafeCost_theme';
+  var btn=document.getElementById('themeToggle'); if(!btn) return;
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme');
+    var sysDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;
+    var eff=cur||(sysDark?'dark':'light');
+    var next=eff==='dark'?'light':'dark';
+    if(next==='dark'||next==='light') root.setAttribute('data-theme',next);
+    try{localStorage.setItem(KEY,next);}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
