@@ -960,3 +960,7 @@ input[type=checkbox]{
 .hl-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent)}
 .hl-full{list-style:decimal;margin:0;padding:0 0 0 22px;display:flex;flex-direction:column;gap:8px}
 @media(min-width:560px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
+
+  /* invoice review: streamlined no-match "Add as New Item" button */
+  .ni-add-btn{width:100%;font-size:13px;padding:8px 10px;border-style:dashed}
+  .ni-add-btn.open{border-style:solid;background:var(--surface2,rgba(0,0,0,.04));font-weight:700}
