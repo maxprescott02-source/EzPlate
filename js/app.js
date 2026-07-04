@@ -509,22 +509,29 @@ function saveCogsModal(){ var i=document.getElementById('cogsModalInput'); var v
 /* ---------- supplier extraction from invoice header (Feature 1) ---------- */
 var invSupplier='';
 function invSupplierDetect(text){
-  var lines=(text||'').split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean).slice(0,15);
+  var lines=(text||'').split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean).slice(0,20);
   function clean(s){ return s.replace(/\s+/g,' ').replace(/\b(pty\.?\s*ltd\.?|p\/l|ltd\.?)\b\.?$/i,'').replace(/[|,;].*$/,'').trim(); }
+  // 1) explicit "Supplier: X" style anywhere
   for(var i=0;i<lines.length;i++){
     var m=lines[i].match(/^(?:supplier|vendor|from|sold by|distributed by)\s*[:\-]\s*(.+)$/i);
-    if(m && m[1].trim().length>=2) return clean(m[1]);
+    if(m && m[1].trim().length>=2){ invDbg('[supplier] explicit label:', m[1]); return clean(m[1]); }
   }
+  // Header = the block before the first "Invoice"/"Tax Invoice"/"Statement" heading (the letterhead area).
+  var stop=lines.length;
+  for(var s=0;s<lines.length;s++){ if(/\b(?:tax\s+)?invoice\b|\bstatement\b/i.test(lines[s])){ stop=s; break; } }
+  var header=lines.slice(0, stop>0?stop:Math.min(lines.length,8));
+  // 2) a known supplier/brand appearing in the header
   var known=Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).concat(PRODUCTS.map(function(p){return p.brand;})).filter(Boolean)));
-  var head=lines.join('\n').toLowerCase(), best=null;
+  var head=header.join('\n').toLowerCase(), best=null;
   known.forEach(function(k){ if(k && k.length>=3 && head.indexOf(k.toLowerCase())>=0){ if(!best||k.length>best.length) best=k; } });
-  if(best) return best;
-  for(var j=0;j<lines.length;j++){
-    var L=lines[j];
-    if(/\d{2}[\/\-.]\d{2}|\babn\b|\bacn\b|invoice|tax\b|statement|street|road|\bst\b|\brd\b|p\.?\s*o\.?\s*box|phone|ph:|email|www\.|@|\$/i.test(L)) continue;
-    if(/[A-Za-z]{3,}/.test(L) && L.length<=42) return clean(L);
+  if(best){ invDbg('[supplier] known match in header:', best); return best; }
+  // 3) first business-name-looking line in the header (skip ABN/address/phone/date/number lines)
+  for(var j=0;j<header.length;j++){
+    var L=header[j];
+    if(/\d{2}[\/\-.]\d{2}|\babn\b|\bacn\b|statement|street|\brd\b|\bst\b|road|p\.?\s*o\.?\s*box|phone|ph:|fax|email|www\.|@|\$|\d{3,}/i.test(L)) continue;
+    if(/[A-Za-z]{3,}/.test(L) && L.length<=42){ invDbg('[supplier] header business name:', L); return clean(L); }
   }
-  return '';
+  invDbg('[supplier] could not identify \u2014 left blank'); return '';   // no guess
 }
 
 /* ============================================================
@@ -1127,18 +1134,27 @@ function matchScore(invName, p){                        // word-level match on t
   return Math.min(1, score);
 }
 var invGst={mode:'unknown', note:''};
+function invDbg(){ if(window.EZ_INV_DEBUG && window.console) try{console.log.apply(console, arguments);}catch(e){} }
 function invGstDetect(text){
   var t=(text||'').toLowerCase();
   if(/gst\s*incl|incl[a-z]*\s*gst|inc\.?\s*gst|includes?\s+gst|inclusive of gst/.test(t)) return {mode:'inc', note:'GST-inclusive prices detected \u2014 converted to ex-GST (\u00f71.10) for storage.'};
   if(/gst\s*excl|excl[a-z]*\s*gst|ex\.?\s*gst|plus\s+gst|excludes?\s+gst|exclusive of gst/.test(t)) return {mode:'ex', note:'GST-exclusive prices detected.'};
   return {mode:'unknown', note:'GST status unclear \u2014 prices assumed GST-exclusive (the app stores ex-GST costs). Adjust manually if your invoice was GST-inclusive.'};
 }
-/* ---- BUG2: drop invoice totals/footer lines ---- */
-var INV_EXCLUDE=/\b(total|totals|subtotal|sub-total|balance|owing|gst|tax|invoice|abn|acct|account|payment|paid|due|remittance|freight|delivery|surcharge|discount|rounding|eftpos|bsb)\b/i;
-function invLineClass(name){
-  if(!INV_EXCLUDE.test(name||'')) return 'ok';
-  var content=coreTokens(name,null).filter(function(t){ return !INV_EXCLUDE.test(t); });
-  return content.length>=1 ? 'uncertain' : 'exclude';      // has a real product word too -> keep but pre-uncheck
+/* ---- drop invoice totals / footer / summary lines ---- */
+var INV_EXCLUDE=/\b(?:sub-?totals?|totals?|gst|balance|owing|due|account|acct|invoice|abn|acn|payments?|paid|remittances?|freight|delivery|surcharges?|discounts?|rounding|amounts?|eftpos|eft|tax|bsb|statements?|credit|charges?)\b/i;
+/* A real product line has a quantity/unit/weight or a "N x N" pack pattern. */
+function hasProductStructure(line){
+  if(explicitUnitPrice(line)) return true;
+  if(packWeight(line)) return true;
+  if(packCount(line)) return true;
+  if(/\d+(?:\.\d+)?\s*(?:kg|kgs|g|gr|gram|grams|ml|l|lt|ltr|litre|ea|each|unit|units|doz|dozen|pk|pkt|pack|packs|ctn|carton|case|box|sleeve|tray|bag)\b/i.test(line)) return true;
+  if(/\d+\s*(?:x|\u00d7|\*)\s*\d/i.test(line)) return true;      // "6 x 2.5", "6 x 6 x ..."
+  return false;
+}
+function invLineClass(name, fullLine){
+  if(!INV_EXCLUDE.test(name||'')) return 'ok';                    // no summary keyword -> normal item
+  return hasProductStructure(fullLine||name) ? 'uncertain' : 'exclude';  // keyword + no product shape -> drop
 }
 /* ---- candidate matching: token overlap, top 3 ---- */
 function rankCandidates(invName){
@@ -1201,16 +1217,21 @@ function explicitUnitPrice(line){                                  // "$6.20/kg"
 }
 /* nested pack weight: "6 x (22 x 120g)" -> total kg/L. Multiplies every "N x"/"N of" before the final weight/volume unit. */
 function packWeight(line){
+  // Find the LAST weight/volume unit + its number = the per-unit weight (e.g. "2.5kg").
   var re=/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gr|gram|grams|l|lt|ltr|litre|liter|ml)\b/gi, m, last=null;
   while((m=re.exec(line))!==null){ last=m; }
-  if(!last) return null;
-  var u=unitCat(last[2]); if(!u||u.cat==='ea') return null;
-  var unitNum=parseFloat(last[1]);
-  var prefix=line.slice(0,last.index);
-  var mult=1, mm, mr=/(\d+(?:\.\d+)?)\s*[a-z]*\s*(?:x|\u00d7|\*|of)\s*/gi;
-  while((mm=mr.exec(prefix))!==null){ var v=parseFloat(mm[1]); if(v>0) mult*=v; }
-  var qtyInCat=mult*unitNum*u.f;
-  return {qtyInCat:qtyInCat, cat:u.cat};
+  if(!last){ invDbg('[packWeight] no weight/volume unit in:', line); return null; }
+  var u=unitCat(last[2]); if(!u||u.cat==='ea'){ return null; }
+  var unitNum=parseFloat(last[1]);                                   // e.g. 2.5
+  var prefix=line.slice(0,last.index);                              // everything before "2.5kg"
+  // Every multiplier before it: a number followed by x / * / of / per / comma / a pack-noun.
+  // Handles "6 x 6 x", "6 CTN x 6 x", "6 cartons, 6 per carton,".
+  var mult=1, mm, factors=[],
+      mr=/(\d+(?:\.\d+)?)\s*(?:x|\u00d7|\*|of\b|per\b|,|ctns?\b|cartons?\b|cases?\b|boxe?s?\b|packe?t?s?\b|sleeves?\b|trays?\b|bags?\b)/gi;
+  while((mm=mr.exec(prefix))!==null){ var v=parseFloat(mm[1]); if(v>0){ mult*=v; factors.push(v); } }
+  var qtyInCat=mult*unitNum*u.f;                                    // total weight in kg (or L)
+  invDbg('[packWeight] structure:', {line:line, orderedX_packQty:factors, unitWeight:unitNum+last[2], multiplied:factors.concat([unitNum]).join(' x ')+' = '+(mult*unitNum)+' '+last[2], totalWeight:qtyInCat+(u.cat==='l'?' L':' kg')});
+  return {qtyInCat:qtyInCat, cat:u.cat, factors:factors, unitNum:unitNum};
 }
 /* per-unit counts: dozen / each / portions, with optional "N x" multiplier chain */
 function packCount(line){
@@ -1231,13 +1252,13 @@ function parsePdfLine(line){
   var monies=moneyMatches(line); if(!monies.length) return null;
   var name=line.slice(0, monies[0].idx).replace(/[\s,;:@\-]+$/,'').trim();
   if(name.length<2) name=line.replace(/[\s,;:@\-]+$/,'').trim();   // qty-first layouts: keep the whole line as the name
-  var cls=invLineClass(name); if(cls==='exclude') return null;     // BUG2: drop totals/GST/ABN footer lines
+  var cls=invLineClass(name, line); if(cls==='exclude'){ invDbg('[parsePdfLine] EXCLUDED (summary/footer line):', line); return null; }
   var unc=(cls==='uncertain');
   var ex=explicitUnitPrice(line);                                 // 1) explicit unit price wins
-  if(ex) return {name:name, unitPrice:ex.unitPrice, unit:ex.unit, needManual:false, uncertain:unc, raw:line};
+  if(ex){ invDbg('[parsePdfLine] explicit unit price:', {name:name, unitPrice:ex.unitPrice, unit:ex.unit}); return {name:name, unitPrice:ex.unitPrice, unit:ex.unit, needManual:false, uncertain:unc, raw:line}; }
   var total=monies[monies.length-1].val;                          // last money = line total
   var w=packWeight(line);                                         // 2) derive from total weight/volume
-  if(w && w.qtyInCat>0) return {name:name, unitPrice:total/w.qtyInCat, unit:w.cat, needManual:false, uncertain:unc, raw:line};
+  if(w && w.qtyInCat>0){ var upw=total/w.qtyInCat; invDbg('[parsePdfLine] WEIGHT calc:', {name:name, lineTotal:total, totalWeight:w.qtyInCat+(w.cat==='l'?' L':' kg'), pricePerUnit:'$'+upw.toFixed(4)+'/'+(w.cat==='l'?'L':'kg')}); return {name:name, unitPrice:upw, unit:w.cat, needManual:false, uncertain:unc, raw:line}; }
   var c=packCount(line);                                          //    or per-unit count
   if(c && c>0) return {name:name, unitPrice:total/c, unit:'ea', needManual:false, uncertain:unc, raw:line};
   return {name:name, unitPrice:null, unit:'auto', needManual:true, uncertain:unc, raw:line};   // 3) ambiguous
@@ -1259,7 +1280,7 @@ function parseInvoiceCSV(text){
     var name=parts.slice(0,-1).join(',').trim();
     if(i===0 && /name|product|price|cost|item/i.test(line) && isNaN(price)) return;
     if(!name)return;
-    var cls=invLineClass(name); if(cls==='exclude') return;
+    var cls=invLineClass(name, line); if(cls==='exclude') return;
     out.push({name:name, unitPrice:isNaN(price)?null:price, unit:'auto', needManual:isNaN(price), uncertain:(cls==='uncertain'), raw:line});
   });
   return out;
@@ -1392,11 +1413,14 @@ function renderInvReview(){
     if(r.needManual) priceCell+='<div class="flag-review">unable to determine \u2014 enter manually</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>'));
     var badge=r.addNew?'':(r.tier==='hi'?'<span class="mbadge ok">confident</span>':(r.tier==='mid'?'<span class="mbadge warn">check</span>':''));
-    var checked = r.uncertain ? false : ( r.addNew ? true : (r.bestId && !r.needManual && r.tier==='hi') );
+    var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
+    var matchCell = r.addNew
+      ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
+      : '<select class="invSel">'+invMatchOptions(r)+'</select>'+badge;
     html+='<tr class="inv-data'+rc+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
       '<td class="num">'+priceCell+'</td>'+
-      '<td><select class="invSel">'+invMatchOptions(r)+'</select>'+badge+'</td>'+
+      '<td>'+matchCell+'</td>'+
       '<td class="num invOld">'+(r.bestId?dispPrice(byId[r.bestId]):'\u2014')+'</td>'+
       '<td class="num"><span class="conf '+r.tier+'">'+(r.addNew?'\u2014':conf+'%')+'</span></td>'+
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
@@ -1405,8 +1429,13 @@ function renderInvReview(){
   html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Nothing is saved until you press Confirm All. Only ticked rows are written.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
+  box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
+    var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr');
+    expandNewItem(i);
+    var ap=tr?tr.querySelector('.invAppr'):null; if(ap) ap.checked=true;
+    b.classList.add('open'); b.textContent='Editing new item \u2193';
+  }; });
   document.getElementById('invApply').addEventListener('click',applyInvoice);
-  invRows.forEach(function(r,i){ if(r.addNew) expandNewItem(i); });
   updateLastImport();
 }
 function invSelChanged(tr){
