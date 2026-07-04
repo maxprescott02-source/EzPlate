@@ -35,6 +35,7 @@ function ingredientToRow(p){ return {
   is_food:(p.is_food!==false), pack_size_raw:p.pack_size_raw||null, sold_by:p.sold_by||null,
   current_price_exgst:(p.current_price_exgst==null?null:p.current_price_exgst),
   price_as_of:(p.price_as_of||null), search_aliases:(p.search_aliases||[]),
+  supplier:p.supplier||null,
   is_custom:!BASE_IDS.has(p.id) }; }
 function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom}; }
 function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[]}; }
@@ -77,6 +78,7 @@ async function bootstrapSync(){
     deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
+    try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:r.recorded_at, v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
@@ -205,6 +207,7 @@ function commitPrice(uid,raw){
   if(!isNaN(v)&&v>=0){
     const base=(p.base_unit==='g'||p.base_unit==='ml')?v/1000:v;
     setOverride(p.id,{cost_per_base_unit:base});
+    logHistory();
   }
   renderPlate();
 }
@@ -447,9 +450,10 @@ document.addEventListener('click',()=>document.querySelectorAll('.tip.open').for
 /* tabs */
 function showTab(t){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-  document.getElementById('tab-builder').style.display=t==='builder'?'':'none';
-  document.getElementById('tab-analysis').style.display=t==='analysis'?'':'none';
+  ['builder','ingredients','analysis','dashboard'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   if(t==='analysis')renderAnalysis();
+  if(t==='ingredients')renderIngredients();
+  if(t==='dashboard')renderDashboard();
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 (function(){
@@ -462,6 +466,255 @@ document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>s
 buildMenuOptions(); bindTips();
 
 renderPlate();
+
+/* ============================================================
+   EzPlate — Ingredients page, Dashboard, supplier extraction
+   ============================================================ */
+
+/* ---------- price history (Supabase table: price_history) ---------- */
+var HISTKEY='cafeDB_priceHistory';
+function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HISTKEY))||[]; }catch(e){ return []; } }
+function saveHistory(){ try{ localStorage.setItem(HISTKEY, JSON.stringify(priceHistory)); }catch(e){} }
+var priceHistory = loadHistory();
+function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v}); }, 'price history'); }
+function computeAvgFoodCost(){
+  var vals=[];
+  MENU.forEach(function(m){
+    if(!(m.price>0)) return;
+    var sp=savedPlates.filter(function(s){return s.menuId===m.id;})[0];
+    if(!sp) return;
+    var c=costFromLines(sp.lines);
+    if(c>0) vals.push(c/m.price);
+  });
+  if(!vals.length) return null;
+  return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
+}
+function logHistory(){
+  var v=computeAvgFoodCost(); if(v==null) return;
+  v=Math.round(v*10)/10;
+  var iso=new Date().toISOString();
+  var last=priceHistory[priceHistory.length-1];
+  if(last && Math.abs(last.v-v)<0.05 && (Date.now()-new Date(last.t).getTime())<3600000) return;  // skip near-duplicate within the hour
+  priceHistory.push({t:iso, v:v});
+  if(priceHistory.length>500) priceHistory=priceHistory.slice(-500);
+  saveHistory(); dbPushHistory(iso, v);
+  var dash=document.getElementById('tab-dashboard');
+  if(dash && dash.style.display!=='none') renderDashboard();
+}
+
+/* ---------- shared COGS editor (used by Menu Analysis + Dashboard) ---------- */
+function openCogsModal(){ var i=document.getElementById('cogsModalInput'); if(i)i.value=cogsPct; show('cogsModal'); if(i){i.focus();i.select();} }
+function saveCogsModal(){ var i=document.getElementById('cogsModalInput'); var v=parseFloat(i?i.value:''); if(v>=1&&v<=99){ setCogs(v,true); var ci=document.getElementById('cogsTarget'); if(ci)ci.value=cogsPct; renderDashboard(); hide('cogsModal'); } }
+
+/* ---------- supplier extraction from invoice header (Feature 1) ---------- */
+var invSupplier='';
+function invSupplierDetect(text){
+  var lines=(text||'').split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean).slice(0,15);
+  function clean(s){ return s.replace(/\s+/g,' ').replace(/\b(pty\.?\s*ltd\.?|p\/l|ltd\.?)\b\.?$/i,'').replace(/[|,;].*$/,'').trim(); }
+  for(var i=0;i<lines.length;i++){
+    var m=lines[i].match(/^(?:supplier|vendor|from|sold by|distributed by)\s*[:\-]\s*(.+)$/i);
+    if(m && m[1].trim().length>=2) return clean(m[1]);
+  }
+  var known=Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).concat(PRODUCTS.map(function(p){return p.brand;})).filter(Boolean)));
+  var head=lines.join('\n').toLowerCase(), best=null;
+  known.forEach(function(k){ if(k && k.length>=3 && head.indexOf(k.toLowerCase())>=0){ if(!best||k.length>best.length) best=k; } });
+  if(best) return best;
+  for(var j=0;j<lines.length;j++){
+    var L=lines[j];
+    if(/\d{2}[\/\-.]\d{2}|\babn\b|\bacn\b|invoice|tax\b|statement|street|road|\bst\b|\brd\b|p\.?\s*o\.?\s*box|phone|ph:|email|www\.|@|\$/i.test(L)) continue;
+    if(/[A-Za-z]{3,}/.test(L) && L.length<=42) return clean(L);
+  }
+  return '';
+}
+
+/* ============================================================
+   Feature 3 — Ingredients page
+   ============================================================ */
+function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
+function fillFilter(sel, list, label){
+  if(!sel) return; var cur=sel.value;
+  var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+  sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
+}
+function renderIngredients(){
+  var wrap=document.getElementById('ingList'); if(!wrap) return;
+  fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
+  fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
+  var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
+  var cat=(document.getElementById('ingCatFilter')||{}).value||'';
+  var sup=(document.getElementById('ingSupFilter')||{}).value||'';
+  var items=PRODUCTS.filter(function(p){
+    if(cat && p.category!==cat) return false;
+    if(sup && (p.supplier||'')!==sup) return false;
+    if(q){ var hay=((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+    return true;
+  }).slice().sort(function(a,b){return (a.description||'').toLowerCase().localeCompare((b.description||'').toLowerCase());});
+  var cntEl=document.getElementById('ingCount'); if(cntEl) cntEl.textContent=items.length+' ingredient'+(items.length===1?'':'s');
+  if(!items.length){ wrap.innerHTML='<div class="an-empty ing-empty">No ingredients match your filters.</div>'; return; }
+  wrap.innerHTML=items.map(function(p){
+    return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
+      +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
+      +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</div>'
+      +'<div class="ing-meta">'
+      +(p.category?'<span class="ing-tag">'+esc(p.category)+'</span>':'')
+      +(p.supplier?'<span class="ing-tag sup">'+esc(p.supplier)+'</span>':'')
+      +'</div>'
+      +'<div class="ing-price"><b>'+dispPrice(p)+'</b><span class="ing-per">'+ingUnitLabel(p)+'</span></div>'
+      +'</button>';
+  }).join('');
+  wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openIngEdit(b.getAttribute('data-id')); }; });
+}
+var ingEditId=null;
+function openIngEdit(id){
+  var p=byId[id]; if(!p) return; ingEditId=id;
+  document.getElementById('ingModalTitle').textContent='Edit ingredient';
+  document.getElementById('ig_name').value=p.description||'';
+  document.getElementById('ig_brand').value=p.brand||'';
+  document.getElementById('ig_cat').value=p.category||'';
+  document.getElementById('ig_sup').value=p.supplier||'';
+  var ut=p.base_unit==='g'?'kg':p.base_unit==='ml'?'litre':p.base_unit==='ea'?'unit':'kg';
+  document.getElementById('ig_unit').value=ut;
+  var pv=perDisplayValue(p); document.getElementById('ig_price').value=(pv==null?'':pv);
+  var e=document.getElementById('ig_err'); if(e)e.style.display='none';
+  ['ig_brand','ig_cat','ig_sup'].forEach(function(x){ var d=document.getElementById(x+'Drop'); if(d)d.style.display='none'; });
+  makeInlineCombo('ig_brand','ig_brandDrop',prodBrands);
+  makeInlineCombo('ig_cat','ig_catDrop',prodCategories);
+  makeInlineCombo('ig_sup','ig_supDrop',prodSuppliers);
+  show('ingModal'); document.getElementById('ig_name').focus();
+}
+function closeIngEdit(){ hide('ingModal'); ingEditId=null; }
+function saveIngEdit(){
+  var id=ingEditId; if(!id||!byId[id]) return;
+  var err=document.getElementById('ig_err'); function fail(m){ if(err){err.textContent=m;err.style.display='block';} }
+  var name=document.getElementById('ig_name').value.trim();
+  var price=parseFloat(document.getElementById('ig_price').value);
+  var unitType=document.getElementById('ig_unit').value;
+  if(!name) return fail('Enter a product name.');
+  if(isNaN(price)||price<0) return fail('Enter a valid price per unit.');
+  var cat=resolveCombo('ig_cat', prodCategories); if(!document.getElementById('ig_cat').value.trim()) cat={ok:true,value:''};
+  if(!cat.ok) return fail('\u201c'+cat.value+'\u201d is a new category \u2014 pick \u201cCreate new\u201d to confirm.');
+  var br=resolveCombo('ig_brand', prodBrands); if(!br.ok) return fail('\u201c'+br.value+'\u201d is a new brand \u2014 pick \u201cCreate new\u201d to confirm.');
+  var sup=resolveCombo('ig_sup', prodSuppliers); if(!sup.ok) return fail('\u201c'+sup.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d to confirm.');
+  var ub=invUnitToBase(unitType);
+  setOverride(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
+    base_unit:ub.base_unit, cost_basis:ub.cost_basis, cost_per_base_unit:price/ub.div});
+  logHistory();
+  renderIngredients(); if(typeof renderPlate==='function') renderPlate(); if(typeof renderAnalysis==='function') renderAnalysis();
+  closeIngEdit(); toast('Ingredient updated');
+}
+
+/* ============================================================
+   Feature 2 — Dashboard
+   ============================================================ */
+function monthKey(d){ d=new Date(d); return d.getFullYear()+'-'+(d.getMonth()+1); }
+function avgOf(arr){ return arr.length? arr.reduce(function(a,b){return a+b;},0)/arr.length : null; }
+function histInRange(fromTs, toTs){ return priceHistory.filter(function(h){ var t=new Date(h.t).getTime(); return t>=fromTs && t<toTs; }).map(function(h){return h.v;}); }
+function dashComparisons(){
+  var now=new Date();
+  var current=computeAvgFoodCost();
+  if(current==null && priceHistory.length) current=priceHistory[priceHistory.length-1].v;
+  var startThisMonth=new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  var startLastMonth=new Date(now.getFullYear(), now.getMonth()-1, 1).getTime();
+  var lastMonth=avgOf(histInRange(startLastMonth, startThisMonth));
+  var startYear=new Date(now.getFullYear(),0,1).getTime();
+  var ytd=avgOf(histInRange(startYear, Date.now()+1));
+  if(ytd==null) ytd=current;
+  return {current:current, lastMonth:lastMonth, ytd:ytd};
+}
+function statCard(label, current, base){
+  var cur=(current==null)?'\u2014':current.toFixed(1)+'%';
+  var sub, cls='flat', arrow='\u2192';
+  if(current==null||base==null){ sub='no comparison yet'; }
+  else { var d=current-base;                                   // food cost down = good
+    if(Math.abs(d)<0.05){ sub='same as '+label.toLowerCase(); }
+    else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts lower than '+label.toLowerCase(); }
+    else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts higher than '+label.toLowerCase(); }
+  }
+  return '<div class="stat-card"><div class="stat-h">'+esc(label)+'</div>'
+    +'<div class="stat-v">'+cur+' <span class="stat-arrow '+cls+'">'+arrow+'</span></div>'
+    +'<div class="stat-sub '+cls+'">'+esc(sub)+'</div></div>';
+}
+function trendChart(){
+  var pts=priceHistory.slice(-30);
+  var W=320,H=150,padL=30,padR=10,padT=14,padB=20;
+  if(pts.length<2){
+    return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Food cost trend"></svg>'
+      +'<p class="hint chart-hint">Not enough history yet. Each time you update prices, EzPlate logs the menu\u2019s average food cost so this line can grow.</p></div>';
+  }
+  var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
+  var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
+  if(mx-mn<4){ mn-=2; mx+=2; } mn=Math.max(0,mn-1); mx=mx+1;
+  var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
+  var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
+  var d=pts.map(function(p,i){ return (i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1); }).join(' ');
+  var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
+  var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
+  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';
+  var refY=y(cogsPct).toFixed(1);
+  var area=d+' L'+x(pts.length-1).toFixed(1)+' '+(H-padB)+' L'+x(0).toFixed(1)+' '+(H-padB)+' Z';
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Average food cost trend">'
+    +'<path d="'+area+'" fill="'+stroke+'" opacity="0.10"/>'
+    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+    +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    +'<circle cx="'+x(pts.length-1).toFixed(1)+'" cy="'+y(pts[pts.length-1].v).toFixed(1)+'" r="3.5" fill="'+stroke+'"/>'
+    +'<text x="'+padL+'" y="'+y(mx).toFixed(1)+'" class="ax">'+mx.toFixed(0)+'%</text>'
+    +'<text x="'+padL+'" y="'+(H-padB+2).toFixed(1)+'" class="ax">'+mn.toFixed(0)+'%</text>'
+    +'</svg>';
+  var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
+  return '<div class="dash-chart">'+svg
+    +'<button class="ref-pill" id="dashCogsBtn" type="button" title="Edit target">Target '+cogsPct+'% \u270e</button>'
+    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'.</p></div>';
+}
+function highlightData(kind){
+  if(kind==='foodcost'){
+    var rows=[];
+    MENU.forEach(function(m){ if(!(m.price>0))return; var sp=savedPlates.filter(function(s){return s.menuId===m.id;})[0]; if(!sp)return; var c=costFromLines(sp.lines); if(c>0) rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%'}); });
+    rows.sort(function(a,b){return b.val-a.val;}); return {title:'Highest food cost %', rows:rows};
+  }
+  if(kind==='portion'){
+    var pr=[];
+    savedPlates.forEach(function(sp){ var c=costFromLines(sp.lines); if(c>0){ var nm=sp.name; if(sp.menuId&&menuById[sp.menuId])nm=menuById[sp.menuId].name; pr.push({name:nm||'Plate', val:c, disp:fmt2(c)}); } });
+    pr.sort(function(a,b){return b.val-a.val;}); return {title:'Highest portion cost', rows:pr};
+  }
+  var st=PRODUCTS.map(function(p){ var v=perDisplayValue(p); return v==null?null:{name:p.description+(p.brand?' \u2014 '+p.brand:''), val:v, disp:dispPrice(p)}; }).filter(Boolean);
+  st.sort(function(a,b){return b.val-a.val;}); return {title:'Most expensive stock per unit', rows:st};
+}
+function highlightCard(kind, heading){
+  var d=highlightData(kind), top=d.rows.slice(0,3);
+  var body=top.length? top.map(function(r){return '<li><span class="hl-n">'+esc(r.name)+'</span><span class="hl-v">'+esc(r.disp)+'</span></li>';}).join('') : '<li class="muted">No costed items yet</li>';
+  return '<button class="hl-card" type="button" data-kind="'+kind+'"><div class="hl-head">'+esc(heading)+'</div><ul class="hl-list">'+body+'</ul>'
+    +(d.rows.length>3?'<div class="hl-more">Tap to see all '+d.rows.length+'</div>':'')+'</button>';
+}
+function openHighlight(kind){
+  var d=highlightData(kind);
+  document.getElementById('hlTitle').textContent=d.title;
+  var body=document.getElementById('hlBody');
+  body.innerHTML = d.rows.length? '<ol class="hl-full">'+d.rows.map(function(r){return '<li><span class="hl-n">'+esc(r.name)+'</span><span class="hl-v">'+esc(r.disp)+'</span></li>';}).join('')+'</ol>' : '<p class="muted" style="padding:12px">No costed items yet.</p>';
+  show('hlModal');
+}
+function renderDashboard(){
+  var root=document.getElementById('dashBody'); if(!root) return;
+  var cmp=dashComparisons();
+  var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'+trendChart()+'</div></div>';
+  html+='<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('Year to date', cmp.current, cmp.ytd)+'</div>';
+  html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
+  root.innerHTML=html;
+  var cb=document.getElementById('dashCogsBtn'); if(cb) cb.onclick=openCogsModal;
+  root.querySelectorAll('.hl-card').forEach(function(b){ b.onclick=function(){ openHighlight(b.getAttribute('data-kind')); }; });
+}
+
+/* ---------- wiring for new pages/modals ---------- */
+(function(){
+  var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
+  ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
+  var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
+  function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
+  on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit);
+  on('cogsModalSave',saveCogsModal); on('cogsModalCancel',function(){hide('cogsModal');}); on('cogsModalClose',function(){hide('cogsModal');});
+  on('hlClose',function(){hide('hlModal');}); on('hlDone',function(){hide('hlModal');});
+  on('invIntroX',function(){ try{localStorage.setItem('ezInvIntroDismissed','1');}catch(e){} var el=document.getElementById('invIntro'); if(el)el.style.display='none'; });
+  ['ingModal','cogsModal','hlModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });
+})();
 
 bootstrapSync();                                           // pull latest shared data from Supabase
 window.addEventListener('online',  function(){ bootstrapSync(); });
@@ -808,7 +1061,7 @@ function handleInvFile(file){
         if(nameEl) nameEl.textContent=file.name;
         showInvFileErr(IMG_PDF_MSG); return;
       }
-      invGst=invGstDetect(text);
+      invGst=invGstDetect(text); invSupplier=invSupplierDetect(text);
       var rows=pdfTextToRows(text), ta=document.getElementById('invCsv');
       if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 '+rows.length+' line'+(rows.length===1?'':'s')+' read, review below'; buildInvRows(rows); }
       else { ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 review the extracted text'; toast('Couldn\u2019t auto-detect priced lines \u2014 review the text below or enter manually'); }
@@ -824,7 +1077,7 @@ function handleInvFile(file){
     r.readAsText(file);
   }
 }
-function openInv(){document.getElementById('invCsv').value='';var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';updateLastImport();show('invModal');}
+function openInv(){document.getElementById('invCsv').value='';var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';invSupplier='';var _in=document.getElementById('invIntro');if(_in){var _d='';try{_d=localStorage.getItem('ezInvIntroDismissed');}catch(e){}_in.style.display=_d?'none':'';}updateLastImport();show('invModal');}
 function closeInv(){hide('invModal');}
 function inorm(s){return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
 function itoks(s){return inorm(s).split(' ').filter(Boolean);}
@@ -1013,7 +1266,7 @@ function parseInvoiceCSV(text){
 }
 function parseInvoice(){
   var txt=document.getElementById('invCsv').value;
-  invGst=invGstDetect(txt);
+  invGst=invGstDetect(txt); invSupplier=invSupplierDetect(txt);
   var raw=parseInvoiceCSV(txt);
   if(!raw.length){toast('No valid rows. Use: product name, unit price per kg/unit');return;}
   buildInvRows(raw);
@@ -1082,6 +1335,7 @@ function expandNewItem(i){
     makeInlineCombo('ni_brand'+i,'ni_brandDrop'+i,prodBrands);
     makeInlineCombo('ni_cat'+i,'ni_catDrop'+i,prodCategories);
     makeInlineCombo('ni_sup'+i,'ni_supDrop'+i,prodSuppliers);
+    if(invSupplier){ var _si=document.getElementById('ni_sup'+i); if(_si){ _si.value=invSupplier; var _st=niCombos['ni_sup'+i]; if(_st){ _st.value=invSupplier; _st.confirmed=true; _st.isNew=!prodSuppliers().some(function(x){return x.toLowerCase()===invSupplier.toLowerCase();}); } } }
   }
   nirow.style.display='';
 }
@@ -1192,7 +1446,7 @@ function applyInvoice(){
       setOverride(pid,{cost_per_base_unit:base}); n++;
     }
   });
-  if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); }
+  if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
   var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added');
   toast(parts.length?parts.join(', '):'No changes to save');
