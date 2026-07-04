@@ -53,11 +53,6 @@
         <div id="drop" class="drop" role="listbox"></div>
       </div>
       <p class="hint">Type to filter. Click a result to add it. Liquids are priced per ml, eggs and the like per unit.</p>
-      <div class="db-tools">
-        <button class="btn primary newbtn" id="newBtn" type="button">+ Add new ingredient</button>
-        <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
-      </div>
-      <p class="hint" id="lastImport" style="margin:8px 2px 0">No invoice imported yet</p>
     </div>
   </div>
 
@@ -115,6 +110,31 @@
       </div>
     </div>
   </div><!-- /tab-analysis -->
+
+  <div id="tab-ingredients" style="display:none">
+    <div class="panel">
+      <h2>Ingredients</h2>
+      <div class="ing-tools">
+        <button class="btn primary newbtn" id="newBtn" type="button">+ Add new ingredient</button>
+        <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
+      </div>
+      <p class="hint" id="lastImport" style="margin:8px 16px 0">No invoice imported yet</p>
+      <div class="ing-controls">
+        <div class="menu-search">
+          <input id="ingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
+          <button id="ingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+        </div>
+        <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier"></select>
+      </div>
+      <p class="hint ing-count" id="ingCount" style="padding:2px 16px 0"></p>
+      <div id="ingList" class="ing-list"></div>
+    </div>
+  </div><!-- /tab-ingredients -->
+
+  <div id="tab-dashboard" style="display:none">
+    <div id="dashBody"></div>
+  </div><!-- /tab-dashboard -->
 </div>
 
 <!-- Add-ingredient modal -->
@@ -176,6 +196,10 @@
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Import invoice">
     <div class="mhead"><h3>Import invoice &mdash; price update</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
+      <div class="inv-intro" id="invIntro" style="display:none">
+        <p>Upload a supplier invoice PDF and we’ll automatically match items to your database and update prices. New items not found will be flagged so you can add them. Nothing saves until you review and confirm each change.</p>
+        <button class="inv-introx" id="invIntroX" type="button" aria-label="Dismiss">&times;</button>
+      </div>
       <div class="ferr" id="invFileErr" style="display:none"></div>
       <div class="inv-upload">
         <input type="file" id="invFile" accept="application/pdf,.pdf,text/csv,.csv,text/plain" style="display:none">
@@ -240,6 +264,47 @@
   </div>
 </div>
 
+<!-- Edit ingredient modal -->
+<div class="modal-overlay" id="ingModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ingModalTitle">
+    <div class="mhead"><h3 id="ingModalTitle">Edit ingredient</h3><button class="x" id="ingClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="ferr" id="ig_err" style="display:none"></div>
+      <div class="grid">
+        <div class="field full"><label for="ig_name">Product name *</label><input id="ig_name" type="text"></div>
+        <div class="field"><label for="ig_brand">Brand</label><span class="cat-wrap"><input id="ig_brand" type="text" autocomplete="off" placeholder="search brands…"><span id="ig_brandDrop" class="cat-drop" style="display:none"></span></span></div>
+        <div class="field"><label for="ig_cat">Category</label><span class="cat-wrap"><input id="ig_cat" type="text" autocomplete="off" placeholder="search categories…"><span id="ig_catDrop" class="cat-drop" style="display:none"></span></span></div>
+        <div class="field"><label for="ig_sup">Supplier</label><span class="cat-wrap"><input id="ig_sup" type="text" autocomplete="off" placeholder="search suppliers…"><span id="ig_supDrop" class="cat-drop" style="display:none"></span></span></div>
+        <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
+        <div class="field"><label for="ig_price">Price per unit ($) *</label><input id="ig_price" type="number" min="0" step="0.0001"></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn ghost" id="ingCancel" type="button">Cancel</button><button class="btn primary" id="ingSave" type="button">Save changes</button></div>
+  </div>
+</div>
+
+<!-- COGS target modal (shared) -->
+<div class="modal-overlay" id="cogsModal" aria-hidden="true">
+  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cogsModalTitle">
+    <div class="mhead"><h3 id="cogsModalTitle">Target food cost</h3><button class="x" id="cogsModalClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <label class="f" for="cogsModalInput">Target food cost (COGS %)</label>
+      <div class="cogs-in"><input id="cogsModalInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
+      <p class="cogs-help">This is what percentage of the sell price goes to ingredients. Lower = higher margin. Shared across the app and all devices.</p>
+    </div>
+    <div class="mfoot"><button class="btn ghost" id="cogsModalCancel" type="button">Cancel</button><button class="btn primary" id="cogsModalSave" type="button">Save</button></div>
+  </div>
+</div>
+
+<!-- Highlight detail modal -->
+<div class="modal-overlay" id="hlModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="hlTitle">
+    <div class="mhead"><h3 id="hlTitle">Details</h3><button class="x" id="hlClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody" id="hlBody"></div>
+    <div class="mfoot"><button class="btn primary" id="hlDone" type="button">Done</button></div>
+  </div>
+</div>
+
 <!-- Install banner -->
 <div id="installBanner" class="install-banner" style="display:none" role="dialog" aria-label="Install app">
   <div class="ib-text">
@@ -254,7 +319,9 @@
 <!-- Bottom navigation -->
 <nav class="bottomnav" aria-label="Main sections">
   <button class="navbtn active" data-tab="builder" type="button" aria-label="Plate builder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg><span class="nl">Builder</span></button>
+  <button class="navbtn" data-tab="ingredients" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V5a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 5v3"/><path d="M3 8l9 5 9-5"/><path d="M3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8"/><line x1="12" y1="13" x2="12" y2="21"/></svg><span class="nl">Ingredients</span></button>
   <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
+  <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span></button>
 </nav>
 
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
