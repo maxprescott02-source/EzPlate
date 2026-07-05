@@ -1,5 +1,5 @@
 /* EzPlate service worker */
-const CACHE = 'ezplate-v10';
+const CACHE = 'ezplate-v11';
 const ASSETS = [
   './', './index.html', './css/style.css', './js/app.js',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png'
