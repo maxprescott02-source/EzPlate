@@ -1444,3 +1444,50 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   .invtable tbody tr.ni-row{display:block;width:100%}
   .modal-wide .atable-wrap{width:min(660px,100%)}
 }
+
+
+/* ==========================================================================
+   31. INVOICE REVIEW — CANONICAL CARD STYLES (v13)
+   renderInvReview() now emits <table class="invtable"> WITHOUT .atable, so
+   no generic table-mode rule can ever fight card mode again. This block is
+   the single self-contained definition for the review list at every width.
+   ========================================================================== */
+.invtable{display:block;width:100%;border-collapse:collapse;font-size:13px}
+.invtable thead{display:none}
+.invtable tbody{display:block;width:100%}
+.invtable tr{display:block;width:100%;margin:0}
+.invtable tbody tr:not(.sec):not(.ni-row){
+  position:relative;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-card);box-shadow:var(--shadow);
+  padding:var(--sp-4) var(--sp-4) var(--sp-3);margin:0 0 var(--sp-3);
+}
+.invtable td{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
+  border:0;padding:6px 0;min-width:0;
+}
+.invtable td::before{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted2);flex:0 0 auto;
+}
+.invtable td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px}
+.invtable tbody tr > td:first-child{
+  display:block;font-size:15px;font-weight:650;color:var(--text);
+  padding:0 0 10px;margin-bottom:4px;border-bottom:1px solid var(--border);
+  overflow-wrap:anywhere;
+}
+.invtable td:nth-child(3){display:block;padding:6px 0}
+.invtable td:nth-child(2){flex-wrap:wrap}
+.invtable td:nth-child(2) .ni-raw,
+.invtable td:nth-child(2) .flag-review{flex:1 1 100%;margin:6px 0 0}
+.invtable .ni-raw{overflow-wrap:anywhere}
+.invtable select.invSel{width:100%;max-width:100%}
+.invtable .ni-row td{display:block;padding:0;border-bottom:0}
+.invtable .ni-row td::before{content:none!important}
+
+/* the expanded add-new-item card gets its close control */
+.ni-panel{position:relative}
+.ni-close{
+  position:absolute;top:10px;right:10px;z-index:2;
+  min-height:36px;min-width:36px;font-size:20px;
+}
+.ni-head{padding-right:40px}
