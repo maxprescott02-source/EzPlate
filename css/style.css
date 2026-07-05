@@ -1356,3 +1356,91 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   #dashBody .stat-row,#dashBody .hl-row{margin-top:var(--sp-5)}
   .stat-v{font-size:24px}
 }
+
+
+/* ==========================================================================
+   30. ADD-NEW-ITEM: CARD REBUILD (v12) — matches the hand-drawn mockup:
+   slim one-line rows for new items, expanding into a proper EzPlate card
+   with paired fields; auto-filled fields labelled; Confirm All stays primary.
+   ========================================================================== */
+
+/* -- robustness: review rows always fill the wrap, at any window width -- */
+.invtable{width:100%}
+.invtable tr,.invtable tbody{width:100%}
+
+/* -- slim rows (the sketch's one-line bars): new-item lines drop the
+      meaningless Old price / Confidence rows entirely -- */
+.invtable tr.muted-row td:nth-child(4),
+.invtable tr.muted-row td:nth-child(5){display:none}
+.invtable tr.muted-row td:nth-child(6){padding-top:6px}
+
+/* -- the expand trigger reads as a live toggle -- */
+.ni-add-btn{color:var(--accent-ink);border-color:var(--accent-ink)}
+.ni-add-btn.open{
+  border-style:solid;border-color:var(--accent-ink);color:var(--accent-ink);
+  background:var(--accent-weak);font-weight:700;
+}
+
+/* -- the card itself: same language as every other EzPlate card -- */
+.ni-panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-card);box-shadow:var(--shadow);
+  padding:var(--sp-5);margin:6px 0 10px;
+}
+.ni-head{font-size:15px;font-weight:800;letter-spacing:-.01em;margin-bottom:6px}
+.ni-head::before{content:"+";display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;margin-right:8px;border-radius:50%;
+  background:var(--accent-weak);color:var(--accent-ink);font-weight:800;font-size:15px;vertical-align:-3px}
+.ni-raw{
+  background:var(--surface2);border-left:3px solid var(--border2);
+  border-radius:0 8px 8px 0;padding:7px 11px;margin:8px 0 4px;
+}
+
+/* -- fields: paired mixed-width layout from the sketch -- */
+.ni-grid{position:relative}
+.ni-grid > label{position:relative}
+/* auto-filled chip on fields the invoice populated (progressive :has();
+   browsers without it still get the solid-vs-dashed distinction) */
+.ni-grid > label:has(input:not([type=number]):not(:placeholder-shown))::after,
+.ni-grid > label:has(input[type=number]:not(:placeholder-shown)[value]:not([value=""]))::after{
+  content:"auto-filled";position:absolute;top:-2px;right:0;
+  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--accent-ink);background:var(--accent-weak);
+  border-radius:var(--radius-pill);padding:2px 8px;
+}
+@media (max-width:639px){
+  .ni-grid{grid-template-columns:1fr}
+}
+@media (min-width:640px){
+  .ni-grid{grid-template-columns:repeat(6,1fr);gap:var(--sp-4) var(--sp-3)}
+  .ni-grid::before{grid-column:1 / -1}
+  .ni-grid > .ferr{grid-column:1 / -1}
+  .ni-grid > label:nth-of-type(1){grid-column:span 3}  /* Name    */
+  .ni-grid > label:nth-of-type(2){grid-column:span 3}  /* Brand   */
+  .ni-grid > label:nth-of-type(3){grid-column:span 3}  /* Category*/
+  .ni-grid > label:nth-of-type(4){grid-column:span 3}  /* Supplier*/
+  .ni-grid > label:nth-of-type(5){grid-column:span 2}  /* Unit    */
+  .ni-grid > label:nth-of-type(6){grid-column:span 2}  /* Price — beside unit, per the sketch */
+  .ni-grid > label:nth-of-type(7){grid-column:span 2}  /* Pack    */
+}
+
+/* -- footer strip: states the save model, keeps Confirm All the primary -- */
+.ni-grid::after{
+  content:"Done here? Tick Apply on this line, then press Confirm All below — nothing is saved before that.";
+  grid-column:1 / -1;margin-top:4px;padding-top:var(--sp-3);
+  border-top:1px dashed var(--border2);
+  font-size:var(--fs-sm);color:var(--text2);
+}
+@media (max-width:639px){
+  .ni-grid::after{display:block;margin-top:var(--sp-3)}
+  .ni-grid::before{display:block;margin-bottom:2px}
+}
+.inv-actions .btn.primary{min-width:150px}
+
+/* -- v12 fix: the generic table-mode selector out-specified the card mode,
+      shrink-wrapping matched rows to ~248px (the "narrow card" bug) -- */
+@media (min-width:640px){
+  .invtable tbody tr:not(.sec):not(.ni-row){display:block;width:100%}
+  .invtable tbody tr.ni-row{display:block;width:100%}
+  .modal-wide .atable-wrap{width:min(660px,100%)}
+}
