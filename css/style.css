@@ -650,6 +650,9 @@ input[type=checkbox]{
 .invtable .flag-review{margin:4px 0 0;margin-left:0}
 .invtable .ni-raw{margin-top:4px}
 .invtable select.invSel{max-width:100%;width:100%;font-size:14px!important;min-height:44px}
+.match-cell{display:flex;gap:8px;align-items:center;width:100%}
+.match-cell .invSel{flex:1 1 auto;min-width:0;width:auto;max-width:none}
+.ni-add-alt{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:8px 12px;min-height:44px}
 .invAppr{width:26px;height:26px;min-height:26px}
 .muted-row td{opacity:.92}
 
@@ -690,6 +693,10 @@ input[type=checkbox]{
   background-repeat:no-repeat;background-position:right 12px center;
 }
 .ni-grid .cat-wrap{position:relative}
+/* on desktop, float the combobox list over the form instead of pushing sibling fields around */
+@media (min-width:640px){
+  .ni-grid .cat-drop{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;margin-top:0}
+}
 @media (max-width:520px){ .ni-grid{grid-template-columns:1fr} }
 
 /* desktop invoice table refinements */
@@ -1211,8 +1218,8 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   .invtable input.invPrice{width:110px}
   .invtable .ni-row td{display:block;padding:0}
   .invtable .ni-row td::before{content:none!important}
-  /* comfortable reading width inside the wide modal */
-  .modal-wide .atable-wrap{max-width:660px;margin:0 auto;overflow:visible}
+  /* full-width review table so line cards match the GST/summary card above them */
+  .modal-wide .atable-wrap{max-width:none;margin:0;overflow:visible}
 }
 
 /* ---- C. tablet navigation rail (640–1023px): the Material step between
@@ -1442,7 +1449,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 @media (min-width:640px){
   .invtable tbody tr:not(.sec):not(.ni-row){display:block;width:100%}
   .invtable tbody tr.ni-row{display:block;width:100%}
-  .modal-wide .atable-wrap{width:min(660px,100%)}
+  .modal-wide .atable-wrap{width:100%}
 }
 
 
