@@ -1340,6 +1340,7 @@ function expandNewItem(i){
     var ut=r.unit==='kg'?'kg':r.unit==='l'?'litre':r.unit==='ea'?'unit':'kg';
     var pv=(r.unitPrice!=null)?r.unitPrice:'';
     panel.innerHTML=''
+     +'<button type="button" class="x ni-close" aria-label="Close add-new-item form">\u00d7</button>'
      +'<div class="ni-head">Add new item from this invoice line</div>'
      +'<div class="ni-raw">'+esc(r.raw||r.name)+'</div>'
      +'<div class="ni-grid">'
@@ -1352,6 +1353,7 @@ function expandNewItem(i){
      +'<label>Pack size (optional)<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
     panel.dataset.built='1';
+    var _nc=panel.querySelector('.ni-close'); if(_nc){ _nc.onclick=function(ev){ ev.preventDefault(); closeNewItem(i); }; }
     var us=document.getElementById('ni_unit'+i); if(us) us.value=ut;
     makeInlineCombo('ni_brand'+i,'ni_brandDrop'+i,prodBrands);
     makeInlineCombo('ni_cat'+i,'ni_catDrop'+i,prodCategories);
@@ -1361,6 +1363,18 @@ function expandNewItem(i){
   nirow.style.display='';
 }
 function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
+function closeNewItem(i){
+  collapseNewItem(i);
+  var r=invRows[i]; if(r && !r.bestId) r.addNew=false;   /* unmatched line: back to not-adding */
+  var tr=document.querySelector('tr.inv-data[data-i="'+i+'"]');
+  if(tr){
+    var sel=tr.querySelector('.invSel');
+    if(sel && sel.value==='__new'){ sel.value='skip'; if(r){ r.addNew=false; r.bestId=null; } }
+    var ap=tr.querySelector('.invAppr'); if(ap) ap.checked=false;   /* nothing saved from this line */
+    var btn=tr.querySelector('.ni-add-btn');
+    if(btn){ btn.classList.remove('open'); btn.textContent='+ Add as New Item'; }
+  }
+}
 function invUnitToBase(unitType){
   if(unitType==='kg') return {base_unit:'g', cost_basis:'$/g', div:1000};
   if(unitType==='litre'||unitType==='l') return {base_unit:'ml', cost_basis:'$/ml', div:1000};
@@ -1403,7 +1417,7 @@ function renderInvReview(){
   var review=invRows.length-matched-newc;
   var html='<div class="inv-sum">'+matched+' matched \u00b7 '+newc+' new \u00b7 '+review+' to review</div>';
   if(invGst.note) html+='<div class="inv-gst">'+esc(invGst.note)+'</div>';
-  html+='<div class="atable-wrap"><table class="atable invtable"><thead><tr><th>Invoice line</th><th>Unit price</th><th>Match to product</th><th>Old</th><th>Conf.</th><th>Apply</th></tr></thead><tbody>';
+  html+='<div class="atable-wrap"><table class="invtable"><thead><tr><th>Invoice line</th><th>Unit price</th><th>Match to product</th><th>Old</th><th>Conf.</th><th>Apply</th></tr></thead><tbody>';
   invRows.forEach(function(r,i){
     var conf=Math.round(r.conf*100);
     var rc=(r.bestId && !r.needManual && !r.addNew && !r.uncertain)?'':' muted-row';
@@ -1431,6 +1445,7 @@ function renderInvReview(){
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr');
+    if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */
     expandNewItem(i);
     var ap=tr?tr.querySelector('.invAppr'):null; if(ap) ap.checked=true;
     b.classList.add('open'); b.textContent='Editing new item \u2193';
