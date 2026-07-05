@@ -59,8 +59,8 @@ async function seedIfEmpty(){
 
 /* pull everything from Supabase and refresh the UI */
 async function bootstrapSync(){
-  if(!SUPA){ setSync('offline'); return; }
-  if(!navigator.onLine){ setSync('offline'); return; }
+  if(!SUPA){ setSync('offline'); window.__ezReady=true; return; }
+  if(!navigator.onLine){ setSync('offline'); window.__ezReady=true; return; }
   setSync('loading');
   try{
     await seedIfEmpty();
@@ -84,8 +84,8 @@ async function bootstrapSync(){
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
     if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} var ci2=document.getElementById('cogsTarget'); if(ci2)ci2.value=pv; } }
     buildMenuOptions(); renderPlate(); renderAnalysis(); updateLastImport(); updateEditTag();
-    setSync('ok');
-  }catch(err){ console.error('[sync] load failed:', err); setSync('error'); }
+    setSync('ok'); window.__ezReady=true;
+  }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
 }
 /* ================== end Supabase data layer ================== */
 
@@ -683,7 +683,9 @@ function highlightData(kind){
     savedPlates.forEach(function(sp){ var c=costFromLines(sp.lines); if(c>0){ var nm=sp.name; if(sp.menuId&&menuById[sp.menuId])nm=menuById[sp.menuId].name; pr.push({name:nm||'Plate', val:c, disp:fmt2(c)}); } });
     pr.sort(function(a,b){return b.val-a.val;}); return {title:'Highest portion cost', rows:pr};
   }
-  var st=PRODUCTS.map(function(p){ var v=perDisplayValue(p); return v==null?null:{name:p.description+(p.brand?' \u2014 '+p.brand:''), val:v, disp:dispPrice(p)}; }).filter(Boolean);
+  var usedPids={};                                                  // only stock actually used in a saved plate/recipe
+  (savedPlates||[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){ if(l&&l.pid!=null) usedPids[l.pid]=true; }); });
+  var st=PRODUCTS.filter(function(p){ return usedPids[p.id]; }).map(function(p){ var v=perDisplayValue(p); return v==null?null:{name:p.description+(p.brand?' \u2014 '+p.brand:''), val:v, disp:dispPrice(p)}; }).filter(Boolean);
   st.sort(function(a,b){return b.val-a.val;}); return {title:'Most expensive stock per unit', rows:st};
 }
 function highlightCard(kind, heading){
@@ -747,6 +749,7 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (__swReloaded) { return; }
       __swReloaded = true;
+      try { sessionStorage.setItem('ez_swReload', '1'); } catch (e) {}  // tell the reloaded page not to replay the splash
       window.location.reload();
     });
   }
@@ -1142,7 +1145,7 @@ function invGstDetect(text){
   return {mode:'unknown', note:'GST status unclear \u2014 prices assumed GST-exclusive (the app stores ex-GST costs). Adjust manually if your invoice was GST-inclusive.'};
 }
 /* ---- drop invoice totals / footer / summary lines ---- */
-var INV_EXCLUDE=/\b(?:sub-?totals?|totals?|gst|balance|owing|due|account|acct|invoice|abn|acn|payments?|paid|remittances?|freight|delivery|surcharges?|discounts?|rounding|amounts?|eftpos|eft|tax|bsb|statements?|credit|charges?)\b/i;
+var INV_EXCLUDE=/\b(?:sub-?totals?|totals?|gst|balance|owing|due|account|acct|invoice|abn|acn|payments?|paid|remittances?|freight|delivery|surcharges?|discounts?|rounding|amounts?|eftpos|eft|tax|bsb|statements?|credit|charges?|levy|levies)\b/i;
 /* A real product line has a quantity/unit/weight or a "N x N" pack pattern. */
 function hasProductStructure(line){
   if(explicitUnitPrice(line)) return true;
@@ -1241,6 +1244,8 @@ function packCount(line){
   if(doz) return (any?mult:1)*parseFloat(doz[1])*12;
   var ct=line.match(/(\d+)\s*(ea|each|unit|units|pcs|pce|piece|pieces|portion|portions|sleeve|sleeves)\b/i);
   if(ct) return (any?mult:1)*parseFloat(ct[1]);
+  var sc=line.match(/\b(\d{2,4})'?s\b/i);                          // shorthand pack count e.g. "400s" / "105s" (2-4 digits + optional apostrophe + s)
+  if(sc) return (any?mult:1)*parseFloat(sc[1]);
   var ofc=line.match(/\bof\s+(\d+(?:\.\d+)?)\b/i);
   if(ofc) return (any?mult:1)*parseFloat(ofc[1]);
   if(any) return mult;
@@ -1256,6 +1261,11 @@ function parsePdfLine(line){
   var unc=(cls==='uncertain');
   var ex=explicitUnitPrice(line);                                 // 1) explicit unit price wins
   if(ex){ invDbg('[parsePdfLine] explicit unit price:', {name:name, unitPrice:ex.unitPrice, unit:ex.unit}); return {name:name, unitPrice:ex.unitPrice, unit:ex.unit, needManual:false, uncertain:unc, raw:line}; }
+  var aps=line.match(/\b(\d{2,4})'s\b/i);                          // 1b) explicit apostrophe-s pack count e.g. "105'S", "400'S" -> N pieces per pack
+  if(aps){ var apc=parseFloat(aps[1]);
+    if(apc>0){ var packPrice=monies[0].val;                        // first money on the line = pack/unit price (holds on both simple + columnar layouts)
+      invDbg('[parsePdfLine] APOSTROPHE-S count:', {name:name, count:apc, packPrice:packPrice, perUnit:'$'+(packPrice/apc).toFixed(4)+'/unit'});
+      return {name:name, unitPrice:packPrice/apc, unit:'ea', needManual:false, uncertain:unc, raw:line}; } }
   var total=monies[monies.length-1].val;                          // last money = line total
   var w=packWeight(line);                                         // 2) derive from total weight/volume
   if(w && w.qtyInCat>0){ var upw=total/w.qtyInCat; invDbg('[parsePdfLine] WEIGHT calc:', {name:name, lineTotal:total, totalWeight:w.qtyInCat+(w.cat==='l'?' L':' kg'), pricePerUnit:'$'+upw.toFixed(4)+'/'+(w.cat==='l'?'L':'kg')}); return {name:name, unitPrice:upw, unit:w.cat, needManual:false, uncertain:unc, raw:line}; }
@@ -1365,14 +1375,16 @@ function expandNewItem(i){
 function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
-  var r=invRows[i]; if(r && !r.bestId) r.addNew=false;   /* unmatched line: back to not-adding */
+  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; }         /* dismissing the form = this line is neither new nor matched (skip) */
   var tr=document.querySelector('tr.inv-data[data-i="'+i+'"]');
   if(tr){
     var sel=tr.querySelector('.invSel');
-    if(sel && sel.value==='__new'){ sel.value='skip'; if(r){ r.addNew=false; r.bestId=null; } }
-    var ap=tr.querySelector('.invAppr'); if(ap) ap.checked=false;   /* nothing saved from this line */
+    if(sel){ sel.style.display=''; sel.value='skip'; }              /* bring the match dropdown back so they can pick a product instead */
+    var old=tr.querySelector('.invOld'); if(old) old.textContent='\u2014';
+    var cf=tr.querySelector('.conf'); if(cf && r) cf.textContent=(Math.round((r.conf||0)*100))+'%';
+    var ap=tr.querySelector('.invAppr'); if(ap) ap.checked=false;   /* nothing saved from this line until they choose */
     var btn=tr.querySelector('.ni-add-btn');
-    if(btn){ btn.classList.remove('open'); btn.textContent='+ Add as New Item'; }
+    if(btn){ btn.classList.remove('open'); btn.textContent = sel ? '+ New' : '+ Add as New Item'; }
   }
 }
 function invUnitToBase(unitType){
@@ -1407,7 +1419,6 @@ function invMatchOptions(r){
       html+='<option value="'+c.id+'"'+((!r.addNew&&r.bestId===c.id)?' selected':'')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'  ('+Math.round(c.coverage*100)+'%)</option>'; });
     html+='</optgroup>';
   }
-  html+='<option value="__new"'+(r.addNew?' selected':'')+'>\u2795 Add as New Item\u2026</option>';
   html+='<optgroup label="All products">'+prodOptions(r.addNew?null:r.bestId)+'</optgroup>';
   return html;
 }
@@ -1426,11 +1437,11 @@ function renderInvReview(){
     var priceCell='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
     if(r.needManual) priceCell+='<div class="flag-review">unable to determine \u2014 enter manually</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>'));
-    var badge=r.addNew?'':(r.tier==='hi'?'<span class="mbadge ok">confident</span>':(r.tier==='mid'?'<span class="mbadge warn">check</span>':''));
     var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
     var matchCell = r.addNew
       ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
-      : '<select class="invSel">'+invMatchOptions(r)+'</select>'+badge;
+      : '<div class="match-cell"><select class="invSel">'+invMatchOptions(r)+'</select>'
+        +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
     html+='<tr class="inv-data'+rc+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
       '<td class="num">'+priceCell+'</td>'+
@@ -1444,8 +1455,14 @@ function renderInvReview(){
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
-    var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr');
+    var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
     if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */
+    if(r){ r.addNew=true; r.bestId=null; }                          /* reject any prior match, this line becomes a new item */
+    if(tr){
+      var sel=tr.querySelector('.invSel'); if(sel){ sel.style.display='none'; sel.value='skip'; }
+      var old=tr.querySelector('.invOld'); if(old) old.textContent='\u2014';
+      var cf=tr.querySelector('.conf'); if(cf) cf.textContent='\u2014';
+    }
     expandNewItem(i);
     var ap=tr?tr.querySelector('.invAppr'):null; if(ap) ap.checked=true;
     b.classList.add('open'); b.textContent='Editing new item \u2193';
@@ -1456,7 +1473,6 @@ function renderInvReview(){
 function invSelChanged(tr){
   var i=parseInt(tr.dataset.i,10), r=invRows[i]; if(!r) return;
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
-  if(sel.value==='__new'){ r.addNew=true; r.bestId=null; if(old)old.textContent='\u2014'; if(appr)appr.checked=true; expandNewItem(i); return; }
   r.addNew=false; collapseNewItem(i);
   if(sel.value==='skip'){ r.bestId=null; if(old)old.textContent='\u2014'; if(appr)appr.checked=false; }
   else { r.bestId=sel.value; if(old)old.textContent=dispPrice(byId[sel.value]);
