@@ -940,7 +940,7 @@ input[type=checkbox]{
 .ing-empty{padding:24px 12px;text-align:center;color:var(--muted2)}
 
 /* ============ Invoice intro ============ */
-.inv-intro{position:relative;background:rgba(240,138,60,.10);border:1px solid var(--border);border-radius:12px;padding:12px 34px 12px 14px;margin-bottom:12px}
+.inv-intro{position:relative;background:var(--accent-weak);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px 34px 12px 14px;margin-bottom:12px}
 .inv-intro p{margin:0;font-size:13px;line-height:1.45}
 .inv-introx{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:20px;line-height:1;color:var(--muted2);cursor:pointer}
 
@@ -1171,3 +1171,130 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
 
 .ing-price .ing-per{display:none}
 .ing-price b{font-size:16px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+
+/* ==========================================================================
+   28. COMPREHENSIVE AUDIT FIXES (v10)
+   Root-caused control bugs · invoice review stays cards at every width ·
+   tablet navigation rail · pointer/hover interaction layer · state coverage ·
+   themed scrollbars · contrast & alignment polish
+   ========================================================================== */
+
+/* ---- A. small controls freed from the global 44px touch floor ---- */
+.ms-clear{min-height:0;height:26px;width:26px}
+.inv-introx{min-height:0;height:28px;width:28px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+
+/* ---- B. invoice review: cards at EVERY width (the ≥640 table conversion
+        made it horizontally scroll inside the modal on desktop) ---- */
+@media (min-width:640px){
+  .invtable,.invtable tbody{display:block;min-width:0}
+  .invtable thead{display:none}
+  .invtable tr{display:block;margin:0}
+  .invtable tbody tr:not(.sec):not(.ni-row){
+    position:relative;background:var(--surface2);border:1px solid var(--border);
+    border-radius:var(--radius-ctl);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);
+  }
+  .invtable td{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
+    border:0;padding:5px 0;font-size:13px}
+  .invtable td::before{content:none;font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--muted2);flex:0 0 auto}
+  .invtable td:nth-child(2)::before{content:"Unit price"}
+  .invtable td:nth-child(3)::before{content:"Match to";display:block;margin-bottom:5px}
+  .invtable td:nth-child(4)::before{content:"Old price"}
+  .invtable td:nth-child(5)::before{content:"Confidence"}
+  .invtable td:nth-child(6)::before{content:"Apply"}
+  .invtable tbody tr > td:first-child{display:block;font-size:14.5px;font-weight:650;color:var(--text);padding:0 0 8px}
+  .invtable td:nth-child(3){display:block;padding:6px 0}
+  .invtable td:nth-child(2){flex-wrap:wrap}
+  .invtable td[style*="text-align:center"]{text-align:left!important}
+  .invtable select.invSel{max-width:100%;width:100%;min-height:44px;padding:11px 38px 11px 14px}
+  .invtable input.invPrice{width:110px}
+  .invtable .ni-row td{display:block;padding:0}
+  .invtable .ni-row td::before{content:none!important}
+  /* comfortable reading width inside the wide modal */
+  .modal-wide .atable-wrap{max-width:660px;margin:0 auto;overflow:visible}
+}
+
+/* ---- C. tablet navigation rail (640–1023px): the Material step between
+        bottom bar and full sidebar ---- */
+@media (min-width:640px) and (max-width:1023px){
+  body{padding-left:78px;padding-bottom:32px}
+  .bottomnav{
+    top:0;bottom:0;left:0;right:auto;width:78px;
+    flex-direction:column;align-items:stretch;justify-content:flex-start;gap:6px;
+    padding:calc(14px + env(safe-area-inset-top)) 8px 14px;
+    border-top:0;border-right:1px solid var(--border);box-shadow:none;
+  }
+  .navbtn{flex:0 0 auto;min-height:56px;padding:8px 4px;border-radius:var(--radius-ctl)}
+  .navbtn svg{padding:3px 12px}
+  .nl{font-size:10.5px}
+  .toast{left:calc(50% + 39px)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .sync-banner{left:calc(50% + 39px)}
+  .install-banner{left:calc(78px + 12px)}
+}
+
+/* ---- D. hover & pointer layer: feedback only where hover truly exists,
+        slightly denser controls where a mouse is the primary input ---- */
+@media (hover:hover) and (pointer:fine){
+  .atable:not(.invtable) tbody tr:not(.sec):hover td{background:var(--hover)}
+  .ref-pill:hover{border-color:var(--accent-ink);color:var(--accent-ink)}
+  .ms-clear:hover{background:var(--border2)}
+  .ing-filter:hover,.menu-search input:hover{border-color:var(--border2)}
+  .invAppr,.ing-filter,select{cursor:pointer}
+  .hl-card:active,.ing-card:active{transform:scale(.995)}
+}
+@media (hover:hover) and (pointer:fine) and (min-width:1024px){
+  .btn{min-height:40px}
+  .btn.small{min-height:34px}
+  input[type="text"],input[type="number"],input[type="search"],select,.ing-filter,.menu-search input{min-height:40px}
+}
+
+/* ---- E. state coverage: disabled, invalid, loading, skeleton ---- */
+input:disabled,select:disabled,textarea:disabled{
+  opacity:.55;background:var(--surface2);cursor:not-allowed;border-style:solid;
+}
+input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
+.btn.loading{position:relative;color:transparent!important;pointer-events:none}
+.btn.loading::after{
+  content:"";position:absolute;inset:0;margin:auto;width:18px;height:18px;
+  border-radius:50%;border:2.5px solid var(--accent-weak);border-top-color:var(--accent);
+  animation:ez-spin .7s linear infinite;
+}
+.btn.primary.loading::after{border-color:rgba(255,255,255,.35);border-top-color:var(--on-accent)}
+@keyframes ez-spin{to{transform:rotate(360deg)}}
+.skeleton{
+  border-radius:var(--radius-chip);color:transparent!important;pointer-events:none;
+  background:linear-gradient(90deg,var(--surface2) 25%,var(--hover) 50%,var(--surface2) 75%);
+  background-size:200% 100%;animation:ez-shimmer 1.4s ease infinite;
+}
+@keyframes ez-shimmer{to{background-position:-200% 0}}
+
+/* ---- F. themed scrollbars: no more default grey chrome in modals/tables ---- */
+*{scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{
+  background:var(--border2);border-radius:8px;
+  border:2.5px solid transparent;background-clip:content-box;
+}
+*::-webkit-scrollbar-thumb:hover{background:var(--muted2);background-clip:content-box}
+
+/* ---- G. desktop analysis: sticky column headers while scrolling ---- */
+@media (min-width:1024px){
+  .atable:not(.invtable) thead th{position:sticky;top:0;background:var(--surface);z-index:2}
+}
+
+/* ---- H. desktop chrome: sync banner pinned, not a floating mid-screen pill ---- */
+.sync-banner{max-width:420px;white-space:normal;text-align:left}
+@media (min-width:1024px){
+  .sync-banner{left:auto;right:24px;transform:none;top:14px}
+}
+.side-brand span{min-width:0}
+.side-brand small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:154px}
+
+/* ---- I. contrast & detail polish ---- */
+.ing-tag{color:var(--text2)}
+.dash-chart .ax{font-size:10px}
+.ing-filter{max-width:none;flex:0 1 200px}
+@media (max-width:639px){ .ing-filter{max-width:48%} }
