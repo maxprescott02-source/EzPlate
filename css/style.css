@@ -1298,3 +1298,61 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .dash-chart .ax{font-size:10px}
 .ing-filter{max-width:none;flex:0 1 200px}
 @media (max-width:639px){ .ing-filter{max-width:48%} }
+
+
+/* ==========================================================================
+   29. AUDIT ROUND 2 (v11): nav icon geometry · invoice card labels restored ·
+   desktop add-new-item form · mobile dashboard rhythm
+   ========================================================================== */
+
+/* ---- Fix 1: nav icons — never clip stroke overshoot; identical sizing ---- */
+.navbtn svg,.side-brand svg{overflow:visible}
+/* defensive sizing for any icon that ends up inside a panel heading
+   (e.g. the stray glyph in the dashboard header) */
+.panel h2 svg{width:18px;height:18px;vertical-align:-3px;opacity:.65;overflow:visible}
+
+/* ---- Beyond-named: invoice card labels were erased at ≥640px by the
+        table-mode `content:none!important` reset — restore with equal force ---- */
+@media (min-width:640px){
+  .invtable td:nth-child(2)::before{content:"Unit price" !important}
+  .invtable td:nth-child(3)::before{content:"Match to" !important}
+  .invtable td:nth-child(4)::before{content:"Old price" !important}
+  .invtable td:nth-child(5)::before{content:"Confidence" !important}
+  .invtable td:nth-child(6)::before{content:"Apply" !important}
+  .invtable tbody tr > td:first-child::before{content:none !important}
+  .invtable .ni-row td::before{content:none !important}
+  /* raw-quote + review flags stack cleanly under the price row */
+  .invtable td:nth-child(2) .ni-raw,
+  .invtable td:nth-child(2) .flag-review{flex:1 1 100%;margin:6px 0 0}
+  .invtable td:nth-child(6){padding-top:10px}
+}
+
+/* ---- Fix 2: desktop add-new-item form — a real desktop form ---- */
+@media (min-width:640px){
+  .ni-panel{padding:var(--sp-5)}
+  .ni-head{font-size:15px}
+  .ni-grid{grid-template-columns:repeat(3,1fr);gap:var(--sp-4)}
+  .ni-grid > label:nth-child(1){grid-column:1 / -1}   /* Name spans the row   */
+  .ni-grid > .ferr{grid-column:1 / -1}
+  /* grouping cue: what the invoice filled vs what still needs the user */
+  .ni-grid::before{
+    content:"Solid fields were read from the invoice — dashed fields still need your input.";
+    grid-column:1 / -1;font-size:var(--fs-sm);font-weight:500;color:var(--muted2);
+    text-transform:none;letter-spacing:0;
+  }
+}
+
+/* ---- Fix 3: mobile dashboard rhythm — the trend chart leads, stats compact ---- */
+#dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:2px 0 10px}
+#dashBody .dash-panel{margin:var(--sp-4) 0 0}
+#dashBody .stat-row,#dashBody .hl-row{padding:0;margin:0;gap:var(--sp-3)}
+.stat-card{padding:14px 16px}
+.stat-v{font-size:22px}
+.stat-sub{font-size:11.5px}
+.hl-card{padding:14px 16px}
+.hl-list{gap:8px}
+@media (min-width:1024px){
+  #dashBody{display:grid;gap:0 var(--sp-5);padding:0}
+  #dashBody .stat-row,#dashBody .hl-row{margin-top:var(--sp-5)}
+  .stat-v{font-size:24px}
+}
