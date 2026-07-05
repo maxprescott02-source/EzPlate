@@ -64,6 +64,9 @@
   --shadow:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
   --shadow-lg:0 22px 56px rgba(41,28,22,.24);
   --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+  --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
+  --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
   /* legacy token remap — any untouched legacy rule follows the theme */
   --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
   --navy:var(--brand); --maroon:var(--brand);
@@ -85,6 +88,9 @@
   --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
   --shadow-lg:0 28px 68px rgba(0,0,0,.6);
   --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+  --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
+  --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
   --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
   --navy:var(--brand); --maroon:var(--brand);
   --line:var(--border); --line2:var(--border2);
@@ -106,6 +112,9 @@
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
     --shadow-lg:0 28px 68px rgba(0,0,0,.6);
     --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+  --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
+  --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
     --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
     --navy:var(--brand); --maroon:var(--brand);
     --line:var(--border); --line2:var(--border2);
@@ -130,10 +139,14 @@ input,button,select,textarea{font-family:inherit;font-size:var(--fs-base)}
 input,select,textarea{font-size:16px!important} /* stops iOS zoom-on-focus */
 button,.btn,.navbtn,input,select{min-height:44px}   /* touch targets */
 ::placeholder{color:var(--muted2);opacity:.8}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-input:focus-visible,select:focus-visible,textarea:focus-visible{
-  outline:none;border-color:var(--accent-ink)!important;box-shadow:0 0 0 3px var(--accent-weak);
+button:focus-visible,a:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak);
+  transition:border-color var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease);
 }
+input[type="search"]{-webkit-appearance:none;appearance:none}
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
 .tabs,.tab{display:none} /* legacy top tabs replaced by bottom nav */
 
 /* ----------------------------------------------------------------------
@@ -506,7 +519,7 @@ input[type=checkbox]{
 .atable:not(.invtable) td:nth-child(6)::before{content:none}
 
 /* ---- desktop: same markup as a table ---- */
-@media (min-width:700px){
+@media (min-width:640px){
   .atable-wrap{overflow-x:auto;padding:0}
   .atable{display:table;min-width:600px}
   .atable thead{display:table-header-group}
@@ -680,7 +693,7 @@ input[type=checkbox]{
 @media (max-width:520px){ .ni-grid{grid-template-columns:1fr} }
 
 /* desktop invoice table refinements */
-@media (min-width:700px){
+@media (min-width:640px){
   .invtable{min-width:640px}
   .invtable tbody tr > td:first-child{display:table-cell;font-size:13px;font-weight:normal;padding:12px}
   .invtable td:nth-child(3){display:table-cell;padding:12px}
@@ -959,8 +972,202 @@ input[type=checkbox]{
 .hl-list .hl-v,.hl-full .hl-v{font-weight:700;white-space:nowrap}
 .hl-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent)}
 .hl-full{list-style:decimal;margin:0;padding:0 0 0 22px;display:flex;flex-direction:column;gap:8px}
-@media(min-width:560px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
+@media(min-width:640px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
 
   /* invoice review: streamlined no-match "Add as New Item" button */
   .ni-add-btn{width:100%;font-size:13px;padding:8px 10px;border-style:dashed}
   .ni-add-btn.open{border-style:solid;background:var(--surface2,rgba(0,0,0,.04));font-weight:700}
+
+
+/* ==========================================================================
+   26. RESPONSIVE SYSTEM & CROSS-DEVICE POLISH
+   Breakpoints: mobile <640px (primary, unchanged) · tablet 640–1023px
+   (content widens, tables become tables, cards go 2-up) · desktop ≥1024px
+   (left sidebar nav, builder side-by-side, multi-column grids).
+   ========================================================================== */
+
+/* ---- icon sizing tokens: one system, no ad-hoc sizes ---- */
+:root{ --icon-sm:20px; --icon-md:22px; --icon-lg:40px; }
+.theme-toggle svg{width:var(--icon-sm);height:var(--icon-sm)}
+.navbtn svg{width:var(--icon-md);height:var(--icon-md)}
+.brand-logo svg{height:var(--icon-lg);width:var(--icon-lg)}
+
+/* ---- consistent control sizing for the newer filter/search rows ---- */
+.menu-search input{
+  min-height:44px;padding:10px 34px 10px 14px;border:1.5px solid var(--border2);
+  border-radius:var(--radius-ctl);background:var(--field);
+}
+.ms-clear{width:26px;height:26px;right:9px}
+.ing-filter{
+  min-height:44px;padding:10px 34px 10px 12px;border:1.5px solid var(--border2);
+  border-radius:var(--radius-ctl);background-color:var(--field);
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%238C817D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+}
+.ref-pill{min-height:32px;padding:5px 12px}
+
+/* ---- empty states: Ingredients + Menu (illustrated, matching the Builder plate) ---- */
+.an-empty,.ing-empty{font-style:normal}
+.ing-empty{padding:34px 16px 30px;text-align:center;color:var(--text2);font-size:14px;line-height:1.6}
+.ing-empty::before{
+  content:"";display:block;width:150px;height:105px;margin:0 auto 14px;
+  background:var(--empty-ing) center/contain no-repeat;
+}
+.ing-empty::after{
+  content:"Import an invoice or tap “+ Add new ingredient” to get started.";
+  display:block;margin-top:6px;font-size:13px;color:var(--muted2);
+}
+.an-empty td{font-style:normal;color:var(--text2);padding:34px 16px 30px}
+.an-empty td::before{
+  content:"";display:block;width:150px;height:105px;margin:0 auto 14px;
+  background:var(--empty-menu) center/contain no-repeat;
+}
+.an-empty td::after{
+  content:"Cost a plate in the Builder and publish it to see it here.";
+  display:block;margin-top:6px;font-size:13px;color:var(--muted2);
+}
+@media print{.ing-empty::before,.an-empty td::before{display:none}}
+
+/* ---- invoice “Add new item” inline form: aligned, labelled, confident ---- */
+.ni-panel{padding:var(--sp-4) var(--sp-4) var(--sp-5);border-radius:var(--radius-ctl)}
+.ni-head{font-size:14px;font-weight:800;margin-bottom:2px}
+.ni-raw{
+  display:block;background:var(--surface2);border-left:3px solid var(--border2);
+  border-radius:0 8px 8px 0;padding:6px 10px;margin:8px 0 14px;max-height:3.4em;
+}
+.ni-grid{gap:var(--sp-4) var(--sp-3);align-items:start}
+.ni-grid label{gap:6px}
+.ni-grid input,.ni-grid select{min-height:44px}
+/* pre-filled (extracted from the PDF) reads as confirmed; empty fields that still
+   need attention are dashed with a soft accent wash */
+.ni-grid input{border-style:solid}
+.ni-grid input:placeholder-shown{border-style:dashed;background:var(--accent-weak)}
+.ni-grid input:focus{border-style:solid;background:var(--field)}
+
+/* ============================ TABLET ≥640px ============================ */
+@media (min-width:640px){
+  .wrap{max-width:760px;padding:0 var(--sp-5)}
+  .ing-list{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat-row{gap:var(--sp-3)}
+  .actions{grid-template-columns:1fr 1fr}
+  .btn-stack{grid-column:auto}
+  .modal{max-width:600px}
+  .modal-wide{max-width:820px}
+}
+
+/* ============================ DESKTOP ≥1024px ============================ */
+@media (min-width:1024px){
+  body{padding-left:232px;padding-bottom:40px}
+
+  /* -- the bottom tab bar becomes a persistent left sidebar (same element, no JS) -- */
+  .bottomnav{
+    top:0;bottom:0;left:0;right:auto;width:232px;
+    flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;
+    padding:18px 14px calc(18px + env(safe-area-inset-bottom));
+    border-top:0;border-right:1px solid var(--border);box-shadow:none;
+  }
+  .side-brand{
+    display:flex;align-items:center;gap:10px;padding:6px 8px 18px;
+    border-bottom:1px solid var(--border);margin-bottom:14px;color:var(--brand);
+  }
+  .side-brand svg{width:34px;height:34px;flex:0 0 auto}
+  .side-brand b{font-size:17px;font-weight:800;letter-spacing:-.015em;color:var(--brand)}
+  .side-brand b .ez{color:var(--accent-ink)}
+  .side-brand small{display:block;font-size:11px;color:var(--muted2);margin-top:1px}
+  .navbtn{
+    flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;
+    min-height:46px;padding:11px 14px;border-radius:var(--radius-ctl);
+    font-size:14px;font-weight:600;color:var(--text2);
+  }
+  .navbtn svg{width:var(--icon-sm);height:var(--icon-sm);padding:0;border-radius:0;background:none}
+  .navbtn:hover{background:var(--hover);color:var(--text)}
+  .navbtn.active{background:var(--accent-weak);color:var(--accent-ink)}
+  .navbtn.active svg{background:none}
+  .nl{font-size:14px}
+
+  /* -- slim utility header: the sidebar owns the brand on desktop -- */
+  header .brand{display:none}
+  header .wrap{justify-content:flex-end;padding:10px var(--sp-6)}
+
+  /* -- content column -- */
+  .wrap{max-width:1000px;padding:0 var(--sp-6)}
+
+  /* -- builder: search + docket side by side -- */
+  #tab-builder{display:grid;grid-template-columns:minmax(320px,400px) 1fr;gap:0 var(--sp-6);align-items:start}
+  #tab-builder > .search-card{grid-column:1}
+  #tab-builder > #docketPanel{grid-column:2;grid-row:1 / span 2}
+  #tab-builder > .hint{grid-column:1;margin:14px 2px 0}
+
+  /* -- ingredients: card grid -- */
+  .ing-list{grid-template-columns:repeat(2,1fr);gap:12px;padding:10px var(--sp-5) 8px}
+  .ing-tools,.ing-controls{padding-left:var(--sp-5);padding-right:var(--sp-5)}
+
+  /* -- dashboard: chart + stats + highlights use the width -- */
+  #dashBody{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--sp-5)}
+  #dashBody .dash-panel{grid-column:1 / -1}
+  #dashBody .stat-row{grid-column:1;padding:0;margin-top:var(--sp-5);align-content:start}
+  #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin-top:var(--sp-5)}
+  .dash-chart svg{height:230px}
+  .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
+
+  /* -- floating chrome respects the sidebar -- */
+  .toast{left:calc(50% + 116px)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .sync-banner{left:calc(50% + 116px)}
+  .install-banner{left:auto;right:24px;bottom:24px;max-width:400px}
+
+  /* -- analysis: roomier table -- */
+  .atable th,.atable td{padding:13px 14px}
+}
+
+/* ============================ DESKTOP ≥1280px ============================ */
+@media (min-width:1280px){
+  .wrap{max-width:1120px}
+  .ing-list{grid-template-columns:repeat(3,1fr)}
+  #tab-builder{grid-template-columns:minmax(340px,440px) 1fr}
+}
+
+/* sidebar brand block is hidden on mobile/tablet (bottom bar shows icons only) */
+@media (max-width:1023px){ .side-brand{display:none} }
+
+/* ---- cascade-final overrides (must sit after the base control rules) ---- */
+input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak);
+}
+@media (min-width:640px){
+  .an-empty td::before{content:"" !important} /* keep the Menu empty illustration when the table view's label reset applies */
+}
+
+
+/* ==========================================================================
+   27. SCREENSHOT-DRIVEN POLISH (dashboard empty chart, highlight modal,
+   ingredient price labels) — additive, no selector renames
+   ========================================================================== */
+.dash-chart.empty{min-height:0;padding:22px 10px 8px;text-align:center}
+.dash-chart.empty svg{display:none}
+.dash-chart.empty::before{
+  content:"";display:block;width:150px;height:96px;margin:0 auto 12px;
+  background:var(--empty-chart) center/contain no-repeat;
+}
+.dash-chart.empty .chart-hint{max-width:32em;margin:0 auto;color:var(--text2)}
+
+.modal{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
+.mhead,.mfoot,.edit-delete-row{flex:0 0 auto}
+.mbody{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#hlBody{padding-top:var(--sp-3)}
+.hl-full{list-style:none;padding:0;margin:0;counter-reset:hl;gap:10px}
+.hl-full li{align-items:center;gap:12px;font-size:14px}
+.hl-full li::before{
+  counter-increment:hl;content:counter(hl);
+  flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface2);color:var(--muted2);font-weight:800;font-size:12px;
+  font-variant-numeric:tabular-nums;
+}
+.hl-full li:nth-child(-n+3)::before{background:var(--accent-weak);color:var(--accent-ink)}
+.hl-full .hl-n{flex:1;min-width:0}
+.hl-full .hl-v{font-family:var(--mono)}
+
+.ing-price .ing-per{display:none}
+.ing-price b{font-size:16px;font-family:var(--mono);font-variant-numeric:tabular-nums}
