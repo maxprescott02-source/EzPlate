@@ -349,10 +349,18 @@
 <script>
 (function(){
   var s=document.getElementById('splash'); if(!s) return;
-  function done(){ s.classList.add('hide'); setTimeout(function(){ s.remove(); }, 450); }
-  if(document.readyState==='complete'){ setTimeout(done, 500); }
-  else { window.addEventListener('load', function(){ setTimeout(done, 350); }); }
-  setTimeout(done, 4000);  /* failsafe: never trap the user behind the splash */
+  var gone=false;
+  function remove(delay){ setTimeout(function(){ if(s&&s.parentNode) s.remove(); }, delay); }
+  function done(){ if(gone) return; gone=true; try{sessionStorage.setItem('ez_seen','1');}catch(e){} s.classList.add('hide'); remove(450); }
+  function warm(){ try{ return sessionStorage.getItem('ez_seen')==='1' || sessionStorage.getItem('ez_swReload')==='1'; }catch(e){ return false; } }
+  /* A same-session refresh, or the one-off reload after a service-worker update, should NOT replay
+     the splash — just show the app the user was already on. First visit of the session still gets it. */
+  if(warm()){ try{ sessionStorage.removeItem('ez_swReload'); }catch(e){} gone=true; s.classList.add('hide'); remove(50); return; }
+  /* First visit this session: hold the splash until the page has loaded AND the database has loaded. */
+  var loaded=(document.readyState==='complete');
+  if(!loaded){ window.addEventListener('load', function(){ loaded=true; }); }
+  var poll=setInterval(function(){ if(loaded && window.__ezReady){ clearInterval(poll); done(); } }, 120);
+  setTimeout(function(){ clearInterval(poll); done(); }, 6000);  /* failsafe: never trap the user behind the splash */
 })();
 </script>
 </body>
