@@ -83,6 +83,7 @@ async function bootstrapSync(){
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId('MENU_ORIGINAL');
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
     try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:r.recorded_at, v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
+    try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
@@ -564,6 +565,38 @@ function saveCogsModal(){ var i=document.getElementById('cogsModalInput'); var v
 
 /* ---------- supplier extraction from invoice header (Feature 1) ---------- */
 var invSupplier='';
+/* ===== supplier memory: state + persistence ===== */
+function loadSupplierMem(){ try{ var o=JSON.parse(localStorage.getItem('cafeDB_supplierMem')); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; } }
+function saveSupplierMem(){ try{ localStorage.setItem('cafeDB_supplierMem', JSON.stringify(supplierMem)); }catch(e){} }
+var supplierMem=loadSupplierMem();
+function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
+function dbPushSupplierPhrase(e){ pushWrite(function(){ return SUPA.from('supplier_phrases').upsert({id:e.id, supplier:e.supplier, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, updated_at:new Date().toISOString()}); }, 'supplier phrase'); }
+function dbDeleteSupplierPhrase(id){ pushWrite(function(){ return SUPA.from('supplier_phrases').delete().eq('id',id); }, 'supplier phrase delete'); }
+function rememberSupplierPhrase(supplier, phrase, qty, unit){
+  if(!normSupplier(supplier) || !(qty>0)) return;                 // no supplier -> never store
+  var id=memKey(supplier, phrase);
+  var e={id:id, supplier:supplier, phrase_norm:normalizePhrase(phrase), qty:qty, unit:unit};
+  supplierMem[id]=e; saveSupplierMem(); dbPushSupplierPhrase(e);
+}
+function renderSmemList(){
+  var box=document.getElementById('smemList'); if(!box) return;
+  var ids=Object.keys(supplierMem);
+  if(!ids.length){ box.innerHTML='<div class="smem-empty">Nothing remembered yet. When you tell EzPlate a pack size on an invoice, it\u2019ll appear here.</div>'; return; }
+  ids.sort(function(a,b){ return (supplierMem[a].supplier+supplierMem[a].phrase_norm).localeCompare(supplierMem[b].supplier+supplierMem[b].phrase_norm); });
+  box.innerHTML=ids.map(function(id){ var e=supplierMem[id]; var ul=e.unit==='ea'?'units':e.unit==='l'?'L':e.unit==='ml'?'mL':e.unit;
+    return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-phrase">\u201c'+esc(e.phrase_norm)+'\u201d</div><div class="smem-sup">'+esc(e.supplier)+'</div></div>'
+      +'<input type="number" class="invPackQty smem-qty" min="0" step="0.01" value="'+e.qty+'"><span class="smem-sup">'+esc(ul)+'</span>'
+      +'<button type="button" class="smem-del">Remove</button></div>';
+  }).join('');
+  box.querySelectorAll('.smem-row').forEach(function(row){
+    var id=row.getAttribute('data-id');
+    row.querySelector('.smem-qty').addEventListener('change', function(e){ var q=parseFloat(e.target.value); var m=supplierMem[id]; if(m && q>0){ m.qty=q; saveSupplierMem(); dbPushSupplierPhrase(m); toast('Updated'); } });
+    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; saveSupplierMem(); dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
+  });
+}
+function openSmem(){ renderSmemList(); show('smemModal'); }
+function closeSmem(){ hide('smemModal'); }
 function invSupplierDetect(text){
   var lines=(text||'').split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean).slice(0,20);
   function clean(s){ return s.replace(/\s+/g,' ').replace(/\b(pty\.?\s*ltd\.?|p\/l|ltd\.?)\b\.?$/i,'').replace(/[|,;].*$/,'').trim(); }
@@ -1250,10 +1283,15 @@ function buildInvRows(rawRows){
     var top=cands.length?cands[0].coverage:0;
     var addNew=(top<0.3);                                          // <0.3 -> no confident match -> Add New
     var tier=top>=0.6?'hi':(top>=0.3?'mid':'lo');                  // >=0.6 confident, 0.3-0.59 possible
-    return {name:r.name, raw:r.raw||r.name, unitPrice:up, unit:(r.unit||'auto'),
+    var row={name:r.name, raw:r.raw||r.name, unitPrice:up, unit:(r.unit||'auto'),
             needManual:(!!r.needManual || up==null), uncertain:!!r.uncertain, cands:cands,
             bestId:(addNew?null:(cands.length?cands[0].id:null)),
-            conf:top, tier:tier, addNew:addNew, newItem:null};
+            conf:top, tier:tier, addNew:addNew, newItem:null, remembered:false};
+    if(row.needManual && normSupplier(invSupplier)){              // this supplier + phrase seen before? re-derive the price
+      var mem=supplierMem[memKey(invSupplier, row.raw||row.name)];
+      if(mem) applySupplierMemory(row, mem);                      // only touches manual rows; never overrides a real parse
+    }
+    return row;
   });
   renderInvReview();
 }
@@ -1266,6 +1304,30 @@ function moneyMatches(line){
 function firstPairPrice(monies){   // first adjacent pair of equal money values = the per-pack (unit) price column, e.g. "52.12 52.12" or qty-1 "$20.00 $20.00"
   for(var i=0;i<monies.length-1;i++){ if(monies[i].val>0 && monies[i].val===monies[i+1].val) return monies[i].val; }
   return null;
+}
+/* --- supplier memory: pure helpers (kept in this region so tests can reach them) --- */
+function normalizePhrase(s){       // stable key for "how this supplier writes this item", ignoring codes/prices/qty noise
+  s=(' '+String(s||'')+' ').toLowerCase();
+  s=s.replace(/\$?\d+(?:,\d{3})*(?:\.\d+)?/g,' ');   // drop money + any bare numbers (codes, qty, pack counts, prices)
+  s=s.replace(/[#*|]/g,' ');                          // drop item-code / bullet punctuation
+  s=s.replace(/[^a-z0-9]+/g,' ');                     // keep words only, spaces between
+  return s.replace(/\s+/g,' ').trim();
+}
+function packPriceOf(raw){         // the price of one pack from a raw invoice line
+  var m=moneyMatches(raw||''); if(!m.length) return null;
+  var p=firstPairPrice(m); return (p!=null)?p:m[m.length-1].val;
+}
+function applySupplierMemory(row, mem){   // re-derive unit price from a remembered pack {qty, unit}; never touches a row that already parsed
+  if(!row || !mem || !row.needManual) return row;
+  var pack=packPriceOf(row.raw||row.name); var qty=parseFloat(mem.qty);
+  if(pack==null || !(qty>0)) return row;
+  var u=(mem.unit||'ea').toLowerCase(), unitPrice, unit;
+  if(u==='kg'||u==='g'){ unit='kg'; unitPrice=pack/(qty*(u==='kg'?1:0.001)); }
+  else if(u==='l'||u==='ml'){ unit='l'; unitPrice=pack/(qty*(u==='l'?1:0.001)); }
+  else { unit='ea'; unitPrice=pack/qty; }
+  if(!isFinite(unitPrice)||unitPrice<0) return row;
+  row.unitPrice=unitPrice; row.unit=unit; row.needManual=false; row.remembered=true;
+  return row;
 }
 function unitCat(u){ u=u.toLowerCase();
   if(u==='kg'||u==='kgs') return {cat:'kg',f:1};
@@ -1506,7 +1568,18 @@ function renderInvReview(){
     var uLbl=unitLabelFor(r)||'/unit';
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var priceCell='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
-    if(r.needManual) priceCell+='<div class="flag-review">unable to determine \u2014 enter manually</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
+    if(r.remembered) priceCell+='<button type="button" class="remembered-chip" data-i="'+i+'">Remembered \u2713 \u2014 edit pack</button>';
+    if(r.needManual || r.remembered){
+      var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
+      var pq=mem?mem.qty:''; var puNow=mem?mem.unit:'ea';
+      var open=(r.needManual && !r.remembered);                    // manual + unresolved -> show the pack helper by default
+      priceCell+='<div class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
+        +'<span class="pt-lbl">or the pack size:</span>'
+        +'<input type="number" class="invPackQty" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
+        +'<select class="invPackUnit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':u; return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
+        +'</div>';
+    }
+    if(r.needManual && !r.remembered) priceCell+='<div class="flag-review">unable to determine \u2014 enter unit price or pack</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>'));
     var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
     var chips='';
@@ -1533,6 +1606,21 @@ function renderInvReview(){
   html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Nothing is saved until you press Confirm All. Only ticked rows are written.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
+  box.querySelectorAll('.pack-teach').forEach(function(pt){
+    function recompute(){
+      var tr=pt.closest('tr'); if(!tr) return; var i=parseInt(pt.getAttribute('data-i'),10); var r=invRows[i]; if(!r) return;
+      var q=parseFloat(pt.querySelector('.invPackQty').value); var u=pt.querySelector('.invPackUnit').value;
+      if(!(q>0)) return;
+      var pack=packPriceOf(r.raw||r.name); if(pack==null) return;
+      var up = (u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
+      if(isFinite(up)&&up>=0){ var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2); var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=true; }
+    }
+    pt.querySelector('.invPackQty').addEventListener('input', recompute);
+    pt.querySelector('.invPackUnit').addEventListener('change', recompute);
+  });
+  box.querySelectorAll('.remembered-chip').forEach(function(ch){ ch.onclick=function(){
+    var tr=ch.closest('tr'); if(!tr) return; var pt=tr.querySelector('.pack-teach'); if(pt) pt.classList.toggle('hidden');
+  }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
     var tr=ch.closest('tr'); if(!tr) return;
     var sel=tr.querySelector('.invSel'); if(!sel) return;
@@ -1573,7 +1661,7 @@ function applyInvoice(){
     if(r.addNew){ var s=collectNewItem(i); if(!s){ ok=false; } else specs[i]=s; }
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
-  var n=0, added=0;
+  var n=0, added=0, learned=[];
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
@@ -1592,9 +1680,22 @@ function applyInvoice(){
       var base=(p.base_unit==='g'||p.base_unit==='ml')?up/1000:up;
       setOverride(pid,{cost_per_base_unit:base}); n++;
     }
+    // learn the pack for this supplier+phrase (only for lines the app couldn't derive itself)
+    if(normSupplier(invSupplier) && (r.needManual || r.remembered)){
+      var pt=tr.querySelector('.pack-teach'); var qEl=pt?pt.querySelector('.invPackQty'):null; var uEl=pt?pt.querySelector('.invPackUnit'):null;
+      var q=qEl?parseFloat(qEl.value):NaN, u=uEl?uEl.value:'ea';
+      if(!(q>0)){                                                   // fallback: derive qty from the entered unit price
+        var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN; var pack=packPriceOf(r.raw||r.name);
+        if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u='ea'; } }
+      }
+      if(q>0){ var key=memKey(invSupplier, r.raw||r.name); var before=supplierMem[key];
+        rememberSupplierPhrase(invSupplier, r.raw||r.name, q, u);
+        if(!before || before.qty!==q || before.unit!==u) learned.push({phrase:r.name, qty:q, unit:u}); }
+    }
   });
   if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
+  if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
   var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added');
   toast(parts.length?parts.join(', '):'No changes to save');
   closeInv(); showTab('builder');                                 // close the importer, back to ingredient view
@@ -2011,6 +2112,9 @@ document.getElementById('menuSave').addEventListener('click',submitMenuItem);
   var ms=document.getElementById('menuSelect'); if(ms) ms.addEventListener('change',onMenuSelectChange);
   var mnb=document.getElementById('menuNewBtn'); if(mnb) mnb.addEventListener('click',openNewMenuModal);
   var madb=document.getElementById('menuAddDishBtn'); if(madb) madb.addEventListener('click',openAddDishModal);
+  var sml=document.getElementById('smemLink'); if(sml) sml.addEventListener('click',openSmem);
+  var smc=document.getElementById('smemClose'); if(smc) smc.addEventListener('click',closeSmem);
+  var smd=document.getElementById('smemDone'); if(smd) smd.addEventListener('click',closeSmem);
   var adc=document.getElementById('addDishClose'); if(adc) adc.addEventListener('click',closeAddDishModal);
   var adca=document.getElementById('addDishCancel'); if(adca) adca.addEventListener('click',closeAddDishModal);
   var ads=document.getElementById('addDishSave'); if(ads) ads.addEventListener('click',submitAddDish);
