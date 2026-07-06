@@ -270,6 +270,7 @@ document.getElementById('printBtn').addEventListener('click',function(){
     return '<tr><td class="pd-q">'+esc(String(q))+(u?' '+esc(u):'')+'</td><td class="pd-n">'+nm+'</td></tr>';
   }).filter(Boolean).join('');
   pd.innerHTML='<div class="pd-card">'
+    +'<div class="pd-logo">Ez<span>Plate</span></div>'
     +'<div class="pd-title">'+esc(n||'Recipe card')+'</div>'
     +'<div class="pd-meta">Recipe card \u00b7 '+plate.length+' item'+(plate.length===1?'':'s')+'</div>'
     +'<table class="pd-table"><tbody>'+rows+'</tbody></table>'
@@ -685,15 +686,17 @@ function dashComparisons(){
 }
 function statCard(label, current, base){
   var cur=(current==null)?'\u2014':current.toFixed(1)+'%';
-  var sub, cls='flat', arrow='\u2192';
-  if(current==null||base==null){ sub='no comparison yet'; }
+  var sub, nums='', cls='flat', arrow='\u2192';
+  if(current==null||base==null){ sub='not enough history yet'; }
   else { var d=current-base;                                   // food cost down = good
-    if(Math.abs(d)<0.05){ sub='same as '+label.toLowerCase(); }
-    else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts lower than '+label.toLowerCase(); }
-    else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts higher than '+label.toLowerCase(); }
+    nums='Today '+current.toFixed(1)+'% \u00b7 '+label+' avg '+base.toFixed(1)+'%';
+    if(Math.abs(d)<0.05){ sub='same \u2014 costs holding steady'; }
+    else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts lower \u2014 costs improving'; }
+    else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts higher \u2014 costs creeping up'; }
   }
-  return '<div class="stat-card"><div class="stat-h">'+esc(label)+'</div>'
+  return '<div class="stat-card"><div class="stat-h">Food cost vs '+esc(label.toLowerCase())+'</div>'
     +'<div class="stat-v">'+cur+' <span class="stat-arrow '+cls+'">'+arrow+'</span></div>'
+    +(nums?'<div class="stat-nums">'+esc(nums)+'</div>':'')
     +'<div class="stat-sub '+cls+'">'+esc(sub)+'</div></div>';
 }
 function trendChart(){
@@ -759,9 +762,9 @@ function openHighlight(kind){
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
   var cmp=dashComparisons();
-  var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'+trendChart()
+  var html='<div class="panel dash-panel"><h2>Average food cost'+(cmp.current!=null?' <span class="h2-val">'+cmp.current.toFixed(1)+'% today</span>':'')+'</h2><div class="pad">'+trendChart()
     +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
-    +'<div class="stat-row">'+statCard('vs last month', cmp.current, cmp.lastMonth)+statCard('vs this year', cmp.current, cmp.ytd)+'</div></div>'
+    +'<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
@@ -1506,9 +1509,17 @@ function renderInvReview(){
     if(r.needManual) priceCell+='<div class="flag-review">unable to determine \u2014 enter manually</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>'));
     var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
+    var chips='';
+    if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
+      chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
+        var p=byId[c.id]; if(!p) return '';
+        var nm=p.description+(p.brand?' \u00b7 '+p.brand:''); if(nm.length>34) nm=nm.slice(0,32)+'\u2026';
+        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'">'+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';
+      }).join('')+'</div>';
+    }
     var matchCell = r.addNew
       ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
-      : '<div class="match-cell"><select class="invSel">'+invMatchOptions(r)+'</select>'
+      : '<div class="match-cell">'+chips+'<select class="invSel">'+invMatchOptions(r)+'</select>'
         +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
     html+='<tr class="inv-data'+rc+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
@@ -1522,6 +1533,14 @@ function renderInvReview(){
   html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Nothing is saved until you press Confirm All. Only ticked rows are written.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
+  box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
+    var tr=ch.closest('tr'); if(!tr) return;
+    var sel=tr.querySelector('.invSel'); if(!sel) return;
+    sel.value=ch.getAttribute('data-cid');
+    invSelChanged(tr);                                             // same bookkeeping as picking from the dropdown
+    tr.querySelectorAll('.cand-chip').forEach(function(c){ c.classList.toggle('sel', c===ch); });
+    var ap=tr.querySelector('.invAppr'); if(ap) ap.checked=true;   // they actively chose it — approve the line
+  }; });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
     if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */
