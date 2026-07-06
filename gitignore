@@ -1,0 +1,4 @@
+node_modules/
+tests/visual/__shots__/
+playwright-report/
+.DS_Store
