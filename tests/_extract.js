@@ -54,7 +54,7 @@ function build() {
     function invDbg(){}   /* stub: the app's debug logger is a no-op in tests */
     ${parserBlock}
     ${pricingFn}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory };
   `);
   return factory();
 }
