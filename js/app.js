@@ -262,41 +262,69 @@ function updateTotals(){
 }
 
 document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();renderPlate();});
-document.getElementById('printBtn').addEventListener('click',()=>{const n=document.getElementById('plateName').value.trim();
-  document.getElementById('dHead').textContent=n?('PLATE: '+n.toUpperCase()):"EZPLATE — DOCKET";window.print();});
+document.getElementById('printBtn').addEventListener('click',function(){
+  var n=(document.getElementById('plateName').value||'').trim();
+  var pd=document.getElementById('printDocket'); if(!pd){ window.print(); return; }
+  var rows=plate.map(function(l){ var p=byId[l.pid]; if(!p) return '';
+    var nm=esc(p.description||'Item'); var u=unitNoun(p); var q=l.qty;
+    return '<tr><td class="pd-q">'+esc(String(q))+(u?' '+esc(u):'')+'</td><td class="pd-n">'+nm+'</td></tr>';
+  }).filter(Boolean).join('');
+  pd.innerHTML='<div class="pd-card">'
+    +'<div class="pd-title">'+esc(n||'Recipe card')+'</div>'
+    +'<div class="pd-meta">Recipe card \u00b7 '+plate.length+' item'+(plate.length===1?'':'s')+'</div>'
+    +'<table class="pd-table"><tbody>'+rows+'</tbody></table>'
+    +'</div>';
+  window.print();
+});
 
 /* ---------- add-ingredient modal ---------- */
 const modal=document.getElementById('modal');
 function val(id){return document.getElementById(id).value.trim();}
-function syncBaseLabels(){const b=document.getElementById('f_base').value;const w=b==='g'?'gram':b==='ml'?'ml':'unit';
-  document.getElementById('lab_cpbu').textContent='Cost per '+w+' ($) *';
-  document.getElementById('f_basis').value=b==='g'?'$/g':b==='ml'?'$/ml':'$/unit';}
-function populateDatalists(){
-  const cats=[...new Set(PRODUCTS.map(p=>p.category).filter(Boolean))].sort();
-  const types=[...new Set(PRODUCTS.map(p=>p.item_type).filter(Boolean))].sort();
-  document.getElementById('catlist').innerHTML=cats.map(c=>'<option value="'+esc(c)+'">').join('');
-  document.getElementById('typelist').innerHTML=types.map(t=>'<option value="'+esc(t)+'">').join('');
+/* convert a pack size + unit + pack price into a base-unit cost, reusing the same weight/volume logic as the parser */
+function packToUnitCost(num, unit, price){
+  num=parseFloat(num); price=parseFloat(price);
+  if(!(num>0)||isNaN(price)||price<0) return null;
+  if(unit==='kg'||unit==='g'){ var grams=num*(unit==='kg'?1000:1); return {base_unit:'g',cost_per_base_unit:price/grams,cost_basis:'$/g',dispPer:price/(grams/1000),dispUnit:'kg'}; }
+  if(unit==='l'||unit==='ml'){ var mls=num*(unit==='l'?1000:1); return {base_unit:'ml',cost_per_base_unit:price/mls,cost_basis:'$/ml',dispPer:price/(mls/1000),dispUnit:'L'}; }
+  return {base_unit:'ea',cost_per_base_unit:price/num,cost_basis:'$/unit',dispPer:price/num,dispUnit:'unit'};   // count
 }
-function openModal(){populateDatalists();syncBaseLabels();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.getElementById('f_desc').focus();}
+function updateAddCalc(){
+  var el=document.getElementById('f_calc'); if(!el) return;
+  var r=packToUnitCost(document.getElementById('f_packsize').value, document.getElementById('f_packunit').value, document.getElementById('f_price').value);
+  if(!r){ el.className='calc-line'; el.textContent='Enter pack size & price to see the unit cost.'; return; }
+  el.className='calc-line ok'; el.textContent='= $'+r.dispPer.toFixed(2)+' / '+r.dispUnit;
+}
+var addBrandCombo,addSupCombo,addCatCombo;
+function initAddCombos(){
+  ['f_brand','f_sup','f_category'].forEach(function(x){ var d=document.getElementById(x+'Drop'); if(d)d.style.display='none'; });
+  makeInlineCombo('f_brand','f_brandDrop',prodBrands);
+  makeInlineCombo('f_sup','f_supDrop',prodSuppliers);
+  makeInlineCombo('f_category','f_categoryDrop',prodCategories);
+}
+function openModal(){initAddCombos();updateAddCalc();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.getElementById('f_desc').focus();}
 function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
-function clearForm(){['f_desc','f_brand','f_category','f_sub','f_type','f_alias','f_pack','f_sold','f_cpbu','f_price'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f_food').checked=true;document.getElementById('f_base').value='g';syncBaseLabels();document.getElementById('ferr').style.display='none';}
+function clearForm(){['f_desc','f_brand','f_sup','f_category','f_packsize','f_price'].forEach(id=>{var e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('f_food').checked=true;document.getElementById('f_packunit').value='kg';updateAddCalc();document.getElementById('ferr').style.display='none';}
 function submitNew(){
-  const desc=val('f_desc'), cat=val('f_category'), base=document.getElementById('f_base').value, cpbuV=document.getElementById('f_cpbu').value;
+  const desc=val('f_desc'), fe=document.getElementById('ferr');
+  const catR=resolveCombo('f_category',prodCategories);
+  const brR=resolveCombo('f_brand',prodBrands);
+  const supR=resolveCombo('f_sup',prodSuppliers);
   const errs=[];
   if(!desc)errs.push('Product name');
-  if(!cat)errs.push('Category');
-  if(cpbuV===''||isNaN(parseFloat(cpbuV))||parseFloat(cpbuV)<0)errs.push('Cost per '+(base==='ea'?'unit':base));
-  const fe=document.getElementById('ferr');
+  if(!catR.value)errs.push('Category');
+  var calc=packToUnitCost(document.getElementById('f_packsize').value, document.getElementById('f_packunit').value, document.getElementById('f_price').value);
+  if(!calc)errs.push('a valid Pack size and Pack price');
   if(errs.length){fe.textContent='Please complete: '+errs.join(', ')+'.';fe.style.display='block';return;}
+  if(!brR.ok){ fe.textContent='\u201c'+brR.value+'\u201d is a new brand \u2014 pick \u201cCreate new\u201d from the list to confirm.'; fe.style.display='block'; return; }
+  if(!supR.ok){ fe.textContent='\u201c'+supR.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d from the list to confirm.'; fe.style.display='block'; return; }
   const id='U'+Date.now().toString(36);
-  const aliases=val('f_alias').split(',').map(s=>s.trim()).filter(Boolean);
-  const ty=val('f_type')||null;
-  const prod={id,description:desc,brand:val('f_brand')||null,category:cat,sub_category:val('f_sub')||'',
-    item_type:ty,search_aliases:aliases.length?aliases:(ty?[ty]:[]),base_unit:base,
-    cost_per_base_unit:parseFloat(cpbuV),cost_basis:base==='g'?'$/g':base==='ml'?'$/ml':'$/unit',
-    is_food:document.getElementById('f_food').checked,pack_size_raw:val('f_pack')||'',sold_by:val('f_sold')||'',
-    current_price_exgst:val('f_price')!==''?parseFloat(val('f_price')):null};
+  var szNum=parseFloat(document.getElementById('f_packsize').value), szUnit=document.getElementById('f_packunit').value;
+  const prod={id,description:desc,brand:brR.value||null,supplier:supR.value||null,category:catR.value,sub_category:'',
+    item_type:null,search_aliases:[],base_unit:calc.base_unit,
+    cost_per_base_unit:calc.cost_per_base_unit,cost_basis:calc.cost_basis,
+    is_food:document.getElementById('f_food').checked,pack_size_raw:(szNum+' '+szUnit),sold_by:'',
+    current_price_exgst:parseFloat(document.getElementById('f_price').value)};
   setOverride(id,prod);
   closeModal();clearForm();toast(desc+' added');qEl.focus();
 }
@@ -304,7 +332,8 @@ document.getElementById('newBtn').addEventListener('click',openModal);
 document.getElementById('mClose').addEventListener('click',closeModal);
 document.getElementById('mCancel').addEventListener('click',closeModal);
 document.getElementById('mSave').addEventListener('click',submitNew);
-document.getElementById('f_base').addEventListener('change',syncBaseLabels);
+['f_packsize','f_price','f_packunit'].forEach(function(id){var e=document.getElementById(id);if(e)e.addEventListener('input',updateAddCalc);});
+document.getElementById('f_packunit').addEventListener('change',updateAddCalc);
 modal.addEventListener('mousedown',e=>{if(e.target===modal)closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
 
@@ -412,7 +441,11 @@ let savedPlates=loadPlates();
 function plateNameVal(){return (document.getElementById('plateName').value.trim())||'Unnamed plate';}
 function saveCurrentPlate(asNew){
   if(!plate.length){toast('Add ingredients to the plate first');return;}
-  var name=plateNameVal();
+  var rawName=(document.getElementById('plateName').value||'').trim();
+  var pErr=document.getElementById('plateNameErr');
+  if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return; }
+  if(pErr) pErr.style.display='none';
+  var name=rawName;
   var menuId=menuLinkEl.value||null;
   var lines=plate.map(function(l){return {pid:l.pid,qty:l.qty};});
   if(!loadedPlateId && menuId){ var existLinked=savedPlates.find(function(s){return s.menuId===menuId;}); if(existLinked) loadedPlateId=existLinked.id; }
@@ -660,7 +693,7 @@ function trendChart(){
   var W=320,H=150,padL=30,padR=10,padT=14,padB=20;
   if(pts.length<2){
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Food cost trend"></svg>'
-      +'<p class="hint chart-hint">Not enough history yet. Each time you update prices, EzPlate logs the menu\u2019s average food cost so this line can grow.</p></div>';
+      +'<p class="hint chart-hint">The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.</p></div>';
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
   var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
@@ -718,7 +751,7 @@ function openHighlight(kind){
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
   var cmp=dashComparisons();
-  var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'+trendChart()+'</div></div>';
+  var html='<div class="panel dash-panel"><h2>Average food cost</h2><p class="dash-sub">The average food cost % across your costed menu items — the line tracks how it moves over time as prices change. Cards below compare today\u2019s figure to last month\u2019s and this year\u2019s averages.</p><div class="pad">'+trendChart()+'</div></div>';
   html+='<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('Year to date', cmp.current, cmp.ytd)+'</div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
@@ -1600,6 +1633,7 @@ function buildMenuSelector(){
     sel.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
     sel.value=currentMenuId;
   }
+  updateMenuDelBtn();
   buildMenuPickers();
 }
 function buildMenuPickers(){                                   // fill the menu <select>s inside the Publish + Edit modals
@@ -1612,8 +1646,24 @@ function buildMenuPickers(){                                   // fill the menu 
 }
 function onMenuSelectChange(){
   var sel=document.getElementById('menuSelect'); if(!sel) return;
-  setCurrentMenuId(sel.value); renderAnalysis();
+  setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
+function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
+function deleteCurrentMenu(){
+  var id=currentMenuId;
+  if(id==='MENU_ORIGINAL'){ toast('The Original menu can\u2019t be deleted'); return; }
+  var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
+  var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
+  askConfirm('Delete menu?', 'Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' will be moved to the Original menu \u2014 nothing is lost.', 'Delete menu', function(){
+    affected.forEach(function(c){ c.menuId='MENU_ORIGINAL'; dbPushMenu(c); });   // reassign, never delete the dishes
+    if(affected.length) saveCustomMenu();
+    menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
+    setCurrentMenuId('MENU_ORIGINAL');
+    rebuildMenu(); buildMenuSelector(); renderAnalysis();
+    toast('\u201c'+m.name+'\u201d deleted \u2014 dishes moved to Original');
+  });
+}
+function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=(currentMenuId==='MENU_ORIGINAL')?'none':''; }
 function openNewMenuModal(){
   var n=document.getElementById('nm_name'); if(n)n.value='';
   var s=document.getElementById('nm_season'); if(s)s.value='';
@@ -1888,6 +1938,7 @@ document.getElementById('menuSave').addEventListener('click',submitMenuItem);
 (function(){
   var ms=document.getElementById('menuSelect'); if(ms) ms.addEventListener('change',onMenuSelectChange);
   var mnb=document.getElementById('menuNewBtn'); if(mnb) mnb.addEventListener('click',openNewMenuModal);
+  var mdb=document.getElementById('menuDelBtn'); if(mdb) mdb.addEventListener('click',deleteCurrentMenu);
   var nmc=document.getElementById('newMenuClose'); if(nmc) nmc.addEventListener('click',closeNewMenuModal);
   var nmca=document.getElementById('newMenuCancel'); if(nmca) nmca.addEventListener('click',closeNewMenuModal);
   var nms=document.getElementById('newMenuSave'); if(nms) nms.addEventListener('click',submitNewMenu);
