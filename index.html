@@ -61,6 +61,7 @@
     <div class="pad" style="padding-bottom:0">
       <label class="f" for="plateName">Plate name</label>
       <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
+      <div class="ferr" id="plateNameErr" style="display:none"></div>
       <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
       <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
     </div>
@@ -91,6 +92,7 @@
           <div class="menu-picker-row">
             <select id="menuSelect"></select>
             <button id="menuNewBtn" type="button" class="btn menu-new-btn">+ New menu</button>
+            <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
           </div>
         </div>
         <div class="cogs-set">
@@ -152,24 +154,18 @@
       <div class="ferr" id="ferr"></div>
       <div class="grid">
         <div class="field full"><label for="f_desc">Product name *</label><input id="f_desc" type="text" placeholder="e.g. Cheese Tasty Block"></div>
-        <div class="field"><label for="f_brand">Brand / supplier</label><input id="f_brand" type="text"></div>
-        <div class="field"><label for="f_category">Category *</label><input id="f_category" list="catlist" type="text"></div>
-        <div class="field"><label for="f_sub">Sub-category</label><input id="f_sub" type="text"></div>
-        <div class="field"><label for="f_type">Item type</label><input id="f_type" list="typelist" type="text" placeholder="e.g. cheese"></div>
-        <div class="field full"><label for="f_alias">Search aliases (comma-separated)</label><input id="f_alias" type="text" placeholder="cheddar, tasty"></div>
-        <div class="field"><label for="f_base">Priced by *</label><select id="f_base"><option value="g">Weight (per gram)</option><option value="ml">Volume (per ml)</option><option value="ea">Count (per unit)</option></select></div>
-        <div class="field"><label id="lab_cpbu" for="f_cpbu">Cost per gram ($) *</label><input id="f_cpbu" type="number" min="0" step="0.0001" placeholder="e.g. 0.0125"></div>
-        <div class="field"><label for="f_pack">Pack size</label><input id="f_pack" type="text" placeholder="e.g. 6 X 2KG"></div>
-        <div class="field"><label for="f_sold">Sold by</label><input id="f_sold" type="text" placeholder="e.g. carton"></div>
-        <div class="field"><label for="f_price">Pack price ex-GST ($)</label><input id="f_price" type="number" min="0" step="0.01"></div>
-        <div class="field"><label for="f_basis">Cost basis</label><input id="f_basis" type="text" readonly value="$/g"></div>
+        <div class="field"><label for="f_brand">Brand</label><span class="cat-wrap"><input id="f_brand" type="text" autocomplete="off" placeholder="search brands…"><span id="f_brandDrop" class="cat-drop" style="display:none"></span></span></div>
+        <div class="field"><label for="f_sup">Supplier</label><span class="cat-wrap"><input id="f_sup" type="text" autocomplete="off" placeholder="search suppliers…"><span id="f_supDrop" class="cat-drop" style="display:none"></span></span></div>
+        <div class="field full"><label for="f_category">Category *</label><span class="cat-wrap"><input id="f_category" type="text" autocomplete="off" placeholder="search categories…"><span id="f_categoryDrop" class="cat-drop" style="display:none"></span></span></div>
+        <div class="field"><label for="f_packsize">Pack size *</label><div class="pack-in"><input id="f_packsize" type="number" min="0" step="0.001" placeholder="e.g. 10"><select id="f_packunit"><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">mL</option><option value="ea">units</option></select></div></div>
+        <div class="field"><label for="f_price">Pack price ($) *</label><input id="f_price" type="number" min="0" step="0.01" placeholder="e.g. 65.00"></div>
+        <div class="field full"><div class="calc-line" id="f_calc">Enter pack size &amp; price to see the unit cost.</div></div>
         <div class="field full"><label class="chk"><input id="f_food" type="checkbox" checked> Food item (appears in ingredient search)</label></div>
       </div>
     </div>
     <div class="mfoot"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn primary" id="mSave" type="button">Add ingredient</button></div>
   </div>
 </div>
-<datalist id="catlist"></datalist><datalist id="typelist"></datalist>
 <div class="toast" id="toast" role="status"></div>
 
 
@@ -362,6 +358,7 @@
   <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
 </nav>
 
+<div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/app.js"></script>
