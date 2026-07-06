@@ -37,12 +37,12 @@ function ingredientToRow(p){ return {
   price_as_of:(p.price_as_of||null), search_aliases:(p.search_aliases||[]),
   supplier:p.supplier||null,
   is_custom:!BASE_IDS.has(p.id) }; }
-function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), photoUrl:(r.photo_url||null)}; }
+function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), photoUrl:(r.photo_url||null), sourcePlateId:(r.source_plate_id||null)}; }
 function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[]}; }
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
-function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), photo_url:(item.photoUrl||null)}); }, 'menu item'); }
+function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), photo_url:(item.photoUrl||null), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
 function dbUpsertMenuRecord(m){ pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
 function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
@@ -432,6 +432,7 @@ function updatePricing(){}  /* pricing now lives only in Menu Analysis */
 menuLinkEl.addEventListener('change',()=>{menuTouched=true;updatePricing();});
 document.getElementById('plateName').addEventListener('input',function(e){
   renderPlateSuggest(e.target.value);   // live suggestions, every keystroke
+  if(e.target.value.trim()){ var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none'; }
 });
 /* saved plates */
 const PLATEKEY='cafeDB_plates';
@@ -457,6 +458,13 @@ document.getElementById('saveBtn').addEventListener('click',function(){saveCurre
 document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
 function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{const p=byId[l.pid];if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
+/* a menu item's recipe lives on its linked plate (plate.menuId === item.id); a "reused" item instead points at
+   a shared plate via item.sourcePlateId. This resolves either kind to the plate holding the ingredient lines. */
+function plateForMenuItem(m){ if(!m) return null;
+  var sp=savedPlates.find(function(s){return s.menuId===m.id;}); if(sp) return sp;
+  if(m.sourcePlateId){ return savedPlates.find(function(s){return s.id===m.sourcePlateId;})||null; }
+  return null;
+}
 function vbadge(a){
   if(a.state==='ok')return '<span class="vbadge vgood">healthy</span>';
   if(a.state==='under')return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'">'+a.absPct+'% under</span>';
@@ -528,7 +536,7 @@ function computeAvgFoodCost(){
   var vals=[];
   MENU.forEach(function(m){
     if(!(m.price>0)) return;
-    var sp=savedPlates.filter(function(s){return s.menuId===m.id;})[0];
+    var sp=plateForMenuItem(m);
     if(!sp) return;
     var c=costFromLines(sp.lines);
     if(c>0) vals.push(c/m.price);
@@ -692,7 +700,7 @@ function trendChart(){
   var pts=priceHistory.slice(-30);
   var W=320,H=150,padL=30,padR=10,padT=14,padB=20;
   if(pts.length<2){
-    return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Food cost trend"></svg>'
+    return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
       +'<p class="hint chart-hint">The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.</p></div>';
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
@@ -706,7 +714,7 @@ function trendChart(){
   var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';
   var refY=y(cogsPct).toFixed(1);
   var area=d+' L'+x(pts.length-1).toFixed(1)+' '+(H-padB)+' L'+x(0).toFixed(1)+' '+(H-padB)+' Z';
-  var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Average food cost trend">'
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Average food cost trend">'
     +'<path d="'+area+'" fill="'+stroke+'" opacity="0.10"/>'
     +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
@@ -722,7 +730,7 @@ function trendChart(){
 function highlightData(kind){
   if(kind==='foodcost'){
     var rows=[];
-    MENU.forEach(function(m){ if(!(m.price>0))return; var sp=savedPlates.filter(function(s){return s.menuId===m.id;})[0]; if(!sp)return; var c=costFromLines(sp.lines); if(c>0) rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%'}); });
+    MENU.forEach(function(m){ if(!(m.price>0))return; var sp=plateForMenuItem(m); if(!sp)return; var c=costFromLines(sp.lines); if(c>0) rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%'}); });
     rows.sort(function(a,b){return b.val-a.val;}); return {title:'Highest food cost %', rows:rows};
   }
   if(kind==='portion'){
@@ -751,8 +759,10 @@ function openHighlight(kind){
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
   var cmp=dashComparisons();
-  var html='<div class="panel dash-panel"><h2>Average food cost</h2><p class="dash-sub">The average food cost % across your costed menu items — the line tracks how it moves over time as prices change. Cards below compare today\u2019s figure to last month\u2019s and this year\u2019s averages.</p><div class="pad">'+trendChart()+'</div></div>';
-  html+='<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('Year to date', cmp.current, cmp.ytd)+'</div>';
+  var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'+trendChart()
+    +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
+    +'<div class="stat-row">'+statCard('vs last month', cmp.current, cmp.lastMonth)+statCard('vs this year', cmp.current, cmp.ytd)+'</div></div>'
+    +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
   var cb=document.getElementById('dashCogsBtn'); if(cb) cb.onclick=openCogsModal;
@@ -1043,11 +1053,11 @@ function submitMenuItem(){
   if(publishTargetId){
     targetId=publishTargetId;
     var prevItem=menuById[targetId]||{};
-    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:(prevItem.photoUrl||null)});
+    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:(prevItem.photoUrl||null),sourcePlateId:(prevItem.sourcePlateId||null)});
   } else {
     targetId='um'+Date.now().toString(36);
-    customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:null});
-    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,photoUrl:null});
+    customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:null,sourcePlateId:null});
+    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,photoUrl:null,sourcePlateId:null});
   }
   rebuildMenu(); buildMenuOptions();
   setCurrentMenuId(chosenMenu); buildMenuSelector();          // show the menu this dish landed in
@@ -1609,8 +1619,8 @@ function renderAnalysis(){
     html+='<tr class="sec"><td colspan="6">'+esc(sec)+'</td></tr>';
     items.forEach(function(m){
       shown++;
-      var sp=byMenu[m.id];
-      if(sp){ html+=aRow(sp.name||m.name, analyze(costFromLines(sp.lines),m.price), m); }
+      var sp=byMenu[m.id]||(m.sourcePlateId?savedPlates.find(function(s){return s.id===m.sourcePlateId;}):null);
+      if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }
       else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
         html+='<tr class="muted"><td>'+esc(m.name)+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
@@ -1664,6 +1674,49 @@ function deleteCurrentMenu(){
   });
 }
 function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=(currentMenuId==='MENU_ORIGINAL')?'none':''; }
+
+/* ---- reuse an existing costed dish on another menu (shares the source plate) ---- */
+var adSelectedPlateId=null;
+function eligibleDishes(){                                         // costed plates, most useful first
+  return savedPlates.filter(function(sp){ return sp && sp.lines && sp.lines.length && costFromLines(sp.lines)>0; });
+}
+function renderDishPicker(filter){
+  var box=document.getElementById('ad_list'); if(!box) return;
+  var q=(filter||'').trim().toLowerCase();
+  var list=eligibleDishes().filter(function(sp){ var nm=(menuNameForPlate(sp)+' '+(sp.name||'')).toLowerCase(); return !q||nm.indexOf(q)>=0; });
+  list.sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
+  if(!list.length){ box.innerHTML='<div class="ad-empty">No costed dishes found. Build and save a plate first.</div>'; return; }
+  box.innerHTML=list.map(function(sp){
+    var c=costFromLines(sp.lines); var onMenu=sp.menuId&&menuById[sp.menuId]?menuById[sp.menuId].name:'Library';
+    var sel=(sp.id===adSelectedPlateId)?' sel':'';
+    return '<button type="button" class="ad-item'+sel+'" data-pid="'+esc(sp.id)+'"><span class="ad-nm">'+esc(sp.name||'Plate')+'</span><span class="ad-meta">'+esc(onMenu)+' · cost '+fmt2(c)+'</span></button>';
+  }).join('');
+  box.querySelectorAll('.ad-item').forEach(function(b){ b.onclick=function(){ adSelectedPlateId=b.getAttribute('data-pid'); renderDishPicker(document.getElementById('ad_search').value); }; });
+}
+function menuNameForPlate(sp){ return (sp.menuId&&menuById[sp.menuId])?menuById[sp.menuId].name:(sp.name||''); }
+function openAddDishModal(){
+  adSelectedPlateId=null;
+  var nm=document.getElementById('ad_menuName'); if(nm) nm.textContent=menuNameById(currentMenuId);
+  var s=document.getElementById('ad_search'); if(s) s.value='';
+  var p=document.getElementById('ad_price'); if(p) p.value='';
+  var e=document.getElementById('ad_err'); if(e) e.style.display='none';
+  renderDishPicker(''); show('addDishModal'); if(s) s.focus();
+}
+function closeAddDishModal(){ hide('addDishModal'); }
+function submitAddDish(){
+  var err=document.getElementById('ad_err');
+  var sp=savedPlates.find(function(s){return s.id===adSelectedPlateId;});
+  if(!sp){ if(err){err.textContent='Pick a dish from the list first.';err.style.display='block';} return; }
+  var pv=document.getElementById('ad_price').value;
+  if(pv===''||isNaN(parseFloat(pv))||parseFloat(pv)<0){ if(err){err.textContent='Enter a sell price for this menu.';err.style.display='block';} return; }
+  var srcMi=(sp.menuId&&menuById[sp.menuId])?menuById[sp.menuId]:null;
+  var section=srcMi&&srcMi.section?srcMi.section:'Uncategorised';
+  var id='um'+Date.now().toString(36);
+  var item={id:id, section:section, name:(srcMi?srcMi.name:sp.name)||'Dish', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, photoUrl:(srcMi?srcMi.photoUrl:null)||null, sourcePlateId:sp.id};
+  customMenu.push(item); saveCustomMenu(); dbPushMenu(item);
+  rebuildMenu(); buildMenuOptions(); renderAnalysis(); closeAddDishModal();
+  toast('\u201c'+item.name+'\u201d added to '+menuNameById(currentMenuId));
+}
 function openNewMenuModal(){
   var n=document.getElementById('nm_name'); if(n)n.value='';
   var s=document.getElementById('nm_season'); if(s)s.value='';
@@ -1786,7 +1839,7 @@ function saveMenuEdit(){
   if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d from the list to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
   var price=parseFloat(priceV);
   var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:(m.menuId||'MENU_ORIGINAL');
-  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, photoUrl:(m.photoUrl||null)});   // saves all edits at once
+  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, photoUrl:(m.photoUrl||null),sourcePlateId:(m.sourcePlateId||null)});   // saves all edits at once
   var touched=false;                                                          // keep any linked plate's name in sync with the rename
   savedPlates.forEach(function(sp){ if(sp.menuId===id && sp.name!==name){ sp.name=name; dbPushPlate(sp); touched=true; } });
   if(touched) savePlatesLS();
@@ -1938,6 +1991,11 @@ document.getElementById('menuSave').addEventListener('click',submitMenuItem);
 (function(){
   var ms=document.getElementById('menuSelect'); if(ms) ms.addEventListener('change',onMenuSelectChange);
   var mnb=document.getElementById('menuNewBtn'); if(mnb) mnb.addEventListener('click',openNewMenuModal);
+  var madb=document.getElementById('menuAddDishBtn'); if(madb) madb.addEventListener('click',openAddDishModal);
+  var adc=document.getElementById('addDishClose'); if(adc) adc.addEventListener('click',closeAddDishModal);
+  var adca=document.getElementById('addDishCancel'); if(adca) adca.addEventListener('click',closeAddDishModal);
+  var ads=document.getElementById('addDishSave'); if(ads) ads.addEventListener('click',submitAddDish);
+  var adsr=document.getElementById('ad_search'); if(adsr) adsr.addEventListener('input',function(e){ renderDishPicker(e.target.value); });
   var mdb=document.getElementById('menuDelBtn'); if(mdb) mdb.addEventListener('click',deleteCurrentMenu);
   var nmc=document.getElementById('newMenuClose'); if(nmc) nmc.addEventListener('click',closeNewMenuModal);
   var nmca=document.getElementById('newMenuCancel'); if(nmca) nmca.addEventListener('click',closeNewMenuModal);
