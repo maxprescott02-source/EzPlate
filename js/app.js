@@ -37,12 +37,13 @@ function ingredientToRow(p){ return {
   price_as_of:(p.price_as_of||null), search_aliases:(p.search_aliases||[]),
   supplier:p.supplier||null,
   is_custom:!BASE_IDS.has(p.id) }; }
-function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom}; }
+function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), photoUrl:(r.photo_url||null)}; }
 function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[]}; }
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
-function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true}); }, 'menu item'); }
+function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), photo_url:(item.photoUrl||null)}); }, 'menu item'); }
+function dbUpsertMenuRecord(m){ pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
 function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
@@ -77,13 +78,16 @@ async function bootstrapSync(){
     var delRow=setRows.filter(function(r){return r.key==='deleted_menu_ids';})[0];
     deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
+    try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
+    ensureDefaultMenu(); saveMenus();
+    if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId('MENU_ORIGINAL');
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
     try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:r.recorded_at, v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
     if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} var ci2=document.getElementById('cogsTarget'); if(ci2)ci2.value=pv; } }
-    buildMenuOptions(); renderPlate(); renderAnalysis(); updateLastImport(); updateEditTag();
+    buildMenuOptions(); buildMenuSelector(); renderPlate(); renderAnalysis(); updateLastImport(); updateEditTag();
     setSync('ok'); window.__ezReady=true;
   }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
 }
@@ -314,6 +318,16 @@ const MENUKEY='cafeDB_menu';
 function loadCustomMenu(){try{return JSON.parse(localStorage.getItem(MENUKEY))||[];}catch(e){return [];}}
 function saveCustomMenu(){try{localStorage.setItem(MENUKEY,JSON.stringify(customMenu));}catch(e){}}
 let customMenu=loadCustomMenu();
+/* ===== multiple menus ===== */
+function loadMenus(){ try{ var a=JSON.parse(localStorage.getItem('cafeDB_menus')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveMenus(){ try{ localStorage.setItem('cafeDB_menus', JSON.stringify(menusList)); }catch(e){} }
+var menusList=loadMenus();
+function ensureDefaultMenu(){ if(!menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
+ensureDefaultMenu();
+function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||'MENU_ORIGINAL'; }catch(e){ return 'MENU_ORIGINAL'; } }
+var currentMenuId=loadCurrentMenuId();
+function setCurrentMenuId(id){ currentMenuId=id||'MENU_ORIGINAL'; try{ localStorage.setItem('cafeDB_currentMenuId', currentMenuId); }catch(e){} }
+function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
 let MENU=[],menuById={};
 function rebuildMenu(){
   var map={},order=[];
@@ -463,7 +477,7 @@ document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>s
   if(ms){ ms.addEventListener('input',function(){ if(msc)msc.style.display=ms.value?'':'none'; renderAnalysis(); }); }
   if(msc){ msc.addEventListener('click',function(){ ms.value=''; msc.style.display='none'; renderAnalysis(); ms.focus(); }); }
 })();
-buildMenuOptions(); bindTips();
+buildMenuOptions(); buildMenuSelector(); bindTips();
 
 renderPlate();
 
@@ -969,6 +983,7 @@ function openMenuModal(){
   document.getElementById('mi_price').value=(item&&item.price!=null)?item.price:'';
   document.getElementById('mi_notes').value=(item&&item.notes)?item.notes:'';
   document.getElementById('mi_cat').value=item?item.section:'';
+  buildMenuPickers(); var miMenu=document.getElementById('mi_menu'); if(miMenu){ var wantM=(item&&item.menuId)?item.menuId:currentMenuId; if(menusList.some(function(m){return m.id===wantM;})) miMenu.value=wantM; }
   catState.chosen=item?item.section:null; catState.chosenIsNew=false;
   document.getElementById('mi_catDrop').style.display='none'; document.getElementById('mi_catNew').style.display='none';
   document.getElementById('mi_err').style.display='none';
@@ -987,19 +1002,22 @@ function submitMenuItem(){
   else{document.getElementById('mi_err').textContent='“'+typedCat+'” is a new category — pick “Create new category” from the list to confirm, or choose an existing one.';document.getElementById('mi_err').style.display='block';renderCatDrop();return;}
   var priceV=document.getElementById('mi_price').value;
   var notes=document.getElementById('mi_notes').value.trim();
+  var miMenuEl=document.getElementById('mi_menu'); var chosenMenu=(miMenuEl&&miMenuEl.value)?miMenuEl.value:currentMenuId;
   var err=document.getElementById('mi_err');
   if(!name){err.textContent='Enter a menu item name.';err.style.display='block';return;}
   if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){err.textContent='Enter a valid sell price.';err.style.display='block';return;}
   var targetId;
   if(publishTargetId){
     targetId=publishTargetId;
-    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true});
+    var prevItem=menuById[targetId]||{};
+    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:(prevItem.photoUrl||null)});
   } else {
     targetId='um'+Date.now().toString(36);
-    customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true});
-    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes});
+    customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:null});
+    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,photoUrl:null});
   }
   rebuildMenu(); buildMenuOptions();
+  setCurrentMenuId(chosenMenu); buildMenuSelector();          // show the menu this dish landed in
   menuLinkEl.value=targetId; menuTouched=true;
   saveCurrentPlate(false);
   renderAnalysis(); closeMenuModal(); updatePublishLabel();
@@ -1199,6 +1217,10 @@ function moneyMatches(line){
   while((m=re.exec(line))!==null){ arr.push({val:parseFloat(m[1].replace(/,/g,'')), idx:m.index, end:re.lastIndex}); }
   return arr;
 }
+function firstPairPrice(monies){   // first adjacent pair of equal money values = the per-pack (unit) price column, e.g. "52.12 52.12" or qty-1 "$20.00 $20.00"
+  for(var i=0;i<monies.length-1;i++){ if(monies[i].val>0 && monies[i].val===monies[i+1].val) return monies[i].val; }
+  return null;
+}
 function unitCat(u){ u=u.toLowerCase();
   if(u==='kg'||u==='kgs') return {cat:'kg',f:1};
   if(u==='g'||u==='gr'||u==='gram'||u==='grams') return {cat:'kg',f:0.001};
@@ -1261,16 +1283,19 @@ function parsePdfLine(line){
   var unc=(cls==='uncertain');
   var ex=explicitUnitPrice(line);                                 // 1) explicit unit price wins
   if(ex){ invDbg('[parsePdfLine] explicit unit price:', {name:name, unitPrice:ex.unitPrice, unit:ex.unit}); return {name:name, unitPrice:ex.unitPrice, unit:ex.unit, needManual:false, uncertain:unc, raw:line}; }
+  // Per-PACK price: columnar invoices repeat the Unit Price / Price columns ("52.12 52.12"); simple invoices
+  // repeat the qty-1 unit price as the line total ("$20.00 $20.00"). The first adjacent equal pair is the price
+  // of ONE pack. Using it (not the last money / line total) is what stops qty>1 lines being multiplied by qty.
+  var total=monies[monies.length-1].val;                          // last money = line total
+  var packPrice=firstPairPrice(monies); if(packPrice==null) packPrice=total;
   var aps=line.match(/\b(\d{2,4})'s\b/i);                          // 1b) explicit apostrophe-s pack count e.g. "105'S", "400'S" -> N pieces per pack
   if(aps){ var apc=parseFloat(aps[1]);
-    if(apc>0){ var packPrice=monies[0].val;                        // first money on the line = pack/unit price (holds on both simple + columnar layouts)
-      invDbg('[parsePdfLine] APOSTROPHE-S count:', {name:name, count:apc, packPrice:packPrice, perUnit:'$'+(packPrice/apc).toFixed(4)+'/unit'});
+    if(apc>0){ invDbg('[parsePdfLine] APOSTROPHE-S count:', {name:name, count:apc, packPrice:packPrice, perUnit:'$'+(packPrice/apc).toFixed(4)+'/unit'});
       return {name:name, unitPrice:packPrice/apc, unit:'ea', needManual:false, uncertain:unc, raw:line}; } }
-  var total=monies[monies.length-1].val;                          // last money = line total
-  var w=packWeight(line);                                         // 2) derive from total weight/volume
-  if(w && w.qtyInCat>0){ var upw=total/w.qtyInCat; invDbg('[parsePdfLine] WEIGHT calc:', {name:name, lineTotal:total, totalWeight:w.qtyInCat+(w.cat==='l'?' L':' kg'), pricePerUnit:'$'+upw.toFixed(4)+'/'+(w.cat==='l'?'L':'kg')}); return {name:name, unitPrice:upw, unit:w.cat, needManual:false, uncertain:unc, raw:line}; }
-  var c=packCount(line);                                          //    or per-unit count
-  if(c && c>0) return {name:name, unitPrice:total/c, unit:'ea', needManual:false, uncertain:unc, raw:line};
+  var w=packWeight(line);                                         // 2) derive $/kg or $/L from the pack price and the pack's weight/volume
+  if(w && w.qtyInCat>0){ var upw=packPrice/w.qtyInCat; invDbg('[parsePdfLine] WEIGHT calc:', {name:name, packPrice:packPrice, lineTotal:total, totalWeight:w.qtyInCat+(w.cat==='l'?' L':' kg'), pricePerUnit:'$'+upw.toFixed(4)+'/'+(w.cat==='l'?'L':'kg')}); return {name:name, unitPrice:upw, unit:w.cat, needManual:false, uncertain:unc, raw:line}; }
+  var c=packCount(line);                                          //    or $/unit from the pack price and the per-pack count
+  if(c && c>0) return {name:name, unitPrice:packPrice/c, unit:'ea', needManual:false, uncertain:unc, raw:line};
   return {name:name, unitPrice:null, unit:'auto', needManual:true, uncertain:unc, raw:line};   // 3) ambiguous
 }
 function pdfTextToRows(text){
@@ -1535,8 +1560,9 @@ function renderAnalysis(){
   function hit(nm,sec){ if(!q) return true; return (String(nm||'').toLowerCase().indexOf(q)>=0)||(String(sec||'').toLowerCase().indexOf(q)>=0); }
   var byMenu={},customsP=[]; var shown=0;
   savedPlates.forEach(function(sp){ if(sp.menuId&&menuById[sp.menuId])byMenu[sp.menuId]=sp; else customsP.push(sp); });
+  var inMenu=function(m){ return (m.menuId||'MENU_ORIGINAL')===currentMenuId; };   // only show dishes belonging to the selected menu
   var secOf=function(m){var s=(m.section||'').trim(); return s?s:'Uncategorised';};
-  var sections=[]; MENU.forEach(function(m){var s=secOf(m); if(sections.indexOf(s)<0)sections.push(s);});
+  var sections=[]; MENU.forEach(function(m){ if(!inMenu(m)) return; var s=secOf(m); if(sections.indexOf(s)<0)sections.push(s);});
   sections.sort(function(a,b){
     var au=a.toLowerCase()==='uncategorised', bu=b.toLowerCase()==='uncategorised';
     if(au&&!bu)return 1; if(bu&&!au)return -1;                 // Uncategorised always last
@@ -1545,7 +1571,7 @@ function renderAnalysis(){
   var byName=function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());};
   var html='';
   sections.forEach(function(sec){
-    var items=MENU.filter(function(m){return secOf(m)===sec && hit(m.name,sec);}).slice().sort(byName);
+    var items=MENU.filter(function(m){return inMenu(m) && secOf(m)===sec && hit(m.name,sec);}).slice().sort(byName);
     if(!items.length) return;
     html+='<tr class="sec"><td colspan="6">'+esc(sec)+'</td></tr>';
     items.forEach(function(m){
@@ -1556,7 +1582,7 @@ function renderAnalysis(){
         html+='<tr class="muted"><td>'+esc(m.name)+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
   });
-  var custShown=customsP.filter(function(sp){ return hit(sp.name||'Custom plate','Custom plates'); });
+  var custShown=(currentMenuId==='MENU_ORIGINAL')?customsP.filter(function(sp){ return hit(sp.name||'Custom plate','Custom plates'); }):[];   // orphan plates live on the home menu
   if(custShown.length){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
     custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
@@ -1564,6 +1590,48 @@ function renderAnalysis(){
   if(!shown){ html='<tr class="an-empty"><td colspan="6">No menu items match \u201c'+esc(q)+'\u201d.</td></tr>'; }
   tb.innerHTML=html; bindTips();
   tb.querySelectorAll('.mi-btn.edit').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid) openPlateEdit(pid); else openMenuEdit(b.getAttribute('data-id')); }; });
+}
+
+/* ===== multiple menus: selector, pickers, create modal ===== */
+function buildMenuSelector(){
+  var sel=document.getElementById('menuSelect');
+  if(sel){
+    if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId='MENU_ORIGINAL';
+    sel.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
+    sel.value=currentMenuId;
+  }
+  buildMenuPickers();
+}
+function buildMenuPickers(){                                   // fill the menu <select>s inside the Publish + Edit modals
+  ['mi_menu','ed_menu'].forEach(function(id){
+    var s=document.getElementById(id); if(!s) return;
+    var cur=s.value||currentMenuId;
+    s.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'">'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
+    if(menusList.some(function(m){return m.id===cur;})) s.value=cur;
+  });
+}
+function onMenuSelectChange(){
+  var sel=document.getElementById('menuSelect'); if(!sel) return;
+  setCurrentMenuId(sel.value); renderAnalysis();
+}
+function openNewMenuModal(){
+  var n=document.getElementById('nm_name'); if(n)n.value='';
+  var s=document.getElementById('nm_season'); if(s)s.value='';
+  var e=document.getElementById('nm_err'); if(e)e.style.display='none';
+  show('newMenuModal'); if(n)n.focus();
+}
+function closeNewMenuModal(){ hide('newMenuModal'); }
+function submitNewMenu(){
+  var name=(document.getElementById('nm_name')||{}).value; name=(name||'').trim();
+  var season=(document.getElementById('nm_season')||{}).value||''; season=season.trim();
+  var err=document.getElementById('nm_err');
+  if(!name){ if(err){ err.textContent='Enter a menu name.'; err.style.display='block'; } return; }
+  var id='MENU'+Date.now().toString(36);
+  var rec={id:id, name:name, season:season||null};
+  menusList.push(rec); saveMenus(); dbUpsertMenuRecord(rec);
+  setCurrentMenuId(id);
+  buildMenuSelector(); renderAnalysis(); closeNewMenuModal();
+  toast('\u201c'+name+'\u201d menu created');
 }
 
 /* ===== Menu Analysis: split "/" items + safe delete ===== */
@@ -1639,6 +1707,7 @@ function openMenuEdit(id){
   document.getElementById('ed_name').value=m.name||'';
   document.getElementById('ed_price').value=(m.price!=null)?m.price:'';
   document.getElementById('ed_cat').value=m.section||'';
+  buildMenuPickers(); var edMenu=document.getElementById('ed_menu'); if(edMenu){ var wm=m.menuId||'MENU_ORIGINAL'; if(menusList.some(function(x){return x.id===wm;})) edMenu.value=wm; }
   edCatState.chosen=m.section||null; edCatState.chosenIsNew=false;
   var d=document.getElementById('ed_catDrop'); if(d)d.style.display='none';
   var nn=document.getElementById('ed_catNew'); if(nn)nn.style.display='none';
@@ -1666,11 +1735,13 @@ function saveMenuEdit(){
   var cat=resolveEditCat();
   if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d from the list to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
   var price=parseFloat(priceV);
-  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true});   // saves all edits at once
+  var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:(m.menuId||'MENU_ORIGINAL');
+  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, photoUrl:(m.photoUrl||null)});   // saves all edits at once
   var touched=false;                                                          // keep any linked plate's name in sync with the rename
   savedPlates.forEach(function(sp){ if(sp.menuId===id && sp.name!==name){ sp.name=name; dbPushPlate(sp); touched=true; } });
   if(touched) savePlatesLS();
   rebuildMenu(); buildMenuOptions();
+  if(chosenMenu!==currentMenuId){ setCurrentMenuId(chosenMenu); buildMenuSelector(); }   // follow the dish if it was moved to another menu
   var loadedSp=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
   if(loadedSp && loadedSp.menuId===id){ document.getElementById('plateName').value=name; }   // reflect in the builder if open
   renderPlate(); renderAnalysis(); closeEdit();
@@ -1700,15 +1771,16 @@ function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn 
 function setEditMode(mode){
   editKind=mode; edRestoreMode=false;
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
+  var mf=document.getElementById('ed_menuField');
   var pa=document.getElementById('ed_plateActions'), dr=document.getElementById('ed_deleteRow');
   var save=document.getElementById('editSave'), title=document.getElementById('editTitle');
   var nlab=document.querySelector('label[for="ed_name"]');
   if(mode==='menu'){
-    if(cf)cf.style.display=''; if(pf)pf.style.display='';
+    if(cf)cf.style.display=''; if(pf)pf.style.display=''; if(mf)mf.style.display='';
     if(pa)pa.style.display='none'; if(dr)dr.style.display='';
     if(save)save.textContent='Save changes'; if(title)title.textContent='Edit menu item'; if(nlab)nlab.textContent='Menu item name *';
   } else {                                   // orphan custom plate
-    if(cf)cf.style.display='none'; if(pf)pf.style.display='none';
+    if(cf)cf.style.display='none'; if(pf)pf.style.display='none'; if(mf)mf.style.display='none';
     if(pa)pa.style.display=''; if(dr)dr.style.display='none';
     if(save)save.textContent='Save name'; if(title)title.textContent='Edit plate'; if(nlab)nlab.textContent='Plate name *';
   }
@@ -1813,6 +1885,14 @@ document.getElementById('invClose').addEventListener('click',closeInv);
 document.getElementById('menuClose').addEventListener('click',closeMenuModal);
 document.getElementById('menuCancel').addEventListener('click',closeMenuModal);
 document.getElementById('menuSave').addEventListener('click',submitMenuItem);
+(function(){
+  var ms=document.getElementById('menuSelect'); if(ms) ms.addEventListener('change',onMenuSelectChange);
+  var mnb=document.getElementById('menuNewBtn'); if(mnb) mnb.addEventListener('click',openNewMenuModal);
+  var nmc=document.getElementById('newMenuClose'); if(nmc) nmc.addEventListener('click',closeNewMenuModal);
+  var nmca=document.getElementById('newMenuCancel'); if(nmca) nmca.addEventListener('click',closeNewMenuModal);
+  var nms=document.getElementById('newMenuSave'); if(nms) nms.addEventListener('click',submitNewMenu);
+  var nmn=document.getElementById('nm_name'); if(nmn) nmn.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); submitNewMenu(); } });
+})();
 document.getElementById('editClose').addEventListener('click',closeEdit);
 document.getElementById('editCancel').addEventListener('click',closeEdit);
 document.getElementById('editSave').addEventListener('click',onEditSave);
