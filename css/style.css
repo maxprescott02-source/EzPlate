@@ -617,6 +617,15 @@ input[type=checkbox]{
 .pack-in select{flex:0 0 auto;width:auto}
 .calc-line{font-size:14px;font-weight:600;color:var(--muted2);padding:8px 12px;border:1px dashed var(--border2);border-radius:10px;background:var(--surface2)}
 .calc-line.ok{color:var(--accent-ink);border-style:solid;border-color:var(--accent);background:rgba(184,78,12,.06)}
+.ad-search{width:100%;padding:11px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);margin-bottom:8px}
+.ad-list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px}
+.ad-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:11px 13px;background:transparent;border:0;border-bottom:1px solid var(--border);cursor:pointer;color:var(--text)}
+.ad-item:last-child{border-bottom:0}
+.ad-item:hover{background:var(--hover)}
+.ad-item.sel{background:rgba(184,78,12,.10);box-shadow:inset 3px 0 0 var(--accent)}
+.ad-nm{font-weight:700;font-size:15px}
+.ad-meta{font-size:12px;color:var(--muted2)}
+.ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:14px}
 
 /* ----------------------------------------------------------------------
    16. INVOICE IMPORT + REVIEW
@@ -970,8 +979,9 @@ input[type=checkbox]{
 /* ============ Dashboard ============ */
 #dashBody{padding-bottom:6px}
 .dash-panel h2{margin-bottom:0}
-.dash-sub{margin:4px 2px 8px;font-size:12px;color:var(--muted2);line-height:1.45;max-width:560px}
-.dash-chart{position:relative}
+.stat-attach{margin-top:6px;border-top:1px solid var(--border);padding-top:10px}
+.stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 2px 8px}
+.dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:9px}
 .chart-hint{margin:6px 2px 0}
@@ -1132,7 +1142,7 @@ input[type=checkbox]{
   #dashBody .dash-panel{grid-column:1 / -1}
   #dashBody .stat-row{grid-column:1;padding:0;margin-top:var(--sp-5);align-content:start}
   #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin-top:var(--sp-5)}
-  .dash-chart svg{height:230px}
+  .dash-chart svg{height:auto}
   .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
 
   /* -- floating chrome respects the sidebar -- */
