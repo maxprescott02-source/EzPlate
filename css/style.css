@@ -652,7 +652,14 @@ input[type=checkbox]{
 .invtable select.invSel{max-width:100%;width:100%;font-size:14px!important;min-height:44px}
 .match-cell{display:flex;gap:8px;align-items:center;width:100%}
 .match-cell .invSel{flex:1 1 auto;min-width:0;width:auto;max-width:none}
-.ni-add-alt{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:8px 12px;min-height:44px}
+.ni-add-alt{flex:0 0 auto;white-space:nowrap;font-size:12px;padding:6px 10px;min-height:36px}
+@media (max-width:639px){
+  /* invoice cards are narrow on mobile — a select + button side by side overflows the card,
+     so stack the "+ New" button on its own row underneath instead */
+  .match-cell{flex-wrap:wrap}
+  .match-cell .invSel{flex:1 1 100%}
+  .ni-add-alt{flex:1 1 100%;min-height:40px}
+}
 .invAppr{width:26px;height:26px;min-height:26px}
 .muted-row td{opacity:.92}
 
@@ -840,6 +847,11 @@ input[type=checkbox]{
 
   /* ===== Menu analysis controls: COGS target + search ===== */
   .an-controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;padding:4px 16px 10px}
+  .menu-picker{flex:1 1 100%;min-width:100%}
+  .menu-picker > label{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
+  .menu-picker-row{display:flex;gap:8px;align-items:center}
+  .menu-picker-row select{flex:1 1 auto;min-width:0;padding:9px 12px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
+  .menu-new-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px}
   .cogs-set{flex:1 1 200px;min-width:180px}
   .cogs-set > label{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
   .cogs-in{display:inline-flex;align-items:center;gap:2px}
