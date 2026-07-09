@@ -1,0 +1,86 @@
+/*
+ * product-pack.test.js — Phase 1 (v21): product-pack pricing, precedence, and the
+ * unit-mismatch guard. Locks in the eggs bug fix ("$50 carton of 180 eggs" must be
+ * $0.2778/egg, never $83.33/kg) and the deliberate v20 rule change:
+ *   product pack > supplier memory > parser  (parser only when nothing was taught).
+ */
+const test = require('node:test');
+const assert = require('node:assert');
+const { parsePdfLine, derivePackPrice, resolveMatchedPrice, unitCatCategory } = require('./_extract.js');
+
+const near = (a, b, m) => assert.ok(Math.abs(a - b) < 0.01, `${m}: expected ~${b}, got ${a}`);
+const EGGS = '1 130 Eggs - Ctn 600g $50.00 $50.00';
+
+test('THE eggs case: a matched product pack of 180 units -> $0.2778/ea, NOT $83.33/kg', () => {
+  // the parser alone reads "600g" and gets it wrong on unit:
+  const parsed = parsePdfLine(EGGS);
+  assert.equal(parsed.unit, 'kg');
+  near(parsed.unitPrice, 50 / 0.6, 'parser alone (wrong unit)');   // ~83.33/kg
+  // product pack fixes it:
+  const d = derivePackPrice(EGGS, 180, 'ea');
+  assert.equal(d.unit, 'ea');
+  near(d.unitPrice, 50 / 180, 'per egg');                          // ~0.2778
+});
+
+test('resolveMatchedPrice applies the product pack and clears the mismatch (eggs)', () => {
+  const row = parsePdfLine(EGGS);
+  resolveMatchedPrice(row, { pack_qty: 180, pack_unit: 'ea', base_unit: 'ea' }, null);
+  assert.equal(row.priceSource, 'product-pack');
+  assert.equal(row.unit, 'ea');
+  near(row.unitPrice, 50 / 180, 'per egg');
+  assert.equal(row.unitMismatch, false);
+  assert.equal(row.needManual, false);
+});
+
+test('unit-mismatch GUARD: kg-derived price against an ea product is blocked, not applied', () => {
+  const row = parsePdfLine(EGGS);                                  // parses to $/kg
+  resolveMatchedPrice(row, { pack_qty: null, pack_unit: null, base_unit: 'ea' }, null);
+  assert.equal(row.unitMismatch, true, 'kg vs ea must flag');
+  assert.equal(row.needManual, true, 'must require manual/pack resolution');
+});
+
+test('kg pack: $65 pack / 10 kg -> $6.50/kg', () => {
+  const d = derivePackPrice('Flour Plain 10kg 1 65.00 65.00', 10, 'kg');
+  assert.equal(d.unit, 'kg');
+  near(d.unitPrice, 6.50, 'per kg');
+});
+
+test('precedence: product pack > supplier memory > parser (all three distinct)', () => {
+  const RAW = 'Widget 2kg CTN 1 20.00 20.00';                     // parser: 20/2kg = $10/kg
+  near(parsePdfLine(RAW).unitPrice, 10, 'parser baseline');
+
+  // 1) product pack wins over both memory and parser
+  let r = parsePdfLine(RAW);
+  resolveMatchedPrice(r, { pack_qty: 4, pack_unit: 'kg', base_unit: 'g' }, { qty: 5, unit: 'kg' });
+  assert.equal(r.priceSource, 'product-pack');
+  near(r.unitPrice, 20 / 4, 'pack: $5/kg');
+
+  // 2) no pack -> supplier memory wins over parser
+  r = parsePdfLine(RAW);
+  resolveMatchedPrice(r, { pack_qty: null, pack_unit: null, base_unit: 'g' }, { qty: 5, unit: 'kg' });
+  assert.equal(r.priceSource, 'memory');
+  near(r.unitPrice, 20 / 5, 'memory: $4/kg');
+
+  // 3) parser derivation is used ONLY when nothing was taught (the renamed v20 rule)
+  r = parsePdfLine(RAW);
+  resolveMatchedPrice(r, { pack_qty: null, pack_unit: null, base_unit: 'g' }, null);
+  assert.equal(r.priceSource, 'parser');
+  near(r.unitPrice, 10, 'parser: $10/kg');
+});
+
+test('unitCatCategory maps units to kg/l/ea', () => {
+  assert.equal(unitCatCategory('g'), 'kg');
+  assert.equal(unitCatCategory('kg'), 'kg');
+  assert.equal(unitCatCategory('ml'), 'l');
+  assert.equal(unitCatCategory('l'), 'l');
+  assert.equal(unitCatCategory('ea'), 'ea');
+  assert.equal(unitCatCategory('unit'), 'ea');
+  assert.equal(unitCatCategory('xyz'), null);
+});
+
+test('no false mismatch when derived unit already matches the product base unit', () => {
+  const row = parsePdfLine('Chips 6x2.5kg CTN 8 40.17 40.17 321.36 0.00 321.36');
+  resolveMatchedPrice(row, { pack_qty: null, pack_unit: null, base_unit: 'g' }, null);
+  assert.equal(row.unitMismatch, false);
+  near(row.unitPrice, 40.17 / 15, 'chips still ~$2.68/kg');        // regression anchor stays intact
+});
