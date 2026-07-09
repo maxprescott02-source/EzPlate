@@ -1560,3 +1560,8 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   min-height:36px;min-width:36px;font-size:20px;
 }
 .ni-head{padding-right:40px}
+
+  /* Phase 1: product pack field + invoice unit-mismatch flag */
+  .ig-pack .pack-row{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .ig-pack select{padding:8px 10px;font:inherit;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+  .flag-mismatch{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--bad);border-radius:6px;padding:1px 6px;margin-left:4px}
