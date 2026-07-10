@@ -1613,3 +1613,32 @@ svg .ax{font-size:10px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 .mfoot.ig-foot .mfoot-spacer{flex:1}
 .btn.danger{color:#b23b2e;border-color:#e6c3bd}
 .btn.danger:hover{background:#b23b2e;color:#fff;border-color:#b23b2e}
+
+/* ===== batch 3 / design pass (v24) ===== */
+/* item 2+dark: axis labels live in their own gutter; halo + colour from tokens (both themes) */
+svg .ax{font-size:10px;fill:var(--text2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
+/* item 3: instant tooltip, larger touch targets, no gesture lag */
+.tp-tip{transition:none;background:var(--text);color:var(--bg)}
+.tp-tip::after{border-top-color:var(--text)}
+.tp-dot{stroke-width:22px;touch-action:manipulation}
+/* item 4 + screenshot 3: misc row aligns with the docket's own line padding; receipt rule softened */
+.misc-add-wrap{margin:0;padding:var(--sp-4) var(--sp-5) var(--sp-3);border-top:1px dashed var(--border)}
+.total{border-top:2px solid var(--border2)}
+@media (max-width:700px){ .misc-add-wrap{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
+/* item 5: the docket hint, anchored inside the card */
+.docket-hint{padding:0 var(--sp-5) var(--sp-4);margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted2)}
+@media (max-width:700px){ .docket-hint{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
+/* item 1: dark-mode fixes for hardcoded colours introduced in v22/v23 */
+.mi-act .mi-btn.tobuilder{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
+.mi-act .mi-btn.tobuilder:hover{background:var(--accent);color:var(--on-accent)}
+.btn.danger{color:var(--bad);border-color:var(--bad-bg)}
+.btn.danger:hover{background:var(--bad);color:var(--on-bad);border-color:var(--bad)}
+#lines .line:hover{background:var(--hover);box-shadow:inset 0 0 0 1px var(--border)}
+.line.misc-line .misc-label{border-color:var(--border);background:var(--field);color:var(--text)}
+/* item 6 UI: the before/after preview — the user sees exactly what will be written */
+.pt-preview{font-size:var(--fs-xs);font-weight:650;color:var(--accent-ink);margin-top:4px;min-height:1em;font-variant-numeric:tabular-nums}
+/* skill audit: aligned numerals wherever money/percentages column up */
+.num,.total .amt,.lc,.invPrice,.ing-price b,.qtybox input{font-variant-numeric:tabular-nums}
+/* skill audit: pressed feedback + visible keyboard focus (was missing) */
+.btn:active{transform:translateY(1px)}
+button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
