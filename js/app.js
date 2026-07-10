@@ -218,10 +218,29 @@ function commitPrice(uid,raw){
   renderPlate();
 }
 
+function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
+  return '<div class="line misc-line" data-uid="'+l.uid+'">'
+    +'<div class="top">'
+    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"><span class="sub">Misc cost \u00b7 not an ingredient</span></span>'
+    +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
+    +'<span class="leader"></span>'
+    +'<span class="lc" id="lc-'+l.uid+'">'+money(Number(l.cost)||0)+'</span>'
+    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'</div></div>';
+}
+function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
+  plate.push({uid:uidc++, misc:true, label:'', cost:0});
+  renderPlate();
+  var rows=document.querySelectorAll('.misc-line .misc-label'); var last=rows[rows.length-1]; if(last) last.focus();
+}
+function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; }
+function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
 function renderPlate(){
-  document.getElementById('dCount').textContent=plate.length+(plate.length===1?' item':' items');
+  var nIng=plate.filter(function(l){return !l.misc;}).length;
+  document.getElementById('dCount').textContent=nIng+(nIng===1?' item':' items');
   if(!plate.length){linesEl.innerHTML='<div class="empty">No ingredients yet.<br>Search above to add the first one.</div>';updateTotals();return;}
   linesEl.innerHTML=plate.map(l=>{
+    if(l.misc){ return miscRowHtml(l); }
     const p=byId[l.pid]; const lc=lineCost(p,l.qty); const {alts,cheapest}=alternatives(p);
     const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
               : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
@@ -257,7 +276,7 @@ function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=byId[l.pid];
   const el=document.getElementById('lc-'+uid);if(el)el.innerHTML=lc==null?'<span class=nocost>no cost</span>':money(lc);}
 function updateTotals(){
   let tot=0,missing=0;
-  plate.forEach(l=>{const lc=lineCost(byId[l.pid],l.qty);if(lc==null)missing++;else tot+=lc;});
+  plate.forEach(l=>{ if(l.misc){ tot+=Number(l.cost)||0; return; } const lc=lineCost(byId[l.pid],l.qty);if(lc==null)missing++;else tot+=lc;});
   document.getElementById('total').textContent=money(tot);
   const flag=document.getElementById('flag');
   if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+' have no cost data and are not in the total.';}else flag.style.display='none';
@@ -267,7 +286,9 @@ document.getElementById('clearBtn').addEventListener('click',function(){plate=[]
 document.getElementById('printBtn').addEventListener('click',function(){
   var n=(document.getElementById('plateName').value||'').trim();
   var pd=document.getElementById('printDocket'); if(!pd){ window.print(); return; }
-  var rows=plate.map(function(l){ var p=byId[l.pid]; if(!p) return '';
+  var rows=plate.map(function(l){
+    if(l.misc){ return '<tr><td class="pd-q"></td><td class="pd-n">'+esc(l.label||'Misc cost')+'</td></tr>'; }
+    var p=byId[l.pid]; if(!p) return '';
     var nm=esc(p.description||'Item'); var u=unitNoun(p); var q=l.qty;
     return '<tr><td class="pd-q">'+esc(String(q))+(u?' '+esc(u):'')+'</td><td class="pd-n">'+nm+'</td></tr>';
   }).filter(Boolean).join('');
@@ -451,16 +472,17 @@ function saveCurrentPlate(asNew){
   if(pErr) pErr.style.display='none';
   var name=rawName;
   var menuId=menuLinkEl.value||null;
-  var lines=plate.map(function(l){return {pid:l.pid,qty:l.qty};});
+  var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:{pid:l.pid,qty:l.qty}; });
   if(!loadedPlateId && menuId){ var existLinked=savedPlates.find(function(s){return s.menuId===menuId;}); if(existLinked) loadedPlateId=existLinked.id; }
   if(!asNew && loadedPlateId){ var sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){sp.name=name;sp.menuId=menuId;sp.lines=lines;} else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
   savePlatesLS(); dbPushPlate(savedPlates.find(function(s){return s.id===loadedPlateId;})); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
 }
 document.getElementById('saveBtn').addEventListener('click',function(){saveCurrentPlate(false);});
+(function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
-function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{const p=byId[l.pid];if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
+function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=byId[l.pid];if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
 /* a menu item's recipe lives on its linked plate (plate.menuId === item.id); a "reused" item instead points at
    a shared plate via item.sourcePlateId. This resolves either kind to the plate holding the ingredient lines. */
 function plateForMenuItem(m){ if(!m) return null;
@@ -507,6 +529,7 @@ function bindTips(){
 document.addEventListener('click',()=>document.querySelectorAll('.tip.open').forEach(o=>o.classList.remove('open')));
 /* tabs */
 function showTab(t){
+  try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
   ['builder','ingredients','analysis','dashboard'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   if(t==='analysis')renderAnalysis();
@@ -514,6 +537,11 @@ function showTab(t){
   if(t==='dashboard')renderDashboard();
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+(function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
+  var VALID=['builder','ingredients','analysis','dashboard'];
+  var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
+  if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
+})();
 (function(){
   var ci=document.getElementById('cogsTarget');
   if(ci){ ci.value=cogsPct; ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99) setCogs(v,true); }); }
@@ -583,11 +611,12 @@ function rememberSupplierPhrase(supplier, phrase, qty, unit){
 function renderSmemList(){
   var box=document.getElementById('smemList'); if(!box) return;
   var ids=Object.keys(supplierMem);
-  if(!ids.length){ box.innerHTML='<div class="smem-empty">Nothing remembered yet. When you tell EzPlate a pack size on an invoice, it\u2019ll appear here.</div>'; return; }
+  if(!ids.length){ box.innerHTML='<div class="smem-empty">Nothing saved yet. When you tell EzPlate a pack size while importing an invoice, it\u2019ll be remembered here.</div>'; return; }
   ids.sort(function(a,b){ return (supplierMem[a].supplier+supplierMem[a].phrase_norm).localeCompare(supplierMem[b].supplier+supplierMem[b].phrase_norm); });
+  function cap(s){ s=String(s||'').trim(); return s?s.charAt(0).toUpperCase()+s.slice(1):s; }
   box.innerHTML=ids.map(function(id){ var e=supplierMem[id]; var ul=e.unit==='ea'?'units':e.unit==='l'?'L':e.unit==='ml'?'mL':e.unit;
-    return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-phrase">\u201c'+esc(e.phrase_norm)+'\u201d</div><div class="smem-sup">'+esc(e.supplier)+'</div></div>'
-      +'<input type="number" class="invPackQty smem-qty" min="0" step="0.01" value="'+e.qty+'"><span class="smem-sup">'+esc(ul)+'</span>'
+    return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-sentence">'+esc(cap(e.phrase_norm))+' \u2014 from '+esc(e.supplier)+'</div></div>'
+      +'<span class="smem-eq">=</span><input type="number" class="invPackQty smem-qty" min="0" step="0.01" value="'+e.qty+'"><span class="smem-unit">'+esc(ul)+'</span>'
       +'<button type="button" class="smem-del">Remove</button></div>';
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
@@ -759,14 +788,17 @@ function trendChart(){
     +'<path d="'+area+'" fill="'+stroke+'" opacity="0.10"/>'
     +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    +'<circle cx="'+x(pts.length-1).toFixed(1)+'" cy="'+y(pts[pts.length-1].v).toFixed(1)+'" r="3.5" fill="'+stroke+'"/>'
+    +pts.map(function(p,i){ var lbl=(p.t?new Date(p.t).toLocaleDateString():('#'+(i+1)))+' \u00b7 '+p.v.toFixed(1)+'%';
+        return '<circle class="tp-dot" cx="'+x(i).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="3" fill="'+stroke+'" tabindex="0" role="button" data-lbl="'+esc(lbl)+'" data-x="'+x(i).toFixed(1)+'" data-y="'+y(p.v).toFixed(1)+'" aria-label="'+esc(lbl)+'"/>'; }).join('')
+    +'<circle cx="'+x(pts.length-1).toFixed(1)+'" cy="'+y(pts[pts.length-1].v).toFixed(1)+'" r="3.5" fill="'+stroke+'" pointer-events="none"/>'
     +'<text x="'+padL+'" y="'+y(mx).toFixed(1)+'" class="ax">'+mx.toFixed(0)+'%</text>'
     +'<text x="'+padL+'" y="'+(H-padB+2).toFixed(1)+'" class="ax">'+mn.toFixed(0)+'%</text>'
     +'</svg>';
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
-  return '<div class="dash-chart">'+svg
+  return '<div class="dash-chart" id="trendWrap">'+svg
+    +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
     +'<button class="ref-pill" id="dashCogsBtn" type="button" title="Edit target">Target '+cogsPct+'% \u270e</button>'
-    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'.</p></div>';
+    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point to see its date.</p></div>';
 }
 function highlightData(kind){
   if(kind==='foodcost'){
@@ -807,6 +839,25 @@ function renderDashboard(){
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
   var cb=document.getElementById('dashCogsBtn'); if(cb) cb.onclick=openCogsModal;
+  (function wireTrendTip(){                                          // one tooltip at a time; tap point (mobile) or hover (desktop)
+    var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
+    var svg=wrap.querySelector('svg'); if(!svg) return;
+    function showFor(dot){ var vb=svg.viewBox.baseVal, rect=svg.getBoundingClientRect();
+      var px=parseFloat(dot.getAttribute('data-x')), py=parseFloat(dot.getAttribute('data-y'));
+      var left=(px/vb.width)*rect.width, top=(py/vb.height)*rect.height;
+      tip.textContent=dot.getAttribute('data-lbl'); tip.style.left=left+'px'; tip.style.top=top+'px';
+      tip.classList.add('show'); tip.setAttribute('aria-hidden','false');
+      wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); dot.classList.add('act');
+    }
+    function hideTip(){ tip.classList.remove('show'); tip.setAttribute('aria-hidden','true'); wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); }
+    wrap.querySelectorAll('.tp-dot').forEach(function(dot){
+      dot.addEventListener('click', function(e){ e.stopPropagation(); if(dot.classList.contains('act')) hideTip(); else showFor(dot); });
+      dot.addEventListener('mouseenter', function(){ showFor(dot); });
+      dot.addEventListener('focus', function(){ showFor(dot); });
+    });
+    wrap.addEventListener('mouseleave', hideTip);
+    document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) hideTip(); });
+  })();
   root.querySelectorAll('.hl-card').forEach(function(b){ b.onclick=function(){ openHighlight(b.getAttribute('data-kind')); }; });
 }
 
@@ -1047,7 +1098,7 @@ function dismissMatch(){ dismissedMatch=document.getElementById('plateName').val
 function loadPlate(id){
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp)return;
   plate=[];                                                 // FULL clear first — never blend two plates
-  sp.lines.forEach(function(l){ if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
+  sp.lines.forEach(function(l){ if(l&&l.misc){ plate.push({uid:uidc++,misc:true,label:l.label||'',cost:Number(l.cost)||0}); } else if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
   document.getElementById('plateName').value=sp.name||'';
   menuTouched=true; menuLinkEl.value=sp.menuId||''; loadedPlateId=sp.id;
   hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder'); toast('Loaded: '+(sp.name||'plate'));
@@ -1622,13 +1673,15 @@ function renderInvReview(){
     var uLbl=unitLabelFor(r)||'/unit';
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var priceCell='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
-    if(r.remembered) priceCell+='<button type="button" class="remembered-chip" data-i="'+i+'">Remembered \u2713 \u2014 edit pack</button>';
+    if(r.remembered) priceCell+='<button type="button" class="remembered-chip" data-i="'+i+'">Using a pack size you saved \u2713 \u2014 change</button>';
     if(r.needManual || r.remembered){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var pq=mem?mem.qty:''; var puNow=mem?mem.unit:'ea';
       var open=(r.needManual && !r.remembered);                    // manual + unresolved -> show the pack helper by default
+      var teachUnitCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
+      var teachWord=teachUnitCat==='kg'?'kg':teachUnitCat==='l'?'litres':'of these';
       priceCell+='<div class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
-        +'<span class="pt-lbl">or the pack size:</span>'
+        +'<span class="pt-lbl">How many '+esc(teachWord)+' come in this pack?</span>'
         +'<input type="number" class="invPackQty" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
         +'<select class="invPackUnit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':u; return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</div>';
@@ -1637,10 +1690,12 @@ function renderInvReview(){
       var baseCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
       var baseWord=baseCat==='kg'?'kg':baseCat==='l'?'L':'unit';
       var readWord=r.unit==='kg'?'kg':r.unit==='l'?'L':'unit';
+      var perWordR=readWord==='kg'?'kilo':readWord==='L'?'litre':'unit';
+      var perWordB=baseWord==='kg'?'kilo':baseWord==='L'?'litre':(byId[r.bestId]&&byId[r.bestId].item_type?byId[r.bestId].item_type:'one');
       var msg=r.unitMismatch
-        ? ('reads as $/'+readWord+' but this product is priced per '+baseWord+' \u2014 set the pack, or enter the unit price')
-        : 'unable to determine \u2014 enter unit price or pack';
-      priceCell+='<div class="flag-review">'+msg+'</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
+        ? ('This price looks like it\u2019s per '+perWordR+', but you buy this one by the '+perWordB+' \u2014 fill the pack above so we get it right.')
+        : 'We couldn\u2019t work out the price on its own \u2014 fill the pack above, or type the unit price.';
+      priceCell+='<div class="flag-review pt-explain">'+msg+'</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
     }
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));
     var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
@@ -1817,6 +1872,7 @@ function renderAnalysis(){
   if(!shown){ html='<tr class="an-empty"><td colspan="6">No menu items match \u201c'+esc(q)+'\u201d.</td></tr>'; }
   tb.innerHTML=html; bindTips();
   tb.querySelectorAll('.mi-btn.edit').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid) openPlateEdit(pid); else openMenuEdit(b.getAttribute('data-id')); }; });
+  tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
 }
 
 /* ===== multiple menus: selector, pickers, create modal ===== */
@@ -1928,7 +1984,17 @@ function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').
 function isBaseMenuId(id){ return BASE_MENU.some(function(m){ return m.id===id; }); }
 function menuActions(m){
   if(!m) return '';
-  return '<div class="mi-act"><button class="mi-btn edit" type="button" data-id="'+esc(m.id)+'">Edit</button></div>';
+  return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-id="'+esc(m.id)+'" title="Open in plate builder">\u2192 Builder</button><button class="mi-btn edit" type="button" data-id="'+esc(m.id)+'">Edit</button></div>';
+}
+function openMenuInBuilder(mid){                                      // jump from Menu Analysis straight into the Builder for this dish
+  var m=menuById[mid]; if(!m) return;
+  var sp=plateForMenuItem(m);                                        // respects reuse (menuId link OR sourcePlateId)
+  if(sp){ loadPlate(sp.id); return; }                               // costed already -> load its recipe
+  plate=[]; loadedPlateId=null;                                     // not costed -> start a fresh plate, pre-named + linked to this item
+  var pn=document.getElementById('plateName'); if(pn) pn.value=m.name||'';
+  if(typeof menuLinkEl!=='undefined' && menuLinkEl){ menuTouched=true; menuLinkEl.value=m.id; }
+  hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder');
+  toast('Start costing \u201c'+(m.name||'this dish')+'\u201d \u2014 add ingredients');
 }
 function removeMenuItem(id){
   var before=customMenu.length;
@@ -2054,7 +2120,7 @@ function editOpenInBuilder(){
 }
 
 /* ===== orphan-plate edit + delete-choice ===== */
-function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn edit" type="button" data-pid="'+esc(sp.id)+'">Edit</button></div>'; }
+function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-pid="'+esc(sp.id)+'" title="Open in plate builder">\u2192 Builder</button><button class="mi-btn edit" type="button" data-pid="'+esc(sp.id)+'">Edit</button></div>'; }
 function setEditMode(mode){
   editKind=mode; edRestoreMode=false;
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
