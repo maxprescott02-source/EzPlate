@@ -78,6 +78,8 @@ async function bootstrapSync(){
     var setRows=(setg&&setg.data)?setg.data:[];
     var delRow=setRows.filter(function(r){return r.key==='deleted_menu_ids';})[0];
     deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
+    var delP=setRows.filter(function(r){return r.key==='deleted_prod_ids';})[0];
+    if(delP&&Array.isArray(delP.value)){ deletedProdIds=delP.value; saveDeletedProds(); }
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
     ensureDefaultMenu(); saveMenus();
@@ -101,12 +103,15 @@ function saveOverrides(){ try{ localStorage.setItem(OVRKEY, JSON.stringify(overr
 let overrides = loadOverrides();
 
 let PRODUCTS, byId, SEARCHABLE;
+var deletedProdIds=(function(){ try{ return JSON.parse(localStorage.getItem('cafeDB_deletedProds'))||[]; }catch(e){ return []; } })();
+function saveDeletedProds(){ try{ localStorage.setItem('cafeDB_deletedProds', JSON.stringify(deletedProdIds)); }catch(e){} }
 function rebuild(){
   const map = new Map(BASE_PRODUCTS.map(p=>[p.id, Object.assign({}, p)]));
   for(const id in overrides){
     const ov = overrides[id];
     map.set(id, map.has(id) ? Object.assign({}, map.get(id), ov) : Object.assign({}, ov));
   }
+  (deletedProdIds||[]).forEach(function(id){ map.delete(id); });          // hidden/deleted ingredients never appear
   PRODUCTS = [...map.values()];
   byId = Object.fromEntries(PRODUCTS.map(p=>[p.id, p]));
   SEARCHABLE = PRODUCTS.filter(p=>p.is_food);
@@ -708,7 +713,26 @@ function openIngEdit(id){
   makeInlineCombo('ig_brand','ig_brandDrop',prodBrands);
   makeInlineCombo('ig_cat','ig_catDrop',prodCategories);
   makeInlineCombo('ig_sup','ig_supDrop',prodSuppliers);
+  var puSel=document.getElementById('ig_packUnit');
+  if(puSel && !puSel.__wired){ puSel.__wired=true; puSel.addEventListener('change', syncIgUnitFromPack); }
+  var uSel=document.getElementById('ig_unit'); var lp=document.getElementById('ig_pricePer'); if(lp&&uSel) lp.textContent=igPriceSuffix();
   show('ingModal'); document.getElementById('ig_name').focus();
+}
+function packUnitToIgUnit(pu){ pu=(pu||'').toLowerCase(); return pu==='ea'?'unit':pu==='kg'?'kg':pu==='g'?'g':pu==='l'?'litre':pu==='ml'?'ml':null; }
+function syncIgUnitFromPack(){                                        // when a pack unit is chosen, make the *displayed* unit match it
+  var puSel=document.getElementById('ig_packUnit'); var uSel=document.getElementById('ig_unit'); if(!puSel||!uSel) return;
+  var want=packUnitToIgUnit(puSel.value); if(!want) return;
+  if(uSel.value!==want){ uSel.value=want; var lp=document.getElementById('ig_pricePer'); if(lp) lp.textContent=igPriceSuffix(); }
+}
+function igPriceSuffix(){ var u=(document.getElementById('ig_unit')||{}).value; return u==='unit'?'/unit':u==='litre'?'/L':u==='ml'?'/mL':u==='g'?'/g':'/kg'; }
+function deleteIngredient(){
+  var id=ingEditId; if(!id||!byId[id]) return; var nm=byId[id].description||'this ingredient';
+  askConfirm('Delete ingredient?', 'Remove \u201c'+nm+'\u201d from your ingredients? It won\u2019t change plates you\u2019ve already saved.', 'Delete', function(){
+    if(deletedProdIds.indexOf(id)<0){ deletedProdIds.push(id); saveDeletedProds(); }
+    if(overrides[id]){ delete overrides[id]; saveOverrides(); }            // drop any custom/edited data too
+    dbSetSetting('deleted_prod_ids', deletedProdIds);
+    rebuild(); closeIngEdit(); renderIngredients(); toast('Ingredient deleted');
+  });
 }
 function closeIngEdit(){ hide('ingModal'); ingEditId=null; }
 function saveIngEdit(){
@@ -798,7 +822,7 @@ function trendChart(){
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
     +'<button class="ref-pill" id="dashCogsBtn" type="button" title="Edit target">Target '+cogsPct+'% \u270e</button>'
-    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point to see its date.</p></div>';
+    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';
 }
 function highlightData(kind){
   if(kind==='foodcost'){
@@ -867,7 +891,7 @@ function renderDashboard(){
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
-  on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit);
+  on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
   on('cogsModalSave',saveCogsModal); on('cogsModalCancel',function(){hide('cogsModal');}); on('cogsModalClose',function(){hide('cogsModal');});
   on('hlClose',function(){hide('hlModal');}); on('hlDone',function(){hide('hlModal');});
   on('invIntroX',function(){ try{localStorage.setItem('ezInvIntroDismissed','1');}catch(e){} var el=document.getElementById('invIntro'); if(el)el.style.display='none'; });
@@ -1678,24 +1702,18 @@ function renderInvReview(){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var pq=mem?mem.qty:''; var puNow=mem?mem.unit:'ea';
       var open=(r.needManual && !r.remembered);                    // manual + unresolved -> show the pack helper by default
-      var teachUnitCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
-      var teachWord=teachUnitCat==='kg'?'kg':teachUnitCat==='l'?'litres':'of these';
       priceCell+='<div class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
-        +'<span class="pt-lbl">How many '+esc(teachWord)+' come in this pack?</span>'
+        +'<span class="pt-lbl">How many in one pack?</span>'
         +'<input type="number" class="invPackQty" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
         +'<select class="invPackUnit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':u; return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</div>';
     }
     if(r.needManual && !r.remembered){
       var baseCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
-      var baseWord=baseCat==='kg'?'kg':baseCat==='l'?'L':'unit';
-      var readWord=r.unit==='kg'?'kg':r.unit==='l'?'L':'unit';
-      var perWordR=readWord==='kg'?'kilo':readWord==='L'?'litre':'unit';
-      var perWordB=baseWord==='kg'?'kilo':baseWord==='L'?'litre':(byId[r.bestId]&&byId[r.bestId].item_type?byId[r.bestId].item_type:'one');
-      var msg=r.unitMismatch
-        ? ('This price looks like it\u2019s per '+perWordR+', but you buy this one by the '+perWordB+' \u2014 fill the pack above so we get it right.')
-        : 'We couldn\u2019t work out the price on its own \u2014 fill the pack above, or type the unit price.';
-      priceCell+='<div class="flag-review pt-explain">'+msg+'</div><div class="ni-raw">'+esc(r.raw||r.name)+'</div>';
+      var baseWord=baseCat==='kg'?'per kg':baseCat==='l'?'per litre':'per unit';
+      var msg=r.unitMismatch ? ('Priced '+baseWord+' \u2014 set the pack.') : 'Set the pack, or type the price.';
+      priceCell+='<div class="flag-review pt-explain">'+esc(msg)+'</div>';   // raw invoice line removed (was clutter); logged to console for debugging
+      try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));
     var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
