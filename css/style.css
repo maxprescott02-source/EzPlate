@@ -1565,3 +1565,31 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   .ig-pack .pack-row{display:flex;gap:8px;align-items:center;margin-top:6px}
   .ig-pack select{padding:8px 10px;font:inherit;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
   .flag-mismatch{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--bad);border-radius:6px;padding:1px 6px;margin-left:4px}
+
+/* ===== bugfix batch (v22) ===== */
+/* item 4: misc cost lines + add button */
+.misc-add-wrap{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
+.btn.misc-add{padding:7px 12px;font-size:.9rem}
+.misc-hint{font-size:.8rem;color:var(--muted2)}
+.line.misc-line .misc-label{width:100%;border:1px solid var(--line,#e4dccb);border-radius:8px;padding:7px 9px;font:inherit;background:var(--card,#fff)}
+.line.misc-line .qtybox.misc-costbox{display:inline-flex;align-items:center;gap:2px}
+.line.misc-line .qtybox.misc-costbox .u{opacity:.7}
+.line.misc-line .qtybox.misc-costbox input{width:74px}
+.line.misc-line .sub{color:var(--muted2)}
+/* item 3: → Builder button in Menu Analysis */
+.mi-act .mi-btn.tobuilder{margin-right:6px;background:var(--accent-soft,#eef3ee);border-color:var(--accent,#3a6b4f);color:var(--accent,#2f5a41)}
+.mi-act .mi-btn.tobuilder:hover{background:var(--accent,#3a6b4f);color:#fff}
+/* item 1: trend chart point tooltip */
+.dash-chart#trendWrap{position:relative}
+.tp-dot{cursor:pointer;transition:r .1s ease}
+.tp-dot:hover,.tp-dot.act,.tp-dot:focus{r:5;outline:none}
+.tp-tip{position:absolute;transform:translate(-50%,-140%);background:var(--ink,#2b2b2b);color:#fff;font-size:.75rem;line-height:1;padding:5px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:5}
+.tp-tip.show{opacity:1}
+.tp-tip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink,#2b2b2b)}
+/* item 5: remembered items — plain sentence rows */
+.smem-row .smem-sentence{font-weight:600}
+.smem-eq{opacity:.6;margin:0 2px}
+.smem-unit{color:var(--muted2);font-size:.85rem}
+/* item 6: mismatch explanation reads as helper text, not an error */
+.pack-teach .pt-lbl{font-weight:600;display:block;margin-bottom:4px}
+.flag-review.pt-explain{color:var(--muted2);font-weight:400;margin-top:4px}
