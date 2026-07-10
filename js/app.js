@@ -792,7 +792,7 @@ function statCard(label, current, base){
 }
 function trendChart(){
   var pts=priceHistory.slice(-30);
-  var W=320,H=150,padL=30,padR=10,padT=14,padB=20;
+  var W=320,H=150,padL=40,padR=10,padT=14,padB=20;
   if(pts.length<2){
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
       +'<p class="hint chart-hint">The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.</p></div>';
@@ -815,8 +815,8 @@ function trendChart(){
     +pts.map(function(p,i){ var lbl=(p.t?new Date(p.t).toLocaleDateString():('#'+(i+1)))+' \u00b7 '+p.v.toFixed(1)+'%';
         return '<circle class="tp-dot" cx="'+x(i).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="3" fill="'+stroke+'" tabindex="0" role="button" data-lbl="'+esc(lbl)+'" data-x="'+x(i).toFixed(1)+'" data-y="'+y(p.v).toFixed(1)+'" aria-label="'+esc(lbl)+'"/>'; }).join('')
     +'<circle cx="'+x(pts.length-1).toFixed(1)+'" cy="'+y(pts[pts.length-1].v).toFixed(1)+'" r="3.5" fill="'+stroke+'" pointer-events="none"/>'
-    +'<text x="'+padL+'" y="'+y(mx).toFixed(1)+'" class="ax">'+mx.toFixed(0)+'%</text>'
-    +'<text x="'+padL+'" y="'+(H-padB+2).toFixed(1)+'" class="ax">'+mn.toFixed(0)+'%</text>'
+    +'<text x="'+(padL-7)+'" y="'+y(mx).toFixed(1)+'" text-anchor="end" class="ax">'+mx.toFixed(0)+'%</text>'
+    +'<text x="'+(padL-7)+'" y="'+(H-padB+2).toFixed(1)+'" text-anchor="end" class="ax">'+mn.toFixed(0)+'%</text>'
     +'</svg>';
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   return '<div class="dash-chart" id="trendWrap">'+svg
@@ -875,7 +875,7 @@ function renderDashboard(){
     }
     function hideTip(){ tip.classList.remove('show'); tip.setAttribute('aria-hidden','true'); wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); }
     wrap.querySelectorAll('.tp-dot').forEach(function(dot){
-      dot.addEventListener('click', function(e){ e.stopPropagation(); if(dot.classList.contains('act')) hideTip(); else showFor(dot); });
+      dot.addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(dot.classList.contains('act')) hideTip(); else showFor(dot); });
       dot.addEventListener('mouseenter', function(){ showFor(dot); });
       dot.addEventListener('focus', function(){ showFor(dot); });
     });
@@ -1413,6 +1413,11 @@ function applySupplierMemory(row, mem){   // re-derive unit price from a remembe
   return row;
 }
 /* --- Phase 1: product-pack pricing + precedence (product pack > supplier memory > parser) + unit guard --- */
+function unitToBaseFields(u){ u=(u||'').toLowerCase();              // the unit a price is entered in -> how it's stored
+  if(u==='kg') return {base_unit:'g', cost_basis:'$/g', div:1000};
+  if(u==='l')  return {base_unit:'ml', cost_basis:'$/ml', div:1000};
+  return {base_unit:'ea', cost_basis:'$/unit', div:1};
+}
 function unitCatCategory(u){ u=(u||'').toLowerCase();
   if(u==='kg'||u==='g'||u==='gr'||u==='gram'||u==='grams') return 'kg';
   if(u==='l'||u==='ml'||u==='lt'||u==='litre') return 'l';
@@ -1451,10 +1456,13 @@ function resolveMatchedPrice(row, product, mem){
   }
   row.unitPrice=chosen.unitPrice; row.unit=chosen.unit; row.needManual=chosen.needManual;
   row.priceSource=chosen.source; row.remembered=(chosen.source==='memory'); row.fromProductPack=(chosen.source==='product-pack');
-  var baseCat=product?unitCatCategory(product.base_unit):null;   // 1d) unit-mismatch guard vs the product's base unit
+  if(chosen.source==='product-pack'&&product){ row.taughtQty=parseFloat(product.pack_qty); row.taughtUnit=(product.pack_unit||'ea'); }
+  if(chosen.source==='memory'&&mem){ row.taughtQty=parseFloat(mem.qty); row.taughtUnit=(mem.unit||'ea'); }
+  var baseCat=product?unitCatCategory(product.base_unit):null;
   row.unitMismatch=false;
-  if(baseCat && chosen.unit && chosen.unit!=='auto' && chosen.unit!==baseCat && !chosen.needManual){
-    row.unitMismatch=true; row.needManual=true;                  // wrong-unit result -> require resolution, never silently apply
+  var taught=(chosen.source==='product-pack'||chosen.source==='memory');
+  if(!taught && baseCat && chosen.unit && chosen.unit!=='auto' && chosen.unit!==baseCat && !chosen.needManual){
+    row.unitMismatch=true; row.needManual=true;                  // a parser GUESS in the wrong unit is blocked; a pack the user taught is the truth
   }
   return row;
 }
@@ -1540,9 +1548,11 @@ function pdfTextToRows(text){
   return rows;
 }
 function unitLabelFor(row){
-  var pid=row.bestId;
+  var u=row&&row.unit;                                            // the resolved unit is the truth — it's what gets written on Apply
+  if(u==='kg')return '/kg'; if(u==='l')return '/L'; if(u==='ea')return '/unit';
+  var pid=row&&row.bestId;
   if(pid && byId[pid]){ var b=byId[pid].base_unit; return b==='g'?'/kg':b==='ml'?'/L':'/unit'; }
-  return row.unit==='kg'?'/kg':row.unit==='l'?'/L':row.unit==='ea'?'/unit':'';
+  return '';
 }
 function parseInvoiceCSV(text){
   var out=[]; text.split(/\r?\n/).forEach(function(line,i){
@@ -1697,15 +1707,19 @@ function renderInvReview(){
     var uLbl=unitLabelFor(r)||'/unit';
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var priceCell='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
-    if(r.remembered) priceCell+='<button type="button" class="remembered-chip" data-i="'+i+'">Using a pack size you saved \u2713 \u2014 change</button>';
-    if(r.needManual || r.remembered){
+    var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
+    if(r.remembered||r.fromProductPack) priceCell+='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2713 \u2014 change</button>';
+    if(r.needManual || r.remembered || r.fromProductPack){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
-      var pq=mem?mem.qty:''; var puNow=mem?mem.unit:'ea';
+      var baseCat0=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
+      var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(mem?mem.qty:'');
+      var puNow=r.taughtUnit?r.taughtUnit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea')));
       var open=(r.needManual && !r.remembered);                    // manual + unresolved -> show the pack helper by default
       priceCell+='<div class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
         +'<span class="pt-lbl">How many in one pack?</span>'
         +'<input type="number" class="invPackQty" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
-        +'<select class="invPackUnit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':u; return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
+        +'<select class="invPackUnit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
+        +'<div class="pt-preview"></div>'
         +'</div>';
     }
     if(r.needManual && !r.remembered){
@@ -1748,7 +1762,17 @@ function renderInvReview(){
       if(!(q>0)) return;
       var pack=packPriceOf(r.raw||r.name); if(pack==null) return;
       var up = (u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
-      if(isFinite(up)&&up>=0){ var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2); var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=true; }
+      var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
+      if(isFinite(up)&&up>=0){
+        r.unitPrice=up; r.unit=cat; r.needManual=false; r.unitMismatch=false; r.packTaught=true;   // the unit chosen HERE is the one that gets written — full stop
+        var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2);
+        var upu=tr.querySelector('.upu'); if(upu) upu.textContent=unitLabelFor(r);
+        var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
+        var pvEl=pt.querySelector('.pt-preview');
+        if(pvEl){ var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
+          pvEl.textContent=(old?('Was '+old+' \u2192 '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit'); }
+        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=true;
+      }
     }
     pt.querySelector('.invPackQty').addEventListener('input', recompute);
     pt.querySelector('.invPackUnit').addEventListener('change', recompute);
@@ -1812,16 +1836,18 @@ function applyInvoice(){
       var pid=r.bestId; if(!pid) return; var p=byId[pid]; if(!p) return;
       var up=r.unitPrice; var inp=tr.querySelector('.invPrice'); if(inp){ var v=parseFloat(inp.value); up=(!isNaN(v)&&v>=0)?v:null; }
       if(up==null||isNaN(up)) return;                              // never store without a real unit price
-      var base=(p.base_unit==='g'||p.base_unit==='ml')?up/1000:up;
-      setOverride(pid,{cost_per_base_unit:base}); n++;
+      var priceUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:(p.base_unit==='g'?'kg':p.base_unit==='ml'?'l':'ea');
+      var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
+      setOverride(pid,{cost_per_base_unit:up/ub2.div, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
     }
     // learn the pack for this supplier+phrase (only for lines the app couldn't derive itself)
-    if(normSupplier(invSupplier) && (r.needManual || r.remembered)){
+    if(normSupplier(invSupplier) && (r.needManual || r.remembered || r.packTaught)){
       var pt=tr.querySelector('.pack-teach'); var qEl=pt?pt.querySelector('.invPackQty'):null; var uEl=pt?pt.querySelector('.invPackUnit'):null;
-      var q=qEl?parseFloat(qEl.value):NaN, u=uEl?uEl.value:'ea';
+      var rUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:'ea';
+      var q=qEl?parseFloat(qEl.value):NaN, u=(uEl&&uEl.value)?uEl.value:rUnit;
       if(!(q>0)){                                                   // fallback: derive qty from the entered unit price
         var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN; var pack=packPriceOf(r.raw||r.name);
-        if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u='ea'; } }
+        if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u=rUnit; } }
       }
       if(q>0){ var key=memKey(invSupplier, r.raw||r.name); var before=supplierMem[key];
         rememberSupplierPhrase(invSupplier, r.raw||r.name, q, u);
