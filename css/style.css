@@ -1593,3 +1593,23 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 /* item 6: mismatch explanation reads as helper text, not an error */
 .pack-teach .pt-lbl{font-weight:600;display:block;margin-bottom:4px}
 .flag-review.pt-explain{color:var(--muted2);font-weight:400;margin-top:4px}
+
+/* ===== bugfix batch 2 (v23) ===== */
+/* item 1: chart — bigger tap targets, legible labels over the line, snappier tooltip */
+.tp-dot{pointer-events:all;stroke:transparent;stroke-width:16px}   /* transparent thick stroke = large touch target, small visible dot */
+.tp-dot:hover,.tp-dot.act,.tp-dot:focus{r:5;outline:none}
+svg .ax{font-size:10px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3px;stroke-linejoin:round}  /* white halo so % stays readable over the line */
+.tp-tip{transition:opacity .05s ease}                              /* was .12s — feels instant now */
+/* item 8: don't let taps highlight chart chrome (scoped to the chart + interactive chrome only) */
+.dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .mi-btn, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
+/* item 2: misc-cost button sits as part of the builder, not bolted on */
+.misc-add-wrap{display:flex;align-items:center;gap:10px;margin:10px 2px 4px;padding-top:10px;border-top:1px dashed var(--line,#e4dccb)}
+/* item 3: docket/plate hover highlight keeps clear of the card edge */
+#lines .line{border-radius:10px}
+#lines .line:hover{background:var(--hover,#f6f1e7);box-shadow:inset 0 0 0 1px var(--line,#efe7d6)}
+#lines{padding:2px}
+/* item 4: delete button styling + footer layout */
+.mfoot.ig-foot{display:flex;align-items:center;gap:8px}
+.mfoot.ig-foot .mfoot-spacer{flex:1}
+.btn.danger{color:#b23b2e;border-color:#e6c3bd}
+.btn.danger:hover{background:#b23b2e;color:#fff;border-color:#b23b2e}
