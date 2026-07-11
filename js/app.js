@@ -533,6 +533,16 @@ function bindTips(){
 }
 document.addEventListener('click',()=>document.querySelectorAll('.tip.open').forEach(o=>o.classList.remove('open')));
 /* tabs */
+function currentTab(){
+  var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
+  var names=['builder','ingredients','analysis','dashboard'];
+  for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
+  return 'builder';
+}
+function rerenderCurrentTab(){                                         // re-run the active tab's render (e.g. once boot data lands)
+  var t=currentTab();
+  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else renderPlate(); }catch(e){ console.error('[rerender]', e); }
+}
 function showTab(t){
   try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
@@ -542,11 +552,11 @@ function showTab(t){
   if(t==='dashboard')renderDashboard();
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-(function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
+function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
   var VALID=['builder','ingredients','analysis','dashboard'];
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
-})();
+}
 (function(){
   var ci=document.getElementById('cogsTarget');
   if(ci){ ci.value=cogsPct; ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99) setCogs(v,true); }); }
@@ -567,6 +577,39 @@ var HISTKEY='cafeDB_priceHistory';
 function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HISTKEY))||[]; }catch(e){ return []; } }
 function saveHistory(){ try{ localStorage.setItem(HISTKEY, JSON.stringify(priceHistory)); }catch(e){} }
 var priceHistory = loadHistory();
+/* ---- per-ingredient price log (local; powers price-change alerts + cost ranges). No new Supabase table. ---- */
+var IPLKEY='cafeDB_ingPriceLog';
+function loadIngLog(){ try{ return JSON.parse(localStorage.getItem(IPLKEY))||{}; }catch(e){ return {}; } }
+function saveIngLog(){ try{ localStorage.setItem(IPLKEY, JSON.stringify(ingPriceLog)); }catch(e){} }
+var ingPriceLog = loadIngLog();
+function logIngPrice(pid, cpbuVal){                                  // record a per-base-unit price point for this product
+  if(pid==null || cpbuVal==null || !isFinite(cpbuVal)) return;
+  var a=ingPriceLog[pid]||(ingPriceLog[pid]=[]);
+  var last=a.length?a[a.length-1].v:null;
+  if(last!=null && Math.abs(last-cpbuVal) < Math.abs(cpbuVal)*1e-6) return;   // skip no-op repeats
+  a.push({t:Date.now(), v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60);
+}
+function ingPriceBand(pid){                                          // {min,max} $/base-unit from logged history, or null
+  var a=ingPriceLog[pid]; var p=byId[pid]; var cur=p?cpbu(p):null;
+  var vals=(a||[]).map(function(x){return x.v;}); if(cur!=null) vals.push(cur);
+  vals=vals.filter(function(v){return v!=null&&isFinite(v);}); if(!vals.length) return null;
+  return {min:Math.min.apply(null,vals), max:Math.max.apply(null,vals)};
+}
+function costRangeForLines(lines){                                   // dish cost at each ingredient's lowest and highest logged price
+  var lo=0, hi=0, any=false;
+  (lines||[]).forEach(function(l){
+    if(l&&l.misc){ var mc=Number(l.cost)||0; lo+=mc; hi+=mc; return; }
+    var p=byId[l.pid]; if(!p) return; var cur=cpbu(p); if(cur==null) return;
+    var band=ingPriceBand(l.pid); var mn=band?band.min:cur, mx=band?band.max:cur;
+    lo+=mn*l.qty; hi+=mx*l.qty; if(mx-mn>1e-9) any=true;
+  });
+  return {min:lo, max:hi, hasRange:any};
+}
+function dishesOverTarget(){                                         // dishes whose food cost sits above the target (margin under target)
+  var over=0; MENU.forEach(function(m){ if(!(m.price>0)) return; var sp=plateForMenuItem(m); if(!sp) return;
+    var c=costFromLines(sp.lines); if(!(c>0)) return; var a=analyze(c, m.price); if(a.state==='under') over++; });
+  return over;
+}
 function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v}); }, 'price history'); }
 function computeAvgFoodCost(){
   var vals=[];
@@ -855,7 +898,9 @@ function openHighlight(kind){
 }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
-  var cmp=dashComparisons();
+  if(typeof priceHistory==='undefined' || typeof savedPlates==='undefined'){ return; }  // data not initialised yet; boot-ready will re-render
+  var cmp;
+  try{ cmp=dashComparisons(); }catch(e){ console.error('[dashboard] not ready:', e); return; }
   var html='<div class="panel dash-panel"><h2>Average food cost'+(cmp.current!=null?' <span class="h2-val">'+cmp.current.toFixed(1)+'% today</span>':'')+'</h2><div class="pad">'+trendChart()
     +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
     +'<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
@@ -898,7 +943,8 @@ function renderDashboard(){
   ['ingModal','cogsModal','hlModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });
 })();
 
-bootstrapSync();                                           // pull latest shared data from Supabase
+restoreLastTab();                                          // safe now: all module data (priceHistory, savedPlates, MENU) is initialised
+bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
 
@@ -1820,7 +1866,7 @@ function applyInvoice(){
     if(r.addNew){ var s=collectNewItem(i); if(!s){ ok=false; } else specs[i]=s; }
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
-  var n=0, added=0, learned=[];
+  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget();
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
@@ -1838,7 +1884,10 @@ function applyInvoice(){
       if(up==null||isNaN(up)) return;                              // never store without a real unit price
       var priceUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:(p.base_unit==='g'?'kg':p.base_unit==='ml'?'l':'ea');
       var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
-      setOverride(pid,{cost_per_base_unit:up/ub2.div, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
+      var oldC=cpbu(p); var newC=up/ub2.div;
+      setOverride(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
+      logIngPrice(pid, newC);                                       // record the new price point (builds cost-range history)
+      if(oldC!=null && Math.abs(newC-oldC)>Math.abs(oldC)*0.005){ priceChanges.push({name:p.description||r.name, oldC:oldC, newC:newC, unit:ub2.base_unit, dir:(newC>oldC?1:-1), pctAbs:Math.abs((newC-oldC)/oldC)*100}); }
     }
     // learn the pack for this supplier+phrase (only for lines the app couldn't derive itself)
     if(normSupplier(invSupplier) && (r.needManual || r.remembered || r.packTaught)){
@@ -1856,12 +1905,42 @@ function applyInvoice(){
       }
     }
   });
+  if(priceChanges.length) saveIngLog();
   if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
+  var overAfter=dishesOverTarget();
   if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
   var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added');
-  toast(parts.length?parts.join(', '):'No changes to save');
   closeInv(); showTab('builder');                                 // close the importer, back to ingredient view
+  if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter); }
+  else toast('No changes to save');
+}
+function showImportSummary(changes, added, overBefore, overAfter){   // ITEM 2: plain-language "what changed" after an import
+  var host=document.getElementById('tab-builder')||document.body;
+  var old=document.getElementById('importSummary'); if(old) old.remove();
+  var ups=changes.filter(function(c){return c.dir>0;}), downs=changes.filter(function(c){return c.dir<0;});
+  var bits=[];
+  if(changes.length) bits.push('<b>'+changes.length+'</b> price'+(changes.length===1?'':'s')+' changed'+(ups.length&&downs.length?(' ('+ups.length+' \u25b2, '+downs.length+' \u25bc)'):ups.length?' (all up \u25b2)':downs.length?' (all down \u25bc)':''));
+  if(added) bits.push('<b>'+added+'</b> new item'+(added===1?'':'s')+' added');
+  var newlyOver=overAfter-overBefore;
+  var marginLine = newlyOver>0
+      ? '<span class="is-warn">\u26a0 '+newlyOver+' dish'+(newlyOver===1?'':'es')+' now over your '+cogsPct+'% target</span>'
+      : (overAfter>0 ? '<span class="is-muted">'+overAfter+' dish'+(overAfter===1?'':'es')+' still over your '+cogsPct+'% target</span>'
+      : '<span class="is-ok">\u2713 all dishes within your '+cogsPct+'% target</span>');
+  // biggest movers (up to 3, largest % change first)
+  var movers=changes.slice().sort(function(a,b){return b.pctAbs-a.pctAbs;}).slice(0,3).map(function(c){
+    var u=c.unit==='g'?'/kg':c.unit==='ml'?'/L':'/unit'; var f=function(v){return '$'+(c.unit==='g'||c.unit==='ml'?(v*1000):v).toFixed(2)+u;};
+    return '<li>'+(c.dir>0?'\u25b2':'\u25bc')+' '+esc(c.name)+' <span class="is-mono">'+f(c.oldC)+' \u2192 '+f(c.newC)+'</span> <span class="is-muted">('+(c.dir>0?'+':'\u2212')+c.pctAbs.toFixed(0)+'%)</span></li>';
+  }).join('');
+  var el=document.createElement('div'); el.id='importSummary'; el.className='import-summary';
+  el.innerHTML='<button class="is-x" type="button" aria-label="Dismiss">\u00d7</button>'
+    +'<div class="is-head">Invoice imported</div>'
+    +'<div class="is-line">'+(bits.join(' \u00b7 ')||'No price changes')+'</div>'
+    +'<div class="is-margin">'+marginLine+'</div>'
+    +(movers?('<ul class="is-movers">'+movers+'</ul>'):'');
+  host.insertBefore(el, host.firstChild);
+  el.querySelector('.is-x').onclick=function(){ el.remove(); };
+  setTimeout(function(){ if(el&&el.parentNode) el.classList.add('is-fade'); }, 12000);
 }
 function updateLastImport(){
   var d=null; try{d=localStorage.getItem('cafeDB_lastImport');}catch(e){}
@@ -1870,10 +1949,17 @@ function updateLastImport(){
 }
 
 /* ---- redefined analysis (groups custom menu items by section; shows notes) ---- */
+function costRangeCell(m, cost){                                     // ITEM 3: min/max band beneath the headline cost
+  if(!(cost>0)||!m) return '';
+  var sp=plateForMenuItem(m); if(!sp) return '';
+  var r=costRangeForLines(sp.lines); if(!r.hasRange) return '';
+  if(r.max-r.min < 0.005) return '';
+  return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
+}
 function aRow(name,a,m,actions){
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
   return '<tr><td>'+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
-    '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+'</td>'+
+    '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num"><span class="tip">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'<span class="tipbox">'+esc(tipText(a))+'</span></span></td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
     '<td class="num">'+vbadge(a)+'</td>'+
