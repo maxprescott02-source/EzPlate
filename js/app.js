@@ -920,10 +920,19 @@ function renderDashboard(){
     }
     function hideTip(){ tip.classList.remove('show'); tip.setAttribute('aria-hidden','true'); wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); }
     wrap.querySelectorAll('.tp-dot').forEach(function(dot){
-      dot.addEventListener('pointerdown', function(e){ e.preventDefault(); e.stopPropagation(); if(dot.classList.contains('act')) hideTip(); else showFor(dot); });
       dot.addEventListener('mouseenter', function(){ showFor(dot); });
       dot.addEventListener('focus', function(){ showFor(dot); });
     });
+    var dots=[].slice.call(wrap.querySelectorAll('.tp-dot'));
+    function nearestDot(clientX){ var best=null,bd=1e9; dots.forEach(function(d){ var r=d.getBoundingClientRect(); var cx=r.left+r.width/2; var dd=Math.abs(cx-clientX); if(dd<bd){bd=dd;best=d;} }); return best; }
+    var scrubbing=false;
+    svg.addEventListener('pointerdown', function(e){                 // press anywhere on the chart, slide between points
+      if(e.target.closest && e.target.closest('.ref-pill')) return; // the Target pill keeps its own tap
+      scrubbing=true; try{ svg.setPointerCapture(e.pointerId); }catch(_){ }
+      e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d);
+    });
+    svg.addEventListener('pointermove', function(e){ if(!scrubbing) return; e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d); });
+    ['pointerup','pointercancel'].forEach(function(ev){ svg.addEventListener(ev, function(){ scrubbing=false; }); });
     wrap.addEventListener('mouseleave', hideTip);
     document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) hideTip(); });
   })();
@@ -1763,8 +1772,10 @@ function renderInvReview(){
       var open=(r.needManual && !r.remembered);                    // manual + unresolved -> show the pack helper by default
       priceCell+='<div class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
         +'<span class="pt-lbl">How many in one pack?</span>'
-        +'<input type="number" class="invPackQty" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
-        +'<select class="invPackUnit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
+        +'<span class="pt-group">'
+        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
+        +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
+        +'</span>'
         +'<div class="pt-preview"></div>'
         +'</div>';
     }
