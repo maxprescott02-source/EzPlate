@@ -1642,3 +1642,21 @@ svg .ax{font-size:10px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 /* skill audit: pressed feedback + visible keyboard focus (was missing) */
 .btn:active{transform:translateY(1px)}
 button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ===== dashboard+features batch (v25) ===== */
+/* item 2: import summary banner */
+.import-summary{position:relative;margin:0 0 var(--sp-4);padding:var(--sp-4) var(--sp-5);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-md,10px);background:var(--surface);box-shadow:var(--shadow);transition:opacity .5s ease}
+.import-summary.is-fade{opacity:.35}
+.import-summary .is-head{font-family:var(--ui);font-weight:700;font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)}
+.import-summary .is-line{margin-top:3px;font-size:15px;color:var(--text)}
+.import-summary .is-margin{margin-top:5px;font-size:var(--fs-sm)}
+.import-summary .is-warn{color:var(--bad);font-weight:650}
+.import-summary .is-ok{color:var(--good);font-weight:650}
+.import-summary .is-muted{color:var(--muted2)}
+.import-summary .is-mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.import-summary .is-movers{margin:6px 0 0;padding:0;list-style:none;font-size:var(--fs-sm);color:var(--text2)}
+.import-summary .is-movers li{padding:2px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.import-summary .is-x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:20px;line-height:1;color:var(--muted2);cursor:pointer}
+.import-summary .is-x:hover{color:var(--text)}
+/* item 3: cost range band under the headline cost */
+.cost-range{display:block;margin-top:2px;font-size:var(--fs-xs);color:var(--muted2);font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
