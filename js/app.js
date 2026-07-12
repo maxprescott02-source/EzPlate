@@ -650,11 +650,18 @@ function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ')
 function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
 function dbPushSupplierPhrase(e){ pushWrite(function(){ return SUPA.from('supplier_phrases').upsert({id:e.id, supplier:e.supplier, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, updated_at:new Date().toISOString()}); }, 'supplier phrase'); }
 function dbDeleteSupplierPhrase(id){ pushWrite(function(){ return SUPA.from('supplier_phrases').delete().eq('id',id); }, 'supplier phrase delete'); }
-function rememberSupplierPhrase(supplier, phrase, qty, unit){
+function rememberSupplierPhrase(supplier, phrase, qty, unit, pid){
   if(!normSupplier(supplier) || !(qty>0)) return;                 // no supplier -> never store
   var id=memKey(supplier, phrase);
-  var e={id:id, supplier:supplier, phrase_norm:normalizePhrase(phrase), qty:qty, unit:unit};
-  supplierMem[id]=e; saveSupplierMem(); dbPushSupplierPhrase(e);
+  var e={id:id, supplier:supplier, phrase_norm:normalizePhrase(phrase), qty:qty, unit:unit, pid:(pid||(supplierMem[id]&&supplierMem[id].pid)||null)};
+  supplierMem[id]=e; saveSupplierMem(); dbPushSupplierPhrase(e);  // same id => one entry, overwritten (never duplicated)
+}
+function syncMemoryToProduct(pid, qty, unit){                     // ITEM 1: keep Remembered items in step with the product's taught pack
+  if(!pid || !(qty>0)) return; var changed=false;
+  for(var id in supplierMem){ var e=supplierMem[id];
+    if(e && e.pid===pid && (e.qty!==qty || (e.unit||'')!==(unit||''))){ e.qty=qty; e.unit=unit; dbPushSupplierPhrase(e); changed=true; }
+  }
+  if(changed) saveSupplierMem();
 }
 function renderSmemList(){
   var box=document.getElementById('smemList'); if(!box) return;
@@ -795,6 +802,7 @@ function saveIngEdit(){
   setOverride(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
     base_unit:ub.base_unit, cost_basis:ub.cost_basis, cost_per_base_unit:price/ub.div,
     pack_qty:(isNaN(pq)?null:pq), pack_unit:(pu||null)});
+  if(!isNaN(pq) && pq>0) syncMemoryToProduct(id, pq, (pu||'ea'));   // ITEM 1: no stale Remembered-items entry left behind
   logHistory();
   renderIngredients(); if(typeof renderPlate==='function') renderPlate(); if(typeof renderAnalysis==='function') renderAnalysis();
   closeIngEdit(); toast('Ingredient updated');
@@ -1418,7 +1426,7 @@ function buildInvRows(rawRows){
     var top=cands.length?cands[0].coverage:0;
     var addNew=(top<0.3);                                          // <0.3 -> no confident match -> Add New
     var tier=top>=0.6?'hi':(top>=0.3?'mid':'lo');                  // >=0.6 confident, 0.3-0.59 possible
-    var row={name:r.name, raw:r.raw||r.name, unitPrice:up, unit:(r.unit||'auto'),
+    var row={name:r.name, raw:r.raw||r.name, unitPrice:up, unit:(r.unit||'auto'), rawUnit:(r.unit||'auto'),
             needManual:(!!r.needManual || up==null), uncertain:!!r.uncertain, cands:cands,
             bestId:(addNew?null:(cands.length?cands[0].id:null)),
             conf:top, tier:tier, addNew:addNew, newItem:null, remembered:false};
@@ -1429,6 +1437,7 @@ function buildInvRows(rawRows){
     } else if(row.needManual && mem){                            // no-match / manual line keeps v20 memory behaviour
       applySupplierMemory(row, mem);
     }
+    flagNeedsAttention(row);
     return row;
   });
   renderInvReview();
@@ -1679,7 +1688,6 @@ function expandNewItem(i){
     panel.innerHTML=''
      +'<button type="button" class="x ni-close" aria-label="Close add-new-item form">\u00d7</button>'
      +'<div class="ni-head">Add new item from this invoice line</div>'
-     +'<div class="ni-raw">'+esc(r.raw||r.name)+'</div>'
      +'<div class="ni-grid">'
      +'<label>Name<input id="ni_name'+i+'" type="text" value="'+esc(r.name)+'"></label>'
      +'<label>Brand<span class="cat-wrap"><input id="ni_brand'+i+'" type="text" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
@@ -1800,7 +1808,7 @@ function renderInvReview(){
       ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
       : '<div class="match-cell">'+chips+'<select class="invSel">'+invMatchOptions(r)+'</select>'
         +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
-    html+='<tr class="inv-data'+rc+'" data-i="'+i+'">'+
+    html+='<tr class="inv-data'+rc+(r.needsAttention?' needs-attention':'')+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
       '<td class="num">'+priceCell+'</td>'+
       '<td>'+matchCell+'</td>'+
@@ -1861,13 +1869,32 @@ function renderInvReview(){
   document.getElementById('invApply').addEventListener('click',applyInvoice);
   updateLastImport();
 }
+var PRICE_JUMP=0.12;                                              // >12% move vs the stored price is worth a glance
+function flagNeedsAttention(row){                                  // ITEM 4: one skimmable signal per row (display only)
+  var priceJump=false;
+  if(row.bestId && byId[row.bestId] && !row.unitMismatch && !row.needManual && row.unitPrice>0){
+    var p=byId[row.bestId], cur=cpbu(p);
+    if(cur!=null && cur>0){
+      var curPerRowUnit = p.base_unit==='g'?cur*1000 : p.base_unit==='ml'?cur*1000 : cur;   // stored price expressed in the row's unit
+      if(Math.abs(row.unitPrice-curPerRowUnit)/curPerRowUnit > PRICE_JUMP) priceJump=true;
+    }
+  }
+  row.needsAttention = !!(row.unitMismatch || (row.needManual && !row.remembered) || priceJump);
+  return row.needsAttention;
+}
 function invSelChanged(tr){
   var i=parseInt(tr.dataset.i,10), r=invRows[i]; if(!r) return;
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
   r.addNew=false; collapseNewItem(i);
-  if(sel.value==='skip'){ r.bestId=null; if(old)old.textContent='\u2014'; if(appr)appr.checked=false; }
-  else { r.bestId=sel.value; if(old)old.textContent=dispPrice(byId[sel.value]);
-    var upu=tr.querySelector('.upu'); if(upu){ var b=byId[sel.value].base_unit; upu.textContent=b==='g'?'/kg':b==='ml'?'/L':'/unit'; } }
+  if(sel.value==='skip'){ r.bestId=null; r.needsAttention=false; if(old)old.textContent='\u2014'; if(appr)appr.checked=false; renderInvReview(); return; }
+  // switching the matched product: throw away any half-done pack-teach state and resolve cleanly for the NEW product
+  r.remembered=false; r.unitMismatch=false; r.needManual=(r.unitPrice==null); r.taughtQty=null; r.taughtUnit=null; r.packTaught=false; r.unit=(r.rawUnit||r.unit||'auto');
+  r.bestId=sel.value;
+  var np=byId[sel.value];
+  var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
+  resolveMatchedPrice(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match
+  flagNeedsAttention(r);
+  renderInvReview();                                              // repaint the row (and its pack-teach) fresh for the new product
 }
 function applyInvoice(){
   var specs={}, ok=true;                                          // validate all approved new items first (atomic)
@@ -1910,9 +1937,9 @@ function applyInvoice(){
         if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u=rUnit; } }
       }
       if(q>0){ var key=memKey(invSupplier, r.raw||r.name); var before=supplierMem[key];
-        rememberSupplierPhrase(invSupplier, r.raw||r.name, q, u);
+        rememberSupplierPhrase(invSupplier, r.raw||r.name, q, u, r.bestId||null);
         if(!before || before.qty!==q || before.unit!==u) learned.push({phrase:r.name, qty:q, unit:u});
-        if(r.bestId && byId[r.bestId]){ var bp=byId[r.bestId]; if(bp.pack_qty!==q || (bp.pack_unit||'')!==(u||'')) setOverride(r.bestId, {pack_qty:q, pack_unit:u}); }  // teach the product its own pack -> automatic next time
+        if(r.bestId && byId[r.bestId]){ var bp=byId[r.bestId]; if(bp.pack_qty!==q || (bp.pack_unit||'')!==(u||'')) setOverride(r.bestId, {pack_qty:q, pack_unit:u}); syncMemoryToProduct(r.bestId, q, u); }  // teach the product + keep memory in step
       }
     }
   });
