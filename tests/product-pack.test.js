@@ -84,3 +84,12 @@ test('no false mismatch when derived unit already matches the product base unit'
   assert.equal(row.unitMismatch, false);
   near(row.unitPrice, 40.17 / 15, 'chips still ~$2.68/kg');        // regression anchor stays intact
 });
+
+/* ===== v27: Remembered-items overwrite relies on a STABLE key across qty/price noise ===== */
+test("normalizePhrase: same item written with different qty/price/code noise -> identical key (so re-teaching overwrites, never duplicates)", () => {
+  const { normalizePhrase } = require('./_extract.js');
+  const a = normalizePhrase("AVOCADO TRAY 18'S 1-234 2.5kg 1 45.00 45.00");
+  const b = normalizePhrase("AVOCADO TRAY 20'S 1-999 2.5kg 2 50.00 50.00");
+  assert.equal(a, b, 'volatile numbers (qty, codes, prices) must be stripped so the memory key is stable');
+  assert.ok(a.includes('avocado') && a.includes('tray'), 'the item words survive');
+});
