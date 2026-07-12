@@ -1693,3 +1693,38 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
   .line.misc-line .qtybox.misc-costbox input{width:104px;font-size:16px;padding:8px 8px}
   .line.misc-line .misc-label{font-size:16px}
 }
+
+/* ===== v28 — notification, attention, stability, hover parity ===== */
+/* item 5a: the tint now OUTGUNS the card rule (.invtable tbody tr:not():not() was winning on specificity) */
+.invtable tbody tr.inv-data.needs-attention:not(.sec):not(.ni-row){
+  background:var(--bad-bg);border-color:var(--bad);box-shadow:inset 3px 0 0 var(--bad)}
+/* item 2: nothing moves while you type — every box in the row is fixed-width */
+.pt-group .invPackQty{width:84px;min-width:84px}
+.pt-group .invPackUnit{width:86px;min-width:86px}
+.uprice-edit .upu{display:inline-block;min-width:42px}            /* "/unit" and "/kg" occupy the same space — the price box stays put */
+.pt-preview{min-height:1.25em}
+/* item 6: builder row hover = the Menu section's flat rectangular treatment (line 1309), nothing card-shaped */
+#lines .line{border-radius:0}
+#lines{padding:0}
+#lines .line:hover{background:var(--hover);box-shadow:none}
+/* item 1: corner toasts — bottom-right, fixed overlay, stack upward, shift nothing */
+#cornerToasts{position:fixed;right:16px;bottom:16px;z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
+.corner-toast{pointer-events:auto;position:relative;max-width:340px;min-width:240px;padding:10px 30px 10px 14px;
+  background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:10px;box-shadow:var(--shadow-lg,0 8px 28px rgba(30,20,10,.16));
+  opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
+.corner-toast.show{opacity:1;transform:none}
+.corner-toast .ct-head{font-weight:700;font-size:var(--fs-sm);color:var(--text)}
+.corner-toast .ct-margin{margin-top:3px;font-size:var(--fs-xs)}
+.corner-toast .ct-mover{margin-top:3px;font-size:var(--fs-xs);color:var(--text2);font-variant-numeric:tabular-nums}
+.corner-toast .is-warn{color:var(--bad);font-weight:650}
+.corner-toast .is-muted{color:var(--muted2)}
+.corner-toast .is-mono{font-family:var(--mono)}
+.corner-toast .is-x{position:absolute;top:4px;right:6px;border:0;background:none;font-size:18px;line-height:1;color:var(--muted2);cursor:pointer}
+.corner-toast .is-x:hover{color:var(--text)}
+@media (max-width:700px){ #cornerToasts{left:12px;right:12px;bottom:12px;align-items:stretch} .corner-toast{max-width:none} }
+/* item 7 QA (found during the pass): */
+.ni-add-alt{margin-top:6px}                                        /* +New sat flush under the match dropdown */
+.import-summary{display:none}                                      /* legacy inline card fully retired in favour of the toast */
+.invtable .uprice-edit{min-height:36px}                            /* price row keeps height when suffix/preview swap */
+.mfoot .btn{min-height:40px}                                       /* modal footer buttons matched to control height used elsewhere */
