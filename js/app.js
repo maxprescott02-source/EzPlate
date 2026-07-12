@@ -577,6 +577,17 @@ var HISTKEY='cafeDB_priceHistory';
 function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HISTKEY))||[]; }catch(e){ return []; } }
 function saveHistory(){ try{ localStorage.setItem(HISTKEY, JSON.stringify(priceHistory)); }catch(e){} }
 var priceHistory = loadHistory();
+var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')||'3m'; }catch(e){ return '3m'; } })();
+function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
+function dashRangePts(){                                           // the points inside the chosen window (capped for sanity)
+  var days={'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
+  var pts=days?priceHistory.filter(function(p){return p.t>=Date.now()-days*86400000;}):priceHistory.slice();
+  return pts.slice(-60);
+}
+function rangeBarHtml(){
+  var os=[['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
+  return '<div class="range-bar">'+os.map(function(o){return '<button type="button" class="range-btn'+(dashRange===o[0]?' act':'')+'" data-rg="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div>';
+}
 /* ---- per-ingredient price log (local; powers price-change alerts + cost ranges). No new Supabase table. ---- */
 var IPLKEY='cafeDB_ingPriceLog';
 function loadIngLog(){ try{ return JSON.parse(localStorage.getItem(IPLKEY))||{}; }catch(e){ return {}; } }
@@ -842,11 +853,14 @@ function statCard(label, current, base){
     +'<div class="stat-sub '+cls+'">'+esc(sub)+'</div></div>';
 }
 function trendChart(){
-  var pts=priceHistory.slice(-30);
+  var pts=dashRangePts();
   var W=320,H=150,padL=40,padR=10,padT=14,padB=20;
   if(pts.length<2){
-    return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
-      +'<p class="hint chart-hint">The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.</p></div>';
+    var emptyHint=(priceHistory.length>=2)
+      ? 'No points in this range yet \u2014 try a longer range.'
+      : 'The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.';
+    return '<div class="dash-chart empty">'+rangeBarHtml()+'<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
+      +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
   var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
@@ -870,7 +884,7 @@ function trendChart(){
     +'<text x="'+(padL-7)+'" y="'+(H-padB+2).toFixed(1)+'" text-anchor="end" class="ax">'+mn.toFixed(0)+'%</text>'
     +'</svg>';
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
-  return '<div class="dash-chart" id="trendWrap">'+svg
+  return '<div class="dash-chart" id="trendWrap">'+rangeBarHtml()+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
     +'<button class="ref-pill" id="dashCogsBtn" type="button" title="Edit target">Target '+cogsPct+'% \u270e</button>'
     +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';
@@ -916,6 +930,7 @@ function renderDashboard(){
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
   var cb=document.getElementById('dashCogsBtn'); if(cb) cb.onclick=openCogsModal;
+  root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
   (function wireTrendTip(){                                          // one tooltip at a time; tap point (mobile) or hover (desktop)
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'); if(!svg) return;
@@ -1769,24 +1784,27 @@ function renderInvReview(){
     var rc=(r.bestId && !r.needManual && !r.addNew && !r.uncertain)?'':' muted-row';
     var uLbl=unitLabelFor(r)||'/unit';
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
-    var priceCell='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
-    if(r.remembered||r.fromProductPack) priceCell+='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2713 \u2014 change</button>';
+    var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
+    var chipHtml='', teachHtml='';
+    if(r.remembered||r.fromProductPack) chipHtml='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2713 \u2014 change</button>';
     if(r.needManual || r.remembered || r.fromProductPack){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var baseCat0=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
       var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(mem?mem.qty:'');
       var puNow=r.taughtUnit?r.taughtUnit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea')));
-      var open=(r.needManual && !r.remembered);                    // manual + unresolved -> show the pack helper by default
-      priceCell+='<div class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
-        +'<span class="pt-lbl">How many in one pack?</span>'
+      var open=(r.needManual && !r.remembered);                    // manual + unresolved -> the form IS the default state
+      teachHtml='<span class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
+        +'<span class="pt-lbl sr-only">How many in one pack?</span>'
         +'<span class="pt-group">'
-        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" value="'+pq+'">'
+        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="how many?" title="How many in one pack?" value="'+pq+'">'
         +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
-        +'<div class="pt-preview"></div>'
-        +'</div>';
+        +'<span class="pt-preview"></span>'
+        +(chipHtml?'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>':'')
+        +'</span>';
     }
+    var priceCell='<div class="price-row">'+upriceHtml+chipHtml+teachHtml+'</div>';
     if(r.needManual && !r.remembered){
       var baseCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
       var baseWord=baseCat==='kg'?'per kg':baseCat==='l'?'per litre':'per unit';
@@ -1829,7 +1847,7 @@ function renderInvReview(){
       var up = (u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
       var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
       if(isFinite(up)&&up>=0){
-        r.unitPrice=up; r.unit=cat; r.needManual=false; r.unitMismatch=false; r.packTaught=true;   // the unit chosen HERE is the one that gets written — full stop
+        r.unitPrice=up; r.unit=cat; r.needManual=false; r.unitMismatch=false; r.packTaught=true; r.taughtQty=q; r.taughtUnit=u;   // the unit chosen HERE is the one that gets written — full stop
         var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2);
         var upu=tr.querySelector('.upu'); if(upu) upu.textContent=unitLabelFor(r);
         var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
@@ -1842,8 +1860,11 @@ function renderInvReview(){
     pt.querySelector('.invPackQty').addEventListener('input', recompute);
     pt.querySelector('.invPackUnit').addEventListener('change', recompute);
   });
+  box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
   box.querySelectorAll('.remembered-chip').forEach(function(ch){ ch.onclick=function(){
-    var tr=ch.closest('tr'); if(!tr) return; var pt=tr.querySelector('.pack-teach'); if(pt) pt.classList.toggle('hidden');
+    var tr=ch.closest('tr'); if(!tr) return; var pt=tr.querySelector('.pack-teach'); if(!pt) return;
+    ch.classList.add('hidden'); pt.classList.remove('hidden');       // the form REPLACES the chip — never both
+    var q=pt.querySelector('.invPackQty'); if(q) q.focus();
   }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
     var tr=ch.closest('tr'); if(!tr) return;
@@ -1866,7 +1887,7 @@ function renderInvReview(){
     var ap=tr?tr.querySelector('.invAppr'):null; if(ap) ap.checked=true;
     b.classList.add('open'); b.textContent='Editing new item \u2193';
   }; });
-  document.getElementById('invApply').addEventListener('click',applyInvoice);
+  document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
   updateLastImport();
 }
 var PRICE_JUMP=0.12;                                              // >12% move vs the stored price is worth a glance
@@ -1895,6 +1916,18 @@ function invSelChanged(tr){
   resolveMatchedPrice(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match
   flagNeedsAttention(r);
   renderInvReview();                                              // repaint the row (and its pack-teach) fresh for the new product
+}
+function confirmApplyInvoice(){                                   // last chance: show what WON'T be applied before finishing
+  var boxEl=document.getElementById('invReview'); if(!boxEl){ applyInvoice(); return; }
+  var un=[];
+  invRows.forEach(function(r,i){
+    if(!(r&&(r.bestId||r.addNew))) return;
+    var tr=boxEl.querySelector('tr.inv-data[data-i="'+i+'"]'); var cb=tr&&tr.querySelector('.invAppr');
+    if(cb && !cb.checked) un.push(r.name||('line '+(i+1)));
+  });
+  if(!un.length){ applyInvoice(); return; }
+  var list=un.slice(0,8).map(function(n){return '\u2022 '+n;}).join('\n')+(un.length>8?('\n\u2022 +'+(un.length-8)+' more'):'');
+  askConfirm(un.length+' line'+(un.length===1?'':'s')+' won\u2019t be applied', list+'\n\nGo back to tick them, or finish without.', 'Finish import', applyInvoice);
 }
 function applyInvoice(){
   var specs={}, ok=true;                                          // validate all approved new items first (atomic)
