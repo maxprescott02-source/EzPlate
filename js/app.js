@@ -970,7 +970,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
 if ('serviceWorker' in navigator) {
   // Register on window load, at root scope, and surface any failure (no silent catch).
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('sw.js', { scope: './' })
+    navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
       .then(function (reg) {
         console.log('[PWA] Service worker registered — scope:', reg.scope);
         if (reg.update) { reg.update(); }
@@ -1795,7 +1795,7 @@ function renderInvReview(){
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));
-    var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi') );  // no-match: unticked until they tap Add
+    var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi' && !r.needsAttention) );  // flagged rows wait for the user's own tick
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
@@ -1949,36 +1949,33 @@ function applyInvoice(){
   var overAfter=dishesOverTarget();
   if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
   var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added');
-  closeInv(); showTab('builder');                                 // close the importer, back to ingredient view
+  closeInv();                                                     // stay on whatever tab the user imported from
   if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter); }
   else toast('No changes to save');
 }
-function showImportSummary(changes, added, overBefore, overAfter){   // ITEM 2: plain-language "what changed" after an import
-  var host=document.getElementById('tab-builder')||document.body;
-  var old=document.getElementById('importSummary'); if(old) old.remove();
-  var ups=changes.filter(function(c){return c.dir>0;}), downs=changes.filter(function(c){return c.dir<0;});
+function showImportSummary(changes, added, overBefore, overAfter){   // corner toast: glance, don't study
+  var stack=document.getElementById('cornerToasts');
+  if(!stack){ stack=document.createElement('div'); stack.id='cornerToasts'; document.body.appendChild(stack); }
+  var ups=changes.filter(function(c){return c.dir>0;}).length, downs=changes.length-((changes.filter(function(c){return c.dir>0;})).length);
   var bits=[];
-  if(changes.length) bits.push('<b>'+changes.length+'</b> price'+(changes.length===1?'':'s')+' changed'+(ups.length&&downs.length?(' ('+ups.length+' \u25b2, '+downs.length+' \u25bc)'):ups.length?' (all up \u25b2)':downs.length?' (all down \u25bc)':''));
-  if(added) bits.push('<b>'+added+'</b> new item'+(added===1?'':'s')+' added');
+  if(changes.length) bits.push(changes.length+' price'+(changes.length===1?'':'s')+(ups&&downs?' \u25b2\u25bc':ups?' \u25b2':' \u25bc'));
+  if(added) bits.push(added+' new');
   var newlyOver=overAfter-overBefore;
-  var marginLine = newlyOver>0
-      ? '<span class="is-warn">\u26a0 '+newlyOver+' dish'+(newlyOver===1?'':'es')+' now over your '+cogsPct+'% target</span>'
-      : (overAfter>0 ? '<span class="is-muted">'+overAfter+' dish'+(overAfter===1?'':'es')+' still over your '+cogsPct+'% target</span>'
-      : '<span class="is-ok">\u2713 all dishes within your '+cogsPct+'% target</span>');
-  // biggest movers (up to 3, largest % change first)
-  var movers=changes.slice().sort(function(a,b){return b.pctAbs-a.pctAbs;}).slice(0,3).map(function(c){
-    var u=c.unit==='g'?'/kg':c.unit==='ml'?'/L':'/unit'; var f=function(v){return '$'+(c.unit==='g'||c.unit==='ml'?(v*1000):v).toFixed(2)+u;};
-    return '<li>'+(c.dir>0?'\u25b2':'\u25bc')+' '+esc(c.name)+' <span class="is-mono">'+f(c.oldC)+' \u2192 '+f(c.newC)+'</span> <span class="is-muted">('+(c.dir>0?'+':'\u2212')+c.pctAbs.toFixed(0)+'%)</span></li>';
-  }).join('');
-  var el=document.createElement('div'); el.id='importSummary'; el.className='import-summary';
+  var margin = newlyOver>0 ? '<div class="ct-margin is-warn">\u26a0 '+newlyOver+' dish'+(newlyOver===1?'':'es')+' now over '+cogsPct+'% target</div>'
+             : (overAfter>0 ? '<div class="ct-margin is-muted">'+overAfter+' still over '+cogsPct+'% target</div>' : '');
+  var top=changes.slice().sort(function(a,b){return b.pctAbs-a.pctAbs;})[0];   // ONE biggest mover, not three
+  var mover='';
+  if(top){ var u=top.unit==='g'?'/kg':top.unit==='ml'?'/L':'/unit'; var f=function(v){return '$'+(top.unit==='g'||top.unit==='ml'?(v*1000):v).toFixed(2);};
+    mover='<div class="ct-mover is-mono">'+(top.dir>0?'\u25b2':'\u25bc')+' '+esc(top.name)+' '+f(top.oldC)+' \u2192 '+f(top.newC)+u+'</div>'; }
+  var el=document.createElement('div'); el.className='corner-toast';
   el.innerHTML='<button class="is-x" type="button" aria-label="Dismiss">\u00d7</button>'
-    +'<div class="is-head">Invoice imported</div>'
-    +'<div class="is-line">'+(bits.join(' \u00b7 ')||'No price changes')+'</div>'
-    +'<div class="is-margin">'+marginLine+'</div>'
-    +(movers?('<ul class="is-movers">'+movers+'</ul>'):'');
-  host.insertBefore(el, host.firstChild);
-  el.querySelector('.is-x').onclick=function(){ el.remove(); };
-  setTimeout(function(){ if(el&&el.parentNode) el.classList.add('is-fade'); }, 12000);
+    +'<div class="ct-head">Invoice imported'+(bits.length?(' \u00b7 '+bits.join(' \u00b7 ')):'')+'</div>'
+    +margin+mover;
+  stack.appendChild(el);                                             // stacks cleanly; fixed overlay shifts no page content
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  var kill=function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); }, 250); };
+  el.querySelector('.is-x').onclick=kill;
+  setTimeout(kill, 9000);
 }
 function updateLastImport(){
   var d=null; try{d=localStorage.getItem('cafeDB_lastImport');}catch(e){}
