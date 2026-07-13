@@ -8,6 +8,16 @@
 <script>(function(){try{var t=localStorage.getItem('cafeCost_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <title>EzPlate — plate costing made easy</title>
 <meta name="description" content="EzPlate — plate costing made easy. Cost menu items, track supplier prices, protect margins.">
+<!-- Social sharing (Open Graph + Twitter). TODO(Max): set an absolute production URL for og:url + <link rel="canonical"> and absolute og:image/twitter:image once the Vercel domain is fixed — relative paths preview inconsistently on some platforms. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="EzPlate">
+<meta property="og:title" content="EzPlate — plate costing made easy">
+<meta property="og:description" content="Cost menu items, track supplier prices, and protect your margins. Simple plate costing for cafes and restaurants.">
+<meta property="og:image" content="icons/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="EzPlate — plate costing made easy">
+<meta name="twitter:description" content="Cost menu items, track supplier prices, and protect your margins. Simple plate costing for cafes and restaurants.">
+<meta name="twitter:image" content="icons/icon-512.png">
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=32">
+<link rel="stylesheet" href="css/style.css?v=34">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -127,8 +137,11 @@
       <div class="king-head">
         <h3>Ingredients</h3>
         <span class="king-sub">Kitchen words for recipes — each one points at a product you buy</span>
-        <button class="btn ghost" id="kingNew" type="button">+ New ingredient</button>
+        <button class="btn primary" id="kingNew" type="button">+ New ingredient</button>
+        <button class="btn ghost" id="kingWizBtn" type="button" style="display:none">Set up from products</button>
       </div>
+      <div class="king-progress" id="kingProgress" style="display:none"></div>
+      <div id="kingWiz" style="display:none"></div>
       <div id="kingList"></div>
     </div>
   </div><!-- /tab-pantry (LABEL: Ingredients) -->
@@ -367,6 +380,7 @@
       <div class="ferr" id="king_err" style="display:none"></div>
       <div class="grid">
         <div class="field full"><label for="king_name">Ingredient name *</label><input id="king_name" type="text" placeholder="e.g. Chips" autocomplete="off"></div>
+        <p class="king-used" id="king_used" style="display:none"></p>
         <div class="field full"><label for="king_prod">Supplier product to link to *</label>
           <span class="cat-wrap">
             <input id="king_prod" type="text" autocomplete="off" placeholder="Search your products…" role="combobox" aria-expanded="false" aria-controls="king_prodDrop">
@@ -382,18 +396,6 @@
 </div>
 
 
-<!-- COGS target modal (shared) -->
-<div class="modal-overlay" id="cogsModal" aria-hidden="true">
-  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cogsModalTitle">
-    <div class="mhead"><h3 id="cogsModalTitle">Target food cost</h3><button class="x" id="cogsModalClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="mbody">
-      <label class="f" for="cogsModalInput">Target food cost (COGS %)</label>
-      <div class="cogs-in"><input id="cogsModalInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
-      <p class="cogs-help">This is what percentage of the sell price goes to ingredients. Lower = higher margin. Shared across the app and all devices.</p>
-    </div>
-    <div class="mfoot"><button class="btn ghost" id="cogsModalCancel" type="button">Cancel</button><button class="btn primary" id="cogsModalSave" type="button">Save</button></div>
-  </div>
-</div>
 
 <!-- Highlight detail modal -->
 <div class="modal-overlay" id="hlModal" aria-hidden="true">
@@ -433,7 +435,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=32"></script>
+<script src="js/app.js?v=34"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
