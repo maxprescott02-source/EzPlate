@@ -1852,3 +1852,58 @@ body{overflow-x:clip}
 .ptr-ind.spinning .ptr-spin{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}
 @keyframes ptr-rot{to{transform:rotate(360deg)}}
 @media (min-width:701px){ .ptr-ind{display:none} }
+
+/* ===== v31 mobile density pass (Item 6) ===== */
+/* Most of the brief's candidate fixes turned out to already be handled by
+   existing rules (panel margin-top on mobile is 16px, .line .nm b already
+   wraps with no ellipsis, .sub/.king-sub/.stat-lead are already at the
+   11–12px floor). Only the real gaps get new rules below, so nothing here
+   duplicates or fights what's already in the file. */
+
+/* 1) NAV FIT — five buttons must stay on one row, labels must not wrap/clip.
+   The existing @media(max-width:380px) only shrinks the button font; it
+   doesn't stop the label from wrapping to two lines at 390px, and doesn't
+   reclaim the icon's generous horizontal padding. Widen the breakpoint to
+   400px (covers 360 and 390) and address both. */
+@media (max-width:400px){
+  .bottomnav{gap:0}
+  .navbtn{padding-left:2px;padding-right:2px}
+  .navbtn svg{padding:4px 10px}                 /* was 4px 16px — reclaims ~12px per button across 5 icons */
+  .navbtn .nl{font-size:10px;letter-spacing:-.01em;white-space:nowrap}
+}
+/* If a label still can't fit at the very narrowest common width, drop to
+   icon-only rather than let it wrap or clip — five clear icons beat five
+   half-cut words. */
+@media (max-width:340px){
+  .navbtn .nl{display:none}
+}
+
+/* 2) List-row vertical rhythm: king-row (Ingredients tab) sat at 10px
+   vertical padding, just under the 12px minimum called for in the brief. */
+@media (max-width:700px){
+  .king-row{padding-top:12px;padding-bottom:12px}
+}
+
+/* 3) Wide tables: NOT adding a scroll-fade here. Checked the actual behaviour
+   first — on mobile the Menu analysis table reflows into stacked cards
+   (no horizontal scroll to hint at), and the invoice review table is
+   deliberately overflow-x:hidden inside its modal (the v30 Bug-1 fix, so it
+   doesn't rubber-band). A fade would imply scrollable content that isn't
+   there. Leaving both as-is; "never squash columns" is already satisfied
+   by the existing card-reflow / hidden-overflow behaviour. */
+
+/* ===== v31 About/info modal + entry points (Item 7) ===== */
+.side-foot{display:none}
+@media (min-width:1024px){
+  .side-foot{display:flex;flex-direction:column;gap:4px;margin-top:auto;padding-top:14px;border-top:1px solid var(--border)}
+  .side-foot-link{background:none;border:0;text-align:left;color:var(--muted2);font-size:12px;cursor:pointer;padding:4px 8px;min-height:0}
+  .side-foot-link:hover{color:var(--text);text-decoration:underline}
+  .side-foot-ver{color:var(--muted2);font-size:11px;padding:0 8px}
+}
+.info-body section{margin-bottom:14px}
+.info-body h4{margin:0 0 4px;font-size:14px}
+.info-body p{margin:0;font-size:var(--fs-sm);color:var(--text2);line-height:1.5}
+.info-ver{margin-top:6px;color:var(--muted2);font-size:11px}
+.info-btn{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;background:none;border:0;color:var(--muted2);cursor:pointer}
+.info-btn:hover{color:var(--text)}
+@media (min-width:1024px){ .info-btn{display:none} }   /* header button is mobile-only; sidebar owns it on desktop */
