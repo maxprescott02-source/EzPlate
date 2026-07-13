@@ -509,7 +509,7 @@ input[type=checkbox]{
 
 /* generated labels — analysis table columns */
 .atable:not(.invtable) td:nth-child(2)::before{content:"Plate cost"}
-.atable:not(.invtable) td:nth-child(3)::before{content:"Suggested (40%)"}
+.atable:not(.invtable) td:nth-child(3)::before{content:"Suggested"}
 .atable:not(.invtable) td:nth-child(4)::before{content:"Menu price"}
 .atable:not(.invtable) td:nth-child(5)::before{content:"Variance"}
 /* traffic light pinned to the card corner */
@@ -1020,7 +1020,7 @@ input[type=checkbox]{
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:9px}
-.chart-hint{margin:6px 2px 0}
+.chart-hint{margin:6px 2px 0;font-size:var(--fs-xs);color:var(--muted2);font-weight:400}
 .ref-pill{position:absolute;top:6px;right:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);
   font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px;cursor:pointer}
 .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 4px}
@@ -1791,14 +1791,6 @@ body{overflow-x:clip}
   .king-link{flex-basis:100%;order:3;white-space:normal}
 }
 
-/* FEATURE 2 — plating photos */
-.plate-name-row{display:flex;align-items:flex-end;gap:12px}
-.plate-name-col{flex:1 1 auto;min-width:0}
-.plate-photo{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:0 0 auto;cursor:pointer;border:1px solid var(--border)}
-.plate-photo img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
-.plate-photo.empty{display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--border2);background:var(--surface2);color:var(--muted2);font-size:20px}
-.plate-photo.uploading{opacity:.5;pointer-events:none}
-.mi-thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px}
 
 /* BUG 1B — popup horizontal-scroll containment (mobile only) */
 @media (max-width:700px){
@@ -1829,26 +1821,57 @@ body{overflow-x:clip}
 .opt-create{color:var(--accent-ink);font-weight:600;cursor:pointer}
 .opt-create:hover,.opt-create.hi{background:var(--hover)}
 
-/* ===== v31: desktop plating-photo card (Item 3B) ===== */
-.photo-panel .pad{padding-top:0}
-.plate-photo-lg{width:100%;aspect-ratio:4/3;border-radius:var(--radius-ctl);overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border)}
-.plate-photo-lg img{width:100%;height:100%;object-fit:cover;display:block}
-.plate-photo-lg.empty{flex-direction:column;gap:8px;border:1.5px dashed var(--border2);color:var(--muted2);font-size:34px}
-.plate-photo-lg.empty .pp-lg-label{font-size:var(--fs-sm)}
-.plate-photo-lg.uploading{opacity:.5;pointer-events:none}
-/* the desktop card only exists ≥1024px AND once a plate is saved (.has-plate set by renderPlatePhotoSlot) */
-#photoPanel{display:none}
-@media (min-width:1024px){
-  #photoPanel.has-plate{display:block}
-  #tab-builder > #photoPanel{grid-column:1;grid-row:2}
-  #tab-builder > #docketPanel{grid-column:2;grid-row:1 / span 3}
-  .plate-name-row #platePhotoSlot{display:none !important}   /* inline slot is mobile-only */
+
+/* ===== v31: pull-to-refresh indicator (Item 5, mobile only; reworked v32 Items 13-15) ===== */
+.ptr-ind{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%) translateY(0);z-index:83;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
+.ptr-spin{position:relative;width:26px;height:26px;display:block}
+.ptr-ring,.ptr-arc{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ptr-ring{color:var(--brand)}                       /* faint full ring — static, currentColor works in both themes */
+.ptr-arc path{stroke:var(--accent)}                 /* orange arc — theme-aware via CSS (SVG presentation attrs can't read a CSS var) */
+.ptr-ind.ready{box-shadow:0 0 0 2px var(--accent-weak), var(--shadow)}
+.ptr-ind.spinning .ptr-arc{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}   /* ONLY the arc spins; the faint ring stays put */
+@keyframes ptr-rot{to{transform:rotate(360deg)}}
+/* Item 15: while a pull-refresh runs, the spinner owns the top-centre — hide the sync banner so the two don't stack there */
+body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important}
+@media (min-width:701px){ .ptr-ind{display:none} }
+
+
+/* ===== v32: invoice review — manually re-matched rows blank the stale Old/Conf cells (Item 6) ===== */
+.invtable tbody td.blank::before{content:"" !important}   /* no dangling "Old price"/"Confidence" label on a blanked mobile card cell */
+.invtable tbody td.blank{justify-content:flex-start;color:var(--muted2)}
+
+/* ===== v32: import ("Invoice imported") corner toast sat under the bottom nav on phones (Item 8) ===== */
+/* Below 640px the nav is a bottom bar; lift the corner-toast stack clear of it (matches the toast/install-banner ~84px offset). At >=640px the nav is a left rail, so bottom:16px is fine. */
+@media (max-width:639px){
+  #cornerToasts{bottom:calc(84px + env(safe-area-inset-bottom))}
 }
 
-/* ===== v31: pull-to-refresh indicator (Item 5, mobile only) ===== */
-.ptr-ind{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%) translateY(0);z-index:60;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
-.ptr-ind svg{width:26px;height:26px;color:var(--brand);display:block}
-.ptr-ind.ready{box-shadow:0 0 0 2px var(--accent-weak), var(--shadow)}
-.ptr-ind.spinning .ptr-spin{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}
-@keyframes ptr-rot{to{transform:rotate(360deg)}}
-@media (min-width:701px){ .ptr-ind{display:none} }
+/* ===== v32: empty-state icons match the tab-bar icons, monochrome (Item 11) =====
+   The Menu/Builder/Ingredients empty states used coloured illustrations with orange
+   accents. Replace the artwork with each tab's OWN nav-button glyph, rendered in the
+   muted theme colour via mask-image (theme-safe, no orange). White-stroke SVGs are
+   used as luminance masks; the visible colour comes from background:var(--muted2). */
+#lines .empty::before,
+.an-empty td::before,
+.ing-empty::before{
+  width:64px;height:64px;margin:4px auto 14px;
+  background:var(--muted2);opacity:.6;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  -webkit-mask-size:contain;mask-size:contain;
+}
+/* Builder fresh screen -> the Builder nav icon (clipboard), monochrome & static (colour + animation removed) */
+#lines .empty::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cline x1='8' y1='8' x2='16' y2='8'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3Cline x1='8' y1='16' x2='13' y2='16'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cline x1='8' y1='8' x2='16' y2='8'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3Cline x1='8' y1='16' x2='13' y2='16'/%3E%3C/svg%3E");
+}
+/* Menu empty -> the Menu nav icon (bar chart) */
+.an-empty td::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='20' x2='5' y2='12'/%3E%3Cline x1='12' y1='20' x2='12' y2='6'/%3E%3Cline x1='19' y1='20' x2='19' y2='14'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='20' x2='5' y2='12'/%3E%3Cline x1='12' y1='20' x2='12' y2='6'/%3E%3Cline x1='19' y1='20' x2='19' y2='14'/%3E%3C/svg%3E");
+}
+/* Ingredients filtered "no matches" -> the Products nav icon (box), monochrome */
+.ing-empty::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
+}
