@@ -1807,3 +1807,48 @@ body{overflow-x:clip}
   .invtable .price-row{flex-wrap:wrap}
   .invtable input,.invtable select{max-width:100%}
 }
+
+/* ===== v31: empty states (Item 1C) ===== */
+.empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;max-width:420px;margin:0 auto;padding:48px 24px}
+.empty-state .es-icon{width:64px;height:64px;color:var(--muted2);opacity:.65}
+.empty-state h3{margin:0;font-size:17px;color:var(--text)}
+.empty-state p{margin:0;font-size:var(--fs-sm);color:var(--muted2);line-height:1.5}
+.es-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+
+/* ===== v31: ingredient-popup alternatives + builder dropdown create affordance (Item 2) ===== */
+.king-alts{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+.ka-head{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px}
+.ka-cheapest{font-size:var(--fs-sm);color:var(--good,#2E7D32)}
+.ka-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
+.ka-row:first-of-type{border-top:0}
+.ka-name{flex:1;min-width:0;font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis}
+.ka-price{font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--text2)}
+.ka-row .save{font-size:11px;font-weight:700;color:var(--good,#2E7D32);background:rgba(46,125,50,.12);border-radius:5px;padding:1px 6px}
+.ka-row .use{flex:0 0 auto}
+.opt-msg{color:var(--muted2);font-size:var(--fs-sm)}
+.opt-create{color:var(--accent-ink);font-weight:600;cursor:pointer}
+.opt-create:hover,.opt-create.hi{background:var(--hover)}
+
+/* ===== v31: desktop plating-photo card (Item 3B) ===== */
+.photo-panel .pad{padding-top:0}
+.plate-photo-lg{width:100%;aspect-ratio:4/3;border-radius:var(--radius-ctl);overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border)}
+.plate-photo-lg img{width:100%;height:100%;object-fit:cover;display:block}
+.plate-photo-lg.empty{flex-direction:column;gap:8px;border:1.5px dashed var(--border2);color:var(--muted2);font-size:34px}
+.plate-photo-lg.empty .pp-lg-label{font-size:var(--fs-sm)}
+.plate-photo-lg.uploading{opacity:.5;pointer-events:none}
+/* the desktop card only exists ≥1024px AND once a plate is saved (.has-plate set by renderPlatePhotoSlot) */
+#photoPanel{display:none}
+@media (min-width:1024px){
+  #photoPanel.has-plate{display:block}
+  #tab-builder > #photoPanel{grid-column:1;grid-row:2}
+  #tab-builder > #docketPanel{grid-column:2;grid-row:1 / span 3}
+  .plate-name-row #platePhotoSlot{display:none !important}   /* inline slot is mobile-only */
+}
+
+/* ===== v31: pull-to-refresh indicator (Item 5, mobile only) ===== */
+.ptr-ind{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%) translateY(0);z-index:60;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
+.ptr-ind svg{width:26px;height:26px;color:var(--brand);display:block}
+.ptr-ind.ready{box-shadow:0 0 0 2px var(--accent-weak), var(--shadow)}
+.ptr-ind.spinning .ptr-spin{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}
+@keyframes ptr-rot{to{transform:rotate(360deg)}}
+@media (min-width:701px){ .ptr-ind{display:none} }
