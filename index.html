@@ -19,7 +19,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=30">
+<link rel="stylesheet" href="css/style.css?v=31">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -49,12 +49,20 @@
   <div class="panel search-card">
     <h2>Add ingredient</h2>
     <div class="pad">
-      <label class="f" for="q">Search by name or category</label>
+      <label class="f" for="q">Search your ingredients</label>
       <div class="search-wrap">
-        <input id="q" type="text" autocomplete="off" placeholder="Try: patty, chips, cheese, barra…" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
+        <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
         <div id="drop" class="drop" role="listbox"></div>
       </div>
-      <p class="hint">Type to filter. Click a result to add it. Liquids are priced per ml, eggs and the like per unit.</p>
+      <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
+    </div>
+  </div>
+
+  <!-- Desktop-only plating-photo card (below the Add-ingredient card). Mobile uses the inline #platePhotoSlot next to the plate name. Both drive the SAME state/handlers. -->
+  <div class="panel photo-panel" id="photoPanel" style="display:none">
+    <h2>Plating photo</h2>
+    <div class="pad">
+      <div id="platePhotoSlotLg" class="plate-photo-lg empty" role="button" tabindex="0" title="Add a plating photo" aria-label="Add a plating photo">📷<span class="pp-lg-label">Add a plating photo</span></div>
     </div>
   </div>
 
@@ -68,7 +76,7 @@
           <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
         </div>
       </div>
-      <input type="file" id="platePhotoInput" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="platePhotoInput" accept="image/*" style="display:none">
       <div class="ferr" id="plateNameErr" style="display:none"></div>
       <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
       <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
@@ -129,25 +137,28 @@
     </div>
   </div><!-- /tab-analysis -->
 
-  <div id="tab-ingredients" style="display:none">
+  <div id="tab-pantry" style="display:none">
     <div class="panel king-panel">
       <div class="king-head">
-        <h3>My ingredients</h3>
+        <h3>Ingredients</h3>
         <span class="king-sub">Kitchen words for recipes — each one points at a product you buy</span>
         <button class="btn ghost" id="kingNew" type="button">+ New ingredient</button>
       </div>
       <div id="kingList"></div>
     </div>
+  </div><!-- /tab-pantry (LABEL: Ingredients) -->
+
+  <div id="tab-ingredients" style="display:none">
     <div class="panel">
-      <h2>Ingredients</h2>
+      <h2>Products</h2>
       <div class="ing-tools">
-        <button class="btn primary newbtn" id="newBtn" type="button">+ Add new ingredient</button>
+        <button class="btn primary newbtn" id="newBtn" type="button">+ Add product</button>
         <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
       </div>
       <p class="hint" id="lastImport" style="margin:8px 16px 0">No invoice imported yet</p>
       <div class="ing-controls">
         <div class="menu-search">
-          <input id="ingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
+          <input id="ingSearch" type="search" placeholder="Search products…" autocomplete="off">
           <button id="ingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
         <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
@@ -156,7 +167,8 @@
       <p class="hint ing-count" id="ingCount" style="padding:2px 16px 0"></p>
       <div id="ingList" class="ing-list"></div>
     </div>
-  </div><!-- /tab-ingredients -->
+  </div><!-- /tab-ingredients (LABEL: Products) -->
+
 
   <div id="tab-dashboard" style="display:none">
     <div id="dashBody"></div>
@@ -166,7 +178,7 @@
 <!-- Add-ingredient modal -->
 <div class="modal-overlay" id="modal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
-    <div class="mhead"><h3 id="mTitle">Add new ingredient</h3><button class="x" id="mClose" type="button" aria-label="Close">×</button></div>
+    <div class="mhead"><h3 id="mTitle">Add product</h3><button class="x" id="mClose" type="button" aria-label="Close">×</button></div>
     <div class="mbody">
       <div class="ferr" id="ferr"></div>
       <div class="grid">
@@ -180,7 +192,7 @@
         <div class="field full"><label class="chk"><input id="f_food" type="checkbox" checked> Food item (appears in ingredient search)</label></div>
       </div>
     </div>
-    <div class="mfoot"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn primary" id="mSave" type="button">Add ingredient</button></div>
+    <div class="mfoot"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn primary" id="mSave" type="button">Add product</button></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -341,7 +353,7 @@
 <!-- Edit ingredient modal -->
 <div class="modal-overlay" id="ingModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ingModalTitle">
-    <div class="mhead"><h3 id="ingModalTitle">Edit ingredient</h3><button class="x" id="ingClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mhead"><h3 id="ingModalTitle">Edit product</h3><button class="x" id="ingClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
       <div class="ferr" id="ig_err" style="display:none"></div>
       <div class="grid">
@@ -378,6 +390,7 @@
           <p class="hint" style="font-weight:400;margin:6px 2px 0">Recipes cost from this product. Switch it later and every recipe follows — one tap, not a rewrite.</p>
         </div>
       </div>
+      <div id="king_alts" class="king-alts" style="display:none"></div>
     </div>
     <div class="mfoot"><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
   </div>
@@ -425,14 +438,16 @@
   </div>
   <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span></button>
   <button class="navbtn active" data-tab="builder" type="button" aria-label="Plate builder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg><span class="nl">Builder</span></button>
-  <button class="navbtn" data-tab="ingredients" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Ingredients</span></button>
+  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg><span class="nl">Ingredients</span></button>
+  <!-- data-tab stays "ingredients" for saved-lastTab compatibility; its LABEL is now "Products" (see glossary in v31 brief) -->
+  <button class="navbtn" data-tab="ingredients" type="button" aria-label="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Products</span></button>
   <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
 </nav>
 
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=30"></script>
+<script src="js/app.js?v=31"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
