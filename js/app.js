@@ -99,6 +99,14 @@ async function bootstrapSync(){
 }
 /* ================== end Supabase data layer ================== */
 
+/* ITEM 5 — pull-to-refresh entry point. bootstrapSync re-fetches all shared
+   stores and repaints; it does NOT touch plate[] or the plate-name input, so
+   an in-progress build survives a refresh. Safe to call repeatedly. */
+function refreshFromCloud(){
+  if(!SUPA || !navigator.onLine){ toast('Offline \u2014 showing saved data'); return Promise.resolve(); }
+  return Promise.resolve(bootstrapSync()).then(function(){ rerenderCurrentTab(); }, function(){ rerenderCurrentTab(); });
+}
+
 
 function loadOverrides(){ try{ return JSON.parse(localStorage.getItem(OVRKEY)) || {}; }catch(e){ return {}; } }
 function saveOverrides(){ try{ localStorage.setItem(OVRKEY, JSON.stringify(overrides)); }catch(e){ /* storage blocked: session-only */ } }
@@ -190,29 +198,39 @@ function hl(text,q){q=q.trim();if(!q)return esc(text);const i=text.toLowerCase()
   if(i<0)return esc(text);return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));}
 const qEl=document.getElementById('q'), dropEl=document.getElementById('drop');
 let curList=[], hiIdx=-1;
-function kitchenSearchMatches(q){                                     // kitchen ingredients matching the query (by name), tagged for the dropdown
+function kitchenSearchMatches(q){                                     // kitchen ingredients matching the query (by name)
   q=(q||'').trim().toLowerCase();
   var list=kitchenIngredients.filter(function(k){ return k && k.name && (!q || k.name.toLowerCase().indexOf(q)>=0 || subseq(q,k.name.toLowerCase())); });
   list.sort(function(a,b){ return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); });
-  return list.slice(0,8).map(function(k){ return {__kid:true, id:k.id, name:k.name, pid:k.pid}; });
+  return list.slice(0,12).map(function(k){ return {__kid:true, id:k.id, name:k.name, pid:k.pid}; });
 }
-function pickListItem(it){ if(!it) return; if(it.__kid) addKitchenLine(it.id); else addProduct(it.id); }
+function pickListItem(it){ if(!it) return; if(it.__create){ createIngredientFromSearch(it.q); return; } if(it.__kid) addKitchenLine(it.id); }
+function createIngredientFromSearch(q){                               // "+ Create 'x'": open the ingredient modal pre-filled, and add it to the plate on save
+  closeDrop();
+  openKingModal(null);
+  var nameEl=document.getElementById('king_name'); if(nameEl){ nameEl.value=(q||'').trim(); nameEl.dispatchEvent(new Event('input')); }
+  kingAddToPlateOnSave=true;                                          // consumed once by saveKingModal (create path)
+  var prodEl=document.getElementById('king_prod'); if(prodEl) prodEl.focus();
+}
 function renderDrop(){
   const q=qEl.value;
-  const kings=kitchenSearchMatches(q);
-  const prods=runSearch(q);
-  curList=kings.concat(prods); hiIdx=-1;                              // kitchen ingredients first, then product matches
-  if(!curList.length){dropEl.innerHTML='<div class="opt" style="cursor:default;color:#6B6256">No matches</div>';dropEl.classList.add('open');return;}
-  dropEl.innerHTML=curList.map((it,i)=>{
-    if(it.__kid){
-      const p=byId[it.pid];
-      return `<div class="opt king-opt" role="option" data-i="${i}" data-kid="${esc(it.id)}">
-         <span class="nm">${hl(it.name,q)}<span class="king-tag">ingredient</span> <span class="ca">${p?'\u2192 '+esc(p.description):'\u2192 (product missing)'}</span></span>
-         <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
+  curList=kitchenSearchMatches(q); hiIdx=-1;                          // BUILDER IS INGREDIENTS-ONLY: recipes are built from kitchen words, never raw supplier products
+  if(!curList.length){
+    const qt=(q||'').trim();
+    if(qt){
+      dropEl.innerHTML='<div class="opt opt-msg" style="cursor:default">No ingredient called \u201c'+esc(qt)+'\u201d yet</div>'
+        +'<div class="opt opt-create" role="option" data-create="1">+ Create \u201c'+esc(qt)+'\u201d</div>';
+      curList=[{__create:true, q:qt}];
+    } else {
+      dropEl.innerHTML='<div class="opt opt-msg" style="cursor:default">Type to find an ingredient, or add one on the Ingredients tab</div>';
     }
-    return `<div class="opt" role="option" data-i="${i}" data-id="${it.id}">
-       <span class="nm">${hl(it.description,q)} <span class="ca">${it.brand?esc(it.brand)+' · ':''}${esc(it.category)}</span></span>
-       <span class="uc">${unitCostStr(it)}</span></div>`;
+    dropEl.classList.add('open');return;
+  }
+  dropEl.innerHTML=curList.map((it,i)=>{
+    const p=byId[it.pid];
+    return `<div class="opt king-opt" role="option" data-i="${i}" data-kid="${esc(it.id)}">
+       <span class="nm">${hl(it.name,q)} <span class="ca">${p?'\u2192 '+esc(p.description):'\u2192 (product missing)'}</span></span>
+       <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
   }).join('');
   dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true');
 }
@@ -226,9 +244,9 @@ qEl.addEventListener('keydown',e=>{
   else if(e.key==='Enter'){e.preventDefault();const pick=hiIdx>=0?curList[hiIdx]:curList[0];pickListItem(pick);}
   else if(e.key==='Escape'){closeDrop();}
 });
-function paintHi(){[...dropEl.children].forEach((c,i)=>c.classList.toggle('hi',i===hiIdx));const el=dropEl.children[hiIdx];if(el)el.scrollIntoView({block:'nearest'});}
+function paintHi(){[...dropEl.children].filter(c=>c.hasAttribute('role')).forEach((c,i)=>c.classList.toggle('hi',i===hiIdx));const el=dropEl.querySelectorAll('[role="option"]')[hiIdx];if(el)el.scrollIntoView({block:'nearest'});}
 dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o)return;e.preventDefault();
-  if(o.dataset.kid){ addKitchenLine(o.dataset.kid); } else if(o.dataset.id){ addProduct(o.dataset.id); }});
+  if(o.dataset.create){ createIngredientFromSearch((qEl.value||'').trim()); } else if(o.dataset.kid){ addKitchenLine(o.dataset.kid); }});
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))closeDrop();});
 
 /* ---------- alternatives ---------- */
@@ -246,10 +264,10 @@ function alternatives(p){
 /* ---------- plate ---------- */
 let plate=[], uidc=1;
 const linesEl=document.getElementById('lines');
-function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}
+function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* legacy: no builder UI path in v31 (builder is ingredients-only); retained for programmatic use */
 function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):100});qEl.value='';closeDrop();renderPlate();qEl.focus();}
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
-function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}
+function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}   /* legacy: alternatives moved to the ingredient popup in v31 */
 function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;l.qty=Math.max(0,parseFloat(v)||0);updateLine(uid);updateTotals();}
 function toggleAlts(uid){const el=document.getElementById('alts-'+uid);if(el)el.classList.toggle('open');}
 
@@ -317,27 +335,18 @@ function renderPlate(){
     const priceChip = editable
       ? `<span class="pchip" id="pc-${l.uid}" tabindex="0" role="button" title="Click to edit price" onclick="editPrice(${l.uid})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editPrice(${l.uid})}">${unitCostStr(p)} <span class="pen">✎</span></span>`
       : `<span>${unitCostStr(p)}</span>`;
-    let nameBlock, row2='', altBlock='';
+    let nameBlock, row2='';
     if(isKid){                                                  // kitchen word up top, linked product small underneath
       nameBlock=`<b>${esc(kName)}</b>
           <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>
           <span class="priceline">Unit cost: ${priceChip}</span>`;
       row2=`<div class="row2"><span class="king-tag">ingredient</span></div>`;
-    } else {
-      const {alts,cheapest}=alternatives(p);
+    } else {                                                     // legacy direct-product line (pre-v31 saved plates): render + cost, no alternatives
       const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
                 : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
       nameBlock=`<b>${esc(p.description)}</b>
           <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>
           <span class="priceline">Unit cost: ${priceChip}${tag}</span>`;
-      const altRows=alts.map(a=>{
-        const sv=cpbu(p)!=null&&cpbu(a)<cpbu(p)?Math.round((1-cpbu(a)/cpbu(p))*100):0;
-        return `<div class="alt"><span class="an">${esc(a.description)}${a.brand?' <span class="ca">'+esc(a.brand)+'</span>':''}</span>
-          <span class="au">${unitCostStr(a)}</span>${sv>0?`<span class="save">−${sv}%</span>`:''}
-          <button class="use" type="button" onclick="swapLine(${l.uid},'${a.id}')">Use</button></div>`;}).join('');
-      altBlock = alts.length?`<div class="alts" id="alts-${l.uid}"><div class="ah">Cheaper like-for-like (by ${p.base_unit==='ea'?'unit':p.base_unit==='ml'?'litre':'kg'})</div>${altRows}</div>`:'';
-      const ctrl = cheapest?`<span class="cheapest">✓ Cheapest of its type</span>`:`<button class="alt-btn" type="button" onclick="toggleAlts(${l.uid})">Cheaper options ▾</button>`;
-      row2=`<div class="row2">${ctrl}</div>`;
     }
     return `<div class="line" data-uid="${l.uid}">
       <div class="top">
@@ -350,9 +359,13 @@ function renderPlate(){
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
       ${row2}
-      ${altBlock}
     </div>`;}).join('');
   updateTotals();
+  var bh=document.getElementById('builderHint');
+  if(bh){
+    if(!kitchenIngredients.length){ bh.innerHTML='No ingredients yet \u2014 <a href="#" id="bhGo">create your kitchen words</a> first, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
+    else bh.textContent='Build plates from your ingredients. Not there yet? Type a name and create it on the spot.';
+  }
 }
 function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=lineProduct(l);const lc=lineCost(p,l.qty);
   const el=document.getElementById('lc-'+uid);if(el)el.innerHTML=lc==null?'<span class=nocost>no cost</span>':money(lc);}
@@ -614,25 +627,26 @@ document.addEventListener('click',()=>document.querySelectorAll('.tip.open').for
 /* tabs */
 function currentTab(){
   var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
-  var names=['builder','ingredients','analysis','dashboard'];
+  var names=['builder','ingredients','analysis','dashboard','pantry'];
   for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
   return 'builder';
 }
 function rerenderCurrentTab(){                                         // re-run the active tab's render (e.g. once boot data lands)
   var t=currentTab();
-  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else renderPlate(); }catch(e){ console.error('[rerender]', e); }
+  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlate(); }catch(e){ console.error('[rerender]', e); }
 }
 function showTab(t){
   try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-  ['builder','ingredients','analysis','dashboard'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   if(t==='analysis')renderAnalysis();
   if(t==='ingredients')renderIngredients();
   if(t==='dashboard')renderDashboard();
+  if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
-  var VALID=['builder','ingredients','analysis','dashboard'];
+  var VALID=['builder','ingredients','analysis','dashboard','pantry'];
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
 }
@@ -806,6 +820,12 @@ function invSupplierDetect(text){
 /* ============================================================
    Feature 3 — Ingredients page
    ============================================================ */
+/* Item 1C — shared empty-state (icons echo the nav tab icons at large size) */
+var ICON_LEAF_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>';
+var ICON_BOX_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
+function emptyStateHtml(icon,title,body,actionsHtml){
+  return '<div class="empty-state">'+icon+'<h3>'+esc(title)+'</h3><p>'+esc(body)+'</p>'+(actionsHtml?'<div class="es-actions">'+actionsHtml+'</div>':'')+'</div>';
+}
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
 function fillFilter(sel, list, label){
   if(!sel) return; var cur=sel.value;
@@ -813,8 +833,15 @@ function fillFilter(sel, list, label){
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
 function renderIngredients(){
-  renderKitchenPanel();
   var wrap=document.getElementById('ingList'); if(!wrap) return;
+  var cntEl=document.getElementById('ingCount');
+  if(!PRODUCTS.length){                                               // brand-new user: no products at all -> full empty state (gate on the store, not the filtered rows)
+    if(cntEl) cntEl.textContent='';
+    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet','Products are the things you buy \u2014 import a supplier invoice and EzPlate reads them in, or add one by hand.',
+      '<button class="btn primary" type="button" onclick="document.getElementById(\'importBtn\').click()">Import invoice</button>'
+      +'<button class="btn" type="button" onclick="openModal()">+ Add product</button>');
+    return;
+  }
   fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
   fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
   var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
@@ -826,8 +853,8 @@ function renderIngredients(){
     if(q){ var hay=((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
     return true;
   }).slice().sort(function(a,b){return (a.description||'').toLowerCase().localeCompare((b.description||'').toLowerCase());});
-  var cntEl=document.getElementById('ingCount'); if(cntEl) cntEl.textContent=items.length+' ingredient'+(items.length===1?'':'s');
-  if(!items.length){ wrap.innerHTML='<div class="an-empty ing-empty">No ingredients match your filters.</div>'; return; }
+  if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
+  if(!items.length){ wrap.innerHTML='<div class="an-empty ing-empty">No products match your filters.</div>'; return; }
   wrap.innerHTML=items.map(function(p){
     return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
@@ -844,7 +871,7 @@ function renderIngredients(){
 var ingEditId=null;
 function openIngEdit(id){
   var p=byId[id]; if(!p) return; ingEditId=id;
-  document.getElementById('ingModalTitle').textContent='Edit ingredient';
+  document.getElementById('ingModalTitle').textContent='Edit product';
   document.getElementById('ig_name').value=p.description||'';
   document.getElementById('ig_brand').value=p.brand||'';
   document.getElementById('ig_cat').value=p.category||'';
@@ -872,12 +899,12 @@ function syncIgUnitFromPack(){                                        // when a 
 }
 function igPriceSuffix(){ var u=(document.getElementById('ig_unit')||{}).value; return u==='unit'?'/unit':u==='litre'?'/L':u==='ml'?'/mL':u==='g'?'/g':'/kg'; }
 function deleteIngredient(){
-  var id=ingEditId; if(!id||!byId[id]) return; var nm=byId[id].description||'this ingredient';
-  askConfirm('Delete ingredient?', 'Remove \u201c'+nm+'\u201d from your ingredients? It won\u2019t change plates you\u2019ve already saved.', 'Delete', function(){
+  var id=ingEditId; if(!id||!byId[id]) return; var nm=byId[id].description||'this product';
+  askConfirm('Delete product?', 'Remove \u201c'+nm+'\u201d from your products? It won\u2019t change plates you\u2019ve already saved.', 'Delete', function(){
     if(deletedProdIds.indexOf(id)<0){ deletedProdIds.push(id); saveDeletedProds(); }
     if(overrides[id]){ delete overrides[id]; saveOverrides(); }            // drop any custom/edited data too
     dbSetSetting('deleted_prod_ids', deletedProdIds);
-    rebuild(); closeIngEdit(); renderIngredients(); toast('Ingredient deleted');
+    rebuild(); closeIngEdit(); renderIngredients(); toast('Product deleted');
   });
 }
 function closeIngEdit(){ hide('ingModal'); ingEditId=null; }
@@ -901,7 +928,7 @@ function saveIngEdit(){
   if(!isNaN(pq) && pq>0) syncMemoryToProduct(id, pq, (pu||'ea'));   // ITEM 1: no stale Remembered-items entry left behind
   logHistory();
   renderIngredients(); if(typeof renderPlate==='function') renderPlate(); if(typeof renderAnalysis==='function') renderAnalysis();
-  closeIngEdit(); toast('Ingredient updated');
+  closeIngEdit(); toast('Product updated');
 }
 
 /* ============================================================
@@ -915,7 +942,9 @@ function kingProductLabel(k){                                        // "→ Chi
 function renderKitchenPanel(){
   var box=document.getElementById('kingList'); if(!box) return;
   if(!kitchenIngredients.length){
-    box.innerHTML='<div class="king-empty">No kitchen ingredients yet. Create one and point it at a product — then use it in recipes so brand swaps take one tap, not a recipe rewrite.</div>';
+    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet','Ingredients are your kitchen words \u2014 \u201cChips\u201d, \u201cFish\u201d, \u201cTartare\u201d. Each one points at a product you buy, so recipes stay simple and brand swaps take one tap.',
+      '<button class="btn primary" type="button" id="kingEmptyNew">+ New ingredient</button>');
+    var b=document.getElementById('kingEmptyNew'); if(b) b.onclick=function(){ openKingModal(null); };
     return;
   }
   var list=kitchenIngredients.slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
@@ -932,7 +961,32 @@ function renderKitchenPanel(){
   box.querySelectorAll('.king-del').forEach(function(b){ b.onclick=function(){ deleteKitchenIngredient(b.closest('.king-row').getAttribute('data-kid')); }; });
 }
 /* ---- create / change-product modal (Name + product search-select) ---- */
-var kingEditId=null, kingChosenPid=null;
+var kingEditId=null, kingChosenPid=null, kingAddToPlateOnSave=false;
+function renderKingAlts(){                                            // "Cheaper like-for-like" — only in change-product (edit) mode, compared vs the CURRENT link
+  var box=document.getElementById('king_alts'); if(!box) return;
+  if(!kingEditId){ box.style.display='none'; box.innerHTML=''; return; }
+  var k=kById[kingEditId]; var base=k?byId[k.pid]:null;
+  if(!base){ box.style.display='none'; box.innerHTML=''; return; }
+  var res=alternatives(base);
+  if(res.cheapest || !res.alts.length){
+    box.innerHTML='<div class="ka-head">Cheaper like-for-like</div><div class="ka-cheapest">\u2713 Already the cheapest of its type</div>';
+    box.style.display='block'; return;
+  }
+  var rows=res.alts.map(function(a){
+    var sv=(cpbu(base)!=null&&cpbu(a)<cpbu(base))?Math.round((1-cpbu(a)/cpbu(base))*100):0;
+    return '<div class="ka-row"><span class="ka-name">'+esc(a.description)+(a.brand?' <span class="ca">'+esc(a.brand)+'</span>':'')+'</span>'
+      +'<span class="ka-price">'+esc(unitCostStr(a))+'</span>'+(sv>0?'<span class="save">\u2212'+sv+'%</span>':'')
+      +'<button class="use" type="button" data-pid="'+esc(a.id)+'">Use</button></div>';
+  }).join('');
+  box.innerHTML='<div class="ka-head">Cheaper like-for-like (by '+(base.base_unit==='ea'?'unit':base.base_unit==='ml'?'litre':'kg')+')</div>'+rows;
+  box.style.display='block';
+  box.querySelectorAll('.use').forEach(function(b){ b.addEventListener('click',function(){
+    var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
+    kingChosenPid=pid;                                               // behaves exactly like picking from search — Save + unit guard still apply
+    var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
+    kingSyncSave();
+  }); });
+}
 function kingValid(){
   var nm=(document.getElementById('king_name').value||'').trim();
   return !!nm && !!kingChosenPid && !!byId[kingChosenPid];
@@ -961,6 +1015,7 @@ function renderKingProdDrop(){
 }
 function openKingModal(kid){
   kingEditId=kid||null; kingChosenPid=null;
+  if(!kid) kingAddToPlateOnSave=false;                               // create-from-search sets this true AFTER openKingModal returns
   var isEdit=!!kingEditId; var k=isEdit?kById[kingEditId]:null;
   document.getElementById('kingModalTitle').textContent=isEdit?'Change product':'New ingredient';
   var nameEl=document.getElementById('king_name'), prodEl=document.getElementById('king_prod');
@@ -969,6 +1024,7 @@ function openKingModal(kid){
   kingChosenPid=isEdit&&k?k.pid:null;
   var err=document.getElementById('king_err'); if(err)err.style.display='none';
   document.getElementById('king_prodDrop').style.display='none';
+  renderKingAlts();
   if(!prodEl.__wired){ prodEl.__wired=true;
     prodEl.addEventListener('input',function(){ kingChosenPid=null; kingSyncSave(); renderKingProdDrop(); });
     prodEl.addEventListener('focus',renderKingProdDrop);
@@ -978,7 +1034,7 @@ function openKingModal(kid){
   kingSyncSave();
   show('kingModal'); (isEdit?prodEl:nameEl).focus();
 }
-function closeKingModal(){ hide('kingModal'); kingEditId=null; kingChosenPid=null; }
+function closeKingModal(){ hide('kingModal'); kingEditId=null; kingChosenPid=null; kingAddToPlateOnSave=false; }
 function saveKingModal(){
   if(!kingValid()) return;
   var name=(document.getElementById('king_name').value||'').trim();
@@ -1001,7 +1057,11 @@ function saveKingModal(){
   // create flow
   var id=nextKid();
   kitchenIngredients.push({id:id, name:name, pid:pid});
-  saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); closeKingModal(); toast('\u201c'+name+'\u201d added');
+  saveKitchenIngredients(); renderKitchenPanel();
+  var toPlate=kingAddToPlateOnSave; kingAddToPlateOnSave=false;
+  closeKingModal(); toast('\u201c'+name+'\u201d added');
+  if(toPlate && typeof addKitchenLine==='function'){ addKitchenLine(id); }   // create-from-builder: drop it straight onto the plate
+  else rerenderCurrentTab();
 }
 function deleteKitchenIngredient(kid){
   var k=kById[kid]; if(!k) return;
@@ -1025,20 +1085,32 @@ function deleteKitchenIngredient(kid){
    Bucket 'plate-photos', column photo_url on the plate record.
    ============================================================ */
 var PHOTO_BUCKET='plate-photos';
+var PHOTO_MAX_BYTES=25*1024*1024;                                     // reject absurd inputs before we even try to decode
 function currentSavedPlate(){ return loadedPlateId ? savedPlates.find(function(s){return s.id===loadedPlateId;}) : null; }
-function renderPlatePhotoSlot(){
-  var slot=document.getElementById('platePhotoSlot'); if(!slot) return;
-  var sp=currentSavedPlate();
-  if(!sp){ slot.style.display='none'; return; }                       // only offered once a plate is saved/loaded
-  slot.style.display='';
+function paintPhotoSlot(slot, sp, isLg){
+  if(!slot) return;
   if(sp.photoUrl){
     var url=sp.photoUrl+(sp.photoUrl.indexOf('?')<0?'?t=':'&t=')+(sp.photoStamp||'');   // cache-bust: upsert reuses the filename
-    slot.className='plate-photo';
+    slot.className=isLg?'plate-photo-lg':'plate-photo';
     slot.innerHTML='<img src="'+esc(url)+'" alt="Plating photo" loading="lazy">';
   } else {
-    slot.className='plate-photo empty';
-    slot.innerHTML='\uD83D\uDCF7';
+    slot.className=(isLg?'plate-photo-lg':'plate-photo')+' empty';
+    slot.innerHTML=isLg?'\uD83D\uDCF7<span class="pp-lg-label">Add a plating photo</span>':'\uD83D\uDCF7';
   }
+}
+function renderPlatePhotoSlot(){                                      // paints BOTH the inline (mobile) and card (desktop) slots from one plate state
+  var slot=document.getElementById('platePhotoSlot');
+  var slotLg=document.getElementById('platePhotoSlotLg');
+  var panel=document.getElementById('photoPanel');
+  var sp=currentSavedPlate();
+  if(!sp){                                                            // no photo affordance until a plate is saved/loaded
+    if(slot) slot.style.display='none';
+    if(panel) panel.classList.remove('has-plate');
+    return;
+  }
+  if(slot){ slot.style.display=''; paintPhotoSlot(slot, sp, false); }
+  if(panel) panel.classList.add('has-plate');                          // CSS shows the panel only ≥1024px
+  if(slotLg) paintPhotoSlot(slotLg, sp, true);
 }
 function onPlatePhotoTap(){
   var sp=currentSavedPlate(); if(!sp){ toast('Save the plate first, then add a photo'); return; }
@@ -1056,41 +1128,56 @@ function resizeToBlob(file, cb){                                       // draw t
     URL.revokeObjectURL(url);
     cv.toBlob(function(blob){ cb(blob, cw, ch); }, 'image/jpeg', 0.8);
   };
-  img.onerror=function(){ URL.revokeObjectURL(url); cb(null); };
+  img.onerror=function(){ URL.revokeObjectURL(url); cb(null, 0, 0, 'decode'); };   // most often an iPhone HEIC on a browser that can't decode it
   img.src=url;
 }
+function photoBusy(on){ ['platePhotoSlot','platePhotoSlotLg'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.toggle('uploading', !!on); }); }
+function errText(err){ return (err && (err.message||err.error_description||err.error||err.statusCode||err.name)) || 'unknown error'; }
 async function handlePlatePhotoFile(file){
   var sp=currentSavedPlate(); if(!sp || !file) return;
   if(!SUPA || !navigator.onLine){ toast('Photos need a connection'); return; }
-  var slot=document.getElementById('platePhotoSlot'); if(slot) slot.classList.add('uploading');
-  resizeToBlob(file, async function(blob){
-    if(!blob){ if(slot) slot.classList.remove('uploading'); toast('Could not read that image'); return; }
+  if(file.size && file.size>PHOTO_MAX_BYTES){ toast('That image is very large ('+Math.round(file.size/1048576)+' MB). Try a smaller one or a screenshot.'); return; }
+  photoBusy(true);
+  var settled=false;
+  var timer=setTimeout(function(){ if(settled) return; settled=true; photoBusy(false); toast('Photo timed out \u2014 check your connection and try again'); }, 30000);
+  var done=function(){ if(settled) return true; settled=true; clearTimeout(timer); photoBusy(false); return false; };
+  resizeToBlob(file, async function(blob, cw, ch, reason){
+    if(!blob){
+      if(done()) return;
+      if(reason==='decode') toast('Couldn\u2019t read that image. If it\u2019s an iPhone HEIC file, screenshot it or save as JPEG first.');
+      else toast('Could not read that image');
+      return;
+    }
     try{
       var path=sp.id+'.jpg';
       var up=await SUPA.storage.from(PHOTO_BUCKET).upload(path, blob, {upsert:true, contentType:'image/jpeg'});
-      if(up && up.error) throw up.error;
+      if(up && up.error) throw up.error;                              // storage rejected (bucket missing / RLS) -> surfaced below
       var pub=SUPA.storage.from(PHOTO_BUCKET).getPublicUrl(path);
       var url=(pub && pub.data && pub.data.publicUrl) ? pub.data.publicUrl : null;
-      if(!url) throw new Error('no public url');
-      sp.photoUrl=url; sp.photoStamp=Date.now();                       // stamp drives the cache-buster on display
-      savePlatesLS(); dbPushPlate(sp);
-      if(slot) slot.classList.remove('uploading');
+      if(!url) throw new Error('no public URL returned');
+      // write the plate row FIRST and check it — a missing photo_url column fails here, and we must not claim success
+      var wr=await SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[], photo_url:url});
+      if(wr && wr.error) throw wr.error;
+      sp.photoUrl=url; sp.photoStamp=Date.now();
+      savePlatesLS();
+      if(done()) return;
       renderPlatePhotoSlot();
       if(typeof renderAnalysis==='function') renderAnalysis();         // menu thumbs pick it up
       toast('Photo added');
     }catch(err){
       console.error('[photo] upload failed:', err);
-      if(slot) slot.classList.remove('uploading');
-      toast('Photo upload failed');
+      if(done()) return;
+      toast('Photo upload failed: '+errText(err));                    // the real reason, so Max can paste it back if setup is incomplete
     }
   });
 }
 (function(){
-  var slot=document.getElementById('platePhotoSlot'), inp=document.getElementById('platePhotoInput');
-  if(slot){
-    slot.addEventListener('click', onPlatePhotoTap);
-    slot.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onPlatePhotoTap(); } });
-  }
+  var inp=document.getElementById('platePhotoInput');
+  ['platePhotoSlot','platePhotoSlotLg'].forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    el.addEventListener('click', onPlatePhotoTap);
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onPlatePhotoTap(); } });
+  });
   if(inp){ inp.addEventListener('change', function(){ var f=inp.files&&inp.files[0]; if(f) handlePlatePhotoFile(f); inp.value=''; }); }
 })();
 
@@ -2050,16 +2137,27 @@ function invMatchOptions(r){
   html+='<optgroup label="All products">'+prodOptions(r.addNew?null:r.bestId)+'</optgroup>';
   return html;
 }
+function invRowState(r){                                            // ITEM 4: single source of truth — the summary and the cards must never disagree
+  if(r.addNew) return 'new';
+  if(r.uncertain) return 'review';
+  if(!r.bestId) return 'review';                                     // no match / manually-skipped
+  if(r.needManual || r.unitMismatch) return 'review';
+  if(r.needsAttention) return 'review';                              // price jump etc.
+  if(r.tier!=='hi') return 'review';                                 // low-confidence match still wants a human tick
+  return 'matched';
+}
 function renderInvReview(){
-  var matched=invRows.filter(function(r){return r.bestId && !r.needManual && !r.addNew && !r.uncertain;}).length;
-  var newc=invRows.filter(function(r){return r.addNew;}).length;
-  var review=invRows.length-matched-newc;
+  invRows.forEach(flagNeedsAttention);                              // ensure needsAttention is current for EVERY row before we count
+  var states=invRows.map(invRowState);
+  var matched=states.filter(function(s){return s==='matched';}).length;
+  var newc=states.filter(function(s){return s==='new';}).length;
+  var review=states.filter(function(s){return s==='review';}).length;
   var html='<div class="inv-sum">'+matched+' matched \u00b7 '+newc+' new \u00b7 '+review+' to review</div>';
   if(invGst.note) html+='<div class="inv-gst">'+esc(invGst.note)+'</div>';
   html+='<div class="atable-wrap"><table class="invtable"><thead><tr><th>Invoice line</th><th>Unit price</th><th>Match to product</th><th>Old</th><th>Conf.</th><th>Apply</th></tr></thead><tbody>';
   invRows.forEach(function(r,i){
     var conf=Math.round(r.conf*100);
-    var rc=(r.bestId && !r.needManual && !r.addNew && !r.uncertain)?'':' muted-row';
+    var rc=(invRowState(r)==='matched')?'':' muted-row';
     var uLbl=unitLabelFor(r)||'/unit';
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
@@ -2091,7 +2189,7 @@ function renderInvReview(){
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));
-    var checked = r.uncertain ? false : ( r.addNew ? false : (r.bestId && !r.needManual && r.tier==='hi' && !r.needsAttention) );  // flagged rows wait for the user's own tick
+    var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
@@ -2782,4 +2880,73 @@ function chooseCat(name,isNew){
   inp.addEventListener('input',function(){catState.chosen=null;catState.chosenIsNew=false;var n=document.getElementById('mi_catNew');if(n)n.style.display='none';renderCatDrop();});
   inp.addEventListener('focus',renderCatDrop);
   inp.addEventListener('blur',function(){setTimeout(function(){var d=document.getElementById('mi_catDrop');if(d)d.style.display='none';},150);});
+})();
+
+/* ============================================================
+   ITEM 5 — custom pull-to-refresh (mobile only).
+   Native PTR is deliberately disabled ≤700px (overscroll-behavior),
+   so this is our own. Arms only at scrollTop 0, off modals/tables/inputs,
+   and never clobbers an in-progress plate (see refreshFromCloud).
+   ============================================================ */
+(function(){
+  if(!('ontouchstart' in window)) return;                            // touch devices only
+  var ind=document.createElement('div');
+  ind.className='ptr-ind'; ind.setAttribute('aria-hidden','true');
+  ind.innerHTML='<span class="ptr-spin"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6" opacity="0.25"/><path d="M 32 17.5 A 14.5 14.5 0 0 1 40.52 43.73" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg></span>';
+  document.body.appendChild(ind);
+  var spin=ind.querySelector('.ptr-spin');
+  var startY=0, armed=false, pulling=false, dist=0, refreshing=false;
+  var THRESH=70, MAXP=90, RES=2.5;
+  function scroller(){ return document.scrollingElement || document.documentElement; }
+  function mobile(){ return window.matchMedia && window.matchMedia('(max-width:700px)').matches; }
+  function blocked(t){
+    if(refreshing) return true;
+    if(document.querySelector('.modal-overlay.open, #modal.open')) return true;   // any modal open
+    if(document.querySelector('.drop.open')) return true;                         // builder ingredient dropdown
+    if(t && t.closest && t.closest('.atable-wrap, .drop, .cat-drop, select, input, textarea, [contenteditable]')) return true;
+    return false;
+  }
+  function reset(){
+    ind.classList.remove('ready');
+    ind.style.transition='transform .2s ease, opacity .2s ease';
+    ind.style.transform='translateX(-50%) translateY(0)'; ind.style.opacity='0';
+    setTimeout(function(){ ind.style.transition=''; },220);
+  }
+  function finish(){ refreshing=false; ind.classList.remove('spinning','ready'); reset(); }
+  function trigger(){
+    if(refreshing) return; refreshing=true;
+    if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(e){} }
+    ind.classList.add('spinning');
+    ind.style.transition='transform .2s ease';
+    ind.style.transform='translateX(-50%) translateY('+THRESH+'px)'; ind.style.opacity='1';
+    Promise.resolve(refreshFromCloud()).then(finish, finish);
+  }
+  window.addEventListener('touchstart', function(e){
+    armed=false; pulling=false;
+    if(e.touches.length!==1 || !mobile()) return;
+    if(scroller().scrollTop>0) return;
+    if(blocked(e.target)) return;
+    armed=true; startY=e.touches[0].clientY; dist=0;
+  }, {passive:true});
+  window.addEventListener('touchmove', function(e){
+    if(!armed) return;
+    if(scroller().scrollTop>0){ armed=false; reset(); return; }
+    var dy=e.touches[0].clientY-startY;
+    if(dy>0){
+      pulling=true;
+      dist=Math.min(MAXP, dy/RES);
+      ind.style.transform='translateX(-50%) translateY('+dist+'px)';
+      ind.style.opacity=String(Math.min(1, dist/THRESH));
+      if(spin) spin.style.transform='rotate('+(dist/THRESH*270)+'deg)';
+      ind.classList.toggle('ready', dist>=THRESH);
+      if(e.cancelable) e.preventDefault();                            // suppress the page rubber-band while pulling
+    }
+  }, {passive:false});
+  window.addEventListener('touchend', function(){
+    if(!armed) return; armed=false;
+    if(pulling && dist>=THRESH) trigger(); else reset();
+    pulling=false;
+  });
+  // expose for headless tests
+  window.__ptr={ trigger:trigger, blocked:blocked };
 })();
