@@ -51,7 +51,7 @@
 /* Light — EzPlate default: warm paper, espresso ink, marmalade accent */
 :root[data-theme="light"], :root{
   --bg:#F7F3EC; --surface:#FFFDF9; --surface2:#F2EADF; --field:#FFFDF9;
-  --text:#2A1F1A; --text2:#6B5D54; --muted2:#8A7C72;
+  --text:#2A1F1A; --text2:#6B5D54; --muted2:#756759;
   --border:#E8DFD3; --border2:#D9CDBD; --hover:#F2EADF;
   --brand:#3E2C26;                                   /* espresso — headings, eyebrows, docket */
   --accent:#B84E0C; --accent-press:#A34509;          /* marmalade — CTAs only */
@@ -406,7 +406,7 @@ input[type=checkbox]{
 .alts .ah{font-size:var(--fs-xs);letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);padding:9px 13px;border-bottom:1px solid var(--border);font-weight:700}
 .alt{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border)}
 .alt:last-child{border-bottom:0}
-.alt .an{flex:1;font-size:13.5px}
+.alt .an{flex:1;font-size:13px}
 .alt .au{font-family:var(--mono);font-size:var(--fs-sm);color:var(--text2);white-space:nowrap}
 .save{font-size:var(--fs-xs);color:var(--good);font-weight:700}
 .use{
@@ -440,7 +440,7 @@ input[type=checkbox]{
 .prow:last-child{border-bottom:0}
 .plbl{font-size:13px;color:var(--muted2)}
 .pval{font-family:var(--mono);font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
-.prow.rec .pval b{font-size:19px}
+.prow.rec .pval b{font-size:20px}
 .margin{padding:var(--sp-3) var(--sp-5);border-top:1px dashed var(--border2);display:grid;grid-template-columns:1fr auto;gap:10px var(--sp-4);align-items:center}
 .margin .mlbl{font-size:13px;color:var(--muted2)}
 .margin input{width:120px;text-align:right}
@@ -533,7 +533,7 @@ input[type=checkbox]{
   }
   .atable td::before{content:none!important}
   .atable th{
-    text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
     color:var(--muted2);padding:11px 12px;border-bottom:1.5px solid var(--border2);white-space:nowrap;font-weight:700;
   }
   .atable td.num{text-align:right;white-space:nowrap;font-family:var(--mono)}
@@ -629,7 +629,7 @@ input[type=checkbox]{
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:14px}
 /* invoice match candidate chips — the real choices, visible immediately */
 .cand-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}
-.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12.5px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cand-chip:hover{border-color:var(--accent)}
 .cand-chip.sel{background:rgba(184,78,12,.12);border-color:var(--accent);color:var(--accent-ink);font-weight:800}
 .cand-chip .cc-pct{font-weight:400;color:var(--muted2);margin-left:2px}
@@ -704,7 +704,7 @@ input[type=checkbox]{
 .invtable td:nth-child(4)::before{content:"Old price"}
 .invtable td:nth-child(5)::before{content:"Confidence"}
 .invtable td:nth-child(6)::before{content:"Apply"}
-.invtable tbody tr > td:first-child{display:block;font-size:14.5px;font-weight:650;color:var(--text);padding:0 0 8px}
+.invtable tbody tr > td:first-child{display:block;font-size:14px;font-weight:650;color:var(--text);padding:0 0 8px}
 .invtable td:nth-child(3){display:block;padding:6px 0}
 .invtable td:nth-child(3)::before{display:block;margin-bottom:5px}
 .invtable td:nth-child(2){flex-wrap:wrap}
@@ -829,7 +829,7 @@ input[type=checkbox]{
 @media (max-width:560px){
   .wrap{padding:0 var(--sp-3)}
   header .wrap{padding:10px var(--sp-3)}
-  header h1{font-size:19px}
+  header h1{font-size:20px}
   .brand-logo svg,.brand-logo img{height:34px;width:34px}
   .brand-text b{font-size:15px}
   .pad{padding:var(--sp-4)}
@@ -848,7 +848,7 @@ input[type=checkbox]{
 @media (max-width:380px){
   header h1{font-size:18px}
   .total .amt{font-size:24px}
-  .navbtn{font-size:10.5px}
+  .navbtn{font-size:11px}
   .install-banner .ib-text span{font-size:12px}
   .actions{grid-template-columns:1fr}
 }
@@ -918,7 +918,7 @@ input[type=checkbox]{
   .uprice-edit .dol{color:var(--muted2);font-weight:600}
   .uprice-edit input.invPrice{width:78px;padding:6px 6px;font:inherit;font-weight:600;text-align:right;border:1px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--text)}
   .uprice-edit .upu{color:var(--muted2);font-size:11px;font-weight:500}
-  .mbadge{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;vertical-align:middle}
+  .mbadge{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;vertical-align:middle}
   .mbadge.ok{background:rgba(18,138,43,.14);color:var(--good)}
   .mbadge.warn{background:rgba(184,120,20,.16);color:var(--warn)}
 
@@ -1019,10 +1019,12 @@ input[type=checkbox]{
 .stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 2px 8px}
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
-.dash-chart .ax{fill:var(--muted2);font-size:9px}
+.dash-chart .ax{fill:var(--muted2);font-size:11px}
 .chart-hint{margin:6px 2px 0;font-size:var(--fs-xs);color:var(--muted2);font-weight:400}
 .ref-pill{position:absolute;top:6px;right:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);
   font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px;cursor:pointer}
+.ref-pill-static{cursor:default;color:var(--muted2);font-weight:600}   /* ITEM 3 (v33): read-only target marker */
+.ref-pill.ref-pill-static:hover{border-color:var(--border);color:var(--muted2)}   /* not interactive: no hover affordance */
 .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 4px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
 .stat-h{font-size:12px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
@@ -1272,7 +1274,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   .invtable td:nth-child(4)::before{content:"Old price"}
   .invtable td:nth-child(5)::before{content:"Confidence"}
   .invtable td:nth-child(6)::before{content:"Apply"}
-  .invtable tbody tr > td:first-child{display:block;font-size:14.5px;font-weight:650;color:var(--text);padding:0 0 8px}
+  .invtable tbody tr > td:first-child{display:block;font-size:14px;font-weight:650;color:var(--text);padding:0 0 8px}
   .invtable td:nth-child(3){display:block;padding:6px 0}
   .invtable td:nth-child(2){flex-wrap:wrap}
   .invtable td[style*="text-align:center"]{text-align:left!important}
@@ -1296,7 +1298,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   }
   .navbtn{flex:0 0 auto;min-height:56px;padding:8px 4px;border-radius:var(--radius-ctl)}
   .navbtn svg{padding:3px 12px}
-  .nl{font-size:10.5px}
+  .nl{font-size:11px}
   .toast{left:calc(50% + 39px)}
   .toast.show{transform:translateX(-50%) translateY(0)}
   .sync-banner{left:calc(50% + 39px)}
@@ -1364,7 +1366,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 
 /* ---- I. contrast & detail polish ---- */
 .ing-tag{color:var(--text2)}
-.dash-chart .ax{font-size:10px}
+.dash-chart .ax{font-size:11px}
 .ing-filter{max-width:none;flex:0 1 200px}
 @media (max-width:639px){ .ing-filter{max-width:48%} }
 
@@ -1416,8 +1418,8 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 #dashBody .dash-panel{margin:var(--sp-4) 0 0}
 #dashBody .stat-row,#dashBody .hl-row{padding:0;margin:0;gap:var(--sp-3)}
 .stat-card{padding:14px 16px}
-.stat-v{font-size:22px}
-.stat-sub{font-size:11.5px}
+.stat-v{font-size:24px}
+.stat-sub{font-size:11px}
 .hl-card{padding:14px 16px}
 .hl-list{gap:8px}
 @media (min-width:1024px){
@@ -1473,7 +1475,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .ni-grid > label:has(input:not([type=number]):not(:placeholder-shown))::after,
 .ni-grid > label:has(input[type=number]:not(:placeholder-shown)[value]:not([value=""]))::after{
   content:"auto-filled";position:absolute;top:-2px;right:0;
-  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   color:var(--accent-ink);background:var(--accent-weak);
   border-radius:var(--radius-pill);padding:2px 8px;
 }
@@ -1598,7 +1600,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 /* item 1: chart — bigger tap targets, legible labels over the line, snappier tooltip */
 .tp-dot{pointer-events:all;stroke:transparent;stroke-width:16px}   /* transparent thick stroke = large touch target, small visible dot */
 .tp-dot:hover,.tp-dot.act,.tp-dot:focus{r:5;outline:none}
-svg .ax{font-size:10px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3px;stroke-linejoin:round}  /* white halo so % stays readable over the line */
+svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3px;stroke-linejoin:round}  /* white halo so % stays readable over the line */
 .tp-tip{transition:opacity .05s ease}                              /* was .12s — feels instant now */
 /* item 8: don't let taps highlight chart chrome (scoped to the chart + interactive chrome only) */
 .dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .mi-btn, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
@@ -1616,7 +1618,7 @@ svg .ax{font-size:10px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 
 /* ===== batch 3 / design pass (v24) ===== */
 /* item 2+dark: axis labels live in their own gutter; halo + colour from tokens (both themes) */
-svg .ax{font-size:10px;fill:var(--text2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
+svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
 /* item 3: instant tooltip, larger touch targets, no gesture lag */
 .tp-tip{transition:none;background:var(--text);color:var(--bg)}
 .tp-tip::after{border-top-color:var(--text)}
@@ -1782,7 +1784,7 @@ body{overflow-x:clip}
 .king-spacer{flex:1}
 .king-row .linklike{flex:0 0 auto}
 .king-empty{padding:var(--sp-4) var(--sp-5);color:var(--muted2);font-size:var(--fs-sm)}
-.king-tag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-weak);color:var(--accent-ink);border-radius:5px;padding:1px 6px;margin-left:6px}
+.king-tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-weak);color:var(--accent-ink);border-radius:5px;padding:1px 6px;margin-left:6px}
 .opt.king-opt .nm{display:flex;align-items:center;flex-wrap:wrap;gap:2px}
 .line.missing-line{opacity:.72}
 .line.missing-line .sub.warn{color:var(--bad)}
@@ -1836,9 +1838,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 @media (min-width:701px){ .ptr-ind{display:none} }
 
 
-/* ===== v32: invoice review — manually re-matched rows blank the stale Old/Conf cells (Item 6) ===== */
-.invtable tbody td.blank::before{content:"" !important}   /* no dangling "Old price"/"Confidence" label on a blanked mobile card cell */
-.invtable tbody td.blank{justify-content:flex-start;color:var(--muted2)}
+/* ===== v33 (Item 1): invoice review — a dash still keeps its mobile label; only its colour is muted ===== */
+.invtable tbody td.dash{justify-content:flex-start;color:var(--muted2)}
+.conf.manual{color:var(--muted2);font-weight:600}   /* manual pick with no coverage score reads "manual", not a bare dash */
 
 /* ===== v32: import ("Invoice imported") corner toast sat under the bottom nav on phones (Item 8) ===== */
 /* Below 640px the nav is a bottom bar; lift the corner-toast stack clear of it (matches the toast/install-banner ~84px offset). At >=640px the nav is a left rail, so bottom:16px is fine. */
@@ -1874,4 +1876,33 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .ing-empty::before{
   -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
+}
+
+/* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
+.king-progress{padding:6px var(--sp-5) 0;font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
+#kingWiz{border-top:1px solid var(--border);margin-top:10px}
+.kw-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px var(--sp-5)}
+.kw-explain{font-size:12px;color:var(--text2);flex:1 1 220px}
+.kw-row{display:flex;align-items:center;gap:8px;padding:8px var(--sp-5);border-top:1px solid var(--border);flex-wrap:wrap}
+.kw-name{flex:0 1 180px;min-width:140px;padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.kw-prod{flex:1 1 200px;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kw-pick{flex:1 1 200px;min-width:160px;font-size:14px;min-height:44px}
+.kw-add{min-height:40px;padding:6px 16px}
+.kw-skip,.kw-more{color:var(--muted2)}
+.kw-more{display:block;padding:10px var(--sp-5)}
+.kw-done{padding:12px var(--sp-5);font-size:14px;color:var(--good)}
+.king-used{margin:2px 0 8px;font-size:12px;color:var(--muted2)}
+@media (max-width:639px){
+  .kw-name{flex:1 1 46%}
+  .kw-prod{flex:1 1 100%;order:3}
+}
+
+/* ===== batch (v34) — Item 4: phone-app feel — one dominant, thumb-sized action per screen ===== */
+@media (max-width:639px){
+  #newBtn,#kingNew,#kingWizBtn,#invParse{display:block;width:100%;min-height:48px}
+  .king-head #kingNew,.king-head #kingWizBtn{flex:1 1 100%}
+  .inv-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+  .inv-actions .btn{min-height:48px}
+  .inv-actions .hint{text-align:center}
+  .actions .btn.primary{min-height:52px}          /* Builder: Publish is THE action; the rest stay quieter */
 }
