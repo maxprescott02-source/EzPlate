@@ -39,13 +39,13 @@ function ingredientToRow(p){ return {
   pack_qty:(p.pack_qty==null?null:p.pack_qty), pack_unit:p.pack_unit||null,
   is_custom:!BASE_IDS.has(p.id) }; }
 function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), photoUrl:(r.photo_url||null), sourcePlateId:(r.source_plate_id||null)}; }
-function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[]}; }
+function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[], photoUrl:(r.photo_url||null)}; }
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
 function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), photo_url:(item.photoUrl||null), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
 function dbUpsertMenuRecord(m){ pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
-function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
+function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[], photo_url:(sp.photoUrl||null)}); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
@@ -80,12 +80,14 @@ async function bootstrapSync(){
     deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
     var delP=setRows.filter(function(r){return r.key==='deleted_prod_ids';})[0];
     if(delP&&Array.isArray(delP.value)){ deletedProdIds=delP.value; saveDeletedProds(); }
+    var kiRow=setRows.filter(function(r){return r.key==='kitchen_ingredients';})[0];
+    if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; saveKitchenLS(); rebuildKById(); }
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
     ensureDefaultMenu(); saveMenus();
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId('MENU_ORIGINAL');
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
-    try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:r.recorded_at, v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
+    try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
@@ -129,8 +131,39 @@ function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
   if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';
   if(p.base_unit==='ea')return '$'+c.toFixed(3)+'/unit';return '—';}
 function money(x){return '$'+x.toFixed(2);}
-function lineCost(p,qty){const c=cpbu(p);return c==null?null:qty*c;}
+function lineCost(p,qty){if(!p)return null;const c=cpbu(p);return c==null?null:qty*c;}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+
+/* ============================================================
+   Phase 2 — "kitchen words": a kitchen ingredient is a name that
+   points at exactly one product. Recipes reference the ingredient;
+   swapping its product re-prices every recipe with ZERO plate writes.
+   Store: localStorage mirror + the app_settings row 'kitchen_ingredients'.
+   ============================================================ */
+var KINGKEY='cafeDB_kitchenIngredients';
+function loadKitchenIngredients(){ try{ var a=JSON.parse(localStorage.getItem(KINGKEY)); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+var kitchenIngredients=loadKitchenIngredients();
+var kById={};
+function rebuildKById(){ kById={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.id) kById[k.id]=k; }); }
+rebuildKById();
+function saveKitchenLS(){ try{ localStorage.setItem(KINGKEY, JSON.stringify(kitchenIngredients)); }catch(e){} }
+function saveKitchenIngredients(){ saveKitchenLS(); rebuildKById(); if(typeof dbSetSetting==='function') dbSetSetting('kitchen_ingredients', kitchenIngredients); }
+function nextKid(){                                                   // 'K0001' + zero-padded, stable across the store
+  var max=0; (kitchenIngredients||[]).forEach(function(k){ var n=parseInt(String(k.id||'').replace(/^K/,''),10); if(isFinite(n)&&n>max)max=n; });
+  return 'K'+String(max+1).padStart(4,'0');
+}
+/* the one resolver every plate-line consumer uses to find a line's product */
+function lineProduct(l){
+  if(!l || l.misc) return null;
+  if(l.kid){ var k=kById[l.kid]; return (k && byId[k.pid]) || null; }
+  return byId[l.pid] || null;
+}
+/* a stable line signature for dirty-detection (kid + misc aware) */
+function lineSig(l){
+  if(!l) return '';
+  if(l.misc) return 'misc:'+(l.label||'')+':'+(Number(l.cost)||0);
+  return (l.kid?('K'+l.kid):l.pid)+':'+l.qty;
+}
 
 /* ---------- search ---------- */
 function subseq(q,t){let i=0;for(let k=0;k<t.length&&i<q.length;k++){if(t[k]===q[i])i++;}return i===q.length;}
@@ -157,13 +190,30 @@ function hl(text,q){q=q.trim();if(!q)return esc(text);const i=text.toLowerCase()
   if(i<0)return esc(text);return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));}
 const qEl=document.getElementById('q'), dropEl=document.getElementById('drop');
 let curList=[], hiIdx=-1;
+function kitchenSearchMatches(q){                                     // kitchen ingredients matching the query (by name), tagged for the dropdown
+  q=(q||'').trim().toLowerCase();
+  var list=kitchenIngredients.filter(function(k){ return k && k.name && (!q || k.name.toLowerCase().indexOf(q)>=0 || subseq(q,k.name.toLowerCase())); });
+  list.sort(function(a,b){ return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); });
+  return list.slice(0,8).map(function(k){ return {__kid:true, id:k.id, name:k.name, pid:k.pid}; });
+}
+function pickListItem(it){ if(!it) return; if(it.__kid) addKitchenLine(it.id); else addProduct(it.id); }
 function renderDrop(){
-  const q=qEl.value; curList=runSearch(q); hiIdx=-1;
+  const q=qEl.value;
+  const kings=kitchenSearchMatches(q);
+  const prods=runSearch(q);
+  curList=kings.concat(prods); hiIdx=-1;                              // kitchen ingredients first, then product matches
   if(!curList.length){dropEl.innerHTML='<div class="opt" style="cursor:default;color:#6B6256">No matches</div>';dropEl.classList.add('open');return;}
-  dropEl.innerHTML=curList.map((p,i)=>
-    `<div class="opt" role="option" data-i="${i}" data-id="${p.id}">
-       <span class="nm">${hl(p.description,q)} <span class="ca">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span></span>
-       <span class="uc">${unitCostStr(p)}</span></div>`).join('');
+  dropEl.innerHTML=curList.map((it,i)=>{
+    if(it.__kid){
+      const p=byId[it.pid];
+      return `<div class="opt king-opt" role="option" data-i="${i}" data-kid="${esc(it.id)}">
+         <span class="nm">${hl(it.name,q)}<span class="king-tag">ingredient</span> <span class="ca">${p?'\u2192 '+esc(p.description):'\u2192 (product missing)'}</span></span>
+         <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
+    }
+    return `<div class="opt" role="option" data-i="${i}" data-id="${it.id}">
+       <span class="nm">${hl(it.description,q)} <span class="ca">${it.brand?esc(it.brand)+' · ':''}${esc(it.category)}</span></span>
+       <span class="uc">${unitCostStr(it)}</span></div>`;
+  }).join('');
   dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true');
 }
 function closeDrop(){dropEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');hiIdx=-1;}
@@ -173,11 +223,12 @@ qEl.addEventListener('keydown',e=>{
   if(!dropEl.classList.contains('open'))return;
   if(e.key==='ArrowDown'){e.preventDefault();hiIdx=Math.min(hiIdx+1,curList.length-1);paintHi();}
   else if(e.key==='ArrowUp'){e.preventDefault();hiIdx=Math.max(hiIdx-1,0);paintHi();}
-  else if(e.key==='Enter'){e.preventDefault();const pick=hiIdx>=0?curList[hiIdx]:curList[0];if(pick)addProduct(pick.id);}
+  else if(e.key==='Enter'){e.preventDefault();const pick=hiIdx>=0?curList[hiIdx]:curList[0];pickListItem(pick);}
   else if(e.key==='Escape'){closeDrop();}
 });
 function paintHi(){[...dropEl.children].forEach((c,i)=>c.classList.toggle('hi',i===hiIdx));const el=dropEl.children[hiIdx];if(el)el.scrollIntoView({block:'nearest'});}
-dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o||!o.dataset.id)return;e.preventDefault();addProduct(o.dataset.id);});
+dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o)return;e.preventDefault();
+  if(o.dataset.kid){ addKitchenLine(o.dataset.kid); } else if(o.dataset.id){ addProduct(o.dataset.id); }});
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))closeDrop();});
 
 /* ---------- alternatives ---------- */
@@ -196,13 +247,14 @@ function alternatives(p){
 let plate=[], uidc=1;
 const linesEl=document.getElementById('lines');
 function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}
+function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):100});qEl.value='';closeDrop();renderPlate();qEl.focus();}
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
 function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}
 function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;l.qty=Math.max(0,parseFloat(v)||0);updateLine(uid);updateTotals();}
 function toggleAlts(uid){const el=document.getElementById('alts-'+uid);if(el)el.classList.toggle('open');}
 
 function editPrice(uid){
-  const l=plate.find(x=>x.uid===uid);if(!l)return;const p=byId[l.pid];
+  const l=plate.find(x=>x.uid===uid);if(!l)return;const p=lineProduct(l);if(!p)return;
   if(!['g','ml','ea'].includes(p.base_unit))return;
   const chip=document.getElementById('pc-'+uid);if(!chip)return;
   const word=displayUnitWord(p), val=perDisplayValue(p);
@@ -213,7 +265,7 @@ function editPrice(uid){
   inp.addEventListener('blur',()=>{ if(!cancelled) commitPrice(uid,inp.value); },{once:true});
 }
 function commitPrice(uid,raw){
-  const l=plate.find(x=>x.uid===uid);if(!l){renderPlate();return;}const p=byId[l.pid];
+  const l=plate.find(x=>x.uid===uid);if(!l){renderPlate();return;}const p=lineProduct(l);if(!p){renderPlate();return;}
   const v=parseFloat(raw);
   if(!isNaN(v)&&v>=0){
     const base=(p.base_unit==='g'||p.base_unit==='ml')?v/1000:v;
@@ -246,42 +298,67 @@ function renderPlate(){
   if(!plate.length){linesEl.innerHTML='<div class="empty">No ingredients yet.<br>Search above to add the first one.</div>';updateTotals();return;}
   linesEl.innerHTML=plate.map(l=>{
     if(l.misc){ return miscRowHtml(l); }
-    const p=byId[l.pid]; const lc=lineCost(p,l.qty); const {alts,cheapest}=alternatives(p);
-    const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
-              : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
+    const p=lineProduct(l);
+    const isKid=!!l.kid;
+    const kName=isKid?((kById[l.kid]&&kById[l.kid].name)||'Ingredient'):null;
+    if(!p){                                                    // orphaned line: deleted product or broken kitchen link — greyed, still counted as missing
+      const title=isKid?esc(kName):'Product';
+      return `<div class="line missing-line" data-uid="${l.uid}">
+      <div class="top">
+        <span class="nm"><b>${title}</b><span class="sub warn">product missing</span></span>
+        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
+        <span class="leader"></span>
+        <span class="lc"><span class=nocost>no cost</span></span>
+        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
+      </div></div>`;
+    }
+    const lc=lineCost(p,l.qty);
     const editable = ['g','ml','ea'].includes(p.base_unit);
     const priceChip = editable
       ? `<span class="pchip" id="pc-${l.uid}" tabindex="0" role="button" title="Click to edit price" onclick="editPrice(${l.uid})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editPrice(${l.uid})}">${unitCostStr(p)} <span class="pen">✎</span></span>`
       : `<span>${unitCostStr(p)}</span>`;
-    const altRows=alts.map(a=>{
-      const sv=cpbu(p)!=null&&cpbu(a)<cpbu(p)?Math.round((1-cpbu(a)/cpbu(p))*100):0;
-      return `<div class="alt"><span class="an">${esc(a.description)}${a.brand?' <span class="ca">'+esc(a.brand)+'</span>':''}</span>
-        <span class="au">${unitCostStr(a)}</span>${sv>0?`<span class="save">−${sv}%</span>`:''}
-        <button class="use" type="button" onclick="swapLine(${l.uid},'${a.id}')">Use</button></div>`;}).join('');
-    const altBlock = alts.length?`<div class="alts" id="alts-${l.uid}"><div class="ah">Cheaper like-for-like (by ${p.base_unit==='ea'?'unit':p.base_unit==='ml'?'litre':'kg'})</div>${altRows}</div>`:'';
-    const ctrl = cheapest?`<span class="cheapest">✓ Cheapest of its type</span>`:`<button class="alt-btn" type="button" onclick="toggleAlts(${l.uid})">Cheaper options ▾</button>`;
+    let nameBlock, row2='', altBlock='';
+    if(isKid){                                                  // kitchen word up top, linked product small underneath
+      nameBlock=`<b>${esc(kName)}</b>
+          <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>
+          <span class="priceline">Unit cost: ${priceChip}</span>`;
+      row2=`<div class="row2"><span class="king-tag">ingredient</span></div>`;
+    } else {
+      const {alts,cheapest}=alternatives(p);
+      const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
+                : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
+      nameBlock=`<b>${esc(p.description)}</b>
+          <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>
+          <span class="priceline">Unit cost: ${priceChip}${tag}</span>`;
+      const altRows=alts.map(a=>{
+        const sv=cpbu(p)!=null&&cpbu(a)<cpbu(p)?Math.round((1-cpbu(a)/cpbu(p))*100):0;
+        return `<div class="alt"><span class="an">${esc(a.description)}${a.brand?' <span class="ca">'+esc(a.brand)+'</span>':''}</span>
+          <span class="au">${unitCostStr(a)}</span>${sv>0?`<span class="save">−${sv}%</span>`:''}
+          <button class="use" type="button" onclick="swapLine(${l.uid},'${a.id}')">Use</button></div>`;}).join('');
+      altBlock = alts.length?`<div class="alts" id="alts-${l.uid}"><div class="ah">Cheaper like-for-like (by ${p.base_unit==='ea'?'unit':p.base_unit==='ml'?'litre':'kg'})</div>${altRows}</div>`:'';
+      const ctrl = cheapest?`<span class="cheapest">✓ Cheapest of its type</span>`:`<button class="alt-btn" type="button" onclick="toggleAlts(${l.uid})">Cheaper options ▾</button>`;
+      row2=`<div class="row2">${ctrl}</div>`;
+    }
     return `<div class="line" data-uid="${l.uid}">
       <div class="top">
         <span class="nm">
-          <b>${esc(p.description)}</b>
-          <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>
-          <span class="priceline">Unit cost: ${priceChip}${tag}</span>
+          ${nameBlock}
         </span>
         <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
         <span class="leader"></span>
         <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
-      <div class="row2">${ctrl}</div>
+      ${row2}
       ${altBlock}
     </div>`;}).join('');
   updateTotals();
 }
-function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=byId[l.pid];const lc=lineCost(p,l.qty);
+function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=lineProduct(l);const lc=lineCost(p,l.qty);
   const el=document.getElementById('lc-'+uid);if(el)el.innerHTML=lc==null?'<span class=nocost>no cost</span>':money(lc);}
 function updateTotals(){
   let tot=0,missing=0;
-  plate.forEach(l=>{ if(l.misc){ tot+=Number(l.cost)||0; return; } const lc=lineCost(byId[l.pid],l.qty);if(lc==null)missing++;else tot+=lc;});
+  plate.forEach(l=>{ if(l.misc){ tot+=Number(l.cost)||0; return; } const lc=lineCost(lineProduct(l),l.qty);if(lc==null)missing++;else tot+=lc;});
   document.getElementById('total').textContent=money(tot);
   const flag=document.getElementById('flag');
   if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+' have no cost data and are not in the total.';}else flag.style.display='none';
@@ -293,8 +370,10 @@ document.getElementById('printBtn').addEventListener('click',function(){
   var pd=document.getElementById('printDocket'); if(!pd){ window.print(); return; }
   var rows=plate.map(function(l){
     if(l.misc){ return '<tr><td class="pd-q"></td><td class="pd-n">'+esc(l.label||'Misc cost')+'</td></tr>'; }
-    var p=byId[l.pid]; if(!p) return '';
-    var nm=esc(p.description||'Item'); var u=unitNoun(p); var q=l.qty;
+    var p=lineProduct(l);
+    var nm=l.kid ? esc((kById[l.kid]&&kById[l.kid].name)||'Ingredient') : (p?esc(p.description||'Item'):'');
+    if(!nm) return '';
+    var u=p?unitNoun(p):''; var q=l.qty;
     return '<tr><td class="pd-q">'+esc(String(q))+(u?' '+esc(u):'')+'</td><td class="pd-n">'+nm+'</td></tr>';
   }).filter(Boolean).join('');
   pd.innerHTML='<div class="pd-card">'
@@ -456,7 +535,7 @@ function buildMenuOptions(){
   menuLinkEl.innerHTML=html;
 }
 function currentMenuPrice(){const v=menuLinkEl.value;return v&&menuById[v]?menuById[v].price:null;}
-function plateCostNow(){let c=0;plate.forEach(l=>{const lc=lineCost(byId[l.pid],l.qty);if(lc!=null)c+=lc;});return c;}
+function plateCostNow(){let c=0;plate.forEach(l=>{const lc=lineCost(lineProduct(l),l.qty);if(lc!=null)c+=lc;});return c;}
 function updatePricing(){}  /* pricing now lives only in Menu Analysis */
 menuLinkEl.addEventListener('change',()=>{menuTouched=true;updatePricing();});
 document.getElementById('plateName').addEventListener('input',function(e){
@@ -477,7 +556,7 @@ function saveCurrentPlate(asNew){
   if(pErr) pErr.style.display='none';
   var name=rawName;
   var menuId=menuLinkEl.value||null;
-  var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:{pid:l.pid,qty:l.qty}; });
+  var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:(l.kid?{kid:l.kid,qty:l.qty}:{pid:l.pid,qty:l.qty}); });
   if(!loadedPlateId && menuId){ var existLinked=savedPlates.find(function(s){return s.menuId===menuId;}); if(existLinked) loadedPlateId=existLinked.id; }
   if(!asNew && loadedPlateId){ var sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){sp.name=name;sp.menuId=menuId;sp.lines=lines;} else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
@@ -487,7 +566,7 @@ document.getElementById('saveBtn').addEventListener('click',function(){saveCurre
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
-function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=byId[l.pid];if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
+function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=lineProduct(l);if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
 /* a menu item's recipe lives on its linked plate (plate.menuId === item.id); a "reused" item instead points at
    a shared plate via item.sourcePlateId. This resolves either kind to the plate holding the ingredient lines. */
 function plateForMenuItem(m){ if(!m) return null;
@@ -581,7 +660,11 @@ var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')|
 function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
 function dashRangePts(){                                           // the points inside the chosen window (capped for sanity)
   var days={'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
-  var pts=days?priceHistory.filter(function(p){return p.t>=Date.now()-days*86400000;}):priceHistory.slice();
+  var cutoff=Date.now()-days*86400000;
+  var pts=days?priceHistory.filter(function(p){
+    var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;   // Supabase points arrive as ISO strings; a string is never >= a number
+    return tt>=cutoff;
+  }):priceHistory.slice();
   return pts.slice(-60);
 }
 function rangeBarHtml(){
@@ -610,8 +693,9 @@ function costRangeForLines(lines){                                   // dish cos
   var lo=0, hi=0, any=false;
   (lines||[]).forEach(function(l){
     if(l&&l.misc){ var mc=Number(l.cost)||0; lo+=mc; hi+=mc; return; }
-    var p=byId[l.pid]; if(!p) return; var cur=cpbu(p); if(cur==null) return;
-    var band=ingPriceBand(l.pid); var mn=band?band.min:cur, mx=band?band.max:cur;
+    var p=lineProduct(l); if(!p) return; var cur=cpbu(p); if(cur==null) return;
+    var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
+    var band=ingPriceBand(pid); var mn=band?band.min:cur, mx=band?band.max:cur;
     lo+=mn*l.qty; hi+=mx*l.qty; if(mx-mn>1e-9) any=true;
   });
   return {min:lo, max:hi, hasRange:any};
@@ -729,6 +813,7 @@ function fillFilter(sel, list, label){
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
 function renderIngredients(){
+  renderKitchenPanel();
   var wrap=document.getElementById('ingList'); if(!wrap) return;
   fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
   fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
@@ -820,6 +905,196 @@ function saveIngEdit(){
 }
 
 /* ============================================================
+   Feature 1 (Phase 2) — "My ingredients" panel + create/change/delete
+   ============================================================ */
+function kingProductLabel(k){                                        // "→ Chips 10mm Straight Cut Safries · $2.68/kg"
+  var p=byId[k.pid];
+  if(!p) return '\u2192 (product missing)';
+  return '\u2192 '+p.description+(p.brand?' \u2014 '+p.brand:'')+' \u00b7 '+unitCostStr(p);
+}
+function renderKitchenPanel(){
+  var box=document.getElementById('kingList'); if(!box) return;
+  if(!kitchenIngredients.length){
+    box.innerHTML='<div class="king-empty">No kitchen ingredients yet. Create one and point it at a product — then use it in recipes so brand swaps take one tap, not a recipe rewrite.</div>';
+    return;
+  }
+  var list=kitchenIngredients.slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
+  box.innerHTML=list.map(function(k){
+    return '<div class="king-row" data-kid="'+esc(k.id)+'">'
+      +'<span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
+      +'<span class="king-link">'+esc(kingProductLabel(k))+'</span>'
+      +'<span class="king-spacer"></span>'
+      +'<button class="linklike king-change" type="button">Change product</button>'
+      +'<button class="linklike king-del" type="button">Remove</button>'
+      +'</div>';
+  }).join('');
+  box.querySelectorAll('.king-change').forEach(function(b){ b.onclick=function(){ openKingModal(b.closest('.king-row').getAttribute('data-kid')); }; });
+  box.querySelectorAll('.king-del').forEach(function(b){ b.onclick=function(){ deleteKitchenIngredient(b.closest('.king-row').getAttribute('data-kid')); }; });
+}
+/* ---- create / change-product modal (Name + product search-select) ---- */
+var kingEditId=null, kingChosenPid=null;
+function kingValid(){
+  var nm=(document.getElementById('king_name').value||'').trim();
+  return !!nm && !!kingChosenPid && !!byId[kingChosenPid];
+}
+function kingSyncSave(){ var s=document.getElementById('kingModalSave'); if(s) s.disabled=!kingValid(); }
+function renderKingProdDrop(){
+  var inp=document.getElementById('king_prod'), drop=document.getElementById('king_prodDrop'); if(!inp||!drop) return;
+  var q=(inp.value||'').trim().toLowerCase();
+  var pool=PRODUCTS.filter(function(p){ return p && p.description; });
+  var scored;
+  if(!q){ scored=pool.slice().sort(function(a,b){return a.description.toLowerCase().localeCompare(b.description.toLowerCase());}).slice(0,8); }
+  else{
+    scored=pool.filter(function(p){ return ((p.description||'')+' '+(p.brand||'')).toLowerCase().indexOf(q)>=0; })
+      .sort(function(a,b){ return a.description.toLowerCase().indexOf(q)-b.description.toLowerCase().indexOf(q) || a.description.localeCompare(b.description); })
+      .slice(0,8);
+  }
+  if(!scored.length){ drop.innerHTML='<div class="opt muted">No products match</div>'; drop.style.display='block'; return; }
+  drop.innerHTML=scored.map(function(p){
+    return '<div class="opt cat-opt" data-pid="'+esc(p.id)+'">'+esc(p.description)+(p.brand?' <span class="ca">'+esc(p.brand)+'</span>':'')+' <span class="ca">'+esc(unitCostStr(p))+'</span></div>';
+  }).join('');
+  drop.style.display='block';
+  drop.querySelectorAll('.cat-opt').forEach(function(o){ o.addEventListener('mousedown',function(e){ e.preventDefault();
+    var pid=o.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
+    kingChosenPid=pid; inp.value=p.description+(p.brand?' \u2014 '+p.brand:''); drop.style.display='none'; kingSyncSave();
+  }); });
+}
+function openKingModal(kid){
+  kingEditId=kid||null; kingChosenPid=null;
+  var isEdit=!!kingEditId; var k=isEdit?kById[kingEditId]:null;
+  document.getElementById('kingModalTitle').textContent=isEdit?'Change product':'New ingredient';
+  var nameEl=document.getElementById('king_name'), prodEl=document.getElementById('king_prod');
+  nameEl.value=isEdit?(k?k.name:''):''; nameEl.disabled=isEdit;                 // name locked when changing product
+  prodEl.value=isEdit&&k&&byId[k.pid]?(byId[k.pid].description+(byId[k.pid].brand?' \u2014 '+byId[k.pid].brand:'')):'';
+  kingChosenPid=isEdit&&k?k.pid:null;
+  var err=document.getElementById('king_err'); if(err)err.style.display='none';
+  document.getElementById('king_prodDrop').style.display='none';
+  if(!prodEl.__wired){ prodEl.__wired=true;
+    prodEl.addEventListener('input',function(){ kingChosenPid=null; kingSyncSave(); renderKingProdDrop(); });
+    prodEl.addEventListener('focus',renderKingProdDrop);
+    prodEl.addEventListener('blur',function(){ setTimeout(function(){ document.getElementById('king_prodDrop').style.display='none'; },150); });
+  }
+  if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',kingSyncSave); }
+  kingSyncSave();
+  show('kingModal'); (isEdit?prodEl:nameEl).focus();
+}
+function closeKingModal(){ hide('kingModal'); kingEditId=null; kingChosenPid=null; }
+function saveKingModal(){
+  if(!kingValid()) return;
+  var name=(document.getElementById('king_name').value||'').trim();
+  var pid=kingChosenPid, np=byId[pid];
+  if(kingEditId){                                                    // change-product flow: unit-category guard
+    var k=kById[kingEditId]; if(!k){ closeKingModal(); return; }
+    var oldP=byId[k.pid];
+    var oldCat=oldP?unitCatCategory(oldP.base_unit):null, newCat=unitCatCategory(np.base_unit);
+    var commit=function(){ k.pid=pid; saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); closeKingModal(); toast('Product changed'); };
+    if(oldCat && newCat && oldCat!==newCat){
+      var word=function(c){return c==='kg'?'kg':c==='l'?'litre':'unit';};
+      closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
+      askConfirm('Different unit type',
+        '\u201c'+name+'\u201d is measured per '+word(oldCat)+' but the new product is per '+word(newCat)+'. Recipe amounts keep their numbers but change meaning \u2014 check any recipe that uses it.',
+        'Change anyway', function(){ k.pid=pid; saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Product changed'); });
+      return;
+    }
+    commit(); return;
+  }
+  // create flow
+  var id=nextKid();
+  kitchenIngredients.push({id:id, name:name, pid:pid});
+  saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); closeKingModal(); toast('\u201c'+name+'\u201d added');
+}
+function deleteKitchenIngredient(kid){
+  var k=kById[kid]; if(!k) return;
+  var used=(savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kid; }); }).length;
+  var msg='Remove \u201c'+(k.name||'this ingredient')+'\u201d?';
+  if(used) msg+=' It\u2019s used in '+used+' saved plate'+(used===1?'':'s')+' \u2014 those lines will show as \u201cproduct missing\u201d until you point them somewhere else.';
+  askConfirm('Remove ingredient?', msg, 'Remove', function(){
+    kitchenIngredients=kitchenIngredients.filter(function(x){return x.id!==kid;});
+    saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Ingredient removed');
+  });
+}
+(function(){
+  function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
+  on('kingNew',function(){ openKingModal(null); });
+  on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
+  var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
+})();
+
+/* ============================================================
+   Feature 2 — plating photos (attach to the SAVED PLATE / recipe)
+   Bucket 'plate-photos', column photo_url on the plate record.
+   ============================================================ */
+var PHOTO_BUCKET='plate-photos';
+function currentSavedPlate(){ return loadedPlateId ? savedPlates.find(function(s){return s.id===loadedPlateId;}) : null; }
+function renderPlatePhotoSlot(){
+  var slot=document.getElementById('platePhotoSlot'); if(!slot) return;
+  var sp=currentSavedPlate();
+  if(!sp){ slot.style.display='none'; return; }                       // only offered once a plate is saved/loaded
+  slot.style.display='';
+  if(sp.photoUrl){
+    var url=sp.photoUrl+(sp.photoUrl.indexOf('?')<0?'?t=':'&t=')+(sp.photoStamp||'');   // cache-bust: upsert reuses the filename
+    slot.className='plate-photo';
+    slot.innerHTML='<img src="'+esc(url)+'" alt="Plating photo" loading="lazy">';
+  } else {
+    slot.className='plate-photo empty';
+    slot.innerHTML='\uD83D\uDCF7';
+  }
+}
+function onPlatePhotoTap(){
+  var sp=currentSavedPlate(); if(!sp){ toast('Save the plate first, then add a photo'); return; }
+  if(!SUPA || !navigator.onLine){ toast('Photos need a connection'); return; }
+  var inp=document.getElementById('platePhotoInput'); if(inp) inp.click();
+}
+function resizeToBlob(file, cb){                                       // draw to canvas, long edge <= 1200px, JPEG q0.8
+  var img=new Image(), url=URL.createObjectURL(file);
+  img.onload=function(){
+    var w=img.naturalWidth, h=img.naturalHeight, MAX=1200;
+    var scale=Math.min(1, MAX/Math.max(w,h));
+    var cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
+    var cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+    cv.getContext('2d').drawImage(img,0,0,cw,ch);
+    URL.revokeObjectURL(url);
+    cv.toBlob(function(blob){ cb(blob, cw, ch); }, 'image/jpeg', 0.8);
+  };
+  img.onerror=function(){ URL.revokeObjectURL(url); cb(null); };
+  img.src=url;
+}
+async function handlePlatePhotoFile(file){
+  var sp=currentSavedPlate(); if(!sp || !file) return;
+  if(!SUPA || !navigator.onLine){ toast('Photos need a connection'); return; }
+  var slot=document.getElementById('platePhotoSlot'); if(slot) slot.classList.add('uploading');
+  resizeToBlob(file, async function(blob){
+    if(!blob){ if(slot) slot.classList.remove('uploading'); toast('Could not read that image'); return; }
+    try{
+      var path=sp.id+'.jpg';
+      var up=await SUPA.storage.from(PHOTO_BUCKET).upload(path, blob, {upsert:true, contentType:'image/jpeg'});
+      if(up && up.error) throw up.error;
+      var pub=SUPA.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+      var url=(pub && pub.data && pub.data.publicUrl) ? pub.data.publicUrl : null;
+      if(!url) throw new Error('no public url');
+      sp.photoUrl=url; sp.photoStamp=Date.now();                       // stamp drives the cache-buster on display
+      savePlatesLS(); dbPushPlate(sp);
+      if(slot) slot.classList.remove('uploading');
+      renderPlatePhotoSlot();
+      if(typeof renderAnalysis==='function') renderAnalysis();         // menu thumbs pick it up
+      toast('Photo added');
+    }catch(err){
+      console.error('[photo] upload failed:', err);
+      if(slot) slot.classList.remove('uploading');
+      toast('Photo upload failed');
+    }
+  });
+}
+(function(){
+  var slot=document.getElementById('platePhotoSlot'), inp=document.getElementById('platePhotoInput');
+  if(slot){
+    slot.addEventListener('click', onPlatePhotoTap);
+    slot.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onPlatePhotoTap(); } });
+  }
+  if(inp){ inp.addEventListener('change', function(){ var f=inp.files&&inp.files[0]; if(f) handlePlatePhotoFile(f); inp.value=''; }); }
+})();
+
+/* ============================================================
    Feature 2 — Dashboard
    ============================================================ */
 function monthKey(d){ d=new Date(d); return d.getFullYear()+'-'+(d.getMonth()+1); }
@@ -859,7 +1134,7 @@ function trendChart(){
     var emptyHint=(priceHistory.length>=2)
       ? 'No points in this range yet \u2014 try a longer range.'
       : 'The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.';
-    return '<div class="dash-chart empty">'+rangeBarHtml()+'<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
+    return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
       +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
@@ -884,7 +1159,7 @@ function trendChart(){
     +'<text x="'+(padL-7)+'" y="'+(H-padB+2).toFixed(1)+'" text-anchor="end" class="ax">'+mn.toFixed(0)+'%</text>'
     +'</svg>';
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
-  return '<div class="dash-chart" id="trendWrap">'+rangeBarHtml()+svg
+  return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
     +'<button class="ref-pill" id="dashCogsBtn" type="button" title="Edit target">Target '+cogsPct+'% \u270e</button>'
     +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';
@@ -901,7 +1176,7 @@ function highlightData(kind){
     pr.sort(function(a,b){return b.val-a.val;}); return {title:'Highest portion cost', rows:pr};
   }
   var usedPids={};                                                  // only stock actually used in a saved plate/recipe
-  (savedPlates||[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){ if(l&&l.pid!=null) usedPids[l.pid]=true; }); });
+  (savedPlates||[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){ if(!l||l.misc) return; if(l.kid){ var k=kById[l.kid]; if(k&&k.pid!=null) usedPids[k.pid]=true; } else if(l.pid!=null) usedPids[l.pid]=true; }); });
   var st=PRODUCTS.filter(function(p){ return usedPids[p.id]; }).map(function(p){ var v=perDisplayValue(p); return v==null?null:{name:p.description+(p.brand?' \u2014 '+p.brand:''), val:v, disp:dispPrice(p)}; }).filter(Boolean);
   st.sort(function(a,b){return b.val-a.val;}); return {title:'Most expensive stock per unit', rows:st};
 }
@@ -923,7 +1198,9 @@ function renderDashboard(){
   if(typeof priceHistory==='undefined' || typeof savedPlates==='undefined'){ return; }  // data not initialised yet; boot-ready will re-render
   var cmp;
   try{ cmp=dashComparisons(); }catch(e){ console.error('[dashboard] not ready:', e); return; }
-  var html='<div class="panel dash-panel"><h2>Average food cost'+(cmp.current!=null?' <span class="h2-val">'+cmp.current.toFixed(1)+'% today</span>':'')+'</h2><div class="pad">'+trendChart()
+  var html='<div class="panel dash-panel"><h2>Average food cost'+(cmp.current!=null?' <span class="h2-val">'+cmp.current.toFixed(1)+'% today</span>':'')+'</h2><div class="pad">'
+    +'<div class="chart-controls"><span class="chart-title">Food cost trend</span>'+rangeBarHtml()+'</div>'
+    +trendChart()
     +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
     +'<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
@@ -1042,6 +1319,7 @@ function updateEditTag(){
     else t.style.display='none';
   }
   updatePublishLabel();
+  if(typeof renderPlatePhotoSlot==='function') renderPlatePhotoSlot();
 }
 function updatePublishLabel(){
   var t=document.getElementById('addMenuTitle'), s=document.getElementById('addMenuSub'); if(!t)return;
@@ -1159,14 +1437,14 @@ function requestLoadMenuItem(id){
   else loadMenuItemBlank(id);
 }
 function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b){ b.style.display='none'; b.innerHTML=''; } }
-function currentLinesSig(){ return plate.map(function(l){return l.pid+':'+l.qty;}).join('|'); }
+function currentLinesSig(){ return plate.map(lineSig).join('|'); }
 function isBuilderDirty(){
   var name=(document.getElementById('plateName').value||'').trim();
   if(plate.length===0 && !name) return false;
   if(loadedPlateId){
     var sp=savedPlates.find(function(s){return s.id===loadedPlateId;});
     if(!sp) return plate.length>0;
-    var savedSig=(sp.lines||[]).map(function(l){return l.pid+':'+l.qty;}).join('|');
+    var savedSig=(sp.lines||[]).map(lineSig).join('|');
     return savedSig!==currentLinesSig() || (sp.name||'')!==name;
   }
   return plate.length>0;                                   // a new, unsaved plate with ingredients
@@ -1200,7 +1478,7 @@ function dismissMatch(){ dismissedMatch=document.getElementById('plateName').val
 function loadPlate(id){
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp)return;
   plate=[];                                                 // FULL clear first — never blend two plates
-  sp.lines.forEach(function(l){ if(l&&l.misc){ plate.push({uid:uidc++,misc:true,label:l.label||'',cost:Number(l.cost)||0}); } else if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
+  sp.lines.forEach(function(l){ if(l&&l.misc){ plate.push({uid:uidc++,misc:true,label:l.label||'',cost:Number(l.cost)||0}); } else if(l&&l.kid){ plate.push({uid:uidc++,kid:l.kid,qty:l.qty}); } else if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
   document.getElementById('plateName').value=sp.name||'';
   menuTouched=true; menuLinkEl.value=sp.menuId||''; loadedPlateId=sp.id;
   hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder'); toast('Loaded: '+(sp.name||'plate'));
@@ -1787,7 +2065,7 @@ function renderInvReview(){
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
     var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
     var chipHtml='', teachHtml='';
-    if(r.remembered||r.fromProductPack) chipHtml='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2713 \u2014 change</button>';
+    if(r.remembered||r.fromProductPack) chipHtml='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2014 change</button>';
     if(r.needManual || r.remembered || r.fromProductPack){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var baseCat0=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
@@ -2024,9 +2302,11 @@ function costRangeCell(m, cost){                                     // ITEM 3: 
   if(r.max-r.min < 0.005) return '';
   return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
 }
-function aRow(name,a,m,actions){
+function aRow(name,a,m,actions,sp){
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
-  return '<tr><td>'+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
+  var pl=sp||(m?plateForMenuItem(m):null);
+  var thumb=(pl&&pl.photoUrl)?'<img class="mi-thumb" loading="lazy" src="'+esc(pl.photoUrl+(pl.photoUrl.indexOf('?')<0?'?t=':'&t=')+(pl.photoStamp||''))+'" alt="">':'';
+  return '<tr><td>'+thumb+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num"><span class="tip">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'<span class="tipbox">'+esc(tipText(a))+'</span></span></td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
@@ -2057,7 +2337,7 @@ function renderAnalysis(){
     items.forEach(function(m){
       shown++;
       var sp=byMenu[m.id]||(m.sourcePlateId?savedPlates.find(function(s){return s.id===m.sourcePlateId;}):null);
-      if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }
+      if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m, undefined, sp); }
       else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
         html+='<tr class="muted"><td>'+esc(m.name)+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
@@ -2065,7 +2345,7 @@ function renderAnalysis(){
   var custShown=(currentMenuId==='MENU_ORIGINAL')?customsP.filter(function(sp){ return hit(sp.name||'Custom plate','Custom plates'); }):[];   // orphan plates live on the home menu
   if(custShown.length){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
-    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
+    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp), sp); });
   }
   if(!shown){ html='<tr class="an-empty"><td colspan="6">No menu items match \u201c'+esc(q)+'\u201d.</td></tr>'; }
   tb.innerHTML=html; bindTips();
