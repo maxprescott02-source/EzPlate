@@ -19,7 +19,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=31">
+<link rel="stylesheet" href="css/style.css?v=32">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -44,7 +44,7 @@
 </div></header>
 <div id="syncBanner" class="sync-banner" hidden></div>
 
-<div class="wrap">
+<div class="wrap" id="appMain">
   <div id="tab-builder">
   <div class="panel search-card">
     <h2>Add ingredient</h2>
@@ -58,25 +58,11 @@
     </div>
   </div>
 
-  <!-- Desktop-only plating-photo card (below the Add-ingredient card). Mobile uses the inline #platePhotoSlot next to the plate name. Both drive the SAME state/handlers. -->
-  <div class="panel photo-panel" id="photoPanel" style="display:none">
-    <h2>Plating photo</h2>
-    <div class="pad">
-      <div id="platePhotoSlotLg" class="plate-photo-lg empty" role="button" tabindex="0" title="Add a plating photo" aria-label="Add a plating photo">📷<span class="pp-lg-label">Add a plating photo</span></div>
-    </div>
-  </div>
-
   <div class="panel" id="docketPanel">
     <h2>The plate</h2>
     <div class="pad" style="padding-bottom:0">
-      <div class="plate-name-row">
-        <div id="platePhotoSlot" class="plate-photo empty" role="button" tabindex="0" title="Add a plating photo" aria-label="Add a plating photo" style="display:none">📷</div>
-        <div class="plate-name-col">
-          <label class="f" for="plateName">Plate name</label>
-          <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
-        </div>
-      </div>
-      <input type="file" id="platePhotoInput" accept="image/*" style="display:none">
+      <label class="f" for="plateName">Plate name</label>
+      <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
       <div class="ferr" id="plateNameErr" style="display:none"></div>
       <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
       <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
@@ -127,7 +113,6 @@
         <span><span class="dot amber"></span>up to 15% under</span>
         <span><span class="dot red"></span>more than 15% under</span>
       </div>
-      <p class="hint" style="padding:6px 16px 0">Every menu item is listed below. Cost a plate in the Builder and save it against an item to fill in its costs. Tap a suggested price to see how it was worked out.</p>
       <div class="atable-wrap">
         <table class="atable">
           <thead><tr><th>Plate / menu item</th><th>Ingredient cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Current menu price</th><th>Variance</th><th>Light</th></tr></thead>
@@ -382,7 +367,7 @@
       <div class="ferr" id="king_err" style="display:none"></div>
       <div class="grid">
         <div class="field full"><label for="king_name">Ingredient name *</label><input id="king_name" type="text" placeholder="e.g. Chips" autocomplete="off"></div>
-        <div class="field full"><label for="king_prod">Product it points at *</label>
+        <div class="field full"><label for="king_prod">Supplier product to link to *</label>
           <span class="cat-wrap">
             <input id="king_prod" type="text" autocomplete="off" placeholder="Search your products…" role="combobox" aria-expanded="false" aria-controls="king_prodDrop">
             <span id="king_prodDrop" class="cat-drop" style="display:none"></span>
@@ -395,6 +380,7 @@
     <div class="mfoot"><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
   </div>
 </div>
+
 
 <!-- COGS target modal (shared) -->
 <div class="modal-overlay" id="cogsModal" aria-hidden="true">
@@ -447,7 +433,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=31"></script>
+<script src="js/app.js?v=32"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
