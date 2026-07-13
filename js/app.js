@@ -746,8 +746,6 @@ function logHistory(){
 }
 
 /* ---------- shared COGS editor (used by Menu Analysis + Dashboard) ---------- */
-function openCogsModal(){ var i=document.getElementById('cogsModalInput'); if(i)i.value=cogsPct; show('cogsModal'); }
-function saveCogsModal(){ var i=document.getElementById('cogsModalInput'); var v=parseFloat(i?i.value:''); if(v>=1&&v<=99){ setCogs(v,true); var ci=document.getElementById('cogsTarget'); if(ci)ci.value=cogsPct; renderDashboard(); hide('cogsModal'); } }
 
 /* ---------- supplier extraction from invoice header (Feature 1) ---------- */
 var invSupplier='';
@@ -945,6 +943,7 @@ function renderKitchenPanel(){
     box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet','Ingredients are your kitchen words \u2014 \u201cChips\u201d, \u201cFish\u201d, \u201cTartare\u201d. Each one points at a product you buy, so recipes stay simple and brand swaps take one tap.',
       '<button class="btn primary" type="button" id="kingEmptyNew">+ New ingredient</button>');
     var b=document.getElementById('kingEmptyNew'); if(b) b.onclick=function(){ openKingModal(null); };
+    renderKingProgress();                                            // zero kitchen words + many products is EXACTLY when the wizard matters
     return;
   }
   var list=kitchenIngredients.slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
@@ -959,12 +958,106 @@ function renderKitchenPanel(){
   }).join('');
   box.querySelectorAll('.king-change').forEach(function(b){ b.onclick=function(){ openKingModal(b.closest('.king-row').getAttribute('data-kid')); }; });
   box.querySelectorAll('.king-del').forEach(function(b){ b.onclick=function(){ deleteKitchenIngredient(b.closest('.king-row').getAttribute('data-kid')); }; });
+  renderKingProgress();                                              // ITEM 2 (v34): setup progress + wizard entry stay current with the list
 }
+/* ===== ITEM 2 (v34): "Set up from products" — bulk-create kitchen words so setup is fast, incremental, never blocking ===== */
+var kingWizOpen=false, kingWizSkip={}, kingWizLimit=40;
+function kingLinkableProducts(){ return PRODUCTS.filter(function(p){ return p && p.description && p.is_food!==false; }); }
+function kingUnlinkedProducts(){
+  var linked={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.pid) linked[k.pid]=1; });
+  return kingLinkableProducts().filter(function(p){ return !linked[p.id]; });
+}
+function proposeKingName(p){                                          // supplier description -> friendly kitchen word ("Eggs Large Bulk (180)" -> "Eggs Large")
+  var toks=coreTokens(p.description||'', p.brand||''), seen={}, out=[];
+  toks.forEach(function(t){ if(!seen[t]){ seen[t]=1; out.push(t); } });
+  if(!out.length){ var f=inorm(p.description||'').split(' ').filter(Boolean); out=f.length?[f[0]]:['item']; }
+  return out.slice(0,3).map(function(t){ return t.charAt(0).toUpperCase()+t.slice(1); }).join(' ');
+}
+function kingNameExists(nm){ nm=(nm||'').trim().toLowerCase(); return (kitchenIngredients||[]).some(function(k){ return k && (k.name||'').trim().toLowerCase()===nm; }); }
+function renderKingProgress(){
+  var pr=document.getElementById('kingProgress'), wb=document.getElementById('kingWizBtn'); if(!pr||!wb) return;
+  var total=kingLinkableProducts().length, un=kingUnlinkedProducts().length, done=total-un;
+  if(!total || (!un && !kingWizOpen)){ pr.style.display='none'; wb.style.display='none'; return; }   // nothing linkable, or finished with the wizard closed
+  pr.textContent=done+' of '+total+' products have a kitchen word';
+  pr.style.display=un?'block':'none';
+  wb.style.display='';                                              // stays visible while open so "Close setup" is always reachable
+  wb.textContent=kingWizOpen?'Close setup':'Set up from products';
+}
+function kingWizGroups(){                                             // proposal -> products[]; same cleaned name = one grouped choice, never silent duplicates
+  var map={}, order=[];
+  kingUnlinkedProducts().forEach(function(p){
+    if(kingWizSkip[p.id]) return;
+    var nm=proposeKingName(p), key=nm.toLowerCase();
+    if(!map[key]){ map[key]={name:nm, products:[]}; order.push(key); }
+    map[key].products.push(p);
+  });
+  order.sort(function(a,b){ return map[a].name.localeCompare(map[b].name); });
+  return order.map(function(k){ return map[k]; });
+}
+function kingWizRowHtml(g,gi){
+  var one=g.products.length===1, p0=g.products[0];
+  var prodBit=one
+    ? '<span class="kw-prod">'+esc(p0.description)+(p0.brand?' \u00b7 '+esc(p0.brand):'')+'</span>'
+    : '<select class="kw-pick" aria-label="Which product">'+g.products.map(function(p,pi){ return '<option value="'+esc(p.id)+'"'+(pi?'':' selected')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'</option>'; }).join('')+'</select>';
+  return '<div class="kw-row" data-gi="'+gi+'">'
+    +'<input class="kw-name" type="text" value="'+esc(g.name)+'" aria-label="Kitchen name">'
+    +prodBit
+    +'<button class="btn kw-add" type="button">Add</button>'
+    +'<button class="linklike kw-skip" type="button">Skip</button>'
+    +'</div>';
+}
+function renderKingWizard(){
+  var box=document.getElementById('kingWiz'); if(!box) return;
+  if(!kingWizOpen){ box.style.display='none'; box.innerHTML=''; renderKingProgress(); return; }
+  var groups=kingWizGroups();
+  if(!groups.length){
+    box.innerHTML='<div class="kw-done">\u2713 Every product has a kitchen word \u2014 recipes can use all of them.</div>';
+    box.style.display='block'; renderKingProgress(); return;
+  }
+  var singles=groups.filter(function(g){return g.products.length===1;}).length;
+  var head='<div class="kw-head"><span class="kw-explain">Tap Add to accept a name (edit it first if you like). Skip anything you\u2019d never cook with.</span>'
+    +(singles>1?'<button class="btn ghost kw-all" type="button">Add all '+singles+' suggested</button>':'')+'</div>';
+  var shown=groups.slice(0,kingWizLimit);
+  box.innerHTML=head+shown.map(kingWizRowHtml).join('')
+    +(groups.length>shown.length?'<button class="linklike kw-more" type="button">Show '+(groups.length-shown.length)+' more</button>':'');
+  box.style.display='block';
+  var wireRow=function(row){
+    var gi=parseInt(row.getAttribute('data-gi'),10), g=shown[gi]; if(!g) return;
+    var pidOf=function(){ var s=row.querySelector('.kw-pick'); return s?s.value:g.products[0].id; };
+    row.querySelector('.kw-add').onclick=function(){
+      var nm=(row.querySelector('.kw-name').value||'').trim()||g.name;
+      if(kingNameExists(nm)){ toast('\u201c'+nm+'\u201d already exists \u2014 edit the name first'); return; }
+      kitchenIngredients.push({id:nextKid(), name:nm, pid:pidOf()});
+      saveKitchenIngredients(); renderKitchenPanel(); renderKingWizard();
+    };
+    row.querySelector('.kw-skip').onclick=function(){ g.products.forEach(function(p){ kingWizSkip[p.id]=1; }); renderKingWizard(); };
+  };
+  box.querySelectorAll('.kw-row').forEach(wireRow);
+  var all=box.querySelector('.kw-all');
+  if(all) all.onclick=function(){
+    var gs=kingWizGroups().filter(function(g){return g.products.length===1;});
+    askConfirm('Add '+gs.length+' ingredients?', 'One kitchen word per product, using the suggested names. You can rename or remove any of them later.', 'Add all', function(){
+      var made=0, skipped=0, taken={};
+      gs.forEach(function(g){
+        var nm=g.name;
+        if(kingNameExists(nm)||taken[nm.toLowerCase()]){ skipped++; return; }
+        taken[nm.toLowerCase()]=1;
+        kitchenIngredients.push({id:nextKid(), name:nm, pid:g.products[0].id}); made++;
+      });
+      if(made) saveKitchenIngredients();                             // one write for the whole batch
+      renderKitchenPanel(); renderKingWizard();
+      toast(made+' ingredient'+(made===1?'':'s')+' added'+(skipped?(' \u00b7 '+skipped+' skipped (name already used)'):''));
+    });
+  };
+  var more=box.querySelector('.kw-more'); if(more) more.onclick=function(){ kingWizLimit+=40; renderKingWizard(); };
+  renderKingProgress();
+}
+function toggleKingWizard(){ kingWizOpen=!kingWizOpen; if(kingWizOpen) kingWizLimit=40; renderKingWizard(); }
 /* ---- create / change-product modal (Name + product search-select) ---- */
 var kingEditId=null, kingChosenPid=null, kingAddToPlateOnSave=false;
 function renderKingAlts(){                                            // "Cheaper like-for-like" — only in change-product (edit) mode, compared vs the CURRENT link
   var box=document.getElementById('king_alts'); if(!box) return;
-  if(!kingEditId){ box.style.display='none'; box.innerHTML=''; return; }
+  if(!kingEditId){ renderKingCreateSuggest(); return; }              // ITEM 2b (v34): create mode reuses this box for name-based suggestions
   var k=kById[kingEditId]; var base=k?byId[k.pid]:null;
   if(!base){ box.style.display='none'; box.innerHTML=''; return; }
   var res=alternatives(base);
@@ -984,6 +1077,29 @@ function renderKingAlts(){                                            // "Cheape
     var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
     kingChosenPid=pid;                                               // behaves exactly like picking from search — Save + unit guard still apply
     var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
+    kingSyncSave();
+  }); });
+}
+/* ITEM 2b (v34): create mode — typing "Chips" immediately offers the top product matches, one tap links it.
+   Reuses rankCandidates (the invoice matcher) read-only; nothing in the protected region is modified. */
+function renderKingCreateSuggest(){
+  var box=document.getElementById('king_alts'); if(!box) return;
+  if(kingEditId){ return; }                                          // edit mode is renderKingAlts' job
+  var nm=(document.getElementById('king_name')?document.getElementById('king_name').value:'').trim();
+  if(nm.length<2 || kingChosenPid){ box.style.display='none'; box.innerHTML=''; return; }
+  var cands=(rankCandidates(nm)||[]).slice(0,3).map(function(c){ return byId[c.id]; }).filter(Boolean);
+  if(!cands.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML='<div class="ka-head">Link to one of these?</div>'+cands.map(function(p){
+    return '<div class="ka-row"><span class="ka-name">'+esc(p.description)+(p.brand?' <span class="ca">'+esc(p.brand)+'</span>':'')+'</span>'
+      +'<span class="ka-price">'+esc(unitCostStr(p))+'</span>'
+      +'<button class="use" type="button" data-pid="'+esc(p.id)+'">Use</button></div>';
+  }).join('');
+  box.style.display='block';
+  box.querySelectorAll('.use').forEach(function(b){ b.addEventListener('click',function(){
+    var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
+    kingChosenPid=pid;
+    var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
+    box.style.display='none'; box.innerHTML='';
     kingSyncSave();
   }); });
 }
@@ -1030,7 +1146,16 @@ function openKingModal(kid){
     prodEl.addEventListener('focus',renderKingProdDrop);
     prodEl.addEventListener('blur',function(){ setTimeout(function(){ document.getElementById('king_prodDrop').style.display='none'; },150); });
   }
-  if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',kingSyncSave); }
+  if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',function(){ kingSyncSave(); renderKingCreateSuggest(); }); }
+  var usedEl=document.getElementById('king_used');                   // ITEM 2d (v34): surface the model's payoff at the moment it matters
+  if(usedEl){
+    if(isEdit){
+      var used=(savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kingEditId; }); }).length;
+      usedEl.textContent=used?('Used in '+used+' saved plate'+(used===1?'':'s')+' \u2014 changing the product updates all of them.')
+                             :'Not used in any saved plates yet.';
+      usedEl.style.display='block';
+    } else usedEl.style.display='none';
+  }
   kingSyncSave();
   show('kingModal');
 }
@@ -1076,6 +1201,7 @@ function deleteKitchenIngredient(kid){
 (function(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('kingNew',function(){ openKingModal(null); });
+  on('kingWizBtn',toggleKingWizard);
   on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
@@ -1148,7 +1274,7 @@ function trendChart(){
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<button class="ref-pill" id="dashCogsBtn" type="button" title="Edit target">Target '+cogsPct+'% \u270e</button>'
+    +'<span class="ref-pill ref-pill-static">Target '+cogsPct+'%</span>'   // ITEM 3 (v33): read-only marker; the target is edited in the Menu section
     +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';
 }
 function highlightData(kind){
@@ -1193,7 +1319,6 @@ function renderDashboard(){
     +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
-  var cb=document.getElementById('dashCogsBtn'); if(cb) cb.onclick=openCogsModal;
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
   (function wireTrendTip(){                                          // one tooltip at a time; tap point (mobile) or hover (desktop)
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
@@ -1214,7 +1339,6 @@ function renderDashboard(){
     function nearestDot(clientX){ var best=null,bd=1e9; dots.forEach(function(d){ var r=d.getBoundingClientRect(); var cx=r.left+r.width/2; var dd=Math.abs(cx-clientX); if(dd<bd){bd=dd;best=d;} }); return best; }
     var scrubbing=false;
     svg.addEventListener('pointerdown', function(e){                 // press anywhere on the chart, slide between points
-      if(e.target.closest && e.target.closest('.ref-pill')) return; // the Target pill keeps its own tap
       scrubbing=true; try{ svg.setPointerCapture(e.pointerId); }catch(_){ }
       e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d);
     });
@@ -1233,10 +1357,9 @@ function renderDashboard(){
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
-  on('cogsModalSave',saveCogsModal); on('cogsModalCancel',function(){hide('cogsModal');}); on('cogsModalClose',function(){hide('cogsModal');});
   on('hlClose',function(){hide('hlModal');}); on('hlDone',function(){hide('hlModal');});
   on('invIntroX',function(){ try{localStorage.setItem('ezInvIntroDismissed','1');}catch(e){} var el=document.getElementById('invIntro'); if(el)el.style.display='none'; });
-  ['ingModal','cogsModal','hlModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });
+  ['ingModal','hlModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });
 })();
 
 restoreLastTab();                                          // safe now: all module data (priceHistory, savedPlates, MENU) is initialised
@@ -1975,6 +2098,7 @@ function expandNewItem(i){
      +'<label>Unit type<select id="ni_unit'+i+'"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
      +'<label>Price per unit ($)<input id="ni_price'+i+'" type="number" min="0" step="0.01" value="'+pv+'"></label>'
      +'<label>Pack size (optional)<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
+     +'<label>Kitchen name (optional)<input id="ni_king'+i+'" type="text" value="'+esc(proposeKingName({description:r.name}))+'" placeholder="what the kitchen calls it"></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
     panel.dataset.built='1';
     var _nc=panel.querySelector('.ni-close'); if(_nc){ _nc.onclick=function(ev){ ev.preventDefault(); closeNewItem(i); }; }
@@ -1989,17 +2113,8 @@ function expandNewItem(i){
 function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
-  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; }         /* dismissing the form = this line is neither new nor matched (skip) */
-  var tr=document.querySelector('tr.inv-data[data-i="'+i+'"]');
-  if(tr){
-    var sel=tr.querySelector('.invSel');
-    if(sel){ sel.style.display=''; sel.value='skip'; }              /* bring the match dropdown back so they can pick a product instead */
-    var old=tr.querySelector('.invOld'); if(old) old.textContent='\u2014';
-    var cf=tr.querySelector('.conf'); if(cf && r) cf.textContent=(Math.round((r.conf||0)*100))+'%';
-    var ap=tr.querySelector('.invAppr'); if(ap) ap.checked=false;   /* nothing saved from this line until they choose */
-    var btn=tr.querySelector('.ni-add-btn');
-    if(btn){ btn.classList.remove('open'); btn.textContent = sel ? '+ New' : '+ Add as New Item'; }
-  }
+  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; }   /* dismissing the form = this line is neither new nor matched (skip) */
+  renderInvReview();                                               /* ITEM 1 (v33): single render path rebuilds the row (dropdown back to "assign manually", labelled dashes, unticked) */
 }
 function invUnitToBase(unitType){
   if(unitType==='kg') return {base_unit:'g', cost_basis:'$/g', div:1000};
@@ -2022,7 +2137,8 @@ function collectNewItem(i){
   var sup=resolveCombo('ni_sup'+i, prodSuppliers); if(!sup.ok) return fail('\u201c'+sup.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d to confirm.');
   var ub=invUnitToBase(unitType);
   return {name:name, brand:br.value||null, category:cat.value, supplier:sup.value||null,
-          base_unit:ub.base_unit, cost_basis:ub.cost_basis, cpbu:price/ub.div, pack_size_raw:pack||null};
+          base_unit:ub.base_unit, cost_basis:ub.cost_basis, cpbu:price/ub.div, pack_size_raw:pack||null,
+          kingName:(g('ni_king'+i)||null)};
 }
 /* ---- review table ---- */
 function invMatchOptions(r){
@@ -2035,6 +2151,17 @@ function invMatchOptions(r){
   }
   html+='<optgroup label="All products">'+prodOptions(r.addNew?null:r.bestId)+'</optgroup>';
   return html;
+}
+function tierOf(cov){ return cov>=0.6?'hi':(cov>=0.3?'mid':'lo'); }  // same thresholds buildInvRows uses
+/* ITEM 1 (v33): the Confidence cell's value. A manual pick is NOT missing data — if the chosen
+   product is one of the ranked candidates we show its coverage; otherwise we show a labelled
+   'manual' token. Never a bare, unexplained dash on a row that has a product. */
+function invDisplayConf(r){
+  if(r.addNew || !r.bestId) return {tier:'none', label:'\u2014', has:false};
+  if(!r.manualPick) return {tier:(r.tier||'lo'), label:Math.round((r.conf||0)*100)+'%', has:true};
+  var cand=(r.cands||[]).filter(function(c){return c.id===r.bestId;})[0];
+  if(cand){ var pc=Math.round(cand.coverage*100); return {tier:tierOf(cand.coverage), label:pc+'%', has:true}; }
+  return {tier:'manual', label:'manual', has:true};
 }
 function invRowState(r){                                            // ITEM 4: single source of truth — the summary and the cards must never disagree
   if(r.addNew) return 'new';
@@ -2087,7 +2214,7 @@ function renderInvReview(){
       priceCell+='<div class="flag-review pt-explain">'+esc(msg)+'</div>';   // raw invoice line removed (was clutter); logged to console for debugging
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
-    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?'':(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));
+    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price jump \u2014 check</span>':''):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal
     var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
@@ -2101,10 +2228,13 @@ function renderInvReview(){
       ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
       : '<div class="match-cell">'+chips+'<select class="invSel">'+invMatchOptions(r)+'</select>'
         +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
-    var oldCell = (r.manualPick||!r.bestId) ? '<td class="num invOld'+(r.manualPick?' blank':'')+'">\u2014</td>'
-                                            : '<td class="num invOld">'+dispPrice(byId[r.bestId])+'</td>';
-    var confCell = r.manualPick ? '<td class="num blank"><span class="conf">\u2014</span></td>'
-                                : '<td class="num"><span class="conf '+r.tier+'">'+(r.addNew?'\u2014':conf+'%')+'</span></td>';
+    // ITEM 1 (v33): a matched row — auto OR manual — always shows the linked product's current price and a real confidence.
+    // Only a row with no product shows a dash, and it keeps its mobile label so the line never silently vanishes.
+    var oldCell = (r.bestId && byId[r.bestId])
+      ? '<td class="num invOld">'+dispPrice(byId[r.bestId])+'</td>'
+      : '<td class="num invOld dash">\u2014</td>';
+    var dc=invDisplayConf(r);
+    var confCell = '<td class="num'+(dc.has?'':' dash')+'"><span class="conf '+dc.tier+'">'+dc.label+'</span></td>';
     html+='<tr class="inv-data'+rc+(r.needsAttention?' needs-attention':'')+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
       '<td class="num">'+priceCell+'</td>'+
@@ -2114,7 +2244,7 @@ function renderInvReview(){
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
     html+='<tr class="ni-row" data-ni="'+i+'" style="display:none"><td colspan="6"><div class="ni-panel"></div></td></tr>';
   });
-  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Nothing is saved until you press Confirm All. Only ticked rows are written.</span></div>';
+  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Only ticked rows are saved when you tap Confirm All.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
   box.querySelectorAll('.invPrice').forEach(function(inp){                 // ITEM 7 root cause: editing the price never recomputed needs-attention, so a clearly-different price failed to turn red
@@ -2155,25 +2285,22 @@ function renderInvReview(){
     var q=pt.querySelector('.invPackQty'); if(q) q.focus();
   }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
-    var tr=ch.closest('tr'); if(!tr) return;
+    var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
     var sel=tr.querySelector('.invSel'); if(!sel) return;
     sel.value=ch.getAttribute('data-cid');
-    invSelChanged(tr);                                             // same bookkeeping as picking from the dropdown
-    tr.querySelectorAll('.cand-chip').forEach(function(c){ c.classList.toggle('sel', c===ch); });
-    var ap=tr.querySelector('.invAppr'); if(ap) ap.checked=true;   // they actively chose it — approve the line
+    invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
+    var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
+    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=true;        // they actively chose it — approve the line
   }; });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
     if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */
-    if(r){ r.addNew=true; r.bestId=null; }                          /* reject any prior match, this line becomes a new item */
-    if(tr){
-      var sel=tr.querySelector('.invSel'); if(sel){ sel.style.display='none'; sel.value='skip'; }
-      var old=tr.querySelector('.invOld'); if(old) old.textContent='\u2014';
-      var cf=tr.querySelector('.conf'); if(cf) cf.textContent='\u2014';
-    }
-    expandNewItem(i);
-    var ap=tr?tr.querySelector('.invAppr'):null; if(ap) ap.checked=true;
-    b.classList.add('open'); b.textContent='Editing new item \u2193';
+    if(r){ r.addNew=true; r.bestId=null; r.manualPick=false; }      /* reject any prior match, this line becomes a new item */
+    renderInvReview();                                              /* ITEM 1 (v33): single path — row becomes "new", Old/Conf render as labelled dashes */
+    expandNewItem(i);                                              /* then open the form on the freshly-rendered row */
+    var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');
+    var fb=fresh&&fresh.querySelector('.ni-add-btn'); if(fb){ fb.classList.add('open'); fb.textContent='Editing new item \u2193'; }
+    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=true;
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
   updateLastImport();
@@ -2195,11 +2322,11 @@ function invSelChanged(tr){
   var i=parseInt(tr.dataset.i,10), r=invRows[i]; if(!r) return;
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
   r.addNew=false; collapseNewItem(i);
-  if(sel.value==='skip'){ r.bestId=null; r.needsAttention=false; if(old)old.textContent='\u2014'; if(appr)appr.checked=false; renderInvReview(); return; }
+  if(sel.value==='skip'){ r.bestId=null; r.manualPick=false; r.needsAttention=false; renderInvReview(); return; }  // one render path — no per-cell poking
   // switching the matched product: throw away any half-done pack-teach state and resolve cleanly for the NEW product
   r.remembered=false; r.unitMismatch=false; r.needManual=(r.unitPrice==null); r.taughtQty=null; r.taughtUnit=null; r.packTaught=false; r.unit=(r.rawUnit||r.unit||'auto');
   r.bestId=sel.value;
-  r.manualPick=true;                                             // ITEM 6: user chose a different product -> the auto-match confidence + old price are stale, blank them
+  r.manualPick=true;                                             // ITEM 1 (v33): flags the confidence SOURCE (show this pick's coverage, or "manual") — it no longer blanks anything
   var np=byId[sel.value];
   var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
   resolveMatchedPrice(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match
@@ -2226,7 +2353,7 @@ function applyInvoice(){
     if(r.addNew){ var s=collectNewItem(i); if(!s){ ok=false; } else specs[i]=s; }
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
-  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget();
+  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0;
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
@@ -2237,6 +2364,7 @@ function applyInvoice(){
         item_type:null, search_aliases:[], base_unit:s.base_unit, cost_per_base_unit:s.cpbu,
         cost_basis:s.cost_basis, is_food:true, pack_size_raw:s.pack_size_raw, sold_by:null,
         current_price_exgst:null, supplier:s.supplier});
+      if(s.kingName && !kingNameExists(s.kingName)){ kitchenIngredients.push({id:nextKid(), name:s.kingName, pid:id}); kingsMade++; }   // ITEM 2c (v34): one optional field -> the kitchen word arrives already linked (pushed now so nextKid can't collide)
       added++;
     } else {
       var pid=r.bestId; if(!pid) return; var p=byId[pid]; if(!p) return;
@@ -2266,11 +2394,12 @@ function applyInvoice(){
     }
   });
   if(priceChanges.length) saveIngLog();
+  if(kingsMade){ saveKitchenIngredients(); renderKitchenPanel(); }   // ITEM 2c (v34): one write for every kitchen word created by this import
   if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
   var overAfter=dishesOverTarget();
   if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
-  var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added');
+  var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added'); if(kingsMade)parts.push(kingsMade+' kitchen word'+(kingsMade===1?'':'s')+' created');
   closeInv();                                                     // stay on whatever tab the user imported from
   if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter); }
   else toast('No changes to save');
