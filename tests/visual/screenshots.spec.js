@@ -14,7 +14,7 @@
  */
 const { test, expect } = require('@playwright/test');
 
-const TABS = ['dashboard', 'builder', 'ingredients', 'analysis'];
+const TABS = ['dashboard', 'builder', 'pantry', 'ingredients', 'analysis'];
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
   { name: 'desktop', width: 1280, height: 900 },
