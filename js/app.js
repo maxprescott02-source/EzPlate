@@ -17,14 +17,15 @@ function setSync(state){
   if(state==='ok'){ el.__t=setTimeout(function(){ el.hidden=true; }, 1400); }
 }
 function online(){ return !!SUPA && navigator.onLine; }
+function errText(err){ return (err && (err.message||err.error_description||err.error||err.details||err.hint||err.code)) || 'unknown error'; }
 function pushWrite(builder, label){
   if(!SUPA) return;                                  // no client configured
   if(!navigator.onLine){ setSync('offline'); return; }
   setSync('saving');
   Promise.resolve().then(builder).then(function(res){
-    if(res && res.error){ console.error('[sync] '+label+' failed:', res.error); setSync('error'); }
+    if(res && res.error){ console.error('[sync] '+label+' failed:', res.error); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(res.error)); }
     else { setSync('ok'); }
-  }).catch(function(e){ console.error('[sync] '+label+' error:', e); setSync('error'); });
+  }).catch(function(e){ console.error('[sync] '+label+' error:', e); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); });
 }
 
 /* row mappers */
@@ -38,14 +39,14 @@ function ingredientToRow(p){ return {
   supplier:p.supplier||null,
   pack_qty:(p.pack_qty==null?null:p.pack_qty), pack_unit:p.pack_unit||null,
   is_custom:!BASE_IDS.has(p.id) }; }
-function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), photoUrl:(r.photo_url||null), sourcePlateId:(r.source_plate_id||null)}; }
-function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[], photoUrl:(r.photo_url||null)}; }
+function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), sourcePlateId:(r.source_plate_id||null)}; }
+function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, lines:Array.isArray(r.lines)?r.lines:[]}; }
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
-function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), photo_url:(item.photoUrl||null), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
+function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
 function dbUpsertMenuRecord(m){ pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
-function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[], photo_url:(sp.photoUrl||null)}); }, 'plate'); }
+function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
@@ -210,7 +211,6 @@ function createIngredientFromSearch(q){                               // "+ Crea
   openKingModal(null);
   var nameEl=document.getElementById('king_name'); if(nameEl){ nameEl.value=(q||'').trim(); nameEl.dispatchEvent(new Event('input')); }
   kingAddToPlateOnSave=true;                                          // consumed once by saveKingModal (create path)
-  var prodEl=document.getElementById('king_prod'); if(prodEl) prodEl.focus();
 }
 function renderDrop(){
   const q=qEl.value;
@@ -422,7 +422,7 @@ function initAddCombos(){
   makeInlineCombo('f_sup','f_supDrop',prodSuppliers);
   makeInlineCombo('f_category','f_categoryDrop',prodCategories);
 }
-function openModal(){initAddCombos();updateAddCalc();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.getElementById('f_desc').focus();}
+function openModal(){initAddCombos();updateAddCalc();modal.classList.add('open');modal.setAttribute('aria-hidden','false');}
 function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
 function clearForm(){['f_desc','f_brand','f_sup','f_category','f_packsize','f_price'].forEach(id=>{var e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('f_food').checked=true;document.getElementById('f_packunit').value='kg';updateAddCalc();document.getElementById('ferr').style.display='none';}
@@ -746,7 +746,7 @@ function logHistory(){
 }
 
 /* ---------- shared COGS editor (used by Menu Analysis + Dashboard) ---------- */
-function openCogsModal(){ var i=document.getElementById('cogsModalInput'); if(i)i.value=cogsPct; show('cogsModal'); if(i){i.focus();i.select();} }
+function openCogsModal(){ var i=document.getElementById('cogsModalInput'); if(i)i.value=cogsPct; show('cogsModal'); }
 function saveCogsModal(){ var i=document.getElementById('cogsModalInput'); var v=parseFloat(i?i.value:''); if(v>=1&&v<=99){ setCogs(v,true); var ci=document.getElementById('cogsTarget'); if(ci)ci.value=cogsPct; renderDashboard(); hide('cogsModal'); } }
 
 /* ---------- supplier extraction from invoice header (Feature 1) ---------- */
@@ -889,7 +889,7 @@ function openIngEdit(id){
   var puSel=document.getElementById('ig_packUnit');
   if(puSel && !puSel.__wired){ puSel.__wired=true; puSel.addEventListener('change', syncIgUnitFromPack); }
   var uSel=document.getElementById('ig_unit'); var lp=document.getElementById('ig_pricePer'); if(lp&&uSel) lp.textContent=igPriceSuffix();
-  show('ingModal'); document.getElementById('ig_name').focus();
+  show('ingModal');
 }
 function packUnitToIgUnit(pu){ pu=(pu||'').toLowerCase(); return pu==='ea'?'unit':pu==='kg'?'kg':pu==='g'?'g':pu==='l'?'litre':pu==='ml'?'ml':null; }
 function syncIgUnitFromPack(){                                        // when a pack unit is chosen, make the *displayed* unit match it
@@ -1032,7 +1032,7 @@ function openKingModal(kid){
   }
   if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',kingSyncSave); }
   kingSyncSave();
-  show('kingModal'); (isEdit?prodEl:nameEl).focus();
+  show('kingModal');
 }
 function closeKingModal(){ hide('kingModal'); kingEditId=null; kingChosenPid=null; kingAddToPlateOnSave=false; }
 function saveKingModal(){
@@ -1080,106 +1080,6 @@ function deleteKitchenIngredient(kid){
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
 
-/* ============================================================
-   Feature 2 — plating photos (attach to the SAVED PLATE / recipe)
-   Bucket 'plate-photos', column photo_url on the plate record.
-   ============================================================ */
-var PHOTO_BUCKET='plate-photos';
-var PHOTO_MAX_BYTES=25*1024*1024;                                     // reject absurd inputs before we even try to decode
-function currentSavedPlate(){ return loadedPlateId ? savedPlates.find(function(s){return s.id===loadedPlateId;}) : null; }
-function paintPhotoSlot(slot, sp, isLg){
-  if(!slot) return;
-  if(sp.photoUrl){
-    var url=sp.photoUrl+(sp.photoUrl.indexOf('?')<0?'?t=':'&t=')+(sp.photoStamp||'');   // cache-bust: upsert reuses the filename
-    slot.className=isLg?'plate-photo-lg':'plate-photo';
-    slot.innerHTML='<img src="'+esc(url)+'" alt="Plating photo" loading="lazy">';
-  } else {
-    slot.className=(isLg?'plate-photo-lg':'plate-photo')+' empty';
-    slot.innerHTML=isLg?'\uD83D\uDCF7<span class="pp-lg-label">Add a plating photo</span>':'\uD83D\uDCF7';
-  }
-}
-function renderPlatePhotoSlot(){                                      // paints BOTH the inline (mobile) and card (desktop) slots from one plate state
-  var slot=document.getElementById('platePhotoSlot');
-  var slotLg=document.getElementById('platePhotoSlotLg');
-  var panel=document.getElementById('photoPanel');
-  var sp=currentSavedPlate();
-  if(!sp){                                                            // no photo affordance until a plate is saved/loaded
-    if(slot) slot.style.display='none';
-    if(panel) panel.classList.remove('has-plate');
-    return;
-  }
-  if(slot){ slot.style.display=''; paintPhotoSlot(slot, sp, false); }
-  if(panel) panel.classList.add('has-plate');                          // CSS shows the panel only ≥1024px
-  if(slotLg) paintPhotoSlot(slotLg, sp, true);
-}
-function onPlatePhotoTap(){
-  var sp=currentSavedPlate(); if(!sp){ toast('Save the plate first, then add a photo'); return; }
-  if(!SUPA || !navigator.onLine){ toast('Photos need a connection'); return; }
-  var inp=document.getElementById('platePhotoInput'); if(inp) inp.click();
-}
-function resizeToBlob(file, cb){                                       // draw to canvas, long edge <= 1200px, JPEG q0.8
-  var img=new Image(), url=URL.createObjectURL(file);
-  img.onload=function(){
-    var w=img.naturalWidth, h=img.naturalHeight, MAX=1200;
-    var scale=Math.min(1, MAX/Math.max(w,h));
-    var cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
-    var cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
-    cv.getContext('2d').drawImage(img,0,0,cw,ch);
-    URL.revokeObjectURL(url);
-    cv.toBlob(function(blob){ cb(blob, cw, ch); }, 'image/jpeg', 0.8);
-  };
-  img.onerror=function(){ URL.revokeObjectURL(url); cb(null, 0, 0, 'decode'); };   // most often an iPhone HEIC on a browser that can't decode it
-  img.src=url;
-}
-function photoBusy(on){ ['platePhotoSlot','platePhotoSlotLg'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.toggle('uploading', !!on); }); }
-function errText(err){ return (err && (err.message||err.error_description||err.error||err.statusCode||err.name)) || 'unknown error'; }
-async function handlePlatePhotoFile(file){
-  var sp=currentSavedPlate(); if(!sp || !file) return;
-  if(!SUPA || !navigator.onLine){ toast('Photos need a connection'); return; }
-  if(file.size && file.size>PHOTO_MAX_BYTES){ toast('That image is very large ('+Math.round(file.size/1048576)+' MB). Try a smaller one or a screenshot.'); return; }
-  photoBusy(true);
-  var settled=false;
-  var timer=setTimeout(function(){ if(settled) return; settled=true; photoBusy(false); toast('Photo timed out \u2014 check your connection and try again'); }, 30000);
-  var done=function(){ if(settled) return true; settled=true; clearTimeout(timer); photoBusy(false); return false; };
-  resizeToBlob(file, async function(blob, cw, ch, reason){
-    if(!blob){
-      if(done()) return;
-      if(reason==='decode') toast('Couldn\u2019t read that image. If it\u2019s an iPhone HEIC file, screenshot it or save as JPEG first.');
-      else toast('Could not read that image');
-      return;
-    }
-    try{
-      var path=sp.id+'.jpg';
-      var up=await SUPA.storage.from(PHOTO_BUCKET).upload(path, blob, {upsert:true, contentType:'image/jpeg'});
-      if(up && up.error) throw up.error;                              // storage rejected (bucket missing / RLS) -> surfaced below
-      var pub=SUPA.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-      var url=(pub && pub.data && pub.data.publicUrl) ? pub.data.publicUrl : null;
-      if(!url) throw new Error('no public URL returned');
-      // write the plate row FIRST and check it — a missing photo_url column fails here, and we must not claim success
-      var wr=await SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[], photo_url:url});
-      if(wr && wr.error) throw wr.error;
-      sp.photoUrl=url; sp.photoStamp=Date.now();
-      savePlatesLS();
-      if(done()) return;
-      renderPlatePhotoSlot();
-      if(typeof renderAnalysis==='function') renderAnalysis();         // menu thumbs pick it up
-      toast('Photo added');
-    }catch(err){
-      console.error('[photo] upload failed:', err);
-      if(done()) return;
-      toast('Photo upload failed: '+errText(err));                    // the real reason, so Max can paste it back if setup is incomplete
-    }
-  });
-}
-(function(){
-  var inp=document.getElementById('platePhotoInput');
-  ['platePhotoSlot','platePhotoSlotLg'].forEach(function(id){
-    var el=document.getElementById(id); if(!el) return;
-    el.addEventListener('click', onPlatePhotoTap);
-    el.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onPlatePhotoTap(); } });
-  });
-  if(inp){ inp.addEventListener('change', function(){ var f=inp.files&&inp.files[0]; if(f) handlePlatePhotoFile(f); inp.value=''; }); }
-})();
 
 /* ============================================================
    Feature 2 — Dashboard
@@ -1406,7 +1306,6 @@ function updateEditTag(){
     else t.style.display='none';
   }
   updatePublishLabel();
-  if(typeof renderPlatePhotoSlot==='function') renderPlatePhotoSlot();
 }
 function updatePublishLabel(){
   var t=document.getElementById('addMenuTitle'), s=document.getElementById('addMenuSub'); if(!t)return;
@@ -1589,7 +1488,7 @@ function openMenuModal(){
   catState.chosen=item?item.section:null; catState.chosenIsNew=false;
   document.getElementById('mi_catDrop').style.display='none'; document.getElementById('mi_catNew').style.display='none';
   document.getElementById('mi_err').style.display='none';
-  show('menuModal'); document.getElementById('mi_name').focus();
+  show('menuModal');
 }
 function closeMenuModal(){hide('menuModal');}
 function submitMenuItem(){
@@ -1612,11 +1511,11 @@ function submitMenuItem(){
   if(publishTargetId){
     targetId=publishTargetId;
     var prevItem=menuById[targetId]||{};
-    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:(prevItem.photoUrl||null),sourcePlateId:(prevItem.sourcePlateId||null)});
+    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:(prevItem.sourcePlateId||null)});
   } else {
     targetId='um'+Date.now().toString(36);
-    customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,photoUrl:null,sourcePlateId:null});
-    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,photoUrl:null,sourcePlateId:null});
+    customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:null});
+    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,sourcePlateId:null});
   }
   rebuildMenu(); buildMenuOptions();
   setCurrentMenuId(chosenMenu); buildMenuSelector();          // show the menu this dish landed in
@@ -2202,18 +2101,31 @@ function renderInvReview(){
       ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
       : '<div class="match-cell">'+chips+'<select class="invSel">'+invMatchOptions(r)+'</select>'
         +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
+    var oldCell = (r.manualPick||!r.bestId) ? '<td class="num invOld'+(r.manualPick?' blank':'')+'">\u2014</td>'
+                                            : '<td class="num invOld">'+dispPrice(byId[r.bestId])+'</td>';
+    var confCell = r.manualPick ? '<td class="num blank"><span class="conf">\u2014</span></td>'
+                                : '<td class="num"><span class="conf '+r.tier+'">'+(r.addNew?'\u2014':conf+'%')+'</span></td>';
     html+='<tr class="inv-data'+rc+(r.needsAttention?' needs-attention':'')+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
       '<td class="num">'+priceCell+'</td>'+
       '<td>'+matchCell+'</td>'+
-      '<td class="num invOld">'+(r.bestId?dispPrice(byId[r.bestId]):'\u2014')+'</td>'+
-      '<td class="num"><span class="conf '+r.tier+'">'+(r.addNew?'\u2014':conf+'%')+'</span></td>'+
+      oldCell+
+      confCell+
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
     html+='<tr class="ni-row" data-ni="'+i+'" style="display:none"><td colspan="6"><div class="ni-panel"></div></td></tr>';
   });
   html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Nothing is saved until you press Confirm All. Only ticked rows are written.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
+  box.querySelectorAll('.invPrice').forEach(function(inp){                 // ITEM 7 root cause: editing the price never recomputed needs-attention, so a clearly-different price failed to turn red
+    inp.addEventListener('change', function(){
+      var tr=inp.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10); var r=invRows[i]; if(!r) return;
+      var v=parseFloat(inp.value); r.unitPrice=(!isNaN(v)&&v>=0)?v:null;
+      if(r.bestId && byId[r.bestId] && (!r.unit || r.unit==='auto')){ var b=byId[r.bestId].base_unit; r.unit=(b==='g'?'kg':b==='ml'?'l':'ea'); }
+      r.needManual=(r.unitPrice==null && !r.packTaught);
+      renderInvReview();                                                   // full repaint so the red state, summary counts and Apply tick all stay consistent (fires on blur, not per keystroke)
+    });
+  });
   box.querySelectorAll('.pack-teach').forEach(function(pt){
     function recompute(){
       var tr=pt.closest('tr'); if(!tr) return; var i=parseInt(pt.getAttribute('data-i'),10); var r=invRows[i]; if(!r) return;
@@ -2287,6 +2199,7 @@ function invSelChanged(tr){
   // switching the matched product: throw away any half-done pack-teach state and resolve cleanly for the NEW product
   r.remembered=false; r.unitMismatch=false; r.needManual=(r.unitPrice==null); r.taughtQty=null; r.taughtUnit=null; r.packTaught=false; r.unit=(r.rawUnit||r.unit||'auto');
   r.bestId=sel.value;
+  r.manualPick=true;                                             // ITEM 6: user chose a different product -> the auto-match confidence + old price are stale, blank them
   var np=byId[sel.value];
   var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
   resolveMatchedPrice(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match
@@ -2400,11 +2313,9 @@ function costRangeCell(m, cost){                                     // ITEM 3: 
   if(r.max-r.min < 0.005) return '';
   return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
 }
-function aRow(name,a,m,actions,sp){
+function aRow(name,a,m,actions){
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
-  var pl=sp||(m?plateForMenuItem(m):null);
-  var thumb=(pl&&pl.photoUrl)?'<img class="mi-thumb" loading="lazy" src="'+esc(pl.photoUrl+(pl.photoUrl.indexOf('?')<0?'?t=':'&t=')+(pl.photoStamp||''))+'" alt="">':'';
-  return '<tr><td>'+thumb+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
+  return '<tr><td>'+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num"><span class="tip">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'<span class="tipbox">'+esc(tipText(a))+'</span></span></td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
@@ -2435,7 +2346,7 @@ function renderAnalysis(){
     items.forEach(function(m){
       shown++;
       var sp=byMenu[m.id]||(m.sourcePlateId?savedPlates.find(function(s){return s.id===m.sourcePlateId;}):null);
-      if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m, undefined, sp); }
+      if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }
       else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
         html+='<tr class="muted"><td>'+esc(m.name)+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
@@ -2443,7 +2354,7 @@ function renderAnalysis(){
   var custShown=(currentMenuId==='MENU_ORIGINAL')?customsP.filter(function(sp){ return hit(sp.name||'Custom plate','Custom plates'); }):[];   // orphan plates live on the home menu
   if(custShown.length){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
-    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp), sp); });
+    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
   }
   if(!shown){ html='<tr class="an-empty"><td colspan="6">No menu items match \u201c'+esc(q)+'\u201d.</td></tr>'; }
   tb.innerHTML=html; bindTips();
@@ -2516,7 +2427,7 @@ function openAddDishModal(){
   var s=document.getElementById('ad_search'); if(s) s.value='';
   var p=document.getElementById('ad_price'); if(p) p.value='';
   var e=document.getElementById('ad_err'); if(e) e.style.display='none';
-  renderDishPicker(''); show('addDishModal'); if(s) s.focus();
+  renderDishPicker(''); show('addDishModal');
 }
 function closeAddDishModal(){ hide('addDishModal'); }
 function submitAddDish(){
@@ -2528,7 +2439,7 @@ function submitAddDish(){
   var srcMi=(sp.menuId&&menuById[sp.menuId])?menuById[sp.menuId]:null;
   var section=srcMi&&srcMi.section?srcMi.section:'Uncategorised';
   var id='um'+Date.now().toString(36);
-  var item={id:id, section:section, name:(srcMi?srcMi.name:sp.name)||'Dish', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, photoUrl:(srcMi?srcMi.photoUrl:null)||null, sourcePlateId:sp.id};
+  var item={id:id, section:section, name:(srcMi?srcMi.name:sp.name)||'Dish', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, sourcePlateId:sp.id};
   customMenu.push(item); saveCustomMenu(); dbPushMenu(item);
   rebuildMenu(); buildMenuOptions(); renderAnalysis(); closeAddDishModal();
   toast('\u201c'+item.name+'\u201d added to '+menuNameById(currentMenuId));
@@ -2537,7 +2448,7 @@ function openNewMenuModal(){
   var n=document.getElementById('nm_name'); if(n)n.value='';
   var s=document.getElementById('nm_season'); if(s)s.value='';
   var e=document.getElementById('nm_err'); if(e)e.style.display='none';
-  show('newMenuModal'); if(n)n.focus();
+  show('newMenuModal');
 }
 function closeNewMenuModal(){ hide('newMenuModal'); }
 function submitNewMenu(){
@@ -2642,7 +2553,7 @@ function openMenuEdit(id){
   var nn=document.getElementById('ed_catNew'); if(nn)nn.style.display='none';
   document.getElementById('ed_err').style.display='none';
   var del=document.getElementById('ed_delete'); if(del) del.textContent='Delete item';
-  show('editModal'); document.getElementById('ed_name').focus();
+  show('editModal');
 }
 function closeEdit(){ hide('editModal'); editTargetId=null; edDelArmed=false; edRestoreMode=false; editKind='menu'; }
 function resolveEditCat(){
@@ -2665,7 +2576,7 @@ function saveMenuEdit(){
   if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d from the list to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
   var price=parseFloat(priceV);
   var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:(m.menuId||'MENU_ORIGINAL');
-  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, photoUrl:(m.photoUrl||null),sourcePlateId:(m.sourcePlateId||null)});   // saves all edits at once
+  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, sourcePlateId:(m.sourcePlateId||null)});   // saves all edits at once
   var touched=false;                                                          // keep any linked plate's name in sync with the rename
   savedPlates.forEach(function(sp){ if(sp.menuId===id && sp.name!==name){ sp.name=name; dbPushPlate(sp); touched=true; } });
   if(touched) savePlatesLS();
@@ -2723,7 +2634,7 @@ function openPlateEdit(pid){
   var d=document.getElementById('ed_catDrop'); if(d)d.style.display='none';
   var nn=document.getElementById('ed_catNew'); if(nn)nn.style.display='none';
   document.getElementById('ed_err').style.display='none';
-  show('editModal'); document.getElementById('ed_name').focus();
+  show('editModal');
 }
 function onEditSave(){
   if(editKind==='plate'){ if(edRestoreMode) savePlateRestore(); else savePlateRename(); return; }
@@ -2747,7 +2658,6 @@ function editRestoreToMenu(){
   var save=document.getElementById('editSave'); if(save)save.textContent='Restore to menu';
   var title=document.getElementById('editTitle'); if(title)title.textContent='Restore plate to menu';
   var err=document.getElementById('ed_err'); if(err){ err.textContent='Choose a category and sell price, then Restore to menu.'; err.style.display='block'; }
-  document.getElementById('ed_price').focus();
 }
 function savePlateRestore(){
   var id=editTargetId, err=document.getElementById('ed_err');
@@ -2892,11 +2802,19 @@ function chooseCat(name,isNew){
   if(!('ontouchstart' in window)) return;                            // touch devices only
   var ind=document.createElement('div');
   ind.className='ptr-ind'; ind.setAttribute('aria-hidden','true');
-  ind.innerHTML='<span class="ptr-spin"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6" opacity="0.25"/><path d="M 32 17.5 A 14.5 14.5 0 0 1 40.52 43.73" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg></span>';
+  // two stacked layers: a static faint ring + the orange arc that spins on its own (Item 14)
+  ind.innerHTML='<span class="ptr-spin">'
+    +'<svg class="ptr-ring" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6" opacity="0.25"/></svg>'
+    +'<svg class="ptr-arc" viewBox="0 0 64 64"><path d="M 32 17.5 A 14.5 14.5 0 0 1 40.52 43.73" fill="none" stroke-width="6" stroke-linecap="round"/></svg>'
+    +'</span>';
   document.body.appendChild(ind);
-  var spin=ind.querySelector('.ptr-spin');
-  var startY=0, armed=false, pulling=false, dist=0, refreshing=false;
-  var THRESH=70, MAXP=90, RES=2.5;
+  var arc=ind.querySelector('.ptr-arc');
+  var main=document.getElementById('appMain');
+  var startY=0, armed=false, pulling=false, raw=0, refreshing=false;
+  var TRIGGER=130;          // RAW finger travel needed — a complete, deliberate drag, not a flick (Item 13)
+  var TOP_ZONE=0.25;        // the gesture must START in the top quarter of the screen (Item 13)
+  var HOLD=64;              // how far the content is held down while the refresh runs
+  var MAXPULL=150;          // cap on raw travel we translate
   function scroller(){ return document.scrollingElement || document.documentElement; }
   function mobile(){ return window.matchMedia && window.matchMedia('(max-width:700px)').matches; }
   function blocked(t){
@@ -2906,47 +2824,91 @@ function chooseCat(name,isNew){
     if(t && t.closest && t.closest('.atable-wrap, .drop, .cat-drop, select, input, textarea, [contenteditable]')) return true;
     return false;
   }
-  function reset(){
-    ind.classList.remove('ready');
-    ind.style.transition='transform .2s ease, opacity .2s ease';
-    ind.style.transform='translateX(-50%) translateY(0)'; ind.style.opacity='0';
-    setTimeout(function(){ ind.style.transition=''; },220);
+  function contentOffset(rawDy){ return Math.min(HOLD, rawDy*0.5); }  // content follows the finger at half-speed (rubber-band feel)
+  function setContent(y, animate){
+    if(main){ main.style.transition = animate?'transform .2s ease':''; main.style.transform = y?('translateY('+y+'px)'):''; }
   }
-  function finish(){ refreshing=false; ind.classList.remove('spinning','ready'); reset(); }
+  function setInd(y, animate){
+    ind.style.transition = animate?'transform .2s ease, opacity .2s ease':'';
+    ind.style.transform='translateX(-50%) translateY('+y+'px)';
+    ind.style.opacity=String(Math.min(1, y/HOLD));
+  }
+  function release(){                                                 // no trigger: ease everything back
+    ind.classList.remove('ready');
+    setInd(0,true); ind.style.opacity='0';
+    setContent(0,true);
+    if(main) setTimeout(function(){ main.style.willChange='auto'; main.style.transition=''; },220);
+  }
+  function finish(){                                                  // refresh done: unhold + spin down
+    refreshing=false; document.body.classList.remove('ptr-active');
+    ind.classList.remove('spinning','ready');
+    setInd(0,true); ind.style.opacity='0';
+    setContent(0,true);
+    if(main) setTimeout(function(){ main.style.willChange='auto'; main.style.transition=''; },220);
+  }
   function trigger(){
     if(refreshing) return; refreshing=true;
+    document.body.classList.add('ptr-active');                        // Item 15: spinner owns the top-centre; sync banner hides
     if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(e){} }
-    ind.classList.add('spinning');
-    ind.style.transition='transform .2s ease';
-    ind.style.transform='translateX(-50%) translateY('+THRESH+'px)'; ind.style.opacity='1';
+    ind.classList.add('spinning'); ind.classList.remove('ready');
+    setInd(HOLD,true);                                                // hold the spinner down in the opened gap
+    setContent(HOLD,true);                                            // and hold the content down until the data comes back
     Promise.resolve(refreshFromCloud()).then(finish, finish);
   }
   window.addEventListener('touchstart', function(e){
-    armed=false; pulling=false;
+    armed=false; pulling=false; raw=0;
     if(e.touches.length!==1 || !mobile()) return;
-    if(scroller().scrollTop>0) return;
+    if(scroller().scrollTop>0) return;                                // must be at the very top
+    if(e.touches[0].clientY > window.innerHeight*TOP_ZONE) return;    // …and the drag must START near the top of the screen (Item 13)
     if(blocked(e.target)) return;
-    armed=true; startY=e.touches[0].clientY; dist=0;
+    armed=true; startY=e.touches[0].clientY;
+    if(main) main.style.willChange='transform';
   }, {passive:true});
   window.addEventListener('touchmove', function(e){
     if(!armed) return;
-    if(scroller().scrollTop>0){ armed=false; reset(); return; }
+    if(scroller().scrollTop>0){ armed=false; release(); return; }
     var dy=e.touches[0].clientY-startY;
     if(dy>0){
       pulling=true;
-      dist=Math.min(MAXP, dy/RES);
-      ind.style.transform='translateX(-50%) translateY('+dist+'px)';
-      ind.style.opacity=String(Math.min(1, dist/THRESH));
-      if(spin) spin.style.transform='rotate('+(dist/THRESH*270)+'deg)';
-      ind.classList.toggle('ready', dist>=THRESH);
+      raw=Math.min(MAXPULL, dy);
+      var y=contentOffset(raw);
+      setContent(y,false); setInd(y,false);
+      if(arc) arc.style.transform='rotate('+(Math.min(1, raw/TRIGGER)*300)+'deg)';
+      ind.classList.toggle('ready', raw>=TRIGGER);
       if(e.cancelable) e.preventDefault();                            // suppress the page rubber-band while pulling
     }
   }, {passive:false});
   window.addEventListener('touchend', function(){
     if(!armed) return; armed=false;
-    if(pulling && dist>=THRESH) trigger(); else reset();
+    if(arc) arc.style.transform='';                                   // hand rotation back to the CSS spin animation
+    if(pulling && raw>=TRIGGER) trigger(); else release();
     pulling=false;
   });
   // expose for headless tests
   window.__ptr={ trigger:trigger, blocked:blocked };
+})();
+
+/* ===== Item 9 — Enter in a single-line modal field commits + drops the keyboard ===== */
+(function(){
+  var EXCLUDE='#q, .invPrice, .invPackQty, [role="combobox"], .cat-wrap input, .search-wrap input';   // combos + inline price edits own their Enter/behaviour
+  // hint the mobile keyboard's return key for the plain single-line fields
+  document.querySelectorAll('.modal input').forEach(function(inp){
+    var ty=(inp.getAttribute('type')||'text').toLowerCase();
+    if(ty==='checkbox'||ty==='radio'||ty==='button'||ty==='submit') return;
+    if(inp.matches(EXCLUDE)) return;
+    if(!inp.hasAttribute('enterkeyhint')) inp.setAttribute('enterkeyhint','done');
+  });
+  // one delegated listener: Enter commits the field (blur) and dismisses the keyboard — never auto-submits the form
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Enter' || e.shiftKey) return;
+    if(e.defaultPrevented) return;                                  // a field-specific handler already dealt with it (#q, nm_name…)
+    var t=e.target;
+    if(!t || t.tagName!=='INPUT') return;                           // textareas keep their normal newline
+    var ty=(t.getAttribute('type')||'text').toLowerCase();
+    if(ty==='checkbox'||ty==='radio'||ty==='button'||ty==='submit') return;
+    if(!t.closest('.modal')) return;                                // only inside popups
+    if(t.matches(EXCLUDE)) return;
+    e.preventDefault();
+    t.blur();
+  });
 })();
