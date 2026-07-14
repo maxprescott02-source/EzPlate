@@ -83,6 +83,8 @@ async function bootstrapSync(){
     if(delP&&Array.isArray(delP.value)){ deletedProdIds=delP.value; saveDeletedProds(); }
     var kiRow=setRows.filter(function(r){return r.key==='kitchen_ingredients';})[0];
     if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; saveKitchenLS(); rebuildKById(); }
+    var kwsRow=setRows.filter(function(r){return r.key==='king_wiz_skips';})[0];                 // ITEM 4 (v35): wizard skips are shared across staff devices
+    if(kwsRow&&Array.isArray(kwsRow.value)){ setKingWizSkips(kwsRow.value); }
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
     ensureDefaultMenu(); saveMenus();
@@ -93,7 +95,9 @@ async function bootstrapSync(){
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
-    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} var ci2=document.getElementById('cogsTarget'); if(ci2)ci2.value=pv; } }
+    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
+    var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
+    if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
     buildMenuOptions(); buildMenuSelector(); renderPlate(); renderAnalysis(); updateLastImport(); updateEditTag();
     setSync('ok'); window.__ezReady=true;
   }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
@@ -503,6 +507,7 @@ function setCogs(pct, persist){
   try{ localStorage.setItem('cafeDB_cogsPct', String(pct)); }catch(e){}
   if(persist) dbSetSetting('food_cost_target', pct);       // shared across devices
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+pct+'%)';
+  if(typeof syncCogsRead==='function') syncCogsRead();     // ITEM 6 (v35): the Menu tab's read-only display follows Settings
   renderAnalysis();
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
@@ -651,8 +656,8 @@ function restoreLastTab(){                                            // return 
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
 }
 (function(){
-  var ci=document.getElementById('cogsTarget');
-  if(ci){ ci.value=cogsPct; ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99) setCogs(v,true); }); }
+  // ITEM 6 (v35): the Menu tab's #cogsTarget input is now a read-only display (#cogsTargetRead);
+  // editing moved to Settings. Nothing to wire here beyond the search controls.
   var ms=document.getElementById('menuSearch'), msc=document.getElementById('menuSearchClear');
   if(ms){ ms.addEventListener('input',function(){ if(msc)msc.style.display=ms.value?'':'none'; renderAnalysis(); }); }
   if(msc){ msc.addEventListener('click',function(){ ms.value=''; msc.style.display='none'; renderAnalysis(); ms.focus(); }); }
@@ -819,7 +824,7 @@ function invSupplierDetect(text){
    Feature 3 — Ingredients page
    ============================================================ */
 /* Item 1C — shared empty-state (icons echo the nav tab icons at large size) */
-var ICON_LEAF_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>';
+var ICON_LEAF_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.2c-4.6 0-8 2.8-8 6.4C4 18.4 7.6 21 12 21s8-2.6 8-6.4c0-3.6-3.4-6.4-8-6.4Z"/><path d="M13.6 3.5C12.4 4.6 12 6 12 8.2"/><path d="M8.3 8.9c1-1.2 2.3-1.5 3.7-.7 1.4-.8 2.7-.5 3.7.7"/></svg>';   /* v36: tomato (was leaf) — matches the tab glyph */
 var ICON_BOX_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
 function emptyStateHtml(icon,title,body,actionsHtml){
   return '<div class="empty-state">'+icon+'<h3>'+esc(title)+'</h3><p>'+esc(body)+'</p>'+(actionsHtml?'<div class="es-actions">'+actionsHtml+'</div>':'')+'</div>';
@@ -932,36 +937,77 @@ function saveIngEdit(){
 /* ============================================================
    Feature 1 (Phase 2) — "My ingredients" panel + create/change/delete
    ============================================================ */
-function kingProductLabel(k){                                        // "→ Chips 10mm Straight Cut Safries · $2.68/kg"
+function kingProductLabel(k){                                        // "Chips 10mm Straight Cut — Safries · $2.68/kg" (v36: arrow dropped, the text is the link)
   var p=byId[k.pid];
-  if(!p) return '\u2192 (product missing)';
-  return '\u2192 '+p.description+(p.brand?' \u2014 '+p.brand:'')+' \u00b7 '+unitCostStr(p);
+  if(!p) return '(product missing)';
+  return p.description+(p.brand?' \u2014 '+p.brand:'')+' \u00b7 '+unitCostStr(p);
 }
+/* ITEM 3 (v35): the pantry filter, kept pure (no DOM) so it can be tested directly.
+   Matches the kitchen word's own name — with the same subseq fallback the Builder
+   search uses, so "chps" still finds "Chips" — OR the description/brand of the
+   product behind it, so searching "safries" finds the word "Chips". */
+function kingSearchFilter(q, words, prods){
+  q=(q||'').trim().toLowerCase();
+  if(!q) return (words||[]).slice();
+  return (words||[]).filter(function(k){
+    if(!k) return false;
+    var nm=(k.name||'').toLowerCase();
+    if(nm.indexOf(q)>=0 || subseq(q,nm)) return true;
+    var p=(prods||{})[k.pid]; if(!p) return false;
+    return (((p.description||'')+' '+(p.brand||'')).toLowerCase().indexOf(q)>=0);
+  });
+}
+var kingQuery='';
 function renderKitchenPanel(){
   var box=document.getElementById('kingList'); if(!box) return;
+  var sw=document.getElementById('kingSearch'); if(sw) kingQuery=sw.value||'';
   if(!kitchenIngredients.length){
-    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet','Ingredients are your kitchen words \u2014 \u201cChips\u201d, \u201cFish\u201d, \u201cTartare\u201d. Each one points at a product you buy, so recipes stay simple and brand swaps take one tap.',
+    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet','Ingredients are your kitchen words \u2014 \u201cChips\u201d, \u201cFish\u201d, \u201cTartare\u201d. Each one links to a product you buy, so recipes stay simple and brand swaps take one tap.',
       '<button class="btn primary" type="button" id="kingEmptyNew">+ New ingredient</button>');
     var b=document.getElementById('kingEmptyNew'); if(b) b.onclick=function(){ openKingModal(null); };
     renderKingProgress();                                            // zero kitchen words + many products is EXACTLY when the wizard matters
     return;
   }
-  var list=kitchenIngredients.slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
+  var list=kingSearchFilter(kingQuery, kitchenIngredients, byId).sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
+  if(!list.length){                                                  // ITEM 3 (v35): there ARE words, the filter just matched none of them
+    box.innerHTML='<div class="empty">No ingredients match</div>';
+    renderKingProgress();                                            // progress counts PRODUCTS, not the filtered view — it stays true
+    return;
+  }
   box.innerHTML=list.map(function(k){
     return '<div class="king-row" data-kid="'+esc(k.id)+'">'
-      +'<span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
-      +'<span class="king-link">'+esc(kingProductLabel(k))+'</span>'
-      +'<span class="king-spacer"></span>'
-      +'<button class="linklike king-change" type="button">Change product</button>'
+      +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
+      +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
+      +'<div class="king-acts">'
+      +'<button class="linklike king-change" type="button">Edit</button>'
       +'<button class="linklike king-del" type="button">Remove</button>'
-      +'</div>';
+      +'</div></div>';
   }).join('');
   box.querySelectorAll('.king-change').forEach(function(b){ b.onclick=function(){ openKingModal(b.closest('.king-row').getAttribute('data-kid')); }; });
   box.querySelectorAll('.king-del').forEach(function(b){ b.onclick=function(){ deleteKitchenIngredient(b.closest('.king-row').getAttribute('data-kid')); }; });
   renderKingProgress();                                              // ITEM 2 (v34): setup progress + wizard entry stay current with the list
 }
 /* ===== ITEM 2 (v34): "Set up from products" — bulk-create kitchen words so setup is fast, incremental, never blocking ===== */
-var kingWizOpen=false, kingWizSkip={}, kingWizLimit=40;
+/* ITEM 4 (v35): skips are PERSISTED and SHARED. Deciding "we never cook with this"
+   is a data decision about the café, not a per-device UI preference, so it rides
+   the same setting + localStorage-mirror path as everything else and reaches every
+   staff phone. The in-memory shape stays a map for O(1) lookups in kingWizGroups;
+   only the stored shape is an array. There are no per-skip confirms by design —
+   speed is the point, and a mis-skip costs two taps to undo. */
+var kingWizOpen=false, kingWizSkip={}, kingWizLimit=40, kingWizShowSkipped=false;
+var KWSKIPKEY='cafeDB_kingWizSkips';
+function kingWizSkipIds(){ return Object.keys(kingWizSkip); }
+function setKingWizSkips(ids){                                        // idempotent: same payload in, same state out
+  var m={}; (ids||[]).forEach(function(id){ if(id) m[id]=1; });
+  kingWizSkip=m;
+  try{ localStorage.setItem(KWSKIPKEY, JSON.stringify(Object.keys(m))); }catch(e){}
+}
+function saveKingWizSkips(){
+  var ids=kingWizSkipIds();
+  try{ localStorage.setItem(KWSKIPKEY, JSON.stringify(ids)); }catch(e){}
+  if(typeof dbSetSetting==='function') dbSetSetting('king_wiz_skips', ids);
+}
+(function(){ try{ var a=JSON.parse(localStorage.getItem(KWSKIPKEY)); if(Array.isArray(a)) setKingWizSkips(a); }catch(e){} })();
 function kingLinkableProducts(){ return PRODUCTS.filter(function(p){ return p && p.description && p.is_food!==false; }); }
 function kingUnlinkedProducts(){
   var linked={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.pid) linked[k.pid]=1; });
@@ -974,11 +1020,46 @@ function proposeKingName(p){                                          // supplie
   return out.slice(0,3).map(function(t){ return t.charAt(0).toUpperCase()+t.slice(1); }).join(' ');
 }
 function kingNameExists(nm){ nm=(nm||'').trim().toLowerCase(); return (kitchenIngredients||[]).some(function(k){ return k && (k.name||'').trim().toLowerCase()===nm; }); }
+/* ITEM 2 (v35): the rename decision, kept pure (no DOM) so it can be tested directly.
+   Excludes the word being edited by id, so re-saving a word under its OWN current name
+   is fine while landing on someone else's name is refused. A rename is never a copy:
+   there is exactly one outcome — the same kid keeps its id and gains a new label. */
+function kingRenameCheck(kid, name, words){
+  name=(name||'').trim();
+  if(!name) return {ok:false, reason:'empty', name:name};
+  var clash=(words||[]).filter(function(k){ return k && k.id!==kid && (k.name||'').trim().toLowerCase()===name.toLowerCase(); })[0];
+  if(clash) return {ok:false, reason:'duplicate', name:name};
+  return {ok:true, name:name};
+}
+function kingWizOutstanding(){                                        // ITEM 4 (v35): what the wizard could still PROPOSE — a skipped product is decided, not outstanding
+  return kingUnlinkedProducts().filter(function(p){ return !kingWizSkip[p.id]; }).length;
+}
+/* ITEM 5 (v35): what an invoice add-as-new line's Kitchen name field MEANS. Pure, so
+   the decision is testable without a live import. v34 read this field as free text and
+   SILENTLY skipped creation when the name already existed — which threw away the most
+   valuable case: the brand swap. Now a name that already exists (typed OR picked from
+   the list — same intent, same outcome) REPOINTS that word at the new product. */
+function kingNameAction(nm, words){
+  nm=(nm||'').trim();
+  if(!nm) return {action:'none'};
+  var hit=(words||[]).filter(function(k){ return k && (k.name||'').trim().toLowerCase()===nm.toLowerCase(); })[0];
+  if(hit) return {action:'repoint', kid:hit.id, name:hit.name};
+  return {action:'create', name:nm};
+}
+/* ITEM 5 (v35): the unit-category decision, extracted from saveKingModal so the modal
+   path and the deferred invoice path cannot drift apart. Both now call this. */
+function kingRepointGuard(oldBaseUnit, newBaseUnit){
+  var oldCat=oldBaseUnit?unitCatCategory(oldBaseUnit):null, newCat=newBaseUnit?unitCatCategory(newBaseUnit):null;
+  return {needsConfirm: !!(oldCat && newCat && oldCat!==newCat), oldCat:oldCat, newCat:newCat};
+}
+function unitCatWord(c){ return c==='kg'?'kg':c==='l'?'litre':'unit'; }
 function renderKingProgress(){
   var pr=document.getElementById('kingProgress'), wb=document.getElementById('kingWizBtn'); if(!pr||!wb) return;
   var total=kingLinkableProducts().length, un=kingUnlinkedProducts().length, done=total-un;
-  if(!total || (!un && !kingWizOpen)){ pr.style.display='none'; wb.style.display='none'; return; }   // nothing linkable, or finished with the wizard closed
-  pr.textContent=done+' of '+total+' products have a kitchen word';
+  var todo=kingWizOutstanding(), skipped=kingWizSkipIds().length;
+  // hide only when there is nothing left to propose AND nothing skipped to recover — otherwise skipping everything would strand the Unskip list behind a hidden button
+  if(!total || (!todo && !skipped && !kingWizOpen)){ pr.style.display='none'; wb.style.display='none'; return; }
+  pr.textContent=done+' of '+total+' products have a kitchen word';   // stays literal: a skipped product genuinely has no kitchen word, so it still counts as not-done here
   pr.style.display=un?'block':'none';
   wb.style.display='';                                              // stays visible while open so "Close setup" is always reachable
   wb.textContent=kingWizOpen?'Close setup':'Set up from products';
@@ -1006,20 +1087,48 @@ function kingWizRowHtml(g,gi){
     +'<button class="linklike kw-skip" type="button">Skip</button>'
     +'</div>';
 }
+/* ITEM 4 (v35): the skipped list is always reachable while the wizard is open, so a
+   mis-skip is never a dead end. Collapsed by default — it's recovery, not the job. */
+function kingWizSkippedHtml(ids){
+  if(!ids || !ids.length) return '';
+  var html='<div class="kw-skipped"><button class="linklike kw-skiptoggle" type="button">Skipped ('+ids.length+') \u2014 '+(kingWizShowSkipped?'hide':'show')+'</button>';
+  if(kingWizShowSkipped){
+    html+=ids.map(function(id){
+      var p=byId[id];
+      var lbl=p ? (p.description+(p.brand?' \u00b7 '+p.brand:'')) : '(this product no longer exists)';
+      return '<div class="kw-srow" data-pid="'+esc(id)+'"><span class="kw-prod">'+esc(lbl)+'</span>'
+        +'<button class="linklike kw-unskip" type="button">Unskip</button></div>';
+    }).join('');
+  }
+  return html+'</div>';
+}
+function wireKingWizSkipped(box){
+  var t=box.querySelector('.kw-skiptoggle'); if(t) t.onclick=function(){ kingWizShowSkipped=!kingWizShowSkipped; renderKingWizard(); };
+  box.querySelectorAll('.kw-unskip').forEach(function(b){ b.onclick=function(){
+    var row=b.closest('.kw-srow'); if(!row) return;
+    delete kingWizSkip[row.getAttribute('data-pid')];
+    saveKingWizSkips(); renderKingWizard();                          // no confirm — two taps to undo is the whole design
+  }; });
+}
 function renderKingWizard(){
   var box=document.getElementById('kingWiz'); if(!box) return;
   if(!kingWizOpen){ box.style.display='none'; box.innerHTML=''; renderKingProgress(); return; }
   var groups=kingWizGroups();
+  var skipIds=kingWizSkipIds(), skipHtml=kingWizSkippedHtml(skipIds);
   if(!groups.length){
-    box.innerHTML='<div class="kw-done">\u2713 Every product has a kitchen word \u2014 recipes can use all of them.</div>';
-    box.style.display='block'; renderKingProgress(); return;
+    box.innerHTML='<div class="kw-done">'+(skipIds.length
+        ? '\u2713 Nothing left to set up \u2014 everything else is skipped.'   // "every product has a kitchen word" would be a lie here
+        : '\u2713 Every product has a kitchen word \u2014 recipes can use all of them.')
+      +'</div>'+skipHtml;
+    box.style.display='block'; wireKingWizSkipped(box); renderKingProgress(); return;
   }
   var singles=groups.filter(function(g){return g.products.length===1;}).length;
   var head='<div class="kw-head"><span class="kw-explain">Tap Add to accept a name (edit it first if you like). Skip anything you\u2019d never cook with.</span>'
     +(singles>1?'<button class="btn ghost kw-all" type="button">Add all '+singles+' suggested</button>':'')+'</div>';
   var shown=groups.slice(0,kingWizLimit);
   box.innerHTML=head+shown.map(kingWizRowHtml).join('')
-    +(groups.length>shown.length?'<button class="linklike kw-more" type="button">Show '+(groups.length-shown.length)+' more</button>':'');
+    +(groups.length>shown.length?'<button class="linklike kw-more" type="button">Show '+(groups.length-shown.length)+' more</button>':'')
+    +skipHtml;
   box.style.display='block';
   var wireRow=function(row){
     var gi=parseInt(row.getAttribute('data-gi'),10), g=shown[gi]; if(!g) return;
@@ -1030,7 +1139,7 @@ function renderKingWizard(){
       kitchenIngredients.push({id:nextKid(), name:nm, pid:pidOf()});
       saveKitchenIngredients(); renderKitchenPanel(); renderKingWizard();
     };
-    row.querySelector('.kw-skip').onclick=function(){ g.products.forEach(function(p){ kingWizSkip[p.id]=1; }); renderKingWizard(); };
+    row.querySelector('.kw-skip').onclick=function(){ g.products.forEach(function(p){ kingWizSkip[p.id]=1; }); saveKingWizSkips(); renderKingWizard(); };   // ITEM 4 (v35): persists + syncs; no confirm by design
   };
   box.querySelectorAll('.kw-row').forEach(wireRow);
   var all=box.querySelector('.kw-all');
@@ -1050,6 +1159,7 @@ function renderKingWizard(){
     });
   };
   var more=box.querySelector('.kw-more'); if(more) more.onclick=function(){ kingWizLimit+=40; renderKingWizard(); };
+  wireKingWizSkipped(box);                                          // ITEM 4 (v35)
   renderKingProgress();
 }
 function toggleKingWizard(){ kingWizOpen=!kingWizOpen; if(kingWizOpen) kingWizLimit=40; renderKingWizard(); }
@@ -1133,9 +1243,9 @@ function openKingModal(kid){
   kingEditId=kid||null; kingChosenPid=null;
   if(!kid) kingAddToPlateOnSave=false;                               // create-from-search sets this true AFTER openKingModal returns
   var isEdit=!!kingEditId; var k=isEdit?kById[kingEditId]:null;
-  document.getElementById('kingModalTitle').textContent=isEdit?'Change product':'New ingredient';
+  document.getElementById('kingModalTitle').textContent=isEdit?'Edit ingredient':'New ingredient';
   var nameEl=document.getElementById('king_name'), prodEl=document.getElementById('king_prod');
-  nameEl.value=isEdit?(k?k.name:''):''; nameEl.disabled=isEdit;                 // name locked when changing product
+  nameEl.value=isEdit?(k?k.name:''):''; nameEl.disabled=false;                 // ITEM 2 (v35): edit mode can rename. Plates persist {kid, qty} only (see the lines map in savePlate) and read the label live via kById, so a rename is display-only and cannot touch a recipe.
   prodEl.value=isEdit&&k&&byId[k.pid]?(byId[k.pid].description+(byId[k.pid].brand?' \u2014 '+byId[k.pid].brand:'')):'';
   kingChosenPid=isEdit&&k?k.pid:null;
   var err=document.getElementById('king_err'); if(err)err.style.display='none';
@@ -1146,7 +1256,9 @@ function openKingModal(kid){
     prodEl.addEventListener('focus',renderKingProdDrop);
     prodEl.addEventListener('blur',function(){ setTimeout(function(){ document.getElementById('king_prodDrop').style.display='none'; },150); });
   }
-  if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',function(){ kingSyncSave(); renderKingCreateSuggest(); }); }
+  if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',function(){
+    var ke=document.getElementById('king_err'); if(ke) ke.style.display='none';   // ITEM 2 (v35): a rejected rename clears as soon as they start fixing it
+    kingSyncSave(); renderKingCreateSuggest(); }); }
   var usedEl=document.getElementById('king_used');                   // ITEM 2d (v34): surface the model's payoff at the moment it matters
   if(usedEl){
     if(isEdit){
@@ -1164,20 +1276,30 @@ function saveKingModal(){
   if(!kingValid()) return;
   var name=(document.getElementById('king_name').value||'').trim();
   var pid=kingChosenPid, np=byId[pid];
-  if(kingEditId){                                                    // change-product flow: unit-category guard
+  if(kingEditId){                                                    // ITEM 2 (v35): edit flow — rename, change product, or both
     var k=kById[kingEditId]; if(!k){ closeKingModal(); return; }
-    var oldP=byId[k.pid];
-    var oldCat=oldP?unitCatCategory(oldP.base_unit):null, newCat=unitCatCategory(np.base_unit);
-    var commit=function(){ k.pid=pid; saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); closeKingModal(); toast('Product changed'); };
-    if(oldCat && newCat && oldCat!==newCat){
-      var word=function(c){return c==='kg'?'kg':c==='l'?'litre':'unit';};
-      closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
-      askConfirm('Different unit type',
-        '\u201c'+name+'\u201d is measured per '+word(oldCat)+' but the new product is per '+word(newCat)+'. Recipe amounts keep their numbers but change meaning \u2014 check any recipe that uses it.',
-        'Change anyway', function(){ k.pid=pid; saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Product changed'); });
+    var chk=kingRenameCheck(kingEditId, name, kitchenIngredients);
+    if(!chk.ok){                                                    // rejected inline; the modal stays open on the offending field
+      var ke=document.getElementById('king_err');
+      if(ke){ ke.textContent=(chk.reason==='duplicate')
+        ? ('\u201c'+chk.name+'\u201d is already an ingredient \u2014 pick another name.')
+        : 'Enter an ingredient name.'; ke.style.display='block'; }
       return;
     }
-    commit(); return;
+    var renamed=(chk.name!==k.name), moved=(pid!==k.pid);
+    if(!renamed && !moved){ closeKingModal(); return; }              // clean no-op: no write, no toast, no confirm
+    var oldP=byId[k.pid];
+    var g=kingRepointGuard(oldP?oldP.base_unit:null, np.base_unit);  // ITEM 5 (v35): one guard, shared with the invoice repoint path
+    var commit=function(){ k.name=chk.name; k.pid=pid; saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
+      toast(moved?(renamed?'Ingredient updated':'Product changed'):'Ingredient renamed'); };
+    if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
+      closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
+      askConfirm('Different unit type',
+        '\u201c'+chk.name+'\u201d is measured per '+unitCatWord(g.oldCat)+' but the new product is per '+unitCatWord(g.newCat)+'. Recipe amounts keep their numbers but change meaning \u2014 check any recipe that uses it.',
+        'Change anyway', commit);
+      return;
+    }
+    commit(); closeKingModal(); return;
   }
   // create flow
   var id=nextKid();
@@ -1202,6 +1324,14 @@ function deleteKitchenIngredient(kid){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('kingNew',function(){ openKingModal(null); });
   on('kingWizBtn',toggleKingWizard);
+  var ks=document.getElementById('kingSearch'), kc=document.getElementById('kingSearchClear');
+  if(ks) ks.addEventListener('input',function(){                     // ITEM 3 (v35)
+    kingQuery=ks.value||'';
+    if(kc) kc.style.display=kingQuery?'':'none';
+    if(kingQuery && kingWizOpen){ kingWizOpen=false; renderKingWizard(); }   // searching and the setup wizard are two different jobs — never both at once
+    renderKitchenPanel();
+  });
+  if(kc) kc.addEventListener('click',function(){ if(ks){ ks.value=''; } kingQuery=''; kc.style.display='none'; renderKitchenPanel(); if(ks) ks.focus(); });
   on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
@@ -1235,14 +1365,11 @@ function statCard(label, current, base){
     else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts lower \u2014 costs improving'; }
     else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts higher \u2014 costs creeping up'; }
   }
-  return '<div class="stat-card"><div class="stat-h">Food cost vs '+esc(label.toLowerCase())+'</div>'
-    +'<div class="stat-v">'+cur+' <span class="stat-arrow '+cls+'">'+arrow+'</span></div>'
-    +(nums?'<div class="stat-nums">'+esc(nums)+'</div>':'')
-    +'<div class="stat-sub '+cls+'">'+esc(sub)+'</div></div>';
+  return '<span class="stat-bit"><span class="stat-h">vs '+esc(label.toLowerCase())+'</span> <b class="stat-arrow '+cls+'">'+arrow+'</b> <span class="stat-sub '+cls+'">'+esc(sub)+'</span></span>';
 }
 function trendChart(){
   var pts=dashRangePts();
-  var W=320,H=150,padL=40,padR=10,padT=14,padB=20;
+  var W=320,H=210,padL=40,padR=10,padT=14,padB=20;   /* v36: chart takes the space the stat cards gave back */
   if(pts.length<2){
     var emptyHint=(priceHistory.length>=2)
       ? 'No points in this range yet \u2014 try a longer range.'
@@ -1315,7 +1442,7 @@ function renderDashboard(){
     +'<div class="chart-controls"><span class="chart-title">Food cost trend</span>'+rangeBarHtml()+'</div>'
     +trendChart()
     +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
-    +'<div class="stat-row">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
+    +'<div class="stat-line">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
@@ -1367,6 +1494,89 @@ bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared dat
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
 
+
+/* ============================================================
+   ITEM 6 (v35) — Settings surface
+   Entry is a header gear, not a sixth nav tab (five is the max at readable label
+   sizes). The panel reuses the existing modal pattern; CSS makes it full-screen at
+   mobile widths. Every setting here follows the house rule: one dbSetSetting write
+   + a localStorage mirror, loaded idempotently in bootstrapSync.
+   ============================================================ */
+/* The version string. sw.js's CACHE constant is the source of truth; this is a mirror,
+   NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
+   ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
+   async network read that breaks offline for the sake of a label. */
+var APP_VERSION='v36';
+function openSettings(){
+  var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
+  var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
+  var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
+  show('settingsPanel');
+}
+function closeSettings(){ hide('settingsPanel'); }
+function syncCogsRead(){                                              // the Menu tab's read-only mirror of the target
+  var r=document.getElementById('cogsTargetRead'); if(r) r.textContent=cogsPct;
+}
+/* Export backup — client-side only, no server round-trip. Five data groups, matching
+   what bootstrapSync pulls: products (overrides), kitchen words, plates, menu items,
+   settings. Deliberately a plain JSON dump: it's a lifeboat, not an interchange format. */
+function buildBackup(){
+  return {
+    app:'EzPlate', version:APP_VERSION, exported_at:new Date().toISOString(),
+    products:overrides,
+    kitchen_ingredients:kitchenIngredients,
+    plates:savedPlates,
+    menu_items:customMenu,
+    settings:{
+      food_cost_target:cogsPct,
+      gst_default:gstDefault,
+      king_wiz_skips:kingWizSkipIds(),
+      deleted_menu_ids:deletedMenuIds,
+      deleted_prod_ids:deletedProdIds,
+      menus:menusList,
+      current_menu_id:currentMenuId
+    }
+  };
+}
+function exportBackup(){
+  try{
+    var d=new Date(), pad=function(x){return (x<10?'0':'')+x;};
+    var name='ezplate-backup-'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'.json';
+    var blob=new Blob([JSON.stringify(buildBackup(),null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+    toast('Backup downloaded');
+  }catch(e){ console.error('[settings] export failed:', e); toast('Couldn\u2019t build the backup'); }
+}
+/* Clear cache & refresh — deletes the service worker's copies of the app shell and
+   reloads, so the newest build downloads. It touches NOTHING else: no localStorage, no
+   Supabase. Blocked while offline: wiping the offline copy with no connection would
+   leave the app dead until signal returns, with no way back. */
+function clearCacheAndRefresh(){
+  if(!navigator.onLine){ toast('You\u2019re offline \u2014 connect first, or the app can\u2019t download again'); return; }
+  askConfirm('Clear cache & refresh',
+    'This re-downloads the latest version of the app.\n\nYour products, ingredients, plates and menus are NOT touched \u2014 this only clears the offline copy of the app itself.',
+    'Clear & refresh', function(){
+      var done=function(){ location.reload(); };
+      if(!(window.caches && caches.keys)){ done(); return; }
+      caches.keys().then(function(keys){ return Promise.all(keys.map(function(k){ return caches.delete(k); })); })
+        .then(done, done);                                          // a failed delete must still reload, not strand the user
+    });
+}
+(function(){
+  function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
+  on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
+  on('cogsToSettings',openSettings);                                // the Menu tab's "Change it in Settings"
+  on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
+  var sp=document.getElementById('settingsPanel');
+  if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
+  var ci=document.getElementById('setCogsInput');
+  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
+  var gs=document.getElementById('setGstDefault');
+  if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
+})();
+syncCogsRead();
 
 /* ===== PWA: service worker registration ===== */
 if ('serviceWorker' in navigator) {
@@ -1779,12 +1989,30 @@ function matchScore(invName, p){                        // word-level match on t
   return Math.min(1, score);
 }
 var invGst={mode:'unknown', note:''};
+/* ITEM 6 (v35): the GST DEFAULT. There is no invGst *control* in the build — invGst is
+   derived from the invoice text by invGstDetect below — so a "default" can only mean one
+   thing: what to assume when the invoice doesn't say. An explicit statement on the
+   invoice still wins; this only replaces the hardcoded ex-GST assumption in the
+   'unknown' branch. See the handover note. */
+var GSTKEY='cafeDB_gstDefault';
+function loadGstDefault(){ try{ var v=localStorage.getItem(GSTKEY); if(v==='inc'||v==='ex') return v; }catch(e){} return 'ex'; }   // 'ex' preserves the current behaviour for brand-new accounts
+var gstDefault=loadGstDefault();
+function setGstDefault(mode, persist){
+  if(mode!=='inc'&&mode!=='ex') return;
+  gstDefault=mode;
+  try{ localStorage.setItem(GSTKEY, mode); }catch(e){}
+  if(persist && typeof dbSetSetting==='function') dbSetSetting('gst_default', mode);
+}
 function invDbg(){ if(window.EZ_INV_DEBUG && window.console) try{console.log.apply(console, arguments);}catch(e){} }
 function invGstDetect(text){
   var t=(text||'').toLowerCase();
   if(/gst\s*incl|incl[a-z]*\s*gst|inc\.?\s*gst|includes?\s+gst|inclusive of gst/.test(t)) return {mode:'inc', note:'GST-inclusive prices detected \u2014 converted to ex-GST (\u00f71.10) for storage.'};
   if(/gst\s*excl|excl[a-z]*\s*gst|ex\.?\s*gst|plus\s+gst|excludes?\s+gst|exclusive of gst/.test(t)) return {mode:'ex', note:'GST-exclusive prices detected.'};
-  return {mode:'unknown', note:'GST status unclear \u2014 prices assumed GST-exclusive (the app stores ex-GST costs). Adjust manually if your invoice was GST-inclusive.'};
+  // ITEM 6 (v35): the invoice didn't say. Fall back to the Settings default rather than
+  // silently assuming ex-GST. An explicit statement above always wins over the default.
+  return (gstDefault==='inc')
+    ? {mode:'inc', note:'GST status unclear \u2014 using your Settings default: prices treated as GST-inclusive and converted to ex-GST (\u00f71.10).'}
+    : {mode:'ex',  note:'GST status unclear \u2014 using your Settings default: prices treated as GST-exclusive. Change the default in Settings.'};
 }
 /* ---- drop invoice totals / footer / summary lines ---- */
 var INV_EXCLUDE=/\b(?:sub-?totals?|totals?|gst|balance|owing|due|account|acct|invoice|abn|acn|payments?|paid|remittances?|freight|delivery|surcharges?|discounts?|rounding|amounts?|eftpos|eft|tax|bsb|statements?|credit|charges?|levy|levies)\b/i;
@@ -2050,6 +2278,7 @@ function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit===
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }
 function prodSuppliers(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).filter(Boolean))).sort(); }
+function kingNames(){ return (kitchenIngredients||[]).map(function(k){return k&&k.name;}).filter(Boolean).sort(); }   // ITEM 5 (v35): the combobox source for the invoice Kitchen name field
 var niCombos={};
 function makeInlineCombo(inpId, dropId, listFn){
   var inp=document.getElementById(inpId), drop=document.getElementById(dropId); if(!inp||!drop) return;
@@ -2098,7 +2327,7 @@ function expandNewItem(i){
      +'<label>Unit type<select id="ni_unit'+i+'"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
      +'<label>Price per unit ($)<input id="ni_price'+i+'" type="number" min="0" step="0.01" value="'+pv+'"></label>'
      +'<label>Pack size (optional)<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
-     +'<label>Kitchen name (optional)<input id="ni_king'+i+'" type="text" value="'+esc(proposeKingName({description:r.name}))+'" placeholder="what the kitchen calls it"></label>'
+     +'<label>Kitchen name (optional)<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="what the kitchen calls it"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
     panel.dataset.built='1';
     var _nc=panel.querySelector('.ni-close'); if(_nc){ _nc.onclick=function(ev){ ev.preventDefault(); closeNewItem(i); }; }
@@ -2106,6 +2335,15 @@ function expandNewItem(i){
     makeInlineCombo('ni_brand'+i,'ni_brandDrop'+i,prodBrands);
     makeInlineCombo('ni_cat'+i,'ni_catDrop'+i,prodCategories);
     makeInlineCombo('ni_sup'+i,'ni_supDrop'+i,prodSuppliers);
+    // ITEM 5 (v35): the kitchen-name field is now a combobox over EXISTING kitchen words.
+    // Typing filters them; picking one re-points that word at this new product on save
+    // (the brand-swap case). Typing something new still creates a new linked word.
+    makeInlineCombo('ni_king'+i,'ni_kingDrop'+i,kingNames);
+    var _ki=document.getElementById('ni_king'+i);
+    if(_ki){                                                         // keep v34's proposal as the prefill, but only when it isn't already a word — otherwise the field would silently mean "repoint" without the user asking for it
+      var _prop=proposeKingName({description:r.name});
+      if(_prop && !kingNameExists(_prop)){ _ki.value=_prop; var _kt=niCombos['ni_king'+i]; if(_kt){ _kt.value=_prop; _kt.isNew=true; _kt.confirmed=true; } }
+    }
     if(invSupplier){ var _si=document.getElementById('ni_sup'+i); if(_si){ _si.value=invSupplier; var _st=niCombos['ni_sup'+i]; if(_st){ _st.value=invSupplier; _st.confirmed=true; _st.isNew=!prodSuppliers().some(function(x){return x.toLowerCase()===invSupplier.toLowerCase();}); } } }
   }
   nirow.style.display='';
@@ -2183,7 +2421,9 @@ function renderInvReview(){
   html+='<div class="atable-wrap"><table class="invtable"><thead><tr><th>Invoice line</th><th>Unit price</th><th>Match to product</th><th>Old</th><th>Conf.</th><th>Apply</th></tr></thead><tbody>';
   invRows.forEach(function(r,i){
     var conf=Math.round(r.conf*100);
+    // ITEM 1 (v35) ROOT CAUSE: style.css hid td4/td5 (Old price / Confidence) off .muted-row, which sits on EVERY non-matched row — so price-jump and low-confidence rows rendered both cells correctly and then had them hidden, exactly where the old price matters most. The hiding now keys off .is-new (add-new lines only); .muted-row keeps its opacity treatment alone.
     var rc=(invRowState(r)==='matched')?'':' muted-row';
+    if(r.addNew) rc+=' is-new';
     var uLbl=unitLabelFor(r)||'/unit';
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
@@ -2199,7 +2439,7 @@ function renderInvReview(){
       teachHtml='<span class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
         +'<span class="pt-lbl sr-only">How many in one pack?</span>'
         +'<span class="pt-group">'
-        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="how many?" title="How many in one pack?" value="'+pq+'">'
+        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" title="How many in one pack?" value="'+pq+'">'
         +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
         +'<span class="pt-preview"></span>'
@@ -2214,7 +2454,9 @@ function renderInvReview(){
       priceCell+='<div class="flag-review pt-explain">'+esc(msg)+'</div>';   // raw invoice line removed (was clutter); logged to console for debugging
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
-    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price jump \u2014 check</span>':''):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal
+    var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
+    var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
+    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price jump \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
     var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
@@ -2233,7 +2475,6 @@ function renderInvReview(){
     var oldCell = (r.bestId && byId[r.bestId])
       ? '<td class="num invOld">'+dispPrice(byId[r.bestId])+'</td>'
       : '<td class="num invOld dash">\u2014</td>';
-    var dc=invDisplayConf(r);
     var confCell = '<td class="num'+(dc.has?'':' dash')+'"><span class="conf '+dc.tier+'">'+dc.label+'</span></td>';
     html+='<tr class="inv-data'+rc+(r.needsAttention?' needs-attention':'')+'" data-i="'+i+'">'+
       '<td>'+esc(r.name)+flag+'</td>'+
@@ -2353,7 +2594,7 @@ function applyInvoice(){
     if(r.addNew){ var s=collectNewItem(i); if(!s){ ok=false; } else specs[i]=s; }
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
-  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0;
+  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[];
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
@@ -2364,7 +2605,12 @@ function applyInvoice(){
         item_type:null, search_aliases:[], base_unit:s.base_unit, cost_per_base_unit:s.cpbu,
         cost_basis:s.cost_basis, is_food:true, pack_size_raw:s.pack_size_raw, sold_by:null,
         current_price_exgst:null, supplier:s.supplier});
-      if(s.kingName && !kingNameExists(s.kingName)){ kitchenIngredients.push({id:nextKid(), name:s.kingName, pid:id}); kingsMade++; }   // ITEM 2c (v34): one optional field -> the kitchen word arrives already linked (pushed now so nextKid can't collide)
+      // ITEM 5 (v35): create, re-link, or nothing — never a silent skip. Creates are pushed
+      // immediately so nextKid() can't collide; re-links are DEFERRED to after this loop
+      // because they may need a confirm, and a confirm cannot block a write loop mid-flight.
+      var kact=kingNameAction(s.kingName, kitchenIngredients);
+      if(kact.action==='create'){ kitchenIngredients.push({id:nextKid(), name:kact.name, pid:id}); kingsMade++; }
+      else if(kact.action==='repoint'){ kingRepoints.push({kid:kact.kid, name:kact.name, pid:id}); }
       added++;
     } else {
       var pid=r.bestId; if(!pid) return; var p=byId[pid]; if(!p) return;
@@ -2394,23 +2640,60 @@ function applyInvoice(){
     }
   });
   if(priceChanges.length) saveIngLog();
-  if(kingsMade){ saveKitchenIngredients(); renderKitchenPanel(); }   // ITEM 2c (v34): one write for every kitchen word created by this import
+  // ITEM 5 (v35): settle the deferred re-links. Clean ones commit now; ones where the
+  // ingredient's unit category disagrees with the new product go through the SAME guard
+  // saveKingModal uses. The ask is batched into one confirm rather than chained per-item:
+  // askConfirm has no cancel hook, so a chain would silently drop everything after a
+  // cancel — which is the exact failure this item exists to remove.
+  var relinked=0, guarded=[];
+  kingRepoints.forEach(function(rp){
+    var k=kById[rp.kid]; if(!k) return;
+    var oldP=byId[k.pid], newP=byId[rp.pid];
+    if(kingRepointGuard(oldP?oldP.base_unit:null, newP?newP.base_unit:null).needsConfirm){ guarded.push(rp); return; }
+    k.pid=rp.pid; relinked++;
+  });
+  var kingsTouched=(kingsMade||relinked);
+  if(kingsTouched){ saveKitchenIngredients(); renderKitchenPanel(); }
   if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
   var overAfter=dishesOverTarget();
   if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
-  var parts=[]; if(n)parts.push(n+' price'+(n===1?'':'s')+' updated'); if(added)parts.push(added+' item'+(added===1?'':'s')+' added'); if(kingsMade)parts.push(kingsMade+' kitchen word'+(kingsMade===1?'':'s')+' created');
   closeInv();                                                     // stay on whatever tab the user imported from
-  if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter); }
-  else toast('No changes to save');
+  if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter, {made:kingsMade, relinked:relinked}); }
+  else if(!guarded.length) toast('No changes to save');
+  if(guarded.length) confirmGuardedRepoints(guarded);
 }
-function showImportSummary(changes, added, overBefore, overAfter){   // corner toast: glance, don't study
+/* ITEM 5 (v35): one confirm covering every re-link whose unit category changed. Confirm
+   re-links them all; Cancel re-links none and says so — nothing is ever applied or
+   dropped without the user seeing it. */
+function confirmGuardedRepoints(list){
+  var lines=list.map(function(rp){
+    var k=kById[rp.kid]; var oldP=k?byId[k.pid]:null, newP=byId[rp.pid];
+    var g=kingRepointGuard(oldP?oldP.base_unit:null, newP?newP.base_unit:null);
+    return '\u2022 '+rp.name+': per '+unitCatWord(g.oldCat)+' \u2192 per '+unitCatWord(g.newCat);
+  }).join('\n');
+  askConfirm(list.length===1?'Different unit type':(list.length+' ingredients change unit type'),
+    lines+'\n\nRecipe amounts keep their numbers but change meaning \u2014 check any recipe that uses '
+      +(list.length===1?'it':'them')+'.\n\nThe new products were still added either way.',
+    'Re-link anyway',
+    function(){
+      var done=0;
+      list.forEach(function(rp){ var k=kById[rp.kid]; if(k){ k.pid=rp.pid; done++; } });
+      if(done){ saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); }
+      toast(done+' ingredient'+(done===1?'':'s')+' re-linked');
+    });
+}
+function showImportSummary(changes, added, overBefore, overAfter, kings){   // corner toast: glance, don't study
   var stack=document.getElementById('cornerToasts');
   if(!stack){ stack=document.createElement('div'); stack.id='cornerToasts'; document.body.appendChild(stack); }
   var ups=changes.filter(function(c){return c.dir>0;}).length, downs=changes.length-((changes.filter(function(c){return c.dir>0;})).length);
   var bits=[];
   if(changes.length) bits.push(changes.length+' price'+(changes.length===1?'':'s')+(ups&&downs?' \u25b2\u25bc':ups?' \u25b2':' \u25bc'));
   if(added) bits.push(added+' new');
+  // ITEM 5 (v35): kitchen-word outcomes are visible here. v34 built this string into a
+  // local `parts` array that was never read — the summary has never actually shown them.
+  if(kings && kings.made) bits.push(kings.made+' kitchen word'+(kings.made===1?'':'s')+' created');
+  if(kings && kings.relinked) bits.push(kings.relinked+' re-linked');
   var newlyOver=overAfter-overBefore;
   var margin = newlyOver>0 ? '<div class="ct-margin is-warn">\u26a0 '+newlyOver+' dish'+(newlyOver===1?'':'es')+' now over '+cogsPct+'% target</div>'
              : (overAfter>0 ? '<div class="ct-margin is-muted">'+overAfter+' still over '+cogsPct+'% target</div>' : '');
@@ -2446,7 +2729,7 @@ function aRow(name,a,m,actions){
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
   return '<tr><td>'+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
-    '<td class="num"><span class="tip">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'<span class="tipbox">'+esc(tipText(a))+'</span></span></td>'+
+    '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
     '<td class="num">'+vbadge(a)+'</td>'+
     '<td><span class="dot '+a.light+'"></span></td></tr>';
@@ -2485,7 +2768,7 @@ function renderAnalysis(){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
     custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
   }
-  if(!shown){ html='<tr class="an-empty"><td colspan="6">No menu items match \u201c'+esc(q)+'\u201d.</td></tr>'; }
+  if(!shown){ html='<tr class="an-empty"><td colspan="6">'+(q?'No menu items match':'No menu items yet')+'</td></tr>'; }
   tb.innerHTML=html; bindTips();
   tb.querySelectorAll('.mi-btn.edit').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid) openPlateEdit(pid); else openMenuEdit(b.getAttribute('data-id')); }; });
   tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
