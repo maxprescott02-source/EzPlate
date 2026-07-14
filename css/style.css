@@ -456,7 +456,7 @@ input[type=checkbox]{
   display:flex;gap:6px var(--sp-3);flex-wrap:wrap;font-size:var(--fs-xs);font-weight:600;
   color:var(--muted2);padding:var(--sp-3) var(--sp-5) 0;
 }
-.akey span{display:flex;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-pill);padding:4px 11px}
+.akey span{display:flex;align-items:center;background:none;border:0;padding:0;margin-right:var(--sp-2)}   /* v36: the key matches the lights — dots, not pills */
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:7px;flex:0 0 auto}
 .dot.green{background:var(--good)} .dot.amber{background:var(--warn)}
 .dot.red{background:var(--bad)}   .dot.none{background:var(--border2)}
@@ -500,8 +500,8 @@ input[type=checkbox]{
 
 /* item cards */
 .atable tbody tr:not(.sec):not(.ni-row){
-  position:relative;background:var(--surface2);border:1px solid var(--border);
-  border-radius:var(--radius-ctl);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);
+  position:relative;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:12px 14px;margin-bottom:var(--sp-2);   /* v36: one card system — matches .ing-card / .king-row */
 }
 .atable tr.muted td{color:var(--muted2)}
 .atable tbody tr > td:first-child{display:block;font-size:15px;font-weight:650;color:var(--text);padding:0 28px 6px 0}
@@ -903,6 +903,9 @@ input[type=checkbox]{
   .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
   .cogs-set{flex:1 1 200px;min-width:180px}
   .cogs-set > label{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
+  /* ITEM 6 (v35): the Menu tab's target is read-only now; editing lives in Settings */
+  .cogs-set > .cogs-lbl{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
+  .cogs-read{font:inherit;font-weight:700;font-size:16px;color:var(--text)}
   .cogs-in{display:inline-flex;align-items:center;gap:2px}
   .cogs-in input{width:74px;padding:8px 10px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
   .cogs-in .pct{font-weight:700;color:var(--muted2)}
@@ -1440,10 +1443,14 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .invtable tr,.invtable tbody{width:100%}
 
 /* -- slim rows (the sketch's one-line bars): new-item lines drop the
-      meaningless Old price / Confidence rows entirely -- */
-.invtable tr.muted-row td:nth-child(4),
-.invtable tr.muted-row td:nth-child(5){display:none}
-.invtable tr.muted-row td:nth-child(6){padding-top:6px}
+      meaningless Old price / Confidence rows entirely.
+      v35 ITEM 1: this keys off .is-new, NOT .muted-row. .muted-row is applied to
+      every non-matched row, so hiding here also stripped Old/Conf from price-jump
+      and low-confidence rows — the ones where the old price matters most.
+      .muted-row now carries its opacity treatment (line ~698) and nothing else. -- */
+.invtable tr.is-new td:nth-child(4),
+.invtable tr.is-new td:nth-child(5){display:none}
+.invtable tr.is-new td:nth-child(6){padding-top:6px}
 
 /* -- the expand trigger reads as a live toggle -- */
 .ni-add-btn{color:var(--accent-ink);border-color:var(--accent-ink)}
@@ -1474,7 +1481,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
    browsers without it still get the solid-vs-dashed distinction) */
 .ni-grid > label:has(input:not([type=number]):not(:placeholder-shown))::after,
 .ni-grid > label:has(input[type=number]:not(:placeholder-shown)[value]:not([value=""]))::after{
-  content:"auto-filled";position:absolute;top:-2px;right:0;
+  content:"auto-filled";position:static;display:block;width:max-content;margin-top:4px;   /* v36: was absolute top-right — overlapped wrapped labels (Max screenshots) */
   font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   color:var(--accent-ink);background:var(--accent-weak);
   border-radius:var(--radius-pill);padding:2px 8px;
@@ -1692,7 +1699,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
 /* item 8: misc-cost inputs readable on a phone */
 .line.misc-line .qtybox.misc-costbox input{width:92px;text-align:right}
 @media (max-width:700px){
-  .line.misc-line .qtybox.misc-costbox input{width:104px;font-size:16px;padding:8px 8px}
+  .line.misc-line .qtybox.misc-costbox{flex:1 1 auto;max-width:190px}
+  .line.misc-line .qtybox.misc-costbox input{width:100%;font-size:16px;padding:10px 10px;min-height:44px}   /* v36: the field grows with its box */
   .line.misc-line .misc-label{font-size:16px}
 }
 
@@ -1777,11 +1785,14 @@ body{overflow-x:clip}
 .king-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:var(--sp-4) var(--sp-5) 0}
 .king-head h3{margin:0;font-size:15px}
 .king-sub{font-size:var(--fs-xs);color:var(--muted2);flex:1 1 auto}
-.king-row{display:flex;align-items:center;gap:10px;padding:10px var(--sp-5);border-top:1px solid var(--border)}
-.king-row:first-child{border-top:0}
-.king-name{font-weight:700;min-width:90px}
+/* v36: ingredient rows share the Products card language (one card system app-wide) */
+.king-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;margin:0 var(--sp-5) var(--sp-2)}
+.king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.king-spacer{flex:1}
+.king-acts{display:flex;gap:var(--sp-3);align-items:center}
 .king-row .linklike{flex:0 0 auto}
 .king-empty{padding:var(--sp-4) var(--sp-5);color:var(--muted2);font-size:var(--fs-sm)}
 .king-tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-weak);color:var(--accent-ink);border-radius:5px;padding:1px 6px;margin-left:6px}
@@ -1883,26 +1894,70 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 #kingWiz{border-top:1px solid var(--border);margin-top:10px}
 .kw-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px var(--sp-5)}
 .kw-explain{font-size:12px;color:var(--text2);flex:1 1 220px}
-.kw-row{display:flex;align-items:center;gap:8px;padding:8px var(--sp-5);border-top:1px solid var(--border);flex-wrap:wrap}
-.kw-name{flex:0 1 180px;min-width:140px;padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
-.kw-prod{flex:1 1 200px;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kw-pick{flex:1 1 200px;min-width:160px;font-size:14px;min-height:44px}
+.kw-row{display:grid;grid-template-columns:1fr auto auto;gap:6px 8px;align-items:center;padding:8px var(--sp-5);border-top:1px solid var(--border)}   /* v36: fixed grid — long words can't shift the fields */
+.kw-name{grid-column:1;grid-row:1;width:100%;min-width:0;padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.kw-add{grid-column:2;grid-row:1}
+.kw-skip{grid-column:3;grid-row:1}
+.kw-prod{grid-column:1/-1;grid-row:2;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kw-pick{grid-column:1/-1;grid-row:2;min-width:0;font-size:14px;min-height:44px}
 .kw-add{min-height:40px;padding:6px 16px}
 .kw-skip,.kw-more{color:var(--muted2)}
 .kw-more{display:block;padding:10px var(--sp-5)}
+/* ITEM 4 (v35): skipped-list recovery. Structural only — v36 restyles. */
+.kw-skipped{border-top:1px solid var(--border);padding:4px 0}
+.kw-skiptoggle{display:block;padding:10px var(--sp-5);color:var(--muted2)}
+.kw-srow{display:flex;align-items:center;gap:8px;padding:6px var(--sp-5);flex-wrap:wrap}
+.kw-unskip{color:var(--accent-ink)}
 .kw-done{padding:12px var(--sp-5);font-size:14px;color:var(--good)}
 .king-used{margin:2px 0 8px;font-size:12px;color:var(--muted2)}
-@media (max-width:639px){
-  .kw-name{flex:1 1 46%}
-  .kw-prod{flex:1 1 100%;order:3}
-}
 
-/* ===== batch (v34) — Item 4: phone-app feel — one dominant, thumb-sized action per screen ===== */
+
+/* ===== batch (v34) — Item 4 · revised in v36: bars reverted to compact pills (Max review); Confirm All + Publish keep dominance ===== */
 @media (max-width:639px){
-  #newBtn,#kingNew,#kingWizBtn,#invParse{display:block;width:100%;min-height:48px}
-  .king-head #kingNew,.king-head #kingWizBtn{flex:1 1 100%}
   .inv-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch}
   .inv-actions .btn{min-height:48px}
   .inv-actions .hint{text-align:center}
   .actions .btn.primary{min-height:52px}          /* Builder: Publish is THE action; the rest stay quieter */
 }
+
+/* ==========================================================================
+   ITEM 6 (v35) — SETTINGS PANEL
+   Modal on desktop, full-screen on mobile. Structural only; v36 restyles.
+   ========================================================================== */
+.settings-panel{max-width:560px}
+.set-group{padding:0 0 var(--sp-5);margin-bottom:var(--sp-5);border-bottom:1px solid var(--border)}
+.set-group:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.set-group h4{margin:0 0 var(--sp-3);font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2)}
+.set-group .hint{font-weight:400;margin:6px 0 0}
+.set-group select{width:100%;max-width:320px;padding:10px;font:inherit;min-height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.set-row{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
+.set-row:last-child{margin-bottom:0}
+.set-row .btn{min-height:44px;flex:0 0 auto}
+.set-row .hint{flex:1 1 220px;margin:0}
+.set-about p{margin:0 0 4px}
+@media (max-width:639px){
+  /* full-screen panel: a settings surface on a phone should not be a floating card */
+  #settingsPanel{padding:0;align-items:stretch}
+  #settingsPanel .settings-panel{
+    max-width:none;border:0;border-radius:0;min-height:100vh;min-height:100dvh;
+    max-height:none;box-shadow:none;
+  }
+  #settingsPanel .mhead{position:sticky;top:0;z-index:1;background:var(--surface);padding-top:calc(env(safe-area-inset-top) + var(--sp-4))}
+  #settingsPanel .mfoot{position:sticky;bottom:0;background:var(--surface);padding-bottom:calc(env(safe-area-inset-bottom) + var(--sp-4))}
+  #settingsPanel .mfoot .btn{width:100%;min-height:48px}
+}
+
+/* ===== batch (v36) — Fable visual pass ===== */
+/* menu empty state: centred, no orphaned quotes */
+.an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
+/* dashboard: stat cards collapsed to one quiet line; chart takes the space */
+.stat-line{display:flex;flex-wrap:wrap;gap:4px var(--sp-4);padding:2px 16px 8px;font-size:12px;color:var(--muted2);align-items:baseline}
+.stat-line .stat-h{font-weight:700}
+.stat-line .stat-arrow.good{color:var(--good)} .stat-line .stat-arrow.bad{color:var(--bad)}
+.stat-line .stat-sub.good{color:var(--good)} .stat-line .stat-sub.bad{color:var(--bad)} .stat-line .stat-sub.flat{color:var(--muted2)}
+.range-bar{gap:4px}
+.range-btn{padding:4px 10px;font-size:12px;min-height:32px;border-radius:999px}
+/* settings: quiet grouped cards */
+.set-group{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-4);margin-bottom:var(--sp-3)}
+.set-group h4{margin-top:0}
+.settings-panel .mfoot{position:sticky;bottom:0;background:var(--surface)}
