@@ -156,7 +156,8 @@ header{
   background:var(--surface);border-bottom:1px solid var(--border);
   padding-top:env(safe-area-inset-top);
 }
-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4)}
+header .wrap{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4)}
+.brand{margin-right:auto}   /* v37: toggles group together on the right instead of drifting apart */
 .brand{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
 .brand-logo{display:inline-flex;flex:0 0 auto;color:var(--brand)}
 .brand-logo svg{height:40px;width:40px;display:block}
@@ -1475,17 +1476,8 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 }
 
 /* -- fields: paired mixed-width layout from the sketch -- */
-.ni-grid{position:relative}
-.ni-grid > label{position:relative}
-/* auto-filled chip on fields the invoice populated (progressive :has();
-   browsers without it still get the solid-vs-dashed distinction) */
-.ni-grid > label:has(input:not([type=number]):not(:placeholder-shown))::after,
-.ni-grid > label:has(input[type=number]:not(:placeholder-shown)[value]:not([value=""]))::after{
-  content:"auto-filled";position:static;display:block;width:max-content;margin-top:4px;   /* v36: was absolute top-right — overlapped wrapped labels (Max screenshots) */
-  font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--accent-ink);background:var(--accent-weak);
-  border-radius:var(--radius-pill);padding:2px 8px;
-}
+
+/* v37: the auto-filled chip is now a real element inline on the label (.ni-af) — the ::after approach is retired */
 @media (max-width:639px){
   .ni-grid{grid-template-columns:1fr}
 }
@@ -1935,15 +1927,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .set-row .btn{min-height:44px;flex:0 0 auto}
 .set-row .hint{flex:1 1 220px;margin:0}
 .set-about p{margin:0 0 4px}
+/* v37 (Max): Settings is a card like every other popup — not an edge-to-edge sheet */
+#settingsPanel .settings-panel{max-height:86vh;max-height:86dvh;overflow:auto}
 @media (max-width:639px){
-  /* full-screen panel: a settings surface on a phone should not be a floating card */
-  #settingsPanel{padding:0;align-items:stretch}
-  #settingsPanel .settings-panel{
-    max-width:none;border:0;border-radius:0;min-height:100vh;min-height:100dvh;
-    max-height:none;box-shadow:none;
-  }
-  #settingsPanel .mhead{position:sticky;top:0;z-index:1;background:var(--surface);padding-top:calc(env(safe-area-inset-top) + var(--sp-4))}
-  #settingsPanel .mfoot{position:sticky;bottom:0;background:var(--surface);padding-bottom:calc(env(safe-area-inset-bottom) + var(--sp-4))}
   #settingsPanel .mfoot .btn{width:100%;min-height:48px}
 }
 
@@ -1961,3 +1947,42 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .set-group{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-4);margin-bottom:var(--sp-3)}
 .set-group h4{margin-top:0}
 .settings-panel .mfoot{position:sticky;bottom:0;background:var(--surface)}
+
+/* ===== batch (v37) — Fable consistency patch (Max notes 15 Jul) ===== */
+/* the invoice tint reads the SAME state machine as the summary: matched / review / new */
+.invtable tr.inv-data.st-review:not(.sec):not(.ni-row),
+.invtable tr.inv-data.st-new:not(.sec):not(.ni-row){
+  background:var(--bad-bg);border-color:var(--bad);box-shadow:inset 3px 0 0 var(--bad)}
+/* search bars: clear button always visible (the Products pattern), builder included */
+.search-wrap{position:relative}
+.q-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:2}
+/* ingredients search: breathing room from the cards around it */
+.king-search{margin:10px var(--sp-5) 12px;width:auto}
+/* pantry header: New + Set up share one line on phones */
+@media (max-width:639px){
+  .king-head .king-sub{flex-basis:100%}
+  .king-head #kingNew{flex:1 1 auto}
+  .king-head #kingWizBtn{flex:0 0 auto}
+}
+/* menu: one-line target copy */
+.cogs-inline{font-weight:800;color:var(--text)}
+/* menu empty state: genuinely centred in its box */
+.an-empty td{display:block;padding:0}
+.an-empty td::before{content:none!important}
+.an-empty .an-empty-box{min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--muted2);padding:18px}
+.an-empty .an-empty-box b{color:var(--text2);font-size:15px}
+/* menu: the Builder shortcut is a quiet action, not an orange highlight */
+.mi-btn.tobuilder{color:var(--text2);border-color:var(--border2);background:var(--surface)}
+.mi-btn.tobuilder:hover{background:var(--hover);color:var(--text)}
+/* new-item form (v37 rebuild): label line + control line, chip inline on the label — one rhythm for every field */
+.ni-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;position:static}
+.ni-grid .ni-f{display:flex;flex-direction:column;gap:5px;min-width:0;position:relative}
+.ni-grid .ni-f.ni-full{grid-column:1/-1}
+.ni-lab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);white-space:nowrap}
+.ni-af{display:none;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-weak);border-radius:var(--radius-pill);padding:2px 7px}
+.ni-f:has(input:not([type=number]):not(:placeholder-shown)) .ni-af,
+.ni-f:has(input[type=number]:not(:placeholder-shown)) .ni-af{display:inline-block}
+.ni-grid .ni-f input,.ni-grid .ni-f select,.ni-grid .ni-f .cat-wrap{width:100%;min-width:0}
+.ni-grid .cat-wrap{position:relative;display:block}
+.ni-grid .cat-drop{min-width:240px;max-width:min(320px,90vw)}
+@media (max-width:639px){ .ni-grid{grid-template-columns:1fr} }
