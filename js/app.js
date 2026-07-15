@@ -142,7 +142,7 @@ function perDisplayValue(p){const c=cpbu(p);if(c==null)return null;return (p.bas
 function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
   if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';
   if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';
-  if(p.base_unit==='ea')return '$'+c.toFixed(3)+'/unit';return '—';}
+  if(p.base_unit==='ea')return '$'+c.toFixed(2)+'/unit';return '—';}
 function money(x){return '$'+x.toFixed(2);}
 function lineCost(p,qty){if(!p)return null;const c=cpbu(p);return c==null?null:qty*c;}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
@@ -1325,6 +1325,9 @@ function deleteKitchenIngredient(kid){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('kingNew',function(){ openKingModal(null); });
   on('kingWizBtn',toggleKingWizard);
+  var bh=document.getElementById('brandHome');   // v39: logo goes home
+  if(bh){ bh.addEventListener('click',function(){ showTab('dashboard'); });
+    bh.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); showTab('dashboard'); } }); }
   var ks=document.getElementById('kingSearch'), kc=document.getElementById('kingSearchClear');
   if(ks){ ks.addEventListener('input',function(){                     // ITEM 3 (v35)
     kingQuery=ks.value||'';
@@ -1351,10 +1354,11 @@ function dashComparisons(){
   var startThisMonth=new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   var startLastMonth=new Date(now.getFullYear(), now.getMonth()-1, 1).getTime();
   var lastMonth=avgOf(histInRange(startLastMonth, startThisMonth));
+  var lastWeek=avgOf(histInRange(Date.now()-7*86400000, Date.now()+1));
   var startYear=new Date(now.getFullYear(),0,1).getTime();
   var ytd=avgOf(histInRange(startYear, Date.now()+1));
   if(ytd==null) ytd=current;
-  return {current:current, lastMonth:lastMonth, ytd:ytd};
+  return {current:current, lastMonth:lastMonth, lastWeek:lastWeek, ytd:ytd};
 }
 function statCard(label, current, base){
   var cur=(current==null)?'\u2014':current.toFixed(1)+'%';
@@ -1443,7 +1447,7 @@ function renderDashboard(){
     +'<div class="chart-controls"><span class="chart-title">Food cost trend</span>'+rangeBarHtml()+'</div>'
     +trendChart()
     +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
-    +'<div class="stat-line">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
+    +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
@@ -2275,7 +2279,7 @@ function prodOptions(selId){
     return '<option value="'+p.id+'"'+(p.id===selId?' selected':'')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'</option>';
   }).join('');
 }
-function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';return '$'+c.toFixed(3)+'/unit';}
+function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';return '$'+c.toFixed(2)+'/unit';}
 /* ---- new-item inline panel ---- */
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }
@@ -2520,7 +2524,7 @@ function renderInvReview(){
         var pvEl=pt.querySelector('.pt-preview');
         if(pvEl){ var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
           pvEl.textContent=(old?('Was '+old+' \u2192 '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit'); }
-        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=true;
+        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks
       }
     }
     pt.querySelector('.invPackQty').addEventListener('input', recompute);
@@ -2538,7 +2542,7 @@ function renderInvReview(){
     sel.value=ch.getAttribute('data-cid');
     invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
     var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
-    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=true;        // they actively chose it — approve the line
+    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
   }; });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
@@ -2548,7 +2552,7 @@ function renderInvReview(){
     expandNewItem(i);                                              /* then open the form on the freshly-rendered row */
     var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');
     var fb=fresh&&fresh.querySelector('.ni-add-btn'); if(fb){ fb.classList.add('open'); fb.textContent='Editing new item \u2193'; }
-    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=true;
+    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=false;   // v39: new items are ticked by the user once the form is filled
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
   updateLastImport();

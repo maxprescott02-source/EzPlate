@@ -159,6 +159,8 @@ header{
 header .wrap{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4)}
 .brand{margin-right:auto}   /* v37: toggles group together on the right instead of drifting apart */
 .brand{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
+.brand{cursor:pointer;border-radius:8px}   /* v39: logo is a Dashboard shortcut */
+.brand:focus-visible{outline:2px solid var(--accent,#3a6b4f);outline-offset:2px}
 .brand-logo{display:inline-flex;flex:0 0 auto;color:var(--brand)}
 .brand-logo svg{height:40px;width:40px;display:block}
 .brand-logo .mk-arc{stroke:var(--accent-ink)}
@@ -1583,8 +1585,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .line.misc-line .qtybox.misc-costbox input{width:74px}
 .line.misc-line .sub{color:var(--muted2)}
 /* item 3: → Builder button in Menu Analysis */
-.mi-act .mi-btn.tobuilder{margin-right:6px;background:var(--accent-soft,#eef3ee);border-color:var(--accent,#3a6b4f);color:var(--accent,#2f5a41)}
-.mi-act .mi-btn.tobuilder:hover{background:var(--accent,#3a6b4f);color:#fff}
+.mi-act .mi-btn.tobuilder{margin-right:6px}   /* v39: colour moved to the single quiet rule near .an-empty; this stayed for spacing only */
 /* item 1: trend chart point tooltip */
 .dash-chart#trendWrap{position:relative}
 .tp-dot{cursor:pointer;transition:r .1s ease}
@@ -1635,8 +1636,7 @@ svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 .docket-hint{padding:0 var(--sp-5) var(--sp-4);margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted2)}
 @media (max-width:700px){ .docket-hint{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
 /* item 1: dark-mode fixes for hardcoded colours introduced in v22/v23 */
-.mi-act .mi-btn.tobuilder{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
-.mi-act .mi-btn.tobuilder:hover{background:var(--accent);color:var(--on-accent)}
+/* v39: tobuilder colour removed here too — .mi-btn.tobuilder (near .an-empty) is now the single quiet rule for both themes */
 .btn.danger{color:var(--bad);border-color:var(--bad-bg)}
 .btn.danger:hover{background:var(--bad);color:var(--on-bad);border-color:var(--bad)}
 #lines .line:hover{background:var(--hover);box-shadow:inset 0 0 0 1px var(--border)}
