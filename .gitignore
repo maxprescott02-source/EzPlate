@@ -1,0 +1,4 @@
+node_modules/
+test-results/
+tests/visual/__shots__/
+.DS_Store
