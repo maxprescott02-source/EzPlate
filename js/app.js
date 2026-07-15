@@ -1508,7 +1508,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v37';
+var APP_VERSION='v39';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2437,8 +2437,11 @@ function renderInvReview(){
     if(r.needManual || r.remembered || r.fromProductPack){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var baseCat0=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
-      var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(mem?mem.qty:'');
-      var puNow=r.taughtUnit?r.taughtUnit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea')));
+      // ITEM 1 (v38): the prefill follows the SAME precedence as pricing — product pack > supplier memory > parser guess. r.taughtQty is only set when resolveMatchedPrice actually applied the product pack, so read the product directly as the next fallback: otherwise a product with a taught pack could still be prefilled with the parser's "1.5 kg" guess, and re-confirming that guess would overwrite the taught pack with it.
+      var bprod=(r.bestId&&byId[r.bestId])?byId[r.bestId]:null;
+      var prodPack=(bprod && bprod.pack_qty>0 && bprod.pack_unit)?bprod:null;
+      var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(prodPack?prodPack.pack_qty:(mem?mem.qty:''));
+      var puNow=r.taughtUnit?r.taughtUnit:(prodPack?prodPack.pack_unit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea'))));
       var open=(r.needManual && !r.remembered);                    // manual + unresolved -> the form IS the default state
       teachHtml='<span class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
         +'<span class="pt-lbl sr-only">How many in one pack?</span>'
@@ -2627,8 +2630,8 @@ function applyInvoice(){
       logIngPrice(pid, newC);                                       // record the new price point (builds cost-range history)
       if(oldC!=null && Math.abs(newC-oldC)>Math.abs(oldC)*0.005){ priceChanges.push({name:p.description||r.name, oldC:oldC, newC:newC, unit:ub2.base_unit, dir:(newC>oldC?1:-1), pctAbs:Math.abs((newC-oldC)/oldC)*100}); }
     }
-    // learn the pack for this supplier+phrase (only for lines the app couldn't derive itself)
-    if(normSupplier(invSupplier) && (r.needManual || r.remembered || r.packTaught)){
+    // ITEM 1 (v38) ROOT CAUSE: the product-pack write lived INSIDE this supplier-memory block, so it was gated on normSupplier(invSupplier). A pack belongs to the PRODUCT — 105 slices in a bag is 105 slices whoever invoiced it — but invSupplierDetect returns '' by design when it can't read the letterhead ("no guess"), which made the whole block skip and silently dropped the teach, while the price write above (ungated) still saved. That is why the old price survived as $0.200/unit but the pack vanished. The pack write is now unconditional; supplier memory keeps its own gate, which it genuinely needs because it is keyed supplier+phrase.
+    if(r.needManual || r.remembered || r.packTaught){
       var pt=tr.querySelector('.pack-teach'); var qEl=pt?pt.querySelector('.invPackQty'):null; var uEl=pt?pt.querySelector('.invPackUnit'):null;
       var rUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:'ea';
       var q=qEl?parseFloat(qEl.value):NaN, u=(uEl&&uEl.value)?uEl.value:rUnit;
@@ -2636,10 +2639,17 @@ function applyInvoice(){
         var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN; var pack=packPriceOf(r.raw||r.name);
         if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u=rUnit; } }
       }
-      if(q>0){ var key=memKey(invSupplier, r.raw||r.name); var before=supplierMem[key];
-        rememberSupplierPhrase(invSupplier, r.raw||r.name, q, u, r.bestId||null);
-        if(!before || before.qty!==q || before.unit!==u) learned.push({phrase:r.name, qty:q, unit:u});
-        if(r.bestId && byId[r.bestId]){ var bp=byId[r.bestId]; if(bp.pack_qty!==q || (bp.pack_unit||'')!==(u||'')) setOverride(r.bestId, {pack_qty:q, pack_unit:u}); syncMemoryToProduct(r.bestId, q, u); }  // teach the product + keep memory in step
+      if(q>0){
+        if(r.bestId && byId[r.bestId]){                             // the product pack — written whoever the supplier is, or teach-once never survives
+          var bp=byId[r.bestId];
+          if(bp.pack_qty!==q || (bp.pack_unit||'')!==(u||'')) setOverride(r.bestId, {pack_qty:q, pack_unit:u});
+        }
+        if(normSupplier(invSupplier)){                              // supplier memory is keyed supplier+phrase — it cannot be stored without a supplier
+          var key=memKey(invSupplier, r.raw||r.name); var before=supplierMem[key];
+          rememberSupplierPhrase(invSupplier, r.raw||r.name, q, u, r.bestId||null);
+          if(!before || before.qty!==q || before.unit!==u) learned.push({phrase:r.name, qty:q, unit:u});
+          if(r.bestId && byId[r.bestId]) syncMemoryToProduct(r.bestId, q, u);   // keep memory and product in step
+        }
       }
     }
   });
