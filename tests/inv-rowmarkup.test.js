@@ -104,7 +104,7 @@ test('ITEM 1: a needs-attention row still shows the Old price and a Confidence l
 
 test('ITEM 1 ROOT CAUSE: a needs-attention row is .muted-row but NOT .is-new, so CSS cannot hide its cells', () => {
   const html = buildRow(attentionRow(), 0);
-  assert.ok(/class="inv-data muted-row needs-attention"/.test(html), 'expected muted-row + needs-attention, got: ' + html.slice(0, 120));
+  assert.ok(/class="inv-data muted-row needs-attention st-review"/.test(html), 'expected muted-row + needs-attention + st-review (v37: tint driven by invRowState), got: ' + html.slice(0, 120));
   assert.ok(html.indexOf('is-new') < 0, 'ONLY add-new rows may carry .is-new — that class is what hides Old/Conf');
 });
 
@@ -139,7 +139,14 @@ test('ITEM 1: flag precedence holds — price jump outranks low match, and a cle
   const h2 = buildRow(clean, 0);
   assert.ok(h2.indexOf('low match \u2014 check') < 0, 'an 82% match is not a low match');
   assert.ok(h2.indexOf('price jump \u2014 check') < 0, 'and has no jump');
-  assert.ok(/class="inv-data"/.test(h2), 'a clean match is not muted at all');
+  assert.ok(/class="inv-data st-matched"/.test(h2), 'a clean match is not muted and carries st-matched (v37)');
+});
+
+test('v37: the row class carries invRowState, so new and low-match rows can tint red like the summary says', () => {
+  const low = Object.assign(attentionRow(), { conf: 0.4, tier: 'mid', needsAttention: false });
+  assert.ok(/ st-review"/.test(buildRow(low, 0)), 'a low-confidence match is st-review');
+  const nw = Object.assign(attentionRow(), { addNew: true, bestId: null, needsAttention: false });
+  assert.ok(/ st-new"/.test(buildRow(nw, 0)), 'an add-new line is st-new');
 });
 
 test('ITEM 1: a hand-picked match is never called a low match — the user already made that call', () => {
