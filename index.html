@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=36">
+<link rel="stylesheet" href="css/style.css?v=37">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -65,6 +65,7 @@
       <label class="f" for="q">Search your ingredients</label>
       <div class="search-wrap">
         <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
+        <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
         <div id="drop" class="drop" role="listbox"></div>
       </div>
       <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
@@ -113,12 +114,11 @@
         </div>
         <div class="cogs-set">
           <span class="cogs-lbl">Target food cost (COGS %)</span>
-          <div class="cogs-in"><span id="cogsTargetRead" class="cogs-read">40</span><span class="pct">%</span></div>
-          <p class="cogs-help">This is what percentage of the sell price goes to ingredients. Lower = higher margin. <button type="button" class="linklike" id="cogsToSettings">Change it in Settings</button></p>
+          <p class="cogs-help">Target food cost <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
         </div>
         <div class="menu-search">
           <input id="menuSearch" type="search" placeholder="Search menu items or category…" autocomplete="off">
-          <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear" style="display:none">&times;</button>
+          <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
         </div>
       </div>
       <div class="akey">
@@ -146,7 +146,7 @@
       <div class="king-progress" id="kingProgress" style="display:none"></div>
       <div class="menu-search king-search">
         <input id="kingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
-        <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search" style="display:none">&times;</button>
+        <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
       </div>
       <div id="kingWiz" style="display:none"></div>
       <div id="kingList"></div>
@@ -447,7 +447,8 @@
         <h4>About</h4>
         <p class="hint"><b>EzPlate</b> — Plate costing made easy</p>
         <p class="hint">Version <span id="setVersion">—</span></p>
-        <p class="hint">Privacy · Contact — TODO(Max)</p>
+        <p class="hint">Contact: <a class="linklike" href="tel:0423960797">0423 960 797</a></p>
+        <p class="hint">Privacy — TODO(Max)</p>
       </div>
 
     </div>
@@ -484,7 +485,7 @@
   </div>
   <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span></button>
   <button class="navbtn active" data-tab="builder" type="button" aria-label="Plate builder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg><span class="nl">Builder</span></button>
-  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.2c-4.6 0-8 2.8-8 6.4C4 18.4 7.6 21 12 21s8-2.6 8-6.4c0-3.6-3.4-6.4-8-6.4Z"/><path d="M13.6 3.5C12.4 4.6 12 6 12 8.2"/><path d="M8.3 8.9c1-1.2 2.3-1.5 3.7-.7 1.4-.8 2.7-.5 3.7.7"/></svg><span class="nl">Ingredients</span></button>
+  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg><span class="nl">Ingredients</span></button>
   <!-- data-tab stays "ingredients" for saved-lastTab compatibility; its LABEL is now "Products" (see glossary in v31 brief) -->
   <button class="navbtn" data-tab="ingredients" type="button" aria-label="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Products</span></button>
   <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
@@ -493,7 +494,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=36"></script>
+<script src="js/app.js?v=37"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
