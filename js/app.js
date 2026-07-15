@@ -202,6 +202,7 @@ function runSearch(raw){
 function hl(text,q){q=q.trim();if(!q)return esc(text);const i=text.toLowerCase().indexOf(q.toLowerCase());
   if(i<0)return esc(text);return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));}
 const qEl=document.getElementById('q'), dropEl=document.getElementById('drop');
+(function(){ var qc=document.getElementById('qClear'); if(qc&&qEl) qc.addEventListener('click',function(){ qEl.value=''; if(dropEl){dropEl.style.display='none';} qEl.setAttribute('aria-expanded','false'); qEl.focus(); }); })();   // v37: same clear affordance as every other search
 let curList=[], hiIdx=-1;
 function kitchenSearchMatches(q){                                     // kitchen ingredients matching the query (by name)
   q=(q||'').trim().toLowerCase();
@@ -659,8 +660,8 @@ function restoreLastTab(){                                            // return 
   // ITEM 6 (v35): the Menu tab's #cogsTarget input is now a read-only display (#cogsTargetRead);
   // editing moved to Settings. Nothing to wire here beyond the search controls.
   var ms=document.getElementById('menuSearch'), msc=document.getElementById('menuSearchClear');
-  if(ms){ ms.addEventListener('input',function(){ if(msc)msc.style.display=ms.value?'':'none'; renderAnalysis(); }); }
-  if(msc){ msc.addEventListener('click',function(){ ms.value=''; msc.style.display='none'; renderAnalysis(); ms.focus(); }); }
+  if(ms){ ms.addEventListener('input',function(){ renderAnalysis(); }); ms.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ms.blur(); } }); }
+  if(msc){ msc.addEventListener('click',function(){ ms.value=''; renderAnalysis(); ms.focus(); }); }
 })();
 buildMenuOptions(); buildMenuSelector(); bindTips();
 
@@ -678,7 +679,7 @@ var priceHistory = loadHistory();
 var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')||'3m'; }catch(e){ return '3m'; } })();
 function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
 function dashRangePts(){                                           // the points inside the chosen window (capped for sanity)
-  var days={'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
+  var days={'1w':7,'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
   var cutoff=Date.now()-days*86400000;
   var pts=days?priceHistory.filter(function(p){
     var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;   // Supabase points arrive as ISO strings; a string is never >= a number
@@ -687,7 +688,7 @@ function dashRangePts(){                                           // the points
   return pts.slice(-60);
 }
 function rangeBarHtml(){
-  var os=[['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
+  var os=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
   return '<div class="range-bar">'+os.map(function(o){return '<button type="button" class="range-btn'+(dashRange===o[0]?' act':'')+'" data-rg="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div>';
 }
 /* ---- per-ingredient price log (local; powers price-change alerts + cost ranges). No new Supabase table. ---- */
@@ -824,7 +825,7 @@ function invSupplierDetect(text){
    Feature 3 — Ingredients page
    ============================================================ */
 /* Item 1C — shared empty-state (icons echo the nav tab icons at large size) */
-var ICON_LEAF_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.2c-4.6 0-8 2.8-8 6.4C4 18.4 7.6 21 12 21s8-2.6 8-6.4c0-3.6-3.4-6.4-8-6.4Z"/><path d="M13.6 3.5C12.4 4.6 12 6 12 8.2"/><path d="M8.3 8.9c1-1.2 2.3-1.5 3.7-.7 1.4-.8 2.7-.5 3.7.7"/></svg>';   /* v36: tomato (was leaf) — matches the tab glyph */
+var ICON_LEAF_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg>';   /* v36: tomato (was leaf) — matches the tab glyph */
 var ICON_BOX_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
 function emptyStateHtml(icon,title,body,actionsHtml){
   return '<div class="empty-state">'+icon+'<h3>'+esc(title)+'</h3><p>'+esc(body)+'</p>'+(actionsHtml?'<div class="es-actions">'+actionsHtml+'</div>':'')+'</div>';
@@ -1325,13 +1326,13 @@ function deleteKitchenIngredient(kid){
   on('kingNew',function(){ openKingModal(null); });
   on('kingWizBtn',toggleKingWizard);
   var ks=document.getElementById('kingSearch'), kc=document.getElementById('kingSearchClear');
-  if(ks) ks.addEventListener('input',function(){                     // ITEM 3 (v35)
+  if(ks){ ks.addEventListener('input',function(){                     // ITEM 3 (v35)
     kingQuery=ks.value||'';
-    if(kc) kc.style.display=kingQuery?'':'none';
     if(kingQuery && kingWizOpen){ kingWizOpen=false; renderKingWizard(); }   // searching and the setup wizard are two different jobs — never both at once
     renderKitchenPanel();
   });
-  if(kc) kc.addEventListener('click',function(){ if(ks){ ks.value=''; } kingQuery=''; kc.style.display='none'; renderKitchenPanel(); if(ks) ks.focus(); });
+  ks.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ks.blur(); } }); }   // v37: Enter commits the search (dismisses the keyboard)
+  if(kc) kc.addEventListener('click',function(){ if(ks){ ks.value=''; } kingQuery=''; renderKitchenPanel(); if(ks) ks.focus(); });
   on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
@@ -1482,6 +1483,7 @@ function renderDashboard(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
+  var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
   on('hlClose',function(){hide('hlModal');}); on('hlDone',function(){hide('hlModal');});
@@ -1506,7 +1508,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v36';
+var APP_VERSION='v37';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2310,6 +2312,7 @@ function resolveCombo(inpId, listFn){
   if(st.confirmed && st.isNew && (st.value||'').toLowerCase()===v.toLowerCase()) return {ok:true, value:v};
   return {ok:false, value:v};
 }
+function niLab(t){ return '<span class="ni-lab">'+t+'<span class="ni-af">auto-filled</span></span>'; }   /* v37 */
 function expandNewItem(i){
   var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(!nirow) return;
   var panel=nirow.querySelector('.ni-panel'), r=invRows[i];
@@ -2320,14 +2323,15 @@ function expandNewItem(i){
      +'<button type="button" class="x ni-close" aria-label="Close add-new-item form">\u00d7</button>'
      +'<div class="ni-head">Add new item from this invoice line</div>'
      +'<div class="ni-grid">'
-     +'<label>Name<input id="ni_name'+i+'" type="text" value="'+esc(r.name)+'"></label>'
-     +'<label>Brand<span class="cat-wrap"><input id="ni_brand'+i+'" type="text" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label>Category<span class="cat-wrap"><input id="ni_cat'+i+'" type="text" autocomplete="off" placeholder="search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label>Supplier<span class="cat-wrap"><input id="ni_sup'+i+'" type="text" autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label>Unit type<select id="ni_unit'+i+'"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
-     +'<label>Price per unit ($)<input id="ni_price'+i+'" type="number" min="0" step="0.01" value="'+pv+'"></label>'
-     +'<label>Pack size (optional)<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
-     +'<label>Kitchen name (optional)<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="what the kitchen calls it"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     /* v37: every field is label-line + control-line; the auto-filled chip lives INLINE on the label — one place, every field, no overlap possible */
+     +'<label class="ni-f">'+niLab('Name')+'<input id="ni_name'+i+'" type="text" value="'+esc(r.name)+'"></label>'
+     +'<label class="ni-f">'+niLab('Brand')+'<span class="cat-wrap"><input id="ni_brand'+i+'" type="text" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Category')+'<span class="cat-wrap"><input id="ni_cat'+i+'" type="text" autocomplete="off" placeholder="search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Supplier')+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text" autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Unit type')+'<select id="ni_unit'+i+'"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
+     +'<label class="ni-f">'+niLab('Price per unit ($)')+'<input id="ni_price'+i+'" type="number" min="0" step="0.01" value="'+pv+'"></label>'
+     +'<label class="ni-f">'+niLab('Pack size (optional)')+'<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
+     +'<label class="ni-f ni-full">'+niLab('Kitchen name (optional)')+'<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="what the kitchen calls it"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
     panel.dataset.built='1';
     var _nc=panel.querySelector('.ni-close'); if(_nc){ _nc.onclick=function(ev){ ev.preventDefault(); closeNewItem(i); }; }
@@ -2476,7 +2480,7 @@ function renderInvReview(){
       ? '<td class="num invOld">'+dispPrice(byId[r.bestId])+'</td>'
       : '<td class="num invOld dash">\u2014</td>';
     var confCell = '<td class="num'+(dc.has?'':' dash')+'"><span class="conf '+dc.tier+'">'+dc.label+'</span></td>';
-    html+='<tr class="inv-data'+rc+(r.needsAttention?' needs-attention':'')+'" data-i="'+i+'">'+
+    html+='<tr class="inv-data'+rc+(r.needsAttention?' needs-attention':'')+' st-'+invRowState(r)+'" data-i="'+i+'">'+   // v37: the tint and the summary can never disagree — both read invRowState
       '<td>'+esc(r.name)+flag+'</td>'+
       '<td class="num">'+priceCell+'</td>'+
       '<td>'+matchCell+'</td>'+
@@ -2768,8 +2772,13 @@ function renderAnalysis(){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
     custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
   }
-  if(!shown){ html='<tr class="an-empty"><td colspan="6">'+(q?'No menu items match':'No menu items yet')+'</td></tr>'; }
+  if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
+    +(q?('<b>No menu items match</b><button type="button" class="linklike" id="anClearSearch">Clear search</button>')
+       :('<b>No menu items yet</b><span>Cost a plate in the Builder and publish it to see it here.</span>'))
+    +'</div></td></tr>'; }
   tb.innerHTML=html; bindTips();
+  var acs=document.getElementById('anClearSearch');
+  if(acs) acs.onclick=function(){ var ms=document.getElementById('menuSearch'); if(ms) ms.value=''; renderAnalysis(); };
   tb.querySelectorAll('.mi-btn.edit').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid) openPlateEdit(pid); else openMenuEdit(b.getAttribute('data-id')); }; });
   tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
 }
