@@ -149,6 +149,13 @@ test('v37: the row class carries invRowState, so new and low-match rows can tint
   assert.ok(/ st-new"/.test(buildRow(nw, 0)), 'an add-new line is st-new');
 });
 
+test('v39: only a clean matched row renders pre-ticked — flagged/new rows never do', () => {
+  const flagged = buildRow(attentionRow(), 0);                      // needsAttention -> st-review
+  assert.ok(!/invAppr" checked/.test(flagged), 'a price-jump row must not be pre-ticked');
+  const clean = buildRow(Object.assign(attentionRow(), { needsAttention: false }), 0);
+  assert.ok(/invAppr" checked/.test(clean), 'a clean hi match still auto-ticks');
+});
+
 test('ITEM 1: a hand-picked match is never called a low match — the user already made that call', () => {
   const r = Object.assign(attentionRow(), { manualPick: true, bestId: 'P0999', needsAttention: false });
   const html = buildRow(r, 0);

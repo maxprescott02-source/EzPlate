@@ -82,7 +82,7 @@
       <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
     </div>
     <div class="docket-head" style="margin-top:14px">
-      <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
+      <span id="dHead"><svg class="plate-anim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="16.5" rx="8" ry="3.2"/><ellipse cx="12" cy="16.5" rx="4.4" ry="1.7"/><path class="steam s1" d="M9.5 11c-.8-1.2-.8-2.3 0-3.5.8-1.2.8-2.3 0-3.5"/><path class="steam s2" d="M14.5 11c-.8-1.2-.8-2.3 0-3.5.8-1.2.8-2.3 0-3.5"/></svg>EZPLATE — DOCKET</span><span id="dCount">0 items</span>
     </div>
     <div id="lines"></div>
     <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
@@ -479,7 +479,7 @@
 <!-- Bottom navigation -->
 <nav class="bottomnav" aria-label="Main sections">
   <!-- NEW: sidebar brand — visible only on desktop (≥1024px); bottom bar unchanged on mobile -->
-  <div class="side-brand" aria-hidden="true">
+  <div class="side-brand" id="sideBrandHome" role="button" tabindex="0" aria-label="Go to dashboard">
     <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/><path class="mk-arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg>
     <span><b><span class="ez">Ez</span>Plate</b><small>Plate costing made easy</small></span>
   </div>

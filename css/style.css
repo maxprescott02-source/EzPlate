@@ -1153,7 +1153,9 @@ input[type=checkbox]{
   .side-brand{
     display:flex;align-items:center;gap:10px;padding:6px 8px 18px;
     border-bottom:1px solid var(--border);margin-bottom:14px;color:var(--brand);
+    cursor:pointer;border-radius:8px;   /* v39: sidebar logo is a Dashboard shortcut too */
   }
+  .side-brand:focus-visible{outline:2px solid var(--accent,#3a6b4f);outline-offset:2px}
   .side-brand svg{width:34px;height:34px;flex:0 0 auto}
   .side-brand b{font-size:17px;font-weight:800;letter-spacing:-.015em;color:var(--brand)}
   .side-brand b .ez{color:var(--accent-ink)}
@@ -1942,7 +1944,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* menu empty state: centred, no orphaned quotes */
 .an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
 /* dashboard: stat cards collapsed to one quiet line; chart takes the space */
-.stat-line{display:flex;flex-wrap:wrap;gap:4px var(--sp-4);padding:2px 16px 8px;font-size:12px;color:var(--muted2);align-items:baseline}
+.stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 16px 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked */
+.stat-line .stat-bit{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.stat-line .stat-h{min-width:82px}   /* the three labels line up, so the numbers do too */
 .stat-line .stat-h{font-weight:700}
 .stat-line .stat-arrow.good{color:var(--good)} .stat-line .stat-arrow.bad{color:var(--bad)}
 .stat-line .stat-sub.good{color:var(--good)} .stat-line .stat-sub.bad{color:var(--bad)} .stat-line .stat-sub.flat{color:var(--muted2)}
@@ -1992,3 +1996,30 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .ni-grid .cat-wrap{position:relative;display:block}
 .ni-grid .cat-drop{min-width:240px;max-width:min(320px,90vw)}
 @media (max-width:639px){ .ni-grid{grid-template-columns:1fr} }
+
+/* ===== batch (v39) — Fable patch (Max notes 15 Jul pm) ===== */
+/* (g) logo + (l) tobuilder are handled earlier in this file (logo also covers the
+   desktop .side-brand, which the reference (g) does not); only (e)(c)(d)(f) below. */
+/* (e) the docket plate: grey, gentle steam; still under reduced-motion */
+.plate-anim{width:20px;height:20px;vertical-align:-4px;margin-right:8px;color:var(--muted2)}
+.plate-anim .steam{opacity:0;animation:steamRise 2.6s ease-in-out infinite}
+.plate-anim .steam.s2{animation-delay:1.3s}
+@keyframes steamRise{0%{opacity:0;transform:translateY(2px)}35%{opacity:.7}70%{opacity:0;transform:translateY(-2px)}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.plate-anim .steam{animation:none;opacity:.45}}
+/* (c) pack fields: price on its own line, pack controls on ONE line below, every control the same shape */
+.uprice-edit{display:flex;align-items:center;gap:6px;width:100%}
+.remembered-chip,.remembered-chip.pack-chip{display:inline-flex;align-items:center;min-height:40px;border-radius:var(--radius-ctl);padding:6px 12px;margin-top:8px}
+.pack-teach{display:flex!important;align-items:center;gap:8px;flex-wrap:nowrap;margin-top:8px;width:100%}
+.pack-teach.hidden{display:none!important}
+.pack-teach .pt-group{display:inline-flex;align-items:stretch;border:1px solid var(--border);border-radius:var(--radius-ctl);overflow:hidden;background:var(--surface)}
+.pack-teach .invPackQty{width:88px;min-height:40px;border:0;border-radius:0;padding:6px 10px;font:inherit;background:var(--surface);color:var(--text)}
+.pack-teach .invPackUnit{min-height:40px;border:0;border-left:1px solid var(--border);border-radius:0;background:var(--surface2);color:var(--text);font:inherit;padding:6px 8px}
+.pack-teach .pt-done{min-width:40px;min-height:40px;border:1px solid var(--border);border-radius:var(--radius-ctl);background:var(--surface);color:var(--good);font-size:16px;font-weight:800;cursor:pointer}
+.pack-teach .pt-done:hover{border-color:var(--good)}
+.pack-teach .pt-preview{flex:1 1 auto;min-width:0;font-size:12px;color:var(--accent-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;order:4}
+/* (d) invoice card lines share ONE left edge — title, flags, labels, fields */
+.invtable tbody tr:not(.sec) > td{padding-left:0;padding-right:0}
+.invtable tbody tr:not(.sec) > td:first-child{padding-left:0}
+.invtable .flag-review,.invtable .flag-mismatch,.invtable .flag-new{margin-left:0}
+/* (f) menu empty glyph */
+.an-empty-ic{width:34px;height:34px;color:var(--muted2);margin-bottom:2px}

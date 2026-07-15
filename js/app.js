@@ -1325,9 +1325,12 @@ function deleteKitchenIngredient(kid){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('kingNew',function(){ openKingModal(null); });
   on('kingWizBtn',toggleKingWizard);
-  var bh=document.getElementById('brandHome');   // v39: logo goes home
-  if(bh){ bh.addEventListener('click',function(){ showTab('dashboard'); });
-    bh.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); showTab('dashboard'); } }); }
+  var _goHome=function(){ showTab('dashboard'); };   // v39: the logo is the way home
+  ['brandHome','sideBrandHome'].forEach(function(id){   // header logo (mobile) + sidebar logo (desktop >=1024px) — one is always the visible one
+    var el=document.getElementById(id); if(!el) return;
+    el.addEventListener('click',_goHome);
+    el.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _goHome(); } });
+  });
   var ks=document.getElementById('kingSearch'), kc=document.getElementById('kingSearchClear');
   if(ks){ ks.addEventListener('input',function(){                     // ITEM 3 (v35)
     kingQuery=ks.value||'';
@@ -2787,6 +2790,7 @@ function renderAnalysis(){
     custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
   }
   if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
+    +'<svg class="an-empty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>'
     +(q?('<b>No menu items match</b><button type="button" class="linklike" id="anClearSearch">Clear search</button>')
        :('<b>No menu items yet</b><span>Cost a plate in the Builder and publish it to see it here.</span>'))
     +'</div></td></tr>'; }
