@@ -903,14 +903,19 @@ input[type=checkbox]{
   }
   .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
   .cogs-set{flex:1 1 200px;min-width:180px}
-  .cogs-set > label{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
-  /* ITEM 6 (v35): the Menu tab's target is read-only now; editing lives in Settings */
-  .cogs-set > .cogs-lbl{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
-  .cogs-read{font:inherit;font-weight:700;font-size:16px;color:var(--text)}
+  /* v39: the Menu tab's read-only target. `.cogs-read{font-size:16px}` was written in v35 for
+     a standalone value display; v36/v37 turned the markup into an inline sentence and the rule
+     was orphaned, so the line rendered at four sizes at once — 11px text, 16px "30", 11px "%",
+     13px link. The value now sizes ONCE on .cogs-inline and everything inside it follows. */
+  .cogs-set > .cogs-lbl{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:6px}
+  .cogs-help{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted2);margin:0;max-width:340px}
+  .cogs-inline{font-size:16px;font-weight:800;color:var(--text);line-height:1.2}
+  .cogs-read{font:inherit;color:inherit}          /* follows .cogs-inline — the number and the % are one size */
+  .cogs-sep{color:var(--border2)}
+  .cogs-help .linklike{font-size:13px}
   .cogs-in{display:inline-flex;align-items:center;gap:2px}
   .cogs-in input{width:74px;padding:8px 10px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
   .cogs-in .pct{font-weight:700;color:var(--muted2)}
-  .cogs-help{font-size:11px;color:var(--muted2);margin:6px 0 0;max-width:340px}
   .menu-search{flex:1 1 220px;min-width:180px;position:relative;display:flex;align-items:center}
   .menu-search input{width:100%;padding:9px 32px 9px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
   .menu-search input::-webkit-search-cancel-button{display:none}
@@ -1964,8 +1969,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .king-head #kingNew{flex:1 1 auto}
   .king-head #kingWizBtn{flex:0 0 auto}
 }
-/* menu: one-line target copy */
-.cogs-inline{font-weight:800;color:var(--text)}
+/* menu: one-line target copy — .cogs-inline is defined once with the other .cogs-* rules
+   (~line 912). A second partial definition here is what let .cogs-read's orphaned 16px
+   survive unnoticed; one rule, one place. */
 /* menu empty state: genuinely centred in its box */
 .an-empty td{display:block;padding:0}
 .an-empty td::before{content:none!important}
