@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=41">
+<link rel="stylesheet" href="css/style.css?v=42">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -355,18 +355,6 @@
   </div>
 </div>
 
-<!-- Delete-menu destination picker (used when deleting a menu that still holds dishes) -->
-<div class="modal-overlay" id="delMenuModal" aria-hidden="true">
-  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delMenuTitle">
-    <div class="mhead"><h3 id="delMenuTitle">Delete menu</h3><button class="x" id="delMenuClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="mbody">
-      <p id="delMenuMsg" class="confirm-msg"></p>
-      <div class="field full" id="delMenuDestField"><label for="delMenuDest">Move dishes to</label><select id="delMenuDest"></select></div>
-    </div>
-    <div class="mfoot"><button class="btn ghost" id="delMenuCancel" type="button">Cancel</button><button class="btn primary" id="delMenuConfirm" type="button">Delete menu</button></div>
-  </div>
-</div>
-
 <!-- Edit ingredient modal -->
 <div class="modal-overlay" id="ingModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ingModalTitle">
@@ -506,7 +494,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=41"></script>
+<script src="js/app.js?v=42"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

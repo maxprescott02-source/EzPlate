@@ -86,3 +86,50 @@ test('v40 item 1: a null plate is a safe no-op', async () => {
   await fn(null, Promise.resolve({ ok: true }));
   assert.strictEqual(calls.length, 0, 'nothing is pushed for a missing plate');
 });
+
+/*
+ * v42 Item 1 — reconcileLocalOnly (the bootstrap orphan-heal).
+ *
+ * THE DEEPER BUG: bootstrapSync used to REPLACE local with the server snapshot, so a dish/plate
+ * created while offline (whose push was dropped) was DESTROYED on reload — and any plate referencing
+ * such a dish FK-failed forever. The fix keeps local-only rows, merges them, and re-pushes them.
+ *
+ * CONTRACT (against the REAL shipped pure reconcileLocalOnly, brace-extracted so there is no copy):
+ *   - local rows the server lacks are surfaced as localOnly (to re-push) AND kept in merged
+ *   - tombstoned (deliberately deleted) ids are never resurfaced
+ *   - idempotent: once the re-push has landed, the next server snapshot yields no localOnly and no dupes
+ */
+const reconcile = new Function(`
+  "use strict";
+  ${extractFn(SRC, 'reconcileLocalOnly')}
+  return reconcileLocalOnly;
+`)();
+
+test('v42 item 1: a local dish the server lacks is surfaced for re-push and kept in merged (not clobbered)', () => {
+  const local = [{ id: 'A', custom: true }, { id: 'B', custom: true }];
+  const server = [{ id: 'A', custom: true }];
+  const r = reconcile(local, server, []);
+  assert.deepStrictEqual(r.localOnly.map(x => x.id), ['B'], 'B is local-only -> must be re-pushed');
+  assert.deepStrictEqual(r.merged.map(x => x.id).sort(), ['A', 'B'], 'B survives the merge instead of being destroyed');
+});
+
+test('v42 item 1: a tombstoned (deliberately deleted) local id is NOT resurrected', () => {
+  const local = [{ id: 'DEAD', custom: true }];
+  const server = [];
+  const r = reconcile(local, server, ['DEAD']);
+  assert.deepStrictEqual(r.localOnly, [], 'a deleted dish must not be re-pushed');
+  assert.deepStrictEqual(r.merged, [], 'a deleted dish must not reappear in the merged list');
+});
+
+test('v42 item 1: idempotent — once the row is on the server, no re-push and no duplicate', () => {
+  const local = [{ id: 'A' }, { id: 'B' }];
+  const server = [{ id: 'A' }, { id: 'B' }];   // the earlier re-push has now landed
+  const r = reconcile(local, server, []);
+  assert.deepStrictEqual(r.localOnly, [], 'nothing left to re-push');
+  assert.deepStrictEqual(r.merged.map(x => x.id), ['A', 'B'], 'no duplicate rows');
+});
+
+test('v42 item 1: empty/missing inputs are safe', () => {
+  assert.deepStrictEqual(reconcile(null, null, null), { merged: [], localOnly: [] });
+  assert.deepStrictEqual(reconcile([{ id: 'X' }], null, null).localOnly.map(x => x.id), ['X']);
+});
