@@ -68,6 +68,13 @@ test('v40 item 1: a failed menu-item push aborts the plate write (no orphan plat
   assert.strictEqual(res, null, 'the sequencing resolves to null on abort');
 });
 
+test('v40 item 1: a SKIPPED menu push (null result — offline/no client) must NOT push the plate', async () => {
+  const { fn, calls } = makeHarness();
+  const menuPush = Promise.resolve(null);   // pushWrite returns null when it did not actually write
+  await fn(SP, menuPush);
+  assert.strictEqual(calls.indexOf('plate:SP1'), -1, 'the plate must not be pushed when the menu item was not confirmed');
+});
+
 test('v40 item 1: with no dependency the plate pushes immediately (unchanged path)', async () => {
   const { fn, calls } = makeHarness();
   await fn(SP, null);

@@ -20,13 +20,20 @@ function online(){ return !!SUPA && navigator.onLine; }
 function errText(err){ return (err && (err.message||err.error_description||err.error||err.details||err.hint||err.code)) || 'unknown error'; }
 function pushWrite(builder, label){
   if(!SUPA) return Promise.resolve(null);            // no client configured
-  if(!navigator.onLine){ setSync('offline'); return Promise.resolve(null); }
   setSync('saving');
-  return Promise.resolve().then(builder).then(function(res){          // v40: returns the settled result so ordered writes (menu -> plate) can chain
+  // v40: do NOT pre-skip on navigator.onLine \u2014 it false-reports 'offline' in installed PWAs (caf\u00e9 phones),
+  // which both showed a bogus "offline" banner AND silently dropped the write. A dropped menu-item write then
+  // let a plate reference a row that was never sent (plates_menu_id_fkey). We ATTEMPT the write and judge by
+  // the real outcome; a thrown error below is the genuine-offline / unreachable case.
+  return Promise.resolve().then(builder).then(function(res){          // returns the settled result so ordered writes (menu -> plate) can chain
     if(res && res.error){ console.error('[sync] '+label+' failed:', res.error); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(res.error)); }
     else { setSync('ok'); }
     return res;
-  }).catch(function(e){ console.error('[sync] '+label+' error:', e); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); return {error:e}; });
+  }).catch(function(e){ console.error('[sync] '+label+' error:', e);
+    if(!navigator.onLine){ setSync('offline'); }                      // genuinely offline: quiet banner, no scary toast \u2014 it's saved locally
+    else { setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); }
+    return {error:e};
+  });
 }
 
 /* row mappers */
@@ -56,7 +63,10 @@ function dbPushPlateAfterMenu(sp, menuPushPromise){
   if(!sp) return Promise.resolve(null);
   if(!menuPushPromise) return dbPushPlate(sp);                        // no new menu-item dependency -> unchanged path
   return Promise.resolve(menuPushPromise).then(function(res){
-    if(res && res.error){ toast('The menu item didn’t save, so “'+(sp.name||'the plate')+'” wasn’t saved online — try again when connected'); return null; }
+    // Only push the plate once the menu item is CONFIRMED on the server (truthy result, no error). A null
+    // (skipped/no client) or an error means the row isn't there — pushing the plate would orphan it and trip
+    // plates_menu_id_fkey. It's saved locally either way and will sync with the item next time.
+    if(!res || res.error){ if(res && res.error){ toast('The menu item didn’t save, so “'+(sp.name||'the plate')+'” isn’t online yet — try again when connected'); } return null; }
     return dbPushPlate(sp);
   });
 }
