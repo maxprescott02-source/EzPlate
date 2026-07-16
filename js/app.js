@@ -19,13 +19,14 @@ function setSync(state){
 function online(){ return !!SUPA && navigator.onLine; }
 function errText(err){ return (err && (err.message||err.error_description||err.error||err.details||err.hint||err.code)) || 'unknown error'; }
 function pushWrite(builder, label){
-  if(!SUPA) return;                                  // no client configured
-  if(!navigator.onLine){ setSync('offline'); return; }
+  if(!SUPA) return Promise.resolve(null);            // no client configured
+  if(!navigator.onLine){ setSync('offline'); return Promise.resolve(null); }
   setSync('saving');
-  Promise.resolve().then(builder).then(function(res){
+  return Promise.resolve().then(builder).then(function(res){          // v40: returns the settled result so ordered writes (menu -> plate) can chain
     if(res && res.error){ console.error('[sync] '+label+' failed:', res.error); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(res.error)); }
     else { setSync('ok'); }
-  }).catch(function(e){ console.error('[sync] '+label+' error:', e); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); });
+    return res;
+  }).catch(function(e){ console.error('[sync] '+label+' error:', e); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); return {error:e}; });
 }
 
 /* row mappers */
@@ -44,9 +45,21 @@ function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, li
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
-function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
-function dbUpsertMenuRecord(m){ pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
-function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
+function dbPushMenu(item){ return pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
+function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
+function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
+// v40 item 1: a plate references a menu_items row via plates.menu_id (FK plates_menu_id_fkey). When that row is
+// brand new (just published), its insert and the plate insert both fire through pushWrite with no ordering, so the
+// plate can reach Supabase first and violate the FK. Chain the plate push AFTER the menu-item push resolves, and
+// abort (never write an orphan plate) if the menu-item push failed.
+function dbPushPlateAfterMenu(sp, menuPushPromise){
+  if(!sp) return Promise.resolve(null);
+  if(!menuPushPromise) return dbPushPlate(sp);                        // no new menu-item dependency -> unchanged path
+  return Promise.resolve(menuPushPromise).then(function(res){
+    if(res && res.error){ toast('The menu item didn’t save, so “'+(sp.name||'the plate')+'” wasn’t saved online — try again when connected'); return null; }
+    return dbPushPlate(sp);
+  });
+}
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
@@ -567,7 +580,7 @@ function loadPlates(){try{return JSON.parse(localStorage.getItem(PLATEKEY))||[];
 function savePlatesLS(){try{localStorage.setItem(PLATEKEY,JSON.stringify(savedPlates));}catch(e){}}
 let savedPlates=loadPlates();
 function plateNameVal(){return (document.getElementById('plateName').value.trim())||'Unnamed plate';}
-function saveCurrentPlate(asNew){
+function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushPromise (from a just-published menu item) sequences the plate push after it
   if(!plate.length){toast('Add ingredients to the plate first');return;}
   var rawName=(document.getElementById('plateName').value||'').trim();
   var pErr=document.getElementById('plateNameErr');
@@ -579,7 +592,7 @@ function saveCurrentPlate(asNew){
   if(!loadedPlateId && menuId){ var existLinked=savedPlates.find(function(s){return s.menuId===menuId;}); if(existLinked) loadedPlateId=existLinked.id; }
   if(!asNew && loadedPlateId){ var sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){sp.name=name;sp.menuId=menuId;sp.lines=lines;} else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
-  savePlatesLS(); dbPushPlate(savedPlates.find(function(s){return s.id===loadedPlateId;})); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
+  savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
 }
 document.getElementById('saveBtn').addEventListener('click',function(){saveCurrentPlate(false);});
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
@@ -1515,7 +1528,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v39';
+var APP_VERSION='v40';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -1849,7 +1862,7 @@ function submitMenuItem(){
   var err=document.getElementById('mi_err');
   if(!name){err.textContent='Enter a menu item name.';err.style.display='block';return;}
   if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){err.textContent='Enter a valid sell price.';err.style.display='block';return;}
-  var targetId;
+  var targetId, menuItemPush=null;
   if(publishTargetId){
     targetId=publishTargetId;
     var prevItem=menuById[targetId]||{};
@@ -1857,12 +1870,12 @@ function submitMenuItem(){
   } else {
     targetId='um'+Date.now().toString(36);
     customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:null});
-    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,sourcePlateId:null});
+    saveCustomMenu(); menuItemPush=dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,sourcePlateId:null});   // v40: this NEW menu_items row must land before the plate references it
   }
   rebuildMenu(); buildMenuOptions();
   setCurrentMenuId(chosenMenu); buildMenuSelector();          // show the menu this dish landed in
   menuLinkEl.value=targetId; menuTouched=true;
-  saveCurrentPlate(false);
+  saveCurrentPlate(false, menuItemPush);                      // sequence: plate push waits for the new menu-item push (no-op dependency when updating an existing item)
   renderAnalysis(); closeMenuModal(); updatePublishLabel();
   toast(publishTargetId?('"'+name+'" updated on the menu'):('"'+name+'" added to the menu'));
 }
