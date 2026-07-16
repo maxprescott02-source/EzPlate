@@ -101,7 +101,7 @@ async function bootstrapSync(){
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
     ensureDefaultMenu(); saveMenus();
-    if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId('MENU_ORIGINAL');
+    if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
     try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
@@ -490,8 +490,15 @@ let customMenu=loadCustomMenu();
 function loadMenus(){ try{ var a=JSON.parse(localStorage.getItem('cafeDB_menus')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function saveMenus(){ try{ localStorage.setItem('cafeDB_menus', JSON.stringify(menusList)); }catch(e){} }
 var menusList=loadMenus();
-function ensureDefaultMenu(){ if(!menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
+function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }   // v40: seed Original ONLY on an empty list — never resurrect it once deliberately deleted
 ensureDefaultMenu();
+function fallbackMenuId(){                                          // v40: a current-menu fallback that never returns a deleted id — prefer Original while it exists, else the first surviving menu
+  if(menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
+  return (menusList[0] && menusList[0].id) || 'MENU_ORIGINAL';
+}
+function canDeleteMenu(id){                                         // v40: any menu is deletable EXCEPT the last one standing
+  return menusList.length>1 && menusList.some(function(m){return m.id===id;});
+}
 function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||'MENU_ORIGINAL'; }catch(e){ return 'MENU_ORIGINAL'; } }
 var currentMenuId=loadCurrentMenuId();
 function setCurrentMenuId(id){ currentMenuId=id||'MENU_ORIGINAL'; try{ localStorage.setItem('cafeDB_currentMenuId', currentMenuId); }catch(e){} }
@@ -2818,7 +2825,7 @@ function renderAnalysis(){
 function buildMenuSelector(){
   var sel=document.getElementById('menuSelect');
   if(sel){
-    if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId='MENU_ORIGINAL';
+    if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();
     sel.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
     sel.value=currentMenuId;
   }
@@ -2838,21 +2845,46 @@ function onMenuSelectChange(){
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
+// v40: the actual deletion \u2014 move the menu's dishes to `dest`, drop the menu, land the user on `dest`. Shared by both paths.
+function doDeleteMenu(id, dest, name){
+  var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
+  affected.forEach(function(c){ c.menuId=dest; dbPushMenu(c); });   // reassign, never delete the dishes
+  if(affected.length) saveCustomMenu();
+  menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
+  setCurrentMenuId(dest);
+  rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn();
+  toast('\u201c'+name+'\u201d deleted \u2014 dishes moved to \u201c'+menuNameById(dest)+'\u201d');
+}
 function deleteCurrentMenu(){
   var id=currentMenuId;
-  if(id==='MENU_ORIGINAL'){ toast('The Original menu can\u2019t be deleted'); return; }
+  if(!canDeleteMenu(id)){ toast('The last menu can\u2019t be deleted'); return; }   // v40: the last remaining menu is never deletable
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
-  askConfirm('Delete menu?', 'Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' will be moved to the Original menu \u2014 nothing is lost.', 'Delete menu', function(){
-    affected.forEach(function(c){ c.menuId='MENU_ORIGINAL'; dbPushMenu(c); });   // reassign, never delete the dishes
-    if(affected.length) saveCustomMenu();
-    menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
-    setCurrentMenuId('MENU_ORIGINAL');
-    rebuildMenu(); buildMenuSelector(); renderAnalysis();
-    toast('\u201c'+m.name+'\u201d deleted \u2014 dishes moved to Original');
-  });
+  if(id==='MENU_ORIGINAL'){ openDelMenu(id, m, affected); return; }   // v40: deleting Original asks where its dishes should move
+  var dest=fallbackMenuId(), nm=m.name;                                // non-original: dishes fall back to Original (or first surviving) as before
+  askConfirm('Delete menu?', 'Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' will be moved to \u201c'+menuNameById(dest)+'\u201d \u2014 nothing is lost.', 'Delete menu', function(){ doDeleteMenu(id, dest, nm); });
 }
-function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=(currentMenuId==='MENU_ORIGINAL')?'none':''; }
+var delMenuTargetId=null;
+function openDelMenu(id, m, affected){                                // v40: destination picker for deleting a menu that still holds dishes (used for Original)
+  delMenuTargetId=id;
+  var others=menusList.filter(function(x){return x.id!==id;});
+  var sel=document.getElementById('delMenuDest'); if(sel){ sel.innerHTML=others.map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.name)+(x.season?(' \u2014 '+esc(x.season)):'')+'</option>'; }).join(''); }
+  var field=document.getElementById('delMenuDestField'); if(field) field.style.display=affected.length?'':'none';   // no dishes -> no picker, just a confirm
+  var msg=document.getElementById('delMenuMsg');
+  if(msg){ msg.textContent=affected.length
+      ? ('Delete \u201c'+m.name+'\u201d? Choose where its '+affected.length+' dish'+(affected.length===1?'':'es')+' should move \u2014 nothing is lost.')
+      : ('Delete \u201c'+m.name+'\u201d? It has no dishes.'); }
+  show('delMenuModal');
+}
+function closeDelMenu(){ hide('delMenuModal'); delMenuTargetId=null; }
+function confirmDelMenu(){
+  var id=delMenuTargetId; if(!id){ closeDelMenu(); return; }
+  var m=menusList.find(function(x){return x.id===id;}); if(!m){ closeDelMenu(); return; }
+  var sel=document.getElementById('delMenuDest'); var dest=sel&&sel.value;
+  if(!dest||!menusList.some(function(x){return x.id===dest && x.id!==id;})){ dest=menusList.filter(function(x){return x.id!==id;})[0]; dest=dest?dest.id:fallbackMenuId(); }
+  var nm=m.name; closeDelMenu(); doDeleteMenu(id, dest, nm);
+}
+function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=canDeleteMenu(currentMenuId)?'':'none'; }
 
 /* ---- reuse an existing costed dish on another menu (shares the source plate) ---- */
 var adSelectedPlateId=null;
@@ -3204,13 +3236,15 @@ document.getElementById('delChoiceClose').addEventListener('click',closeDelChoic
 document.getElementById('delChoiceCancel').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceMenuOnly').addEventListener('click',doDeleteMenuOnly);
 document.getElementById('delChoiceAll').addEventListener('click',doDeleteEverything);
+(function(){ var c=document.getElementById('delMenuConfirm'), x=document.getElementById('delMenuClose'), ca=document.getElementById('delMenuCancel');
+  if(c)c.addEventListener('click',confirmDelMenu); if(x)x.addEventListener('click',closeDelMenu); if(ca)ca.addEventListener('click',closeDelMenu); })();
 edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 (function(){var ok=document.getElementById('confirmOk'),ca=document.getElementById('confirmCancel'),cx=document.getElementById('confirmClose');
  if(ok)ok.addEventListener('click',function(){ var fn=__confirmFn; closeConfirm(); if(fn)fn(); });
  if(ca)ca.addEventListener('click',closeConfirm); if(cx)cx.addEventListener('click',closeConfirm);})();
 
-['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','delMenuModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal','delMenuModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
 updateLastImport(); updateEditTag();
 
 

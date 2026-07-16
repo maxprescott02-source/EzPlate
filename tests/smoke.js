@@ -48,7 +48,9 @@ const $ = id => window.document.getElementById(id);
 console.log('\n[2] item 6 — Settings');
 ok('#settingsPanel exists', !!$('settingsPanel'));
 ok('gear opens it', (() => { $('settingsBtn').click(); return $('settingsPanel').classList.contains('open'); })());
-ok('About shows the version, matching sw.js', $('setVersion').textContent === 'v35', $('setVersion').textContent);
+// derive the expected version from sw.js's CACHE so this never rots again (settings.test.js pins the full six-spot mirror)
+const swVer = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/ezplate-(v\d+)/) || [])[1];
+ok('About shows the version, matching sw.js', $('setVersion').textContent === swVer, $('setVersion').textContent + ' vs ' + swVer);
 ok('COGS input prefills from cogsPct', $('setCogsInput').value === String(window.cogsPct), $('setCogsInput').value);
 ok('GST default prefills', ['ex','inc'].indexOf($('setGstDefault').value) >= 0, $('setGstDefault').value);
 ok('Done closes it', (() => { $('settingsDone').click(); return !$('settingsPanel').classList.contains('open'); })());
