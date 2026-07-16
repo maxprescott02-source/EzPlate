@@ -66,7 +66,7 @@ function dbPushPlateAfterMenu(sp, menuPushPromise){
     // Only push the plate once the menu item is CONFIRMED on the server (truthy result, no error). A null
     // (skipped/no client) or an error means the row isn't there — pushing the plate would orphan it and trip
     // plates_menu_id_fkey. It's saved locally either way and will sync with the item next time.
-    if(!res || res.error){ if(res && res.error){ toast('The menu item didn’t save, so “'+(sp.name||'the plate')+'” isn’t online yet — try again when connected'); } return null; }
+    if(!res || res.error){ return null; }   // v43: menu item not confirmed on the server -> don't orphan the plate. Do NOT toast here: pushWrite already surfaced the REAL error on a server rejection, or set the quiet 'offline' banner when genuinely offline. The old second toast overwrote that real error (single-element toast, last wins) and mislabeled a rejection as "offline" — the bug that hid a missing DB column for days.
     return dbPushPlate(sp);
   });
 }
@@ -1590,7 +1590,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v42';
+var APP_VERSION='v43';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

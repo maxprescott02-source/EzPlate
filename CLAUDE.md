@@ -248,15 +248,26 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 16 Jul 2026 (verify, don't trust)
+## State as of 17 Jul 2026 (verify, don't trust)
 
 - `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
 - Branch `fix/pack-control-and-menus` (off `main`, **unmerged**) carries the
-  **v42** Opus logic batch. `npm test` = **128 green**, `node -c` clean, jsdom
-  smoke passes, all six version spots at v42. Also commits the comprehensive
-  CLAUDE.md rewrite (this file) that had been sitting uncommitted, and the
-  Rule 6 correction. Not on `main` yet — get Max's phone sign-off first.
+  **v42** Opus logic batch **plus the v43 follow-up**. `npm test` = **128
+  green**, `node -c` clean, jsdom smoke passes, all six version spots at **v43**.
+  Also commits the comprehensive CLAUDE.md rewrite (this file) that had been
+  sitting uncommitted, and the Rule 6 correction. Not on `main` yet.
+- **v43 (bugfix):** phone testing surfaced "menu item didn't save / offline"
+  toasts on EVERY publish. **Real root cause was the BACKEND, not the app:** the
+  Supabase `menu_items` table was missing the `source_plate_id` column that
+  `dbPushMenu` has written since v40, so Postgres rejected every dish upsert.
+  **Max added the column** (`alter table menu_items add column if not exists
+  source_plate_id text;`) and saves work. The **app** bug v43 fixes: v42's
+  `dbPushPlateAfterMenu` fired a second "isn't online yet" toast that overwrote
+  pushWrite's real "Couldn't save menu item: <reason>" (single-element toast,
+  last wins) AND mislabeled a server rejection as "offline" — which hid the
+  missing column for days. That toast is removed; pushWrite is now the single
+  source of truth for save messaging. See `handovers/HANDOVER-v43.md`.
 - v42 shipped:
   (1) **Item 1 — `plates_menu_id_fkey`, deeper root cause than v40.** v40 fixed
   only the new-dish publish race. v42 also (a) sequences the plate push after a

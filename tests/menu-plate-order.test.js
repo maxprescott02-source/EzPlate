@@ -59,12 +59,16 @@ test('v40 item 1: the plate push waits for the menu-item push to resolve first',
   assert.deepStrictEqual(calls, ['menu:umNEW', 'plate:SP1'], 'menu insert must precede the plate insert');
 });
 
-test('v40 item 1: a failed menu-item push aborts the plate write (no orphan plate) and warns', async () => {
+test('v43: a failed menu-item push aborts the plate write (no orphan plate) WITHOUT a masking toast', async () => {
+  // v43: messaging is pushWrite's job. dbPushPlateAfterMenu used to fire its own "isn't online yet"
+  // toast, which overwrote pushWrite's real "Couldn't save menu item: <reason>" (single-element toast,
+  // last wins) and mislabeled a genuine server rejection as "offline" — this masked a missing DB column
+  // for days. The abort must still happen; it just must not add a second, misleading toast.
   const { fn, calls } = makeHarness();
   const menuPush = Promise.resolve({ error: { message: 'insert violates ...' } });
   const res = await fn(SP, menuPush);
   assert.strictEqual(calls.indexOf('plate:SP1'), -1, 'the plate must NOT be pushed when the menu item failed');
-  assert.ok(calls.indexOf('toast') >= 0, 'the user must be told the plate was not saved');
+  assert.strictEqual(calls.indexOf('toast'), -1, 'no second toast here — it would overwrite pushWrite\'s real error');
   assert.strictEqual(res, null, 'the sequencing resolves to null on abort');
 });
 
