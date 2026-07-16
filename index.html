@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=43">
+<link rel="stylesheet" href="css/style.css?v=44">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -91,7 +91,7 @@
     <select id="menuLink" style="display:none" aria-hidden="true"></select>
     <div class="actions">
       <button class="btn primary btn-stack" id="addMenuBtn" type="button"><span class="bt-title" id="addMenuTitle">Publish to Menu</span><span class="bt-sub" id="addMenuSub">Makes this a live menu item with pricing</span></button>
-      <button class="btn btn-stack" id="saveBtn" type="button"><span class="bt-title">Save to Library</span><span class="bt-sub">Keeps the ingredient list for later — doesn't change the menu</span></button>
+      <button class="btn btn-stack" id="saveBtn" type="button"><span class="bt-title">Save draft</span><span class="bt-sub">Keeps it under “Unassigned dishes” until you publish it</span></button>
       <button class="btn" id="printBtn" type="button">Print docket</button>
       <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
     </div>
@@ -107,8 +107,8 @@
           <label for="menuSelect">Menu</label>
           <div class="menu-picker-row">
             <select id="menuSelect"></select>
-            <button id="menuNewBtn" type="button" class="btn menu-new-btn">+ New menu</button>
-            <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing dish</button>
+            <button id="menuNewBtn" type="button" class="btn menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
+            <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing<span class="btn-noun"> dish</span></button>
             <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
           </div>
         </div>
@@ -140,8 +140,8 @@
       <div class="king-head">
         <h3>Ingredients</h3>
         <span class="king-sub">Kitchen words for recipes — each one links to a product you buy</span>
-        <button class="btn primary" id="kingNew" type="button">+ New ingredient</button>
-        <button class="btn ghost" id="kingWizBtn" type="button" style="display:none">Set up from products</button>
+        <button class="btn primary" id="kingNew" type="button">+ New<span class="btn-noun"> ingredient</span></button>
+        <button class="btn ghost" id="kingWizBtn" type="button" style="display:none">Set up<span class="btn-noun"> from products</span></button>
       </div>
       <div class="king-progress" id="kingProgress" style="display:none"></div>
       <div class="menu-search king-search">
@@ -157,7 +157,7 @@
     <div class="panel">
       <h2>Products</h2>
       <div class="ing-tools">
-        <button class="btn primary newbtn" id="newBtn" type="button">+ Add product</button>
+        <button class="btn primary newbtn" id="newBtn" type="button">+ Add<span class="btn-noun"> product</span></button>
         <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
       </div>
       <p class="hint" id="lastImport" style="margin:8px 16px 0">No invoice imported yet</p>
@@ -398,7 +398,7 @@
       </div>
       <div id="king_alts" class="king-alts" style="display:none"></div>
     </div>
-    <div class="mfoot"><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
+    <div class="mfoot"><button class="btn ghost king-remove" id="kingModalRemove" type="button" style="display:none">Remove</button><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
   </div>
 </div>
 
@@ -494,7 +494,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=43"></script>
+<script src="js/app.js?v=44"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

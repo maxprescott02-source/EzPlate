@@ -347,13 +347,17 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
+  // v44 item 8: same two-row split as ingredient lines \u2014 the label finally gets the full card width
+  // on a phone (its smallness was a standing complaint) instead of fighting the $ field for one row.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
     +'<div class="top">'
     +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"><span class="sub">Misc cost \u00b7 not an ingredient</span></span>'
+    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'</div>'
+    +'<div class="costs">'
     +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<span class="leader"></span>'
     +'<span class="lc" id="lc-'+l.uid+'">'+money(Number(l.cost)||0)+'</span>'
-    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
     +'</div></div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
@@ -374,13 +378,16 @@ function renderPlate(){
     const kName=isKid?((kById[l.kid]&&kById[l.kid].name)||'Ingredient'):null;
     if(!p){                                                    // orphaned line: deleted product or broken kitchen link — greyed, still counted as missing
       const title=isKid?esc(kName):'Product';
+      // v44 item 8: two rows per line — name row (.top) then costs row (.costs). Same inputs/ids/handlers, layout only.
       return `<div class="line missing-line" data-uid="${l.uid}">
       <div class="top">
         <span class="nm"><b>${title}</b><span class="sub warn">product missing</span></span>
+        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
+      </div>
+      <div class="costs">
         <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
         <span class="leader"></span>
         <span class="lc"><span class=nocost>no cost</span></span>
-        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div></div>`;
     }
     const lc=lineCost(p,l.qty);
@@ -388,28 +395,33 @@ function renderPlate(){
     const priceChip = editable
       ? `<span class="pchip" id="pc-${l.uid}" tabindex="0" role="button" title="Click to edit price" onclick="editPrice(${l.uid})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editPrice(${l.uid})}">${unitCostStr(p)} <span class="pen">✎</span></span>`
       : `<span>${unitCostStr(p)}</span>`;
-    let nameBlock, row2='';
+    let nameBlock, row2='', priceline;
+    // v44 item 8 (Max's mockup): row 1 = name + meta, row 2 = qty + unit price + line cost,
+    // left-aligned on their own line. Same inputs, ids and handlers — the nodes just moved.
     if(isKid){                                                  // kitchen word up top, linked product small underneath
       nameBlock=`<b>${esc(kName)}</b>
-          <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>
-          <span class="priceline">Unit cost: ${priceChip}</span>`;
+          <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>`;
+      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;   // v44 item 8: docket idiom "100 g @ $2.63/kg" — the words "Unit cost:" blew the 380px budget
       row2=`<div class="row2"><span class="king-tag">ingredient</span></div>`;
     } else {                                                     // legacy direct-product line (pre-v31 saved plates): render + cost, no alternatives
       const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
                 : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
       nameBlock=`<b>${esc(p.description)}</b>
-          <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>
-          <span class="priceline">Unit cost: ${priceChip}${tag}</span>`;
+          <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>`;
+      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}${tag}</span>`;
     }
     return `<div class="line" data-uid="${l.uid}">
       <div class="top">
         <span class="nm">
           ${nameBlock}
         </span>
+        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
+      </div>
+      <div class="costs">
         <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
+        ${priceline}
         <span class="leader"></span>
         <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
-        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
       ${row2}
     </div>`;}).join('');
@@ -656,7 +668,30 @@ function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushProm
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
   savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
 }
-document.getElementById('saveBtn').addEventListener('click',function(){saveCurrentPlate(false);});
+// v44 item 9 (Max's call): "Save to Library" confused people — drafts were invisible. A draft now
+// becomes a dish in the "Unassigned dishes" holding menu, so it's findable in the menu selector.
+// A plate already linked to a dish (published OR drafted) keeps plain-save behaviour; loading
+// previously saved plates is untouched. Rides the v42 machinery: ensureUnassignedMenu pushes the
+// menus row first, and the plate write is sequenced after the dish write (dbPushPlateAfterMenu).
+function saveDraft(){
+  if(!plate.length){toast('Add ingredients to the plate first');return;}
+  if(menuLinkEl.value && menuById[menuLinkEl.value]){ saveCurrentPlate(false); return; }   // already a dish: plain save
+  var rawName=(document.getElementById('plateName').value||'').trim();
+  var pErr=document.getElementById('plateNameErr');
+  if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return; }
+  if(pErr) pErr.style.display='none';
+  ensureUnassignedMenu();
+  var targetId='um'+Date.now().toString(36);
+  customMenu.push({id:targetId,section:'Drafts',name:rawName,price:0,notes:'',custom:true,menuId:MENU_UNASSIGNED,sourcePlateId:null});
+  saveCustomMenu();
+  var menuItemPush=dbPushMenu({id:targetId,section:'Drafts',name:rawName,price:0,notes:null,menuId:MENU_UNASSIGNED,sourcePlateId:null});
+  rebuildMenu(); buildMenuOptions(); buildMenuSelector();             // the holding area appears in the selector now that it has a dish
+  menuLinkEl.value=targetId; menuTouched=true;
+  saveCurrentPlate(false, menuItemPush);                              // plate write waits for the dish write — same contract as publish
+  updatePublishLabel();
+  toast('Draft saved to “Unassigned dishes”');
+}
+document.getElementById('saveBtn').addEventListener('click',saveDraft);
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
@@ -1050,17 +1085,19 @@ function renderKitchenPanel(){
     renderKingProgress();                                            // progress counts PRODUCTS, not the filtered view — it stays true
     return;
   }
+  // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
+  // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=list.map(function(k){
-    return '<div class="king-row" data-kid="'+esc(k.id)+'">'
+    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
       +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
       +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
-      +'<div class="king-acts">'
-      +'<button class="linklike king-change" type="button">Edit</button>'
-      +'<button class="linklike king-del" type="button">Remove</button>'
-      +'</div></div>';
+      +'</div>';
   }).join('');
-  box.querySelectorAll('.king-change').forEach(function(b){ b.onclick=function(){ openKingModal(b.closest('.king-row').getAttribute('data-kid')); }; });
-  box.querySelectorAll('.king-del').forEach(function(b){ b.onclick=function(){ deleteKitchenIngredient(b.closest('.king-row').getAttribute('data-kid')); }; });
+  box.querySelectorAll('.king-row').forEach(function(row){
+    var open=function(){ openKingModal(row.getAttribute('data-kid')); };
+    row.onclick=open;
+    row.onkeydown=function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } };   // keyboard parity for the button-role card
+  });
   renderKingProgress();                                              // ITEM 2 (v34): setup progress + wizard entry stay current with the list
 }
 /* ===== ITEM 2 (v34): "Set up from products" — bulk-create kitchen words so setup is fast, incremental, never blocking ===== */
@@ -1138,7 +1175,7 @@ function renderKingProgress(){
   pr.textContent=done+' of '+total+' products have a kitchen word';   // stays literal: a skipped product genuinely has no kitchen word, so it still counts as not-done here
   pr.style.display=un?'block':'none';
   wb.style.display='';                                              // stays visible while open so "Close setup" is always reachable
-  wb.textContent=kingWizOpen?'Close setup':'Set up from products';
+  wb.innerHTML=kingWizOpen?'Close<span class="btn-noun"> setup</span>':'Set up<span class="btn-noun"> from products</span>';   // v44 item 5: the noun span hides on phones so the pantry pair fits one line
 }
 function kingWizGroups(){                                             // proposal -> products[]; same cleaned name = one grouped choice, never silent duplicates
   var map={}, order=[];
@@ -1344,6 +1381,8 @@ function openKingModal(kid){
       usedEl.style.display='block';
     } else usedEl.style.display='none';
   }
+  var remEl=document.getElementById('kingModalRemove');              // v44 item 6b: Remove lives in the modal, edit mode only
+  if(remEl) remEl.style.display=isEdit?'':'none';
   kingSyncSave();
   show('kingModal');
 }
@@ -1415,6 +1454,7 @@ function deleteKitchenIngredient(kid){
   ks.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ks.blur(); } }); }   // v37: Enter commits the search (dismisses the keyboard)
   if(kc) kc.addEventListener('click',function(){ if(ks){ ks.value=''; } kingQuery=''; renderKitchenPanel(); if(ks) ks.focus(); });
   on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
+  on('kingModalRemove',function(){ var kid=kingEditId; if(!kid) return; closeKingModal(); deleteKitchenIngredient(kid); });   // v44 item 6b: close first so the used-in-N confirm sits cleanly on top (same pattern as the unit guard)
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
 
@@ -1590,7 +1630,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v43';
+var APP_VERSION='v44';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2564,8 +2604,11 @@ function renderInvReview(){
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
     var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
-    var chipHtml='', teachHtml='';
-    if(r.remembered||r.fromProductPack) chipHtml='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2014 change</button>';
+    // v44 item 1: ONE pack control, two moods. The "Pack: N units \u2014 change" chip is gone; every row
+    // with pack context shows the same always-visible [qty][unit][\u2713] row, prefilled with the known pack.
+    // A mismatch/unresolved row is the SAME control in its red required state (.pt-required) \u2014 no second
+    // visual pattern. Resolution logic, precedence, invRowState and what \u2713 writes are all UNCHANGED.
+    var teachHtml='';
     if(r.needManual || r.remembered || r.fromProductPack){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var baseCat0=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
@@ -2574,18 +2617,18 @@ function renderInvReview(){
       var prodPack=(bprod && bprod.pack_qty>0 && bprod.pack_unit)?bprod:null;
       var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(prodPack?prodPack.pack_qty:(mem?mem.qty:''));
       var puNow=r.taughtUnit?r.taughtUnit:(prodPack?prodPack.pack_unit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea'))));
-      var open=(r.needManual && !r.remembered);                    // manual + unresolved -> the form IS the default state
-      teachHtml='<span class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
+      var required=(r.needManual && !r.remembered);                // unresolved -> the same control, red required mood
+      teachHtml='<span class="pack-teach'+(required?' pt-required':'')+'" data-i="'+i+'">'
         +'<span class="pt-lbl sr-only">How many in one pack?</span>'
         +'<span class="pt-group">'
         +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" title="How many in one pack?" value="'+pq+'">'
         +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
         +'<span class="pt-preview"></span>'
-        +(chipHtml?'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>':'')
+        +'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>'
         +'</span>';
     }
-    var priceCell='<div class="price-row">'+upriceHtml+chipHtml+teachHtml+'</div>';
+    var priceCell='<div class="price-row">'+upriceHtml+teachHtml+'</div>';
     if(r.needManual && !r.remembered){
       var baseCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
       var baseWord=baseCat==='kg'?'per kg':baseCat==='l'?'per litre':'per unit';
@@ -2595,7 +2638,7 @@ function renderInvReview(){
     }
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
-    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price jump \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
+    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
     var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
@@ -2659,11 +2702,6 @@ function renderInvReview(){
     pt.querySelector('.invPackUnit').addEventListener('change', recompute);
   });
   box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
-  box.querySelectorAll('.remembered-chip').forEach(function(ch){ ch.onclick=function(){
-    var tr=ch.closest('tr'); if(!tr) return; var pt=tr.querySelector('.pack-teach'); if(!pt) return;
-    ch.classList.add('hidden'); pt.classList.remove('hidden');       // the form REPLACES the chip — never both
-    var q=pt.querySelector('.invPackQty'); if(q) q.focus();
-  }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
     var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
     var sel=tr.querySelector('.invSel'); if(!sel) return;

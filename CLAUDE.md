@@ -248,26 +248,42 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 17 Jul 2026 (verify, don't trust)
+## State as of 17 Jul 2026 pm (verify, don't trust)
 
 - `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
-- Branch `fix/pack-control-and-menus` (off `main`, **unmerged**) carries the
-  **v42** Opus logic batch **plus the v43 follow-up**. `npm test` = **128
-  green**, `node -c` clean, jsdom smoke passes, all six version spots at **v43**.
-  Also commits the comprehensive CLAUDE.md rewrite (this file) that had been
-  sitting uncommitted, and the Rule 6 correction. Not on `main` yet.
-- **v43 (bugfix):** phone testing surfaced "menu item didn't save / offline"
-  toasts on EVERY publish. **Real root cause was the BACKEND, not the app:** the
-  Supabase `menu_items` table was missing the `source_plate_id` column that
-  `dbPushMenu` has written since v40, so Postgres rejected every dish upsert.
-  **Max added the column** (`alter table menu_items add column if not exists
-  source_plate_id text;`) and saves work. The **app** bug v43 fixes: v42's
-  `dbPushPlateAfterMenu` fired a second "isn't online yet" toast that overwrote
-  pushWrite's real "Couldn't save menu item: <reason>" (single-element toast,
-  last wins) AND mislabeled a server rejection as "offline" — which hid the
-  missing column for days. That toast is removed; pushWrite is now the single
-  source of truth for save messaging. See `handovers/HANDOVER-v43.md`.
+- Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (Opus logic:
+  FK orphan heal + "Unassigned dishes" holding area), v43 (masking-toast
+  bugfix)** — both pushed — **and v44 (Fable visual batch), uncommitted as of
+  this writing**. `npm test` = **131 green**, `node -c` clean, jsdom smoke
+  passes, 21 Playwright checks pass, all six version spots at **v44**. Not on
+  `main` yet.
+- **v43 context you need:** the "every publish errors" mystery was the BACKEND —
+  Max's `menu_items` table lacked `source_plate_id` (written since v40), so
+  every dish upsert was rejected; Max added the column via SQL and it works.
+  The app-side fix removed `dbPushPlateAfterMenu`'s second toast that had been
+  overwriting the real error (single-element toast, last wins) and mislabeling
+  rejections as "offline". `pushWrite` is the single source of save messaging.
+  Watch for the same class of bug: any `dbPush*` naming a column the live DB
+  lacks fails wholesale — audit column lists against the real schema before big
+  features. See `handovers/HANDOVER-v43.md`.
+- **v44 shipped (visual batch, all screenshot-verified):** unified invoice pack
+  control (chip gone; one always-visible `[qty][unit][✓]` row, red
+  `.pt-required` mood for mismatch; logic untouched); "price jump — check" →
+  "price change — check" (pinned tests updated); pills on the title baseline;
+  menu empty-state centring root-caused (td:first-child specificity) and pinned;
+  mobile short button labels via `.btn-noun`; confirm dialogs above Settings
+  (`#confirmModal{z-index:85}` — equal z + DOM order was the cause); ingredient
+  cards tap-to-edit with Remove inside the modal; pantry header on the panel
+  system; builder lines two-row (`100 g @ $2.63/kg ··· $0.26`); **"Save to
+  Library" → "Save draft" into "Unassigned dishes"** (Max's design — drafts are
+  visible dishes with `price:0`, `section:'Drafts'`, sequenced writes; publish
+  moves them out). New `tests/visual/fresh-states.spec.js` = offline
+  fresh-install Playwright fixtures used for all of this (`npm run shots`).
+  See `handovers/HANDOVER-v44.md` incl. its needs-Max's-phone list.
+- Next up: (a) Max's phone pass on v42+v43+v44 on the branch preview (backup
+  first), then merge to `main`; (b) the Tidy lists Settings UI
+  (`HANDOVER-v40.md` spec) is STILL not built — next feature task.
 - v42 shipped:
   (1) **Item 1 — `plates_menu_id_fkey`, deeper root cause than v40.** v40 fixed
   only the new-dish publish race. v42 also (a) sequences the plate push after a
