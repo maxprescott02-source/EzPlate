@@ -2307,6 +2307,53 @@ function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit===
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }
 function prodSuppliers(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).filter(Boolean))).sort(); }
+
+/* ===== v40 item 3: "Tidy lists" pure core =====
+   Categories/brands/suppliers aren't their own tables — they're values on products, and the
+   dropdowns derive from whatever exists. So "rename/merge/clear" all mean "edit that value across
+   every product carrying it". These functions are pure (products array in, plan out) so the maths
+   is unit-tested; the Settings UI (a follow-up) calls tidyPlan(), shows the blast-radius confirm,
+   then applies plan.patches through the existing dbPushIngredient write path.
+   TIDY_FIELDS keys the three managed fields to their product columns. */
+var TIDY_FIELDS={ category:'category', brand:'brand', supplier:'supplier' };
+function tidyFieldCol(field){ return TIDY_FIELDS[field]||field; }
+function tidyFieldValues(products, field){                          // inventory: distinct non-empty values + usage counts, most-used first then A–Z
+  var col=tidyFieldCol(field), counts={};
+  (products||[]).forEach(function(p){ if(!p) return; var v=p[col]; if(v==null||v==='') return; counts[v]=(counts[v]||0)+1; });
+  return Object.keys(counts).map(function(v){ return {value:v, count:counts[v]}; })
+    .sort(function(a,b){ return b.count-a.count || a.value.toLowerCase().localeCompare(b.value.toLowerCase()); });
+}
+function tidyValueExists(products, field, value){                   // does another product already carry this value? (rename-onto-existing => a merge)
+  if(value==null||value==='') return false;
+  return tidyFieldValues(products, field).some(function(x){ return x.value===value; });
+}
+function tidyPlan(products, field, action, from, to){               // action: 'rename' | 'merge' | 'clear'. Returns the exact per-product patch list + whether it's a merge.
+  var col=tidyFieldCol(field);
+  var newVal=(action==='clear')?null:to;
+  var isMerge=(action!=='clear') && to!=null && to!==from && tidyValueExists(products, field, to);
+  var patches=[];
+  (products||[]).forEach(function(p){
+    if(!p) return;
+    var cur=(p[col]==null?'':p[col]);
+    if(cur!==(from==null?'':from)) return;                          // only products carrying `from` are touched
+    patches.push({id:p.id, field:col, value:newVal});
+  });
+  return {action:action, field:col, from:from, to:newVal, isMerge:isMerge, patches:patches};
+}
+// Supplier memory (taught packs) keys off the supplier NAME via memKey(). Renaming/merging a supplier on products
+// would orphan its taught packs unless the memory entries move too. This pure planner lists the re-keys needed;
+// the entry's phrase_norm is already normalised, so the new id is memKey(to,·) == normSupplier(to)+'|'+phrase_norm
+// — reconstructable WITHOUT re-entering the protected parser region. Clearing a supplier drops its memories.
+function tidySupplierMemMigration(supplierMem, from, to){           // to===null => clear (drop the memories); else re-key onto `to`
+  var nf=normSupplier(from), nt=(to==null?null:normSupplier(to)), out=[];
+  for(var id in supplierMem){ var e=supplierMem[id]; if(!e) continue;
+    if(normSupplier(e.supplier)!==nf) continue;
+    out.push(nt==null
+      ? {oldId:id, newId:null, drop:true}                          // supplier cleared -> forget its taught packs
+      : {oldId:id, newId:nt+'|'+e.phrase_norm, supplier:to, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, pid:(e.pid||null)});
+  }
+  return out;
+}
 function kingNames(){ return (kitchenIngredients||[]).map(function(k){return k&&k.name;}).filter(Boolean).sort(); }   // ITEM 5 (v35): the combobox source for the invoice Kitchen name field
 var niCombos={};
 function makeInlineCombo(inpId, dropId, listFn){
