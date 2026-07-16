@@ -1999,13 +1999,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 
 /* ===== batch (v39) — Fable patch (Max notes 15 Jul pm) ===== */
 /* (g) logo + (l) tobuilder are handled earlier in this file (logo also covers the
-   desktop .side-brand, which the reference (g) does not); only (e)(c)(d)(f) below. */
-/* (e) the docket plate: grey, gentle steam; still under reduced-motion */
-.plate-anim{width:20px;height:20px;vertical-align:-4px;margin-right:8px;color:var(--muted2)}
-.plate-anim .steam{opacity:0;animation:steamRise 2.6s ease-in-out infinite}
-.plate-anim .steam.s2{animation-delay:1.3s}
-@keyframes steamRise{0%{opacity:0;transform:translateY(2px)}35%{opacity:.7}70%{opacity:0;transform:translateY(-2px)}100%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.plate-anim .steam{animation:none;opacity:.45}}
+   desktop .side-brand, which the reference (g) does not).
+   (e) docket plate icon dropped at Max's request — doubled the Builder nav icon. */
 /* (c) pack fields: price on its own line, pack controls on ONE line below, every control the same shape */
 .uprice-edit{display:flex;align-items:center;gap:6px;width:100%}
 .remembered-chip,.remembered-chip.pack-chip{display:inline-flex;align-items:center;min-height:40px;border-radius:var(--radius-ctl);padding:6px 12px;margin-top:8px}
