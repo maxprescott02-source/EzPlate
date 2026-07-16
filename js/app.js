@@ -19,13 +19,21 @@ function setSync(state){
 function online(){ return !!SUPA && navigator.onLine; }
 function errText(err){ return (err && (err.message||err.error_description||err.error||err.details||err.hint||err.code)) || 'unknown error'; }
 function pushWrite(builder, label){
-  if(!SUPA) return;                                  // no client configured
-  if(!navigator.onLine){ setSync('offline'); return; }
+  if(!SUPA) return Promise.resolve(null);            // no client configured
   setSync('saving');
-  Promise.resolve().then(builder).then(function(res){
+  // v40: do NOT pre-skip on navigator.onLine \u2014 it false-reports 'offline' in installed PWAs (caf\u00e9 phones),
+  // which both showed a bogus "offline" banner AND silently dropped the write. A dropped menu-item write then
+  // let a plate reference a row that was never sent (plates_menu_id_fkey). We ATTEMPT the write and judge by
+  // the real outcome; a thrown error below is the genuine-offline / unreachable case.
+  return Promise.resolve().then(builder).then(function(res){          // returns the settled result so ordered writes (menu -> plate) can chain
     if(res && res.error){ console.error('[sync] '+label+' failed:', res.error); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(res.error)); }
     else { setSync('ok'); }
-  }).catch(function(e){ console.error('[sync] '+label+' error:', e); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); });
+    return res;
+  }).catch(function(e){ console.error('[sync] '+label+' error:', e);
+    if(!navigator.onLine){ setSync('offline'); }                      // genuinely offline: quiet banner, no scary toast \u2014 it's saved locally
+    else { setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); }
+    return {error:e};
+  });
 }
 
 /* row mappers */
@@ -44,9 +52,24 @@ function rowToPlate(r){ return {id:r.id, name:r.name, menuId:r.menu_id||null, li
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
-function dbPushMenu(item){ pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
-function dbUpsertMenuRecord(m){ pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
-function dbPushPlate(sp){ if(!sp) return; pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
+function dbPushMenu(item){ return pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), source_plate_id:(item.sourcePlateId||null)}); }, 'menu item'); }
+function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
+function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, menu_id:sp.menuId||null, lines:sp.lines||[]}); }, 'plate'); }
+// v40 item 1: a plate references a menu_items row via plates.menu_id (FK plates_menu_id_fkey). When that row is
+// brand new (just published), its insert and the plate insert both fire through pushWrite with no ordering, so the
+// plate can reach Supabase first and violate the FK. Chain the plate push AFTER the menu-item push resolves, and
+// abort (never write an orphan plate) if the menu-item push failed.
+function dbPushPlateAfterMenu(sp, menuPushPromise){
+  if(!sp) return Promise.resolve(null);
+  if(!menuPushPromise) return dbPushPlate(sp);                        // no new menu-item dependency -> unchanged path
+  return Promise.resolve(menuPushPromise).then(function(res){
+    // Only push the plate once the menu item is CONFIRMED on the server (truthy result, no error). A null
+    // (skipped/no client) or an error means the row isn't there — pushing the plate would orphan it and trip
+    // plates_menu_id_fkey. It's saved locally either way and will sync with the item next time.
+    if(!res || res.error){ if(res && res.error){ toast('The menu item didn’t save, so “'+(sp.name||'the plate')+'” isn’t online yet — try again when connected'); } return null; }
+    return dbPushPlate(sp);
+  });
+}
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
@@ -88,7 +111,7 @@ async function bootstrapSync(){
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
     ensureDefaultMenu(); saveMenus();
-    if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId('MENU_ORIGINAL');
+    if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
     try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
@@ -142,7 +165,7 @@ function perDisplayValue(p){const c=cpbu(p);if(c==null)return null;return (p.bas
 function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
   if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';
   if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';
-  if(p.base_unit==='ea')return '$'+c.toFixed(3)+'/unit';return '—';}
+  if(p.base_unit==='ea')return '$'+c.toFixed(2)+'/unit';return '—';}
 function money(x){return '$'+x.toFixed(2);}
 function lineCost(p,qty){if(!p)return null;const c=cpbu(p);return c==null?null:qty*c;}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
@@ -477,8 +500,15 @@ let customMenu=loadCustomMenu();
 function loadMenus(){ try{ var a=JSON.parse(localStorage.getItem('cafeDB_menus')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function saveMenus(){ try{ localStorage.setItem('cafeDB_menus', JSON.stringify(menusList)); }catch(e){} }
 var menusList=loadMenus();
-function ensureDefaultMenu(){ if(!menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
+function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }   // v40: seed Original ONLY on an empty list — never resurrect it once deliberately deleted
 ensureDefaultMenu();
+function fallbackMenuId(){                                          // v40: a current-menu fallback that never returns a deleted id — prefer Original while it exists, else the first surviving menu
+  if(menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
+  return (menusList[0] && menusList[0].id) || 'MENU_ORIGINAL';
+}
+function canDeleteMenu(id){                                         // v40: any menu is deletable EXCEPT the last one standing
+  return menusList.length>1 && menusList.some(function(m){return m.id===id;});
+}
 function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||'MENU_ORIGINAL'; }catch(e){ return 'MENU_ORIGINAL'; } }
 var currentMenuId=loadCurrentMenuId();
 function setCurrentMenuId(id){ currentMenuId=id||'MENU_ORIGINAL'; try{ localStorage.setItem('cafeDB_currentMenuId', currentMenuId); }catch(e){} }
@@ -567,7 +597,7 @@ function loadPlates(){try{return JSON.parse(localStorage.getItem(PLATEKEY))||[];
 function savePlatesLS(){try{localStorage.setItem(PLATEKEY,JSON.stringify(savedPlates));}catch(e){}}
 let savedPlates=loadPlates();
 function plateNameVal(){return (document.getElementById('plateName').value.trim())||'Unnamed plate';}
-function saveCurrentPlate(asNew){
+function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushPromise (from a just-published menu item) sequences the plate push after it
   if(!plate.length){toast('Add ingredients to the plate first');return;}
   var rawName=(document.getElementById('plateName').value||'').trim();
   var pErr=document.getElementById('plateNameErr');
@@ -579,7 +609,7 @@ function saveCurrentPlate(asNew){
   if(!loadedPlateId && menuId){ var existLinked=savedPlates.find(function(s){return s.menuId===menuId;}); if(existLinked) loadedPlateId=existLinked.id; }
   if(!asNew && loadedPlateId){ var sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){sp.name=name;sp.menuId=menuId;sp.lines=lines;} else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
-  savePlatesLS(); dbPushPlate(savedPlates.find(function(s){return s.id===loadedPlateId;})); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
+  savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
 }
 document.getElementById('saveBtn').addEventListener('click',function(){saveCurrentPlate(false);});
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
@@ -1325,6 +1355,12 @@ function deleteKitchenIngredient(kid){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('kingNew',function(){ openKingModal(null); });
   on('kingWizBtn',toggleKingWizard);
+  var _goHome=function(){ showTab('dashboard'); };   // v39: the logo is the way home
+  ['brandHome','sideBrandHome'].forEach(function(id){   // header logo (mobile) + sidebar logo (desktop >=1024px) — one is always the visible one
+    var el=document.getElementById(id); if(!el) return;
+    el.addEventListener('click',_goHome);
+    el.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _goHome(); } });
+  });
   var ks=document.getElementById('kingSearch'), kc=document.getElementById('kingSearchClear');
   if(ks){ ks.addEventListener('input',function(){                     // ITEM 3 (v35)
     kingQuery=ks.value||'';
@@ -1351,10 +1387,11 @@ function dashComparisons(){
   var startThisMonth=new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   var startLastMonth=new Date(now.getFullYear(), now.getMonth()-1, 1).getTime();
   var lastMonth=avgOf(histInRange(startLastMonth, startThisMonth));
+  var lastWeek=avgOf(histInRange(Date.now()-7*86400000, Date.now()+1));
   var startYear=new Date(now.getFullYear(),0,1).getTime();
   var ytd=avgOf(histInRange(startYear, Date.now()+1));
   if(ytd==null) ytd=current;
-  return {current:current, lastMonth:lastMonth, ytd:ytd};
+  return {current:current, lastMonth:lastMonth, lastWeek:lastWeek, ytd:ytd};
 }
 function statCard(label, current, base){
   var cur=(current==null)?'\u2014':current.toFixed(1)+'%';
@@ -1443,7 +1480,7 @@ function renderDashboard(){
     +'<div class="chart-controls"><span class="chart-title">Food cost trend</span>'+rangeBarHtml()+'</div>'
     +trendChart()
     +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
-    +'<div class="stat-line">'+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
+    +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
@@ -1508,7 +1545,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v39';
+var APP_VERSION='v41';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -1842,7 +1879,7 @@ function submitMenuItem(){
   var err=document.getElementById('mi_err');
   if(!name){err.textContent='Enter a menu item name.';err.style.display='block';return;}
   if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){err.textContent='Enter a valid sell price.';err.style.display='block';return;}
-  var targetId;
+  var targetId, menuItemPush=null;
   if(publishTargetId){
     targetId=publishTargetId;
     var prevItem=menuById[targetId]||{};
@@ -1850,12 +1887,12 @@ function submitMenuItem(){
   } else {
     targetId='um'+Date.now().toString(36);
     customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:null});
-    saveCustomMenu(); dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,sourcePlateId:null});
+    saveCustomMenu(); menuItemPush=dbPushMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,sourcePlateId:null});   // v40: this NEW menu_items row must land before the plate references it
   }
   rebuildMenu(); buildMenuOptions();
   setCurrentMenuId(chosenMenu); buildMenuSelector();          // show the menu this dish landed in
   menuLinkEl.value=targetId; menuTouched=true;
-  saveCurrentPlate(false);
+  saveCurrentPlate(false, menuItemPush);                      // sequence: plate push waits for the new menu-item push (no-op dependency when updating an existing item)
   renderAnalysis(); closeMenuModal(); updatePublishLabel();
   toast(publishTargetId?('"'+name+'" updated on the menu'):('"'+name+'" added to the menu'));
 }
@@ -2275,11 +2312,58 @@ function prodOptions(selId){
     return '<option value="'+p.id+'"'+(p.id===selId?' selected':'')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'</option>';
   }).join('');
 }
-function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';return '$'+c.toFixed(3)+'/unit';}
+function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';return '$'+c.toFixed(2)+'/unit';}
 /* ---- new-item inline panel ---- */
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }
 function prodSuppliers(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).filter(Boolean))).sort(); }
+
+/* ===== v40 item 3: "Tidy lists" pure core =====
+   Categories/brands/suppliers aren't their own tables — they're values on products, and the
+   dropdowns derive from whatever exists. So "rename/merge/clear" all mean "edit that value across
+   every product carrying it". These functions are pure (products array in, plan out) so the maths
+   is unit-tested; the Settings UI (a follow-up) calls tidyPlan(), shows the blast-radius confirm,
+   then applies plan.patches through the existing dbPushIngredient write path.
+   TIDY_FIELDS keys the three managed fields to their product columns. */
+var TIDY_FIELDS={ category:'category', brand:'brand', supplier:'supplier' };
+function tidyFieldCol(field){ return TIDY_FIELDS[field]||field; }
+function tidyFieldValues(products, field){                          // inventory: distinct non-empty values + usage counts, most-used first then A–Z
+  var col=tidyFieldCol(field), counts={};
+  (products||[]).forEach(function(p){ if(!p) return; var v=p[col]; if(v==null||v==='') return; counts[v]=(counts[v]||0)+1; });
+  return Object.keys(counts).map(function(v){ return {value:v, count:counts[v]}; })
+    .sort(function(a,b){ return b.count-a.count || a.value.toLowerCase().localeCompare(b.value.toLowerCase()); });
+}
+function tidyValueExists(products, field, value){                   // does another product already carry this value? (rename-onto-existing => a merge)
+  if(value==null||value==='') return false;
+  return tidyFieldValues(products, field).some(function(x){ return x.value===value; });
+}
+function tidyPlan(products, field, action, from, to){               // action: 'rename' | 'merge' | 'clear'. Returns the exact per-product patch list + whether it's a merge.
+  var col=tidyFieldCol(field);
+  var newVal=(action==='clear')?null:to;
+  var isMerge=(action!=='clear') && to!=null && to!==from && tidyValueExists(products, field, to);
+  var patches=[];
+  (products||[]).forEach(function(p){
+    if(!p) return;
+    var cur=(p[col]==null?'':p[col]);
+    if(cur!==(from==null?'':from)) return;                          // only products carrying `from` are touched
+    patches.push({id:p.id, field:col, value:newVal});
+  });
+  return {action:action, field:col, from:from, to:newVal, isMerge:isMerge, patches:patches};
+}
+// Supplier memory (taught packs) keys off the supplier NAME via memKey(). Renaming/merging a supplier on products
+// would orphan its taught packs unless the memory entries move too. This pure planner lists the re-keys needed;
+// the entry's phrase_norm is already normalised, so the new id is memKey(to,·) == normSupplier(to)+'|'+phrase_norm
+// — reconstructable WITHOUT re-entering the protected parser region. Clearing a supplier drops its memories.
+function tidySupplierMemMigration(supplierMem, from, to){           // to===null => clear (drop the memories); else re-key onto `to`
+  var nf=normSupplier(from), nt=(to==null?null:normSupplier(to)), out=[];
+  for(var id in supplierMem){ var e=supplierMem[id]; if(!e) continue;
+    if(normSupplier(e.supplier)!==nf) continue;
+    out.push(nt==null
+      ? {oldId:id, newId:null, drop:true}                          // supplier cleared -> forget its taught packs
+      : {oldId:id, newId:nt+'|'+e.phrase_norm, supplier:to, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, pid:(e.pid||null)});
+  }
+  return out;
+}
 function kingNames(){ return (kitchenIngredients||[]).map(function(k){return k&&k.name;}).filter(Boolean).sort(); }   // ITEM 5 (v35): the combobox source for the invoice Kitchen name field
 var niCombos={};
 function makeInlineCombo(inpId, dropId, listFn){
@@ -2520,7 +2604,7 @@ function renderInvReview(){
         var pvEl=pt.querySelector('.pt-preview');
         if(pvEl){ var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
           pvEl.textContent=(old?('Was '+old+' \u2192 '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit'); }
-        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=true;
+        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks
       }
     }
     pt.querySelector('.invPackQty').addEventListener('input', recompute);
@@ -2538,7 +2622,7 @@ function renderInvReview(){
     sel.value=ch.getAttribute('data-cid');
     invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
     var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
-    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=true;        // they actively chose it — approve the line
+    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
   }; });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
@@ -2548,7 +2632,7 @@ function renderInvReview(){
     expandNewItem(i);                                              /* then open the form on the freshly-rendered row */
     var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');
     var fb=fresh&&fresh.querySelector('.ni-add-btn'); if(fb){ fb.classList.add('open'); fb.textContent='Editing new item \u2193'; }
-    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=true;
+    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=false;   // v39: new items are ticked by the user once the form is filled
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
   updateLastImport();
@@ -2783,6 +2867,7 @@ function renderAnalysis(){
     custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
   }
   if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
+    +'<svg class="an-empty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>'
     +(q?('<b>No menu items match</b><button type="button" class="linklike" id="anClearSearch">Clear search</button>')
        :('<b>No menu items yet</b><span>Cost a plate in the Builder and publish it to see it here.</span>'))
     +'</div></td></tr>'; }
@@ -2797,7 +2882,7 @@ function renderAnalysis(){
 function buildMenuSelector(){
   var sel=document.getElementById('menuSelect');
   if(sel){
-    if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId='MENU_ORIGINAL';
+    if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();
     sel.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
     sel.value=currentMenuId;
   }
@@ -2817,21 +2902,46 @@ function onMenuSelectChange(){
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
+// v40: the actual deletion \u2014 move the menu's dishes to `dest`, drop the menu, land the user on `dest`. Shared by both paths.
+function doDeleteMenu(id, dest, name){
+  var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
+  affected.forEach(function(c){ c.menuId=dest; dbPushMenu(c); });   // reassign, never delete the dishes
+  if(affected.length) saveCustomMenu();
+  menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
+  setCurrentMenuId(dest);
+  rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn();
+  toast('\u201c'+name+'\u201d deleted \u2014 dishes moved to \u201c'+menuNameById(dest)+'\u201d');
+}
 function deleteCurrentMenu(){
   var id=currentMenuId;
-  if(id==='MENU_ORIGINAL'){ toast('The Original menu can\u2019t be deleted'); return; }
+  if(!canDeleteMenu(id)){ toast('The last menu can\u2019t be deleted'); return; }   // v40: the last remaining menu is never deletable
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
-  askConfirm('Delete menu?', 'Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' will be moved to the Original menu \u2014 nothing is lost.', 'Delete menu', function(){
-    affected.forEach(function(c){ c.menuId='MENU_ORIGINAL'; dbPushMenu(c); });   // reassign, never delete the dishes
-    if(affected.length) saveCustomMenu();
-    menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
-    setCurrentMenuId('MENU_ORIGINAL');
-    rebuildMenu(); buildMenuSelector(); renderAnalysis();
-    toast('\u201c'+m.name+'\u201d deleted \u2014 dishes moved to Original');
-  });
+  if(id==='MENU_ORIGINAL'){ openDelMenu(id, m, affected); return; }   // v40: deleting Original asks where its dishes should move
+  var dest=fallbackMenuId(), nm=m.name;                                // non-original: dishes fall back to Original (or first surviving) as before
+  askConfirm('Delete menu?', 'Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' will be moved to \u201c'+menuNameById(dest)+'\u201d \u2014 nothing is lost.', 'Delete menu', function(){ doDeleteMenu(id, dest, nm); });
 }
-function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=(currentMenuId==='MENU_ORIGINAL')?'none':''; }
+var delMenuTargetId=null;
+function openDelMenu(id, m, affected){                                // v40: destination picker for deleting a menu that still holds dishes (used for Original)
+  delMenuTargetId=id;
+  var others=menusList.filter(function(x){return x.id!==id;});
+  var sel=document.getElementById('delMenuDest'); if(sel){ sel.innerHTML=others.map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.name)+(x.season?(' \u2014 '+esc(x.season)):'')+'</option>'; }).join(''); }
+  var field=document.getElementById('delMenuDestField'); if(field) field.style.display=affected.length?'':'none';   // no dishes -> no picker, just a confirm
+  var msg=document.getElementById('delMenuMsg');
+  if(msg){ msg.textContent=affected.length
+      ? ('Delete \u201c'+m.name+'\u201d? Choose where its '+affected.length+' dish'+(affected.length===1?'':'es')+' should move \u2014 nothing is lost.')
+      : ('Delete \u201c'+m.name+'\u201d? It has no dishes.'); }
+  show('delMenuModal');
+}
+function closeDelMenu(){ hide('delMenuModal'); delMenuTargetId=null; }
+function confirmDelMenu(){
+  var id=delMenuTargetId; if(!id){ closeDelMenu(); return; }
+  var m=menusList.find(function(x){return x.id===id;}); if(!m){ closeDelMenu(); return; }
+  var sel=document.getElementById('delMenuDest'); var dest=sel&&sel.value;
+  if(!dest||!menusList.some(function(x){return x.id===dest && x.id!==id;})){ dest=menusList.filter(function(x){return x.id!==id;})[0]; dest=dest?dest.id:fallbackMenuId(); }
+  var nm=m.name; closeDelMenu(); doDeleteMenu(id, dest, nm);
+}
+function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=canDeleteMenu(currentMenuId)?'':'none'; }
 
 /* ---- reuse an existing costed dish on another menu (shares the source plate) ---- */
 var adSelectedPlateId=null;
@@ -3183,13 +3293,15 @@ document.getElementById('delChoiceClose').addEventListener('click',closeDelChoic
 document.getElementById('delChoiceCancel').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceMenuOnly').addEventListener('click',doDeleteMenuOnly);
 document.getElementById('delChoiceAll').addEventListener('click',doDeleteEverything);
+(function(){ var c=document.getElementById('delMenuConfirm'), x=document.getElementById('delMenuClose'), ca=document.getElementById('delMenuCancel');
+  if(c)c.addEventListener('click',confirmDelMenu); if(x)x.addEventListener('click',closeDelMenu); if(ca)ca.addEventListener('click',closeDelMenu); })();
 edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 (function(){var ok=document.getElementById('confirmOk'),ca=document.getElementById('confirmCancel'),cx=document.getElementById('confirmClose');
  if(ok)ok.addEventListener('click',function(){ var fn=__confirmFn; closeConfirm(); if(fn)fn(); });
  if(ca)ca.addEventListener('click',closeConfirm); if(cx)cx.addEventListener('click',closeConfirm);})();
 
-['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','delMenuModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal','delMenuModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
 updateLastImport(); updateEditTag();
 
 
