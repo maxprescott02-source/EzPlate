@@ -516,15 +516,19 @@ test('v46 items 1+4: strapline inline on desktop; target line labels itself (no 
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(400);
   await expect(page.locator('.ref-pill')).toHaveCount(0);
-  // v47 update: the label is just the word "Target", left end, vertically centred ON the rule
-  await expect(page.locator('.ref-lbl')).toHaveText('Target');
+  // v48 update: the "Target" word is gone too (Max's call) — the dashed line explains itself
+  // because it always sits exactly ON the y-axis tick labelled with the user's own target number
+  await expect(page.locator('.ref-lbl')).toHaveCount(0);
   const lbl = await page.evaluate(() => {
-    const l = document.querySelector('.ref-lbl').getBoundingClientRect();
     const line = document.querySelector('.ref-line').getBoundingClientRect();
-    return { lblCentre: (l.top + l.bottom) / 2, lblLeft: l.left, lineY: line.top, lineLeft: line.left };
+    const tick = Array.from(document.querySelectorAll('#trendWrap text.ax'))
+      .find(t => t.textContent === '30%');           // the seeded target
+    if (!tick) return null;
+    const r = tick.getBoundingClientRect();
+    return { tickCentre: (r.top + r.bottom) / 2, lineY: line.top };
   });
-  expect(Math.abs(lbl.lblCentre - lbl.lineY), 'label vertically centred on the dashed rule').toBeLessThanOrEqual(4);
-  expect(lbl.lblLeft - lbl.lineLeft, 'label sits at the LEFT end of the rule').toBeLessThanOrEqual(20);
+  expect(lbl, 'a y-axis tick reads exactly the target number').not.toBeNull();
+  expect(Math.abs(lbl.tickCentre - lbl.lineY), 'the target tick label is centred ON the dashed rule').toBeLessThanOrEqual(3);
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v46-dash-label.png' });
 });
 
@@ -546,16 +550,31 @@ for (const size of SIZES) {
     await page.evaluate(V47_SEED);
     await page.locator('.navbtn[data-tab="dashboard"]').click();
     await page.waitForTimeout(400);
+    const perRange = [];
     for (const rg of ['1w', '1m', '3m', '6m', '1y', 'all']) {
       await page.evaluate(r => window.setDashRange(r), rg);
       await page.waitForTimeout(250);
       const st = await page.evaluate(() => {
         const svg = document.querySelector('#trendWrap svg');
-        const axes = Array.from(svg.querySelectorAll('text.ax')).map(t => t.textContent);
+        const texts = Array.from(svg.querySelectorAll('text.ax'));
+        const yLbls = texts.filter(t => /%$/.test(t.textContent));
+        const title = document.querySelector('.chart-title').getBoundingClientRect();
         return {
           pts: window.dashRangePts().length,
-          yTicks: axes.filter(t => /%$/.test(t)).length,
-          xLbls: axes.filter(t => !/%$/.test(t) && t !== 'Target').length,
+          yTicks: yLbls.length,
+          xLbls: texts.length - yLbls.length,
+          targetTick: yLbls.some(t => parseFloat(t.textContent) === window.cogsPct),
+          // v48 stability pins: rendered label height (font size), label left edge vs the
+          // title's, and the plot gutter must all be IDENTICAL for every range
+          lblH: +yLbls[0].getBoundingClientRect().height.toFixed(2),
+          lblLeft: +yLbls[0].getBoundingClientRect().left.toFixed(1),
+          maxLblRight: Math.max(...yLbls.map(t => t.getBoundingClientRect().right)),
+          plotLeftPx: (() => {
+            const s = svg.getBoundingClientRect();
+            return s.left + (window.TREND_GEO.padL / window.TREND_GEO.W) * s.width;
+          })(),
+          titleLeft: +title.left.toFixed(1),
+          padL: window.TREND_GEO.padL,
           bezier: svg.querySelector('g[clip-path] path[stroke]').getAttribute('d').includes('C'),
           dots: svg.querySelector('g[clip-path]').querySelectorAll('.tc-pt').length,
           pattern: !!svg.querySelector('pattern#tcdots'),
@@ -566,7 +585,11 @@ for (const size of SIZES) {
       });
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeGreaterThanOrEqual(3);
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
-      expect(st.xLbls, `${rg}: date labels`).toBeGreaterThanOrEqual(2);
+      expect(st.xLbls, `${rg}: x-axis date labels removed (v48)`).toBe(0);
+      expect(st.targetTick, `${rg}: the target value IS one of the labelled ticks`).toBe(true);
+      expect(st.lblLeft - st.titleLeft, `${rg}: y labels share the title's left edge`).toBeLessThanOrEqual(1.5);
+      expect(st.lblLeft - st.titleLeft, `${rg}: y labels share the title's left edge`).toBeGreaterThanOrEqual(-1.5);
+      expect(st.maxLblRight, `${rg}: the widest label ends before the plot gutter — nothing can clip`).toBeLessThanOrEqual(st.plotLeftPx);
       expect(st.bezier, `${rg}: smooth curve (cubic segments)`).toBe(true);
       expect(st.pattern, `${rg}: dotted area fill`).toBe(true);
       expect(st.clipGroups, `${rg}: bright + dim groups`).toBe(2);
@@ -574,7 +597,16 @@ for (const size of SIZES) {
       expect(st.focusable, `${rg}: plot is focusable`).toBe(true);
       if (st.pts <= 32) expect(st.dots, `${rg}: sparse range shows reading dots`).toBe(st.pts);
       else expect(st.dots, `${rg}: dense range drops reading dots`).toBe(0);
+      perRange.push({ rg, lblH: st.lblH, lblLeft: st.lblLeft, padL: st.padL });
       await page.locator('.dash-chart').screenshot({ path: `tests/visual/__shots__/v47-${rg}-${size.name}.png` });
+    }
+    // v48 root-cause pin: switching ranges must change ONLY the trendline — the rendered label
+    // size, the label edge, and the gutter are the same for every range (they used to shift when
+    // a decimal tick label clipped at the svg edge)
+    for (const r of perRange.slice(1)) {
+      expect(r.lblH, `${r.rg}: label font size identical across ranges`).toBe(perRange[0].lblH);
+      expect(r.lblLeft, `${r.rg}: label left edge identical across ranges`).toBe(perRange[0].lblLeft);
+      expect(r.padL, `${r.rg}: plot gutter identical across ranges`).toBe(perRange[0].padL);
     }
   });
 
@@ -679,14 +711,12 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
     window.priceHistory = [{ t: now - 2 * day, v: 25 }, { t: now - day, v: 28 }];
     window.setDashRange('1m');
     const path = document.querySelector('#trendWrap svg g[clip-path] path[stroke]').getAttribute('d');
-    const lastX = Array.from(document.querySelectorAll('#trendWrap text.ax'))
-      .filter(t => !/%$/.test(t.textContent) && t.textContent !== 'Target')
-      .map(t => t.getBoundingClientRect().right);
-    const svgR = document.querySelector('#trendWrap svg').getBoundingClientRect().right;
-    return { ok: /^M[\d. ]+ C/.test(path), labelsInside: lastX.every(r => r <= svgR + 0.5) };
+    const nonPct = Array.from(document.querySelectorAll('#trendWrap text.ax'))
+      .filter(t => !/%$/.test(t.textContent)).length;
+    return { ok: /^M[\d. ]+ C/.test(path), nonPct };
   });
   expect(two.ok, '2 points → a single valid cubic segment').toBe(true);
-  expect(two.labelsInside, 'date labels stay inside the viewBox').toBe(true);
+  expect(two.nonPct, 'v48: no date labels, no Target word — % ticks are the only text').toBe(0);
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-2pts.png' });
   // dark theme with the red (worsening) line
   await page.emulateMedia({ colorScheme: 'dark' });
@@ -705,6 +735,106 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
     document.querySelector('#trendWrap svg g[clip-path] path[stroke]').getAttribute('stroke'));
   expect(darkStroke, 'semantic colour survives: rising cost = red (--bad)').toBe('var(--bad)');
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-dark-scrub.png' });
+});
+
+/* ===== v48: final chart declutter + stability ===== */
+
+test('v48: NON-ROUND target (32%) still lands exactly on a labelled tick — the unlabelled-line guarantee', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    const day = 86400000, now = Date.now(), pts = [];
+    for (let d = 1; d <= 60; d += 3) pts.push({ t: now - d * day, v: 26 + (d % 9) });
+    window.priceHistory = pts.sort((a, b) => a.t - b.t);
+    window.cogsPct = 32;                       // the sanity check the patch asks for
+  });
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
+  await page.waitForTimeout(400);
+  for (const rg of ['1w', '1m', '3m']) {
+    await page.evaluate(r => window.setDashRange(r), rg);
+    await page.waitForTimeout(250);
+    const st = await page.evaluate(() => {
+      const tick = Array.from(document.querySelectorAll('#trendWrap text.ax'))
+        .find(t => parseFloat(t.textContent) === 32);
+      if (!tick) return null;
+      const r = tick.getBoundingClientRect();
+      const line = document.querySelector('#trendWrap .ref-line').getBoundingClientRect();
+      const mono = getComputedStyle(tick).fontFamily;
+      return { centre: (r.top + r.bottom) / 2, lineY: line.top, mono };
+    });
+    expect(st, `${rg}: a tick reads exactly 32%`).not.toBeNull();
+    expect(Math.abs(st.centre - st.lineY), `${rg}: the 32% label sits ON the dashed line`).toBeLessThanOrEqual(3);
+    expect(st.mono, `${rg}: axis labels use the app's mono stack`).toMatch(/mono|Menlo|Consolas/i);
+  }
+  await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v48-target32-mobile.png' });
+});
+
+test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    const day = 86400000, now = Date.now(), pts = [];
+    for (let d = 1; d <= 30; d += 2) pts.push({ t: now - d * day, v: 27 + (d % 5) });
+    window.priceHistory = pts.sort((a, b) => a.t - b.t);
+  });
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
+  await page.waitForTimeout(400);
+  const svg = page.locator('#trendWrap svg');
+  // pointer focus: no ring, no tap flash
+  await svg.click({ position: { x: 150, y: 100 } });
+  const afterTap = await page.evaluate(() => {
+    const el = document.querySelector('#trendWrap svg');
+    const cs = getComputedStyle(el);
+    return {
+      tapColor: cs.webkitTapHighlightColor || 'unsupported',
+      outline: cs.outlineStyle,
+      focusVisible: el.matches(':focus-visible'),
+    };
+  });
+  if (afterTap.tapColor !== 'unsupported') {
+    expect(afterTap.tapColor, 'tap highlight is transparent').toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+  }
+  expect(afterTap.focusVisible, 'pointer focus is not :focus-visible').toBe(false);
+  expect(afterTap.outline, 'no outline after a tap/click').toBe('none');
+  // keyboard focus: the ring comes back and arrows still scrub
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => document.querySelector('#trendWrap svg').blur());
+  await page.keyboard.press('Tab');   // walk focus forward until the plot has it
+  for (let i = 0; i < 40; i++) {
+    if (await page.evaluate(() => document.activeElement === document.querySelector('#trendWrap svg'))) break;
+    await page.keyboard.press('Tab');
+  }
+  const kb = await page.evaluate(() => {
+    const el = document.querySelector('#trendWrap svg');
+    return { has: document.activeElement === el, ring: el.matches(':focus-visible') ? getComputedStyle(el).outlineStyle : 'no-ring' };
+  });
+  expect(kb.has, 'the plot is reachable by keyboard').toBe(true);
+  expect(kb.ring, 'keyboard focus keeps a visible ring').toBe('solid');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(120);
+  expect(await page.evaluate(() => document.getElementById('trendTip').classList.contains('show')),
+    'arrow keys still scrub after the focus rework').toBe(true);
+});
+
+test('v48: menu header rhythm — label, value line, colour key on one spacing token', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="analysis"]').click();
+  await page.waitForTimeout(400);
+  const gaps = await page.evaluate(() => {
+    const lbl = document.querySelector('.cogs-set > .cogs-lbl').getBoundingClientRect();
+    const val = document.querySelector('.cogs-help').getBoundingClientRect();
+    const key = document.querySelector('.akey span').getBoundingClientRect();   // the key's content — .akey carries its gap as padding-top
+    return { lblToVal: val.top - lbl.bottom, valToKey: key.top - val.bottom };
+  });
+  expect(Math.abs(gaps.lblToVal - gaps.valToKey), 'the two gaps are equal (even rhythm)').toBeLessThanOrEqual(2);
+  await page.locator('.an-controls').screenshot({ path: 'tests/visual/__shots__/v48-menu-rhythm.png' });
 });
 
 for (const size of SIZES) {

@@ -2163,3 +2163,22 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dash-chart svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
 .tc-pt,#tcCross,#tcDot{pointer-events:none}     /* readings + scrub chrome never intercept the pointer */
 @media (prefers-reduced-motion:reduce){ .tp-tip{transition:none} }
+
+/* ===== batch (v48): final pre-merge polish (Max's annotated screenshots) ===== */
+/* items 2+3: ONE left edge down the whole chart block — title, y-axis labels (now start-anchored
+   at x=0 in app.js), caption. Labels use the app's existing mono token (same stack the scrub
+   tooltip's value and the docket prices already use — no new font, no new token). */
+.chart-controls{max-width:540px;margin-left:auto;margin-right:auto}   /* .dash-chart is 540px centred; the title row must share its edge on wide screens */
+.dash-chart .ax{font-family:var(--mono)}
+.chart-hint{margin-left:0;margin-right:0}
+/* item 5: making the plot focusable (v47) handed it the browser's default tap highlight — a blue
+   box on every touch. Kill the tap flash and the plain :focus ring; :focus-visible is restated
+   AFTER :focus so keyboard scrubbers keep their ring (cascade order matters here). */
+.dash-chart svg{-webkit-tap-highlight-color:transparent}
+.dash-chart svg:focus{outline:none}
+.dash-chart svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+/* item 6: Menu tab header rhythm — target label, value line, and colour key all breathe on the
+   same token (--sp-2). Was 6px label→value but 22px value→key (an-controls pad + akey pad). */
+.an-controls{gap:var(--sp-2);padding-bottom:0}
+.cogs-set > .cogs-lbl{margin-bottom:var(--sp-2)}
+.akey{padding-top:var(--sp-2)}

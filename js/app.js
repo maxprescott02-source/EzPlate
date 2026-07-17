@@ -1524,19 +1524,42 @@ function tcYAt(xs,ys,m,px){                                      // cubic Hermit
   var h=xs[i+1]-xs[i], t=(px-xs[i])/h, t2=t*t, t3=t2*t;
   return (2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*h*m[i]+(3*t2-2*t3)*ys[i+1]+(t3-t2)*h*m[i+1];
 }
-function tcTicks(mn,mx,want){                                    // 3\u20134 "nice" y-axis values inside the padded domain
-  var steps=[0.5,1,2,2.5,5,10,20,25,50], raw=(mx-mn)/(want||3), si=steps.length-1, i;
-  for(i=0;i<steps.length;i++){ if(steps[i]>=raw){ si=i; break; } }
-  var build=function(step){ var out=[], v=Math.ceil(mn/step)*step; for(; v<=mx+1e-9; v+=step) out.push(+v.toFixed(1)); return out; };
+function tcTicks(target,mn,mx){                                  // v48: 3\u20134 y-axis values ANCHORED ON the target
+  /* HARD REQUIREMENT (v48 patch): the dashed target line must always sit on a labelled tick \u2014
+     that's the entire basis for the line carrying no word of its own. So the sequence is built
+     FROM the target (target \u00b1 k\u00b7step) and extended until it covers the data, never generated
+     independently and hoped onto it. Integer-biased steps (no 0.5/2.5) keep labels 3\u20134 chars
+     unless the user's own target is decimal. Assumes mn <= target <= mx (callers concat the
+     target into the domain values first). */
+  var steps=[1,2,5,10,20,50], si=0, i;
+  var raw=(mx-mn)/3;
+  for(i=0;i<steps.length;i++){ si=i; if(steps[i]>=raw) break; }
+  var build=function(step){
+    var lo=target-Math.ceil((target-mn)/step)*step;
+    var hi=target+Math.ceil((mx-target)/step)*step;
+    while(lo<0) lo+=step;                                        // %-of-sales axis: never label below zero
+    var out=[]; for(var v=lo; v<=hi+1e-9; v+=step) out.push(+v.toFixed(1));
+    return out;
+  };
   var out=build(steps[si]);
-  while(out.length<3 && si>0){ si--; out=build(steps[si]); }     // a nice step can land only 2 ticks in the domain \u2014 step down until 3 fit
-  while(out.length>4) out=out.filter(function(_,j){ return j%2===0; });   // \u2026and a phase-unlucky step can land 5+: thin to every other (still nice, still uniform)
+  while(out.length>4 && si<steps.length-1){ si++; out=build(steps[si]); }   // widen the step, never thin \u2014 filtering could drop the target tick
+  while(out.length<3){                                           // step bigger than the whole span: pad outward, target stays in the set
+    var st=steps[si], lo2=out[0], hi2=out[out.length-1];
+    if(lo2-st>=0) out.unshift(+(lo2-st).toFixed(1)); else out.push(+(hi2+st).toFixed(1));
+  }
   return out;
 }
 var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
 function trendChart(){
   var pts=dashRangePts();
-  var W=320,H=210,padL=40,padR=10,padT=14,padB=30;   /* v36 sizing; v47: padB 20->30 for the x-axis date labels */
+  /* v48 GEOMETRY IS CONSTANT — root cause of the "chart moves when I switch ranges" report:
+     the frame never varied (padL was always 40) but tight ranges drew decimal tick labels
+     ("27.5%") that overflowed the 33-unit gutter and were CLIPPED at the svg's left edge,
+     reading as a font change on a phone. Labels are now start-anchored at x=0 (one left edge
+     with the title + caption) and padL clears the widest possible label ("27.5%" in the mono
+     stack ≈ 33 units) for every range. padB back to 20: the x-axis date labels are gone
+     (range buttons state the window; the scrub tooltip gives exact dates). */
+  var W=320,H=210,padL=44,padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -1547,15 +1570,17 @@ function trendChart(){
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
   var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
-  /* v45 item 5 ROOT CAUSE: headroom was a flat ±1 unit (±3 only when the value spread was <4),
-     so the PIXEL gap between the target line and the range bar depended on each range's data
-     spread — 7-day's tight spread fired the <4 branch and looked right; longer ranges spread
-     wider and pinned the target against the top. Padding is now PROPORTIONAL (28% of the span
-     each side, span floored at 4 units), so every range renders the same headroom fraction. */
+  /* v48: the DOMAIN derives from the ticks, not the other way round (replaces v45's proportional
+     28% padding — that made the target line's rendered y jump ~50px between adjacent ranges,
+     the "framing shifts" half of Max's report). Ticks are anchored on the target (see tcTicks),
+     the domain is the tick extent plus half a step each side — so headroom is consistent in
+     tick units and similar ranges can't jitter. The domain still adapts to the data (a 1W view
+     must not be squashed flat); it is stable, not fixed. */
   var span=mx-mn;
-  if(span<4){ var midY=(mn+mx)/2; mn=midY-2; mx=midY+2; span=4; }
-  var padY=span*0.28;
-  mn=Math.max(0,mn-padY); mx=mx+padY;
+  if(span<4){ var midY=(mn+mx)/2; mn=midY-2; mx=midY+2; }
+  var ticks=tcTicks(cogsPct,mn,mx);
+  var step=ticks.length>1?ticks[1]-ticks[0]:5;
+  mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
   var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
   var xs=[], ys=[];
@@ -1565,24 +1590,17 @@ function trendChart(){
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
   var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
-  var refYn=y(cogsPct), refY=refYn.toFixed(1);
+  var refY=y(cogsPct).toFixed(1);
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
   // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
   var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
-  var ticks=tcTicks(mn,mx,3);                                    // v47: a real y-axis replaces the two stray min/max figures
-  var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-7)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
-  var seen={};                                                   // x-axis: first / middle / last reading dates (upright — legible at 380px without rotation)
-  // edges claim their indexes FIRST: on 2 points the "middle" rounds onto the last reading, and a
-  // middle-anchored label at the right edge clips outside the viewBox — dedupe must keep the end anchor
-  [[0,'start'],[pts.length-1,'end'],[Math.round((pts.length-1)/2),'middle']].forEach(function(pair){
-    var i=pair[0], p=pts[i];
-    if(seen[i]||!p||!p.t) return; seen[i]=1;
-    var lbl=new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short'});
-    axis+='<text class="ax" x="'+xs[i].toFixed(1)+'" y="'+(H-padB+16)+'" text-anchor="'+pair[1]+'">'+esc(lbl)+'</text>';
-  });
+  // v48: labels start-anchored at x=0 — one left edge with the title and caption, and a label
+  // can never overhang the svg's left edge again (the clipped-"27.5%" bug). One of these ticks
+  // IS the target (tcTicks anchors on it), which is why the dashed line needs no word of its own.
+  var axis=ticks.map(function(v){ return '<text class="ax" x="0" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="start">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
@@ -1593,8 +1611,7 @@ function trendChart(){
     +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
-    +'<text class="ax ref-lbl" x="'+(padL+3)+'" y="'+(refYn+3.5).toFixed(1)+'" text-anchor="start">Target</text>'   // v47: just the word, left end, centred on the rule (the % lives in Settings + the header); the .ax halo lets the rule pass "behind" it
-    +axis
+    +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
     +'</svg>';
@@ -1738,7 +1755,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v47';
+var APP_VERSION='v48';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

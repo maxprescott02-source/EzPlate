@@ -248,64 +248,53 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 17 Jul 2026 (verify, don't trust)
+## State as of 18 Jul 2026 (verify, don't trust)
 
 - `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
 - Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (FK orphan heal
   + "Unassigned dishes" holding area), v43 (masking-toast bugfix), v44 (Fable
-  visual batch), v45 (finishing touches), v46 (Fable UX polish, commit
-  `ea9fc62`)** — all committed and pushed — **and v47 (dashboard trend-chart
-  rebuild), uncommitted as of this writing**. `npm test` = **131 green**,
-  `node -c` clean, jsdom smoke passes, **39 Playwright checks pass** (34 prior —
-  one updated for the new Target label — + 5 new v47), all six version spots at
-  **v47**. Not on `main` yet.
-- **v47 shipped (chart rebuild, Collectr feel — see `handovers/HANDOVER-v47.md`,
-  plan approved by Max):** hand-rolled monotone cubic spline (`tcTangents`/
-  `tcPath`/`tcYAt` — the scrub dot rides the exact rendered curve), dotted
-  `<pattern>` area fill in the semantic line colour, free scrubbing (crosshair +
-  curve-riding dot + snapping two-line tooltip card; bright-behind/dim-ahead via
-  two clipPath'd copies; rAF-throttled attribute updates only — no re-render),
-  real y-axis (3–4 nice ticks via `tcTicks`) + 3 upright date labels replacing
-  the stray corner figures, "Target" word at the rule's left end, caption's
-  "Tap a point" dropped, plot is ONE focusable control (arrows/Home/End/Escape;
-  the 60 per-dot tab stops are gone), reading dots only when ≤32 points.
-  0/1 points → empty state; 2 points → straight segment (all pinned by tests).
-  Semantic green/red and the v45 headroom fix are unchanged. Scrub FEEL needs
-  Max's phone — list in the handover.
-- **v46 shipped (UX polish, all screenshot-verified at 380px + 1280px — see
-  `handovers/HANDOVER-v46.md`):** Ingredients strapline inline with the buttons
-  row on desktop (own line ≤639px); "Set up from products" is a plain `.btn`
-  (outlined like "Import invoice"); ingredient cards mirror the `.ing-list`
-  grid at every breakpoint (3-across ≥1280px, `.king-link` clamps to 2 lines;
-  tap/keyboard-to-edit intact); dashboard Target pill REMOVED — the dashed line
-  carries an inline SVG label (`.ref-lbl`, side chosen away from the data; the
-  big current-% number stays); invoice flag pill alignment root-caused (three
-  cascade leaks: space-between from the generic card td, baseline-pin of unequal
-  font sizes, stray pre-flex margin — title cell back to inline flow, pill is
-  inline-block `vertical-align:2px`, centring 0.0px off, pinned ≤1px by test);
-  builder leader root-caused (stale one-row-era `translateY(-4px)` — `.costs`
-  now baseline-aligns so the dots sit ON the shared text baseline); audit fixes:
-  `.ms-clear` and `.range-btn` get invisible ≥44px hit areas. Item-7 proposals
-  NOT built (dead `.ref-pill` CSS, `.invAppr` 26px checkbox in the protected
-  area, viewport `user-scalable=no`, misc-button copy) are listed in the
-  handover for Max.
-- **v45 context (see `handovers/HANDOVER-v45.md`):** pack control finished
-  (price+pack one line desktop / two centred lines mobile; derive preview via
-  `invPackPreviewText` shared by render + recompute); mismatch banner reworded;
-  Ingredients header reordered to the Products pattern; "+ New product"
-  everywhere; dashboard y-scale padding proportional (28%/side); builder
-  decluttered and the 380px overflow fixed at the root.
-- **v44 shipped (visual batch):** unified invoice pack control; "price change —
-  check" copy; pills on the title baseline; menu empty-state centring
-  root-caused (td:first-child specificity) and pinned; mobile short labels via
-  `.btn-noun`; confirm dialogs above Settings (`#confirmModal{z-index:85}`);
-  ingredient cards tap-to-edit with Remove in the modal; builder lines two-row
-  (`100 g @ $2.63/kg ··· $0.26`); **"Save to Library" → "Save draft" into
-  "Unassigned dishes"** (drafts are visible dishes with `price:0`,
-  `section:'Drafts'`, sequenced writes; publish moves them out).
+  visual batch), v45 (finishing touches), v46 (Fable UX polish), v47 (dashboard
+  trend-chart rebuild, commit `abb06ce`)** — committed and pushed — **and v48
+  (final pre-merge patch), uncommitted as of this writing**. `npm test` =
+  **138 green** (131 + 7 new tick tests), `node -c` clean, jsdom smoke passes,
+  **42 Playwright checks pass** (39 prior — 3 updated for the v48 contract —
+  + 3 new), all six version spots at **v48**. This was the LAST patch before
+  merge; not on `main` yet.
+- **v48 shipped (chart declutter + stability + menu rhythm — see
+  `handovers/HANDOVER-v48.md`, brief: Max's annotated screenshots):** the
+  "Target" word and the x-axis date labels are GONE from the chart —
+  **`tcTicks(target,mn,mx)` now anchors the tick sequence ON the target and
+  steps outward** (integer-biased ladder; the domain derives from the tick
+  extent ± half a step), so a labelled tick always sits exactly on the dashed
+  line — that guarantee is the entire basis for the word's removal, pinned by
+  `tests/trend-ticks.test.js` + Playwright (round 30%, non-round 32%). Item 4's
+  real root cause (NOT font-size, NOT per-range padL — both were already
+  constant): decimal tick labels ("27.5%") from the old 2.5-step overflowed the
+  end-anchored gutter and clipped at the svg's left edge, while per-range
+  independent domains made the target line's y jump ~50px between ranges. Labels
+  are now start-anchored at x=0 (one left edge with the title + caption,
+  `.chart-controls` shares `.dash-chart`'s 540px box), in the existing
+  `var(--mono)` stack, padL=44 constant. Blue tap box killed
+  (`-webkit-tap-highlight-color` + `:focus{outline:none}` with `:focus-visible`
+  restated after it). Menu header rhythm on `--sp-2` (label→value→key).
+  "Print docket" untouched — Max cancelled the rename; docket language stays.
+- **v47 context (see `handovers/HANDOVER-v47.md`):** hand-rolled monotone cubic
+  spline (`tcTangents`/`tcPath`/`tcYAt` — the scrub dot rides the exact rendered
+  curve), dotted `<pattern>` area fill in the semantic line colour, free
+  scrubbing (crosshair + curve-riding dot + snapping tooltip card;
+  bright-behind/dim-ahead via two clipPath'd copies; rAF-throttled), plot is ONE
+  focusable control (arrows/Home/End/Escape), reading dots only when ≤32 points,
+  0/1 points → empty state, 2 points → single cubic segment (pinned by tests).
+  Semantic green/red never changes.
+- **v44–v46 context (see their handovers):** one card system, unified invoice
+  pack control (+ live preview via `invPackPreviewText`), "Save draft" into
+  "Unassigned dishes" (drafts = dishes with `price:0`, `section:'Drafts'`,
+  sequenced writes), ingredient cards tap-to-edit + `.ing-list`-mirroring grid,
+  builder two-row lines with baseline-aligned leaders, invoice flag-pill
+  alignment root-caused, ≥44px hit areas on `.ms-clear`/`.range-btn`.
   `tests/visual/fresh-states.spec.js` = offline fresh-install Playwright
-  fixtures (`npm run shots`) — how v44/v45 were verified; reuse it.
+  fixtures (`npm run shots`) — how v44–v48 were verified; reuse it.
 - **v43 context you need:** the "every publish errors" mystery was the BACKEND —
   Max's `menu_items` table lacked `source_plate_id`, so every dish upsert was
   rejected; Max added the column via SQL. The app-side fix removed the second
@@ -315,20 +304,18 @@ merge to `main` as a production deploy.
   before big features. See `handovers/HANDOVER-v43.md`.
 - **v42 shipped:** publish sequencing for EVERY publish path (orphaned dishes
   heal on re-publish; `upsertCustomMenu` returns its push); `bootstrapSync`
-  heals instead of clobbering via pure `reconcileLocalOnly` (was silently
-  destroying offline-created rows); menu deletion auto-moves dishes to the
-  holding area behind ONE confirm (`fallbackMenuId`/`canDeleteMenu` reworked,
-  `realMenus()` added). See `handovers/HANDOVER-v42.md` incl. the read-only
-  orphan diagnostic snippet.
-- **Needs Max's phone (branch preview) before merge** — the v42, v44, v45, v46
-  and v47 handover lists. **Export a JSON backup first.** Highlights: publish to
-  an EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
-  dishes" and survive reload; real invoice import (pack control both
-  breakpoints + live preview line + flag-pill alignment on real titles);
-  builder at 380px with a real multi-ingredient plate (leaders on the baseline);
-  ingredient card grid at all widths; the rebuilt dashboard chart — scrub feel
-  on a real finger (slide the whole curve, slide off both edges, page must not
-  scroll while scrubbing), both themes, all six ranges.
+  heals instead of clobbering via pure `reconcileLocalOnly`; menu deletion
+  auto-moves dishes to the holding area behind ONE confirm (`fallbackMenuId`/
+  `canDeleteMenu` reworked, `realMenus()` added). See `handovers/HANDOVER-v42.md`
+  incl. the read-only orphan diagnostic snippet.
+- **Needs Max's phone (branch preview) before merge** — the v42 and v44–v48
+  handover lists. **Export a JSON backup first.** Highlights: publish to an
+  EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
+  dishes" and survive reload; real invoice import (pack control + preview +
+  flag pills on real titles); builder at 380px with a real plate; the rebuilt
+  chart — scrub feel on a real finger, switch all six ranges (ONLY the trendline
+  may move), tap it (no blue box), set target to 32% (tick must sit on the
+  dashed line), both themes; Menu tab header rhythm.
 - Next up: (a) Max's phone sign-off, then merge the branch to `main`;
   (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) is STILL not built —
   next feature task.
