@@ -1488,10 +1488,57 @@ function statCard(label, current, base){
   }
   return '<span class="stat-bit"><span class="stat-h">vs '+esc(label.toLowerCase())+'</span> <b class="stat-arrow '+cls+'">'+arrow+'</b> <span class="stat-sub '+cls+'">'+esc(sub)+'</span></span>';
 }
+/* ===== v47: trend-chart rebuild (Collectr feel, EzPlate skin) \u2014 helpers ===== */
+/* Monotone cubic tangents (Fritsch\u2013Carlson). Clamped so the curve NEVER overshoots a real
+   reading \u2014 between two points it stays inside their value range, so it can't dip below 0
+   or invent peaks between readings. The SAME tangents feed the path builder AND the scrub
+   evaluator, so the riding dot follows exactly the curve that is drawn. */
+function tcTangents(xs,ys){
+  var n=xs.length, m=new Array(n), d=new Array(Math.max(0,n-1)), i;
+  if(n<2){ if(n) m[0]=0; return m; }
+  for(i=0;i<n-1;i++) d[i]=(ys[i+1]-ys[i])/(xs[i+1]-xs[i]);
+  m[0]=d[0]; m[n-1]=d[n-2];
+  for(i=1;i<n-1;i++) m[i]=(d[i-1]*d[i]<=0)?0:(d[i-1]+d[i])/2;   // tangent 0 at local extrema
+  for(i=0;i<n-1;i++){
+    if(!d[i]){ m[i]=0; m[i+1]=0; continue; }
+    var a=m[i]/d[i], b=m[i+1]/d[i], s=a*a+b*b;
+    if(s>9){ var t=3/Math.sqrt(s); m[i]=t*a*d[i]; m[i+1]=t*b*d[i]; }   // the monotonicity clamp
+  }
+  return m;
+}
+function tcPath(xs,ys,m){                                        // Hermite -> cubic beziers (controls at +/- h/3 along tangents)
+  var p='M'+xs[0].toFixed(1)+' '+ys[0].toFixed(1);
+  for(var i=0;i<xs.length-1;i++){
+    var h=xs[i+1]-xs[i];
+    p+=' C'+(xs[i]+h/3).toFixed(1)+' '+(ys[i]+m[i]*h/3).toFixed(1)
+      +' '+(xs[i+1]-h/3).toFixed(1)+' '+(ys[i+1]-m[i+1]*h/3).toFixed(1)
+      +' '+xs[i+1].toFixed(1)+' '+ys[i+1].toFixed(1);
+  }
+  return p;
+}
+function tcYAt(xs,ys,m,px){                                      // cubic Hermite eval on the same tangents (the scrub dot rides THIS)
+  var n=xs.length;
+  if(px<=xs[0]) return ys[0];
+  if(px>=xs[n-1]) return ys[n-1];
+  var i=0; while(i<n-2 && px>xs[i+1]) i++;
+  var h=xs[i+1]-xs[i], t=(px-xs[i])/h, t2=t*t, t3=t2*t;
+  return (2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*h*m[i]+(3*t2-2*t3)*ys[i+1]+(t3-t2)*h*m[i+1];
+}
+function tcTicks(mn,mx,want){                                    // 3\u20134 "nice" y-axis values inside the padded domain
+  var steps=[0.5,1,2,2.5,5,10,20,25,50], raw=(mx-mn)/(want||3), si=steps.length-1, i;
+  for(i=0;i<steps.length;i++){ if(steps[i]>=raw){ si=i; break; } }
+  var build=function(step){ var out=[], v=Math.ceil(mn/step)*step; for(; v<=mx+1e-9; v+=step) out.push(+v.toFixed(1)); return out; };
+  var out=build(steps[si]);
+  while(out.length<3 && si>0){ si--; out=build(steps[si]); }     // a nice step can land only 2 ticks in the domain \u2014 step down until 3 fit
+  while(out.length>4) out=out.filter(function(_,j){ return j%2===0; });   // \u2026and a phase-unlucky step can land 5+: thin to every other (still nice, still uniform)
+  return out;
+}
+var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
 function trendChart(){
   var pts=dashRangePts();
-  var W=320,H=210,padL=40,padR=10,padT=14,padB=20;   /* v36: chart takes the space the stat cards gave back */
-  if(pts.length<2){
+  var W=320,H=210,padL=40,padR=10,padT=14,padB=30;   /* v36 sizing; v47: padB 20->30 for the x-axis date labels */
+  TREND_GEO=null;
+  if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
       ? 'No points in this range yet \u2014 try a longer range.'
       : 'The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.';
@@ -1511,31 +1558,50 @@ function trendChart(){
   mn=Math.max(0,mn-padY); mx=mx+padY;
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
   var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
-  var d=pts.map(function(p,i){ return (i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1); }).join(' ');
+  var xs=[], ys=[];
+  pts.forEach(function(p,i){ xs.push(x(i)); ys.push(y(p.v)); });
+  var tan=tcTangents(xs,ys);
+  var d=tcPath(xs,ys,tan);                                       // v47: smooth monotone curve (was straight polyline segments)
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
-  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';
+  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
   var refYn=y(cogsPct), refY=refYn.toFixed(1);
-  // v46 item 4: the target line explains itself — an inline label ON the dashed rule replaces the
-  // floating top-right pill. It sits 5 units above the rule, anchored at whichever END of the chart
-  // the data sits farther from the target, so it stays clear of the line's busy side.
-  var refLblEnd=Math.abs(y(pts[pts.length-1].v)-refYn) >= Math.abs(y(pts[0].v)-refYn);
-  var area=d+' L'+x(pts.length-1).toFixed(1)+' '+(H-padB)+' L'+x(0).toFixed(1)+' '+(H-padB)+' Z';
-  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Average food cost trend">'
-    +'<path d="'+area+'" fill="'+stroke+'" opacity="0.10"/>'
-    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
-    +'<text class="ax ref-lbl" x="'+(refLblEnd?(W-padR):padL+2)+'" y="'+(refYn-5).toFixed(1)+'" text-anchor="'+(refLblEnd?'end':'start')+'">Target '+cogsPct+'%</text>'
+  var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
+  var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
+  // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
+  var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    +pts.map(function(p,i){ var lbl=(p.t?new Date(p.t).toLocaleDateString():('#'+(i+1)))+' \u00b7 '+p.v.toFixed(1)+'%';
-        return '<circle class="tp-dot" cx="'+x(i).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="3" fill="'+stroke+'" tabindex="0" role="button" data-lbl="'+esc(lbl)+'" data-x="'+x(i).toFixed(1)+'" data-y="'+y(p.v).toFixed(1)+'" aria-label="'+esc(lbl)+'"/>'; }).join('')
-    +'<circle cx="'+x(pts.length-1).toFixed(1)+'" cy="'+y(pts[pts.length-1].v).toFixed(1)+'" r="3.5" fill="'+stroke+'" pointer-events="none"/>'
-    +'<text x="'+(padL-7)+'" y="'+y(mx).toFixed(1)+'" text-anchor="end" class="ax">'+mx.toFixed(0)+'%</text>'
-    +'<text x="'+(padL-7)+'" y="'+(H-padB+2).toFixed(1)+'" text-anchor="end" class="ax">'+mn.toFixed(0)+'%</text>'
-    +'</svg>';
+    +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
+  var ticks=tcTicks(mn,mx,3);                                    // v47: a real y-axis replaces the two stray min/max figures
+  var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-7)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
+  var seen={};                                                   // x-axis: first / middle / last reading dates (upright — legible at 380px without rotation)
+  // edges claim their indexes FIRST: on 2 points the "middle" rounds onto the last reading, and a
+  // middle-anchored label at the right edge clips outside the viewBox — dedupe must keep the end anchor
+  [[0,'start'],[pts.length-1,'end'],[Math.round((pts.length-1)/2),'middle']].forEach(function(pair){
+    var i=pair[0], p=pts[i];
+    if(seen[i]||!p||!p.t) return; seen[i]=1;
+    var lbl=new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+    axis+='<text class="ax" x="'+xs[i].toFixed(1)+'" y="'+(H-padB+16)+'" text-anchor="'+pair[1]+'">'+esc(lbl)+'</text>';
+  });
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
+    +'<defs>'
+    +'<pattern id="tcdots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.6" cy="1.6" r="1.1" fill="'+stroke+'" opacity="0.28"/></pattern>'   // dotted fill inherits the semantic colour + both themes via the CSS var
+    +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
+    +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
+    +'</defs>'
+    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+    +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
+    +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
+    +'<text class="ax ref-lbl" x="'+(padL+3)+'" y="'+(refYn+3.5).toFixed(1)+'" text-anchor="start">Target</text>'   // v47: just the word, left end, centred on the rule (the % lives in Settings + the header); the .ax halo lets the rule pass "behind" it
+    +axis
+    +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
+    +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
+    +'</svg>';
+  TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB};
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';   // v46 item 4: the floating Target pill is gone; the dashed rule carries its own label now
+    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
 }
 function highlightData(kind){
   if(kind==='foodcost'){
@@ -1580,32 +1646,64 @@ function renderDashboard(){
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
-  (function wireTrendTip(){                                          // one tooltip at a time; tap point (mobile) or hover (desktop)
+  (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
-    var svg=wrap.querySelector('svg'); if(!svg) return;
-    function showFor(dot){ var vb=svg.viewBox.baseVal, rect=svg.getBoundingClientRect();
-      var px=parseFloat(dot.getAttribute('data-x')), py=parseFloat(dot.getAttribute('data-y'));
-      var left=(px/vb.width)*rect.width, top=(py/vb.height)*rect.height;
-      tip.textContent=dot.getAttribute('data-lbl'); tip.style.left=left+'px'; tip.style.top=top+'px';
+    var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
+    var cross=svg.querySelector('#tcCross'), dot=svg.querySelector('#tcDot'),
+        rb=svg.querySelector('#tcRectB'), rd=svg.querySelector('#tcRectD');
+    if(!cross||!dot||!rb||!rd) return;
+    var n=g.xs.length, stepW=(g.W-g.padL-g.padR)/(n-1), lastIdx=-1, raf=0, pending=null, active=false;
+    function showAt(vx){                                             // vx in viewBox units, already clamped to the plot
+      active=true;
+      var vy=tcYAt(g.xs,g.ys,g.tan,vx);                              // the dot rides the RENDERED curve continuously…
+      cross.setAttribute('x1',vx.toFixed(1)); cross.setAttribute('x2',vx.toFixed(1)); cross.setAttribute('visibility','visible');
+      dot.setAttribute('cx',vx.toFixed(1)); dot.setAttribute('cy',vy.toFixed(1)); dot.setAttribute('visibility','visible');
+      rb.setAttribute('width',Math.max(0,vx).toFixed(1));            // bright behind the cursor…
+      rd.setAttribute('x',vx.toFixed(1)); rd.setAttribute('width',Math.max(0,g.W-vx).toFixed(1));   // …dimmed ahead of it
+      var idx=Math.max(0,Math.min(n-1,Math.round((vx-g.padL)/stepW)));
+      if(idx!==lastIdx){                                             // …but the REPORTED value snaps to the nearest real reading
+        lastIdx=idx;
+        var p=g.pts[idx];
+        var when=p.t?new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):('reading #'+(idx+1));
+        tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>';
+      }
       tip.classList.add('show'); tip.setAttribute('aria-hidden','false');
-      wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); dot.classList.add('act');
+      var rect=svg.getBoundingClientRect(), sx=rect.width/g.W, sy=rect.height/g.H;
+      var half=(tip.offsetWidth||70)/2, px=vx*sx, py=vy*sy;
+      px=Math.max(half+2, Math.min(rect.width-half-2, px));          // clamped: the card never leaves the chart
+      tip.classList.toggle('below', py<48);                          // flips under the dot near the top edge
+      tip.style.left=px+'px'; tip.style.top=py+'px';
     }
-    function hideTip(){ tip.classList.remove('show'); tip.setAttribute('aria-hidden','true'); wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); }
-    wrap.querySelectorAll('.tp-dot').forEach(function(dot){
-      dot.addEventListener('mouseenter', function(){ showFor(dot); });
-      dot.addEventListener('focus', function(){ showFor(dot); });
+    function rest(){                                                 // pointer-leave/up: no crosshair, full brightness
+      active=false; lastIdx=-1;
+      cross.setAttribute('visibility','hidden'); dot.setAttribute('visibility','hidden');
+      rb.setAttribute('width',g.W); rd.setAttribute('x',g.W); rd.setAttribute('width',0);
+      tip.classList.remove('show'); tip.setAttribute('aria-hidden','true');
+    }
+    function fromEvent(e){
+      var rect=svg.getBoundingClientRect();
+      var vx=(e.clientX-rect.left)/rect.width*g.W;
+      return Math.max(g.padL, Math.min(g.W-g.padR, vx));
+    }
+    function queue(vx){                                              // rAF throttle: one geometry pass per frame (phone-friendly)
+      pending=vx; if(raf) return;
+      raf=requestAnimationFrame(function(){ raf=0; if(pending!=null && document.contains(svg)) showAt(pending); pending=null; });
+    }
+    svg.addEventListener('pointerdown', function(e){ try{ svg.setPointerCapture(e.pointerId); }catch(_){ } e.preventDefault(); queue(fromEvent(e)); });
+    svg.addEventListener('pointermove', function(e){ if(e.pointerType==='touch' && !active) return; queue(fromEvent(e)); });   // mouse scrubs on hover; touch needs the press first
+    svg.addEventListener('pointerleave', rest);
+    ['pointerup','pointercancel'].forEach(function(ev){ svg.addEventListener(ev, function(e){ if(e.pointerType!=='mouse') rest(); }); });
+    svg.addEventListener('keydown', function(e){                     // one focusable plot; arrows step the readings
+      var idx=lastIdx;
+      if(e.key==='ArrowLeft') idx=(idx<0? n-1 : Math.max(0,idx-1));
+      else if(e.key==='ArrowRight') idx=(idx<0? 0 : Math.min(n-1,idx+1));
+      else if(e.key==='Home') idx=0;
+      else if(e.key==='End') idx=n-1;
+      else if(e.key==='Escape'){ rest(); return; }
+      else return;
+      e.preventDefault(); showAt(g.xs[idx]);
     });
-    var dots=[].slice.call(wrap.querySelectorAll('.tp-dot'));
-    function nearestDot(clientX){ var best=null,bd=1e9; dots.forEach(function(d){ var r=d.getBoundingClientRect(); var cx=r.left+r.width/2; var dd=Math.abs(cx-clientX); if(dd<bd){bd=dd;best=d;} }); return best; }
-    var scrubbing=false;
-    svg.addEventListener('pointerdown', function(e){                 // press anywhere on the chart, slide between points
-      scrubbing=true; try{ svg.setPointerCapture(e.pointerId); }catch(_){ }
-      e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d);
-    });
-    svg.addEventListener('pointermove', function(e){ if(!scrubbing) return; e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d); });
-    ['pointerup','pointercancel'].forEach(function(ev){ svg.addEventListener(ev, function(){ scrubbing=false; }); });
-    wrap.addEventListener('mouseleave', hideTip);
-    document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) hideTip(); });
+    svg.addEventListener('blur', rest);
   })();
   root.querySelectorAll('.hl-card').forEach(function(b){ b.onclick=function(){ openHighlight(b.getAttribute('data-kind')); }; });
 }
@@ -1640,7 +1738,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v46';
+var APP_VERSION='v47';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

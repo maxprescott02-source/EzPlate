@@ -516,15 +516,195 @@ test('v46 items 1+4: strapline inline on desktop; target line labels itself (no 
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(400);
   await expect(page.locator('.ref-pill')).toHaveCount(0);
-  await expect(page.locator('.ref-lbl')).toHaveText('Target 30%');
+  // v47 update: the label is just the word "Target", left end, vertically centred ON the rule
+  await expect(page.locator('.ref-lbl')).toHaveText('Target');
   const lbl = await page.evaluate(() => {
     const l = document.querySelector('.ref-lbl').getBoundingClientRect();
     const line = document.querySelector('.ref-line').getBoundingClientRect();
-    return { lblBottom: l.bottom, lineY: line.top };
+    return { lblCentre: (l.top + l.bottom) / 2, lblLeft: l.left, lineY: line.top, lineLeft: line.left };
   });
-  expect(lbl.lineY - lbl.lblBottom, 'label sits immediately above the dashed rule').toBeGreaterThanOrEqual(0);
-  expect(lbl.lineY - lbl.lblBottom, 'label hugs the rule, not floating').toBeLessThanOrEqual(12);
+  expect(Math.abs(lbl.lblCentre - lbl.lineY), 'label vertically centred on the dashed rule').toBeLessThanOrEqual(4);
+  expect(lbl.lblLeft - lbl.lineLeft, 'label sits at the LEFT end of the rule').toBeLessThanOrEqual(20);
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v46-dash-label.png' });
+});
+
+/* ===== v47: dashboard trend-chart rebuild ===== */
+
+const V47_SEED = `(() => {
+  const day = 86400000, now = Date.now(), pts = [];
+  for (let d = 1; d <= 360; d += 4) pts.push({ t: now - d * day, v: 24 + 6 * Math.sin(d / 20) + (d % 5) });
+  window.priceHistory = pts.sort((a, b) => a.t - b.t);
+  window.cogsPct = 30;
+})()`;
+
+for (const size of SIZES) {
+  test(`v47: chart statics — smooth curve, dotted fill, real axes, sparse/dense dots @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.evaluate(V47_SEED);
+    await page.locator('.navbtn[data-tab="dashboard"]').click();
+    await page.waitForTimeout(400);
+    for (const rg of ['1w', '1m', '3m', '6m', '1y', 'all']) {
+      await page.evaluate(r => window.setDashRange(r), rg);
+      await page.waitForTimeout(250);
+      const st = await page.evaluate(() => {
+        const svg = document.querySelector('#trendWrap svg');
+        const axes = Array.from(svg.querySelectorAll('text.ax')).map(t => t.textContent);
+        return {
+          pts: window.dashRangePts().length,
+          yTicks: axes.filter(t => /%$/.test(t)).length,
+          xLbls: axes.filter(t => !/%$/.test(t) && t !== 'Target').length,
+          bezier: svg.querySelector('g[clip-path] path[stroke]').getAttribute('d').includes('C'),
+          dots: svg.querySelector('g[clip-path]').querySelectorAll('.tc-pt').length,
+          pattern: !!svg.querySelector('pattern#tcdots'),
+          clipGroups: svg.querySelectorAll('g[clip-path]').length,
+          caption: document.querySelector('.chart-hint').textContent,
+          focusable: svg.getAttribute('tabindex') === '0',
+        };
+      });
+      expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeGreaterThanOrEqual(3);
+      expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
+      expect(st.xLbls, `${rg}: date labels`).toBeGreaterThanOrEqual(2);
+      expect(st.bezier, `${rg}: smooth curve (cubic segments)`).toBe(true);
+      expect(st.pattern, `${rg}: dotted area fill`).toBe(true);
+      expect(st.clipGroups, `${rg}: bright + dim groups`).toBe(2);
+      expect(st.caption.includes('Tap a point'), `${rg}: tap hint dropped`).toBe(false);
+      expect(st.focusable, `${rg}: plot is focusable`).toBe(true);
+      if (st.pts <= 32) expect(st.dots, `${rg}: sparse range shows reading dots`).toBe(st.pts);
+      else expect(st.dots, `${rg}: dense range drops reading dots`).toBe(0);
+      await page.locator('.dash-chart').screenshot({ path: `tests/visual/__shots__/v47-${rg}-${size.name}.png` });
+    }
+  });
+
+  test(`v47: scrubbing — crosshair, curve-riding dot, snapping tooltip, dim-ahead, rest @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.evaluate(V47_SEED);
+    await page.locator('.navbtn[data-tab="dashboard"]').click();
+    await page.evaluate(() => window.setDashRange('3m'));
+    await page.waitForTimeout(300);
+    const box = await page.locator('#trendWrap svg').boundingBox();
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    await page.waitForTimeout(150);
+    const mid = await page.evaluate(() => ({
+      cross: document.querySelector('#tcCross').getAttribute('visibility'),
+      crossX: parseFloat(document.querySelector('#tcCross').getAttribute('x1')),
+      dotOnCurve: (() => {
+        const g = window.TREND_GEO;
+        const cx = parseFloat(document.querySelector('#tcDot').getAttribute('cx'));
+        const cy = parseFloat(document.querySelector('#tcDot').getAttribute('cy'));
+        return Math.abs(window.tcYAt(g.xs, g.ys, g.tan, cx) - cy) < 0.2;
+      })(),
+      brightW: parseFloat(document.querySelector('#tcRectB').getAttribute('width')),
+      dimX: parseFloat(document.querySelector('#tcRectD').getAttribute('x')),
+      tip: document.getElementById('trendTip').textContent,
+      tipShown: document.getElementById('trendTip').classList.contains('show'),
+    }));
+    expect(mid.cross, 'crosshair visible while scrubbing').toBe('visible');
+    expect(mid.dotOnCurve, 'the active dot rides the rendered curve').toBe(true);
+    expect(mid.brightW, 'bright clip ends at the cursor').toBeCloseTo(mid.crossX, 0);
+    expect(mid.dimX, 'dim clip starts at the cursor').toBeCloseTo(mid.crossX, 0);
+    expect(mid.tipShown, 'tooltip shown').toBe(true);
+    expect(mid.tip, 'tooltip reports a % value').toMatch(/%/);
+    await page.locator('.dash-chart').screenshot({ path: `tests/visual/__shots__/v47-scrub-${size.name}.png` });
+    // slides continuously
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.5);
+    await page.waitForTimeout(150);
+    const at80 = await page.evaluate(() => parseFloat(document.querySelector('#tcCross').getAttribute('x1')));
+    expect(at80, 'crosshair tracks the pointer').toBeGreaterThan(mid.crossX);
+    // tooltip never overflows the chart at the far edge
+    await page.mouse.move(box.x + box.width - 2, box.y + box.height * 0.5);
+    await page.waitForTimeout(150);
+    const edge = await page.evaluate(() => {
+      const t = document.getElementById('trendTip').getBoundingClientRect();
+      const w = document.getElementById('trendWrap').getBoundingClientRect();
+      return { overR: t.right - w.right, overL: w.left - t.left };
+    });
+    expect(edge.overR, 'tooltip stays inside at the right edge').toBeLessThanOrEqual(1);
+    expect(edge.overL, 'tooltip stays inside at the left edge').toBeLessThanOrEqual(1);
+    // pointer-leave rests: no crosshair, full brightness
+    await page.mouse.move(box.x - 40, box.y + box.height * 0.5);
+    await page.waitForTimeout(150);
+    const rest = await page.evaluate(() => ({
+      cross: document.querySelector('#tcCross').getAttribute('visibility'),
+      brightW: parseFloat(document.querySelector('#tcRectB').getAttribute('width')),
+      tipShown: document.getElementById('trendTip').classList.contains('show'),
+    }));
+    expect(rest.cross, 'crosshair hidden at rest').toBe('hidden');
+    expect(rest.brightW, 'full brightness at rest').toBe(320);
+    expect(rest.tipShown, 'tooltip hidden at rest').toBe(false);
+    // keyboard: the plot is one focusable control; arrows step readings
+    await page.evaluate(() => document.querySelector('#trendWrap svg').focus());
+    await page.keyboard.press('End');
+    await page.waitForTimeout(100);
+    const kEnd = await page.evaluate(() => document.getElementById('trendTip').textContent);
+    expect(kEnd, 'End jumps to the last reading').toMatch(/%/);
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(100);
+    const kPrev = await page.evaluate(() => document.getElementById('trendTip').textContent);
+    expect(kPrev, 'ArrowLeft steps to the previous reading').not.toBe(kEnd);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => document.getElementById('trendTip').classList.contains('show')),
+      'Escape rests the chart').toBe(false);
+  });
+}
+
+test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
+  await page.waitForTimeout(300);
+  for (const n of [0, 1]) {
+    const deg = await page.evaluate((k) => {
+      const day = 86400000, now = Date.now();
+      window.priceHistory = Array.from({ length: k }, (_, i) => ({ t: now - (k - i) * day, v: 25 + i * 3 }));
+      window.setDashRange('1m');
+      return {
+        empty: !!document.querySelector('.dash-chart.empty'),
+        hint: document.querySelector('.chart-hint').textContent.length > 0,
+      };
+    }, n);
+    expect(deg.empty, `${n} points → empty-state card`).toBe(true);
+    expect(deg.hint, `${n} points → a real hint`).toBe(true);
+  }
+  const two = await page.evaluate(() => {
+    const day = 86400000, now = Date.now();
+    window.priceHistory = [{ t: now - 2 * day, v: 25 }, { t: now - day, v: 28 }];
+    window.setDashRange('1m');
+    const path = document.querySelector('#trendWrap svg g[clip-path] path[stroke]').getAttribute('d');
+    const lastX = Array.from(document.querySelectorAll('#trendWrap text.ax'))
+      .filter(t => !/%$/.test(t.textContent) && t.textContent !== 'Target')
+      .map(t => t.getBoundingClientRect().right);
+    const svgR = document.querySelector('#trendWrap svg').getBoundingClientRect().right;
+    return { ok: /^M[\d. ]+ C/.test(path), labelsInside: lastX.every(r => r <= svgR + 0.5) };
+  });
+  expect(two.ok, '2 points → a single valid cubic segment').toBe(true);
+  expect(two.labelsInside, 'date labels stay inside the viewBox').toBe(true);
+  await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-2pts.png' });
+  // dark theme with the red (worsening) line
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.evaluate(() => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const day = 86400000, now = Date.now(), pts = [];
+    for (let d = 1; d <= 90; d += 3) pts.push({ t: now - d * day, v: 31 - d / 10 });   // d = days AGO: older readings lower → cost RISES toward today
+    window.priceHistory = pts.sort((a, b) => a.t - b.t);
+    window.setDashRange('3m');
+  });
+  await page.waitForTimeout(300);
+  const box = await page.locator('#trendWrap svg').boundingBox();
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.5);
+  await page.waitForTimeout(150);
+  const darkStroke = await page.evaluate(() =>
+    document.querySelector('#trendWrap svg g[clip-path] path[stroke]').getAttribute('stroke'));
+  expect(darkStroke, 'semantic colour survives: rising cost = red (--bad)').toBe('var(--bad)');
+  await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-dark-scrub.png' });
 });
 
 for (const size of SIZES) {

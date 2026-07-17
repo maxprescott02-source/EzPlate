@@ -254,11 +254,25 @@ merge to `main` as a production deploy.
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
 - Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (FK orphan heal
   + "Unassigned dishes" holding area), v43 (masking-toast bugfix), v44 (Fable
-  visual batch), v45 (Fable finishing touches, commit `5a4e025`)** — all
-  committed — **and v46 (Fable UX polish), uncommitted as of this writing**.
-  `npm test` = **131 green**, `node -c` clean, jsdom smoke passes, **34
-  Playwright checks pass** (27 prior + 7 new v46), all six version spots at
-  **v46**. Not on `main` yet.
+  visual batch), v45 (finishing touches), v46 (Fable UX polish, commit
+  `ea9fc62`)** — all committed and pushed — **and v47 (dashboard trend-chart
+  rebuild), uncommitted as of this writing**. `npm test` = **131 green**,
+  `node -c` clean, jsdom smoke passes, **39 Playwright checks pass** (34 prior —
+  one updated for the new Target label — + 5 new v47), all six version spots at
+  **v47**. Not on `main` yet.
+- **v47 shipped (chart rebuild, Collectr feel — see `handovers/HANDOVER-v47.md`,
+  plan approved by Max):** hand-rolled monotone cubic spline (`tcTangents`/
+  `tcPath`/`tcYAt` — the scrub dot rides the exact rendered curve), dotted
+  `<pattern>` area fill in the semantic line colour, free scrubbing (crosshair +
+  curve-riding dot + snapping two-line tooltip card; bright-behind/dim-ahead via
+  two clipPath'd copies; rAF-throttled attribute updates only — no re-render),
+  real y-axis (3–4 nice ticks via `tcTicks`) + 3 upright date labels replacing
+  the stray corner figures, "Target" word at the rule's left end, caption's
+  "Tap a point" dropped, plot is ONE focusable control (arrows/Home/End/Escape;
+  the 60 per-dot tab stops are gone), reading dots only when ≤32 points.
+  0/1 points → empty state; 2 points → straight segment (all pinned by tests).
+  Semantic green/red and the v45 headroom fix are unchanged. Scrub FEEL needs
+  Max's phone — list in the handover.
 - **v46 shipped (UX polish, all screenshot-verified at 380px + 1280px — see
   `handovers/HANDOVER-v46.md`):** Ingredients strapline inline with the buttons
   row on desktop (own line ≤639px); "Set up from products" is a plain `.btn`
@@ -306,14 +320,15 @@ merge to `main` as a production deploy.
   holding area behind ONE confirm (`fallbackMenuId`/`canDeleteMenu` reworked,
   `realMenus()` added). See `handovers/HANDOVER-v42.md` incl. the read-only
   orphan diagnostic snippet.
-- **Needs Max's phone (branch preview) before merge** — the v42, v44, v45 and
-  v46 handover lists. **Export a JSON backup first.** Highlights: publish to an
-  EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
+- **Needs Max's phone (branch preview) before merge** — the v42, v44, v45, v46
+  and v47 handover lists. **Export a JSON backup first.** Highlights: publish to
+  an EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
   dishes" and survive reload; real invoice import (pack control both
   breakpoints + live preview line + flag-pill alignment on real titles);
   builder at 380px with a real multi-ingredient plate (leaders on the baseline);
-  ingredient card grid at all widths; all six dashboard ranges with the new
-  inline Target label.
+  ingredient card grid at all widths; the rebuilt dashboard chart — scrub feel
+  on a real finger (slide the whole curve, slide off both edges, page must not
+  scroll while scrubbing), both themes, all six ranges.
 - Next up: (a) Max's phone sign-off, then merge the branch to `main`;
   (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) is STILL not built —
   next feature task.
