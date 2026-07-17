@@ -248,64 +248,58 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 17 Jul 2026 pm (verify, don't trust)
+## State as of 17 Jul 2026 (verify, don't trust)
 
 - `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
-- Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (Opus logic:
-  FK orphan heal + "Unassigned dishes" holding area), v43 (masking-toast
-  bugfix)** — both pushed — **and v44 (Fable visual batch), uncommitted as of
-  this writing**. `npm test` = **131 green**, `node -c` clean, jsdom smoke
-  passes, 21 Playwright checks pass, all six version spots at **v44**. Not on
-  `main` yet.
+- Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (FK orphan heal
+  + "Unassigned dishes" holding area), v43 (masking-toast bugfix), v44 (Fable
+  visual batch)** — all pushed — **and v45 (Fable finishing touches),
+  uncommitted as of this writing**. `npm test` = **131 green**, `node -c` clean,
+  jsdom smoke passes, **27 Playwright checks pass**, all six version spots at
+  **v45**. Not on `main` yet.
+- **v45 shipped (finishing touches, all screenshot-verified — see
+  `handovers/HANDOVER-v45.md`):** pack control finished (price+pack one line
+  desktop / two centred lines mobile; derive preview "Was $X/kg → will be $Y" is
+  its own line, prefilled via new `invPackPreviewText` shared by render +
+  recompute); mismatch banner reworded; Ingredients header reordered to the
+  Products pattern (title→divider→buttons→strapline); "+ New product" everywhere
+  incl. the modal; dashboard target-line spacing root-caused (flat ±1-unit
+  y-scale padding → now proportional 28%/side, all six ranges consistent);
+  builder decluttered ("· new"/"· edited" badges, subtitle category tail and the
+  orange ingredient pill all REMOVED from render code) and the 380px overflow
+  regression fixed at the root (`.lc{min-width:78px}` + zero-width leader —
+  Playwright now measures against the card content box, not the viewport).
+- **v44 shipped (visual batch):** unified invoice pack control; "price change —
+  check" copy; pills on the title baseline; menu empty-state centring
+  root-caused (td:first-child specificity) and pinned; mobile short labels via
+  `.btn-noun`; confirm dialogs above Settings (`#confirmModal{z-index:85}`);
+  ingredient cards tap-to-edit with Remove in the modal; builder lines two-row
+  (`100 g @ $2.63/kg ··· $0.26`); **"Save to Library" → "Save draft" into
+  "Unassigned dishes"** (drafts are visible dishes with `price:0`,
+  `section:'Drafts'`, sequenced writes; publish moves them out).
+  `tests/visual/fresh-states.spec.js` = offline fresh-install Playwright
+  fixtures (`npm run shots`) — how v44/v45 were verified; reuse it.
 - **v43 context you need:** the "every publish errors" mystery was the BACKEND —
-  Max's `menu_items` table lacked `source_plate_id` (written since v40), so
-  every dish upsert was rejected; Max added the column via SQL and it works.
-  The app-side fix removed `dbPushPlateAfterMenu`'s second toast that had been
-  overwriting the real error (single-element toast, last wins) and mislabeling
-  rejections as "offline". `pushWrite` is the single source of save messaging.
-  Watch for the same class of bug: any `dbPush*` naming a column the live DB
-  lacks fails wholesale — audit column lists against the real schema before big
-  features. See `handovers/HANDOVER-v43.md`.
-- **v44 shipped (visual batch, all screenshot-verified):** unified invoice pack
-  control (chip gone; one always-visible `[qty][unit][✓]` row, red
-  `.pt-required` mood for mismatch; logic untouched); "price jump — check" →
-  "price change — check" (pinned tests updated); pills on the title baseline;
-  menu empty-state centring root-caused (td:first-child specificity) and pinned;
-  mobile short button labels via `.btn-noun`; confirm dialogs above Settings
-  (`#confirmModal{z-index:85}` — equal z + DOM order was the cause); ingredient
-  cards tap-to-edit with Remove inside the modal; pantry header on the panel
-  system; builder lines two-row (`100 g @ $2.63/kg ··· $0.26`); **"Save to
-  Library" → "Save draft" into "Unassigned dishes"** (Max's design — drafts are
-  visible dishes with `price:0`, `section:'Drafts'`, sequenced writes; publish
-  moves them out). New `tests/visual/fresh-states.spec.js` = offline
-  fresh-install Playwright fixtures used for all of this (`npm run shots`).
-  See `handovers/HANDOVER-v44.md` incl. its needs-Max's-phone list.
-- Next up: (a) Max's phone pass on v42+v43+v44 on the branch preview (backup
-  first), then merge to `main`; (b) the Tidy lists Settings UI
-  (`HANDOVER-v40.md` spec) is STILL not built — next feature task.
-- v42 shipped:
-  (1) **Item 1 — `plates_menu_id_fkey`, deeper root cause than v40.** v40 fixed
-  only the new-dish publish race. v42 also (a) sequences the plate push after a
-  confirmed `menu_items` upsert for EVERY publish (re-publishing an orphaned
-  existing dish now heals it — `upsertCustomMenu` returns its push; threaded in
-  `submitMenuItem`), and (b) makes `bootstrapSync` **heal, not clobber**: a
-  new pure `reconcileLocalOnly` keeps + re-pushes local-only dishes/plates
-  instead of the old replace-with-server-snapshot, which was silently
-  DESTROYING offline-created rows on reload (latent data-loss bug).
-  (2) **Item 2 — "Unassigned dishes" holding area.** Deleting a menu with dishes
-  auto-moves them to the reserved `MENU_UNASSIGNED` holding menu behind ONE
-  confirm (the v40 `delMenuModal` destination picker is removed, JS + HTML).
-  Holding area: created on demand, never seeded, never deletable, excluded from
-  the last-menu count, shown in the selector only when it holds dishes, dishes
-  movable back out via the edit modal. `fallbackMenuId()`/`canDeleteMenu()`
-  reworked; `realMenus()` added.
-  (3) Tidy lists Settings UI — **still not built** (pure core from v40 stands).
-- **Needs Max's phone (branch preview) before merge** — see
-  `handovers/HANDOVER-v42.md` for the full list + the read-only orphan
-  diagnostic snippet. At minimum: publish a plate to an EXISTING menu (no FK
-  error); delete a menu and find its dishes under "Unassigned dishes"; reload
-  and confirm both survive; move a dish back out and watch the holding area
-  disappear when empty. **Export a JSON backup first.**
-- Next up: (a) Max's phone sign-off + merge v42; (b) build the Tidy lists
-  Settings UI per `HANDOVER-v40.md`.
+  Max's `menu_items` table lacked `source_plate_id`, so every dish upsert was
+  rejected; Max added the column via SQL. The app-side fix removed the second
+  toast masking the real error; `pushWrite` is the single source of save
+  messaging. Watch for the same class of bug: any `dbPush*` naming a column the
+  live DB lacks fails wholesale — audit column lists against the real schema
+  before big features. See `handovers/HANDOVER-v43.md`.
+- **v42 shipped:** publish sequencing for EVERY publish path (orphaned dishes
+  heal on re-publish; `upsertCustomMenu` returns its push); `bootstrapSync`
+  heals instead of clobbering via pure `reconcileLocalOnly` (was silently
+  destroying offline-created rows); menu deletion auto-moves dishes to the
+  holding area behind ONE confirm (`fallbackMenuId`/`canDeleteMenu` reworked,
+  `realMenus()` added). See `handovers/HANDOVER-v42.md` incl. the read-only
+  orphan diagnostic snippet.
+- **Needs Max's phone (branch preview) before merge** — the v42, v44 and v45
+  handover lists. **Export a JSON backup first.** Highlights: publish to an
+  EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
+  dishes" and survive reload; real invoice import (pack control both
+  breakpoints + live preview line); builder at 380px with a real
+  multi-ingredient plate; all six dashboard ranges.
+- Next up: (a) Max's phone sign-off, then merge the branch to `main`;
+  (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) is STILL not built —
+  next feature task.

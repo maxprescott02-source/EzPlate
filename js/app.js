@@ -395,20 +395,19 @@ function renderPlate(){
     const priceChip = editable
       ? `<span class="pchip" id="pc-${l.uid}" tabindex="0" role="button" title="Click to edit price" onclick="editPrice(${l.uid})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editPrice(${l.uid})}">${unitCostStr(p)} <span class="pen">✎</span></span>`
       : `<span>${unitCostStr(p)}</span>`;
-    let nameBlock, row2='', priceline;
+    let nameBlock, priceline;
     // v44 item 8 (Max's mockup): row 1 = name + meta, row 2 = qty + unit price + line cost,
     // left-aligned on their own line. Same inputs, ids and handlers — the nodes just moved.
+    // v45 items 6/7 (declutter, Max's call): the "· new"/"· edited" badges, the category half of
+    // the subtitle and the orange "ingredient" pill (.row2/.king-tag) are all REMOVED, not hidden.
     if(isKid){                                                  // kitchen word up top, linked product small underneath
       nameBlock=`<b>${esc(kName)}</b>
           <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>`;
       priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;   // v44 item 8: docket idiom "100 g @ $2.63/kg" — the words "Unit cost:" blew the 380px budget
-      row2=`<div class="row2"><span class="king-tag">ingredient</span></div>`;
     } else {                                                     // legacy direct-product line (pre-v31 saved plates): render + cost, no alternatives
-      const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
-                : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
-      nameBlock=`<b>${esc(p.description)}</b>
-          <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>`;
-      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}${tag}</span>`;
+      nameBlock=`<b>${esc(p.description)}</b>${p.brand?`
+          <span class="sub">${esc(p.brand)}</span>`:''}`;
+      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;
     }
     return `<div class="line" data-uid="${l.uid}">
       <div class="top">
@@ -423,7 +422,6 @@ function renderPlate(){
         <span class="leader"></span>
         <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
       </div>
-      ${row2}
     </div>`;}).join('');
   updateTotals();
   var bh=document.getElementById('builderHint');
@@ -953,7 +951,7 @@ function renderIngredients(){
     if(cntEl) cntEl.textContent='';
     wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet','Products are the things you buy \u2014 import a supplier invoice and EzPlate reads them in, or add one by hand.',
       '<button class="btn primary" type="button" onclick="document.getElementById(\'importBtn\').click()">Import invoice</button>'
-      +'<button class="btn" type="button" onclick="openModal()">+ Add product</button>');
+      +'<button class="btn" type="button" onclick="openModal()">+ New product</button>');   // v45 item 4: "Add product" -> "New product" everywhere
     return;
   }
   fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
@@ -1502,7 +1500,15 @@ function trendChart(){
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
   var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
-  if(mx-mn<4){ mn-=2; mx+=2; } mn=Math.max(0,mn-1); mx=mx+1;
+  /* v45 item 5 ROOT CAUSE: headroom was a flat ±1 unit (±3 only when the value spread was <4),
+     so the PIXEL gap between the target line and the range bar depended on each range's data
+     spread — 7-day's tight spread fired the <4 branch and looked right; longer ranges spread
+     wider and pinned the target against the top. Padding is now PROPORTIONAL (28% of the span
+     each side, span floored at 4 units), so every range renders the same headroom fraction. */
+  var span=mx-mn;
+  if(span<4){ var midY=(mn+mx)/2; mn=midY-2; mx=midY+2; span=4; }
+  var padY=span*0.28;
+  mn=Math.max(0,mn-padY); mx=mx+padY;
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
   var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
   var d=pts.map(function(p,i){ return (i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1); }).join(' ');
@@ -1630,7 +1636,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v44';
+var APP_VERSION='v45';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2586,6 +2592,17 @@ function invRowState(r){                                            // ITEM 4: s
   if(r.tier!=='hi') return 'review';                                 // low-confidence match still wants a human tick
   return 'matched';
 }
+/* v45 item 1: ONE derive-preview formula — the render prefill and the live recompute must never
+   disagree, so both read this. Returns '' when the pack maths can't run (no qty / no pack price). */
+function invPackPreviewText(r, q, u){
+  if(!(q>0)) return '';
+  var pack=packPriceOf(r.raw||r.name); if(pack==null) return '';
+  var up=(u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
+  if(!isFinite(up)||up<0) return '';
+  var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
+  var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
+  return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit');
+}
 function renderInvReview(){
   invRows.forEach(flagNeedsAttention);                              // ensure needsAttention is current for EVERY row before we count
   var states=invRows.map(invRowState);
@@ -2624,15 +2641,17 @@ function renderInvReview(){
         +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" title="How many in one pack?" value="'+pq+'">'
         +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
-        +'<span class="pt-preview"></span>'
         +'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>'
         +'</span>';
     }
-    var priceCell='<div class="price-row">'+upriceHtml+teachHtml+'</div>';
+    // v45 item 1: the derive preview is its OWN line under the price+pack row (was an inline chip
+    // inside .pack-teach), prefilled from the same precedence the inputs use so it shows before typing.
+    var priceCell='<div class="price-row">'+upriceHtml+teachHtml+'</div>'
+      +(teachHtml?'<div class="pt-preview">'+esc(invPackPreviewText(r, parseFloat(pq), puNow))+'</div>':'');
     if(r.needManual && !r.remembered){
       var baseCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
       var baseWord=baseCat==='kg'?'per kg':baseCat==='l'?'per litre':'per unit';
-      var msg=r.unitMismatch ? ('Priced '+baseWord+' \u2014 set the pack.') : 'Set the pack, or type the price.';
+      var msg=r.unitMismatch ? ('This item was priced '+baseWord+' \u2014 edit the pack size to determine price per unit.') : 'Set the pack, or type the price.';   // v45 item 2 wording
       priceCell+='<div class="flag-review pt-explain">'+esc(msg)+'</div>';   // raw invoice line removed (was clutter); logged to console for debugging
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
@@ -2692,9 +2711,8 @@ function renderInvReview(){
         var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2);
         var upu=tr.querySelector('.upu'); if(upu) upu.textContent=unitLabelFor(r);
         var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
-        var pvEl=pt.querySelector('.pt-preview');
-        if(pvEl){ var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
-          pvEl.textContent=(old?('Was '+old+' \u2192 '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit'); }
+        var pvEl=tr.querySelector('.pt-preview');                  // v45 item 1: the preview line lives under .price-row now, not inside .pack-teach
+        if(pvEl){ pvEl.textContent=invPackPreviewText(r, q, u); }
         var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks
       }
     }

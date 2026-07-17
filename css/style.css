@@ -2068,3 +2068,35 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* item 1: the unified pack control's red required mood — same control, mismatch state */
 .pack-teach.pt-required .pt-group{border-color:var(--bad)}
 .pack-teach.pt-required .pt-group:focus-within{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+
+/* ===== batch (v45): finishing touches ===== */
+/* item 1: price + pack merge onto ONE line on desktop; on mobile they stack as two centred
+   lines (never force one line at narrow widths — that's what broke the Builder). The derive
+   preview ("Was $X/kg → will be $Y/unit") is its own line beneath both layouts; it replaces
+   the inline chip that used to sit inside .pack-teach. Hidden when it has nothing to say. */
+.invtable .price-row{flex-wrap:nowrap;align-items:center}
+.invtable .uprice-edit{width:auto;flex:0 0 auto}
+.invtable .pack-teach{width:auto;margin-top:0;flex:0 1 auto}
+.invtable .pt-preview{display:block;margin-top:6px;font-size:12px;color:var(--accent-ink)}
+.invtable .pt-preview:empty{display:none}
+@media (max-width:639px){
+  .invtable .price-row{flex-direction:column;align-items:center;gap:8px}
+  .invtable .pack-teach{justify-content:center}
+  .invtable .pt-preview{text-align:center}
+}
+/* items 6/7: builder costs-row declutter. The badge/category/pill markup is gone (app.js).
+   Here: the misc "$" hugs its input (the fixed 32px .u width WAS the gap), the dotted leader
+   gets no extra margin, and the price column takes a fixed basis so the leader starts at a
+   consistent column instead of drifting with each row's price width. */
+.line .costs{gap:10px}
+.line .costs .leader{margin:0;min-width:14px}   /* the dotted connector must survive at 380px */
+.line .costs .qtybox input{width:66px}
+.line .costs .priceline{flex:0 0 116px}          /* fixed price column = the leader starts at the same x on every row */
+.line .costs .lc{min-width:0}                    /* the one-row era's .lc{min-width:78px} inflated small totals past the card edge */
+.line.misc-line .qtybox.misc-costbox .u{width:auto;min-width:0}
+/* item 3: Ingredients header = the Products order — title, divider, buttons row, strapline.
+   The divider moves off the header box onto the h3 itself (negative margins stretch it to the
+   panel edges); the strapline now follows the buttons in the DOM, so no order: juggling. */
+.king-head{padding:0 var(--sp-5) var(--sp-3);border-bottom:0}
+.king-head h3{flex:1 1 100%;margin:0 calc(var(--sp-5)*-1);padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--border)}
+.king-head .king-sub{order:0}

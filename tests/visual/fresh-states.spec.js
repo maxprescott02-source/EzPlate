@@ -193,6 +193,182 @@ test('v44 item 6: a confirm dialog stacks ABOVE the Settings panel', async ({ pa
   expect(topOwner, 'the confirm must be tappable above Settings').toBe('confirm');
 });
 
+/* ===== v45 finishing touches ===== */
+
+const V45_INV_ROWS = `window.invRows = [
+  { name: 'CHIPS STRAIGHT CUT 6X2.5KG', raw: 'CHIPS STRAIGHT CUT 6X2.5KG 45.60', bestId: 'P0108',
+    unitPrice: 3.04, unit: 'kg', conf: 0.82, tier: 'hi', cands: [{ id: 'P0108', coverage: 0.82 }],
+    addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false,
+    remembered: true, taughtQty: 15, taughtUnit: 'kg' },
+  { name: 'CHEESE TASTY SHRED 2KG', raw: 'CHEESE TASTY SHRED 2KG 28.90', bestId: 'P0031',
+    unitPrice: null, unit: null, conf: 0.7, tier: 'mid', cands: [{ id: 'P0031', coverage: 0.7 }],
+    addNew: false, manualPick: false, needManual: true, unitMismatch: true, uncertain: false, remembered: false },
+];
+window.invRows.forEach(window.flagNeedsAttention);
+window.renderInvReview();
+document.getElementById('invModal').classList.add('open');`;
+
+for (const size of SIZES) {
+  test(`v45 item 1: pack control ${size.name} — ${size.name === 'desktop' ? 'one line' : 'two centred lines'} + preview line beneath`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.evaluate(V45_INV_ROWS);
+    await page.waitForTimeout(300);
+    const row = page.locator('#invReview tr.inv-data').first();
+    const geo = await row.evaluate(tr => {
+      const price = tr.querySelector('.uprice-edit').getBoundingClientRect();
+      const pack = tr.querySelector('.pack-teach').getBoundingClientRect();
+      const pv = tr.querySelector('.pt-preview');
+      const pvr = pv ? pv.getBoundingClientRect() : null;
+      return { price, pack, pvText: pv ? pv.textContent : null, pvTop: pvr ? pvr.top : null,
+               priceBottom: price.bottom, packTop: pack.top };
+    });
+    if (size.name === 'desktop') {
+      // one line: price field and pack row vertically overlap
+      expect(geo.pack.top, 'pack row shares the price line on desktop').toBeLessThan(geo.price.bottom);
+    } else {
+      // two lines: pack row starts below the price field
+      expect(geo.pack.top, 'pack row stacks under the price on mobile').toBeGreaterThanOrEqual(geo.priceBottom - 1);
+    }
+    // the derive preview is its own line under BOTH layouts, prefilled before any typing
+    expect(geo.pvText, 'preview line exists').not.toBeNull();
+    expect(geo.pvText, 'preview prefilled from the taught pack').toContain('will be $3.04/kg');
+    expect(geo.pvTop, 'preview sits beneath the pack row').toBeGreaterThanOrEqual(geo.pack.bottom - 1);
+    // no chip remains anywhere
+    await expect(page.locator('.pack-teach .pt-preview')).toHaveCount(0);
+    // item 2: the reworded mismatch banner on the second row
+    await expect(page.locator('#invReview tr.inv-data').nth(1).locator('.pt-explain'))
+      .toContainText('edit the pack size to determine price per unit');
+    await page.screenshot({ path: `tests/visual/__shots__/v45-pack-${size.name}.png`, fullPage: true });
+  });
+}
+
+test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient plate', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 900 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="builder"]').click();
+  await page.evaluate(() => {
+    // the exact case that broke: several real lines — kid line, direct products, misc
+    window.kitchenIngredients.push({ id: 'K1', name: 'Chips', pid: 'P0108' });
+    window.rebuildKById();
+    window.addKitchenLine('K1');
+    window.addProduct('P0004');   // branded product (subtitle = supplier only now)
+    window.addProduct('P0005');   // per-unit priced
+    window.addMiscCost();
+    const ml = document.querySelector('.misc-label'); if (ml) ml.value = 'Packaging + napkins';
+    const ib = document.querySelector('.install-banner, #installBanner'); if (ib) ib.remove();
+  });
+  await page.waitForTimeout(300);
+  // declutter: no badges, no ingredient pill, subtitle has no category tail
+  await expect(page.locator('#lines .edited')).toHaveCount(0);
+  await expect(page.locator('#lines .king-tag')).toHaveCount(0);
+  await expect(page.locator('#lines .row2')).toHaveCount(0);
+  const directSub = await page.locator('.line:not(.misc-line):not([data-uid="1"]) .sub').nth(0).textContent();
+  expect(directSub, 'direct-product subtitle is supplier only').not.toContain('·');
+  // overflow regression: every total fits inside its CARD's content box (viewport-only checks
+  // let a 78px-min-width total sit on the card border and still "pass"), and the dotted leader
+  // keeps real width so the docket connector survives at 380px
+  const fit = await page.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('#lines .line').forEach(line => {
+      const lr = line.getBoundingClientRect(), cs = getComputedStyle(line);
+      const lc = line.querySelector('.costs .lc'), ld = line.querySelector('.costs .leader');
+      if (lc) out.push({
+        overflow: lc.getBoundingClientRect().right - (lr.right - parseFloat(cs.paddingRight)),
+        leaderW: ld ? ld.getBoundingClientRect().width : null,
+      });
+    });
+    return { rows: out, scrollW: document.scrollingElement.scrollWidth };
+  });
+  for (const r of fit.rows) {
+    expect(r.overflow, 'line total stays inside the card content box').toBeLessThanOrEqual(0.5);
+    if (r.leaderW != null) expect(r.leaderW, 'dotted leader keeps visible width').toBeGreaterThanOrEqual(10);
+  }
+  expect(fit.scrollW, 'no horizontal scroll at 380px').toBeLessThanOrEqual(380);
+  // misc $ hugs its input
+  const gap = await page.evaluate(() => {
+    const u = document.querySelector('.misc-costbox .u').getBoundingClientRect();
+    const inp = document.querySelector('.misc-costbox input').getBoundingClientRect();
+    return inp.left - u.right;
+  });
+  expect(gap, 'misc $ sits close to its field').toBeLessThanOrEqual(6);
+  await page.locator('#lines').screenshot({ path: 'tests/visual/__shots__/v45-builder-380.png' });
+});
+
+test('v45 item 3: Ingredients header order — title, divider, buttons, strapline', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="pantry"]').click();
+  await page.waitForTimeout(300);
+  const order = await page.evaluate(() => {
+    const y = sel => document.querySelector(sel).getBoundingClientRect().top;
+    return {
+      title: y('.king-head h3'), btn: y('#kingNew'), sub: y('.king-head .king-sub'),
+      divider: getComputedStyle(document.querySelector('.king-head h3')).borderBottomWidth,
+    };
+  });
+  expect(order.divider, 'divider sits under the title').toBe('1px');
+  expect(order.btn, 'buttons below the title').toBeGreaterThan(order.title);
+  expect(order.sub, 'strapline below the buttons').toBeGreaterThan(order.btn);
+  await page.screenshot({ path: 'tests/visual/__shots__/v45-pantry-header.png' });
+});
+
+test('v45 item 4: button copy at both breakpoints', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="ingredients"]').click();
+  await page.waitForTimeout(300);
+  expect((await page.locator('#newBtn').innerText()).trim(), 'mobile shortens to + New').toBe('+ New');
+  await page.locator('.navbtn[data-tab="analysis"]').click();
+  await page.waitForTimeout(300);
+  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'full label survives mobile').toBe('+ Existing dish');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.locator('.navbtn[data-tab="ingredients"]').click();
+  await page.waitForTimeout(300);
+  expect((await page.locator('#newBtn').innerText()).trim(), 'desktop says + New product').toBe('+ New product');
+});
+
+test('v45 item 5: dashboard target line keeps consistent headroom on every range', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    // worst case everywhere: all data BELOW the target so the target is the topmost line.
+    // recent points tight (the old <4 branch), older points spread wide (the old flat ±1).
+    const day = 86400000, now = Date.now(), pts = [];
+    for (let d = 1; d <= 6; d++) pts.push({ t: now - d * day, v: 27 + (d % 2) * 0.5 });      // 7d: tight
+    for (let d = 10; d <= 360; d += 14) pts.push({ t: now - d * day, v: 20 + (d % 10) });     // long: wide
+    window.priceHistory = pts.sort((a, b) => a.t - b.t);
+    window.cogsPct = 30;
+  });
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
+  await page.waitForTimeout(400);
+  const headrooms = {};
+  for (const rg of ['1w', '1m', '3m', '6m', '1y', 'all']) {
+    await page.evaluate(r => window.setDashRange(r), rg);
+    await page.waitForTimeout(250);
+    const y1 = await page.evaluate(() => {
+      const l = document.querySelector('.ref-line');
+      return l ? parseFloat(l.getAttribute('y1')) : null;
+    });
+    expect(y1, `range ${rg} renders the target line`).not.toBeNull();
+    headrooms[rg] = y1;
+    // proportional padding guarantees ≥ ~18% of plot height above the target (≈45 viewBox units incl. padT)
+    expect(y1, `range ${rg}: target line must not hug the range bar`).toBeGreaterThanOrEqual(40);
+    await page.locator('.dash-chart').screenshot({ path: `tests/visual/__shots__/v45-dash-${rg}.png` });
+  }
+  console.log('[v45 item 5] ref-line y per range:', headrooms);
+});
+
 for (const size of SIZES) {
   test(`fresh analysis empty state @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
