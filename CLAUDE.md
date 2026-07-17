@@ -254,22 +254,34 @@ merge to `main` as a production deploy.
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
 - Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (FK orphan heal
   + "Unassigned dishes" holding area), v43 (masking-toast bugfix), v44 (Fable
-  visual batch)** — all pushed — **and v45 (Fable finishing touches),
-  uncommitted as of this writing**. `npm test` = **131 green**, `node -c` clean,
-  jsdom smoke passes, **27 Playwright checks pass**, all six version spots at
-  **v45**. Not on `main` yet.
-- **v45 shipped (finishing touches, all screenshot-verified — see
-  `handovers/HANDOVER-v45.md`):** pack control finished (price+pack one line
-  desktop / two centred lines mobile; derive preview "Was $X/kg → will be $Y" is
-  its own line, prefilled via new `invPackPreviewText` shared by render +
-  recompute); mismatch banner reworded; Ingredients header reordered to the
-  Products pattern (title→divider→buttons→strapline); "+ New product" everywhere
-  incl. the modal; dashboard target-line spacing root-caused (flat ±1-unit
-  y-scale padding → now proportional 28%/side, all six ranges consistent);
-  builder decluttered ("· new"/"· edited" badges, subtitle category tail and the
-  orange ingredient pill all REMOVED from render code) and the 380px overflow
-  regression fixed at the root (`.lc{min-width:78px}` + zero-width leader —
-  Playwright now measures against the card content box, not the viewport).
+  visual batch), v45 (Fable finishing touches, commit `5a4e025`)** — all
+  committed — **and v46 (Fable UX polish), uncommitted as of this writing**.
+  `npm test` = **131 green**, `node -c` clean, jsdom smoke passes, **34
+  Playwright checks pass** (27 prior + 7 new v46), all six version spots at
+  **v46**. Not on `main` yet.
+- **v46 shipped (UX polish, all screenshot-verified at 380px + 1280px — see
+  `handovers/HANDOVER-v46.md`):** Ingredients strapline inline with the buttons
+  row on desktop (own line ≤639px); "Set up from products" is a plain `.btn`
+  (outlined like "Import invoice"); ingredient cards mirror the `.ing-list`
+  grid at every breakpoint (3-across ≥1280px, `.king-link` clamps to 2 lines;
+  tap/keyboard-to-edit intact); dashboard Target pill REMOVED — the dashed line
+  carries an inline SVG label (`.ref-lbl`, side chosen away from the data; the
+  big current-% number stays); invoice flag pill alignment root-caused (three
+  cascade leaks: space-between from the generic card td, baseline-pin of unequal
+  font sizes, stray pre-flex margin — title cell back to inline flow, pill is
+  inline-block `vertical-align:2px`, centring 0.0px off, pinned ≤1px by test);
+  builder leader root-caused (stale one-row-era `translateY(-4px)` — `.costs`
+  now baseline-aligns so the dots sit ON the shared text baseline); audit fixes:
+  `.ms-clear` and `.range-btn` get invisible ≥44px hit areas. Item-7 proposals
+  NOT built (dead `.ref-pill` CSS, `.invAppr` 26px checkbox in the protected
+  area, viewport `user-scalable=no`, misc-button copy) are listed in the
+  handover for Max.
+- **v45 context (see `handovers/HANDOVER-v45.md`):** pack control finished
+  (price+pack one line desktop / two centred lines mobile; derive preview via
+  `invPackPreviewText` shared by render + recompute); mismatch banner reworded;
+  Ingredients header reordered to the Products pattern; "+ New product"
+  everywhere; dashboard y-scale padding proportional (28%/side); builder
+  decluttered and the 380px overflow fixed at the root.
 - **v44 shipped (visual batch):** unified invoice pack control; "price change —
   check" copy; pills on the title baseline; menu empty-state centring
   root-caused (td:first-child specificity) and pinned; mobile short labels via
@@ -294,12 +306,14 @@ merge to `main` as a production deploy.
   holding area behind ONE confirm (`fallbackMenuId`/`canDeleteMenu` reworked,
   `realMenus()` added). See `handovers/HANDOVER-v42.md` incl. the read-only
   orphan diagnostic snippet.
-- **Needs Max's phone (branch preview) before merge** — the v42, v44 and v45
-  handover lists. **Export a JSON backup first.** Highlights: publish to an
+- **Needs Max's phone (branch preview) before merge** — the v42, v44, v45 and
+  v46 handover lists. **Export a JSON backup first.** Highlights: publish to an
   EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
   dishes" and survive reload; real invoice import (pack control both
-  breakpoints + live preview line); builder at 380px with a real
-  multi-ingredient plate; all six dashboard ranges.
+  breakpoints + live preview line + flag-pill alignment on real titles);
+  builder at 380px with a real multi-ingredient plate (leaders on the baseline);
+  ingredient card grid at all widths; all six dashboard ranges with the new
+  inline Target label.
 - Next up: (a) Max's phone sign-off, then merge the branch to `main`;
   (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) is STILL not built —
   next feature task.

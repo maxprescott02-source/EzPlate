@@ -1515,11 +1515,16 @@ function trendChart(){
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
   var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';
-  var refY=y(cogsPct).toFixed(1);
+  var refYn=y(cogsPct), refY=refYn.toFixed(1);
+  // v46 item 4: the target line explains itself — an inline label ON the dashed rule replaces the
+  // floating top-right pill. It sits 5 units above the rule, anchored at whichever END of the chart
+  // the data sits farther from the target, so it stays clear of the line's busy side.
+  var refLblEnd=Math.abs(y(pts[pts.length-1].v)-refYn) >= Math.abs(y(pts[0].v)-refYn);
   var area=d+' L'+x(pts.length-1).toFixed(1)+' '+(H-padB)+' L'+x(0).toFixed(1)+' '+(H-padB)+' Z';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Average food cost trend">'
     +'<path d="'+area+'" fill="'+stroke+'" opacity="0.10"/>'
     +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+    +'<text class="ax ref-lbl" x="'+(refLblEnd?(W-padR):padL+2)+'" y="'+(refYn-5).toFixed(1)+'" text-anchor="'+(refLblEnd?'end':'start')+'">Target '+cogsPct+'%</text>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     +pts.map(function(p,i){ var lbl=(p.t?new Date(p.t).toLocaleDateString():('#'+(i+1)))+' \u00b7 '+p.v.toFixed(1)+'%';
         return '<circle class="tp-dot" cx="'+x(i).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="3" fill="'+stroke+'" tabindex="0" role="button" data-lbl="'+esc(lbl)+'" data-x="'+x(i).toFixed(1)+'" data-y="'+y(p.v).toFixed(1)+'" aria-label="'+esc(lbl)+'"/>'; }).join('')
@@ -1530,8 +1535,7 @@ function trendChart(){
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<span class="ref-pill ref-pill-static">Target '+cogsPct+'%</span>'   // ITEM 3 (v33): read-only marker; the target is edited in the Menu section
-    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';
+    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';   // v46 item 4: the floating Target pill is gone; the dashed rule carries its own label now
 }
 function highlightData(kind){
   if(kind==='foodcost'){
@@ -1636,7 +1640,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v45';
+var APP_VERSION='v46';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

@@ -369,6 +369,164 @@ test('v45 item 5: dashboard target line keeps consistent headroom on every range
   console.log('[v45 item 5] ref-line y per range:', headrooms);
 });
 
+/* ===== v46 Fable UX polish ===== */
+
+const V46_INV_ROWS = `window.invRows = [
+  { name: 'MILK 2L', raw: 'MILK 2L 9.99', bestId: 'P0201',
+    unitPrice: 9.99, unit: 'l', conf: 0.9, tier: 'hi', cands: [{ id: 'P0201', coverage: 0.9 }],
+    addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false, remembered: false },
+  { name: 'BACON MIDDLE RINDLESS GAS FLUSHED QLD CATERERS CHOICE PREMIUM SELECT 2.5KG', raw: 'BACON 2.5KG 28.90', bestId: 'P0031',
+    unitPrice: null, unit: null, conf: 0.7, tier: 'mid', cands: [{ id: 'P0031', coverage: 0.7 }],
+    addNew: false, manualPick: false, needManual: true, unitMismatch: true, uncertain: false, remembered: false },
+];
+window.invRows.forEach(window.flagNeedsAttention);
+window.renderInvReview();
+document.getElementById('invModal').classList.add('open');`;
+
+for (const size of SIZES) {
+  test(`v46 item 3: ingredient cards share the Products grid @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => {
+      window.kitchenIngredients.push(
+        { id: 'K1', name: 'Chips', pid: 'P0108' }, { id: 'K2', name: 'Bacon', pid: 'P0004' },
+        { id: 'K3', name: 'Milk', pid: 'P0201' }, { id: 'K4', name: 'Cheese', pid: 'P0031' },
+      );
+      window.rebuildKById(); window.renderKitchenPanel();
+    });
+    await page.locator('.navbtn[data-tab="pantry"]').click();
+    await page.waitForTimeout(300);
+    const grid = await page.evaluate(() => {
+      const king = Array.from(document.querySelectorAll('#kingList .king-row')).map(r => Math.round(r.getBoundingClientRect().left));
+      const link = document.querySelector('.king-row[data-kid="K2"] .king-link');
+      return {
+        kingCols: new Set(king).size,
+        ingCols: getComputedStyle(document.querySelector('#kingList')).gridTemplateColumns.split(' ').length,
+        clamp: link ? getComputedStyle(link).webkitLineClamp : null,
+      };
+    });
+    // the SAME column story as .ing-list: 1 col at 380, 3 at 1280
+    expect(grid.kingCols, 'ingredient card columns').toBe(size.name === 'desktop' ? 3 : 1);
+    expect(grid.clamp, 'linked-product line clamps to 2 lines').toBe('2');
+    // keyboard access survives the restyle
+    await page.evaluate(() => document.querySelector('.king-row[data-kid="K1"]').focus());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#kingModal')).toHaveClass(/open/);
+    await page.locator('#kingModalCancel').click();
+    await page.locator('#kingList').screenshot({ path: `tests/visual/__shots__/v46-king-grid-${size.name}.png` });
+  });
+
+  test(`v46 item 5: flag pill centres on the title line @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.evaluate(V46_INV_ROWS);
+    await page.waitForTimeout(300);
+    const rows = await page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll('#invReview tr.inv-data').forEach(tr => {
+        const td = tr.querySelector('td');
+        const pill = td.querySelector('.flag-review, .flag-mismatch, .flag-new');
+        const tn = Array.from(td.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+        if (!pill || !tn) { out.push(null); return; }
+        const r = document.createRange(); r.selectNodeContents(tn);
+        const lines = Array.from(r.getClientRects());
+        const p = pill.getBoundingClientRect();
+        const shared = lines.find(l => p.top < l.bottom && p.bottom > l.top);
+        out.push({
+          off: shared ? ((p.top + p.bottom) / 2 - (shared.top + shared.bottom) / 2) : null,
+          pillLeft: p.left, textLeft: lines[0].left,
+        });
+      });
+      return out;
+    });
+    // short title: pill shares the line and is vertically centred on it (the v44 baseline-pin
+    // could never do better than ~2px low — the root-cause fix must hold at ≤1px)
+    expect(rows[0].off, 'pill shares the short title line').not.toBeNull();
+    expect(Math.abs(rows[0].off), 'pill centre on the title line centre').toBeLessThanOrEqual(1);
+    // wrapped title: pill either shares a line (centred) or starts at the text's left edge below
+    if (rows[1].off !== null) expect(Math.abs(rows[1].off)).toBeLessThanOrEqual(1);
+    else expect(rows[1].pillLeft - rows[1].textLeft, 'wrapped pill hugs the left edge').toBeLessThanOrEqual(8);
+    const trs = page.locator('#invReview tr.inv-data');
+    await trs.nth(0).screenshot({ path: `tests/visual/__shots__/v46-pill-short-${size.name}.png` });
+    await trs.nth(1).screenshot({ path: `tests/visual/__shots__/v46-pill-wrapped-${size.name}.png` });
+  });
+
+  test(`v46 item 6: builder dots sit on the shared text baseline @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="builder"]').click();
+    await page.evaluate(() => {
+      window.kitchenIngredients.push({ id: 'K1', name: 'Chips', pid: 'P0108' });
+      window.rebuildKById();
+      window.addKitchenLine('K1');
+      window.addProduct('P0004');
+      window.addMiscCost();
+      const ib = document.querySelector('.install-banner, #installBanner'); if (ib) ib.remove();
+    });
+    await page.waitForTimeout(300);
+    const rows = await page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll('#lines .line .costs').forEach(costs => {
+        const leader = costs.querySelector('.leader'), lc = costs.querySelector('.lc');
+        if (!leader || !lc) return;
+        const r = document.createRange(); r.selectNodeContents(lc);
+        const t = r.getClientRects()[0];
+        out.push({ rule: leader.getBoundingClientRect().bottom, textTop: t.top, textBottom: t.bottom });
+      });
+      return out;
+    });
+    expect(rows.length, 'builder lines rendered').toBeGreaterThanOrEqual(3);
+    for (const row of rows) {
+      // the dotted rule sits at the total's BASELINE: below the text's vertical centre
+      // (never strikethrough) and above its descender bottom
+      const centre = (row.textTop + row.textBottom) / 2;
+      expect(row.rule, 'rule below the text centre').toBeGreaterThan(centre);
+      expect(row.textBottom - row.rule, 'rule within the descent band').toBeGreaterThanOrEqual(2);
+      expect(row.textBottom - row.rule, 'rule not sunk under the text').toBeLessThanOrEqual(6);
+    }
+    await page.locator('#lines').screenshot({ path: `tests/visual/__shots__/v46-builder-baseline-${size.name}.png` });
+  });
+}
+
+test('v46 items 1+4: strapline inline on desktop; target line labels itself (no pill, big number stays)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="pantry"]').click();
+  await page.waitForTimeout(300);
+  const head = await page.evaluate(() => {
+    const c = s => { const r = document.querySelector(s).getBoundingClientRect(); return (r.top + r.bottom) / 2; };
+    return { sub: c('.king-head .king-sub'), btn: c('#kingNew') };
+  });
+  expect(Math.abs(head.sub - head.btn), 'strapline vertically centred with the buttons row').toBeLessThanOrEqual(2);
+  // item 4: seed history so the chart draws, then check the pill is gone and the line is labelled
+  await page.evaluate(() => {
+    const day = 86400000, now = Date.now(), pts = [];
+    for (let d = 1; d <= 40; d += 3) pts.push({ t: now - d * day, v: 31 + (d % 7) * 0.6 });
+    window.priceHistory = pts.sort((a, b) => a.t - b.t);
+    window.cogsPct = 30;
+  });
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
+  await page.waitForTimeout(400);
+  await expect(page.locator('.ref-pill')).toHaveCount(0);
+  await expect(page.locator('.ref-lbl')).toHaveText('Target 30%');
+  const lbl = await page.evaluate(() => {
+    const l = document.querySelector('.ref-lbl').getBoundingClientRect();
+    const line = document.querySelector('.ref-line').getBoundingClientRect();
+    return { lblBottom: l.bottom, lineY: line.top };
+  });
+  expect(lbl.lineY - lbl.lblBottom, 'label sits immediately above the dashed rule').toBeGreaterThanOrEqual(0);
+  expect(lbl.lineY - lbl.lblBottom, 'label hugs the rule, not floating').toBeLessThanOrEqual(12);
+  await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v46-dash-label.png' });
+});
+
 for (const size of SIZES) {
   test(`fresh analysis empty state @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });

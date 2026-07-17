@@ -2100,3 +2100,53 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .king-head{padding:0 var(--sp-5) var(--sp-3);border-bottom:0}
 .king-head h3{flex:1 1 100%;margin:0 calc(var(--sp-5)*-1);padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--border)}
 .king-head .king-sub{order:0}
+
+/* ===== batch (v46): Fable UX polish ===== */
+/* item 1: the strapline sits INLINE on the buttons row on desktop (right of the buttons,
+   vertically centred by the row's align-items:center). Scoped ≥640px so the earlier ≤639px
+   flex-basis:100% keeps the phone layout: strapline on its own line beneath the buttons. */
+@media (min-width:640px){ .king-head .king-sub{flex:1 1 auto;flex-basis:auto;min-width:0} }
+/* item 3: ingredient cards join the Products card GRID — same column story as .ing-list at
+   every breakpoint (stacked <640, 2-up ≥640, 3-up ≥1280; same gaps and padding). The grid gap
+   owns the spacing, so the per-card side margins go; empty states span the full grid width. */
+#kingList{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
+#kingList .king-row{margin:0}
+#kingList > .empty,#kingList > .empty-state{grid-column:1 / -1}
+/* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
+   wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
+.king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:10px} }
+@media (min-width:1024px){ #kingList{gap:12px;padding:10px var(--sp-5) 8px} }
+@media (min-width:1280px){ #kingList{grid-template-columns:repeat(3,1fr)} }
+/* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
+   (a) v44 made the title cell a baseline flex row, but justify-content:space-between leaked in
+       from the generic .invtable td card rule (v44 never set justify-content), flinging the pill
+       to the card's far edge instead of letting it hug the title;
+   (b) baseline-pinning the 12px pill text to the 15px title text parks the pill's taller BOX
+       ~2px below the title's optical centre — baseline alignment could never look centred here;
+   (c) the pre-flex .invtable .flag-review{margin:4px 0 0} still added a stray top margin.
+   Fix at the root: the title cell returns to inline FLOW, and the pill rides the text as an
+   inline-block. vertical-align is numeric because 'middle' anchors at baseline + x-height/2,
+   measured ~2px below the 15px title's line centre; +2px centres the pill box on the title line
+   (verified by measurement at 380px and 1280px). Wrapped titles: the pill follows the last word,
+   or wraps to the card's left edge — never hangs mid-air. */
+.invtable tr.inv-data > td:first-child{display:block}
+.invtable td:first-child .flag-review,
+.invtable td:first-child .flag-mismatch,
+.invtable td:first-child .flag-new{display:inline-block;vertical-align:2px;margin:0 0 0 4px}
+/* item 6 ROOT CAUSE: .leader's translateY(-4px) is a stale nudge from the ONE-ROW line era,
+   applied inside v44's centre-aligned two-row .costs — it parked the dotted rule 9px above the
+   total's baseline (above even the text's middle). Fix at the root: the costs row aligns by
+   BASELINE — the qty input, unit price, and bold total share one text baseline, and the empty
+   leader's synthesized baseline is its bottom edge, so the dots sit exactly ON that shared
+   baseline (the classic docket look). No nudges left. */
+.line .costs{align-items:baseline}
+.line .costs .leader{transform:none}
+/* item 7 (scoped audit): the two sub-44px touch targets outside the invoice area get INVISIBLE
+   hit-area extensions — pseudo-elements participate in hit testing, so the look and layout stay
+   exactly as they are while the tappable area reaches 44px. (.ms-clear covers every search bar's
+   clear ×, builder's q-clear included; .range-btn extends vertically only, so neighbouring
+   segments never overlap.) */
+.ms-clear::after{content:"";position:absolute;inset:-9px;border-radius:50%}
+.range-btn{position:relative}
+.range-btn::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
