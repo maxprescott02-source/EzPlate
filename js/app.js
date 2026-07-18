@@ -347,18 +347,16 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
-  // v44 item 8: same two-row split as ingredient lines \u2014 the label finally gets the full card width
-  // on a phone (its smallness was a standing complaint) instead of fighting the $ field for one row.
+  // v53 (Max's mockup, reverses v44's two-row split): ONE row \u2014 name field, $ cost, dotted
+  // connector, bold total, \u00d7 in its usual corner. The "Misc cost \u00b7 not an ingredient"
+  // sub-label is gone. Same ids/handlers; layout only.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
-    +'<div class="top">'
-    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"><span class="sub">Misc cost \u00b7 not an ingredient</span></span>'
-    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
-    +'</div>'
-    +'<div class="costs">'
+    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
     +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<span class="leader"></span>'
     +'<span class="lc" id="lc-'+l.uid+'">'+money(Number(l.cost)||0)+'</span>'
-    +'</div></div>';
+    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'</div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
   plate.push({uid:uidc++, misc:true, label:'', cost:0});
@@ -1776,7 +1774,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v52';
+var APP_VERSION='v53';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

@@ -253,11 +253,17 @@ merge to `main` as a production deploy.
 - `main` is at **v49** (confirmed live/deployed). Both `fix/pack-control-and-menus`
   (v42–v48) and `refactor/panel-structure` (v49) merged after Max's phone
   sign-off.
-- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50 + v51 +
-  v52** — committed, awaiting Max's phone sign-off then merge to `main`.
+- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50–v53**
+  — committed, awaiting Max's phone sign-off then merge to `main`.
   `npm test` = **139 green**, jsdom smoke green, `node -c` clean, **47
-  Playwright checks pass**, all six spots at **v52**. See
-  `handovers/HANDOVER-v50/51/52.md` and their needs-phone lists.
+  Playwright checks pass**, all six spots at **v53**. See
+  `handovers/HANDOVER-v50/51/52/53.md` and their needs-phone lists.
+- **v53 shipped (see `handovers/HANDOVER-v53.md`):** builder misc line is ONE
+  row per Max's mockup (name · $cost · dotted connector · bold total · ×),
+  sub-label deleted; three one-row-era legacy mobile rules overridden at the
+  site (qtybox order:3, lc order:4/margin:auto, costbox flex-grow); leader on
+  the v46 baseline mechanism. v44's "label full width" pin replaced by the
+  one-row contract (declared).
 - **v52 shipped (see `handovers/HANDOVER-v52.md`) — two approved parts:**
   1. **Chart gutter GEOMETRY (supersedes v51's approach):** v51's `padL=4` drew
      the plot UNDER the y-axis labels (Max's screenshot: fill dots around

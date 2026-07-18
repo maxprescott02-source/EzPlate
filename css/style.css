@@ -2225,3 +2225,19 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .atable tbody tr.mi-row:hover td{background:var(--hover)}
 }
 
+
+/* ===== batch (v53): builder misc line is ONE row (Max's mockup) ===== */
+/* name field · $ cost · dotted connector · bold total · × in its usual corner — the
+   "MISC COST · NOT AN INGREDIENT" sub-label is gone. Ingredient-row tokens kept: same
+   control heights, mono bold total. The old two-row-era rules below the fold (≤700px
+   grow-the-costbox, 32px unit gutter) are overridden here, not edited in place. */
+.line.misc-line{display:flex;align-items:baseline;gap:6px}          /* BASELINE, not center — same v46 root fix as .costs: the empty leader's synthesized baseline is its bottom edge, so the dots sit on the total's baseline */
+.line.misc-line .misc-label{padding:9px 10px}                       /* same height token as .qtybox input */
+.line.misc-line .qtybox.misc-costbox{flex:0 0 auto;max-width:none;order:0}  /* beats the ≤700px flex-grow rule AND the legacy mobile .qtybox{order:3} — DOM order everywhere */
+.line.misc-line .qtybox.misc-costbox .u{width:auto}                 /* $ hugs the field — no 32px unit-column gutter on one row */
+.line.misc-line .qtybox.misc-costbox input{width:76px}              /* fixed (border-box; plenty for a misc cost) — the name field takes the spare width */
+.line.misc-line .leader{flex:0 1 40px;min-width:8px;transform:none} /* short connector (base flex:1 would steal the name's width); no stale -4px nudge */
+.line.misc-line .lc{min-width:0;order:0;margin-left:0}              /* 78px floor is for ingredient totals; kill the legacy mobile order:4/margin:auto that pushed the total past the × */
+@media (max-width:700px){
+  .line.misc-line .misc-label{min-height:44px}                      /* matches the costbox input's phone hit target */
+}
