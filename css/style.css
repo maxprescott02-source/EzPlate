@@ -892,31 +892,16 @@ input[type=checkbox]{
   }
 }
 
-  /* ===== Menu analysis controls: COGS target + search ===== */
-  .an-controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;padding:4px 16px 10px}
-  .menu-picker{flex:1 1 100%;min-width:100%}
-  .menu-picker > label{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:4px}
+  /* ===== Menu analysis controls =====
+     v52: the picker/target/search header moved onto the canonical panel skeleton — the layout
+     rules live in the v52 batch section. Tombstoned here: .menu-picker (+label), .cogs-set,
+     .cogs-lbl, .cogs-help, .cogs-sep — that markup is gone (target is one .panel-meta line). */
   .menu-picker-row{display:flex;gap:8px;align-items:center}
   .menu-picker-row select{flex:1 1 auto;min-width:0;padding:9px 12px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
-  .menu-new-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px}
-  @media (max-width:639px){
-    /* phones: give the menu name a full row of its own; actions share the row below */
-    .menu-picker-row{flex-wrap:wrap}
-    .menu-picker-row select{flex:1 1 100%}
-    .menu-picker-row .btn{flex:1 1 calc(50% - 4px);text-align:center}
-  }
+  .menu-new-btn{white-space:nowrap;font-size:13px;padding:9px 12px}
   .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
-  .cogs-set{flex:1 1 200px;min-width:180px}
-  /* v39: the Menu tab's read-only target. `.cogs-read{font-size:16px}` was written in v35 for
-     a standalone value display; v36/v37 turned the markup into an inline sentence and the rule
-     was orphaned, so the line rendered at four sizes at once — 11px text, 16px "30", 11px "%",
-     13px link. The value now sizes ONCE on .cogs-inline and everything inside it follows. */
-  .cogs-set > .cogs-lbl{display:block;font-size:12px;font-weight:700;color:var(--muted2);margin-bottom:6px}
-  .cogs-help{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted2);margin:0;max-width:340px}
-  .cogs-inline{font-size:16px;font-weight:800;color:var(--text);line-height:1.2}
+  .cogs-inline{font-weight:800;color:var(--text)}   /* v52: sizes with the meta line it sits in (the v39 one-size rule, now inherited) */
   .cogs-read{font:inherit;color:inherit}          /* follows .cogs-inline — the number and the % are one size */
-  .cogs-sep{color:var(--border2)}
-  .cogs-help .linklike{font-size:13px}
   .cogs-in{display:inline-flex;align-items:center;gap:2px}
   .cogs-in input{width:74px;padding:8px 10px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
   .cogs-in .pct{font-weight:700;color:var(--muted2)}
@@ -2170,8 +2155,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* item 6: Menu tab header rhythm — target label, value line, and colour key all breathe on the
    same token (--sp-2). Was 6px label→value but 22px value→key (an-controls pad + akey pad). */
 .an-controls{gap:var(--sp-2);padding-bottom:0}
-.cogs-set > .cogs-lbl{margin-bottom:var(--sp-2)}
-.akey{padding-top:var(--sp-2)}
+/* v52: `.cogs-set > .cogs-lbl` (v48 rhythm) retired — the cogs block is one .panel-meta line now */
 
 /* ===== batch (v49): ONE panel skeleton — structural cross-tab consistency ===== */
 /* Every tab is now the same shape: .panel > h2 (the ONE small-caps title, divider on its
@@ -2192,5 +2176,49 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .panel-meta{margin-left:var(--sp-4);margin-right:var(--sp-4)}
   .king-search{margin-left:var(--sp-4);margin-right:var(--sp-4)}
   .king-progress{padding-left:var(--sp-4);padding-right:var(--sp-4)}
+}
+
+/* ===== batch (v52): Menu tab on the canonical panel skeleton + tap-to-edit cards ===== */
+/* Page order: h2 "Menu" > .panel-actions (+ New menu primary, + Existing dish, strapline) >
+   .an-controls (menu picker = the page's context filter with Delete glued to it, search under)
+   > two QUIET meta lines (target sentence, colour key) > sectioned card list. One left edge. */
+.an-controls{display:flex;flex-direction:column;gap:10px;padding-bottom:0}
+.an-controls .menu-search{flex:0 0 auto;min-width:0}   /* the shared .menu-search flex-basis is a WIDTH in row contexts; in this column stack it would become a 220px height */
+.an-controls .menu-picker-row select{font-weight:650}
+@media (min-width:640px){   /* desktop: picker + search share one controls row, like Products */
+  .an-controls{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .an-controls .menu-picker-row{flex:1 1 300px;min-width:260px}
+  .an-controls .menu-search{flex:1 1 220px}
+}
+.cogs-meta{font-size:var(--fs-xs)}
+.akey{padding:0}   /* v52: the key carries .panel-meta now — the shared meta margins/collapse own its edge */
+
+/* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
+.atable tbody tr.mi-row{cursor:pointer;transition:border-color .15s}
+.mi-name{display:inline;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.mi-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* the margin light as a card stripe — health readable while scrolling, not just a 11px dot.
+   `:not(.invtable)` is for SPECIFICITY, not scoping: the base card rule
+   (.atable tbody tr:not(.sec):not(.ni-row)) is (0,3,2) and its border SHORTHAND would
+   silently win over a (0,2,2) border-left here. */
+.atable:not(.invtable) tbody tr.mi-row{border-left:3px solid var(--border2)}
+.atable:not(.invtable) tbody tr.lt-green{border-left-color:var(--good)}
+.atable:not(.invtable) tbody tr.lt-amber{border-left-color:var(--warn)}
+.atable:not(.invtable) tbody tr.lt-red{border-left-color:var(--bad)}
+
+@media (max-width:639px){   /* phones: the four numbers as a 2×2 grid — the card is half as tall */
+  .atable tbody tr.mi-row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--sp-3)}
+  .atable tbody tr.mi-row > td:first-child{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+  .atable tbody tr.mi-row .mi-act{margin-top:0;margin-left:auto}   /* the chip rides the name line instead of costing a row */
+}
+@media (min-width:640px){   /* desktop rows: stripe on the first cell (tr borders don't render on table-row), hover invite */
+  .atable tbody tr.mi-row{border-left:0}
+  .atable tbody tr.mi-row .mi-act{display:inline-flex;margin:0 0 0 10px;vertical-align:middle}   /* chip inline with the name — keeps rows one line tall */
+  .atable tbody tr.mi-row > td:first-child{border-left:3px solid var(--border2)}
+  .atable tbody tr.lt-green > td:first-child{border-left-color:var(--good)}
+  .atable tbody tr.lt-amber > td:first-child{border-left-color:var(--warn)}
+  .atable tbody tr.lt-red > td:first-child{border-left-color:var(--bad)}
+  .atable tbody tr.mi-row:hover td{background:var(--hover)}
 }
 

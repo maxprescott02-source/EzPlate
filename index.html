@@ -101,27 +101,28 @@
 
   <div id="tab-analysis" style="display:none">
     <div class="panel">
-      <h2>Menu analysis</h2>
+      <!-- v52: Menu tab conforms to the v49 canonical panel skeleton — h2, then the shared
+           .panel-actions row (primary + plain + strapline), then controls (menu picker as the
+           page's context filter, like Products' filter row, with search under it), then two
+           quiet meta lines (target sentence + colour key). All ids/handlers unchanged. -->
+      <h2>Menu</h2>
+      <div class="an-head panel-actions">
+        <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
+        <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing dish</button>
+        <span class="an-sub panel-sub">Cost vs price for every dish — the lights show what needs repricing</span>
+      </div>
       <div class="an-controls">
-        <div class="menu-picker">
-          <label for="menuSelect">Menu</label>
-          <div class="menu-picker-row">
-            <select id="menuSelect"></select>
-            <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
-            <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing dish</button>
-            <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
-          </div>
-        </div>
-        <div class="cogs-set">
-          <span class="cogs-lbl">Target food cost (COGS %)</span>
-          <p class="cogs-help"><b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> <span class="cogs-sep">—</span> <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
+        <div class="menu-picker-row">
+          <select id="menuSelect" aria-label="Menu"></select>
+          <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
         </div>
         <div class="menu-search">
           <input id="menuSearch" type="search" placeholder="Search menu items or category…" autocomplete="off">
           <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
         </div>
       </div>
-      <div class="akey">
+      <p class="hint panel-meta cogs-meta">Suggested prices use your <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> food-cost target — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
+      <div class="akey panel-meta">
         <span><span class="dot green"></span>at or above suggested</span>
         <span><span class="dot amber"></span>up to 15% under</span>
         <span><span class="dot red"></span>more than 15% under</span>

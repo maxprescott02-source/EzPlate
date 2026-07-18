@@ -250,29 +250,44 @@ merge to `main` as a production deploy.
 
 ## State as of 18 Jul 2026 (verify, don't trust)
 
-- `main` is at **v49** (confirmed live/deployed — `APP_VERSION='v49'` in
-  `js/app.js`, `CACHE = 'ezplate-v49'` in `sw.js`, verified against
-  `origin/main` after a fast-forward pull). Both `fix/pack-control-and-menus`
+- `main` is at **v49** (confirmed live/deployed). Both `fix/pack-control-and-menus`
   (v42–v48) and `refactor/panel-structure` (v49) merged after Max's phone
-  sign-off — the "Needs Max's phone" checklist below is now history, kept for
-  the record of what was verified before that merge.
-- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50 + v51**
-  — committed, awaiting Max's phone sign-off then merge to `main`. `npm test` =
-  **139 green**, jsdom smoke green, `node -c` clean, 34 Playwright checks pass,
-  all six spots at **v51**. See `handovers/HANDOVER-v50.md` and `-v51.md` incl.
-  their needs-phone lists (the item-1 invoice repro + the chart alignment).
-- **v51 shipped (see `handovers/HANDOVER-v51.md`) — dashboard chart alignment,
-  reversing v50's item-3 "no change":** on his phone Max clarified the real
-  issue wasn't caption-vs-axis but that the **plotted curve started ~44px right
-  of the card's text column** (h2 / title / labels / caption / stats all sit at
-  x=0; the curve was inset by the y-axis-label gutter `padL=44`). Fix:
-  **`padL=4`** so the plot begins at the text column; the y-axis % labels stay
-  start-anchored at x=0 and **centred on their value** (so the target tick still
-  sits exactly on the dashed rule — v48 invariant, pinned), now overlaying the
-  plot's left with their halo instead of eating a gutter. **Pinned-test change
-  (declared):** `fresh-states.spec.js`'s v48 `maxLblRight <= plotLeftPx` pin
-  ("labels end before the gutter") is replaced by the v51 pin (plot hugs the
-  text column, no gutter) — all other chart pins unchanged and green.
+  sign-off.
+- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50 + v51 +
+  v52** — committed, awaiting Max's phone sign-off then merge to `main`.
+  `npm test` = **139 green**, jsdom smoke green, `node -c` clean, **47
+  Playwright checks pass**, all six spots at **v52**. See
+  `handovers/HANDOVER-v50/51/52.md` and their needs-phone lists.
+- **v52 shipped (see `handovers/HANDOVER-v52.md`) — two approved parts:**
+  1. **Chart gutter GEOMETRY (supersedes v51's approach):** v51's `padL=4` drew
+     the plot UNDER the y-axis labels (Max's screenshot: fill dots around
+     "10%"). Now ONE gutter constant used by every plot element: `padL` =
+     widest tick label (glyph width MEASURED from the real 11px mono via
+     canvas `axCharW()`, jsdom fallback) + 8px gap; labels right-aligned to
+     `plotLeft-8` (digits flush, widest label's left edge = title column);
+     zero plot pixels left of `plotLeft` — pinned by a rendered-pixel
+     Playwright check on every range. Target-tick-on-dashed-rule and
+     constant-geometry-across-ranges v48 pins unchanged and green.
+  2. **Menu page rework (Max approved the proposal pre-build):** the tab now
+     follows the v49 panel skeleton — h2 "Menu" → `.panel-actions` (+ New menu
+     primary, + Existing dish, strapline) → picker(+Delete)+search controls →
+     two quiet meta lines (target sentence, colour key) → sectioned list.
+     Cards/rows are **tap-to-edit** (Edit button retired; `.mi-name` is a real
+     button for keyboard; "→ Builder" chip stays, stopPropagation), carry a
+     **3px margin-light stripe** (`lt-*` classes on the tr), and phones get a
+     2×2 number grid (cards ~half height). All ids/handlers/capabilities
+     preserved (`menuSelect`, `menuDelBtn`, `cogsTargetRead`/`cogsToSettings`,
+     search, holding-area delete flow). `layout-consistency.spec.js` now
+     MEASURES Menu's actions row (its exception was removed — spec stricter);
+     the v48 menu-rhythm test was replaced by v52 header + tap-to-edit tests.
+     Root-caused CSS traps documented at the fix sites: `.menu-search`
+     flex-basis becomes a HEIGHT in the column controls stack; the card base
+     rule's border shorthand outranked the (0,2,2) stripe rules — stripes use
+     `:not(.invtable)` for specificity only.
+- **v51 context (superseded by v52 part 1, see `handovers/HANDOVER-v51.md`):**
+  removed the chart's left gutter so the curve started at the card's text
+  column — correct left edge, but it let the plot render under the labels,
+  which is what v52 restructured properly.
 - **v50 shipped (see `handovers/HANDOVER-v50.md`):**
   1. **Invoice new-item form now persists across re-renders (FRAGILE AREA).**
      Root cause: the "+ New" inline form's fields + Apply tick lived only in the
@@ -367,7 +382,7 @@ merge to `main` as a production deploy.
   a real plate; the rebuilt chart — scrub feel on a real finger, switch all six
   ranges (ONLY the trendline may move), tap it (no blue box), set target to
   32% (tick must sit on the dashed line), both themes; Menu tab header rhythm.
-- Next up: (a) Max's phone sign-off on **v50** (`fix/invoice-new-item-state`),
+- Next up: (a) Max's phone sign-off on **v50–v52** (`fix/invoice-new-item-state`),
   then merge to `main`; (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec)
   is STILL not built — next feature task; (c) optional: the matched/review-row
   tick-persistence parallel flagged in v50 (see HANDOVER-v50).

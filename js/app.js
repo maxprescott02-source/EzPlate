@@ -3103,9 +3103,13 @@ function costRangeCell(m, cost){                                     // ITEM 3: 
   if(r.max-r.min < 0.005) return '';
   return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
 }
-function aRow(name,a,m,actions){
+function aRow(name,a,m,actions,pid){
+  // v52 (LIVE definition \u2014 the earlier aRow is dead): rows are tap-to-edit cards. The tr carries
+  // data-mid/data-pid for the row-click delegate, an lt-* class for the margin stripe, and the
+  // name is a real <button> so keyboard users get the same edit path the tap gives fingers.
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
-  return '<tr><td>'+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
+  var ref=m?(' data-mid="'+esc(m.id)+'"'):(pid?(' data-pid="'+esc(pid)+'"'):'');
+  return '<tr class="mi-row lt-'+(a.light||'none')+'"'+ref+'><td><button type="button" class="mi-name">'+esc(name)+'</button>'+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
@@ -3138,13 +3142,13 @@ function renderAnalysis(){
       var sp=byMenu[m.id]||(m.sourcePlateId?savedPlates.find(function(s){return s.id===m.sourcePlateId;}):null);
       if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }
       else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
-        html+='<tr class="muted"><td>'+esc(m.name)+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
+        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(m.id)+'"><td><button type="button" class="mi-name">'+esc(m.name)+'</button>'+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
   });
   var custShown=(currentMenuId==='MENU_ORIGINAL')?customsP.filter(function(sp){ return hit(sp.name||'Custom plate','Custom plates'); }):[];   // orphan plates live on the home menu
   if(custShown.length){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
-    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
+    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp), sp.id); });
   }
   if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
     +'<svg class="an-empty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>'
@@ -3154,8 +3158,12 @@ function renderAnalysis(){
   tb.innerHTML=html; bindTips();
   var acs=document.getElementById('anClearSearch');
   if(acs) acs.onclick=function(){ var ms=document.getElementById('menuSearch'); if(ms) ms.value=''; renderAnalysis(); };
-  tb.querySelectorAll('.mi-btn.edit').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid) openPlateEdit(pid); else openMenuEdit(b.getAttribute('data-id')); }; });
-  tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
+  tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
+  // v52 tap-to-edit (replaces the per-card Edit button): the whole card/row opens the edit
+  // modal; .tip and .mi-btn clicks stopPropagation so they never fall through to the row.
+  tb.querySelectorAll('tr.mi-row').forEach(function(tr){
+    tr.onclick=function(){ var pid=tr.getAttribute('data-pid'); if(pid){ openPlateEdit(pid); } else { var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); } };
+  });
 }
 
 /* ===== multiple menus: selector, pickers, create modal ===== */
@@ -3287,7 +3295,9 @@ function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').
 function isBaseMenuId(id){ return BASE_MENU.some(function(m){ return m.id===id; }); }
 function menuActions(m){
   if(!m) return '';
-  return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-id="'+esc(m.id)+'" title="Open in plate builder">\u2192 Builder</button><button class="mi-btn edit" type="button" data-id="'+esc(m.id)+'">Edit</button></div>';
+  // v52: the Edit button is retired \u2014 the whole card/row is tap-to-edit (matches the v46
+  // ingredient cards); "\u2192 Builder" stays as the one visible chip.
+  return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-id="'+esc(m.id)+'" title="Open in plate builder">\u2192 Builder</button></div>';
 }
 function openMenuInBuilder(mid){                                      // jump from Menu Analysis straight into the Builder for this dish
   var m=menuById[mid]; if(!m) return;
@@ -3423,7 +3433,7 @@ function editOpenInBuilder(){
 }
 
 /* ===== orphan-plate edit + delete-choice ===== */
-function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-pid="'+esc(sp.id)+'" title="Open in plate builder">\u2192 Builder</button><button class="mi-btn edit" type="button" data-pid="'+esc(sp.id)+'">Edit</button></div>'; }
+function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-pid="'+esc(sp.id)+'" title="Open in plate builder">\u2192 Builder</button></div>'; }   // v52: Edit retired \u2014 card tap edits
 function setEditMode(mode){
   editKind=mode; edRestoreMode=false;
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');

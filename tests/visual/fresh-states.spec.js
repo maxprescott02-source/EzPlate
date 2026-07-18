@@ -834,22 +834,59 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
     'arrow keys still scrub after the focus rework').toBe(true);
 });
 
-test('v48: menu header rhythm — label, value line, colour key on one spacing token', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
-  await page.goto('/');
-  await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="analysis"]').click();
-  await page.waitForTimeout(400);
-  const gaps = await page.evaluate(() => {
-    const lbl = document.querySelector('.cogs-set > .cogs-lbl').getBoundingClientRect();
-    const val = document.querySelector('.cogs-help').getBoundingClientRect();
-    const key = document.querySelector('.akey span').getBoundingClientRect();   // the key's content — .akey carries its gap as padding-top
-    return { lblToVal: val.top - lbl.bottom, valToKey: key.top - val.bottom };
+// v52 (replaces the v48 rhythm test — its .cogs-set/.cogs-help block no longer exists):
+// the Menu header is now h2 > panel-actions > picker+search > two quiet meta lines. Pin the
+// page order and the one left edge, and that the target sentence kept its live value + link.
+for (const size of SIZES) {
+  test(`v52: menu header structure — skeleton order, one left edge, target line intact @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="analysis"]').click();
+    await page.waitForTimeout(400);
+    const st = await page.evaluate(() => {
+      const L = s => document.querySelector(s).getBoundingClientRect().left;
+      const T = s => document.querySelector(s).getBoundingClientRect().top;
+      return {
+        order: [T('.an-head'), T('.an-controls'), T('.cogs-meta'), T('.akey'), T('.atable-wrap')],
+        edges: [L('.an-head .btn'), L('#menuSelect'), L('.cogs-meta'), L('.akey')],
+        target: document.querySelector('.cogs-meta').textContent,
+        link: !!document.querySelector('.cogs-meta #cogsToSettings'),
+        val: document.getElementById('cogsTargetRead').textContent,
+      };
+    });
+    for (let k = 1; k < st.order.length; k++)
+      expect(st.order[k], `header block ${k} sits below block ${k - 1}`).toBeGreaterThan(st.order[k - 1]);
+    for (const e of st.edges.slice(1))
+      expect(Math.abs(e - st.edges[0]), 'header blocks share ONE left edge').toBeLessThanOrEqual(1.5);
+    expect(st.target, 'the meta line reads the live target').toContain(st.val + '%');
+    expect(st.link, 'change-in-Settings link lives in the meta line').toBe(true);
+    await page.locator('#tab-analysis .panel').screenshot({ path: `tests/visual/__shots__/v52-menu-header-${size.name}.png` });
   });
-  expect(Math.abs(gaps.lblToVal - gaps.valToKey), 'the two gaps are equal (even rhythm)').toBeLessThanOrEqual(2);
-  await page.locator('.an-controls').screenshot({ path: 'tests/visual/__shots__/v48-menu-rhythm.png' });
-});
+
+  test(`v52: tap-to-edit — card opens the edit modal, chip still routes to the Builder @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="analysis"]').click();
+    await page.waitForTimeout(400);
+    // the per-card Edit button is GONE (tap-to-edit owns that path now); → Builder remains
+    await expect(page.locator('#aBody .mi-btn.edit')).toHaveCount(0);
+    const name = (await page.locator('#aBody tr.mi-row .mi-name').first().innerText()).trim();
+    await page.locator('#aBody tr.mi-row').first().click();
+    await expect(page.locator('#editModal'), 'card tap opens the edit modal').toHaveClass(/open/);
+    expect((await page.inputValue('#ed_name')).trim(), 'the modal is loaded with the tapped dish').toBe(name);
+    await page.locator('#editClose').click();
+    await expect(page.locator('#editModal')).not.toHaveClass(/open/);
+    // the chip must NOT fall through to the row's edit handler
+    await page.locator('#aBody tr.mi-row .mi-btn.tobuilder').first().click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#editModal'), 'chip tap must not open the modal').not.toHaveClass(/open/);
+    await expect(page.locator('#tab-builder'), 'chip lands in the Builder').toBeVisible();
+  });
+}
 
 for (const size of SIZES) {
   test(`fresh analysis empty state @ ${size.name}`, async ({ page }) => {
