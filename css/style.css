@@ -618,6 +618,9 @@ input[type=checkbox]{
 .plate-actions .pa-sub{margin:0 0 14px;font-size:13px;color:var(--muted2)}
 .pa-choices{display:flex;flex-direction:column;gap:8px}
 .pa-choices .btn{width:100%;min-height:44px}
+/* v54: unit type is create-only on the product EDIT form — shown, not editable */
+#ig_unit:disabled{opacity:.75;cursor:not-allowed;background:var(--surface2)}
+.ro-note{display:block;margin-top:4px;font-weight:400;color:var(--muted2)}
 .edit-delete-row{padding:var(--sp-3) var(--sp-5) var(--sp-4);text-align:center;border-top:1px solid var(--border);background:var(--surface2);border-radius:0 0 var(--radius-card) var(--radius-card)}
 #ed_plateActions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 

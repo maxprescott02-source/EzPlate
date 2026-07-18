@@ -969,6 +969,7 @@ function openIngEdit(id){
 function packUnitToIgUnit(pu){ pu=(pu||'').toLowerCase(); return pu==='ea'?'unit':pu==='kg'?'kg':pu==='g'?'g':pu==='l'?'litre':pu==='ml'?'ml':null; }
 function syncIgUnitFromPack(){                                        // when a pack unit is chosen, make the *displayed* unit match it
   var puSel=document.getElementById('ig_packUnit'); var uSel=document.getElementById('ig_unit'); if(!puSel||!uSel) return;
+  if(uSel.disabled) return;                                          // v54: unit type is create-only on the EDIT form — never auto-change a product's base unit (it would corrupt saved plate costs)
   var want=packUnitToIgUnit(puSel.value); if(!want) return;
   if(uSel.value!==want){ uSel.value=want; var lp=document.getElementById('ig_pricePer'); if(lp) lp.textContent=igPriceSuffix(); }
 }
@@ -988,7 +989,10 @@ function saveIngEdit(){
   var err=document.getElementById('ig_err'); function fail(m){ if(err){err.textContent=m;err.style.display='block';} }
   var name=document.getElementById('ig_name').value.trim();
   var price=parseFloat(document.getElementById('ig_price').value);
-  var unitType=document.getElementById('ig_unit').value;
+  // v54: unit type is create-only on the edit form. Derive it from the STORED product (same mapping
+  // openIngEdit displays with), so an edit can never change base_unit/cost_basis — only the price does.
+  var _bu=byId[id].base_unit;
+  var unitType=_bu==='g'?'kg':_bu==='ml'?'litre':_bu==='ea'?'unit':'kg';
   if(!name) return fail('Enter a product name.');
   if(isNaN(price)||price<0) return fail('Enter a valid price per unit.');
   var cat=resolveCombo('ig_cat', prodCategories); if(!document.getElementById('ig_cat').value.trim()) cat={ok:true,value:''};

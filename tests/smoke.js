@@ -260,5 +260,21 @@ libCard.click();
 ok('a published plate offers "Move to another menu"', $('paPublish').textContent === 'Move to another menu', $('paPublish').textContent);
 $('plateActionsClose').click();
 
+console.log('\n[13] v54 — product Unit type is create-only on the edit form');
+window.showTab('ingredients');
+window.renderIngredients();
+const firstProd = window.document.querySelector('#ingList .ing-card');
+ok('the Products tab renders cards', !!firstProd);
+window.openIngEdit(firstProd.getAttribute('data-id'));
+ok('the edit form opened', $('ingModal').classList.contains('open'));
+ok('the Unit type control is disabled (read-only)', $('ig_unit').disabled === true);
+// the pack-teach convenience must NOT change a product's base unit on the edit form
+const unitBefore = $('ig_unit').value;
+const other = unitBefore === 'kg' ? 'ea' : 'kg';
+$('ig_packUnit').value = other;
+$('ig_packUnit').dispatchEvent(new window.Event('change'));
+ok('choosing a pack unit does NOT change the (create-only) unit type', $('ig_unit').value === unitBefore, $('ig_unit').value + ' vs ' + unitBefore);
+$('ingCancel').click();
+
 console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
 process.exit(failures ? 1 : 0);
