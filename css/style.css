@@ -646,7 +646,7 @@ input[type=checkbox]{
 .pack-teach .pt-lbl{font-size:12px;color:var(--muted2)}
 .pack-teach .invPackQty{width:66px;padding:6px 8px;font:inherit;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
 .pack-teach .invPackUnit{padding:6px 8px;font:inherit;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
-.remembered-chip{display:inline-block;margin-top:6px;padding:4px 10px;border:1px solid var(--accent);border-radius:999px;background:rgba(184,78,12,.08);color:var(--accent-ink);font-size:12px;font-weight:700;cursor:pointer}
+/* .remembered-chip removed v44 item 1 — the pack row itself is now the one always-visible control */
 .smem-row{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--border)}
 .smem-row:last-child{border-bottom:0}
 .smem-main{flex:1 1 auto;min-width:0}
@@ -1742,7 +1742,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
 /* item 1: the whole price row on ONE line; the form swaps in where the chip was */
 .price-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%}
 .price-row .uprice-edit{flex:0 0 auto}
-.price-row .remembered-chip{margin:0}
+/* (v44 item 1: chip rule removed) */
 .pack-teach{display:inline-flex;align-items:center;gap:8px;margin-top:0;flex-wrap:nowrap}
 .pack-teach.hidden{display:none}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -1796,7 +1796,7 @@ body{overflow-x:clip}
 .king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.king-acts{display:flex;gap:var(--sp-3);align-items:center}
+/* .king-acts removed v44 item 6b — the card itself opens Edit; Remove moved into the modal */
 .king-row .linklike{flex:0 0 auto}
 .king-empty{padding:var(--sp-4) var(--sp-5);color:var(--muted2);font-size:var(--fs-sm)}
 .king-tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-weak);color:var(--accent-ink);border-radius:5px;padding:1px 6px;margin-left:6px}
@@ -2011,7 +2011,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    (e) docket plate icon dropped at Max's request — doubled the Builder nav icon. */
 /* (c) pack fields: price on its own line, pack controls on ONE line below, every control the same shape */
 .uprice-edit{display:flex;align-items:center;gap:6px;width:100%}
-.remembered-chip,.remembered-chip.pack-chip{display:inline-flex;align-items:center;min-height:40px;border-radius:var(--radius-ctl);padding:6px 12px;margin-top:8px}
+/* (v44 item 1: chip rules removed — .pack-teach below is the single control) */
 .pack-teach{display:flex!important;align-items:center;gap:8px;flex-wrap:nowrap;margin-top:8px;width:100%}
 .pack-teach.hidden{display:none!important}
 .pack-teach .pt-group{display:inline-flex;align-items:stretch;border:1px solid var(--border);border-radius:var(--radius-ctl);overflow:hidden;background:var(--surface)}
@@ -2026,3 +2026,159 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .invtable .flag-review,.invtable .flag-mismatch,.invtable .flag-new{margin-left:0}
 /* (f) menu empty glyph */
 .an-empty-ic{width:34px;height:34px;color:var(--muted2);margin-bottom:2px}
+
+/* ===== batch (v44) ===== */
+/* item 6: the clear-cache confirm opened UNDER Settings. Root cause: #confirmModal precedes
+   #settingsPanel (and the ingredient modal) in the DOM and every .modal-overlay shares z-index:80,
+   so the LATER sibling paints on top. A confirm is semantically always-on-top — give it its own layer. */
+#confirmModal{z-index:85}
+/* item 4: menu empty state off-centre on mobile. Root cause: the card-collapse rule
+   `.atable tbody tr > td:first-child` (specificity 0-2-3) puts asymmetric padding (0 28px 6px 0)
+   on the empty row's single td — and the later `.an-empty td{padding:0}` reset LOSES on
+   specificity (0-1-1), so the box sits 28px off-centre. Outrank it, don't fight it. */
+.atable tbody tr.an-empty > td:first-child{padding:0;font-weight:400}
+/* item 5: on phones every add-button drops its noun — the tab already names the thing.
+   The noun lives in a span, so there's no JS resize logic and desktop keeps the full label.
+   #kingNew also stops stretching (the old stacked-design rule) so the pantry pair shares one line. */
+@media (max-width:639px){ .btn-noun{display:none} .king-head #kingNew{flex:0 0 auto} }
+/* item 7: the pantry header joins the app's panel-header system (small-caps title like
+   MENU ANALYSIS / PRODUCTS, muted strapline below, buttons in the header row). Ids/classes
+   unchanged — presentation only. Later-in-file, so it wins the earlier .king-head rules. */
+.king-head{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--border)}
+.king-head h3{font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);margin:0;flex:1 1 auto}
+.king-head .king-sub{order:4;flex-basis:100%;font-size:var(--fs-xs);color:var(--muted2)}
+/* item 3: the attention pill shares the title's baseline and left rhythm. Flex turns the
+   name text + pill into baseline-aligned items: same line when space allows (6px gap),
+   and a wrapped pill starts at the card's left edge instead of hanging mid-air. */
+.invtable tr.inv-data > td:first-child{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
+/* item 8: builder lines are two rows — name row (.top: name + remove) and costs row
+   (.costs: qty, unit price, dotted leader, line total). Same controls, new geometry. */
+.line .costs{display:flex;align-items:center;gap:8px;margin-top:8px}
+.line .costs .qtybox{order:-1}   /* qty first per Max's mockup — beats the legacy mobile `.qtybox{order:3}` from the one-row era */
+.line .costs .qtybox input{width:72px}   /* a hair narrower than the one-row era so qty + unit price + line total all fit at 380px */
+.line .costs .priceline{margin-top:0;white-space:nowrap}
+.line .costs .lc{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.line.misc-line .misc-label{width:100%}
+/* item 6b: ingredient cards are tap-to-edit (Products pattern) — cursor + focus ring for the
+   button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
+.king-row{cursor:pointer}
+.king-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#kingModalRemove{margin-right:auto;color:var(--bad);border-color:transparent}
+#kingModalRemove:hover{border-color:var(--bad)}
+/* item 1: the unified pack control's red required mood — same control, mismatch state */
+.pack-teach.pt-required .pt-group{border-color:var(--bad)}
+.pack-teach.pt-required .pt-group:focus-within{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+
+/* ===== batch (v45): finishing touches ===== */
+/* item 1: price + pack merge onto ONE line on desktop; on mobile they stack as two centred
+   lines (never force one line at narrow widths — that's what broke the Builder). The derive
+   preview ("Was $X/kg → will be $Y/unit") is its own line beneath both layouts; it replaces
+   the inline chip that used to sit inside .pack-teach. Hidden when it has nothing to say. */
+.invtable .price-row{flex-wrap:nowrap;align-items:center}
+.invtable .uprice-edit{width:auto;flex:0 0 auto}
+.invtable .pack-teach{width:auto;margin-top:0;flex:0 1 auto}
+.invtable .pt-preview{display:block;margin-top:6px;font-size:12px;color:var(--accent-ink)}
+.invtable .pt-preview:empty{display:none}
+@media (max-width:639px){
+  .invtable .price-row{flex-direction:column;align-items:center;gap:8px}
+  .invtable .pack-teach{justify-content:center}
+  .invtable .pt-preview{text-align:center}
+}
+/* items 6/7: builder costs-row declutter. The badge/category/pill markup is gone (app.js).
+   Here: the misc "$" hugs its input (the fixed 32px .u width WAS the gap), the dotted leader
+   gets no extra margin, and the price column takes a fixed basis so the leader starts at a
+   consistent column instead of drifting with each row's price width. */
+.line .costs{gap:10px}
+.line .costs .leader{margin:0;min-width:14px}   /* the dotted connector must survive at 380px */
+.line .costs .qtybox input{width:66px}
+.line .costs .priceline{flex:0 0 116px}          /* fixed price column = the leader starts at the same x on every row */
+.line .costs .lc{min-width:0}                    /* the one-row era's .lc{min-width:78px} inflated small totals past the card edge */
+.line.misc-line .qtybox.misc-costbox .u{width:auto;min-width:0}
+/* item 3: Ingredients header = the Products order — title, divider, buttons row, strapline.
+   The divider moves off the header box onto the h3 itself (negative margins stretch it to the
+   panel edges); the strapline now follows the buttons in the DOM, so no order: juggling. */
+.king-head{padding:0 var(--sp-5) var(--sp-3);border-bottom:0}
+.king-head h3{flex:1 1 100%;margin:0 calc(var(--sp-5)*-1);padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--border)}
+.king-head .king-sub{order:0}
+
+/* ===== batch (v46): Fable UX polish ===== */
+/* item 1: the strapline sits INLINE on the buttons row on desktop (right of the buttons,
+   vertically centred by the row's align-items:center). Scoped ≥640px so the earlier ≤639px
+   flex-basis:100% keeps the phone layout: strapline on its own line beneath the buttons. */
+@media (min-width:640px){ .king-head .king-sub{flex:1 1 auto;flex-basis:auto;min-width:0} }
+/* item 3: ingredient cards join the Products card GRID — same column story as .ing-list at
+   every breakpoint (stacked <640, 2-up ≥640, 3-up ≥1280; same gaps and padding). The grid gap
+   owns the spacing, so the per-card side margins go; empty states span the full grid width. */
+#kingList{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
+#kingList .king-row{margin:0}
+#kingList > .empty,#kingList > .empty-state{grid-column:1 / -1}
+/* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
+   wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
+.king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:10px} }
+@media (min-width:1024px){ #kingList{gap:12px;padding:10px var(--sp-5) 8px} }
+@media (min-width:1280px){ #kingList{grid-template-columns:repeat(3,1fr)} }
+/* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
+   (a) v44 made the title cell a baseline flex row, but justify-content:space-between leaked in
+       from the generic .invtable td card rule (v44 never set justify-content), flinging the pill
+       to the card's far edge instead of letting it hug the title;
+   (b) baseline-pinning the 12px pill text to the 15px title text parks the pill's taller BOX
+       ~2px below the title's optical centre — baseline alignment could never look centred here;
+   (c) the pre-flex .invtable .flag-review{margin:4px 0 0} still added a stray top margin.
+   Fix at the root: the title cell returns to inline FLOW, and the pill rides the text as an
+   inline-block. vertical-align is numeric because 'middle' anchors at baseline + x-height/2,
+   measured ~2px below the 15px title's line centre; +2px centres the pill box on the title line
+   (verified by measurement at 380px and 1280px). Wrapped titles: the pill follows the last word,
+   or wraps to the card's left edge — never hangs mid-air. */
+.invtable tr.inv-data > td:first-child{display:block}
+.invtable td:first-child .flag-review,
+.invtable td:first-child .flag-mismatch,
+.invtable td:first-child .flag-new{display:inline-block;vertical-align:2px;margin:0 0 0 4px}
+/* item 6 ROOT CAUSE: .leader's translateY(-4px) is a stale nudge from the ONE-ROW line era,
+   applied inside v44's centre-aligned two-row .costs — it parked the dotted rule 9px above the
+   total's baseline (above even the text's middle). Fix at the root: the costs row aligns by
+   BASELINE — the qty input, unit price, and bold total share one text baseline, and the empty
+   leader's synthesized baseline is its bottom edge, so the dots sit exactly ON that shared
+   baseline (the classic docket look). No nudges left. */
+.line .costs{align-items:baseline}
+.line .costs .leader{transform:none}
+/* item 7 (scoped audit): the two sub-44px touch targets outside the invoice area get INVISIBLE
+   hit-area extensions — pseudo-elements participate in hit testing, so the look and layout stay
+   exactly as they are while the tappable area reaches 44px. (.ms-clear covers every search bar's
+   clear ×, builder's q-clear included; .range-btn extends vertically only, so neighbouring
+   segments never overlap.) */
+.ms-clear::after{content:"";position:absolute;inset:-9px;border-radius:50%}
+.range-btn{position:relative}
+.range-btn::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+
+/* ===== batch (v47): dashboard trend-chart rebuild (Collectr feel, EzPlate skin) ===== */
+/* the tooltip is a small two-line card now (date over value) — replaces the dark bubble+arrow */
+.tp-tip{transform:translate(-50%,-130%);background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:8px;box-shadow:var(--shadow-lg);padding:6px 10px;line-height:1.3;text-align:left}
+.tp-tip::after{content:none}
+.tp-tip.below{transform:translate(-50%,14px)}   /* near the plot's top edge the card flips under the dot */
+.tp-tip .tp-d{display:block;font-size:10px;color:var(--muted2)}
+.tp-tip .tp-v{display:block;font-size:13px;font-weight:800;font-family:var(--mono);font-variant-numeric:tabular-nums}
+/* the plot is ONE focusable control (arrows step the readings) — the 60 per-dot tab stops are gone */
+.dash-chart svg{cursor:crosshair}
+.dash-chart svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.tc-pt,#tcCross,#tcDot{pointer-events:none}     /* readings + scrub chrome never intercept the pointer */
+@media (prefers-reduced-motion:reduce){ .tp-tip{transition:none} }
+
+/* ===== batch (v48): final pre-merge polish (Max's annotated screenshots) ===== */
+/* items 2+3: ONE left edge down the whole chart block — title, y-axis labels (now start-anchored
+   at x=0 in app.js), caption. Labels use the app's existing mono token (same stack the scrub
+   tooltip's value and the docket prices already use — no new font, no new token). */
+.chart-controls{max-width:540px;margin-left:auto;margin-right:auto}   /* .dash-chart is 540px centred; the title row must share its edge on wide screens */
+.dash-chart .ax{font-family:var(--mono)}
+.chart-hint{margin-left:0;margin-right:0}
+/* item 5: making the plot focusable (v47) handed it the browser's default tap highlight — a blue
+   box on every touch. Kill the tap flash and the plain :focus ring; :focus-visible is restated
+   AFTER :focus so keyboard scrubbers keep their ring (cascade order matters here). */
+.dash-chart svg{-webkit-tap-highlight-color:transparent}
+.dash-chart svg:focus{outline:none}
+.dash-chart svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+/* item 6: Menu tab header rhythm — target label, value line, and colour key all breathe on the
+   same token (--sp-2). Was 6px label→value but 22px value→key (an-controls pad + akey pad). */
+.an-controls{gap:var(--sp-2);padding-bottom:0}
+.cogs-set > .cogs-lbl{margin-bottom:var(--sp-2)}
+.akey{padding-top:var(--sp-2)}

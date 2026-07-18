@@ -131,14 +131,14 @@ test('ITEM 1: flag precedence holds — price jump outranks low match, and a cle
   const both = Object.assign(attentionRow(), { conf: 0.44, tier: 'mid', needsAttention: true,
                                                cands: [{ id: 'P0108', coverage: 0.44 }] });
   const h1 = buildRow(both, 0);
-  assert.ok(h1.indexOf('price jump \u2014 check') >= 0, 'price jump wins');
+  assert.ok(h1.indexOf('price change \u2014 check') >= 0, 'price change wins');   // v44 item 2: token renamed from "price jump"
   assert.ok(h1.indexOf('low match \u2014 check') < 0, 'and suppresses the lower-precedence token');
 
   // clean high-confidence match: no token at all
   const clean = Object.assign(attentionRow(), { needsAttention: false });
   const h2 = buildRow(clean, 0);
   assert.ok(h2.indexOf('low match \u2014 check') < 0, 'an 82% match is not a low match');
-  assert.ok(h2.indexOf('price jump \u2014 check') < 0, 'and has no jump');
+  assert.ok(h2.indexOf('price change \u2014 check') < 0, 'and has no price change');   // v44 item 2: token renamed
   assert.ok(/class="inv-data st-matched"/.test(h2), 'a clean match is not muted and carries st-matched (v37)');
 });
 

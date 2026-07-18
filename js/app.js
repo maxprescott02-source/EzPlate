@@ -66,7 +66,7 @@ function dbPushPlateAfterMenu(sp, menuPushPromise){
     // Only push the plate once the menu item is CONFIRMED on the server (truthy result, no error). A null
     // (skipped/no client) or an error means the row isn't there — pushing the plate would orphan it and trip
     // plates_menu_id_fkey. It's saved locally either way and will sync with the item next time.
-    if(!res || res.error){ if(res && res.error){ toast('The menu item didn’t save, so “'+(sp.name||'the plate')+'” isn’t online yet — try again when connected'); } return null; }
+    if(!res || res.error){ return null; }   // v43: menu item not confirmed on the server -> don't orphan the plate. Do NOT toast here: pushWrite already surfaced the REAL error on a server rejection, or set the quiet 'offline' banner when genuinely offline. The old second toast overwrote that real error (single-element toast, last wins) and mislabeled a rejection as "offline" — the bug that hid a missing DB column for days.
     return dbPushPlate(sp);
   });
 }
@@ -81,6 +81,18 @@ async function seedIfEmpty(){
     var mc=await SUPA.from('menu_items').select('id',{count:'exact',head:true});
     if(!mc.error && mc.count===0){ await SUPA.from('menu_items').upsert(BASE_MENU.map(function(m){ return {id:m.id, section:m.section, name:m.name, price:m.price, notes:null, is_custom:false}; })); }
   }catch(e){ console.error('[sync] seed failed:', e); }
+}
+
+// v42 (Item 1): given the server snapshot and the local array, return the merged list (server rows PLUS any
+// local rows the server doesn't have yet — a dropped offline write) and the list of those local-only rows to
+// re-push. Tombstoned ids (deliberately deleted) are never resurrected. Pure + unit-tested (menu-plate-order).
+// Idempotent: once the re-push lands, the next server snapshot contains those ids, so localOnly is empty and
+// merged has no duplicates.
+function reconcileLocalOnly(local, server, tombstones){
+  var have={}; (server||[]).forEach(function(r){ if(r&&r.id!=null) have[r.id]=true; });
+  var tomb={}; (tombstones||[]).forEach(function(id){ tomb[id]=true; });
+  var localOnly=(local||[]).filter(function(r){ return r && r.id!=null && !have[r.id] && !tomb[r.id]; });
+  return { merged:(server||[]).concat(localOnly), localOnly:localOnly };
 }
 
 /* pull everything from Supabase and refresh the UI */
@@ -108,11 +120,24 @@ async function bootstrapSync(){
     if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; saveKitchenLS(); rebuildKById(); }
     var kwsRow=setRows.filter(function(r){return r.key==='king_wiz_skips';})[0];                 // ITEM 4 (v35): wizard skips are shared across staff devices
     if(kwsRow&&Array.isArray(kwsRow.value)){ setKingWizSkips(kwsRow.value); }
-    customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu(); rebuildMenu();
+    // v42 (Item 1): HEAL, don't clobber. A dish created offline may never have reached the server (pushWrite
+    // drops writes offline — the known gap). Blindly replacing local with the server snapshot would DESTROY it
+    // on reload, and any plate referencing that dish would FK-fail forever. Keep local-only dishes, merge them,
+    // and re-push them (idempotent) so the server catches up. deletedMenuIds tombstones are respected.
+    var recMenu=reconcileLocalOnly(customMenu, (men.data||[]).map(rowToMenu), deletedMenuIds);
+    customMenu=recMenu.merged; saveCustomMenu(); rebuildMenu();
+    var menuPushById={};
+    recMenu.localOnly.filter(function(c){return c.custom;}).forEach(function(c){ menuPushById[c.id]=dbPushMenu(c); });   // re-push orphaned dishes; their promises let dependent plate re-pushes wait
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
-    ensureDefaultMenu(); saveMenus();
+    ensureDefaultMenu(); ensureUnassignedMenuIfReferenced(); saveMenus();   // v42: if the menus-table snapshot dropped the holding area but dishes still point at it, bring it back
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
-    savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS();
+    // v42 (Item 1): same heal for plates — a local-only plate (its push was dropped offline) must survive the
+    // reload, not be clobbered. Re-push each AFTER its referenced dish's re-push (menuPushById) so we never
+    // orphan the plate against a not-yet-landed menu_items row; a dish already on the server has no entry, so
+    // dbPushPlateAfterMenu falls through to an immediate push.
+    var recPlate=reconcileLocalOnly(savedPlates, (pla.data||[]).map(rowToPlate), null);
+    savedPlates=recPlate.merged; savePlatesLS();
+    recPlate.localOnly.forEach(function(s){ dbPushPlateAfterMenu(s, (s.menuId&&menuPushById[s.menuId])?menuPushById[s.menuId]:null); });
     try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
@@ -322,13 +347,17 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
+  // v44 item 8: same two-row split as ingredient lines \u2014 the label finally gets the full card width
+  // on a phone (its smallness was a standing complaint) instead of fighting the $ field for one row.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
     +'<div class="top">'
     +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"><span class="sub">Misc cost \u00b7 not an ingredient</span></span>'
+    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'</div>'
+    +'<div class="costs">'
     +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<span class="leader"></span>'
     +'<span class="lc" id="lc-'+l.uid+'">'+money(Number(l.cost)||0)+'</span>'
-    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
     +'</div></div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
@@ -349,13 +378,16 @@ function renderPlate(){
     const kName=isKid?((kById[l.kid]&&kById[l.kid].name)||'Ingredient'):null;
     if(!p){                                                    // orphaned line: deleted product or broken kitchen link — greyed, still counted as missing
       const title=isKid?esc(kName):'Product';
+      // v44 item 8: two rows per line — name row (.top) then costs row (.costs). Same inputs/ids/handlers, layout only.
       return `<div class="line missing-line" data-uid="${l.uid}">
       <div class="top">
         <span class="nm"><b>${title}</b><span class="sub warn">product missing</span></span>
+        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
+      </div>
+      <div class="costs">
         <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
         <span class="leader"></span>
         <span class="lc"><span class=nocost>no cost</span></span>
-        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div></div>`;
     }
     const lc=lineCost(p,l.qty);
@@ -363,30 +395,33 @@ function renderPlate(){
     const priceChip = editable
       ? `<span class="pchip" id="pc-${l.uid}" tabindex="0" role="button" title="Click to edit price" onclick="editPrice(${l.uid})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editPrice(${l.uid})}">${unitCostStr(p)} <span class="pen">✎</span></span>`
       : `<span>${unitCostStr(p)}</span>`;
-    let nameBlock, row2='';
+    let nameBlock, priceline;
+    // v44 item 8 (Max's mockup): row 1 = name + meta, row 2 = qty + unit price + line cost,
+    // left-aligned on their own line. Same inputs, ids and handlers — the nodes just moved.
+    // v45 items 6/7 (declutter, Max's call): the "· new"/"· edited" badges, the category half of
+    // the subtitle and the orange "ingredient" pill (.row2/.king-tag) are all REMOVED, not hidden.
     if(isKid){                                                  // kitchen word up top, linked product small underneath
       nameBlock=`<b>${esc(kName)}</b>
-          <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>
-          <span class="priceline">Unit cost: ${priceChip}</span>`;
-      row2=`<div class="row2"><span class="king-tag">ingredient</span></div>`;
+          <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>`;
+      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;   // v44 item 8: docket idiom "100 g @ $2.63/kg" — the words "Unit cost:" blew the 380px budget
     } else {                                                     // legacy direct-product line (pre-v31 saved plates): render + cost, no alternatives
-      const tag = !BASE_IDS.has(p.id) ? '<span class="edited">· new</span>'
-                : (overrides[p.id]&&overrides[p.id].cost_per_base_unit!=null?'<span class="edited">· edited</span>':'');
-      nameBlock=`<b>${esc(p.description)}</b>
-          <span class="sub">${p.brand?esc(p.brand)+' · ':''}${esc(p.category)}</span>
-          <span class="priceline">Unit cost: ${priceChip}${tag}</span>`;
+      nameBlock=`<b>${esc(p.description)}</b>${p.brand?`
+          <span class="sub">${esc(p.brand)}</span>`:''}`;
+      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;
     }
     return `<div class="line" data-uid="${l.uid}">
       <div class="top">
         <span class="nm">
           ${nameBlock}
         </span>
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
-        <span class="leader"></span>
-        <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
-      ${row2}
+      <div class="costs">
+        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
+        ${priceline}
+        <span class="leader"></span>
+        <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
+      </div>
     </div>`;}).join('');
   updateTotals();
   var bh=document.getElementById('builderHint');
@@ -500,14 +535,33 @@ let customMenu=loadCustomMenu();
 function loadMenus(){ try{ var a=JSON.parse(localStorage.getItem('cafeDB_menus')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function saveMenus(){ try{ localStorage.setItem('cafeDB_menus', JSON.stringify(menusList)); }catch(e){} }
 var menusList=loadMenus();
-function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }   // v40: seed Original ONLY on an empty list — never resurrect it once deliberately deleted
+var MENU_UNASSIGNED='MENU_UNASSIGNED';                              // v42: reserved holding "menu" for dishes whose menu was deleted ("Unassigned dishes")
+var UNASSIGNED_NAME='Unassigned dishes';
+function realMenus(){ return menusList.filter(function(m){return m.id!==MENU_UNASSIGNED;}); }   // v42: the holding area is NOT a real menu — it never counts toward "how many menus exist"
+function ensureDefaultMenu(){ if(!realMenus().length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }   // v40/v42: seed Original only when NO real menu exists (holding area alone doesn't count) — never resurrect a deliberately deleted Original
 ensureDefaultMenu();
-function fallbackMenuId(){                                          // v40: a current-menu fallback that never returns a deleted id — prefer Original while it exists, else the first surviving menu
-  if(menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
-  return (menusList[0] && menusList[0].id) || 'MENU_ORIGINAL';
+// v42: bring the holding area into existence on demand, pushing its record BEFORE any dish is reassigned into
+// it (so if menu_items.menu_id is FK-enforced against a menus table, the row is already there). Returns the
+// push promise (or null if it already existed / no client) so callers can sequence the reassignment.
+function ensureUnassignedMenu(){
+  if(menusList.some(function(m){return m.id===MENU_UNASSIGNED;})) return null;
+  menusList.push({id:MENU_UNASSIGNED,name:UNASSIGNED_NAME,season:null}); saveMenus();
+  return (typeof dbUpsertMenuRecord==='function')?dbUpsertMenuRecord({id:MENU_UNASSIGNED,name:UNASSIGNED_NAME,season:null}):null;
 }
-function canDeleteMenu(id){                                         // v40: any menu is deletable EXCEPT the last one standing
-  return menusList.length>1 && menusList.some(function(m){return m.id===id;});
+function holdingHasDishes(){ return (typeof customMenu!=='undefined') && customMenu.some(function(c){return (c.menuId||'MENU_ORIGINAL')===MENU_UNASSIGNED;}); }
+function ensureUnassignedMenuIfReferenced(){ if(holdingHasDishes()) ensureUnassignedMenu(); }   // v42: self-heal — keep the holding area present locally whenever a dish still points at it
+function fallbackMenuId(){                                          // v40/v42: a current-menu fallback that never returns a deleted id, and never the holding area while a real menu exists
+  var real=realMenus();
+  if(real.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
+  if(real[0]) return real[0].id;
+  return (menusList[0] && menusList[0].id) || 'MENU_ORIGINAL';     // only the holding area (or nothing) remains
+}
+function canDeleteMenu(id){                                         // v40/v42: the holding area is never deletable; a real menu is deletable unless that would leave NO selectable menu
+  if(id===MENU_UNASSIGNED) return false;
+  if(!menusList.some(function(m){return m.id===id;})) return false;
+  if(realMenus().some(function(m){return m.id!==id;})) return true;                 // another real menu will remain
+  if(menusList.some(function(m){return m.id===MENU_UNASSIGNED;})) return true;      // holding area already stands
+  return (typeof customMenu!=='undefined') && customMenu.some(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});   // last real menu, but its dishes will spawn the holding area
 }
 function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||'MENU_ORIGINAL'; }catch(e){ return 'MENU_ORIGINAL'; } }
 var currentMenuId=loadCurrentMenuId();
@@ -526,10 +580,11 @@ function rebuildMenu(){
 function upsertCustomMenu(item){
   var i=customMenu.findIndex(function(c){return c.id===item.id;});
   if(i>=0) customMenu[i]=item; else customMenu.push(item);
-  saveCustomMenu(); dbPushMenu(item);
+  saveCustomMenu(); return dbPushMenu(item);   // v42: return the push so a dependent plate write can be sequenced after this menu_items upsert confirms (heals an orphaned existing dish)
 }
 var deletedMenuIds=loadDeletedMenu();
 rebuildMenu();
+ensureUnassignedMenuIfReferenced();   // v42: on cold start, show the holding area if any saved dish already lives in it
 function loadCogs(){ try{ var v=parseFloat(localStorage.getItem('cafeDB_cogsPct')); if(v>=1&&v<=99) return v; }catch(e){} return 40; }
 var cogsPct = loadCogs();                                  // target food cost, as a percent (e.g. 40)
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
@@ -611,7 +666,30 @@ function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushProm
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
   savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
 }
-document.getElementById('saveBtn').addEventListener('click',function(){saveCurrentPlate(false);});
+// v44 item 9 (Max's call): "Save to Library" confused people — drafts were invisible. A draft now
+// becomes a dish in the "Unassigned dishes" holding menu, so it's findable in the menu selector.
+// A plate already linked to a dish (published OR drafted) keeps plain-save behaviour; loading
+// previously saved plates is untouched. Rides the v42 machinery: ensureUnassignedMenu pushes the
+// menus row first, and the plate write is sequenced after the dish write (dbPushPlateAfterMenu).
+function saveDraft(){
+  if(!plate.length){toast('Add ingredients to the plate first');return;}
+  if(menuLinkEl.value && menuById[menuLinkEl.value]){ saveCurrentPlate(false); return; }   // already a dish: plain save
+  var rawName=(document.getElementById('plateName').value||'').trim();
+  var pErr=document.getElementById('plateNameErr');
+  if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return; }
+  if(pErr) pErr.style.display='none';
+  ensureUnassignedMenu();
+  var targetId='um'+Date.now().toString(36);
+  customMenu.push({id:targetId,section:'Drafts',name:rawName,price:0,notes:'',custom:true,menuId:MENU_UNASSIGNED,sourcePlateId:null});
+  saveCustomMenu();
+  var menuItemPush=dbPushMenu({id:targetId,section:'Drafts',name:rawName,price:0,notes:null,menuId:MENU_UNASSIGNED,sourcePlateId:null});
+  rebuildMenu(); buildMenuOptions(); buildMenuSelector();             // the holding area appears in the selector now that it has a dish
+  menuLinkEl.value=targetId; menuTouched=true;
+  saveCurrentPlate(false, menuItemPush);                              // plate write waits for the dish write — same contract as publish
+  updatePublishLabel();
+  toast('Draft saved to “Unassigned dishes”');
+}
+document.getElementById('saveBtn').addEventListener('click',saveDraft);
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
@@ -873,7 +951,7 @@ function renderIngredients(){
     if(cntEl) cntEl.textContent='';
     wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet','Products are the things you buy \u2014 import a supplier invoice and EzPlate reads them in, or add one by hand.',
       '<button class="btn primary" type="button" onclick="document.getElementById(\'importBtn\').click()">Import invoice</button>'
-      +'<button class="btn" type="button" onclick="openModal()">+ Add product</button>');
+      +'<button class="btn" type="button" onclick="openModal()">+ New product</button>');   // v45 item 4: "Add product" -> "New product" everywhere
     return;
   }
   fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
@@ -1005,17 +1083,19 @@ function renderKitchenPanel(){
     renderKingProgress();                                            // progress counts PRODUCTS, not the filtered view — it stays true
     return;
   }
+  // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
+  // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=list.map(function(k){
-    return '<div class="king-row" data-kid="'+esc(k.id)+'">'
+    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
       +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
       +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
-      +'<div class="king-acts">'
-      +'<button class="linklike king-change" type="button">Edit</button>'
-      +'<button class="linklike king-del" type="button">Remove</button>'
-      +'</div></div>';
+      +'</div>';
   }).join('');
-  box.querySelectorAll('.king-change').forEach(function(b){ b.onclick=function(){ openKingModal(b.closest('.king-row').getAttribute('data-kid')); }; });
-  box.querySelectorAll('.king-del').forEach(function(b){ b.onclick=function(){ deleteKitchenIngredient(b.closest('.king-row').getAttribute('data-kid')); }; });
+  box.querySelectorAll('.king-row').forEach(function(row){
+    var open=function(){ openKingModal(row.getAttribute('data-kid')); };
+    row.onclick=open;
+    row.onkeydown=function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } };   // keyboard parity for the button-role card
+  });
   renderKingProgress();                                              // ITEM 2 (v34): setup progress + wizard entry stay current with the list
 }
 /* ===== ITEM 2 (v34): "Set up from products" — bulk-create kitchen words so setup is fast, incremental, never blocking ===== */
@@ -1093,7 +1173,7 @@ function renderKingProgress(){
   pr.textContent=done+' of '+total+' products have a kitchen word';   // stays literal: a skipped product genuinely has no kitchen word, so it still counts as not-done here
   pr.style.display=un?'block':'none';
   wb.style.display='';                                              // stays visible while open so "Close setup" is always reachable
-  wb.textContent=kingWizOpen?'Close setup':'Set up from products';
+  wb.innerHTML=kingWizOpen?'Close<span class="btn-noun"> setup</span>':'Set up<span class="btn-noun"> from products</span>';   // v44 item 5: the noun span hides on phones so the pantry pair fits one line
 }
 function kingWizGroups(){                                             // proposal -> products[]; same cleaned name = one grouped choice, never silent duplicates
   var map={}, order=[];
@@ -1299,6 +1379,8 @@ function openKingModal(kid){
       usedEl.style.display='block';
     } else usedEl.style.display='none';
   }
+  var remEl=document.getElementById('kingModalRemove');              // v44 item 6b: Remove lives in the modal, edit mode only
+  if(remEl) remEl.style.display=isEdit?'':'none';
   kingSyncSave();
   show('kingModal');
 }
@@ -1370,6 +1452,7 @@ function deleteKitchenIngredient(kid){
   ks.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ks.blur(); } }); }   // v37: Enter commits the search (dismisses the keyboard)
   if(kc) kc.addEventListener('click',function(){ if(ks){ ks.value=''; } kingQuery=''; renderKitchenPanel(); if(ks) ks.focus(); });
   on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
+  on('kingModalRemove',function(){ var kid=kingEditId; if(!kid) return; closeKingModal(); deleteKitchenIngredient(kid); });   // v44 item 6b: close first so the used-in-N confirm sits cleanly on top (same pattern as the unit guard)
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
 
@@ -1405,10 +1488,80 @@ function statCard(label, current, base){
   }
   return '<span class="stat-bit"><span class="stat-h">vs '+esc(label.toLowerCase())+'</span> <b class="stat-arrow '+cls+'">'+arrow+'</b> <span class="stat-sub '+cls+'">'+esc(sub)+'</span></span>';
 }
+/* ===== v47: trend-chart rebuild (Collectr feel, EzPlate skin) \u2014 helpers ===== */
+/* Monotone cubic tangents (Fritsch\u2013Carlson). Clamped so the curve NEVER overshoots a real
+   reading \u2014 between two points it stays inside their value range, so it can't dip below 0
+   or invent peaks between readings. The SAME tangents feed the path builder AND the scrub
+   evaluator, so the riding dot follows exactly the curve that is drawn. */
+function tcTangents(xs,ys){
+  var n=xs.length, m=new Array(n), d=new Array(Math.max(0,n-1)), i;
+  if(n<2){ if(n) m[0]=0; return m; }
+  for(i=0;i<n-1;i++) d[i]=(ys[i+1]-ys[i])/(xs[i+1]-xs[i]);
+  m[0]=d[0]; m[n-1]=d[n-2];
+  for(i=1;i<n-1;i++) m[i]=(d[i-1]*d[i]<=0)?0:(d[i-1]+d[i])/2;   // tangent 0 at local extrema
+  for(i=0;i<n-1;i++){
+    if(!d[i]){ m[i]=0; m[i+1]=0; continue; }
+    var a=m[i]/d[i], b=m[i+1]/d[i], s=a*a+b*b;
+    if(s>9){ var t=3/Math.sqrt(s); m[i]=t*a*d[i]; m[i+1]=t*b*d[i]; }   // the monotonicity clamp
+  }
+  return m;
+}
+function tcPath(xs,ys,m){                                        // Hermite -> cubic beziers (controls at +/- h/3 along tangents)
+  var p='M'+xs[0].toFixed(1)+' '+ys[0].toFixed(1);
+  for(var i=0;i<xs.length-1;i++){
+    var h=xs[i+1]-xs[i];
+    p+=' C'+(xs[i]+h/3).toFixed(1)+' '+(ys[i]+m[i]*h/3).toFixed(1)
+      +' '+(xs[i+1]-h/3).toFixed(1)+' '+(ys[i+1]-m[i+1]*h/3).toFixed(1)
+      +' '+xs[i+1].toFixed(1)+' '+ys[i+1].toFixed(1);
+  }
+  return p;
+}
+function tcYAt(xs,ys,m,px){                                      // cubic Hermite eval on the same tangents (the scrub dot rides THIS)
+  var n=xs.length;
+  if(px<=xs[0]) return ys[0];
+  if(px>=xs[n-1]) return ys[n-1];
+  var i=0; while(i<n-2 && px>xs[i+1]) i++;
+  var h=xs[i+1]-xs[i], t=(px-xs[i])/h, t2=t*t, t3=t2*t;
+  return (2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*h*m[i]+(3*t2-2*t3)*ys[i+1]+(t3-t2)*h*m[i+1];
+}
+function tcTicks(target,mn,mx){                                  // v48: 3\u20134 y-axis values ANCHORED ON the target
+  /* HARD REQUIREMENT (v48 patch): the dashed target line must always sit on a labelled tick \u2014
+     that's the entire basis for the line carrying no word of its own. So the sequence is built
+     FROM the target (target \u00b1 k\u00b7step) and extended until it covers the data, never generated
+     independently and hoped onto it. Integer-biased steps (no 0.5/2.5) keep labels 3\u20134 chars
+     unless the user's own target is decimal. Assumes mn <= target <= mx (callers concat the
+     target into the domain values first). */
+  var steps=[1,2,5,10,20,50], si=0, i;
+  var raw=(mx-mn)/3;
+  for(i=0;i<steps.length;i++){ si=i; if(steps[i]>=raw) break; }
+  var build=function(step){
+    var lo=target-Math.ceil((target-mn)/step)*step;
+    var hi=target+Math.ceil((mx-target)/step)*step;
+    while(lo<0) lo+=step;                                        // %-of-sales axis: never label below zero
+    var out=[]; for(var v=lo; v<=hi+1e-9; v+=step) out.push(+v.toFixed(1));
+    return out;
+  };
+  var out=build(steps[si]);
+  while(out.length>4 && si<steps.length-1){ si++; out=build(steps[si]); }   // widen the step, never thin \u2014 filtering could drop the target tick
+  while(out.length<3){                                           // step bigger than the whole span: pad outward, target stays in the set
+    var st=steps[si], lo2=out[0], hi2=out[out.length-1];
+    if(lo2-st>=0) out.unshift(+(lo2-st).toFixed(1)); else out.push(+(hi2+st).toFixed(1));
+  }
+  return out;
+}
+var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
 function trendChart(){
   var pts=dashRangePts();
-  var W=320,H=210,padL=40,padR=10,padT=14,padB=20;   /* v36: chart takes the space the stat cards gave back */
-  if(pts.length<2){
+  /* v48 GEOMETRY IS CONSTANT — root cause of the "chart moves when I switch ranges" report:
+     the frame never varied (padL was always 40) but tight ranges drew decimal tick labels
+     ("27.5%") that overflowed the 33-unit gutter and were CLIPPED at the svg's left edge,
+     reading as a font change on a phone. Labels are now start-anchored at x=0 (one left edge
+     with the title + caption) and padL clears the widest possible label ("27.5%" in the mono
+     stack ≈ 33 units) for every range. padB back to 20: the x-axis date labels are gone
+     (range buttons state the window; the scrub tooltip gives exact dates). */
+  var W=320,H=210,padL=44,padR=10,padT=14,padB=20;
+  TREND_GEO=null;
+  if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
       ? 'No points in this range yet \u2014 try a longer range.'
       : 'The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.';
@@ -1417,30 +1570,55 @@ function trendChart(){
   }
   var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
   var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
-  if(mx-mn<4){ mn-=2; mx+=2; } mn=Math.max(0,mn-1); mx=mx+1;
+  /* v48: the DOMAIN derives from the ticks, not the other way round (replaces v45's proportional
+     28% padding — that made the target line's rendered y jump ~50px between adjacent ranges,
+     the "framing shifts" half of Max's report). Ticks are anchored on the target (see tcTicks),
+     the domain is the tick extent plus half a step each side — so headroom is consistent in
+     tick units and similar ranges can't jitter. The domain still adapts to the data (a 1W view
+     must not be squashed flat); it is stable, not fixed. */
+  var span=mx-mn;
+  if(span<4){ var midY=(mn+mx)/2; mn=midY-2; mx=midY+2; }
+  var ticks=tcTicks(cogsPct,mn,mx);
+  var step=ticks.length>1?ticks[1]-ticks[0]:5;
+  mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
   var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
-  var d=pts.map(function(p,i){ return (i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1); }).join(' ');
+  var xs=[], ys=[];
+  pts.forEach(function(p,i){ xs.push(x(i)); ys.push(y(p.v)); });
+  var tan=tcTangents(xs,ys);
+  var d=tcPath(xs,ys,tan);                                       // v47: smooth monotone curve (was straight polyline segments)
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
-  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';
+  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
   var refY=y(cogsPct).toFixed(1);
-  var area=d+' L'+x(pts.length-1).toFixed(1)+' '+(H-padB)+' L'+x(0).toFixed(1)+' '+(H-padB)+' Z';
-  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Average food cost trend">'
-    +'<path d="'+area+'" fill="'+stroke+'" opacity="0.10"/>'
-    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+  var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
+  var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
+  // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
+  var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    +pts.map(function(p,i){ var lbl=(p.t?new Date(p.t).toLocaleDateString():('#'+(i+1)))+' \u00b7 '+p.v.toFixed(1)+'%';
-        return '<circle class="tp-dot" cx="'+x(i).toFixed(1)+'" cy="'+y(p.v).toFixed(1)+'" r="3" fill="'+stroke+'" tabindex="0" role="button" data-lbl="'+esc(lbl)+'" data-x="'+x(i).toFixed(1)+'" data-y="'+y(p.v).toFixed(1)+'" aria-label="'+esc(lbl)+'"/>'; }).join('')
-    +'<circle cx="'+x(pts.length-1).toFixed(1)+'" cy="'+y(pts[pts.length-1].v).toFixed(1)+'" r="3.5" fill="'+stroke+'" pointer-events="none"/>'
-    +'<text x="'+(padL-7)+'" y="'+y(mx).toFixed(1)+'" text-anchor="end" class="ax">'+mx.toFixed(0)+'%</text>'
-    +'<text x="'+(padL-7)+'" y="'+(H-padB+2).toFixed(1)+'" text-anchor="end" class="ax">'+mn.toFixed(0)+'%</text>'
-    +'</svg>';
+    +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
+  // v48: labels start-anchored at x=0 — one left edge with the title and caption, and a label
+  // can never overhang the svg's left edge again (the clipped-"27.5%" bug). One of these ticks
+  // IS the target (tcTicks anchors on it), which is why the dashed line needs no word of its own.
+  var axis=ticks.map(function(v){ return '<text class="ax" x="0" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="start">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
+    +'<defs>'
+    +'<pattern id="tcdots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.6" cy="1.6" r="1.1" fill="'+stroke+'" opacity="0.28"/></pattern>'   // dotted fill inherits the semantic colour + both themes via the CSS var
+    +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
+    +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
+    +'</defs>'
+    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+    +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
+    +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
+    +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
+    +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
+    +'</svg>';
+  TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB};
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<span class="ref-pill ref-pill-static">Target '+cogsPct+'%</span>'   // ITEM 3 (v33): read-only marker; the target is edited in the Menu section
-    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'. Tap a point for its date.</p></div>';
+    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
 }
 function highlightData(kind){
   if(kind==='foodcost'){
@@ -1485,32 +1663,64 @@ function renderDashboard(){
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   root.innerHTML=html;
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
-  (function wireTrendTip(){                                          // one tooltip at a time; tap point (mobile) or hover (desktop)
+  (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
-    var svg=wrap.querySelector('svg'); if(!svg) return;
-    function showFor(dot){ var vb=svg.viewBox.baseVal, rect=svg.getBoundingClientRect();
-      var px=parseFloat(dot.getAttribute('data-x')), py=parseFloat(dot.getAttribute('data-y'));
-      var left=(px/vb.width)*rect.width, top=(py/vb.height)*rect.height;
-      tip.textContent=dot.getAttribute('data-lbl'); tip.style.left=left+'px'; tip.style.top=top+'px';
+    var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
+    var cross=svg.querySelector('#tcCross'), dot=svg.querySelector('#tcDot'),
+        rb=svg.querySelector('#tcRectB'), rd=svg.querySelector('#tcRectD');
+    if(!cross||!dot||!rb||!rd) return;
+    var n=g.xs.length, stepW=(g.W-g.padL-g.padR)/(n-1), lastIdx=-1, raf=0, pending=null, active=false;
+    function showAt(vx){                                             // vx in viewBox units, already clamped to the plot
+      active=true;
+      var vy=tcYAt(g.xs,g.ys,g.tan,vx);                              // the dot rides the RENDERED curve continuously…
+      cross.setAttribute('x1',vx.toFixed(1)); cross.setAttribute('x2',vx.toFixed(1)); cross.setAttribute('visibility','visible');
+      dot.setAttribute('cx',vx.toFixed(1)); dot.setAttribute('cy',vy.toFixed(1)); dot.setAttribute('visibility','visible');
+      rb.setAttribute('width',Math.max(0,vx).toFixed(1));            // bright behind the cursor…
+      rd.setAttribute('x',vx.toFixed(1)); rd.setAttribute('width',Math.max(0,g.W-vx).toFixed(1));   // …dimmed ahead of it
+      var idx=Math.max(0,Math.min(n-1,Math.round((vx-g.padL)/stepW)));
+      if(idx!==lastIdx){                                             // …but the REPORTED value snaps to the nearest real reading
+        lastIdx=idx;
+        var p=g.pts[idx];
+        var when=p.t?new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):('reading #'+(idx+1));
+        tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>';
+      }
       tip.classList.add('show'); tip.setAttribute('aria-hidden','false');
-      wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); dot.classList.add('act');
+      var rect=svg.getBoundingClientRect(), sx=rect.width/g.W, sy=rect.height/g.H;
+      var half=(tip.offsetWidth||70)/2, px=vx*sx, py=vy*sy;
+      px=Math.max(half+2, Math.min(rect.width-half-2, px));          // clamped: the card never leaves the chart
+      tip.classList.toggle('below', py<48);                          // flips under the dot near the top edge
+      tip.style.left=px+'px'; tip.style.top=py+'px';
     }
-    function hideTip(){ tip.classList.remove('show'); tip.setAttribute('aria-hidden','true'); wrap.querySelectorAll('.tp-dot.act').forEach(function(d){ d.classList.remove('act'); }); }
-    wrap.querySelectorAll('.tp-dot').forEach(function(dot){
-      dot.addEventListener('mouseenter', function(){ showFor(dot); });
-      dot.addEventListener('focus', function(){ showFor(dot); });
+    function rest(){                                                 // pointer-leave/up: no crosshair, full brightness
+      active=false; lastIdx=-1;
+      cross.setAttribute('visibility','hidden'); dot.setAttribute('visibility','hidden');
+      rb.setAttribute('width',g.W); rd.setAttribute('x',g.W); rd.setAttribute('width',0);
+      tip.classList.remove('show'); tip.setAttribute('aria-hidden','true');
+    }
+    function fromEvent(e){
+      var rect=svg.getBoundingClientRect();
+      var vx=(e.clientX-rect.left)/rect.width*g.W;
+      return Math.max(g.padL, Math.min(g.W-g.padR, vx));
+    }
+    function queue(vx){                                              // rAF throttle: one geometry pass per frame (phone-friendly)
+      pending=vx; if(raf) return;
+      raf=requestAnimationFrame(function(){ raf=0; if(pending!=null && document.contains(svg)) showAt(pending); pending=null; });
+    }
+    svg.addEventListener('pointerdown', function(e){ try{ svg.setPointerCapture(e.pointerId); }catch(_){ } e.preventDefault(); queue(fromEvent(e)); });
+    svg.addEventListener('pointermove', function(e){ if(e.pointerType==='touch' && !active) return; queue(fromEvent(e)); });   // mouse scrubs on hover; touch needs the press first
+    svg.addEventListener('pointerleave', rest);
+    ['pointerup','pointercancel'].forEach(function(ev){ svg.addEventListener(ev, function(e){ if(e.pointerType!=='mouse') rest(); }); });
+    svg.addEventListener('keydown', function(e){                     // one focusable plot; arrows step the readings
+      var idx=lastIdx;
+      if(e.key==='ArrowLeft') idx=(idx<0? n-1 : Math.max(0,idx-1));
+      else if(e.key==='ArrowRight') idx=(idx<0? 0 : Math.min(n-1,idx+1));
+      else if(e.key==='Home') idx=0;
+      else if(e.key==='End') idx=n-1;
+      else if(e.key==='Escape'){ rest(); return; }
+      else return;
+      e.preventDefault(); showAt(g.xs[idx]);
     });
-    var dots=[].slice.call(wrap.querySelectorAll('.tp-dot'));
-    function nearestDot(clientX){ var best=null,bd=1e9; dots.forEach(function(d){ var r=d.getBoundingClientRect(); var cx=r.left+r.width/2; var dd=Math.abs(cx-clientX); if(dd<bd){bd=dd;best=d;} }); return best; }
-    var scrubbing=false;
-    svg.addEventListener('pointerdown', function(e){                 // press anywhere on the chart, slide between points
-      scrubbing=true; try{ svg.setPointerCapture(e.pointerId); }catch(_){ }
-      e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d);
-    });
-    svg.addEventListener('pointermove', function(e){ if(!scrubbing) return; e.preventDefault(); var d=nearestDot(e.clientX); if(d) showFor(d); });
-    ['pointerup','pointercancel'].forEach(function(ev){ svg.addEventListener(ev, function(){ scrubbing=false; }); });
-    wrap.addEventListener('mouseleave', hideTip);
-    document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) hideTip(); });
+    svg.addEventListener('blur', rest);
   })();
   root.querySelectorAll('.hl-card').forEach(function(b){ b.onclick=function(){ openHighlight(b.getAttribute('data-kind')); }; });
 }
@@ -1545,7 +1755,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v41';
+var APP_VERSION='v48';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -1883,7 +2093,10 @@ function submitMenuItem(){
   if(publishTargetId){
     targetId=publishTargetId;
     var prevItem=menuById[targetId]||{};
-    upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:(prevItem.sourcePlateId||null)});
+    // v42 (Item 1): sequence the plate push after this menu_items upsert too, not just for brand-new dishes.
+    // If the existing dish was an orphan (its original push was dropped offline), the upsert re-creates it and
+    // the plate then references a row that's really on the server — no more plates_menu_id_fkey on re-publish.
+    menuItemPush=upsertCustomMenu({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:(prevItem.sourcePlateId||null)});
   } else {
     targetId='um'+Date.now().toString(36);
     customMenu.push({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,sourcePlateId:null});
@@ -2498,6 +2711,17 @@ function invRowState(r){                                            // ITEM 4: s
   if(r.tier!=='hi') return 'review';                                 // low-confidence match still wants a human tick
   return 'matched';
 }
+/* v45 item 1: ONE derive-preview formula — the render prefill and the live recompute must never
+   disagree, so both read this. Returns '' when the pack maths can't run (no qty / no pack price). */
+function invPackPreviewText(r, q, u){
+  if(!(q>0)) return '';
+  var pack=packPriceOf(r.raw||r.name); if(pack==null) return '';
+  var up=(u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
+  if(!isFinite(up)||up<0) return '';
+  var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
+  var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
+  return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit');
+}
 function renderInvReview(){
   invRows.forEach(flagNeedsAttention);                              // ensure needsAttention is current for EVERY row before we count
   var states=invRows.map(invRowState);
@@ -2516,8 +2740,11 @@ function renderInvReview(){
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
     var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
-    var chipHtml='', teachHtml='';
-    if(r.remembered||r.fromProductPack) chipHtml='<button type="button" class="remembered-chip" data-i="'+i+'">Pack: '+(r.taughtQty!=null&&isFinite(r.taughtQty)?(r.taughtQty%1===0?r.taughtQty:r.taughtQty.toFixed(2)):'?')+' '+esc(unitWordOf(r.taughtUnit))+' \u2014 change</button>';
+    // v44 item 1: ONE pack control, two moods. The "Pack: N units \u2014 change" chip is gone; every row
+    // with pack context shows the same always-visible [qty][unit][\u2713] row, prefilled with the known pack.
+    // A mismatch/unresolved row is the SAME control in its red required state (.pt-required) \u2014 no second
+    // visual pattern. Resolution logic, precedence, invRowState and what \u2713 writes are all UNCHANGED.
+    var teachHtml='';
     if(r.needManual || r.remembered || r.fromProductPack){
       var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
       var baseCat0=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
@@ -2526,28 +2753,30 @@ function renderInvReview(){
       var prodPack=(bprod && bprod.pack_qty>0 && bprod.pack_unit)?bprod:null;
       var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(prodPack?prodPack.pack_qty:(mem?mem.qty:''));
       var puNow=r.taughtUnit?r.taughtUnit:(prodPack?prodPack.pack_unit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea'))));
-      var open=(r.needManual && !r.remembered);                    // manual + unresolved -> the form IS the default state
-      teachHtml='<span class="pack-teach'+(open?'':' hidden')+'" data-i="'+i+'">'
+      var required=(r.needManual && !r.remembered);                // unresolved -> the same control, red required mood
+      teachHtml='<span class="pack-teach'+(required?' pt-required':'')+'" data-i="'+i+'">'
         +'<span class="pt-lbl sr-only">How many in one pack?</span>'
         +'<span class="pt-group">'
         +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" title="How many in one pack?" value="'+pq+'">'
         +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
-        +'<span class="pt-preview"></span>'
-        +(chipHtml?'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>':'')
+        +'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>'
         +'</span>';
     }
-    var priceCell='<div class="price-row">'+upriceHtml+chipHtml+teachHtml+'</div>';
+    // v45 item 1: the derive preview is its OWN line under the price+pack row (was an inline chip
+    // inside .pack-teach), prefilled from the same precedence the inputs use so it shows before typing.
+    var priceCell='<div class="price-row">'+upriceHtml+teachHtml+'</div>'
+      +(teachHtml?'<div class="pt-preview">'+esc(invPackPreviewText(r, parseFloat(pq), puNow))+'</div>':'');
     if(r.needManual && !r.remembered){
       var baseCat=(r.bestId&&byId[r.bestId])?unitCatCategory(byId[r.bestId].base_unit):null;
       var baseWord=baseCat==='kg'?'per kg':baseCat==='l'?'per litre':'per unit';
-      var msg=r.unitMismatch ? ('Priced '+baseWord+' \u2014 set the pack.') : 'Set the pack, or type the price.';
+      var msg=r.unitMismatch ? ('This item was priced '+baseWord+' \u2014 edit the pack size to determine price per unit.') : 'Set the pack, or type the price.';   // v45 item 2 wording
       priceCell+='<div class="flag-review pt-explain">'+esc(msg)+'</div>';   // raw invoice line removed (was clutter); logged to console for debugging
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
-    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price jump \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
+    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
     var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
@@ -2601,9 +2830,8 @@ function renderInvReview(){
         var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2);
         var upu=tr.querySelector('.upu'); if(upu) upu.textContent=unitLabelFor(r);
         var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
-        var pvEl=pt.querySelector('.pt-preview');
-        if(pvEl){ var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
-          pvEl.textContent=(old?('Was '+old+' \u2192 '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit'); }
+        var pvEl=tr.querySelector('.pt-preview');                  // v45 item 1: the preview line lives under .price-row now, not inside .pack-teach
+        if(pvEl){ pvEl.textContent=invPackPreviewText(r, q, u); }
         var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks
       }
     }
@@ -2611,11 +2839,6 @@ function renderInvReview(){
     pt.querySelector('.invPackUnit').addEventListener('change', recompute);
   });
   box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
-  box.querySelectorAll('.remembered-chip').forEach(function(ch){ ch.onclick=function(){
-    var tr=ch.closest('tr'); if(!tr) return; var pt=tr.querySelector('.pack-teach'); if(!pt) return;
-    ch.classList.add('hidden'); pt.classList.remove('hidden');       // the form REPLACES the chip — never both
-    var q=pt.querySelector('.invPackQty'); if(q) q.focus();
-  }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
     var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
     var sel=tr.querySelector('.invSel'); if(!sel) return;
@@ -2883,18 +3106,23 @@ function buildMenuSelector(){
   var sel=document.getElementById('menuSelect');
   if(sel){
     if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();
-    sel.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
+    var visible=menusList.filter(function(m){ return m.id!==MENU_UNASSIGNED || holdingHasDishes(); });   // v42: the holding area shows only while it holds dishes
+    if(!visible.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();          // never leave the view on a now-hidden empty holding area
+    sel.innerHTML=visible.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+(m.id===MENU_UNASSIGNED?' data-holding="1"':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
     sel.value=currentMenuId;
   }
   updateMenuDelBtn();
   buildMenuPickers();
 }
 function buildMenuPickers(){                                   // fill the menu <select>s inside the Publish + Edit modals
+  var real=realMenus();
+  var holdingOpt=holdingHasDishes()?menusList.filter(function(m){return m.id===MENU_UNASSIGNED;}):[];   // only surface the holding area where a dish already sits in it
   ['mi_menu','ed_menu'].forEach(function(id){
     var s=document.getElementById(id); if(!s) return;
     var cur=s.value||currentMenuId;
-    s.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'">'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
-    if(menusList.some(function(m){return m.id===cur;})) s.value=cur;
+    var list=(id==='ed_menu')?real.concat(holdingOpt):real;    // v42: never publish a NEW dish into the holding area; editing can move one OUT of it
+    s.innerHTML=list.map(function(m){ return '<option value="'+esc(m.id)+'">'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
+    if(list.some(function(m){return m.id===cur;})) s.value=cur;
   });
 }
 function onMenuSelectChange(){
@@ -2902,44 +3130,34 @@ function onMenuSelectChange(){
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
-// v40: the actual deletion \u2014 move the menu's dishes to `dest`, drop the menu, land the user on `dest`. Shared by both paths.
+// v42: delete a menu \u2014 its dishes are ALWAYS moved to `dest` (never deleted), the menu row is dropped, and the
+// user lands on `dest`. When dest is the holding area, create+push it FIRST so no dish references a menus row
+// that isn't there yet.
 function doDeleteMenu(id, dest, name){
+  if(dest===MENU_UNASSIGNED) ensureUnassignedMenu();
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
   affected.forEach(function(c){ c.menuId=dest; dbPushMenu(c); });   // reassign, never delete the dishes
   if(affected.length) saveCustomMenu();
   menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
   setCurrentMenuId(dest);
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn();
-  toast('\u201c'+name+'\u201d deleted \u2014 dishes moved to \u201c'+menuNameById(dest)+'\u201d');
+  toast('\u201c'+name+'\u201d deleted \u2014 '+(affected.length?('dishes moved to \u201c'+menuNameById(dest)+'\u201d'):'no dishes to move'));
 }
+// v42: single confirm, no picker. A menu with dishes always sends them to the "Unassigned dishes" holding area;
+// an empty menu just lands the view on a surviving real menu.
 function deleteCurrentMenu(){
   var id=currentMenuId;
-  if(!canDeleteMenu(id)){ toast('The last menu can\u2019t be deleted'); return; }   // v40: the last remaining menu is never deletable
+  if(!canDeleteMenu(id)){ toast('This menu can\u2019t be deleted'); return; }
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
-  if(id==='MENU_ORIGINAL'){ openDelMenu(id, m, affected); return; }   // v40: deleting Original asks where its dishes should move
-  var dest=fallbackMenuId(), nm=m.name;                                // non-original: dishes fall back to Original (or first surviving) as before
-  askConfirm('Delete menu?', 'Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' will be moved to \u201c'+menuNameById(dest)+'\u201d \u2014 nothing is lost.', 'Delete menu', function(){ doDeleteMenu(id, dest, nm); });
-}
-var delMenuTargetId=null;
-function openDelMenu(id, m, affected){                                // v40: destination picker for deleting a menu that still holds dishes (used for Original)
-  delMenuTargetId=id;
-  var others=menusList.filter(function(x){return x.id!==id;});
-  var sel=document.getElementById('delMenuDest'); if(sel){ sel.innerHTML=others.map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.name)+(x.season?(' \u2014 '+esc(x.season)):'')+'</option>'; }).join(''); }
-  var field=document.getElementById('delMenuDestField'); if(field) field.style.display=affected.length?'':'none';   // no dishes -> no picker, just a confirm
-  var msg=document.getElementById('delMenuMsg');
-  if(msg){ msg.textContent=affected.length
-      ? ('Delete \u201c'+m.name+'\u201d? Choose where its '+affected.length+' dish'+(affected.length===1?'':'es')+' should move \u2014 nothing is lost.')
-      : ('Delete \u201c'+m.name+'\u201d? It has no dishes.'); }
-  show('delMenuModal');
-}
-function closeDelMenu(){ hide('delMenuModal'); delMenuTargetId=null; }
-function confirmDelMenu(){
-  var id=delMenuTargetId; if(!id){ closeDelMenu(); return; }
-  var m=menusList.find(function(x){return x.id===id;}); if(!m){ closeDelMenu(); return; }
-  var sel=document.getElementById('delMenuDest'); var dest=sel&&sel.value;
-  if(!dest||!menusList.some(function(x){return x.id===dest && x.id!==id;})){ dest=menusList.filter(function(x){return x.id!==id;})[0]; dest=dest?dest.id:fallbackMenuId(); }
-  var nm=m.name; closeDelMenu(); doDeleteMenu(id, dest, nm);
+  var dest, nm=m.name;
+  if(affected.length){ dest=MENU_UNASSIGNED; }
+  else { var others=realMenus().filter(function(x){return x.id!==id;});
+    dest=others.some(function(x){return x.id==='MENU_ORIGINAL';})?'MENU_ORIGINAL':(others[0]?others[0].id:MENU_UNASSIGNED); }
+  var msg=affected.length
+    ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' move to \u201c'+UNASSIGNED_NAME+'\u201d \u2014 nothing is lost.')
+    : ('Delete \u201c'+m.name+'\u201d? It has no dishes.');
+  askConfirm('Delete menu?', msg, 'Delete menu', function(){ doDeleteMenu(id, dest, nm); });
 }
 function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=canDeleteMenu(currentMenuId)?'':'none'; }
 
@@ -3293,15 +3511,13 @@ document.getElementById('delChoiceClose').addEventListener('click',closeDelChoic
 document.getElementById('delChoiceCancel').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceMenuOnly').addEventListener('click',doDeleteMenuOnly);
 document.getElementById('delChoiceAll').addEventListener('click',doDeleteEverything);
-(function(){ var c=document.getElementById('delMenuConfirm'), x=document.getElementById('delMenuClose'), ca=document.getElementById('delMenuCancel');
-  if(c)c.addEventListener('click',confirmDelMenu); if(x)x.addEventListener('click',closeDelMenu); if(ca)ca.addEventListener('click',closeDelMenu); })();
 edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 (function(){var ok=document.getElementById('confirmOk'),ca=document.getElementById('confirmCancel'),cx=document.getElementById('confirmClose');
  if(ok)ok.addEventListener('click',function(){ var fn=__confirmFn; closeConfirm(); if(fn)fn(); });
  if(ca)ca.addEventListener('click',closeConfirm); if(cx)cx.addEventListener('click',closeConfirm);})();
 
-['menuModal','invModal','confirmModal','editModal','delChoiceModal','delMenuModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal','delMenuModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
+['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
 updateLastImport(); updateEditTag();
 
 

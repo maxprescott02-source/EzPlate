@@ -156,7 +156,7 @@ ok('the price jump is flagged', row.classList.contains('needs-attention'));
 ok('THE BUG: the red row still shows its Old price', !!row.querySelector('td.invOld') && !row.querySelector('td.invOld').classList.contains('dash'));
 ok('and its confidence', /82%/.test(row.textContent));
 ok('it is muted but NOT .is-new (so CSS cannot hide those cells)', row.classList.contains('muted-row') && !row.classList.contains('is-new'));
-ok('and says "price jump" in words, not just colour', /price jump/.test(row.textContent));
+ok('and says "price change" in words, not just colour', /price change/.test(row.textContent));   // v44 item 2: token renamed from "price jump"
 
 // P0108 is stored at $2.63/kg. Price it at 2.65 so NO price jump fires — otherwise
 // price jump (correctly) outranks low match and we'd be testing precedence, not the cue.
