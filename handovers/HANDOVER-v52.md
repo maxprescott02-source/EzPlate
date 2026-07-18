@@ -119,6 +119,18 @@ light AND dark with seeded green/amber/red margin data.
   stripe colours at a glance, empty + search-empty states, both themes.
 - The strapline + meta-line copy — reword freely, it's plain text.
 
+## Post-review fixes (Max, same batch pre-merge)
+- **"+ New menu" / "+ Existing dish" now at the shared `.btn` size** (44px,
+  14px, `11px 18px`) — the old `.menu-new-btn` size override (from the picker
+  row it used to live in) was shrinking them vs "+ New ingredient"/"+ New
+  product". Verified computed-equal across all three tabs.
+- **White sliver left of the section banners (desktop):** a 3px collapsed-table
+  `border-left` widened data rows ~1.5px past the banner's edge. The desktop
+  stripe is now an INSET `box-shadow` — paints inside the cell, moves no
+  geometry. (Also caught: the desktop `border-left:0` reset needed (0,3,2)
+  specificity to actually beat the mobile stripe rule — same cascade trap as
+  the stripe itself, commented at the site.)
+
 ## NOT built (out of scope, unchanged)
 - Tidy lists Settings UI (HANDOVER-v40 spec) — still the next feature task.
 - The matched/review-row tick-persistence parallel from v50.
