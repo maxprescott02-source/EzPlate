@@ -12,8 +12,11 @@ data drives real menu decisions. Broken deploys cost money. Work accordingly.
 2. **Ingredients** ("kitchen words") — friendly names (e.g. "Chips") that each
    link to ONE product (`{id, name, pid}`). Recipes cost from these, so swapping
    the linked product once updates every recipe.
-3. **Builder** — assemble a plate from ingredient lines `{kid, qty}` (+ misc
-   cost lines), see total cost, publish to a menu.
+3. **Plates** — the plate library (the tab `data-tab="builder"` is now labelled
+   **"Plates"**, v54). Assemble a plate from ingredient lines `{kid, qty}` (+ misc
+   cost lines) in the builder **popup** (`#builderModal`); **Save** it to the
+   library (published or not); **Publish/Move** to a menu from its card. A plate is
+   independent — it exists menu or no menu.
 4. **Menu analysis** — plate cost vs suggested price at the target food-cost %,
    traffic-light margin health (green/amber/red). Menus are rows in `menu_items`;
    a menu can be deleted (see Hard rules) — dishes on it are always reassigned,
@@ -84,14 +87,16 @@ consistent" has caused rollbacks.
      references a `menu_items` id** (a dish), and THAT is the FK
      `plates_menu_id_fkey`. A write creating a plate for a menu item must not
      race ahead of that menu item's own insert — see Data-write rules.
-7. **Never let a menu deletion delete dishes.** Every delete path reassigns
-   affected dishes — a menu with dishes always sends them to the reserved
-   **"Unassigned dishes"** holding area (`MENU_UNASSIGNED`, v42); an empty menu
-   just relands the view. `fallbackMenuId()` must never return a deleted id, and
-   never the holding area while a real menu exists. The holding area is never
-   deletable and doesn't count as a real menu; the last REAL menu may be deleted
-   only when a holding area will stand afterwards (so at least one selectable
-   menu always remains).
+7. **Menu deletion deletes its dishes and UNLINKS their plates — never the
+   plates.** (v54, reverses v40/v42.) Deleting a menu removes its `menu_items`
+   rows and sets each affected plate's `menu_id` to null; every plate survives in
+   the Plates library, unpublished. There is **no holding area** (`MENU_UNASSIGNED`
+   and its machinery — `ensureUnassignedMenu`/`holdingHasDishes`/`realMenus` — were
+   removed) and **no last-menu guard**: any menu is deletable, including the last,
+   and **zero menus is a legitimate state**. `fallbackMenuId()` never returns a
+   deleted id and returns `null` when no menu exists; `ensureDefaultMenu` seeds
+   "Original" only on a genuinely fresh install (the `cafeDB_menus` key was never
+   written). Publishing when no menu exists prompts to create one first.
 
 ## Cache-version discipline (six spots — easy to get wrong)
 
@@ -292,11 +297,10 @@ merge to `main` as a production deploy.
     sequencing survives). smoke [12] full plate lifecycle, [13] unit-read-only, [14]
     Clear filters.
 
-- **PROPOSED CLAUDE.md rule edits sent to Max, NOT yet applied** (waiting on yes): the
-  "What the app does" §3 (Builder → Plates library + popup) and **hard rule 7** (menu
-  deletion nulls plate links + deletes dishes; holding area / last-menu guard removed).
-  Until Max approves, rule 7 above still describes the OLD holding-area behaviour — the
-  CODE is v54, the rule text is not yet updated. Reconcile on approval.
+- **CLAUDE.md stable-rule edits applied with Max's approval (v54):** "What the app
+  does" §3 (Builder → Plates library + popup) and **hard rule 7** (menu deletion nulls
+  plate links + deletes dishes; holding area / last-menu guard removed) now match the
+  shipped code.
 
 - **Older-batch context still worth knowing (details in the named handovers):**
   invoice new-item form persists via `invRows[i].newItem` snapshot/rehydrate (v50,
