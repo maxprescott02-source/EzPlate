@@ -2108,7 +2108,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    owns the spacing, so the per-card side margins go; empty states span the full grid width. */
 #kingList{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
 #kingList .king-row{margin:0}
-#kingList > .empty,#kingList > .empty-state{grid-column:1 / -1}
+/* v54: empty/no-match states span the whole grid on every card list, so the centred empty-state icon
+   sits in the middle instead of being pinned to column 1 (fixes the Products "padded left" icon; also
+   covers the new Plates grid). */
+#kingList > .empty,#kingList > .empty-state,
+#ingList > .empty-state,#ingList > .ing-empty,
+#plateList > .empty-state,#plateList > .ing-empty{grid-column:1 / -1}
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

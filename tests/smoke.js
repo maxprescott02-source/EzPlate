@@ -276,5 +276,16 @@ $('ig_packUnit').dispatchEvent(new window.Event('change'));
 ok('choosing a pack unit does NOT change the (create-only) unit type', $('ig_unit').value === unitBefore, $('ig_unit').value + ' vs ' + unitBefore);
 $('ingCancel').click();
 
+console.log('\n[14] v54 — Products "Clear filters" button (hidden when inert)');
+window.showTab('ingredients');
+window.renderIngredients();
+ok('Clear filters is hidden when no filter is active', $('ingClearFilters').style.display === 'none', $('ingClearFilters').style.display);
+$('ingSearch').value = 'zzzznomatch';
+window.renderIngredients();
+ok('Clear filters appears once a filter is active', $('ingClearFilters').style.display !== 'none');
+$('ingClearFilters').click();
+ok('clicking it clears the search', $('ingSearch').value === '');
+ok('and it hides itself again', $('ingClearFilters').style.display === 'none');
+
 console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
 process.exit(failures ? 1 : 0);

@@ -922,6 +922,7 @@ function renderIngredients(){
   var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
   var cat=(document.getElementById('ingCatFilter')||{}).value||'';
   var sup=(document.getElementById('ingSupFilter')||{}).value||'';
+  var cf=document.getElementById('ingClearFilters'); if(cf) cf.style.display=(q||cat||sup)?'':'none';   // v54: hidden when nothing is active (matches the app's hide-inert pattern)
   var items=PRODUCTS.filter(function(p){
     if(cat && p.category!==cat) return false;
     if(sup && (p.supplier||'')!==sup) return false;
@@ -1718,6 +1719,12 @@ function renderDashboard(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
+  var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',function(){   // v54: reset search + both filters at once
+    var s=document.getElementById('ingSearch'); if(s) s.value='';
+    var c=document.getElementById('ingCatFilter'); if(c) c.value='';
+    var u=document.getElementById('ingSupFilter'); if(u) u.value='';
+    renderIngredients();
+  });
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
