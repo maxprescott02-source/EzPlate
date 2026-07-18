@@ -1550,20 +1550,31 @@ function tcTicks(target,mn,mx){                                  // v48: 3\u2013
   return out;
 }
 var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
+var AX_CHW=0;         // measured advance of one glyph of the 11px mono axis font (mono: all glyphs equal) — cached once
+function axCharW(){
+  if(AX_CHW) return AX_CHW;
+  try{
+    var mono=(getComputedStyle(document.documentElement).getPropertyValue('--mono')||'monospace').trim();
+    var ctx=document.createElement('canvas').getContext('2d');
+    ctx.font='11px '+mono;
+    AX_CHW=ctx.measureText('0').width||6.6;
+  }catch(e){ AX_CHW=6.6; }                                       // no canvas (jsdom): a Menlo-ish estimate
+  return AX_CHW;
+}
 function trendChart(){
   var pts=dashRangePts();
-  /* v48 GEOMETRY IS CONSTANT — root cause of the "chart moves when I switch ranges" report:
-     the frame never varied (padL was always 40) but tight ranges drew decimal tick labels
-     ("27.5%") that overflowed the gutter and were CLIPPED at the svg's left edge, reading as
-     a font change on a phone. Labels are start-anchored at x=0 and the geometry never varies.
-     v51 (Max, on-phone): the OLD padL=44 gutter pushed the plotted curve ~44px right of the
-     card's text column (title/labels/caption/stats all sit at x=0) — the graph read as
-     "not inline" with the rest of the card. padL is now tiny so the plot starts at the card
-     edge; the y-axis % labels stay start-anchored at x=0 and CENTRED on their value (so the
-     target label still sits exactly on the dashed rule — v48 invariant, pinned by
-     fresh-states.spec.js), riding over the plot's left with their white halo for legibility
-     instead of eating a left gutter. Geometry still never varies between ranges. */
-  var W=320,H=210,padL=4,padR=10,padT=14,padB=20;
+  /* v52 GUTTER GEOMETRY — v51 removed the left gutter so the curve could start at the card's
+     text column, but that drew the plot (fill dots, line) UNDERNEATH the y-axis labels (Max's
+     screenshot: dots surrounding "10%"). The structural fix: ONE gutter constant that every
+     plot element respects. plotLeft = padL = widest tick label (measured in the real 11px mono,
+     axCharW) + 8px gap; labels sit INSIDE the gutter, right-aligned to plotLeft-8, so the widest
+     label's LEFT edge lands at x=0 = the title/caption/stats column, digits sit flush as a
+     column, and ZERO plot pixels (fill, line, dots, target line, crosshair) render left of
+     plotLeft. v48 invariants preserved: geometry constant across ranges (labels are "NN%" =
+     same glyph count for any 2-digit percent, so the measured gutter can't vary between
+     ranges), labels vertically CENTRED on their value so the target tick sits exactly on the
+     dashed rule (pinned by fresh-states.spec.js). */
+  var W=320,H=210,padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -1585,6 +1596,11 @@ function trendChart(){
   var ticks=tcTicks(cogsPct,mn,mx);
   var step=ticks.length>1?ticks[1]-ticks[0]:5;
   mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
+  var fmtTick=function(v){ return (v%1?v.toFixed(1):v.toFixed(0))+'%'; };
+  // v52: the label gutter — sized to the widest tick label so a wide label ("32.5%" from a
+  // decimal target) widens the gutter instead of clipping at the svg edge (the v48 bug)
+  var axGap=8, maxCh=Math.max.apply(null,ticks.map(function(v){ return fmtTick(v).length; }));
+  var padL=Math.ceil(maxCh*axCharW()+axGap);
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
   var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
   var xs=[], ys=[];
@@ -1601,12 +1617,11 @@ function trendChart(){
   var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
-  // v48/v51: labels start-anchored at x=0 (one left edge with the title + caption) so a label can
-  // never overhang the svg's left edge (the clipped-"27.5%" bug), and CENTRED on their value so the
-  // target tick still sits exactly on the dashed rule (v48 invariant, pinned by fresh-states.spec).
-  // v51: with padL≈0 they ride over the plot's left edge (halo keeps them legible) rather than
-  // eating a left gutter — that's what lets the curve start at the card's text column.
-  var axis=ticks.map(function(v){ return '<text class="ax" x="0" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="start">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
+  // v52: labels live INSIDE the gutter, right-aligned to plotLeft-8 so the digits sit flush as a
+  // column whatever each label's width; the gutter is sized to the widest label (see padL above)
+  // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
+  // value so the target tick sits exactly on the dashed rule (v48 invariant, pinned).
+  var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-axGap)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmtTick(v)+'</text>'; }).join('');
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
@@ -1761,7 +1776,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v51';
+var APP_VERSION='v52';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
