@@ -256,11 +256,23 @@ merge to `main` as a production deploy.
   (v42–v48) and `refactor/panel-structure` (v49) merged after Max's phone
   sign-off — the "Needs Max's phone" checklist below is now history, kept for
   the record of what was verified before that merge.
-- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50** —
-  committed, awaiting Max's phone sign-off then merge to `main`. `npm test` =
+- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50 + v51**
+  — committed, awaiting Max's phone sign-off then merge to `main`. `npm test` =
   **139 green**, jsdom smoke green, `node -c` clean, 34 Playwright checks pass,
-  all six spots at **v50**. See `handovers/HANDOVER-v50.md` incl. its
-  needs-phone list (the item-1 invoice repro is the key one).
+  all six spots at **v51**. See `handovers/HANDOVER-v50.md` and `-v51.md` incl.
+  their needs-phone lists (the item-1 invoice repro + the chart alignment).
+- **v51 shipped (see `handovers/HANDOVER-v51.md`) — dashboard chart alignment,
+  reversing v50's item-3 "no change":** on his phone Max clarified the real
+  issue wasn't caption-vs-axis but that the **plotted curve started ~44px right
+  of the card's text column** (h2 / title / labels / caption / stats all sit at
+  x=0; the curve was inset by the y-axis-label gutter `padL=44`). Fix:
+  **`padL=4`** so the plot begins at the text column; the y-axis % labels stay
+  start-anchored at x=0 and **centred on their value** (so the target tick still
+  sits exactly on the dashed rule — v48 invariant, pinned), now overlaying the
+  plot's left with their halo instead of eating a gutter. **Pinned-test change
+  (declared):** `fresh-states.spec.js`'s v48 `maxLblRight <= plotLeftPx` pin
+  ("labels end before the gutter") is replaced by the v51 pin (plot hugs the
+  text column, no gutter) — all other chart pins unchanged and green.
 - **v50 shipped (see `handovers/HANDOVER-v50.md`):**
   1. **Invoice new-item form now persists across re-renders (FRAGILE AREA).**
      Root cause: the "+ New" inline form's fields + Apply tick lived only in the
@@ -278,10 +290,11 @@ merge to `main` as a production deploy.
      exact repro).
   2. **"+ New menu" is now `btn primary`** (was plain), matching "+ New
      ingredient"/"+ New product"; "+ Existing dish" stays plain by design.
-  3. **Chart caption alignment: NO change** — diagnosed (Playwright measurement)
-     that the caption already shares one left edge with the axis labels + title
-     + all card headers; only the curve is inset (its `padL` gutter, v48 rule
-     intact). Max saw both options rendered and chose leave-as-is.
+  3. **Chart caption alignment: no change in v50** — measured the caption
+     already shares one left edge with the axis labels + title + all card
+     headers; Max chose leave-as-is on the caption. (Superseded in **v51**: on
+     his phone Max identified the real issue as the plotted CURVE being inset,
+     not the caption — see the v51 bullet above.)
   - **Known un-fixed parallel (flagged, out of scope):** ticking a
     *matched/review* row then editing another row still drops that tick (same
     class as item 1, but item 1 was scoped to the new-item form). Follow up if

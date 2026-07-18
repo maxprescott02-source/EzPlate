@@ -590,7 +590,12 @@ for (const size of SIZES) {
       expect(st.targetTick, `${rg}: the target value IS one of the labelled ticks`).toBe(true);
       expect(st.lblLeft - st.titleLeft, `${rg}: y labels share the title's left edge`).toBeLessThanOrEqual(1.5);
       expect(st.lblLeft - st.titleLeft, `${rg}: y labels share the title's left edge`).toBeGreaterThanOrEqual(-1.5);
-      expect(st.maxLblRight, `${rg}: the widest label ends before the plot gutter — nothing can clip`).toBeLessThanOrEqual(st.plotLeftPx);
+      // v51 (replaces the v48 "labels end before the plot gutter" pin): the y labels now OVERLAY the
+      // plot (start-anchored at x=0, white halo keeps them legible) so there is NO left gutter — the
+      // plotted curve begins at the card's text column instead of ~44px right of it (Max's on-phone
+      // "graph not inline with the card" report). Pin the plot's left edge hugging the title/label edge.
+      expect(st.plotLeftPx - st.titleLeft, `${rg}: the plot starts at the card's text column (no y-axis gutter)`).toBeLessThanOrEqual(10);
+      expect(st.plotLeftPx - st.titleLeft, `${rg}: the plot does not overshoot left of the text column`).toBeGreaterThanOrEqual(-1.5);
       expect(st.bezier, `${rg}: smooth curve (cubic segments)`).toBe(true);
       expect(st.pattern, `${rg}: dotted area fill`).toBe(true);
       expect(st.clipGroups, `${rg}: bright + dim groups`).toBe(2);

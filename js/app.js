@@ -1554,12 +1554,16 @@ function trendChart(){
   var pts=dashRangePts();
   /* v48 GEOMETRY IS CONSTANT — root cause of the "chart moves when I switch ranges" report:
      the frame never varied (padL was always 40) but tight ranges drew decimal tick labels
-     ("27.5%") that overflowed the 33-unit gutter and were CLIPPED at the svg's left edge,
-     reading as a font change on a phone. Labels are now start-anchored at x=0 (one left edge
-     with the title + caption) and padL clears the widest possible label ("27.5%" in the mono
-     stack ≈ 33 units) for every range. padB back to 20: the x-axis date labels are gone
-     (range buttons state the window; the scrub tooltip gives exact dates). */
-  var W=320,H=210,padL=44,padR=10,padT=14,padB=20;
+     ("27.5%") that overflowed the gutter and were CLIPPED at the svg's left edge, reading as
+     a font change on a phone. Labels are start-anchored at x=0 and the geometry never varies.
+     v51 (Max, on-phone): the OLD padL=44 gutter pushed the plotted curve ~44px right of the
+     card's text column (title/labels/caption/stats all sit at x=0) — the graph read as
+     "not inline" with the rest of the card. padL is now tiny so the plot starts at the card
+     edge; the y-axis % labels stay start-anchored at x=0 and CENTRED on their value (so the
+     target label still sits exactly on the dashed rule — v48 invariant, pinned by
+     fresh-states.spec.js), riding over the plot's left with their white halo for legibility
+     instead of eating a left gutter. Geometry still never varies between ranges. */
+  var W=320,H=210,padL=4,padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -1597,9 +1601,11 @@ function trendChart(){
   var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
-  // v48: labels start-anchored at x=0 — one left edge with the title and caption, and a label
-  // can never overhang the svg's left edge again (the clipped-"27.5%" bug). One of these ticks
-  // IS the target (tcTicks anchors on it), which is why the dashed line needs no word of its own.
+  // v48/v51: labels start-anchored at x=0 (one left edge with the title + caption) so a label can
+  // never overhang the svg's left edge (the clipped-"27.5%" bug), and CENTRED on their value so the
+  // target tick still sits exactly on the dashed rule (v48 invariant, pinned by fresh-states.spec).
+  // v51: with padL≈0 they ride over the plot's left edge (halo keeps them legible) rather than
+  // eating a left gutter — that's what lets the curve start at the card's text column.
   var axis=ticks.map(function(v){ return '<text class="ax" x="0" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="start">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
@@ -1755,7 +1761,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v50';
+var APP_VERSION='v51';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
