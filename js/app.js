@@ -129,7 +129,7 @@ async function bootstrapSync(){
     var menuPushById={};
     recMenu.localOnly.filter(function(c){return c.custom;}).forEach(function(c){ menuPushById[c.id]=dbPushMenu(c); });   // re-push orphaned dishes; their promises let dependent plate re-pushes wait
     try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
-    ensureDefaultMenu(); ensureUnassignedMenuIfReferenced(); saveMenus();   // v42: if the menus-table snapshot dropped the holding area but dishes still point at it, bring it back
+    ensureDefaultMenu(); saveMenus();   // v54: seed Original only on a fresh install; a synced empty menus set is respected (zero menus is legitimate)
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     // v42 (Item 1): same heal for plates — a local-only plate (its push was dropped offline) must survive the
     // reload, not be clobbered. Re-push each AFTER its referenced dish's re-push (menuPushById) so we never
@@ -533,37 +533,22 @@ let customMenu=loadCustomMenu();
 function loadMenus(){ try{ var a=JSON.parse(localStorage.getItem('cafeDB_menus')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function saveMenus(){ try{ localStorage.setItem('cafeDB_menus', JSON.stringify(menusList)); }catch(e){} }
 var menusList=loadMenus();
-var MENU_UNASSIGNED='MENU_UNASSIGNED';                              // v42: reserved holding "menu" for dishes whose menu was deleted ("Unassigned dishes")
-var UNASSIGNED_NAME='Unassigned dishes';
-function realMenus(){ return menusList.filter(function(m){return m.id!==MENU_UNASSIGNED;}); }   // v42: the holding area is NOT a real menu — it never counts toward "how many menus exist"
-function ensureDefaultMenu(){ if(!realMenus().length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }   // v40/v42: seed Original only when NO real menu exists (holding area alone doesn't count) — never resurrect a deliberately deleted Original
+// v54: plates are an independent library, so the "Unassigned dishes" holding area (v40/v42) is GONE.
+// Menus reference plates; deleting a menu deletes its dishes and UNLINKS (never deletes) their plates,
+// which live on in the Plates tab. With plates able to stand alone, ZERO menus is a legitimate state.
+function menusKeyExists(){ try{ return localStorage.getItem('cafeDB_menus')!=null; }catch(e){ return false; } }
+// Seed "Original menu" only on a genuinely fresh install — i.e. the menus key was never written. Once the
+// user has created OR deleted menus (either writes the key), we respect exactly what's there, including none.
+function ensureDefaultMenu(){ if(!menusList.length && !menusKeyExists()) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
 ensureDefaultMenu();
-// v42: bring the holding area into existence on demand, pushing its record BEFORE any dish is reassigned into
-// it (so if menu_items.menu_id is FK-enforced against a menus table, the row is already there). Returns the
-// push promise (or null if it already existed / no client) so callers can sequence the reassignment.
-function ensureUnassignedMenu(){
-  if(menusList.some(function(m){return m.id===MENU_UNASSIGNED;})) return null;
-  menusList.push({id:MENU_UNASSIGNED,name:UNASSIGNED_NAME,season:null}); saveMenus();
-  return (typeof dbUpsertMenuRecord==='function')?dbUpsertMenuRecord({id:MENU_UNASSIGNED,name:UNASSIGNED_NAME,season:null}):null;
+function fallbackMenuId(){                                          // v54: never a deleted id; null when no menu exists (a valid zero-menu state)
+  if(menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
+  return (menusList[0] && menusList[0].id) || null;
 }
-function holdingHasDishes(){ return (typeof customMenu!=='undefined') && customMenu.some(function(c){return (c.menuId||'MENU_ORIGINAL')===MENU_UNASSIGNED;}); }
-function ensureUnassignedMenuIfReferenced(){ if(holdingHasDishes()) ensureUnassignedMenu(); }   // v42: self-heal — keep the holding area present locally whenever a dish still points at it
-function fallbackMenuId(){                                          // v40/v42: a current-menu fallback that never returns a deleted id, and never the holding area while a real menu exists
-  var real=realMenus();
-  if(real.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
-  if(real[0]) return real[0].id;
-  return (menusList[0] && menusList[0].id) || 'MENU_ORIGINAL';     // only the holding area (or nothing) remains
-}
-function canDeleteMenu(id){                                         // v40/v42: the holding area is never deletable; a real menu is deletable unless that would leave NO selectable menu
-  if(id===MENU_UNASSIGNED) return false;
-  if(!menusList.some(function(m){return m.id===id;})) return false;
-  if(realMenus().some(function(m){return m.id!==id;})) return true;                 // another real menu will remain
-  if(menusList.some(function(m){return m.id===MENU_UNASSIGNED;})) return true;      // holding area already stands
-  return (typeof customMenu!=='undefined') && customMenu.some(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});   // last real menu, but its dishes will spawn the holding area
-}
+function canDeleteMenu(id){ return menusList.some(function(m){return m.id===id;}); }   // v54: any existing menu may be deleted — deleting the last one is legitimate now
 function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||'MENU_ORIGINAL'; }catch(e){ return 'MENU_ORIGINAL'; } }
 var currentMenuId=loadCurrentMenuId();
-function setCurrentMenuId(id){ currentMenuId=id||'MENU_ORIGINAL'; try{ localStorage.setItem('cafeDB_currentMenuId', currentMenuId); }catch(e){} }
+function setCurrentMenuId(id){ currentMenuId=id||null; try{ localStorage.setItem('cafeDB_currentMenuId', currentMenuId||''); }catch(e){} }   // v54: null is valid (no menus)
 function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
 let MENU=[],menuById={};
 function rebuildMenu(){
@@ -582,7 +567,6 @@ function upsertCustomMenu(item){
 }
 var deletedMenuIds=loadDeletedMenu();
 rebuildMenu();
-ensureUnassignedMenuIfReferenced();   // v42: on cold start, show the holding area if any saved dish already lives in it
 function loadCogs(){ try{ var v=parseFloat(localStorage.getItem('cafeDB_cogsPct')); if(v>=1&&v<=99) return v; }catch(e){} return 40; }
 var cogsPct = loadCogs();                                  // target food cost, as a percent (e.g. 40)
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
@@ -664,30 +648,10 @@ function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushProm
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
   savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
 }
-// v44 item 9 (Max's call): "Save to Library" confused people — drafts were invisible. A draft now
-// becomes a dish in the "Unassigned dishes" holding menu, so it's findable in the menu selector.
-// A plate already linked to a dish (published OR drafted) keeps plain-save behaviour; loading
-// previously saved plates is untouched. Rides the v42 machinery: ensureUnassignedMenu pushes the
-// menus row first, and the plate write is sequenced after the dish write (dbPushPlateAfterMenu).
-function saveDraft(){
-  if(!plate.length){toast('Add ingredients to the plate first');return;}
-  if(menuLinkEl.value && menuById[menuLinkEl.value]){ saveCurrentPlate(false); return; }   // already a dish: plain save
-  var rawName=(document.getElementById('plateName').value||'').trim();
-  var pErr=document.getElementById('plateNameErr');
-  if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return; }
-  if(pErr) pErr.style.display='none';
-  ensureUnassignedMenu();
-  var targetId='um'+Date.now().toString(36);
-  customMenu.push({id:targetId,section:'Drafts',name:rawName,price:0,notes:'',custom:true,menuId:MENU_UNASSIGNED,sourcePlateId:null});
-  saveCustomMenu();
-  var menuItemPush=dbPushMenu({id:targetId,section:'Drafts',name:rawName,price:0,notes:null,menuId:MENU_UNASSIGNED,sourcePlateId:null});
-  rebuildMenu(); buildMenuOptions(); buildMenuSelector();             // the holding area appears in the selector now that it has a dish
-  menuLinkEl.value=targetId; menuTouched=true;
-  saveCurrentPlate(false, menuItemPush);                              // plate write waits for the dish write — same contract as publish
-  updatePublishLabel();
-  toast('Draft saved to “Unassigned dishes”');
-}
-document.getElementById('saveBtn').addEventListener('click',saveDraft);
+// v54: a "draft" is simply a saved, unpublished plate now (the holding-area draft flow is removed). The
+// builder's Save writes the plate with no menu link unless it's an already-published plate being edited;
+// publishing is a separate action from the Plates tab. Section 2 replaces this button with a single Save.
+(function(){ var sb=document.getElementById('saveBtn'); if(sb) sb.addEventListener('click',function(){ saveCurrentPlate(false); }); })();
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
@@ -3168,24 +3132,19 @@ function renderAnalysis(){
 function buildMenuSelector(){
   var sel=document.getElementById('menuSelect');
   if(sel){
-    if(!menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();
-    var visible=menusList.filter(function(m){ return m.id!==MENU_UNASSIGNED || holdingHasDishes(); });   // v42: the holding area shows only while it holds dishes
-    if(!visible.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();          // never leave the view on a now-hidden empty holding area
-    sel.innerHTML=visible.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+(m.id===MENU_UNASSIGNED?' data-holding="1"':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
-    sel.value=currentMenuId;
+    if(menusList.length && !menusList.some(function(m){return m.id===currentMenuId;})) currentMenuId=fallbackMenuId();
+    sel.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'"'+(m.id===currentMenuId?' selected':'')+'>'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
+    if(currentMenuId) sel.value=currentMenuId;
   }
   updateMenuDelBtn();
   buildMenuPickers();
 }
 function buildMenuPickers(){                                   // fill the menu <select>s inside the Publish + Edit modals
-  var real=realMenus();
-  var holdingOpt=holdingHasDishes()?menusList.filter(function(m){return m.id===MENU_UNASSIGNED;}):[];   // only surface the holding area where a dish already sits in it
   ['mi_menu','ed_menu'].forEach(function(id){
     var s=document.getElementById(id); if(!s) return;
     var cur=s.value||currentMenuId;
-    var list=(id==='ed_menu')?real.concat(holdingOpt):real;    // v42: never publish a NEW dish into the holding area; editing can move one OUT of it
-    s.innerHTML=list.map(function(m){ return '<option value="'+esc(m.id)+'">'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
-    if(list.some(function(m){return m.id===cur;})) s.value=cur;
+    s.innerHTML=menusList.map(function(m){ return '<option value="'+esc(m.id)+'">'+esc(m.name)+(m.season?(' \u2014 '+esc(m.season)):'')+'</option>'; }).join('');
+    if(menusList.some(function(m){return m.id===cur;})) s.value=cur;
   });
 }
 function onMenuSelectChange(){
@@ -3193,34 +3152,34 @@ function onMenuSelectChange(){
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
-// v42: delete a menu \u2014 its dishes are ALWAYS moved to `dest` (never deleted), the menu row is dropped, and the
-// user lands on `dest`. When dest is the holding area, create+push it FIRST so no dish references a menus row
-// that isn't there yet.
-function doDeleteMenu(id, dest, name){
-  if(dest===MENU_UNASSIGNED) ensureUnassignedMenu();
+// v54: delete a menu \u2014 its dishes (menu_items rows) are removed and their plates are UNLINKED (menu_id \u2192 null),
+// so every plate survives in the Plates library, just unpublished. No reassignment, no holding area. Dishes go
+// first, then the menu row (dishes already gone, so the menu_items.menu_id FK can never be violated).
+function doDeleteMenu(id, name){
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
-  affected.forEach(function(c){ c.menuId=dest; dbPushMenu(c); });   // reassign, never delete the dishes
-  if(affected.length) saveCustomMenu();
+  var unlinked=0;
+  affected.forEach(function(c){
+    savedPlates.forEach(function(sp){ if(sp.menuId===c.id){ sp.menuId=null; dbPushPlate(sp); unlinked++; } });   // keep the plate, drop the link
+    removeMenuItem(c.id);                                                                                        // delete the dish (+ tombstone if it was a base item)
+  });
+  if(unlinked) savePlatesLS();
   menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
-  setCurrentMenuId(dest);
-  rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn();
-  toast('\u201c'+name+'\u201d deleted \u2014 '+(affected.length?('dishes moved to \u201c'+menuNameById(dest)+'\u201d'):'no dishes to move'));
+  setCurrentMenuId(fallbackMenuId());
+  rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  toast('\u201c'+name+'\u201d deleted'+(unlinked?(' \u2014 '+unlinked+' plate'+(unlinked===1?'':'s')+' kept in your library'):''));
 }
-// v42: single confirm, no picker. A menu with dishes always sends them to the "Unassigned dishes" holding area;
-// an empty menu just lands the view on a surviving real menu.
+// v54: single confirm. Deleting a menu removes its dishes and UNLINKS their plates \u2014 the plates stay in the
+// Plates library, unpublished; nothing about a plate's cost is lost. Any menu may be deleted (incl. the last).
 function deleteCurrentMenu(){
   var id=currentMenuId;
   if(!canDeleteMenu(id)){ toast('This menu can\u2019t be deleted'); return; }
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
-  var dest, nm=m.name;
-  if(affected.length){ dest=MENU_UNASSIGNED; }
-  else { var others=realMenus().filter(function(x){return x.id!==id;});
-    dest=others.some(function(x){return x.id==='MENU_ORIGINAL';})?'MENU_ORIGINAL':(others[0]?others[0].id:MENU_UNASSIGNED); }
+  var nm=m.name;
   var msg=affected.length
-    ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' move to \u201c'+UNASSIGNED_NAME+'\u201d \u2014 nothing is lost.')
+    ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' come off the menu \u2014 the plate'+(affected.length===1?'':'s')+' stay in your Plates library, unpublished.')
     : ('Delete \u201c'+m.name+'\u201d? It has no dishes.');
-  askConfirm('Delete menu?', msg, 'Delete menu', function(){ doDeleteMenu(id, dest, nm); });
+  askConfirm('Delete menu?', msg, 'Delete menu', function(){ doDeleteMenu(id, nm); });
 }
 function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=canDeleteMenu(currentMenuId)?'':'none'; }
 
