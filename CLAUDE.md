@@ -250,18 +250,42 @@ merge to `main` as a production deploy.
 
 ## State as of 18 Jul 2026 (verify, don't trust)
 
-- `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
-  `origin/main`, commit `da27ae7`). That IS the live/deployed app.
-- Branch `fix/pack-control-and-menus` (off `main`) carries **v42–v48** —
-  committed and pushed (v48 = `d6573f0`, the final pre-merge patch: chart
-  declutter + target-anchored ticks + menu rhythm). Awaiting Max's phone
-  sign-off, then merge to `main`.
-- Branch `refactor/panel-structure` (off `fix/pack-control-and-menus`) carries
-  **v49 (cross-tab panel-skeleton refactor), uncommitted as of this writing**.
-  Merges AFTER the v42–v48 branch. `npm test` = **138 green**, `node -c` clean,
-  jsdom smoke passes, **44 Playwright checks pass** (42 prior — one pantry
-  check updated for the real-h2 header — + 2 new consistency checks), all six
-  version spots at **v49**.
+- `main` is at **v49** (confirmed live/deployed — `APP_VERSION='v49'` in
+  `js/app.js`, `CACHE = 'ezplate-v49'` in `sw.js`, verified against
+  `origin/main` after a fast-forward pull). Both `fix/pack-control-and-menus`
+  (v42–v48) and `refactor/panel-structure` (v49) merged after Max's phone
+  sign-off — the "Needs Max's phone" checklist below is now history, kept for
+  the record of what was verified before that merge.
+- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50** —
+  committed, awaiting Max's phone sign-off then merge to `main`. `npm test` =
+  **139 green**, jsdom smoke green, `node -c` clean, 34 Playwright checks pass,
+  all six spots at **v50**. See `handovers/HANDOVER-v50.md` incl. its
+  needs-phone list (the item-1 invoice repro is the key one).
+- **v50 shipped (see `handovers/HANDOVER-v50.md`):**
+  1. **Invoice new-item form now persists across re-renders (FRAGILE AREA).**
+     Root cause: the "+ New" inline form's fields + Apply tick lived only in the
+     DOM, so any edit to another row (which calls `renderInvReview` →
+     `box.innerHTML`) wiped them. Fix: form state lives on the (previously dead)
+     `invRows[i].newItem`. `renderInvReview` **snapshots every open form BEFORE
+     the wipe** (`niSnapshot`) and **rehydrates after** (`niRehydrate`) — one
+     render path, no per-cell poking (v33 holds). Snapshot is **guarded on
+     `r.newItem` truthy** so a fresh `addNew` row can't absorb a stale form left
+     by a prior import (a bleed the first cut introduced; the smoke test caught
+     it). Tick persists via `checked ||= !!(r.newItem&&r.newItem.approved)` —
+     **v39 auto-tick pin still holds** (rows with no `newItem` unchanged).
+     Pinned by `tests/inv-rowmarkup.test.js` (markup/tick, default suite) +
+     `tests/smoke.js` section [11] (jsdom field+tick round-trip = the brief's
+     exact repro).
+  2. **"+ New menu" is now `btn primary`** (was plain), matching "+ New
+     ingredient"/"+ New product"; "+ Existing dish" stays plain by design.
+  3. **Chart caption alignment: NO change** — diagnosed (Playwright measurement)
+     that the caption already shares one left edge with the axis labels + title
+     + all card headers; only the curve is inset (its `padL` gutter, v48 rule
+     intact). Max saw both options rendered and chose leave-as-is.
+  - **Known un-fixed parallel (flagged, out of scope):** ticking a
+    *matched/review* row then editing another row still drops that tick (same
+    class as item 1, but item 1 was scoped to the new-item form). Follow up if
+    it bites.
 - **v49 shipped (structural, skeleton approved by Max — see
   `handovers/HANDOVER-v49.md`):** every tab is ONE skeleton — `.panel > h2`
   (small-caps title, divider on its border-bottom) `> .panel-actions` (primary
@@ -323,14 +347,14 @@ merge to `main` as a production deploy.
   auto-moves dishes to the holding area behind ONE confirm (`fallbackMenuId`/
   `canDeleteMenu` reworked, `realMenus()` added). See `handovers/HANDOVER-v42.md`
   incl. the read-only orphan diagnostic snippet.
-- **Needs Max's phone (branch preview) before merge** — the v42 and v44–v49
-  handover lists (v49's list is on its own branch preview). **Export a JSON backup first.** Highlights: publish to an
-  EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
-  dishes" and survive reload; real invoice import (pack control + preview +
-  flag pills on real titles); builder at 380px with a real plate; the rebuilt
-  chart — scrub feel on a real finger, switch all six ranges (ONLY the trendline
-  may move), tap it (no blue box), set target to 32% (tick must sit on the
-  dashed line), both themes; Menu tab header rhythm.
-- Next up: (a) Max's phone sign-off, then merge `fix/pack-control-and-menus`
-  to `main`, THEN merge `refactor/panel-structure`; (b) the Tidy lists Settings
-  UI (`HANDOVER-v40.md` spec) is STILL not built — next feature task.
+- **Verified on Max's phone before the v42–v49 merge** (checklist kept for
+  reference): publish to an EXISTING menu (no FK error); delete a menu →
+  dishes land in "Unassigned dishes" and survive reload; real invoice import
+  (pack control + preview + flag pills on real titles); builder at 380px with
+  a real plate; the rebuilt chart — scrub feel on a real finger, switch all six
+  ranges (ONLY the trendline may move), tap it (no blue box), set target to
+  32% (tick must sit on the dashed line), both themes; Menu tab header rhythm.
+- Next up: (a) Max's phone sign-off on **v50** (`fix/invoice-new-item-state`),
+  then merge to `main`; (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec)
+  is STILL not built — next feature task; (c) optional: the matched/review-row
+  tick-persistence parallel flagged in v50 (see HANDOVER-v50).

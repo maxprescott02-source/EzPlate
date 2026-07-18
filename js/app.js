@@ -1755,7 +1755,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v49';
+var APP_VERSION='v50';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2610,6 +2610,31 @@ function resolveCombo(inpId, listFn){
   return {ok:false, value:v};
 }
 function niLab(t){ return '<span class="ni-lab">'+t+'<span class="ni-af">auto-filled</span></span>'; }   /* v37 */
+/* v50 item 1 ROOT CAUSE: the new-item form's values + Apply tick lived ONLY as uncontrolled DOM inputs.
+   Any edit to another row calls renderInvReview() -> box.innerHTML=html, which destroyed the form and
+   recomputed the tick from invRowState (='new' -> unticked) — so an in-progress new item silently
+   cleared. Fix: the form state lives on invRows[i].newItem. niSnapshot reads the live form (fields +
+   combo state + the row's Apply tick); niRehydrate writes it back after a rebuild. renderInvReview
+   snapshots every OPEN form BEFORE the wipe, then rehydrates after — no per-cell poking (v33 holds). */
+var NI_COMBOS=['brand','cat','sup','king'];
+function niSnapshot(i){
+  if(!document.getElementById('ni_name'+i)) return null;           // form not built for this row -> nothing to capture
+  var g=function(id){ var e=document.getElementById(id); return e?e.value:''; };
+  var combos={};
+  NI_COMBOS.forEach(function(f){ var st=niCombos['ni_'+f+i]||{}; combos[f]={value:(st.value||''), isNew:!!st.isNew, confirmed:!!st.confirmed}; });
+  var tr=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]'), ap=tr&&tr.querySelector('.invAppr');
+  var prev=invRows[i]&&invRows[i].newItem;
+  return { name:g('ni_name'+i), unit:g('ni_unit'+i), price:g('ni_price'+i), pack:g('ni_pack'+i),
+           brand:g('ni_brand'+i), cat:g('ni_cat'+i), sup:g('ni_sup'+i), king:g('ni_king'+i),
+           combos:combos, approved:(ap?!!ap.checked:(prev?!!prev.approved:false)) };
+}
+function niRehydrate(i){
+  var s=invRows[i]&&invRows[i].newItem; if(!s) return;
+  var set=function(id,v){ var e=document.getElementById(id); if(e&&v!=null) e.value=v; };
+  set('ni_name'+i,s.name); set('ni_unit'+i,s.unit); set('ni_price'+i,s.price); set('ni_pack'+i,s.pack);
+  NI_COMBOS.forEach(function(f){ var id='ni_'+f+i, e=document.getElementById(id), c=s.combos&&s.combos[f];
+    if(c){ if(e) e.value=(c.value||''); niCombos[id]={value:(c.value||''), isNew:!!c.isNew, confirmed:!!c.confirmed}; } });
+}
 function expandNewItem(i){
   var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(!nirow) return;
   var panel=nirow.querySelector('.ni-panel'), r=invRows[i];
@@ -2648,11 +2673,14 @@ function expandNewItem(i){
     if(invSupplier){ var _si=document.getElementById('ni_sup'+i); if(_si){ _si.value=invSupplier; var _st=niCombos['ni_sup'+i]; if(_st){ _st.value=invSupplier; _st.confirmed=true; _st.isNew=!prodSuppliers().some(function(x){return x.toLowerCase()===invSupplier.toLowerCase();}); } } }
   }
   nirow.style.display='';
+  // v50 item 1: first open -> snapshot the prefilled defaults onto the row; every later (re)build ->
+  // rehydrate from what the user had typed, so an unrelated re-render can't wipe an in-progress item.
+  if(r.newItem){ niRehydrate(i); } else { r.newItem=niSnapshot(i); }
 }
 function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
-  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; }   /* dismissing the form = this line is neither new nor matched (skip) */
+  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; r.newItem=null; }   /* dismissing the form = this line is neither new nor matched (skip); drop its saved form state */
   renderInvReview();                                               /* ITEM 1 (v33): single render path rebuilds the row (dropdown back to "assign manually", labelled dashes, unticked) */
 }
 function invUnitToBase(unitType){
@@ -2723,6 +2751,7 @@ function invPackPreviewText(r, q, u){
   return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit');
 }
 function renderInvReview(){
+  invRows.forEach(function(r,i){ if(r&&r.addNew&&r.newItem){ var s=niSnapshot(i); if(s) r.newItem=s; } });   // v50 item 1: capture an OPEN new-item form before innerHTML wipes it. Guarded on r.newItem so a fresh addNew row (newItem:null) can't absorb a stale form left in the DOM by a previous invRows/import — only a form THIS row actually opened is re-captured.
   invRows.forEach(flagNeedsAttention);                              // ensure needsAttention is current for EVERY row before we count
   var states=invRows.map(invRowState);
   var matched=states.filter(function(s){return s==='matched';}).length;
@@ -2777,7 +2806,7 @@ function renderInvReview(){
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
-    var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
+    var checked = (invRowState(r)==='matched') || !!(r.newItem && r.newItem.approved);  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick. v50 item 1: once the user ticks a new-item row, that tick persists on r.newItem so a re-render can't drop it (v39 still holds — rows with no newItem never pre-tick)
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
@@ -2858,6 +2887,13 @@ function renderInvReview(){
     var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=false;   // v39: new items are ticked by the user once the form is filled
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
+  invRows.forEach(function(r,i){                                   // v50 item 1: re-open + rehydrate any new-item form that was open before this rebuild
+    if(r&&r.addNew&&r.newItem){
+      expandNewItem(i);
+      var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]'), fb=fresh&&fresh.querySelector('.ni-add-btn');
+      if(fb){ fb.classList.add('open'); fb.textContent='Editing new item ↓'; }
+    }
+  });
   updateLastImport();
 }
 var PRICE_JUMP=0.12;                                              // >12% move vs the stored price is worth a glance
@@ -2876,7 +2912,7 @@ function flagNeedsAttention(row){                                  // ITEM 4: on
 function invSelChanged(tr){
   var i=parseInt(tr.dataset.i,10), r=invRows[i]; if(!r) return;
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
-  r.addNew=false; collapseNewItem(i);
+  r.addNew=false; r.newItem=null; collapseNewItem(i);   // v50 item 1: picking a real match abandons any in-progress new-item form
   if(sel.value==='skip'){ r.bestId=null; r.manualPick=false; r.needsAttention=false; renderInvReview(); return; }  // one render path — no per-cell poking
   // switching the matched product: throw away any half-done pack-teach state and resolve cleanly for the NEW product
   r.remembered=false; r.unitMismatch=false; r.needManual=(r.unitPrice==null); r.taughtQty=null; r.taughtUnit=null; r.packTaught=false; r.unit=(r.rawUnit||r.unit||'auto');

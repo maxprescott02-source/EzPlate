@@ -156,6 +156,20 @@ test('v39: only a clean matched row renders pre-ticked — flagged/new rows neve
   assert.ok(/invAppr" checked/.test(clean), 'a clean hi match still auto-ticks');
 });
 
+test('v50 item 1: a new-item row persists its ticked state across re-renders (newItem.approved drives the box, v39 still holds)', () => {
+  const base = Object.assign(attentionRow(), { addNew: true, bestId: null, needsAttention: false });
+  // no form yet -> unticked (v39: a new row is never auto-ticked by the renderer)
+  const fresh = buildRow(Object.assign({}, base, { newItem: null }), 0);
+  assert.ok(!/invAppr" checked/.test(fresh), 'a brand-new add-new row is not pre-ticked');
+  // form open but not yet ticked by the user -> still unticked
+  const open = buildRow(Object.assign({}, base, { newItem: { approved: false } }), 0);
+  assert.ok(!/invAppr" checked/.test(open), 'an open-but-unticked new-item form stays unticked');
+  // user ticked it -> a subsequent re-render must keep it ticked (THE BUG this batch fixes)
+  const ticked = buildRow(Object.assign({}, base, { newItem: { approved: true } }), 0);
+  assert.ok(/invAppr" checked/.test(ticked), 'once the user ticks a new item, a re-render keeps it ticked');
+  assert.ok(/ st-new"/.test(ticked), 'and the row is still st-new (a filled new item is not "matched")');
+});
+
 test('ITEM 1: a hand-picked match is never called a low match — the user already made that call', () => {
   const r = Object.assign(attentionRow(), { manualPick: true, bestId: 'P0999', needsAttention: false });
   const html = buildRow(r, 0);
