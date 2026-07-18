@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=48">
+<link rel="stylesheet" href="css/style.css?v=49">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -74,14 +74,14 @@
 
   <div class="panel" id="docketPanel">
     <h2>The plate</h2>
-    <div class="pad" style="padding-bottom:0">
+    <div class="pad">
       <label class="f" for="plateName">Plate name</label>
       <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
       <div class="ferr" id="plateNameErr" style="display:none"></div>
       <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
       <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
     </div>
-    <div class="docket-head" style="margin-top:14px">
+    <div class="docket-head">
       <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
     </div>
     <div id="lines"></div>
@@ -137,13 +137,13 @@
 
   <div id="tab-pantry" style="display:none">
     <div class="panel king-panel">
-      <div class="king-head">
-        <h3>Ingredients</h3>
-        <!-- v45 item 3: same order as Products — title, divider, buttons row, strapline -->
+      <!-- v49: canonical panel skeleton — a REAL .panel h2 (was an h3 styled to match by three
+           generations of overrides), then the shared actions row. All ids unchanged. -->
+      <h2>Ingredients</h2>
+      <div class="king-head panel-actions">
         <button class="btn primary" id="kingNew" type="button">+ New<span class="btn-noun"> ingredient</span></button>
-        <!-- v46 item 2: plain .btn = the same outlined treatment as Products' "Import invoice" (ghost read as bare text) -->
         <button class="btn" id="kingWizBtn" type="button" style="display:none">Set up<span class="btn-noun"> from products</span></button>
-        <span class="king-sub">Kitchen words for recipes — each one links to a product you buy</span>
+        <span class="king-sub panel-sub">Kitchen words for recipes — each one links to a product you buy</span>
       </div>
       <div class="king-progress" id="kingProgress" style="display:none"></div>
       <div class="menu-search king-search">
@@ -158,11 +158,11 @@
   <div id="tab-ingredients" style="display:none">
     <div class="panel">
       <h2>Products</h2>
-      <div class="ing-tools">
+      <div class="ing-tools panel-actions">
         <button class="btn primary newbtn" id="newBtn" type="button">+ New<span class="btn-noun"> product</span></button>
         <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
       </div>
-      <p class="hint" id="lastImport" style="margin:8px 16px 0">No invoice imported yet</p>
+      <p class="hint panel-meta" id="lastImport">No invoice imported yet</p>
       <div class="ing-controls">
         <div class="menu-search">
           <input id="ingSearch" type="search" placeholder="Search products…" autocomplete="off">
@@ -171,7 +171,7 @@
         <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
         <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier"></select>
       </div>
-      <p class="hint ing-count" id="ingCount" style="padding:2px 16px 0"></p>
+      <p class="hint ing-count panel-meta" id="ingCount"></p>
       <div id="ingList" class="ing-list"></div>
     </div>
   </div><!-- /tab-ingredients (LABEL: Products) -->
@@ -496,7 +496,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=48"></script>
+<script src="js/app.js?v=49"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

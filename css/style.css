@@ -357,10 +357,12 @@ input[type=checkbox]{
 .edit-tag{font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700;font-family:var(--mono)}
 .docket-head{
   display:flex;justify-content:space-between;align-items:center;
+  margin-top:14px;   /* v49: was an inline style in index.html */
   padding:12px var(--sp-5);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);
   font-family:var(--mono);font-size:var(--fs-xs);letter-spacing:.08em;color:var(--muted2);
   background:var(--surface2);
 }
+#docketPanel > .pad{padding-bottom:0}   /* v49: was an inline style — the docket-head's dashed rule owns the gap */
 .total{
   display:flex;justify-content:space-between;align-items:baseline;
   padding:var(--sp-4) var(--sp-5);border-top:2px solid var(--text);font-family:var(--mono);
@@ -996,8 +998,8 @@ input[type=checkbox]{
 .toast-warning{background:var(--warn);color:#fff}
 
 /* ============ Ingredients page ============ */
-.ing-tools{display:flex;gap:10px;flex-wrap:wrap;padding:0 16px 4px}
-.ing-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 16px 4px}
+/* v49: .ing-tools layout retired — it carries the shared .panel-actions class now (v49 batch) */
+.ing-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px var(--sp-5) var(--sp-1)}
 .ing-controls .menu-search{flex:1 1 200px;min-width:160px}
 .ing-filter{flex:0 1 auto;padding:9px 10px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);max-width:48%}
 .ing-count{color:var(--muted2);font-size:12px}
@@ -1025,7 +1027,7 @@ input[type=checkbox]{
 
 /* ============ Dashboard ============ */
 #dashBody{padding-bottom:6px}
-.dash-panel h2{margin-bottom:0}
+/* v49: `.dash-panel h2{margin-bottom:0}` removed — .panel h2 already has margin:0 (a no-op since v3x) */
 .stat-attach{margin-top:6px;border-top:1px solid var(--border);padding-top:10px}
 .stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 2px 8px}
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
@@ -1186,11 +1188,11 @@ input[type=checkbox]{
 
   /* -- ingredients: card grid -- */
   .ing-list{grid-template-columns:repeat(2,1fr);gap:12px;padding:10px var(--sp-5) 8px}
-  .ing-tools,.ing-controls{padding-left:var(--sp-5);padding-right:var(--sp-5)}
+  /* v49: .ing-tools/.ing-controls sit on the shared sp-5 edge at every width now — no desktop special-case */
 
   /* -- dashboard: chart + stats + highlights use the width -- */
   #dashBody{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--sp-5);align-items:start}
-  #dashBody .dash-panel{grid-column:1;margin:0}
+  #dashBody .dash-panel{grid-column:1;margin:var(--sp-5) 0 0}   /* v49: same top offset as every other tab's .panel */
   #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin:0}
   .dash-chart svg{height:auto}
   .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
@@ -1427,8 +1429,9 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 }
 
 /* ---- Fix 3: mobile dashboard rhythm — the trend chart leads, stats compact ---- */
-#dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:2px 0 10px}
-#dashBody .dash-panel{margin:var(--sp-4) 0 0}
+/* v49: no bespoke top offsets — the dash panel starts where every other tab's panel starts
+   (.panel's own margin-top; the old 2px pad + sp-4 margin put it 18px down vs 16 elsewhere) */
+#dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:0 0 10px}
 #dashBody .stat-row,#dashBody .hl-row{padding:0;margin:0;gap:var(--sp-3)}
 .stat-card{padding:14px 16px}
 .stat-v{font-size:24px}
@@ -1786,9 +1789,9 @@ body{overflow-x:clip}
 
 /* FEATURE 1 — "My ingredients" (kitchen words) */
 .king-panel{margin-bottom:var(--sp-4)}
-.king-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:var(--sp-4) var(--sp-5) 0}
-.king-head h3{margin:0;font-size:15px}
-.king-sub{font-size:var(--fs-xs);color:var(--muted2);flex:1 1 auto}
+/* v49: .king-head/.king-head h3/.king-sub rules (three generations of them) are GONE — the
+   pantry title is a real .panel h2 now and the buttons row is the shared .panel-actions
+   (see the v49 batch at the end of this file). Nothing here to override anymore. */
 /* v36: ingredient rows share the Products card language (one card system app-wide) */
 .king-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;
@@ -1972,12 +1975,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .q-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:2}
 /* ingredients search: breathing room from the cards around it */
 .king-search{margin:10px var(--sp-5) 12px;width:auto}
-/* pantry header: New + Set up share one line on phones */
-@media (max-width:639px){
-  .king-head .king-sub{flex-basis:100%}
-  .king-head #kingNew{flex:1 1 auto}
-  .king-head #kingWizBtn{flex:0 0 auto}
-}
+/* v49: the stacked-era pantry phone rules are retired — .panel-sub owns the strapline wrap and
+   buttons keep their natural width in .panel-actions (the #kingNew stretch made the pantry
+   "+ New" render wider than every other tab's, the exact class of drift v49 removes). */
 /* menu: one-line target copy — .cogs-inline is defined once with the other .cogs-* rules
    (~line 912). A second partial definition here is what let .cogs-read's orphaned 16px
    survive unnoticed; one rule, one place. */
@@ -2040,13 +2040,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* item 5: on phones every add-button drops its noun — the tab already names the thing.
    The noun lives in a span, so there's no JS resize logic and desktop keeps the full label.
    #kingNew also stops stretching (the old stacked-design rule) so the pantry pair shares one line. */
-@media (max-width:639px){ .btn-noun{display:none} .king-head #kingNew{flex:0 0 auto} }
-/* item 7: the pantry header joins the app's panel-header system (small-caps title like
-   MENU ANALYSIS / PRODUCTS, muted strapline below, buttons in the header row). Ids/classes
-   unchanged — presentation only. Later-in-file, so it wins the earlier .king-head rules. */
-.king-head{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--border)}
-.king-head h3{font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);margin:0;flex:1 1 auto}
-.king-head .king-sub{order:4;flex-basis:100%;font-size:var(--fs-xs);color:var(--muted2)}
+@media (max-width:639px){ .btn-noun{display:none} }   /* v49: the #kingNew flex pin died with the old .king-head layout */
+/* item 7 (v49): retired — the pantry header IS the panel system now (real h2 + .panel-actions),
+   not an h3 dressed up to look like it. See the v49 batch. */
 /* item 3: the attention pill shares the title's baseline and left rhythm. Flex turns the
    name text + pill into baseline-aligned items: same line when space allows (6px gap),
    and a wrapped pill starts at the card's left edge instead of hanging mid-air. */
@@ -2094,18 +2090,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .line .costs .priceline{flex:0 0 116px}          /* fixed price column = the leader starts at the same x on every row */
 .line .costs .lc{min-width:0}                    /* the one-row era's .lc{min-width:78px} inflated small totals past the card edge */
 .line.misc-line .qtybox.misc-costbox .u{width:auto;min-width:0}
-/* item 3: Ingredients header = the Products order — title, divider, buttons row, strapline.
-   The divider moves off the header box onto the h3 itself (negative margins stretch it to the
-   panel edges); the strapline now follows the buttons in the DOM, so no order: juggling. */
-.king-head{padding:0 var(--sp-5) var(--sp-3);border-bottom:0}
-.king-head h3{flex:1 1 100%;margin:0 calc(var(--sp-5)*-1);padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--border)}
-.king-head .king-sub{order:0}
+/* item 3 (v49): retired — the negative-margin divider trick is gone; the divider lives on the
+   real .panel h2 like every other tab. See the v49 batch. */
 
 /* ===== batch (v46): Fable UX polish ===== */
-/* item 1: the strapline sits INLINE on the buttons row on desktop (right of the buttons,
-   vertically centred by the row's align-items:center). Scoped ≥640px so the earlier ≤639px
-   flex-basis:100% keeps the phone layout: strapline on its own line beneath the buttons. */
-@media (min-width:640px){ .king-head .king-sub{flex:1 1 auto;flex-basis:auto;min-width:0} }
+/* item 1 (v49): retired — the inline-strapline behaviour is the shared .panel-sub rule now
+   (see the v49 batch); .king-sub just carries that class in the markup. */
 /* item 3: ingredient cards join the Products card GRID — same column story as .ing-list at
    every breakpoint (stacked <640, 2-up ≥640, 3-up ≥1280; same gaps and padding). The grid gap
    owns the spacing, so the per-card side margins go; empty states span the full grid width. */
@@ -2182,3 +2172,25 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .an-controls{gap:var(--sp-2);padding-bottom:0}
 .cogs-set > .cogs-lbl{margin-bottom:var(--sp-2)}
 .akey{padding-top:var(--sp-2)}
+
+/* ===== batch (v49): ONE panel skeleton — structural cross-tab consistency ===== */
+/* Every tab is now the same shape: .panel > h2 (the ONE small-caps title, divider on its
+   border-bottom) > optional .panel-actions row (primary .btn first, then plain/ghost, then an
+   inline .panel-sub strapline) > tab controls > body. One left edge — var(--sp-5), collapsing
+   to var(--sp-4) at ≤560px in ONE place below, never per-tab. This exists because five
+   hand-written headers kept drifting apart; the skeleton is enforced by
+   tests/visual/layout-consistency.spec.js (±1px across tabs), so drift fails the suite. */
+.panel-actions{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
+.panel-actions .btn{margin-top:0}   /* .newbtn's legacy margin-top would double the row's own top padding */
+.panel-sub{font-size:var(--fs-xs);color:var(--muted2)}
+@media (min-width:640px){ .panel-sub{flex:1 1 auto;min-width:0} }   /* strapline inline on the buttons row (v46 behaviour, now shared) */
+@media (max-width:639px){ .panel-sub{flex-basis:100%} }             /* …own line under the buttons on phones */
+.panel-meta{margin:var(--sp-2) var(--sp-5) 0;padding:0}             /* replaces the per-tab inline styles on #lastImport/#ingCount */
+.an-controls{padding-top:var(--sp-3);padding-left:var(--sp-5);padding-right:var(--sp-5)}   /* Menu joins the shared edge + divider gap */
+@media (max-width:560px){   /* THE mobile collapse — same breakpoint .pad/.panel h2 already use */
+  .panel-actions,.ing-controls,.an-controls{padding-left:var(--sp-4);padding-right:var(--sp-4)}
+  .panel-meta{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+  .king-search{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+  .king-progress{padding-left:var(--sp-4);padding-right:var(--sp-4)}
+}
+
