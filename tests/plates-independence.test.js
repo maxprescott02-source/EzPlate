@@ -151,6 +151,41 @@ test('v55: deleting a menu removes only that menu\'s dishes; the plate and its e
   assert.ok(!customMenu.some(d => d.id === 'D2' || d.id === 'D3'), 'only the deleted menu\'s dishes are removed');
 });
 
+/* ---- 4. §B: every dish owns a plate (ensurePlateForDish) ---- */
+function makeEnsureHarness() {
+  const S = { savedPlates: [], customMenu: [{ id: 'D1', name: 'Soup', menuId: 'MO' }], calls: [] };
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('S', `
+    "use strict";
+    var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
+    function savePlatesLS(){}
+    function saveCustomMenu(){}
+    function dbPushMenuAfterPlate(item, sp){ S.calls.push('pushAfterPlate:'+(sp&&sp.id)); return Promise.resolve(null); }
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'ensurePlateForDish')}
+    return function(dishId){ var m=customMenu.find(function(c){return c.id===dishId;}); var sp=ensurePlateForDish(m); return { sp: sp, plateId: m.plateId, savedPlates: savedPlates, calls: S.calls }; };
+  `);
+  return factory(S);
+}
+
+test('v55 §B: ensurePlateForDish gives a plateless dish an EMPTY plate and links it', () => {
+  const run = makeEnsureHarness();
+  const { sp, plateId, savedPlates } = run('D1');
+  assert.ok(sp && sp.id, 'a plate is created');
+  assert.strictEqual(plateId, sp.id, 'the dish is linked to it via plateId');
+  assert.deepStrictEqual(sp.lines, [], 'the new plate is empty — "not costed yet"');
+  assert.strictEqual(savedPlates.length, 1);
+});
+
+test('v55 §B: ensurePlateForDish is idempotent — a dish that already has a plate keeps it', () => {
+  const run = makeEnsureHarness();
+  const first = run('D1');
+  const again = run('D1');
+  assert.strictEqual(again.sp.id, first.sp.id, 'no second plate is created');
+  assert.strictEqual(again.savedPlates.length, 1);
+});
+
 test('v55: deleting the last menu is allowed; plates survive with no dishes', () => {
   const run = makeDeleteHarness({
     menusList: [{ id: 'MW', name: 'Winter' }],

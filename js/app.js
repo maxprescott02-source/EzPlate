@@ -3248,7 +3248,7 @@ function renderAnalysis(){
     items.forEach(function(m){
       shown++;
       var sp=plateForMenuItem(m);                                     // v55: the dish's plate via plate_id
-      if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }
+      if(sp && sp.lines && sp.lines.length){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }   // §B: an EMPTY plate is "not costed yet", not a $0.00 cost
       else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
         html+='<tr class="muted mi-row lt-none" data-mid="'+esc(m.id)+'"><td><button type="button" class="mi-name">'+esc(m.name)+'</button>'+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
