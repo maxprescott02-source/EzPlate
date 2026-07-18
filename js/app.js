@@ -347,18 +347,16 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
-  // v44 item 8: same two-row split as ingredient lines \u2014 the label finally gets the full card width
-  // on a phone (its smallness was a standing complaint) instead of fighting the $ field for one row.
+  // v53 (Max's mockup, reverses v44's two-row split): ONE row \u2014 name field, $ cost, dotted
+  // connector, bold total, \u00d7 in its usual corner. The "Misc cost \u00b7 not an ingredient"
+  // sub-label is gone. Same ids/handlers; layout only.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
-    +'<div class="top">'
-    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"><span class="sub">Misc cost \u00b7 not an ingredient</span></span>'
-    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
-    +'</div>'
-    +'<div class="costs">'
+    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
     +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<span class="leader"></span>'
     +'<span class="lc" id="lc-'+l.uid+'">'+money(Number(l.cost)||0)+'</span>'
-    +'</div></div>';
+    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'</div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
   plate.push({uid:uidc++, misc:true, label:'', cost:0});
@@ -1550,16 +1548,31 @@ function tcTicks(target,mn,mx){                                  // v48: 3\u2013
   return out;
 }
 var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
+var AX_CHW=0;         // measured advance of one glyph of the 11px mono axis font (mono: all glyphs equal) — cached once
+function axCharW(){
+  if(AX_CHW) return AX_CHW;
+  try{
+    var mono=(getComputedStyle(document.documentElement).getPropertyValue('--mono')||'monospace').trim();
+    var ctx=document.createElement('canvas').getContext('2d');
+    ctx.font='11px '+mono;
+    AX_CHW=ctx.measureText('0').width||6.6;
+  }catch(e){ AX_CHW=6.6; }                                       // no canvas (jsdom): a Menlo-ish estimate
+  return AX_CHW;
+}
 function trendChart(){
   var pts=dashRangePts();
-  /* v48 GEOMETRY IS CONSTANT — root cause of the "chart moves when I switch ranges" report:
-     the frame never varied (padL was always 40) but tight ranges drew decimal tick labels
-     ("27.5%") that overflowed the 33-unit gutter and were CLIPPED at the svg's left edge,
-     reading as a font change on a phone. Labels are now start-anchored at x=0 (one left edge
-     with the title + caption) and padL clears the widest possible label ("27.5%" in the mono
-     stack ≈ 33 units) for every range. padB back to 20: the x-axis date labels are gone
-     (range buttons state the window; the scrub tooltip gives exact dates). */
-  var W=320,H=210,padL=44,padR=10,padT=14,padB=20;
+  /* v52 GUTTER GEOMETRY — v51 removed the left gutter so the curve could start at the card's
+     text column, but that drew the plot (fill dots, line) UNDERNEATH the y-axis labels (Max's
+     screenshot: dots surrounding "10%"). The structural fix: ONE gutter constant that every
+     plot element respects. plotLeft = padL = widest tick label (measured in the real 11px mono,
+     axCharW) + 8px gap; labels sit INSIDE the gutter, right-aligned to plotLeft-8, so the widest
+     label's LEFT edge lands at x=0 = the title/caption/stats column, digits sit flush as a
+     column, and ZERO plot pixels (fill, line, dots, target line, crosshair) render left of
+     plotLeft. v48 invariants preserved: geometry constant across ranges (labels are "NN%" =
+     same glyph count for any 2-digit percent, so the measured gutter can't vary between
+     ranges), labels vertically CENTRED on their value so the target tick sits exactly on the
+     dashed rule (pinned by fresh-states.spec.js). */
+  var W=320,H=210,padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -1581,6 +1594,11 @@ function trendChart(){
   var ticks=tcTicks(cogsPct,mn,mx);
   var step=ticks.length>1?ticks[1]-ticks[0]:5;
   mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
+  var fmtTick=function(v){ return (v%1?v.toFixed(1):v.toFixed(0))+'%'; };
+  // v52: the label gutter — sized to the widest tick label so a wide label ("32.5%" from a
+  // decimal target) widens the gutter instead of clipping at the svg edge (the v48 bug)
+  var axGap=8, maxCh=Math.max.apply(null,ticks.map(function(v){ return fmtTick(v).length; }));
+  var padL=Math.ceil(maxCh*axCharW()+axGap);
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
   var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
   var xs=[], ys=[];
@@ -1597,10 +1615,11 @@ function trendChart(){
   var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
-  // v48: labels start-anchored at x=0 — one left edge with the title and caption, and a label
-  // can never overhang the svg's left edge again (the clipped-"27.5%" bug). One of these ticks
-  // IS the target (tcTicks anchors on it), which is why the dashed line needs no word of its own.
-  var axis=ticks.map(function(v){ return '<text class="ax" x="0" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="start">'+(v%1?v.toFixed(1):v.toFixed(0))+'%</text>'; }).join('');
+  // v52: labels live INSIDE the gutter, right-aligned to plotLeft-8 so the digits sit flush as a
+  // column whatever each label's width; the gutter is sized to the widest label (see padL above)
+  // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
+  // value so the target tick sits exactly on the dashed rule (v48 invariant, pinned).
+  var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-axGap)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmtTick(v)+'</text>'; }).join('');
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
@@ -1755,7 +1774,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v49';
+var APP_VERSION='v53';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2610,6 +2629,31 @@ function resolveCombo(inpId, listFn){
   return {ok:false, value:v};
 }
 function niLab(t){ return '<span class="ni-lab">'+t+'<span class="ni-af">auto-filled</span></span>'; }   /* v37 */
+/* v50 item 1 ROOT CAUSE: the new-item form's values + Apply tick lived ONLY as uncontrolled DOM inputs.
+   Any edit to another row calls renderInvReview() -> box.innerHTML=html, which destroyed the form and
+   recomputed the tick from invRowState (='new' -> unticked) — so an in-progress new item silently
+   cleared. Fix: the form state lives on invRows[i].newItem. niSnapshot reads the live form (fields +
+   combo state + the row's Apply tick); niRehydrate writes it back after a rebuild. renderInvReview
+   snapshots every OPEN form BEFORE the wipe, then rehydrates after — no per-cell poking (v33 holds). */
+var NI_COMBOS=['brand','cat','sup','king'];
+function niSnapshot(i){
+  if(!document.getElementById('ni_name'+i)) return null;           // form not built for this row -> nothing to capture
+  var g=function(id){ var e=document.getElementById(id); return e?e.value:''; };
+  var combos={};
+  NI_COMBOS.forEach(function(f){ var st=niCombos['ni_'+f+i]||{}; combos[f]={value:(st.value||''), isNew:!!st.isNew, confirmed:!!st.confirmed}; });
+  var tr=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]'), ap=tr&&tr.querySelector('.invAppr');
+  var prev=invRows[i]&&invRows[i].newItem;
+  return { name:g('ni_name'+i), unit:g('ni_unit'+i), price:g('ni_price'+i), pack:g('ni_pack'+i),
+           brand:g('ni_brand'+i), cat:g('ni_cat'+i), sup:g('ni_sup'+i), king:g('ni_king'+i),
+           combos:combos, approved:(ap?!!ap.checked:(prev?!!prev.approved:false)) };
+}
+function niRehydrate(i){
+  var s=invRows[i]&&invRows[i].newItem; if(!s) return;
+  var set=function(id,v){ var e=document.getElementById(id); if(e&&v!=null) e.value=v; };
+  set('ni_name'+i,s.name); set('ni_unit'+i,s.unit); set('ni_price'+i,s.price); set('ni_pack'+i,s.pack);
+  NI_COMBOS.forEach(function(f){ var id='ni_'+f+i, e=document.getElementById(id), c=s.combos&&s.combos[f];
+    if(c){ if(e) e.value=(c.value||''); niCombos[id]={value:(c.value||''), isNew:!!c.isNew, confirmed:!!c.confirmed}; } });
+}
 function expandNewItem(i){
   var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(!nirow) return;
   var panel=nirow.querySelector('.ni-panel'), r=invRows[i];
@@ -2648,11 +2692,14 @@ function expandNewItem(i){
     if(invSupplier){ var _si=document.getElementById('ni_sup'+i); if(_si){ _si.value=invSupplier; var _st=niCombos['ni_sup'+i]; if(_st){ _st.value=invSupplier; _st.confirmed=true; _st.isNew=!prodSuppliers().some(function(x){return x.toLowerCase()===invSupplier.toLowerCase();}); } } }
   }
   nirow.style.display='';
+  // v50 item 1: first open -> snapshot the prefilled defaults onto the row; every later (re)build ->
+  // rehydrate from what the user had typed, so an unrelated re-render can't wipe an in-progress item.
+  if(r.newItem){ niRehydrate(i); } else { r.newItem=niSnapshot(i); }
 }
 function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
-  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; }   /* dismissing the form = this line is neither new nor matched (skip) */
+  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; r.newItem=null; }   /* dismissing the form = this line is neither new nor matched (skip); drop its saved form state */
   renderInvReview();                                               /* ITEM 1 (v33): single render path rebuilds the row (dropdown back to "assign manually", labelled dashes, unticked) */
 }
 function invUnitToBase(unitType){
@@ -2723,6 +2770,7 @@ function invPackPreviewText(r, q, u){
   return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit');
 }
 function renderInvReview(){
+  invRows.forEach(function(r,i){ if(r&&r.addNew&&r.newItem){ var s=niSnapshot(i); if(s) r.newItem=s; } });   // v50 item 1: capture an OPEN new-item form before innerHTML wipes it. Guarded on r.newItem so a fresh addNew row (newItem:null) can't absorb a stale form left in the DOM by a previous invRows/import — only a form THIS row actually opened is re-captured.
   invRows.forEach(flagNeedsAttention);                              // ensure needsAttention is current for EVERY row before we count
   var states=invRows.map(invRowState);
   var matched=states.filter(function(s){return s==='matched';}).length;
@@ -2777,7 +2825,7 @@ function renderInvReview(){
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > price jump > low match.
-    var checked = (invRowState(r)==='matched');  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick
+    var checked = (invRowState(r)==='matched') || !!(r.newItem && r.newItem.approved);  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick. v50 item 1: once the user ticks a new-item row, that tick persists on r.newItem so a re-render can't drop it (v39 still holds — rows with no newItem never pre-tick)
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
@@ -2858,6 +2906,13 @@ function renderInvReview(){
     var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=false;   // v39: new items are ticked by the user once the form is filled
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
+  invRows.forEach(function(r,i){                                   // v50 item 1: re-open + rehydrate any new-item form that was open before this rebuild
+    if(r&&r.addNew&&r.newItem){
+      expandNewItem(i);
+      var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]'), fb=fresh&&fresh.querySelector('.ni-add-btn');
+      if(fb){ fb.classList.add('open'); fb.textContent='Editing new item ↓'; }
+    }
+  });
   updateLastImport();
 }
 var PRICE_JUMP=0.12;                                              // >12% move vs the stored price is worth a glance
@@ -2876,7 +2931,7 @@ function flagNeedsAttention(row){                                  // ITEM 4: on
 function invSelChanged(tr){
   var i=parseInt(tr.dataset.i,10), r=invRows[i]; if(!r) return;
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
-  r.addNew=false; collapseNewItem(i);
+  r.addNew=false; r.newItem=null; collapseNewItem(i);   // v50 item 1: picking a real match abandons any in-progress new-item form
   if(sel.value==='skip'){ r.bestId=null; r.manualPick=false; r.needsAttention=false; renderInvReview(); return; }  // one render path — no per-cell poking
   // switching the matched product: throw away any half-done pack-teach state and resolve cleanly for the NEW product
   r.remembered=false; r.unitMismatch=false; r.needManual=(r.unitPrice==null); r.taughtQty=null; r.taughtUnit=null; r.packTaught=false; r.unit=(r.rawUnit||r.unit||'auto');
@@ -3046,9 +3101,13 @@ function costRangeCell(m, cost){                                     // ITEM 3: 
   if(r.max-r.min < 0.005) return '';
   return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
 }
-function aRow(name,a,m,actions){
+function aRow(name,a,m,actions,pid){
+  // v52 (LIVE definition \u2014 the earlier aRow is dead): rows are tap-to-edit cards. The tr carries
+  // data-mid/data-pid for the row-click delegate, an lt-* class for the margin stripe, and the
+  // name is a real <button> so keyboard users get the same edit path the tap gives fingers.
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
-  return '<tr><td>'+esc(name)+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
+  var ref=m?(' data-mid="'+esc(m.id)+'"'):(pid?(' data-pid="'+esc(pid)+'"'):'');
+  return '<tr class="mi-row lt-'+(a.light||'none')+'"'+ref+'><td><button type="button" class="mi-name">'+esc(name)+'</button>'+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
@@ -3081,13 +3140,13 @@ function renderAnalysis(){
       var sp=byMenu[m.id]||(m.sourcePlateId?savedPlates.find(function(s){return s.id===m.sourcePlateId;}):null);
       if(sp){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }
       else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
-        html+='<tr class="muted"><td>'+esc(m.name)+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
+        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(m.id)+'"><td><button type="button" class="mi-name">'+esc(m.name)+'</button>'+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
   });
   var custShown=(currentMenuId==='MENU_ORIGINAL')?customsP.filter(function(sp){ return hit(sp.name||'Custom plate','Custom plates'); }):[];   // orphan plates live on the home menu
   if(custShown.length){
     html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
-    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp)); });
+    custShown.slice().sort(byName).forEach(function(sp){ shown++; html+=aRow(sp.name||'Custom plate', analyze(costFromLines(sp.lines),null), null, plateEditAction(sp), sp.id); });
   }
   if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
     +'<svg class="an-empty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>'
@@ -3097,8 +3156,12 @@ function renderAnalysis(){
   tb.innerHTML=html; bindTips();
   var acs=document.getElementById('anClearSearch');
   if(acs) acs.onclick=function(){ var ms=document.getElementById('menuSearch'); if(ms) ms.value=''; renderAnalysis(); };
-  tb.querySelectorAll('.mi-btn.edit').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid) openPlateEdit(pid); else openMenuEdit(b.getAttribute('data-id')); }; });
-  tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(){ var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
+  tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
+  // v52 tap-to-edit (replaces the per-card Edit button): the whole card/row opens the edit
+  // modal; .tip and .mi-btn clicks stopPropagation so they never fall through to the row.
+  tb.querySelectorAll('tr.mi-row').forEach(function(tr){
+    tr.onclick=function(){ var pid=tr.getAttribute('data-pid'); if(pid){ openPlateEdit(pid); } else { var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); } };
+  });
 }
 
 /* ===== multiple menus: selector, pickers, create modal ===== */
@@ -3230,7 +3293,9 @@ function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').
 function isBaseMenuId(id){ return BASE_MENU.some(function(m){ return m.id===id; }); }
 function menuActions(m){
   if(!m) return '';
-  return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-id="'+esc(m.id)+'" title="Open in plate builder">\u2192 Builder</button><button class="mi-btn edit" type="button" data-id="'+esc(m.id)+'">Edit</button></div>';
+  // v52: the Edit button is retired \u2014 the whole card/row is tap-to-edit (matches the v46
+  // ingredient cards); "\u2192 Builder" stays as the one visible chip.
+  return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-id="'+esc(m.id)+'" title="Open in plate builder">\u2192 Builder</button></div>';
 }
 function openMenuInBuilder(mid){                                      // jump from Menu Analysis straight into the Builder for this dish
   var m=menuById[mid]; if(!m) return;
@@ -3366,7 +3431,7 @@ function editOpenInBuilder(){
 }
 
 /* ===== orphan-plate edit + delete-choice ===== */
-function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-pid="'+esc(sp.id)+'" title="Open in plate builder">\u2192 Builder</button><button class="mi-btn edit" type="button" data-pid="'+esc(sp.id)+'">Edit</button></div>'; }
+function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-pid="'+esc(sp.id)+'" title="Open in plate builder">\u2192 Builder</button></div>'; }   // v52: Edit retired \u2014 card tap edits
 function setEditMode(mode){
   editKind=mode; edRestoreMode=false;
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');

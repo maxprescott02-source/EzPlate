@@ -183,5 +183,38 @@ ok('typing an existing word offers it', /Hot Chips/.test($('ni_kingDrop0').textC
 ok('and resolves to a REPOINT, not a silent skip', window.kingNameAction('Hot Chips', window.kitchenIngredients).action === 'repoint');
 ok('while a new name still resolves to create', window.kingNameAction('Calamari', window.kitchenIngredients).action === 'create');
 
+console.log('\n[11] v50 item 1 — a new-item form survives an edit to a DIFFERENT row');
+window.invSupplier = '';
+window.invRows = [
+  { name: 'MAPLE SYRUP 1L', raw: 'MAPLE SYRUP 1L', bestId: null, addNew: true, unitPrice: 12.5, unit: 'l',
+    conf: 0.1, tier: 'lo', cands: [], needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null },
+  { name: 'CHIPS STRAIGHT CUT 6X2.5KG', raw: 'CHIPS STRAIGHT CUT 6X2.5KG', bestId: 'P0108', addNew: false,
+    unitPrice: 2.65, unit: 'kg', conf: 0.82, tier: 'hi', cands: [{ id: 'P0108', coverage: 0.82 }],
+    needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null }
+];
+window.renderInvReview();
+// open + fill the new-item form on row 0
+window.document.querySelector('#invReview tr.inv-data[data-i="0"] .ni-add-btn').click();
+ok('the new-item form opened on row 0', !!$('ni_name0'));
+$('ni_name0').value = 'Pure Maple Syrup';
+$('ni_price0').value = '13.75';
+$('ni_pack0').value = '1 x 1L';
+// tick Apply on row 0 (the user has finished the form)
+const ap0 = window.document.querySelector('#invReview tr.inv-data[data-i="0"] .invAppr');
+ap0.checked = true;
+// now EDIT A DIFFERENT ROW — this is the exact repro: it forces a full renderInvReview()
+const price1 = window.document.querySelector('#invReview tr.inv-data[data-i="1"] .invPrice');
+price1.value = '2.80';
+price1.dispatchEvent(new window.Event('change'));
+// row 0's form + tick must be intact in the rebuilt markup
+ok('row 0 form reopened after editing row 1', !!$('ni_name0'));
+ok('row 0 kept its typed Name', ($('ni_name0') || {}).value === 'Pure Maple Syrup', ($('ni_name0') || {}).value);
+ok('row 0 kept its typed Price', ($('ni_price0') || {}).value === '13.75', ($('ni_price0') || {}).value);
+ok('row 0 kept its typed Pack size', ($('ni_pack0') || {}).value === '1 x 1L', ($('ni_pack0') || {}).value);
+const ap0b = window.document.querySelector('#invReview tr.inv-data[data-i="0"] .invAppr');
+ok('row 0 Apply tick survived the re-render', !!(ap0b && ap0b.checked));
+// and the summary still counts it as a NEW item, not matched
+ok('row 0 is still an add-new line', window.document.querySelector('#invReview tr.inv-data[data-i="0"]').classList.contains('st-new'));
+
 console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
 process.exit(failures ? 1 : 0);

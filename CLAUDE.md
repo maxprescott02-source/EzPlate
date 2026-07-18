@@ -250,18 +250,76 @@ merge to `main` as a production deploy.
 
 ## State as of 18 Jul 2026 (verify, don't trust)
 
-- `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
-  `origin/main`, commit `da27ae7`). That IS the live/deployed app.
-- Branch `fix/pack-control-and-menus` (off `main`) carries **v42–v48** —
-  committed and pushed (v48 = `d6573f0`, the final pre-merge patch: chart
-  declutter + target-anchored ticks + menu rhythm). Awaiting Max's phone
-  sign-off, then merge to `main`.
-- Branch `refactor/panel-structure` (off `fix/pack-control-and-menus`) carries
-  **v49 (cross-tab panel-skeleton refactor), uncommitted as of this writing**.
-  Merges AFTER the v42–v48 branch. `npm test` = **138 green**, `node -c` clean,
-  jsdom smoke passes, **44 Playwright checks pass** (42 prior — one pantry
-  check updated for the real-h2 header — + 2 new consistency checks), all six
-  version spots at **v49**.
+- `main` is at **v49** (confirmed live/deployed). Both `fix/pack-control-and-menus`
+  (v42–v48) and `refactor/panel-structure` (v49) merged after Max's phone
+  sign-off.
+- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50–v53**
+  — committed, awaiting Max's phone sign-off then merge to `main`.
+  `npm test` = **139 green**, jsdom smoke green, `node -c` clean, **47
+  Playwright checks pass**, all six spots at **v53**. See
+  `handovers/HANDOVER-v50/51/52/53.md` and their needs-phone lists.
+- **v53 shipped (see `handovers/HANDOVER-v53.md`):** builder misc line is ONE
+  row per Max's mockup (name · $cost · dotted connector · bold total · ×),
+  sub-label deleted; three one-row-era legacy mobile rules overridden at the
+  site (qtybox order:3, lc order:4/margin:auto, costbox flex-grow); leader on
+  the v46 baseline mechanism. v44's "label full width" pin replaced by the
+  one-row contract (declared).
+- **v52 shipped (see `handovers/HANDOVER-v52.md`) — two approved parts:**
+  1. **Chart gutter GEOMETRY (supersedes v51's approach):** v51's `padL=4` drew
+     the plot UNDER the y-axis labels (Max's screenshot: fill dots around
+     "10%"). Now ONE gutter constant used by every plot element: `padL` =
+     widest tick label (glyph width MEASURED from the real 11px mono via
+     canvas `axCharW()`, jsdom fallback) + 8px gap; labels right-aligned to
+     `plotLeft-8` (digits flush, widest label's left edge = title column);
+     zero plot pixels left of `plotLeft` — pinned by a rendered-pixel
+     Playwright check on every range. Target-tick-on-dashed-rule and
+     constant-geometry-across-ranges v48 pins unchanged and green.
+  2. **Menu page rework (Max approved the proposal pre-build):** the tab now
+     follows the v49 panel skeleton — h2 "Menu" → `.panel-actions` (+ New menu
+     primary, + Existing dish, strapline) → picker(+Delete)+search controls →
+     two quiet meta lines (target sentence, colour key) → sectioned list.
+     Cards/rows are **tap-to-edit** (Edit button retired; `.mi-name` is a real
+     button for keyboard; "→ Builder" chip stays, stopPropagation), carry a
+     **3px margin-light stripe** (`lt-*` classes on the tr), and phones get a
+     2×2 number grid (cards ~half height). All ids/handlers/capabilities
+     preserved (`menuSelect`, `menuDelBtn`, `cogsTargetRead`/`cogsToSettings`,
+     search, holding-area delete flow). `layout-consistency.spec.js` now
+     MEASURES Menu's actions row (its exception was removed — spec stricter);
+     the v48 menu-rhythm test was replaced by v52 header + tap-to-edit tests.
+     Root-caused CSS traps documented at the fix sites: `.menu-search`
+     flex-basis becomes a HEIGHT in the column controls stack; the card base
+     rule's border shorthand outranked the (0,2,2) stripe rules — stripes use
+     `:not(.invtable)` for specificity only.
+- **v51 context (superseded by v52 part 1, see `handovers/HANDOVER-v51.md`):**
+  removed the chart's left gutter so the curve started at the card's text
+  column — correct left edge, but it let the plot render under the labels,
+  which is what v52 restructured properly.
+- **v50 shipped (see `handovers/HANDOVER-v50.md`):**
+  1. **Invoice new-item form now persists across re-renders (FRAGILE AREA).**
+     Root cause: the "+ New" inline form's fields + Apply tick lived only in the
+     DOM, so any edit to another row (which calls `renderInvReview` →
+     `box.innerHTML`) wiped them. Fix: form state lives on the (previously dead)
+     `invRows[i].newItem`. `renderInvReview` **snapshots every open form BEFORE
+     the wipe** (`niSnapshot`) and **rehydrates after** (`niRehydrate`) — one
+     render path, no per-cell poking (v33 holds). Snapshot is **guarded on
+     `r.newItem` truthy** so a fresh `addNew` row can't absorb a stale form left
+     by a prior import (a bleed the first cut introduced; the smoke test caught
+     it). Tick persists via `checked ||= !!(r.newItem&&r.newItem.approved)` —
+     **v39 auto-tick pin still holds** (rows with no `newItem` unchanged).
+     Pinned by `tests/inv-rowmarkup.test.js` (markup/tick, default suite) +
+     `tests/smoke.js` section [11] (jsdom field+tick round-trip = the brief's
+     exact repro).
+  2. **"+ New menu" is now `btn primary`** (was plain), matching "+ New
+     ingredient"/"+ New product"; "+ Existing dish" stays plain by design.
+  3. **Chart caption alignment: no change in v50** — measured the caption
+     already shares one left edge with the axis labels + title + all card
+     headers; Max chose leave-as-is on the caption. (Superseded in **v51**: on
+     his phone Max identified the real issue as the plotted CURVE being inset,
+     not the caption — see the v51 bullet above.)
+  - **Known un-fixed parallel (flagged, out of scope):** ticking a
+    *matched/review* row then editing another row still drops that tick (same
+    class as item 1, but item 1 was scoped to the new-item form). Follow up if
+    it bites.
 - **v49 shipped (structural, skeleton approved by Max — see
   `handovers/HANDOVER-v49.md`):** every tab is ONE skeleton — `.panel > h2`
   (small-caps title, divider on its border-bottom) `> .panel-actions` (primary
@@ -323,14 +381,14 @@ merge to `main` as a production deploy.
   auto-moves dishes to the holding area behind ONE confirm (`fallbackMenuId`/
   `canDeleteMenu` reworked, `realMenus()` added). See `handovers/HANDOVER-v42.md`
   incl. the read-only orphan diagnostic snippet.
-- **Needs Max's phone (branch preview) before merge** — the v42 and v44–v49
-  handover lists (v49's list is on its own branch preview). **Export a JSON backup first.** Highlights: publish to an
-  EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
-  dishes" and survive reload; real invoice import (pack control + preview +
-  flag pills on real titles); builder at 380px with a real plate; the rebuilt
-  chart — scrub feel on a real finger, switch all six ranges (ONLY the trendline
-  may move), tap it (no blue box), set target to 32% (tick must sit on the
-  dashed line), both themes; Menu tab header rhythm.
-- Next up: (a) Max's phone sign-off, then merge `fix/pack-control-and-menus`
-  to `main`, THEN merge `refactor/panel-structure`; (b) the Tidy lists Settings
-  UI (`HANDOVER-v40.md` spec) is STILL not built — next feature task.
+- **Verified on Max's phone before the v42–v49 merge** (checklist kept for
+  reference): publish to an EXISTING menu (no FK error); delete a menu →
+  dishes land in "Unassigned dishes" and survive reload; real invoice import
+  (pack control + preview + flag pills on real titles); builder at 380px with
+  a real plate; the rebuilt chart — scrub feel on a real finger, switch all six
+  ranges (ONLY the trendline may move), tap it (no blue box), set target to
+  32% (tick must sit on the dashed line), both themes; Menu tab header rhythm.
+- Next up: (a) Max's phone sign-off on **v50–v52** (`fix/invoice-new-item-state`),
+  then merge to `main`; (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec)
+  is STILL not built — next feature task; (c) optional: the matched/review-row
+  tick-persistence parallel flagged in v50 (see HANDOVER-v50).

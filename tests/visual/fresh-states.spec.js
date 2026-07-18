@@ -46,10 +46,7 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   });
   await page.waitForTimeout(300);
   await page.locator('#lines').screenshot({ path: 'tests/visual/__shots__/builder-lines-mobile.png' });
-  // the misc label must get real width at 380px — the standing complaint
-  const w = await page.evaluate(() => document.querySelector('.misc-label').getBoundingClientRect().width);
-  expect(w, 'misc label width at 380px').toBeGreaterThan(240);
-  // and the line total must not be pushed off the card by the costs row
+  // ingredient lines keep the v44 two-row split: the line total renders in the costs row
   const lc = await page.evaluate(() => {
     const el = document.querySelector('.line .costs .lc');
     return el ? { right: el.getBoundingClientRect().right, w: el.getBoundingClientRect().width } : null;
@@ -57,6 +54,27 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   expect(lc, 'line total must render in the costs row').not.toBeNull();
   expect(lc.w, 'line total must have real width').toBeGreaterThan(10);
   expect(lc.right, 'line total must fit inside the 380px viewport').toBeLessThanOrEqual(380);
+  // v53 (replaces the v44 "label gets full card width" pin — Max's mockup collapsed the misc
+  // line back to ONE row): label + $ field + total share one row, no sub-label, nothing clips
+  const misc = await page.evaluate(() => {
+    const line = document.querySelector('.line.misc-line');
+    const mid = el => { const r = el.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
+    const lbl = line.querySelector('.misc-label'), box = line.querySelector('.misc-costbox'),
+          tot = line.querySelector('.lc'), x = line.querySelector('.x');
+    return {
+      sub: line.querySelectorAll('.sub').length, rows: line.querySelectorAll('.top,.costs').length,
+      lblW: lbl.getBoundingClientRect().width,
+      sameRow: Math.max(Math.abs(mid(lbl) - mid(box)), Math.abs(mid(lbl) - mid(tot)), Math.abs(mid(lbl) - mid(x))),
+      totRight: tot.getBoundingClientRect().right, xRight: x.getBoundingClientRect().right,
+      lineRight: line.getBoundingClientRect().right,
+    };
+  });
+  expect(misc.sub, 'misc sub-label deleted').toBe(0);
+  expect(misc.rows, 'no .top/.costs split — ONE row').toBe(0);
+  expect(misc.lblW, 'name field keeps usable width at 380px').toBeGreaterThan(70);
+  expect(misc.sameRow, 'label, $ field, total and × share one row').toBeLessThanOrEqual(3);
+  expect(misc.totRight, 'total left of the × corner').toBeLessThanOrEqual(misc.xRight);
+  expect(misc.xRight, 'nothing clips the card').toBeLessThanOrEqual(misc.lineRight);
 });
 
 test('v44 items 1+3: unified pack control (both moods) + pills on the title baseline', async ({ page }) => {
@@ -473,7 +491,9 @@ for (const size of SIZES) {
     await page.waitForTimeout(300);
     const rows = await page.evaluate(() => {
       const out = [];
-      document.querySelectorAll('#lines .line .costs').forEach(costs => {
+      // v53: ingredient lines carry the leader in .costs; the misc line is ONE row and
+      // carries it directly — the baseline rule applies to both
+      document.querySelectorAll('#lines .line .costs, #lines .line.misc-line').forEach(costs => {
         const leader = costs.querySelector('.leader'), lc = costs.querySelector('.lc');
         if (!leader || !lc) return;
         const r = document.createRange(); r.selectNodeContents(lc);
@@ -568,12 +588,19 @@ for (const size of SIZES) {
           // v48 stability pins: rendered label height (font size), label left edge vs the
           // title's, and the plot gutter must all be IDENTICAL for every range
           lblH: +yLbls[0].getBoundingClientRect().height.toFixed(2),
-          lblLeft: +yLbls[0].getBoundingClientRect().left.toFixed(1),
+          lblLeft: +Math.min(...yLbls.map(t => t.getBoundingClientRect().left)).toFixed(1),
           maxLblRight: Math.max(...yLbls.map(t => t.getBoundingClientRect().right)),
+          lblRightSpread: +(Math.max(...yLbls.map(t => t.getBoundingClientRect().right))
+                          - Math.min(...yLbls.map(t => t.getBoundingClientRect().right))).toFixed(1),
           plotLeftPx: (() => {
             const s = svg.getBoundingClientRect();
             return s.left + (window.TREND_GEO.padL / window.TREND_GEO.W) * s.width;
           })(),
+          // leftmost RENDERED pixel of any plot element (fill+curve+dots group, target line)
+          drawnLeft: +Math.min(
+            svg.querySelector('g[clip-path]').getBoundingClientRect().left,
+            svg.querySelector('.ref-line').getBoundingClientRect().left,
+          ).toFixed(1),
           titleLeft: +title.left.toFixed(1),
           padL: window.TREND_GEO.padL,
           bezier: svg.querySelector('g[clip-path] path[stroke]').getAttribute('d').includes('C'),
@@ -588,9 +615,15 @@ for (const size of SIZES) {
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
       expect(st.xLbls, `${rg}: x-axis date labels removed (v48)`).toBe(0);
       expect(st.targetTick, `${rg}: the target value IS one of the labelled ticks`).toBe(true);
-      expect(st.lblLeft - st.titleLeft, `${rg}: y labels share the title's left edge`).toBeLessThanOrEqual(1.5);
-      expect(st.lblLeft - st.titleLeft, `${rg}: y labels share the title's left edge`).toBeGreaterThanOrEqual(-1.5);
-      expect(st.maxLblRight, `${rg}: the widest label ends before the plot gutter — nothing can clip`).toBeLessThanOrEqual(st.plotLeftPx);
+      // v52 gutter contract (replaces v51's "no gutter" pin, which drew the plot UNDER the labels):
+      // labels live inside a gutter sized to the widest label, right-aligned so digits sit flush;
+      // the widest label's LEFT edge = the title's left edge; ZERO plot pixels left of the label
+      // column's right edge on ANY range.
+      expect(st.lblLeft - st.titleLeft, `${rg}: widest y label starts at the title's left edge`).toBeLessThanOrEqual(2);
+      expect(st.lblLeft - st.titleLeft, `${rg}: widest y label starts at the title's left edge`).toBeGreaterThanOrEqual(-1.5);
+      expect(st.lblRightSpread, `${rg}: y labels right-aligned — digits flush as a column`).toBeLessThanOrEqual(1);
+      expect(st.plotLeftPx - st.maxLblRight, `${rg}: the plot begins right of the label column (gutter gap)`).toBeGreaterThanOrEqual(3);
+      expect(st.drawnLeft - st.maxLblRight, `${rg}: no rendered plot pixel left of the label column`).toBeGreaterThanOrEqual(0);
       expect(st.bezier, `${rg}: smooth curve (cubic segments)`).toBe(true);
       expect(st.pattern, `${rg}: dotted area fill`).toBe(true);
       expect(st.clipGroups, `${rg}: bright + dim groups`).toBe(2);
@@ -821,22 +854,59 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
     'arrow keys still scrub after the focus rework').toBe(true);
 });
 
-test('v48: menu header rhythm — label, value line, colour key on one spacing token', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
-  await page.goto('/');
-  await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="analysis"]').click();
-  await page.waitForTimeout(400);
-  const gaps = await page.evaluate(() => {
-    const lbl = document.querySelector('.cogs-set > .cogs-lbl').getBoundingClientRect();
-    const val = document.querySelector('.cogs-help').getBoundingClientRect();
-    const key = document.querySelector('.akey span').getBoundingClientRect();   // the key's content — .akey carries its gap as padding-top
-    return { lblToVal: val.top - lbl.bottom, valToKey: key.top - val.bottom };
+// v52 (replaces the v48 rhythm test — its .cogs-set/.cogs-help block no longer exists):
+// the Menu header is now h2 > panel-actions > picker+search > two quiet meta lines. Pin the
+// page order and the one left edge, and that the target sentence kept its live value + link.
+for (const size of SIZES) {
+  test(`v52: menu header structure — skeleton order, one left edge, target line intact @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="analysis"]').click();
+    await page.waitForTimeout(400);
+    const st = await page.evaluate(() => {
+      const L = s => document.querySelector(s).getBoundingClientRect().left;
+      const T = s => document.querySelector(s).getBoundingClientRect().top;
+      return {
+        order: [T('.an-head'), T('.an-controls'), T('.cogs-meta'), T('.akey'), T('.atable-wrap')],
+        edges: [L('.an-head .btn'), L('#menuSelect'), L('.cogs-meta'), L('.akey')],
+        target: document.querySelector('.cogs-meta').textContent,
+        link: !!document.querySelector('.cogs-meta #cogsToSettings'),
+        val: document.getElementById('cogsTargetRead').textContent,
+      };
+    });
+    for (let k = 1; k < st.order.length; k++)
+      expect(st.order[k], `header block ${k} sits below block ${k - 1}`).toBeGreaterThan(st.order[k - 1]);
+    for (const e of st.edges.slice(1))
+      expect(Math.abs(e - st.edges[0]), 'header blocks share ONE left edge').toBeLessThanOrEqual(1.5);
+    expect(st.target, 'the meta line reads the live target').toContain(st.val + '%');
+    expect(st.link, 'change-in-Settings link lives in the meta line').toBe(true);
+    await page.locator('#tab-analysis .panel').screenshot({ path: `tests/visual/__shots__/v52-menu-header-${size.name}.png` });
   });
-  expect(Math.abs(gaps.lblToVal - gaps.valToKey), 'the two gaps are equal (even rhythm)').toBeLessThanOrEqual(2);
-  await page.locator('.an-controls').screenshot({ path: 'tests/visual/__shots__/v48-menu-rhythm.png' });
-});
+
+  test(`v52: tap-to-edit — card opens the edit modal, chip still routes to the Builder @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="analysis"]').click();
+    await page.waitForTimeout(400);
+    // the per-card Edit button is GONE (tap-to-edit owns that path now); → Builder remains
+    await expect(page.locator('#aBody .mi-btn.edit')).toHaveCount(0);
+    const name = (await page.locator('#aBody tr.mi-row .mi-name').first().innerText()).trim();
+    await page.locator('#aBody tr.mi-row').first().click();
+    await expect(page.locator('#editModal'), 'card tap opens the edit modal').toHaveClass(/open/);
+    expect((await page.inputValue('#ed_name')).trim(), 'the modal is loaded with the tapped dish').toBe(name);
+    await page.locator('#editClose').click();
+    await expect(page.locator('#editModal')).not.toHaveClass(/open/);
+    // the chip must NOT fall through to the row's edit handler
+    await page.locator('#aBody tr.mi-row .mi-btn.tobuilder').first().click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#editModal'), 'chip tap must not open the modal').not.toHaveClass(/open/);
+    await expect(page.locator('#tab-builder'), 'chip lands in the Builder').toBeVisible();
+  });
+}
 
 for (const size of SIZES) {
   test(`fresh analysis empty state @ ${size.name}`, async ({ page }) => {

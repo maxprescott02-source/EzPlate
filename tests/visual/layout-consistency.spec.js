@@ -12,9 +12,10 @@
  * Known, intentional exceptions (do not "fix" by loosening the tolerance):
  * - Builder's Publish/Save/Print/Clear live at the BOTTOM of the docket — they
  *   commit the assembled plate (form-submit semantics), not header actions.
- * - Menu's buttons live inside the menu-picker control, not a header actions row.
- * - Dashboard/Menu simply have no .panel-actions row; the actions-row assertions
- *   run on the tabs that have one (pantry + ingredients/Products).
+ * - Dashboard simply has no .panel-actions row; the actions-row assertions run
+ *   on the tabs that have one (pantry + ingredients/Products + analysis/Menu —
+ *   Menu joined the skeleton in v52, its old picker-embedded-buttons exception
+ *   is gone).
  */
 const { test, expect } = require('@playwright/test');
 
@@ -71,15 +72,19 @@ for (const size of SIZES) {
       expect(m.dividerW, `${tab}: divider on the title`).toBe(base.dividerW);
     }
 
-    // actions rows (the two tabs that have one): same y, same button left edge,
+    // actions rows (the three tabs that have one): same y, same button left edge,
     // and the buttons share the title's left edge — ONE left edge, structurally
-    const p = metrics.pantry, i = metrics.ingredients;
+    const p = metrics.pantry, i = metrics.ingredients, a = metrics.analysis;
     expect(p.actionsTop, 'pantry has an actions row').not.toBeNull();
     expect(i.actionsTop, 'Products has an actions row').not.toBeNull();
+    expect(a.actionsTop, 'Menu has an actions row (v52)').not.toBeNull();
     expect(Math.abs(p.actionsTop - i.actionsTop), 'actions row y identical across tabs').toBeLessThanOrEqual(TOL);
+    expect(Math.abs(p.actionsTop - a.actionsTop), 'Menu actions row y matches').toBeLessThanOrEqual(TOL);
     expect(Math.abs(p.btnLeft - i.btnLeft), 'primary button left edge identical').toBeLessThanOrEqual(TOL);
+    expect(Math.abs(p.btnLeft - a.btnLeft), 'Menu primary button left edge identical').toBeLessThanOrEqual(TOL);
     expect(Math.abs(p.btnLeft - p.titleTextLeft), 'buttons sit on the title text edge (pantry)').toBeLessThanOrEqual(TOL);
     expect(Math.abs(i.btnLeft - i.titleTextLeft), 'buttons sit on the title text edge (Products)').toBeLessThanOrEqual(TOL);
+    expect(Math.abs(a.btnLeft - a.titleTextLeft), 'buttons sit on the title text edge (Menu)').toBeLessThanOrEqual(TOL);
 
     // header meta lines share the same edge (Products' were inline styles pre-v49)
     await page.locator('.navbtn[data-tab="ingredients"]').click();
