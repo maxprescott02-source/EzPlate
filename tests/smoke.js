@@ -238,15 +238,18 @@ ok('the saved plate appears as a card', !!libCard && /Smoke Plate/.test(libCard.
 ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
 ok('the card shows a plate-cost cell', !!libCard && /plate cost/.test(libCard.textContent) && /\$/.test(libCard.textContent), libCard && libCard.textContent);
 
-// tapping the card opens the action chooser; an unpublished plate offers Publish
+// tapping the card opens the action chooser -> Manage menus (v55 many-to-many)
 libCard.click();
 ok('tapping a card opens the action popup', $('plateActionsModal').classList.contains('open'));
-ok('an unpublished plate offers "Publish to a menu"', $('paPublish').textContent === 'Publish to a menu', $('paPublish').textContent);
-
-// Publish loads the plate + opens the publish modal, then completes the publish
+ok('the card offers "Manage menus"', $('paPublish').textContent === 'Manage menus', $('paPublish').textContent);
 $('paPublish').click();
-ok('Publish loads the plate into the builder state', !!window.eval('loadedPlateId'));
-ok('Publish opens the publish modal (not the builder popup)', $('menuModal').classList.contains('open'));
+ok('Manage menus opens its modal', $('manageMenusModal').classList.contains('open'));
+let addBtn = window.document.querySelector('#mmList .mm-add');
+ok('the plate is not yet on any menu (an Add row is offered)', !!addBtn);
+
+// add the plate to the first menu -> the publish modal collects a per-menu price
+addBtn.click();
+ok('Add opens the publish modal', $('menuModal').classList.contains('open'));
 $('mi_name').value = 'Smoke Plate';
 $('mi_price').value = '12';
 $('mi_cat').value = '';                                 // empty category -> "Uncategorised", no combo confirmation
@@ -255,10 +258,15 @@ ok('publishing closes the publish modal', !$('menuModal').classList.contains('op
 window.renderPlatesTab();
 libCard = window.document.querySelector('#plateList .ing-card');
 ok('the plate now shows which menu it is On', !!libCard && /On /.test(libCard.textContent), libCard && libCard.textContent);
-// and its action popup now offers Move instead of Publish
+// Manage menus now shows the menu with a price + Remove (published there)
 libCard.click();
-ok('a published plate offers "Move to another menu"', $('paPublish').textContent === 'Move to another menu', $('paPublish').textContent);
-$('plateActionsClose').click();
+$('paPublish').click();
+ok('the menu now shows a Remove control (plate is on it)', !!window.document.querySelector('#mmList .mm-remove'));
+ok('the per-menu price is shown', /12\.00/.test($('mmList').textContent), $('mmList').textContent);
+// remove it -> back to unpublished
+window.document.querySelector('#mmList .mm-remove').click();
+ok('removing from the menu unpublishes it there', !!window.document.querySelector('#mmList .mm-add'));
+$('manageMenusDone').click();
 
 console.log('\n[13] v54 — product Unit type is create-only on the edit form');
 window.showTab('ingredients');

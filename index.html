@@ -237,11 +237,23 @@
     <div class="mbody">
       <p class="pa-sub" id="plateActionsSub"></p>
       <div class="pa-choices">
-        <button class="btn primary" id="paPublish" type="button">Publish to a menu</button>
+        <button class="btn primary" id="paPublish" type="button">Manage menus</button>
         <button class="btn" id="paEdit" type="button">Edit plate</button>
         <button class="btn danger ghost" id="paDelete" type="button">Delete plate</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- v55: Manage menus — a plate can be published to any number of menus, each with its own price/category. -->
+<div class="modal-overlay" id="manageMenusModal" aria-hidden="true">
+  <div class="modal confirm-modal manage-menus" role="dialog" aria-modal="true" aria-labelledby="manageMenusTitle">
+    <div class="mhead"><h3 id="manageMenusTitle">Plate</h3><button class="x" id="manageMenusClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p class="pa-sub">Add this plate to a menu (each gets its own price), or remove it from one. The plate itself stays in your library.</p>
+      <div class="mm-list" id="mmList"></div>
+    </div>
+    <div class="mfoot"><button class="btn" id="manageMenusDone" type="button">Done</button></div>
   </div>
 </div>
 

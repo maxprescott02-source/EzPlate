@@ -1,15 +1,13 @@
 /*
- * plates-independence.test.js — locks the v54 contract: plates are an independent library.
+ * plates-independence.test.js — v55 contract: plates are an independent, MANY-TO-MANY library.
  *
- * Reverses the v40/v42 holding-area design. The two data-integrity claims pinned here (against the
- * REAL shipped doDeleteMenu + saveCurrentPlate + fallbackMenuId, brace-extracted from js/app.js so
- * there is no second copy to drift):
- *
- *   1. Saving a plate that isn't linked to a dish writes it with menuId === null — a "draft" is just
- *      an unpublished library plate now. It never invents a holding-area dish.
- *   2. Deleting a menu DELETES its dishes (menu_items rows) and UNLINKS their plates (menuId → null);
- *      every plate survives in savedPlates. Dishes NOT on that menu, and already-unlinked plates, are
- *      untouched. Deleting the last menu leaves zero menus (currentMenuId falls back to null).
+ * A plate carries no menu link. A menu_items dish links to its plate via dish.plateId (source_plate_id is a
+ * legacy fallback; a stale local plate.menuId is the last resort). One plate can back many dishes — one per
+ * menu it's published to. Pinned against the REAL shipped helpers (brace-extracted from js/app.js):
+ *   - plateIdOf resolves plateId > sourcePlateId > legacy plate.menuId
+ *   - dishesOfPlate / menusOfPlate enumerate every menu a plate is on
+ *   - saving a plate stores NO menuId (just id/name/lines[/category])
+ *   - deleting a menu removes only THAT menu's dishes; the plate and its entries on other menus survive
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -31,113 +29,137 @@ function extractFn(src, name) {
   throw new Error(`plates-independence: unbalanced braces for ${name}`);
 }
 
-/* ---- 1. Save writes an unpublished (null-menu) plate ---- */
+/* ---- 1. resolution helpers (plate <-> dish, many-to-many) ---- */
+function makeResolver(menusList, savedPlates, dishes) {
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('MENUS', 'PLATES', 'DISHES', `
+    "use strict";
+    var menusList=MENUS, savedPlates=PLATES, MENU=DISHES;
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'dishesOfPlate')}
+    ${extractFn(SRC, 'menusOfPlate')}
+    ${extractFn(SRC, 'isPublishedPlate')}
+    return { plateIdOf, plateForMenuItem, dishesOfPlate, menusOfPlate, isPublishedPlate };
+  `);
+  return factory(menusList, savedPlates, dishes);
+}
 
+test('v55: plateIdOf resolves plateId first, then legacy source_plate_id, then a stale local plate.menuId', () => {
+  const plates = [{ id: 'SP_legacy', menuId: 'D3', lines: [] }];
+  const r = makeResolver([], plates, []);
+  assert.strictEqual(r.plateIdOf({ id: 'D1', plateId: 'SPx', sourcePlateId: 'SPy' }), 'SPx', 'plateId wins');
+  assert.strictEqual(r.plateIdOf({ id: 'D2', sourcePlateId: 'SPy' }), 'SPy', 'source_plate_id is the fallback');
+  assert.strictEqual(r.plateIdOf({ id: 'D3' }), 'SP_legacy', 'a stale local plate.menuId is the last resort');
+  assert.strictEqual(r.plateIdOf({ id: 'D9' }), null, 'nothing to resolve -> null');
+});
+
+test('v55: a plate can be on MANY menus — menusOfPlate lists them all with per-menu price', () => {
+  const menusList = [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MW', name: 'Winter' }];
+  const plates = [{ id: 'SP1', name: 'Fish & Chips', lines: [] }];
+  const dishes = [
+    { id: 'D1', name: 'F&C', price: 18, section: 'Mains', menuId: 'MENU_ORIGINAL', plateId: 'SP1' },
+    { id: 'D2', name: 'F&C winter', price: 21, section: 'Mains', menuId: 'MW', plateId: 'SP1' },
+    { id: 'D3', name: 'Other', price: 9, menuId: 'MW', plateId: 'SP_other' },
+  ];
+  const r = makeResolver(menusList, plates, dishes);
+  const on = r.menusOfPlate(plates[0]);
+  assert.deepStrictEqual(on.map(o => o.name).sort(), ['Original', 'Winter'], 'both menus, once each');
+  assert.deepStrictEqual(on.map(o => o.price).sort(), [18, 21], 'each entry keeps its own price');
+  assert.strictEqual(r.isPublishedPlate(plates[0]), true);
+  assert.strictEqual(r.dishesOfPlate(plates[0]).length, 2, 'two dishes back this plate');
+  assert.strictEqual(r.plateForMenuItem(dishes[0]).id, 'SP1', 'the dish resolves to its plate');
+});
+
+/* ---- 2. saving a plate stores NO menu link ---- */
 function makeSaveHarness(opts) {
-  const state = { calls: [], savedPlates: opts.savedPlates || [], plateName: opts.plateName, linkValue: opts.linkValue || '' };
+  const state = { calls: [], savedPlates: opts.savedPlates || [], plateName: opts.plateName };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
     "use strict";
     var plate=[{kid:'K1',qty:100}];
     var savedPlates=S.savedPlates;
     var loadedPlateId=null;
-    var menuLinkEl={value:S.linkValue};
     var document={getElementById:function(id){
       if(id==='plateName') return {value:S.plateName, focus:function(){}};
       if(id==='plateNameErr') return {style:{}, textContent:''};
       return {value:'', style:{}, textContent:''};
     }};
     function toast(m){ S.calls.push('toast'); }
-    function savePlatesLS(){ S.calls.push('savePlatesLS'); }
+    function savePlatesLS(){}
     function updateEditTag(){}
     function renderAnalysis(){}
-    function dbPushPlateAfterMenu(sp, promise){ S.calls.push('push:'+(promise?'sequenced':'plain')); return Promise.resolve(null); }
+    function renderPlatesTab(){}
+    function dbPushPlate(sp){ S.calls.push('push:'+sp.id); }
     ${extractFn(SRC, 'saveCurrentPlate')}
     return function(){ saveCurrentPlate(false); return { savedPlates: savedPlates }; };
   `);
   return factory(state);
 }
 
-test('v54: saving an unlinked plate stores it with menuId === null (an unpublished library plate)', () => {
+test('v55: saving a plate stores id/name/lines and NO menuId (a plate carries no menu link)', () => {
   const run = makeSaveHarness({ plateName: 'Big Breakfast' });
   const { savedPlates } = run();
-  assert.strictEqual(savedPlates.length, 1, 'the plate is saved to the library');
-  assert.strictEqual(savedPlates[0].menuId, null, 'no menu link — it is an unpublished draft, not a holding-area dish');
+  assert.strictEqual(savedPlates.length, 1);
   assert.strictEqual(savedPlates[0].name, 'Big Breakfast');
+  assert.ok(!('menuId' in savedPlates[0]), 'the saved plate has no menuId field');
+  assert.ok(Array.isArray(savedPlates[0].lines), 'it stores its ingredient lines');
 });
 
-test('v54: saving a plate whose builder still points at a live dish keeps that link (editing a published plate)', () => {
-  const run = makeSaveHarness({ plateName: 'Big Breakfast', linkValue: 'D1' });
-  const { savedPlates } = run();
-  assert.strictEqual(savedPlates[0].menuId, 'D1', 'an already-linked plate stays published');
-});
-
-/* ---- 2. Menu delete unlinks plates + deletes dishes, plates survive ---- */
-
+/* ---- 3. deleting a menu removes only that menu's dishes; plates + other menus survive ---- */
 function makeDeleteHarness(opts) {
-  const state = {
-    calls: [],
-    menusList: opts.menusList,
-    customMenu: opts.customMenu,
-    savedPlates: opts.savedPlates,
-    currentMenuId: opts.currentMenuId,
-  };
+  const S = { menusList: opts.menusList, savedPlates: opts.savedPlates, customMenu: opts.customMenu, currentMenuId: opts.currentMenuId, calls: [] };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
     "use strict";
-    var menusList=S.menusList;
-    var customMenu=S.customMenu;
-    var savedPlates=S.savedPlates;
-    var currentMenuId=S.currentMenuId;
-    function dbPushPlate(sp){ S.calls.push('unlinkPush:'+sp.id); return Promise.resolve(null); }
-    function removeMenuItem(mid){ S.calls.push('removeMenuItem:'+mid); customMenu=customMenu.filter(function(c){return c.id!==mid;}); }
-    function savePlatesLS(){ S.calls.push('savePlatesLS'); }
+    var menusList=S.menusList, savedPlates=S.savedPlates, customMenu=S.customMenu, currentMenuId=S.currentMenuId;
+    var MENU=[], menuById={};
+    function rebuildMenu(){ MENU=customMenu.slice(); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
+    function removeMenuItem(id){ customMenu=customMenu.filter(function(c){return c.id!==id;}); rebuildMenu(); }
     function saveMenus(){}
-    function dbDeleteMenuRecord(id){ S.calls.push('dbDeleteMenuRecord:'+id); }
+    function dbDeleteMenuRecord(){}
     function setCurrentMenuId(v){ currentMenuId=v; }
-    function rebuildMenu(){}
     function buildMenuSelector(){}
     function renderAnalysis(){}
     function updateMenuDelBtn(){}
-    function renderPlate(){}
-    function toast(m){ S.calls.push('toast'); }
+    function renderPlatesTab(){}
+    function toast(){}
+    ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'fallbackMenuId')}
     ${extractFn(SRC, 'doDeleteMenu')}
-    return function(id,name){ doDeleteMenu(id,name); return { menusList: menusList, savedPlates: savedPlates, currentMenuId: currentMenuId }; };
+    rebuildMenu();
+    return function(id,name){ doDeleteMenu(id,name); return { menusList: menusList, savedPlates: savedPlates, customMenu: customMenu, currentMenuId: currentMenuId }; };
   `);
-  return factory(state);
+  return factory(S);
 }
 
-test('v54: deleting a menu unlinks its plates (menuId → null) and KEEPS every plate in the library', () => {
+test('v55: deleting a menu removes only that menu\'s dishes; the plate and its entries on other menus survive', () => {
   const run = makeDeleteHarness({
-    menusList: [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MENUx', name: 'Winter' }],
-    customMenu: [{ id: 'D1', menuId: 'MENUx' }, { id: 'D2', menuId: 'MENU_ORIGINAL' }],
-    savedPlates: [
-      { id: 'SP1', menuId: 'D1', lines: [] },   // published to a dish on the deleted menu
-      { id: 'SP2', menuId: 'D2', lines: [] },   // published to a dish on a DIFFERENT menu
-      { id: 'SP3', menuId: null, lines: [] },   // already an unpublished library plate
+    menusList: [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MW', name: 'Winter' }],
+    customMenu: [
+      { id: 'D1', menuId: 'MENU_ORIGINAL', plateId: 'SP1', custom: true },
+      { id: 'D2', menuId: 'MW', plateId: 'SP1', custom: true },   // SAME plate, other menu
+      { id: 'D3', menuId: 'MW', plateId: 'SP2', custom: true },
     ],
-    currentMenuId: 'MENUx',
+    savedPlates: [{ id: 'SP1', name: 'Shared', lines: [] }, { id: 'SP2', name: 'Winter-only', lines: [] }],
+    currentMenuId: 'MW',
   });
-  const { menusList, savedPlates, currentMenuId } = run('MENUx', 'Winter');
-
-  assert.ok(!menusList.some(m => m.id === 'MENUx'), 'the menu is gone');
-  assert.strictEqual(savedPlates.length, 3, 'NO plate is deleted — all survive in the library');
-  assert.strictEqual(savedPlates.find(p => p.id === 'SP1').menuId, null, 'the deleted menu\'s plate is unlinked, not destroyed');
-  assert.strictEqual(savedPlates.find(p => p.id === 'SP2').menuId, 'D2', 'a plate on another menu is untouched');
-  assert.strictEqual(savedPlates.find(p => p.id === 'SP3').menuId, null, 'an already-unlinked plate is untouched');
-  assert.strictEqual(currentMenuId, 'MENU_ORIGINAL', 'the view lands on the surviving menu');
+  const { menusList, savedPlates, customMenu } = run('MW', 'Winter');
+  assert.ok(!menusList.some(m => m.id === 'MW'), 'the menu is gone');
+  assert.strictEqual(savedPlates.length, 2, 'NO plate is deleted');
+  assert.ok(customMenu.some(d => d.id === 'D1'), 'the dish on the OTHER menu survives');
+  assert.ok(!customMenu.some(d => d.id === 'D2' || d.id === 'D3'), 'only the deleted menu\'s dishes are removed');
 });
 
-test('v54: deleting the LAST menu leaves zero menus and a null current menu (legitimate now)', () => {
+test('v55: deleting the last menu is allowed; plates survive with no dishes', () => {
   const run = makeDeleteHarness({
-    menusList: [{ id: 'MENUx', name: 'Winter' }],
-    customMenu: [{ id: 'D1', menuId: 'MENUx' }],
-    savedPlates: [{ id: 'SP1', menuId: 'D1', lines: [] }],
-    currentMenuId: 'MENUx',
+    menusList: [{ id: 'MW', name: 'Winter' }],
+    customMenu: [{ id: 'D1', menuId: 'MW', plateId: 'SP1', custom: true }],
+    savedPlates: [{ id: 'SP1', name: 'Plate', lines: [] }],
+    currentMenuId: 'MW',
   });
-  const { menusList, savedPlates, currentMenuId } = run('MENUx', 'Winter');
+  const { menusList, savedPlates, customMenu } = run('MW', 'Winter');
   assert.strictEqual(menusList.length, 0, 'the last menu can be deleted');
-  assert.strictEqual(currentMenuId, null, 'no menu selected — the Menu tab shows its empty state');
-  assert.strictEqual(savedPlates[0].menuId, null, 'the plate still survives, now unpublished');
+  assert.strictEqual(savedPlates.length, 1, 'the plate survives, now unpublished');
+  assert.strictEqual(customMenu.length, 0, 'its dish is gone');
 });

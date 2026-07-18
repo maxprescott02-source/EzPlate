@@ -615,9 +615,18 @@ input[type=checkbox]{
 .ing-tag.pub-on{color:var(--accent)}
 .ing-tag.pub-off{color:var(--muted2)}
 /* plate card action chooser */
-.plate-actions .pa-sub{margin:0 0 14px;font-size:13px;color:var(--muted2)}
+.plate-actions .pa-sub,.manage-menus .pa-sub{margin:0 0 14px;font-size:13px;color:var(--muted2)}
 .pa-choices{display:flex;flex-direction:column;gap:8px}
 .pa-choices .btn{width:100%;min-height:44px}
+/* manage-menus: one row per menu (name · price/Add/Remove) */
+.mm-list{display:flex;flex-direction:column;gap:8px}
+.mm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px}
+.mm-name{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mm-price{font-variant-numeric:tabular-nums;color:var(--muted2)}
+.mm-row .btn{min-height:36px;padding:6px 14px}
+.mm-empty{padding:18px 4px;text-align:center;color:var(--muted2);font-size:14px}
+/* §B: an uncosted plate reads "not costed yet", not a misleading $0.00 */
+.ing-price.notcosted b{color:var(--muted2);font-weight:600}
 /* v54: unit type is create-only on the product EDIT form — shown, not editable */
 #ig_unit:disabled{opacity:.75;cursor:not-allowed;background:var(--surface2)}
 .ro-note{display:block;margin-top:4px;font-weight:400;color:var(--muted2)}
