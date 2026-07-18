@@ -250,145 +250,63 @@ merge to `main` as a production deploy.
 
 ## State as of 18 Jul 2026 (verify, don't trust)
 
-- `main` is at **v49** (confirmed live/deployed). Both `fix/pack-control-and-menus`
-  (v42–v48) and `refactor/panel-structure` (v49) merged after Max's phone
-  sign-off.
-- Branch `fix/invoice-new-item-state` (off `main` at v49) carries **v50–v53**
-  — committed, awaiting Max's phone sign-off then merge to `main`.
-  `npm test` = **139 green**, jsdom smoke green, `node -c` clean, **47
-  Playwright checks pass**, all six spots at **v53**. See
-  `handovers/HANDOVER-v50/51/52/53.md` and their needs-phone lists.
-- **v53 shipped (see `handovers/HANDOVER-v53.md`):** builder misc line is ONE
-  row per Max's mockup (name · $cost · dotted connector · bold total · ×),
-  sub-label deleted; three one-row-era legacy mobile rules overridden at the
-  site (qtybox order:3, lc order:4/margin:auto, costbox flex-grow); leader on
-  the v46 baseline mechanism. v44's "label full width" pin replaced by the
-  one-row contract (declared).
-- **v52 shipped (see `handovers/HANDOVER-v52.md`) — two approved parts:**
-  1. **Chart gutter GEOMETRY (supersedes v51's approach):** v51's `padL=4` drew
-     the plot UNDER the y-axis labels (Max's screenshot: fill dots around
-     "10%"). Now ONE gutter constant used by every plot element: `padL` =
-     widest tick label (glyph width MEASURED from the real 11px mono via
-     canvas `axCharW()`, jsdom fallback) + 8px gap; labels right-aligned to
-     `plotLeft-8` (digits flush, widest label's left edge = title column);
-     zero plot pixels left of `plotLeft` — pinned by a rendered-pixel
-     Playwright check on every range. Target-tick-on-dashed-rule and
-     constant-geometry-across-ranges v48 pins unchanged and green.
-  2. **Menu page rework (Max approved the proposal pre-build):** the tab now
-     follows the v49 panel skeleton — h2 "Menu" → `.panel-actions` (+ New menu
-     primary, + Existing dish, strapline) → picker(+Delete)+search controls →
-     two quiet meta lines (target sentence, colour key) → sectioned list.
-     Cards/rows are **tap-to-edit** (Edit button retired; `.mi-name` is a real
-     button for keyboard; "→ Builder" chip stays, stopPropagation), carry a
-     **3px margin-light stripe** (`lt-*` classes on the tr), and phones get a
-     2×2 number grid (cards ~half height). All ids/handlers/capabilities
-     preserved (`menuSelect`, `menuDelBtn`, `cogsTargetRead`/`cogsToSettings`,
-     search, holding-area delete flow). `layout-consistency.spec.js` now
-     MEASURES Menu's actions row (its exception was removed — spec stricter);
-     the v48 menu-rhythm test was replaced by v52 header + tap-to-edit tests.
-     Root-caused CSS traps documented at the fix sites: `.menu-search`
-     flex-basis becomes a HEIGHT in the column controls stack; the card base
-     rule's border shorthand outranked the (0,2,2) stripe rules — stripes use
-     `:not(.invtable)` for specificity only.
-- **v51 context (superseded by v52 part 1, see `handovers/HANDOVER-v51.md`):**
-  removed the chart's left gutter so the curve started at the card's text
-  column — correct left edge, but it let the plot render under the labels,
-  which is what v52 restructured properly.
-- **v50 shipped (see `handovers/HANDOVER-v50.md`):**
-  1. **Invoice new-item form now persists across re-renders (FRAGILE AREA).**
-     Root cause: the "+ New" inline form's fields + Apply tick lived only in the
-     DOM, so any edit to another row (which calls `renderInvReview` →
-     `box.innerHTML`) wiped them. Fix: form state lives on the (previously dead)
-     `invRows[i].newItem`. `renderInvReview` **snapshots every open form BEFORE
-     the wipe** (`niSnapshot`) and **rehydrates after** (`niRehydrate`) — one
-     render path, no per-cell poking (v33 holds). Snapshot is **guarded on
-     `r.newItem` truthy** so a fresh `addNew` row can't absorb a stale form left
-     by a prior import (a bleed the first cut introduced; the smoke test caught
-     it). Tick persists via `checked ||= !!(r.newItem&&r.newItem.approved)` —
-     **v39 auto-tick pin still holds** (rows with no `newItem` unchanged).
-     Pinned by `tests/inv-rowmarkup.test.js` (markup/tick, default suite) +
-     `tests/smoke.js` section [11] (jsdom field+tick round-trip = the brief's
-     exact repro).
-  2. **"+ New menu" is now `btn primary`** (was plain), matching "+ New
-     ingredient"/"+ New product"; "+ Existing dish" stays plain by design.
-  3. **Chart caption alignment: no change in v50** — measured the caption
-     already shares one left edge with the axis labels + title + all card
-     headers; Max chose leave-as-is on the caption. (Superseded in **v51**: on
-     his phone Max identified the real issue as the plotted CURVE being inset,
-     not the caption — see the v51 bullet above.)
-  - **Known un-fixed parallel (flagged, out of scope):** ticking a
-    *matched/review* row then editing another row still drops that tick (same
-    class as item 1, but item 1 was scoped to the new-item form). Follow up if
-    it bites.
-- **v49 shipped (structural, skeleton approved by Max — see
-  `handovers/HANDOVER-v49.md`):** every tab is ONE skeleton — `.panel > h2`
-  (small-caps title, divider on its border-bottom) `> .panel-actions` (primary
-  → plain/ghost → inline `.panel-sub` strapline) `> controls > body`; one left
-  edge (`--sp-5`, collapsing to `--sp-4` ≤560px in ONE shared rule). Pantry's
-  h3 became a real h2 (its 3 generations of override rules are tombstoned);
-  Products' inline styles became `.panel-meta`; Dashboard's bespoke offsets are
-  gone. **`tests/visual/layout-consistency.spec.js` asserts panel/title/divider/
-  actions geometry identical ±1px across all five tabs at 380px + 1280px** —
-  falsified deliberately during the batch, so it's known non-vacuous. Intentional
-  exceptions (documented in the spec header): Builder's bottom docket actions,
-  Menu's picker-embedded buttons, Menu's table inset, the card lists' shared
-  16px inset. Do NOT "fix" a red consistency test by loosening TOL — conform
-  the tab to the skeleton instead.
-- **v48 shipped (chart declutter + stability + menu rhythm — see
-  `handovers/HANDOVER-v48.md`, brief: Max's annotated screenshots):** the
-  "Target" word and the x-axis date labels are GONE from the chart —
-  **`tcTicks(target,mn,mx)` now anchors the tick sequence ON the target and
-  steps outward** (integer-biased ladder; the domain derives from the tick
-  extent ± half a step), so a labelled tick always sits exactly on the dashed
-  line — that guarantee is the entire basis for the word's removal, pinned by
-  `tests/trend-ticks.test.js` + Playwright (round 30%, non-round 32%). Item 4's
-  real root cause (NOT font-size, NOT per-range padL — both were already
-  constant): decimal tick labels ("27.5%") from the old 2.5-step overflowed the
-  end-anchored gutter and clipped at the svg's left edge, while per-range
-  independent domains made the target line's y jump ~50px between ranges. Labels
-  are now start-anchored at x=0 (one left edge with the title + caption,
-  `.chart-controls` shares `.dash-chart`'s 540px box), in the existing
-  `var(--mono)` stack, padL=44 constant. Blue tap box killed
-  (`-webkit-tap-highlight-color` + `:focus{outline:none}` with `:focus-visible`
-  restated after it). Menu header rhythm on `--sp-2` (label→value→key).
-  "Print docket" untouched — Max cancelled the rename; docket language stays.
-- **v47 context (see `handovers/HANDOVER-v47.md`):** hand-rolled monotone cubic
-  spline (`tcTangents`/`tcPath`/`tcYAt` — the scrub dot rides the exact rendered
-  curve), dotted `<pattern>` area fill in the semantic line colour, free
-  scrubbing (crosshair + curve-riding dot + snapping tooltip card;
-  bright-behind/dim-ahead via two clipPath'd copies; rAF-throttled), plot is ONE
-  focusable control (arrows/Home/End/Escape), reading dots only when ≤32 points,
-  0/1 points → empty state, 2 points → single cubic segment (pinned by tests).
-  Semantic green/red never changes.
-- **v44–v46 context (see their handovers):** one card system, unified invoice
-  pack control (+ live preview via `invPackPreviewText`), "Save draft" into
-  "Unassigned dishes" (drafts = dishes with `price:0`, `section:'Drafts'`,
-  sequenced writes), ingredient cards tap-to-edit + `.ing-list`-mirroring grid,
-  builder two-row lines with baseline-aligned leaders, invoice flag-pill
-  alignment root-caused, ≥44px hit areas on `.ms-clear`/`.range-btn`.
-  `tests/visual/fresh-states.spec.js` = offline fresh-install Playwright
-  fixtures (`npm run shots`) — how v44–v48 were verified; reuse it.
-- **v43 context you need:** the "every publish errors" mystery was the BACKEND —
-  Max's `menu_items` table lacked `source_plate_id`, so every dish upsert was
-  rejected; Max added the column via SQL. The app-side fix removed the second
-  toast masking the real error; `pushWrite` is the single source of save
-  messaging. Watch for the same class of bug: any `dbPush*` naming a column the
-  live DB lacks fails wholesale — audit column lists against the real schema
-  before big features. See `handovers/HANDOVER-v43.md`.
-- **v42 shipped:** publish sequencing for EVERY publish path (orphaned dishes
-  heal on re-publish; `upsertCustomMenu` returns its push); `bootstrapSync`
-  heals instead of clobbering via pure `reconcileLocalOnly`; menu deletion
-  auto-moves dishes to the holding area behind ONE confirm (`fallbackMenuId`/
-  `canDeleteMenu` reworked, `realMenus()` added). See `handovers/HANDOVER-v42.md`
-  incl. the read-only orphan diagnostic snippet.
-- **Verified on Max's phone before the v42–v49 merge** (checklist kept for
-  reference): publish to an EXISTING menu (no FK error); delete a menu →
-  dishes land in "Unassigned dishes" and survive reload; real invoice import
-  (pack control + preview + flag pills on real titles); builder at 380px with
-  a real plate; the rebuilt chart — scrub feel on a real finger, switch all six
-  ranges (ONLY the trendline may move), tap it (no blue box), set target to
-  32% (tick must sit on the dashed line), both themes; Menu tab header rhythm.
-- Next up: (a) Max's phone sign-off on **v50–v52** (`fix/invoice-new-item-state`),
-  then merge to `main`; (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec)
-  is STILL not built — next feature task; (c) optional: the matched/review-row
-  tick-persistence parallel flagged in v50 (see HANDOVER-v50).
+- `main` is at **v53** (confirmed on `origin/main` — the `fix/invoice-new-item-state`
+  PR carrying v50–v53 merged after Max's phone sign-off). Earlier batches: v42–v48
+  (`fix/pack-control-and-menus`), v49 (`refactor/panel-structure`), v50–v53 above.
+  Per-batch detail lives in `handovers/HANDOVER-vNN.md` — this snapshot stays short.
+- Branch **`feat/plates-independent-library`** (off `main` @ v53) carries **v54** —
+  committed in 6 staged commits, awaiting Max's phone sign-off then merge to `main`.
+  `npm test` = **134 green**, jsdom smoke green (adds sections [12]–[14]), `node -c`
+  clean, all six spots at **v54**. See `handovers/HANDOVER-v54.md` and its needs-phone
+  list. **Playwright specs are STALE and were NOT run/updated (no browser here)** —
+  the handover lists exactly which `tests/visual/*.spec.js` tests to fix on a browser
+  env before `npm run shots` will pass.
+
+- **v54 shipped — Plates become an independent library (brief:
+  `~/Downloads/ezplate-opus-plates-rework.md`; reverses the v40/v42 holding-area
+  design). See `handovers/HANDOVER-v54.md`.**
+  1. **Plates are first-class.** A plate exists menu or no menu. `plates.menu_id`
+     nullable (already true in prod; migration shipped for parity, idempotent).
+  2. **Holding area REMOVED.** `MENU_UNASSIGNED`/`ensureUnassignedMenu`/
+     `holdingHasDishes`/`realMenus` and every holding special-case are gone.
+     **Menu delete now deletes its dishes and UNLINKS their plates (`menuId→null`),
+     never reassigns** (`doDeleteMenu`). **Zero menus is legitimate** — any menu is
+     deletable; `fallbackMenuId` returns null when none; `ensureDefaultMenu` seeds
+     "Original" only on a genuinely fresh install (`menusKeyExists()`).
+  3. **Builder tab → Plates library.** `#tab-builder` (identifier unchanged; label
+     "Plates") is a `.ing-card` grid; the builder markup is RELOCATED into
+     `#builderModal` (full-screen on mobile, large modal desktop). One primary **Save**
+     (`saveFromBuilder`; `saveCurrentPlate` returns true/false). Card tap →
+     `#plateActionsModal` (Publish/Move · Edit · Delete). `renderPlatesTab`,
+     `menuOfPlate`, `loadPlateState`, `openBuilder*`, `openPlateActions`,
+     `publishPlateFromCard`, `deletePlate` are the new surfaces.
+  4. **Product unit type create-only** on the edit form (`#ig_unit` disabled;
+     `saveIngEdit` reads stored `base_unit`; `syncIgUnitFromPack` guards on disabled).
+     New form + invoice pack-teach path untouched.
+  5. **Products fixes:** centred empty icon (empty states span all card grids), ghost
+     **Clear filters** (hidden when inert).
+  6. **Tab order:** Dashboard, Products, Ingredients, Plates, Menu (data-tab values
+     unchanged). Six version spots → v54.
+  - **Tests:** `menu-fallback.test.js` rewritten to v54; `save-draft.test.js` removed →
+    `plates-independence.test.js` added; `menu-plate-order.test.js` unchanged (publish
+    sequencing survives). smoke [12] full plate lifecycle, [13] unit-read-only, [14]
+    Clear filters.
+
+- **PROPOSED CLAUDE.md rule edits sent to Max, NOT yet applied** (waiting on yes): the
+  "What the app does" §3 (Builder → Plates library + popup) and **hard rule 7** (menu
+  deletion nulls plate links + deletes dishes; holding area / last-menu guard removed).
+  Until Max approves, rule 7 above still describes the OLD holding-area behaviour — the
+  CODE is v54, the rule text is not yet updated. Reconcile on approval.
+
+- **Older-batch context still worth knowing (details in the named handovers):**
+  invoice new-item form persists via `invRows[i].newItem` snapshot/rehydrate (v50,
+  FRAGILE); chart is a hand-rolled monotone cubic with an on-target tick ladder
+  (`tcTicks`/`tcTangents`/`tcPath`, v47–v48/v52); v49 panel skeleton across all tabs
+  (`layout-consistency.spec.js`); v43 lesson — any `dbPush*` naming a column the live
+  DB lacks fails wholesale, audit against the real schema (see [[supabase-schema-can-lag-app-code]]).
+
+- Next up: (a) Max's phone sign-off on **v54**, apply the approved CLAUDE.md rule edits,
+  merge to `main`; (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) still not
+  built; (c) update the stale Playwright specs on a browser env (HANDOVER-v54 lists them);
+  (d) optional: multi-menu publishing (v54 out-of-scope), and the matched/review-row
+  tick-persistence parallel flagged in v50.
