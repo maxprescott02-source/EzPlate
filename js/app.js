@@ -146,7 +146,7 @@ async function bootstrapSync(){
     if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
-    buildMenuOptions(); buildMenuSelector(); renderPlate(); renderAnalysis(); updateLastImport(); updateEditTag();
+    buildMenuOptions(); buildMenuSelector(); renderPlate(); renderPlatesTab(); renderAnalysis(); updateLastImport(); updateEditTag();
     setSync('ok'); window.__ezReady=true;
   }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
 }
@@ -634,11 +634,11 @@ function loadPlates(){try{return JSON.parse(localStorage.getItem(PLATEKEY))||[];
 function savePlatesLS(){try{localStorage.setItem(PLATEKEY,JSON.stringify(savedPlates));}catch(e){}}
 let savedPlates=loadPlates();
 function plateNameVal(){return (document.getElementById('plateName').value.trim())||'Unnamed plate';}
-function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushPromise (from a just-published menu item) sequences the plate push after it
-  if(!plate.length){toast('Add ingredients to the plate first');return;}
+function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushPromise (from a just-published menu item) sequences the plate push after it. v54: returns true on success (the builder popup closes only if it did).
+  if(!plate.length){toast('Add ingredients to the plate first');return false;}
   var rawName=(document.getElementById('plateName').value||'').trim();
   var pErr=document.getElementById('plateNameErr');
-  if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return; }
+  if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return false; }
   if(pErr) pErr.style.display='none';
   var name=rawName;
   var menuId=menuLinkEl.value||null;
@@ -646,14 +646,14 @@ function saveCurrentPlate(asNew, menuPushPromise){          // v40: menuPushProm
   if(!loadedPlateId && menuId){ var existLinked=savedPlates.find(function(s){return s.menuId===menuId;}); if(existLinked) loadedPlateId=existLinked.id; }
   if(!asNew && loadedPlateId){ var sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){sp.name=name;sp.menuId=menuId;sp.lines=lines;} else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); savedPlates.push({id:id,name:name,menuId:menuId,lines:lines}); loadedPlateId=id; }
-  savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis();
+  savePlatesLS(); dbPushPlateAfterMenu(savedPlates.find(function(s){return s.id===loadedPlateId;}), menuPushPromise); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  return true;
 }
-// v54: a "draft" is simply a saved, unpublished plate now (the holding-area draft flow is removed). The
-// builder's Save writes the plate with no menu link unless it's an already-published plate being edited;
-// publishing is a separate action from the Plates tab. Section 2 replaces this button with a single Save.
-(function(){ var sb=document.getElementById('saveBtn'); if(sb) sb.addEventListener('click',function(){ saveCurrentPlate(false); }); })();
+// v54: the builder's one primary action. Save writes the plate to the library (menu link unchanged) and,
+// on success, closes the popup and refreshes the Plates tab. Publishing is a separate action from a card.
+function saveFromBuilder(){ if(saveCurrentPlate(false)) closeBuilder(); }
+(function(){ var sb=document.getElementById('saveBtn'); if(sb) sb.addEventListener('click',saveFromBuilder); })();
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
-document.getElementById('addMenuBtn').addEventListener('click',openMenuModal);
 /* menu analysis */
 function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=lineProduct(l);if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
 /* a menu item's recipe lives on its linked plate (plate.menuId === item.id); a "reused" item instead points at
@@ -709,7 +709,7 @@ function currentTab(){
 }
 function rerenderCurrentTab(){                                         // re-run the active tab's render (e.g. once boot data lands)
   var t=currentTab();
-  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlate(); }catch(e){ console.error('[rerender]', e); }
+  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
 function showTab(t){
   try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
@@ -719,6 +719,7 @@ function showTab(t){
   if(t==='ingredients')renderIngredients();
   if(t==='dashboard')renderDashboard();
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
+  if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
@@ -735,7 +736,7 @@ function restoreLastTab(){                                            // return 
 })();
 buildMenuOptions(); buildMenuSelector(); bindTips();
 
-renderPlate();
+renderPlate(); renderPlatesTab();
 
 /* ============================================================
    EzPlate — Ingredients page, Dashboard, supplier extraction
@@ -1979,7 +1980,7 @@ function loadMenuItemBlank(id){
   plate=[];                                                 // an empty ingredient list is a valid starting state
   document.getElementById('plateName').value=m.name||'';
   menuTouched=true; menuLinkEl.value=id; loadedPlateId=null;
-  hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder');
+  hidePlateSuggest(); updateEditTag(); renderPlate(); openBuilder();
   toast('Loaded menu item \u201c'+(m.name||'item')+'\u201d \u2014 add ingredients to cost it');
 }
 function requestLoadMenuItem(id){
@@ -2025,15 +2026,107 @@ function linkMatch(){
 }
 function dismissMatch(){ dismissedMatch=document.getElementById('plateName').value.trim().toLowerCase(); hideMatchPrompt(); }
 
-/* ---- load saved plates (via the plate-name search field) ---- */
-function loadPlate(id){
-  var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp)return;
+/* ---- load saved plates (via the plate-name search field, or a plate card) ---- */
+// v54: set the builder state from a saved plate WITHOUT navigating — used both by loadPlate (which then
+// opens the popup) and by the publish-from-card flow (which opens the publish modal instead).
+function loadPlateState(id){
+  var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return null;
   plate=[];                                                 // FULL clear first — never blend two plates
   sp.lines.forEach(function(l){ if(l&&l.misc){ plate.push({uid:uidc++,misc:true,label:l.label||'',cost:Number(l.cost)||0}); } else if(l&&l.kid){ plate.push({uid:uidc++,kid:l.kid,qty:l.qty}); } else if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
   document.getElementById('plateName').value=sp.name||'';
   menuTouched=true; menuLinkEl.value=sp.menuId||''; loadedPlateId=sp.id;
-  hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder'); toast('Loaded: '+(sp.name||'plate'));
+  hidePlateSuggest(); updateEditTag(); renderPlate();
+  return sp;
 }
+function loadPlate(id){ var sp=loadPlateState(id); if(!sp) return; openBuilder(); toast('Loaded: '+(sp.name||'plate')); }
+
+/* ===== v54: Plates tab (card library) + builder popup + card action menu ===== */
+var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>';
+// The MENU a plate is published to (plate.menuId -> a menu_items dish -> dish.menuId -> a menu), or null if
+// the plate is an unpublished library plate.
+function menuOfPlate(sp){
+  if(!sp || !sp.menuId) return null;
+  var dish=menuById[sp.menuId]; if(!dish) return null;
+  var mm=menusList.find(function(m){return m.id===(dish.menuId||'MENU_ORIGINAL');});
+  return mm?mm.name:null;
+}
+function renderPlatesTab(){
+  var wrap=document.getElementById('plateList'); if(!wrap) return;
+  if(!savedPlates.length){
+    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'No plates yet','Plates are your costed recipes. Build one and it lands here — save it, then publish to a menu when the price is right.',
+      '<button class="btn primary" type="button" onclick="openBuilderNew()">+ New plate</button>');
+    return;
+  }
+  var q=(document.getElementById('plateSearch')?document.getElementById('plateSearch').value:'').trim().toLowerCase();
+  var items=savedPlates.filter(function(sp){
+    if(!q) return true;
+    return ((sp.name||'')+' '+(menuOfPlate(sp)||'')).toLowerCase().indexOf(q)>=0;
+  }).slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
+  if(!items.length){ wrap.innerHTML='<div class="an-empty ing-empty">No plates match your search.</div>'; return; }
+  wrap.innerHTML=items.map(function(sp){
+    var cost=costFromLines(sp.lines); var mn=menuOfPlate(sp);
+    return '<button class="ing-card" type="button" data-pid="'+esc(sp.id)+'">'
+      +'<div class="ing-main"><span class="ing-name">'+esc(sp.name||'Unnamed plate')+'</span></div>'
+      +'<div class="ing-meta">'+(mn?'<span class="ing-tag pub-on">On '+esc(mn)+'</span>':'<span class="ing-tag pub-off">Unpublished</span>')+'</div>'
+      +'<div class="ing-price"><b>'+fmt2(cost)+'</b><span class="ing-per">plate cost</span></div>'
+      +'</button>';
+  }).join('');
+  wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
+}
+/* ---- builder popup ---- */
+function openBuilder(){ var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; show('builderModal'); }
+function closeBuilder(){ hide('builderModal'); }
+function openBuilderNew(){                                           // + New plate: open the popup on an empty, unlinked plate
+  plate=[]; loadedPlateId=null; menuTouched=false;
+  var pn=document.getElementById('plateName'); if(pn) pn.value='';
+  var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none';
+  if(typeof menuLinkEl!=='undefined' && menuLinkEl) menuLinkEl.value='';
+  var qq=document.getElementById('q'); if(qq) qq.value='';
+  if(typeof hideMatchPrompt==='function') hideMatchPrompt();
+  if(typeof hidePlateSuggest==='function') hidePlateSuggest();
+  updateEditTag(); renderPlate(); openBuilder();
+}
+/* ---- plate card action menu ---- */
+var paTargetId=null;
+function openPlateActions(pid){
+  var sp=savedPlates.find(function(s){return s.id===pid;}); if(!sp) return;
+  paTargetId=pid;
+  var mn=menuOfPlate(sp), cost=fmt2(costFromLines(sp.lines));
+  var title=document.getElementById('plateActionsTitle'); if(title) title.textContent=sp.name||'Plate';
+  var sub=document.getElementById('plateActionsSub'); if(sub) sub.textContent=(mn?('On '+mn):'Unpublished')+' · cost '+cost;
+  var pub=document.getElementById('paPublish'); if(pub) pub.textContent=mn?'Move to another menu':'Publish to a menu';
+  show('plateActionsModal');
+}
+function closePlateActions(){ hide('plateActionsModal'); }
+function publishPlateFromCard(pid){
+  var sp=savedPlates.find(function(s){return s.id===pid;}); if(!sp) return;
+  if(!menusList.length){ toast('Create a menu first, then publish into it'); if(typeof openNewMenuModal==='function') openNewMenuModal(); return; }
+  loadPlateState(pid);        // put the plate into builder state (no navigation) so the publish flow can read it
+  openMenuModal();            // existing publish flow; when the plate is already linked this becomes "move to…"
+}
+function editPlateFromCard(pid){ loadPlate(pid); }                   // opens the builder popup pre-filled (existing clear-then-load path)
+function deletePlate(id){                                            // v54: delete a plate from anywhere; if published, its menu dish goes too
+  var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
+  var nm=sp.name||'plate';
+  askConfirm('Delete plate?', 'Delete “'+nm+'”? This removes the plate and its ingredients everywhere and cannot be undone.', 'Delete', function(){
+    if(sp.menuId && menuById[sp.menuId]) removeMenuItem(sp.menuId);   // it was published — drop its menu dish too
+    savedPlates=savedPlates.filter(function(s){return s.id!==id;});
+    if(loadedPlateId===id) loadedPlateId=null;
+    savePlatesLS(); dbDeletePlate(id);
+    rebuildMenu(); buildMenuSelector(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab();
+    toast('“'+nm+'” deleted');
+  });
+}
+(function(){                                                         // Plates-tab + popup wiring
+  var nb=document.getElementById('newPlateBtn'); if(nb) nb.addEventListener('click',openBuilderNew);
+  var bc=document.getElementById('builderClose'); if(bc) bc.addEventListener('click',closeBuilder);
+  var pac=document.getElementById('plateActionsClose'); if(pac) pac.addEventListener('click',closePlateActions);
+  var ps=document.getElementById('plateSearch'); if(ps){ ps.addEventListener('input',renderPlatesTab); ps.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ps.blur(); } }); }
+  var psc=document.getElementById('plateSearchClear'); if(psc) psc.addEventListener('click',function(){ if(ps){ ps.value=''; renderPlatesTab(); ps.focus(); } });
+  var pP=document.getElementById('paPublish'); if(pP) pP.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); publishPlateFromCard(id); });
+  var pE=document.getElementById('paEdit'); if(pE) pE.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); editPlateFromCard(id); });
+  var pD=document.getElementById('paDelete'); if(pD) pD.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); deletePlate(id); });
+})();
 
 /* ---- promote plate to a live menu item ---- */
 function openMenuModal(){
@@ -3115,7 +3208,7 @@ function renderAnalysis(){
   if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
     +'<svg class="an-empty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>'
     +(q?('<b>No menu items match</b><button type="button" class="linklike" id="anClearSearch">Clear search</button>')
-       :('<b>No menu items yet</b><span>Cost a plate in the Builder and publish it to see it here.</span>'))
+       :('<b>No menu items yet</b><span>Build a plate in the Plates tab and publish it to this menu to see it here.</span>'))
     +'</div></td></tr>'; }
   tb.innerHTML=html; bindTips();
   var acs=document.getElementById('anClearSearch');
@@ -3263,7 +3356,7 @@ function openMenuInBuilder(mid){                                      // jump fr
   plate=[]; loadedPlateId=null;                                     // not costed -> start a fresh plate, pre-named + linked to this item
   var pn=document.getElementById('plateName'); if(pn) pn.value=m.name||'';
   if(typeof menuLinkEl!=='undefined' && menuLinkEl){ menuTouched=true; menuLinkEl.value=m.id; }
-  hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder');
+  hidePlateSuggest(); updateEditTag(); renderPlate(); openBuilder();
   toast('Start costing \u201c'+(m.name||'this dish')+'\u201d \u2014 add ingredients');
 }
 function removeMenuItem(id){
@@ -3383,7 +3476,7 @@ function editOpenInBuilder(){
   if(sp){ requestLoadPlate(sp.id); return; }
   var go=function(){                                          // no costed plate yet -> set builder up to create one linked here
     plate=[]; document.getElementById('plateName').value=m.name; menuLinkEl.value=id; menuTouched=true; loadedPlateId=null;
-    hidePlateSuggest(); updateEditTag(); renderPlate(); showTab('builder');
+    hidePlateSuggest(); updateEditTag(); renderPlate(); openBuilder();
     toast('Add ingredients, then Save \u2014 this will cost \u201c'+m.name+'\u201d');
   };
   if(isBuilderDirty()) askConfirm('Open in builder','Open '+m.name+'? Unsaved changes will be lost.','Open',go); else go();
@@ -3540,8 +3633,10 @@ edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
  if(ok)ok.addEventListener('click',function(){ var fn=__confirmFn; closeConfirm(); if(fn)fn(); });
  if(ca)ca.addEventListener('click',closeConfirm); if(cx)cx.addEventListener('click',closeConfirm);})();
 
-['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
+// backdrop tap closes small dialogs; the builder popup is deliberately NOT backdrop-dismissable (an accidental
+// tap must not throw away a plate in progress) — only its × / Escape close it.
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','plateActionsModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal','builderModal','plateActionsModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
 updateLastImport(); updateEditTag();
 
 

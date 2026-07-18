@@ -216,5 +216,49 @@ ok('row 0 Apply tick survived the re-render', !!(ap0b && ap0b.checked));
 // and the summary still counts it as a NEW item, not matched
 ok('row 0 is still an add-new line', window.document.querySelector('#invReview tr.inv-data[data-i="0"]').classList.contains('st-new'));
 
+console.log('\n[12] v54 — Plates library tab + builder popup + publish-from-card');
+// the Builder tab is now the Plates library; the builder lives in a popup.
+ok('the tab container keeps data-tab="builder" (identifier unchanged)', !!$('tab-builder'));
+ok('the Plates card grid exists', !!$('plateList'));
+ok('the builder popup exists as a modal, not the tab body', !!$('builderModal') && !!$('docketPanel'));
+ok('the old builder buttons are gone (no Publish-to-Menu / Save-draft)', !$('addMenuBtn'));
+ok('the single Save button remains inside the popup', !!$('saveBtn'));
+
+// Build a REAL plate through the actual Save flow (savedPlates/plate are `let`, not window props, so we
+// drive the wired functions rather than poking state — a stronger end-to-end check than seeding).
+$('newPlateBtn').click();
+ok('+ New plate opens the builder popup', $('builderModal').classList.contains('open'));
+ok('the popup opens on an empty, unlinked plate', $('plateName').value === '' && $('menuLink').value === '');
+$('plateName').value = 'Smoke Plate';
+window.addMiscCost();                                   // a misc line makes the plate non-empty
+$('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
+ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
+let libCard = window.document.querySelector('#plateList .ing-card');
+ok('the saved plate appears as a card', !!libCard && /Smoke Plate/.test(libCard.textContent), libCard && libCard.textContent);
+ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
+ok('the card shows a plate-cost cell', !!libCard && /plate cost/.test(libCard.textContent) && /\$/.test(libCard.textContent), libCard && libCard.textContent);
+
+// tapping the card opens the action chooser; an unpublished plate offers Publish
+libCard.click();
+ok('tapping a card opens the action popup', $('plateActionsModal').classList.contains('open'));
+ok('an unpublished plate offers "Publish to a menu"', $('paPublish').textContent === 'Publish to a menu', $('paPublish').textContent);
+
+// Publish loads the plate + opens the publish modal, then completes the publish
+$('paPublish').click();
+ok('Publish loads the plate into the builder state', !!window.eval('loadedPlateId'));
+ok('Publish opens the publish modal (not the builder popup)', $('menuModal').classList.contains('open'));
+$('mi_name').value = 'Smoke Plate';
+$('mi_price').value = '12';
+$('mi_cat').value = '';                                 // empty category -> "Uncategorised", no combo confirmation
+window.submitMenuItem();
+ok('publishing closes the publish modal', !$('menuModal').classList.contains('open'));
+window.renderPlatesTab();
+libCard = window.document.querySelector('#plateList .ing-card');
+ok('the plate now shows which menu it is On', !!libCard && /On /.test(libCard.textContent), libCard && libCard.textContent);
+// and its action popup now offers Move instead of Publish
+libCard.click();
+ok('a published plate offers "Move to another menu"', $('paPublish').textContent === 'Move to another menu', $('paPublish').textContent);
+$('plateActionsClose').click();
+
 console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
 process.exit(failures ? 1 : 0);

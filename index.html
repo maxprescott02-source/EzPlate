@@ -59,45 +59,22 @@
 
 <div class="wrap" id="appMain">
   <div id="tab-builder">
-  <div class="panel search-card">
-    <h2>Add ingredient</h2>
-    <div class="pad">
-      <label class="f" for="q">Search your ingredients</label>
-      <div class="search-wrap">
-        <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
-        <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
-        <div id="drop" class="drop" role="listbox"></div>
+    <!-- v54: the Builder tab is now the PLATES LIBRARY — a card grid identical in style to Products
+         and Ingredients. Building/editing happens in the #builderModal popup; publishing happens from
+         a plate card. data-tab stays "builder" (identifier unchanged; only the label is "Plates"). -->
+    <div class="panel">
+      <h2>Plates</h2>
+      <div class="panel-actions">
+        <button class="btn primary" id="newPlateBtn" type="button">+ New<span class="btn-noun"> plate</span></button>
+        <span class="panel-sub">Your costed plates — save here, publish to a menu when the price is right</span>
       </div>
-      <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
+      <div class="menu-search plate-search">
+        <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
+        <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      </div>
+      <div id="plateList" class="ing-list"></div>
     </div>
-  </div>
-
-  <div class="panel" id="docketPanel">
-    <h2>The plate</h2>
-    <div class="pad">
-      <label class="f" for="plateName">Plate name</label>
-      <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
-      <div class="ferr" id="plateNameErr" style="display:none"></div>
-      <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-      <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
-    </div>
-    <div class="docket-head">
-      <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
-    </div>
-    <div id="lines"></div>
-    <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
-    <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
-    <div class="flag" id="flag" style="display:none"></div>
-    <select id="menuLink" style="display:none" aria-hidden="true"></select>
-    <div class="actions">
-      <button class="btn primary btn-stack" id="addMenuBtn" type="button"><span class="bt-title" id="addMenuTitle">Publish to Menu</span><span class="bt-sub" id="addMenuSub">Makes this a live menu item with pricing</span></button>
-      <button class="btn btn-stack" id="saveBtn" type="button"><span class="bt-title">Save draft</span><span class="bt-sub">Keeps it under “Unassigned dishes” until you publish it</span></button>
-      <button class="btn" id="printBtn" type="button">Print docket</button>
-      <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
-    </div>
-    <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
-  </div>
-  </div><!-- /tab-builder -->
+  </div><!-- /tab-builder (LABEL: Plates) -->
 
   <div id="tab-analysis" style="display:none">
     <div class="panel">
@@ -204,6 +181,68 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+
+<!-- v54: Plate builder popup. Full-screen takeover on mobile, large modal on desktop. The builder
+     markup is RELOCATED here wholesale (ids/classes/handlers unchanged) — it is not rebuilt. -->
+<div class="modal-overlay builder-overlay" id="builderModal" aria-hidden="true">
+  <div class="modal modal-builder" role="dialog" aria-modal="true" aria-labelledby="builderModalTitle">
+    <div class="mhead"><h3 id="builderModalTitle">New plate</h3><button class="x" id="builderClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="panel search-card">
+        <h2>Add ingredient</h2>
+        <div class="pad">
+          <label class="f" for="q">Search your ingredients</label>
+          <div class="search-wrap">
+            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
+            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+            <div id="drop" class="drop" role="listbox"></div>
+          </div>
+          <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
+        </div>
+      </div>
+
+      <div class="panel" id="docketPanel">
+        <h2>The plate</h2>
+        <div class="pad">
+          <label class="f" for="plateName">Plate name</label>
+          <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
+          <div class="ferr" id="plateNameErr" style="display:none"></div>
+          <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+          <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
+        </div>
+        <div class="docket-head">
+          <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
+        </div>
+        <div id="lines"></div>
+        <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
+        <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
+        <div class="flag" id="flag" style="display:none"></div>
+        <select id="menuLink" style="display:none" aria-hidden="true"></select>
+        <div class="actions">
+          <button class="btn primary" id="saveBtn" type="button">Save plate</button>
+          <button class="btn" id="printBtn" type="button">Print docket</button>
+          <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
+        </div>
+        <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- v54: tap a plate card -> a small action popup (Publish/Move · Edit · Delete). -->
+<div class="modal-overlay" id="plateActionsModal" aria-hidden="true">
+  <div class="modal confirm-modal plate-actions" role="dialog" aria-modal="true" aria-labelledby="plateActionsTitle">
+    <div class="mhead"><h3 id="plateActionsTitle">Plate</h3><button class="x" id="plateActionsClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p class="pa-sub" id="plateActionsSub"></p>
+      <div class="pa-choices">
+        <button class="btn primary" id="paPublish" type="button">Publish to a menu</button>
+        <button class="btn" id="paEdit" type="button">Edit plate</button>
+        <button class="btn danger ghost" id="paDelete" type="button">Delete plate</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 
 <!-- Load plate modal -->
