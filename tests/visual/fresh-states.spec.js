@@ -306,11 +306,12 @@ test('v45 item 3: Ingredients header order — title, divider, buttons, straplin
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="pantry"]').click();
   await page.waitForTimeout(300);
+  // v49 update: the pantry title is a REAL .panel h2 now (was an h3 styled to match)
   const order = await page.evaluate(() => {
     const y = sel => document.querySelector(sel).getBoundingClientRect().top;
     return {
-      title: y('.king-head h3'), btn: y('#kingNew'), sub: y('.king-head .king-sub'),
-      divider: getComputedStyle(document.querySelector('.king-head h3')).borderBottomWidth,
+      title: y('.king-panel > h2'), btn: y('#kingNew'), sub: y('.king-head .king-sub'),
+      divider: getComputedStyle(document.querySelector('.king-panel > h2')).borderBottomWidth,
     };
   });
   expect(order.divider, 'divider sits under the title').toBe('1px');

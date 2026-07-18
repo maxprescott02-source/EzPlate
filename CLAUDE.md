@@ -252,15 +252,30 @@ merge to `main` as a production deploy.
 
 - `main` is at **v41** (v39+v40+v41 merged via PR #1 — verified against
   `origin/main`, commit `da27ae7`). That IS the live/deployed app.
-- Branch `fix/pack-control-and-menus` (off `main`) carries **v42 (FK orphan heal
-  + "Unassigned dishes" holding area), v43 (masking-toast bugfix), v44 (Fable
-  visual batch), v45 (finishing touches), v46 (Fable UX polish), v47 (dashboard
-  trend-chart rebuild, commit `abb06ce`)** — committed and pushed — **and v48
-  (final pre-merge patch), uncommitted as of this writing**. `npm test` =
-  **138 green** (131 + 7 new tick tests), `node -c` clean, jsdom smoke passes,
-  **42 Playwright checks pass** (39 prior — 3 updated for the v48 contract —
-  + 3 new), all six version spots at **v48**. This was the LAST patch before
-  merge; not on `main` yet.
+- Branch `fix/pack-control-and-menus` (off `main`) carries **v42–v48** —
+  committed and pushed (v48 = `d6573f0`, the final pre-merge patch: chart
+  declutter + target-anchored ticks + menu rhythm). Awaiting Max's phone
+  sign-off, then merge to `main`.
+- Branch `refactor/panel-structure` (off `fix/pack-control-and-menus`) carries
+  **v49 (cross-tab panel-skeleton refactor), uncommitted as of this writing**.
+  Merges AFTER the v42–v48 branch. `npm test` = **138 green**, `node -c` clean,
+  jsdom smoke passes, **44 Playwright checks pass** (42 prior — one pantry
+  check updated for the real-h2 header — + 2 new consistency checks), all six
+  version spots at **v49**.
+- **v49 shipped (structural, skeleton approved by Max — see
+  `handovers/HANDOVER-v49.md`):** every tab is ONE skeleton — `.panel > h2`
+  (small-caps title, divider on its border-bottom) `> .panel-actions` (primary
+  → plain/ghost → inline `.panel-sub` strapline) `> controls > body`; one left
+  edge (`--sp-5`, collapsing to `--sp-4` ≤560px in ONE shared rule). Pantry's
+  h3 became a real h2 (its 3 generations of override rules are tombstoned);
+  Products' inline styles became `.panel-meta`; Dashboard's bespoke offsets are
+  gone. **`tests/visual/layout-consistency.spec.js` asserts panel/title/divider/
+  actions geometry identical ±1px across all five tabs at 380px + 1280px** —
+  falsified deliberately during the batch, so it's known non-vacuous. Intentional
+  exceptions (documented in the spec header): Builder's bottom docket actions,
+  Menu's picker-embedded buttons, Menu's table inset, the card lists' shared
+  16px inset. Do NOT "fix" a red consistency test by loosening TOL — conform
+  the tab to the skeleton instead.
 - **v48 shipped (chart declutter + stability + menu rhythm — see
   `handovers/HANDOVER-v48.md`, brief: Max's annotated screenshots):** the
   "Target" word and the x-axis date labels are GONE from the chart —
@@ -308,14 +323,14 @@ merge to `main` as a production deploy.
   auto-moves dishes to the holding area behind ONE confirm (`fallbackMenuId`/
   `canDeleteMenu` reworked, `realMenus()` added). See `handovers/HANDOVER-v42.md`
   incl. the read-only orphan diagnostic snippet.
-- **Needs Max's phone (branch preview) before merge** — the v42 and v44–v48
-  handover lists. **Export a JSON backup first.** Highlights: publish to an
+- **Needs Max's phone (branch preview) before merge** — the v42 and v44–v49
+  handover lists (v49's list is on its own branch preview). **Export a JSON backup first.** Highlights: publish to an
   EXISTING menu (no FK error); delete a menu → dishes land in "Unassigned
   dishes" and survive reload; real invoice import (pack control + preview +
   flag pills on real titles); builder at 380px with a real plate; the rebuilt
   chart — scrub feel on a real finger, switch all six ranges (ONLY the trendline
   may move), tap it (no blue box), set target to 32% (tick must sit on the
   dashed line), both themes; Menu tab header rhythm.
-- Next up: (a) Max's phone sign-off, then merge the branch to `main`;
-  (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) is STILL not built —
-  next feature task.
+- Next up: (a) Max's phone sign-off, then merge `fix/pack-control-and-menus`
+  to `main`, THEN merge `refactor/panel-structure`; (b) the Tidy lists Settings
+  UI (`HANDOVER-v40.md` spec) is STILL not built — next feature task.
