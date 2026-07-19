@@ -176,7 +176,10 @@ window.renderInvReview();
 window.expandNewItem(0);
 ok('the add-new row is .is-new (Old/Conf are genuinely meaningless there)', window.document.querySelector('#invReview tr.inv-data').classList.contains('is-new'));
 ok('the Kitchen name field is a combobox, not free text', !!$('ni_kingDrop0'));
-ok('it is prefilled with a proposal', ($('ni_king0').value || '').length > 0, $('ni_king0').value);
+ok('v55 §F2: the Kitchen name field starts BLANK (no silent repoint prefill)', ($('ni_king0').value || '') === '', $('ni_king0').value);
+// v55 §F1: parser-filled fields carry the "af" (auto-filled) mark; empty ones do not
+ok('§F1: a parser-filled field is marked auto-filled', $('ni_name0').classList.contains('af'));
+ok('§F1: the (blank) Kitchen field is NOT marked auto-filled', !$('ni_king0').classList.contains('af'));
 $('ni_king0').value = 'Hot Chips';
 $('ni_king0').dispatchEvent(new window.Event('input'));
 ok('typing an existing word offers it', /Hot Chips/.test($('ni_kingDrop0').textContent));
@@ -197,6 +200,8 @@ window.renderInvReview();
 window.document.querySelector('#invReview tr.inv-data[data-i="0"] .ni-add-btn').click();
 ok('the new-item form opened on row 0', !!$('ni_name0'));
 $('ni_name0').value = 'Pure Maple Syrup';
+$('ni_name0').dispatchEvent(new window.Event('input'));   // §F1: editing clears the auto-filled mark
+ok('§F1: editing a marked field clears its auto-filled mark', !$('ni_name0').classList.contains('af'));
 $('ni_price0').value = '13.75';
 $('ni_pack0').value = '1 x 1L';
 // tick Apply on row 0 (the user has finished the form)
@@ -209,6 +214,7 @@ price1.dispatchEvent(new window.Event('change'));
 // row 0's form + tick must be intact in the rebuilt markup
 ok('row 0 form reopened after editing row 1', !!$('ni_name0'));
 ok('row 0 kept its typed Name', ($('ni_name0') || {}).value === 'Pure Maple Syrup', ($('ni_name0') || {}).value);
+ok('§F1: the edited Name stays un-marked after the re-render (mark does not come back)', !$('ni_name0').classList.contains('af'));
 ok('row 0 kept its typed Price', ($('ni_price0') || {}).value === '13.75', ($('ni_price0') || {}).value);
 ok('row 0 kept its typed Pack size', ($('ni_pack0') || {}).value === '1 x 1L', ($('ni_pack0') || {}).value);
 const ap0b = window.document.querySelector('#invReview tr.inv-data[data-i="0"] .invAppr');

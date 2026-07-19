@@ -2767,7 +2767,7 @@ function niSnapshot(i){
   var prev=invRows[i]&&invRows[i].newItem;
   return { name:g('ni_name'+i), unit:g('ni_unit'+i), price:g('ni_price'+i), pack:g('ni_pack'+i),
            brand:g('ni_brand'+i), cat:g('ni_cat'+i), sup:g('ni_sup'+i), king:g('ni_king'+i),
-           combos:combos, approved:(ap?!!ap.checked:(prev?!!prev.approved:false)) };
+           combos:combos, edited:Object.assign({}, prev&&prev.edited), approved:(ap?!!ap.checked:(prev?!!prev.approved:false)) };   // §F1: which parser-filled fields the user has since edited (so the "auto-filled" chip doesn't come back)
 }
 function niRehydrate(i){
   var s=invRows[i]&&invRows[i].newItem; if(!s) return;
@@ -2782,17 +2782,23 @@ function expandNewItem(i){
   if(!panel.dataset.built){
     var ut=r.unit==='kg'?'kg':r.unit==='l'?'litre':r.unit==='ea'?'unit':'kg';
     var pv=(r.unitPrice!=null)?r.unitPrice:'';
+    // v55 §F1: the "auto-filled" chip must key off fields the PARSER filled, not off emptiness (the old
+    // :placeholder-shown CSS lit the chip on ANY typed value). Mark those fields with class "af" at build,
+    // omit it for fields the user has already edited (tracked on r.newItem.edited so it survives re-renders),
+    // and clear it live on first input below.
+    var ed=(r.newItem&&r.newItem.edited)||{};
+    function afA(f,filled){ return (filled && !ed[f]) ? ' class="af"' : ''; }
     panel.innerHTML=''
      +'<button type="button" class="x ni-close" aria-label="Close add-new-item form">\u00d7</button>'
      +'<div class="ni-head">Add new item from this invoice line</div>'
      +'<div class="ni-grid">'
      /* v37: every field is label-line + control-line; the auto-filled chip lives INLINE on the label — one place, every field, no overlap possible */
-     +'<label class="ni-f">'+niLab('Name')+'<input id="ni_name'+i+'" type="text" value="'+esc(r.name)+'"></label>'
+     +'<label class="ni-f">'+niLab('Name')+'<input id="ni_name'+i+'" type="text"'+afA('name',true)+' value="'+esc(r.name)+'"></label>'
      +'<label class="ni-f">'+niLab('Brand')+'<span class="cat-wrap"><input id="ni_brand'+i+'" type="text" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'<label class="ni-f">'+niLab('Category')+'<span class="cat-wrap"><input id="ni_cat'+i+'" type="text" autocomplete="off" placeholder="search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label class="ni-f">'+niLab('Supplier')+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text" autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label class="ni-f">'+niLab('Unit type')+'<select id="ni_unit'+i+'"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
-     +'<label class="ni-f">'+niLab('Price per unit ($)')+'<input id="ni_price'+i+'" type="number" min="0" step="0.01" value="'+pv+'"></label>'
+     +'<label class="ni-f">'+niLab('Supplier')+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text"'+afA('sup',!!invSupplier)+' autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Unit type')+'<select id="ni_unit'+i+'"'+afA('unit',!!r.unit)+'><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
+     +'<label class="ni-f">'+niLab('Price per unit ($)')+'<input id="ni_price'+i+'" type="number" min="0" step="0.01"'+afA('price',pv!=='')+' value="'+pv+'"></label>'
      +'<label class="ni-f">'+niLab('Pack size (optional)')+'<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
      +'<label class="ni-f ni-full">'+niLab('Kitchen name (optional)')+'<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="what the kitchen calls it"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
@@ -2805,13 +2811,16 @@ function expandNewItem(i){
     // ITEM 5 (v35): the kitchen-name field is now a combobox over EXISTING kitchen words.
     // Typing filters them; picking one re-points that word at this new product on save
     // (the brand-swap case). Typing something new still creates a new linked word.
+    // v55 §F2: the kitchen-name field starts BLANK. The combo still suggests existing kitchen words as the
+    // user types (rank + pick to repoint, or type a new one) — but nothing is auto-filled, so the form never
+    // silently means "repoint this word" without the user choosing it.
     makeInlineCombo('ni_king'+i,'ni_kingDrop'+i,kingNames);
-    var _ki=document.getElementById('ni_king'+i);
-    if(_ki){                                                         // keep v34's proposal as the prefill, but only when it isn't already a word — otherwise the field would silently mean "repoint" without the user asking for it
-      var _prop=proposeKingName({description:r.name});
-      if(_prop && !kingNameExists(_prop)){ _ki.value=_prop; var _kt=niCombos['ni_king'+i]; if(_kt){ _kt.value=_prop; _kt.isNew=true; _kt.confirmed=true; } }
-    }
     if(invSupplier){ var _si=document.getElementById('ni_sup'+i); if(_si){ _si.value=invSupplier; var _st=niCombos['ni_sup'+i]; if(_st){ _st.value=invSupplier; _st.confirmed=true; _st.isNew=!prodSuppliers().some(function(x){return x.toLowerCase()===invSupplier.toLowerCase();}); } } }
+    // v55 §F1: drop the "auto-filled" mark the instant the user edits a marked field, and remember it was
+    // edited so a later re-render doesn't re-mark it (the mark lives on r.newItem.edited).
+    var niClearAf=function(e){ var t=e.target; if(t&&t.classList&&t.classList.contains('af')){ t.classList.remove('af'); var f=(t.id||'').replace('ni_','').replace(new RegExp(i+'$'),''); if(f){ r.newItem=r.newItem||{}; r.newItem.edited=r.newItem.edited||{}; r.newItem.edited[f]=true; } } };
+    panel.addEventListener('input', niClearAf, true);
+    panel.addEventListener('change', niClearAf, true);
   }
   nirow.style.display='';
   // v50 item 1: first open -> snapshot the prefilled defaults onto the row; every later (re)build ->
