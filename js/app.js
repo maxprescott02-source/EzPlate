@@ -1096,6 +1096,9 @@ function renderKitchenPanel(){
 var kingWizOpen=false, kingWizSkip={}, kingWizLimit=40, kingWizShowSkipped=false;
 var KWSKIPKEY='cafeDB_kingWizSkips';
 function kingWizSkipIds(){ return Object.keys(kingWizSkip); }
+// v55 §H: park a product the user just repointed AWAY from into the wizard's Skipped list, so it isn't
+// re-proposed as "unlinked" and nag. Recoverable via Unskip. No-op for a falsy pid.
+function parkRepointedProduct(pid){ if(pid){ kingWizSkip[pid]=true; saveKingWizSkips(); } }
 function setKingWizSkips(ids){                                        // idempotent: same payload in, same state out
   var m={}; (ids||[]).forEach(function(id){ if(id) m[id]=1; });
   kingWizSkip=m;
@@ -1391,7 +1394,9 @@ function saveKingModal(){
     if(!renamed && !moved){ closeKingModal(); return; }              // clean no-op: no write, no toast, no confirm
     var oldP=byId[k.pid];
     var g=kingRepointGuard(oldP?oldP.base_unit:null, np.base_unit);  // ITEM 5 (v35): one guard, shared with the invoice repoint path
-    var commit=function(){ k.name=chk.name; k.pid=pid; saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
+    var commit=function(){ var oldPid=k.pid; k.name=chk.name; k.pid=pid;
+      if(moved) parkRepointedProduct(oldPid);   // v55 §H: a repointed-away product is auto-parked in the wizard's "Skipped (N)" list, not re-proposed as unlinked
+      saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
       toast(moved?(renamed?'Ingredient updated':'Product changed'):'Ingredient renamed'); };
     if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
       closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
