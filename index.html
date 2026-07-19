@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=53">
+<link rel="stylesheet" href="css/style.css?v=57">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -59,45 +59,26 @@
 
 <div class="wrap" id="appMain">
   <div id="tab-builder">
-  <div class="panel search-card">
-    <h2>Add ingredient</h2>
-    <div class="pad">
-      <label class="f" for="q">Search your ingredients</label>
-      <div class="search-wrap">
-        <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
-        <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
-        <div id="drop" class="drop" role="listbox"></div>
+    <!-- v54: the Builder tab is now the PLATES LIBRARY — a card grid identical in style to Products
+         and Ingredients. Building/editing happens in the #builderModal popup; publishing happens from
+         a plate card. data-tab stays "builder" (identifier unchanged; only the label is "Plates"). -->
+    <div class="panel">
+      <h2>Plates</h2>
+      <div class="panel-actions">
+        <button class="btn primary" id="newPlateBtn" type="button">+ New<span class="btn-noun"> plate</span></button>
+        <span class="panel-sub">Your costed plates — save here, publish to a menu when the price is right</span>
       </div>
-      <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
+      <div class="ing-controls">
+        <div class="menu-search plate-search">
+          <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
+          <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+        </div>
+        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <button class="btn ghost ing-clear-filters" id="plateClearFilters" type="button" style="display:none">Clear filters</button>
+      </div>
+      <div id="plateList" class="ing-list"></div>
     </div>
-  </div>
-
-  <div class="panel" id="docketPanel">
-    <h2>The plate</h2>
-    <div class="pad">
-      <label class="f" for="plateName">Plate name</label>
-      <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
-      <div class="ferr" id="plateNameErr" style="display:none"></div>
-      <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-      <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
-    </div>
-    <div class="docket-head">
-      <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
-    </div>
-    <div id="lines"></div>
-    <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
-    <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
-    <div class="flag" id="flag" style="display:none"></div>
-    <select id="menuLink" style="display:none" aria-hidden="true"></select>
-    <div class="actions">
-      <button class="btn primary btn-stack" id="addMenuBtn" type="button"><span class="bt-title" id="addMenuTitle">Publish to Menu</span><span class="bt-sub" id="addMenuSub">Makes this a live menu item with pricing</span></button>
-      <button class="btn btn-stack" id="saveBtn" type="button"><span class="bt-title">Save draft</span><span class="bt-sub">Keeps it under “Unassigned dishes” until you publish it</span></button>
-      <button class="btn" id="printBtn" type="button">Print docket</button>
-      <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
-    </div>
-    <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
-  </div>
-  </div><!-- /tab-builder -->
+  </div><!-- /tab-builder (LABEL: Plates) -->
 
   <div id="tab-analysis" style="display:none">
     <div class="panel">
@@ -171,6 +152,7 @@
         </div>
         <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
         <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier"></select>
+        <button class="btn ghost ing-clear-filters" id="ingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <p class="hint ing-count panel-meta" id="ingCount"></p>
       <div id="ingList" class="ing-list"></div>
@@ -204,6 +186,84 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+
+<!-- v54: Plate builder popup. Full-screen takeover on mobile, large modal on desktop. The builder
+     markup is RELOCATED here wholesale (ids/classes/handlers unchanged) — it is not rebuilt. -->
+<div class="modal-overlay builder-overlay" id="builderModal" aria-hidden="true">
+  <div class="modal modal-builder" role="dialog" aria-modal="true" aria-labelledby="builderModalTitle">
+    <div class="mhead"><h3 id="builderModalTitle">New plate</h3><button class="x" id="builderClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="panel" id="platePanel">
+        <h2>The plate</h2>
+        <div class="pad">
+          <label class="f" for="plateName">Plate name</label>
+          <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
+          <div class="ferr" id="plateNameErr" style="display:none"></div>
+          <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">— how it groups in your Plates library (optional)</span></label>
+          <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
+          <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
+        </div>
+      </div>
+
+      <!-- v56: name the plate first (panel above), THEN add ingredients. The search integrates into the
+           top of the docket panel so the flow reads top-to-bottom: name → add → docket. Ids/handlers unchanged. -->
+      <div class="panel" id="docketPanel">
+        <h2>Add ingredient</h2>
+        <div class="pad">
+          <label class="f" for="q">Search your ingredients</label>
+          <div class="search-wrap">
+            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
+            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+            <div id="drop" class="drop" role="listbox"></div>
+          </div>
+          <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
+        </div>
+        <div class="docket-head">
+          <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
+        </div>
+        <div id="lines"></div>
+        <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
+        <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
+        <div class="flag" id="flag" style="display:none"></div>
+        <select id="menuLink" style="display:none" aria-hidden="true"></select>
+        <div class="actions">
+          <button class="btn primary" id="saveBtn" type="button">Save plate</button>
+          <button class="btn" id="printBtn" type="button">Print docket</button>
+          <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
+        </div>
+        <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- v54: tap a plate card -> a small action popup (Publish/Move · Edit · Delete). -->
+<div class="modal-overlay" id="plateActionsModal" aria-hidden="true">
+  <div class="modal confirm-modal plate-actions" role="dialog" aria-modal="true" aria-labelledby="plateActionsTitle">
+    <div class="mhead"><h3 id="plateActionsTitle">Plate</h3><button class="x" id="plateActionsClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p class="pa-sub" id="plateActionsSub"></p>
+      <div class="pa-choices">
+        <button class="btn primary" id="paPublish" type="button">Manage menus</button>
+        <button class="btn" id="paEdit" type="button">Edit plate</button>
+        <button class="btn danger ghost" id="paDelete" type="button">Delete plate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- v55: Manage menus — a plate can be published to any number of menus, each with its own price/category. -->
+<div class="modal-overlay" id="manageMenusModal" aria-hidden="true">
+  <div class="modal confirm-modal manage-menus" role="dialog" aria-modal="true" aria-labelledby="manageMenusTitle">
+    <div class="mhead"><h3 id="manageMenusTitle">Plate</h3><button class="x" id="manageMenusClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p class="pa-sub">Add this plate to a menu (each gets its own price), or remove it from one. The plate itself stays in your library.</p>
+      <div class="mm-list" id="mmList"></div>
+    </div>
+    <div class="mfoot"><button class="btn" id="manageMenusDone" type="button">Done</button></div>
+  </div>
+</div>
 
 
 <!-- Load plate modal -->
@@ -334,7 +394,6 @@
         </div>
         <div class="field" id="ed_priceField"><label for="ed_price">Current sell price ($) *</label><input id="ed_price" type="number" min="0" step="0.10"></div>
       </div>
-      <button class="btn" id="ed_openBuilder" type="button" style="margin-top:12px">Open in Plate Builder</button>
       <div id="ed_plateActions" style="display:none;margin-top:12px">
         <button class="btn" id="ed_restore" type="button">Restore to Menu</button>
         <a class="del-link" id="ed_permDelete" role="button" tabindex="0" style="margin-left:12px">Permanently delete</a>
@@ -369,7 +428,7 @@
         <div class="field"><label for="ig_brand">Brand</label><span class="cat-wrap"><input id="ig_brand" type="text" autocomplete="off" placeholder="search brands…"><span id="ig_brandDrop" class="cat-drop" style="display:none"></span></span></div>
         <div class="field"><label for="ig_cat">Category</label><span class="cat-wrap"><input id="ig_cat" type="text" autocomplete="off" placeholder="search categories…"><span id="ig_catDrop" class="cat-drop" style="display:none"></span></span></div>
         <div class="field"><label for="ig_sup">Supplier</label><span class="cat-wrap"><input id="ig_sup" type="text" autocomplete="off" placeholder="search suppliers…"><span id="ig_supDrop" class="cat-drop" style="display:none"></span></span></div>
-        <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
+        <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit" disabled aria-disabled="true"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
         <div class="field"><label for="ig_price">Price per unit ($) *</label><input id="ig_price" type="number" min="0" step="0.0001"></div>
         <div class="field full ig-pack"><label>Pack (optional) — how many base units in one purchase pack
           <span class="hint" style="font-weight:400">e.g. a carton of eggs = 180 units. Lets invoice imports price this item correctly.</span></label>
@@ -486,18 +545,22 @@
     <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/><path class="mk-arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg>
     <span><b><span class="ez">Ez</span>Plate</b><small>Plate costing made easy</small></span>
   </div>
+  <!-- v54: workflow order — Dashboard, Products (buy), Ingredients (name), Plates (build), Menu (sell).
+       data-tab values are the internal keys and NEVER change; only labels + order do (see glossary). -->
   <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span></button>
-  <button class="navbtn active" data-tab="builder" type="button" aria-label="Plate builder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg><span class="nl">Builder</span></button>
-  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg><span class="nl">Ingredients</span></button>
-  <!-- data-tab stays "ingredients" for saved-lastTab compatibility; its LABEL is now "Products" (see glossary in v31 brief) -->
+  <!-- data-tab stays "ingredients" for saved-lastTab compatibility; its LABEL is "Products" -->
   <button class="navbtn" data-tab="ingredients" type="button" aria-label="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Products</span></button>
+  <!-- data-tab stays "pantry"; its LABEL is "Ingredients" (the naming inversion) -->
+  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg><span class="nl">Ingredients</span></button>
+  <!-- data-tab stays "builder"; its LABEL is now "Plates" (v54 — the tab is the plates library) -->
+  <button class="navbtn active" data-tab="builder" type="button" aria-label="Plates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v4"/><path d="M9 3v4"/><path d="M12 3v4"/><path d="M6 7h6"/><path d="M9 7v14"/><path d="M18 3v18"/><path d="M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2"/></svg><span class="nl">Plates</span></button>
   <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
 </nav>
 
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=53"></script>
+<script src="js/app.js?v=57"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

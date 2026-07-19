@@ -1,18 +1,16 @@
 /*
- * menu-plate-order.test.js — locks in the v40 Item 1 fix (data integrity).
+ * menu-plate-order.test.js — the sequenced-write contract (data integrity).
  *
- * THE BUG: publishing a plate to a brand-new menu item fired two independent,
- * unordered Supabase writes — dbPushMenu (the new menu_items row) and dbPushPlate
- * (the plate whose menu_id references it). With no ordering, the plate insert
- * could reach Supabase first and violate plates_menu_id_fkey. Only NEW items hit
- * it; updating an existing item references a row already on the server.
+ * v55 FLIPPED the FK: a menu_items dish now references its plate via menu_items.plate_id ->
+ * plates.id (was plates.menu_id -> menu_items.id). So the DISH write must land AFTER the plate
+ * is on the server — the reverse of the v40 ordering. dbPushMenuAfterPlate encodes it.
  *
- * THE CONTRACT these tests pin (against the REAL shipped dbPushPlateAfterMenu,
- * brace-extracted from js/app.js so there is no second copy to drift):
- *   - with a menu-item push dependency, the plate push happens AFTER it resolves
- *   - if the menu-item push resolved to an error, the plate is NEVER pushed
- *     (no orphan plate) and the user is told
- *   - with no dependency, the plate pushes immediately (unchanged old path)
+ * THE CONTRACT (against the REAL shipped dbPushMenuAfterPlate, brace-extracted from js/app.js):
+ *   - with a plate dependency, the dish push happens AFTER the plate push resolves
+ *   - if the plate push resolved to an error/null (not confirmed), the dish is NEVER pushed
+ *     (no orphan dish referencing a missing plate)
+ *   - with no plate dependency, the dish pushes immediately
+ * The reconcileLocalOnly heal contract (below) is unchanged from v42.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -34,61 +32,48 @@ function extractFn(src, name) {
   throw new Error(`menu-plate-order: unbalanced braces for ${name}`);
 }
 
-// Build the real dbPushPlateAfterMenu with dbPushPlate + toast stubbed to record calls.
-function makeHarness() {
+// Build the real dbPushMenuAfterPlate with dbPushPlate + dbPushMenu stubbed to record calls. The plate
+// push resolves to `platePushResult` so we can simulate confirmed / rejected / offline-skipped.
+function makeHarness(platePushResult) {
   const calls = [];
   // eslint-disable-next-line no-new-func
-  const factory = new Function('CALLS', `
+  const factory = new Function('CALLS', 'PLATERES', `
     "use strict";
     var calls = CALLS;
-    function dbPushPlate(sp){ calls.push('plate:' + (sp && sp.id)); return Promise.resolve({ ok: true }); }
-    function toast(msg){ calls.push('toast'); }
-    ${extractFn(SRC, 'dbPushPlateAfterMenu')}
-    return dbPushPlateAfterMenu;
+    function dbPushPlate(sp){ calls.push('plate:' + (sp && sp.id)); return Promise.resolve(PLATERES); }
+    function dbPushMenu(item){ calls.push('menu:' + (item && item.id)); return Promise.resolve({ ok: true }); }
+    ${extractFn(SRC, 'dbPushMenuAfterPlate')}
+    return dbPushMenuAfterPlate;
   `);
-  return { fn: factory(calls), calls };
+  return { fn: factory(calls, platePushResult), calls };
 }
 
-const SP = { id: 'SP1', name: 'Bacon & Egg Roll', menuId: 'umNEW', lines: [] };
+const ITEM = { id: 'umNEW', name: 'Bacon & Egg Roll', menuId: 'MENU_ORIGINAL', plateId: 'SP1' };
+const SP = { id: 'SP1', name: 'Bacon & Egg Roll', lines: [] };
 
-test('v40 item 1: the plate push waits for the menu-item push to resolve first', async () => {
-  const { fn, calls } = makeHarness();
-  // a menu-item push that resolves on a later microtask, recording its own landing
-  const menuPush = Promise.resolve().then(() => { calls.push('menu:umNEW'); return { data: [{ id: 'umNEW' }] }; });
-  await fn(SP, menuPush);
-  assert.deepStrictEqual(calls, ['menu:umNEW', 'plate:SP1'], 'menu insert must precede the plate insert');
+test('v55: the dish push waits for the plate push to be CONFIRMED first', async () => {
+  const { fn, calls } = makeHarness({ data: [{ id: 'SP1' }] });   // plate confirmed on the server
+  await fn(ITEM, SP);
+  assert.deepStrictEqual(calls, ['plate:SP1', 'menu:umNEW'], 'plate insert must precede the dish insert');
 });
 
-test('v43: a failed menu-item push aborts the plate write (no orphan plate) WITHOUT a masking toast', async () => {
-  // v43: messaging is pushWrite's job. dbPushPlateAfterMenu used to fire its own "isn't online yet"
-  // toast, which overwrote pushWrite's real "Couldn't save menu item: <reason>" (single-element toast,
-  // last wins) and mislabeled a genuine server rejection as "offline" — this masked a missing DB column
-  // for days. The abort must still happen; it just must not add a second, misleading toast.
-  const { fn, calls } = makeHarness();
-  const menuPush = Promise.resolve({ error: { message: 'insert violates ...' } });
-  const res = await fn(SP, menuPush);
-  assert.strictEqual(calls.indexOf('plate:SP1'), -1, 'the plate must NOT be pushed when the menu item failed');
-  assert.strictEqual(calls.indexOf('toast'), -1, 'no second toast here — it would overwrite pushWrite\'s real error');
+test('v55: a failed plate push aborts the dish write (no dish orphaned against a missing plate)', async () => {
+  const { fn, calls } = makeHarness({ error: { message: 'insert violates ...' } });
+  const res = await fn(ITEM, SP);
+  assert.strictEqual(calls.indexOf('menu:umNEW'), -1, 'the dish must NOT be pushed when the plate failed');
   assert.strictEqual(res, null, 'the sequencing resolves to null on abort');
 });
 
-test('v40 item 1: a SKIPPED menu push (null result — offline/no client) must NOT push the plate', async () => {
-  const { fn, calls } = makeHarness();
-  const menuPush = Promise.resolve(null);   // pushWrite returns null when it did not actually write
-  await fn(SP, menuPush);
-  assert.strictEqual(calls.indexOf('plate:SP1'), -1, 'the plate must not be pushed when the menu item was not confirmed');
+test('v55: a SKIPPED plate push (null — offline/no client) must NOT push the dish', async () => {
+  const { fn, calls } = makeHarness(null);   // pushWrite returns null when it did not actually write
+  await fn(ITEM, SP);
+  assert.strictEqual(calls.indexOf('menu:umNEW'), -1, 'the dish must not be pushed when the plate was not confirmed');
 });
 
-test('v40 item 1: with no dependency the plate pushes immediately (unchanged path)', async () => {
-  const { fn, calls } = makeHarness();
-  await fn(SP, null);
-  assert.deepStrictEqual(calls, ['plate:SP1'], 'no menu dependency -> straight to the plate push');
-});
-
-test('v40 item 1: a null plate is a safe no-op', async () => {
-  const { fn, calls } = makeHarness();
-  await fn(null, Promise.resolve({ ok: true }));
-  assert.strictEqual(calls.length, 0, 'nothing is pushed for a missing plate');
+test('v55: with no plate dependency the dish pushes immediately (plate already on the server)', async () => {
+  const { fn, calls } = makeHarness({ ok: true });
+  await fn(ITEM, null);
+  assert.deepStrictEqual(calls, ['menu:umNEW'], 'no plate dependency -> straight to the dish push');
 });
 
 /*

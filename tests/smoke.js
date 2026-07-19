@@ -176,7 +176,10 @@ window.renderInvReview();
 window.expandNewItem(0);
 ok('the add-new row is .is-new (Old/Conf are genuinely meaningless there)', window.document.querySelector('#invReview tr.inv-data').classList.contains('is-new'));
 ok('the Kitchen name field is a combobox, not free text', !!$('ni_kingDrop0'));
-ok('it is prefilled with a proposal', ($('ni_king0').value || '').length > 0, $('ni_king0').value);
+ok('v55 §F2: the Kitchen name field starts BLANK (no silent repoint prefill)', ($('ni_king0').value || '') === '', $('ni_king0').value);
+// v55 §F1: parser-filled fields carry the "af" (auto-filled) mark; empty ones do not
+ok('§F1: a parser-filled field is marked auto-filled', $('ni_name0').classList.contains('af'));
+ok('§F1: the (blank) Kitchen field is NOT marked auto-filled', !$('ni_king0').classList.contains('af'));
 $('ni_king0').value = 'Hot Chips';
 $('ni_king0').dispatchEvent(new window.Event('input'));
 ok('typing an existing word offers it', /Hot Chips/.test($('ni_kingDrop0').textContent));
@@ -197,6 +200,8 @@ window.renderInvReview();
 window.document.querySelector('#invReview tr.inv-data[data-i="0"] .ni-add-btn').click();
 ok('the new-item form opened on row 0', !!$('ni_name0'));
 $('ni_name0').value = 'Pure Maple Syrup';
+$('ni_name0').dispatchEvent(new window.Event('input'));   // §F1: editing clears the auto-filled mark
+ok('§F1: editing a marked field clears its auto-filled mark', !$('ni_name0').classList.contains('af'));
 $('ni_price0').value = '13.75';
 $('ni_pack0').value = '1 x 1L';
 // tick Apply on row 0 (the user has finished the form)
@@ -209,12 +214,96 @@ price1.dispatchEvent(new window.Event('change'));
 // row 0's form + tick must be intact in the rebuilt markup
 ok('row 0 form reopened after editing row 1', !!$('ni_name0'));
 ok('row 0 kept its typed Name', ($('ni_name0') || {}).value === 'Pure Maple Syrup', ($('ni_name0') || {}).value);
+ok('§F1: the edited Name stays un-marked after the re-render (mark does not come back)', !$('ni_name0').classList.contains('af'));
 ok('row 0 kept its typed Price', ($('ni_price0') || {}).value === '13.75', ($('ni_price0') || {}).value);
 ok('row 0 kept its typed Pack size', ($('ni_pack0') || {}).value === '1 x 1L', ($('ni_pack0') || {}).value);
 const ap0b = window.document.querySelector('#invReview tr.inv-data[data-i="0"] .invAppr');
 ok('row 0 Apply tick survived the re-render', !!(ap0b && ap0b.checked));
 // and the summary still counts it as a NEW item, not matched
 ok('row 0 is still an add-new line', window.document.querySelector('#invReview tr.inv-data[data-i="0"]').classList.contains('st-new'));
+
+console.log('\n[12] v54 — Plates library tab + builder popup + publish-from-card');
+// the Builder tab is now the Plates library; the builder lives in a popup.
+ok('the tab container keeps data-tab="builder" (identifier unchanged)', !!$('tab-builder'));
+ok('the Plates card grid exists', !!$('plateList'));
+ok('the builder popup exists as a modal, not the tab body', !!$('builderModal') && !!$('docketPanel'));
+ok('the old builder buttons are gone (no Publish-to-Menu / Save-draft)', !$('addMenuBtn'));
+ok('the single Save button remains inside the popup', !!$('saveBtn'));
+
+// Build a REAL plate through the actual Save flow (savedPlates/plate are `let`, not window props, so we
+// drive the wired functions rather than poking state — a stronger end-to-end check than seeding).
+$('newPlateBtn').click();
+ok('+ New plate opens the builder popup', $('builderModal').classList.contains('open'));
+ok('the popup opens on an empty, unlinked plate', $('plateName').value === '' && $('menuLink').value === '');
+$('plateName').value = 'Smoke Plate';
+ok('the builder has a category field (§J)', !!$('plateCat'));
+$('plateCat').value = 'Breakfast';                      // §J: the plate's library category
+window.addMiscCost();                                   // a misc line makes the plate non-empty
+$('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
+ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
+let libCard = window.document.querySelector('#plateList .ing-card');
+ok('the saved plate appears as a card', !!libCard && /Smoke Plate/.test(libCard.textContent), libCard && libCard.textContent);
+ok('the card shows its category (§J)', /Breakfast/.test(libCard.textContent), libCard && libCard.textContent);
+ok('the category filter is populated (§J)', /Breakfast/.test(($('plateCatFilter') || {}).textContent || ''));
+ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
+ok('the card shows a plate-cost cell', !!libCard && /plate cost/.test(libCard.textContent) && /\$/.test(libCard.textContent), libCard && libCard.textContent);
+
+// tapping the card opens the action chooser -> Manage menus (v55 many-to-many)
+libCard.click();
+ok('tapping a card opens the action popup', $('plateActionsModal').classList.contains('open'));
+ok('the card offers "Manage menus"', $('paPublish').textContent === 'Manage menus', $('paPublish').textContent);
+$('paPublish').click();
+ok('Manage menus opens its modal', $('manageMenusModal').classList.contains('open'));
+let addBtn = window.document.querySelector('#mmList .mm-add');
+ok('the plate is not yet on any menu (an Add row is offered)', !!addBtn);
+
+// add the plate to the first menu -> the publish modal collects a per-menu price
+addBtn.click();
+ok('Add opens the publish modal', $('menuModal').classList.contains('open'));
+$('mi_name').value = 'Smoke Plate';
+$('mi_price').value = '12';
+$('mi_cat').value = '';                                 // empty category -> "Uncategorised", no combo confirmation
+window.submitMenuItem();
+ok('publishing closes the publish modal', !$('menuModal').classList.contains('open'));
+window.renderPlatesTab();
+libCard = window.document.querySelector('#plateList .ing-card');
+ok('the plate now shows which menu it is On', !!libCard && /On /.test(libCard.textContent), libCard && libCard.textContent);
+// Manage menus now shows the menu with a price + Remove (published there)
+libCard.click();
+$('paPublish').click();
+ok('the menu now shows a Remove control (plate is on it)', !!window.document.querySelector('#mmList .mm-remove'));
+ok('the per-menu price is shown', /12\.00/.test($('mmList').textContent), $('mmList').textContent);
+// remove it -> back to unpublished
+window.document.querySelector('#mmList .mm-remove').click();
+ok('removing from the menu unpublishes it there', !!window.document.querySelector('#mmList .mm-add'));
+$('manageMenusDone').click();
+
+console.log('\n[13] v54 — product Unit type is create-only on the edit form');
+window.showTab('ingredients');
+window.renderIngredients();
+const firstProd = window.document.querySelector('#ingList .ing-card');
+ok('the Products tab renders cards', !!firstProd);
+window.openIngEdit(firstProd.getAttribute('data-id'));
+ok('the edit form opened', $('ingModal').classList.contains('open'));
+ok('the Unit type control is disabled (read-only)', $('ig_unit').disabled === true);
+// the pack-teach convenience must NOT change a product's base unit on the edit form
+const unitBefore = $('ig_unit').value;
+const other = unitBefore === 'kg' ? 'ea' : 'kg';
+$('ig_packUnit').value = other;
+$('ig_packUnit').dispatchEvent(new window.Event('change'));
+ok('choosing a pack unit does NOT change the (create-only) unit type', $('ig_unit').value === unitBefore, $('ig_unit').value + ' vs ' + unitBefore);
+$('ingCancel').click();
+
+console.log('\n[14] v54 — Products "Clear filters" button (hidden when inert)');
+window.showTab('ingredients');
+window.renderIngredients();
+ok('Clear filters is hidden when no filter is active', $('ingClearFilters').style.display === 'none', $('ingClearFilters').style.display);
+$('ingSearch').value = 'zzzznomatch';
+window.renderIngredients();
+ok('Clear filters appears once a filter is active', $('ingClearFilters').style.display !== 'none');
+$('ingClearFilters').click();
+ok('clicking it clears the search', $('ingSearch').value === '');
+ok('and it hides itself again', $('ingClearFilters').style.display === 'none');
 
 console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
 process.exit(failures ? 1 : 0);

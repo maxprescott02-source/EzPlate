@@ -599,6 +599,37 @@ input[type=checkbox]{
 #confirmOk{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 #confirmOk:hover{background:var(--accent-press);border-color:var(--accent-press)}
 .del-choice-foot{flex-wrap:wrap;gap:8px;justify-content:flex-end}
+
+/* ===== plates library + builder popup (v54) ===== */
+/* The builder popup: a large modal on desktop, a full-screen takeover on phones (the full builder in a
+   floating 380px modal won't work). The relocated .panels stack in the body; their card chrome is softened
+   so the popup doesn't read as boxes-within-a-box. */
+.modal-builder{max-width:720px}
+.modal-builder .mbody{display:flex;flex-direction:column;gap:12px;padding:var(--sp-4)}
+.modal-builder .panel{margin:0}
+@media (max-width:560px){
+  .builder-overlay{padding:0}
+  .modal-builder{width:100%;max-width:none;min-height:100dvh;max-height:none;border:0;border-radius:0}
+}
+/* published / unpublished badge on a plate card — reuses .ing-tag; accent echoes .ing-tag.sup */
+.ing-tag.pub-on{color:var(--accent)}
+.ing-tag.pub-off{color:var(--muted2)}
+/* plate card action chooser */
+.plate-actions .pa-sub,.manage-menus .pa-sub{margin:0 0 14px;font-size:13px;color:var(--muted2)}
+.pa-choices{display:flex;flex-direction:column;gap:8px}
+.pa-choices .btn{width:100%;min-height:44px}
+/* manage-menus: one row per menu (name · price/Add/Remove) */
+.mm-list{display:flex;flex-direction:column;gap:8px}
+.mm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px}
+.mm-name{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mm-price{font-variant-numeric:tabular-nums;color:var(--muted2)}
+.mm-row .btn{min-height:36px;padding:6px 14px}
+.mm-empty{padding:18px 4px;text-align:center;color:var(--muted2);font-size:14px}
+/* §B: an uncosted plate reads "not costed yet", not a misleading $0.00 */
+.ing-price.notcosted b{color:var(--muted2);font-weight:600}
+/* v54: unit type is create-only on the product EDIT form — shown, not editable */
+#ig_unit:disabled{opacity:.75;cursor:not-allowed;background:var(--surface2)}
+.ro-note{display:block;margin-top:4px;font-weight:400;color:var(--muted2)}
 .edit-delete-row{padding:var(--sp-3) var(--sp-5) var(--sp-4);text-align:center;border-top:1px solid var(--border);background:var(--surface2);border-radius:0 0 var(--radius-card) var(--radius-card)}
 #ed_plateActions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 
@@ -1014,7 +1045,7 @@ input[type=checkbox]{
 #dashBody{padding-bottom:6px}
 /* v49: `.dash-panel h2{margin-bottom:0}` removed — .panel h2 already has margin:0 (a no-op since v3x) */
 .stat-attach{margin-top:6px;border-top:1px solid var(--border);padding-top:10px}
-.stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 2px 8px}
+.stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}   /* v56: left edge = 0 = chart title/axis/caption column (was 2px, sat a hair right) */
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:11px}
@@ -1165,13 +1196,12 @@ input[type=checkbox]{
   /* -- content column -- */
   .wrap{max-width:1000px;padding:0 var(--sp-6)}
 
-  /* -- builder: search + docket side by side -- */
-  #tab-builder{display:grid;grid-template-columns:minmax(320px,400px) 1fr;gap:0 var(--sp-6);align-items:start}
-  #tab-builder > .search-card{grid-column:1}
-  #tab-builder > #docketPanel{grid-column:2;grid-row:1 / span 2}
-  #tab-builder > .hint{grid-column:1;margin:14px 2px 0}
+  /* v55 (§C): the old two-column builder grid is GONE — #tab-builder is now the Plates library, a plain
+     single-column .panel that renders the .ing-list card grid full-width, identical to Products. The
+     search + docket live in #builderModal now, so the old `#tab-builder{display:grid…}` narrowed the
+     Plates panel to ~400px (the mobile-width-on-desktop bug). */
 
-  /* -- ingredients: card grid -- */
+  /* -- ingredients + plates: card grid -- */
   .ing-list{grid-template-columns:repeat(2,1fr);gap:12px;padding:10px var(--sp-5) 8px}
   /* v49: .ing-tools/.ing-controls sit on the shared sp-5 edge at every width now — no desktop special-case */
 
@@ -1196,7 +1226,6 @@ input[type=checkbox]{
 @media (min-width:1280px){
   .wrap{max-width:1120px}
   .ing-list{grid-template-columns:repeat(3,1fr)}
-  #tab-builder{grid-template-columns:minmax(340px,440px) 1fr}
 }
 
 /* sidebar brand block is hidden on mobile/tablet (bottom bar shows icons only) */
@@ -1865,10 +1894,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   -webkit-mask-position:center;mask-position:center;
   -webkit-mask-size:contain;mask-size:contain;
 }
-/* Builder fresh screen -> the Builder nav icon (clipboard), monochrome & static (colour + animation removed) */
+/* Builder empty docket -> the Plates nav glyph (fork + knife), monochrome & static.
+   v56: was the clipboard/docket icon; v57: the tab's glyph became fork + knife (matches ICON_PLATE_BIG). */
 #lines .empty::before{
-  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cline x1='8' y1='8' x2='16' y2='8'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3Cline x1='8' y1='16' x2='13' y2='16'/%3E%3C/svg%3E");
-  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cline x1='8' y1='8' x2='16' y2='8'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3Cline x1='8' y1='16' x2='13' y2='16'/%3E%3C/svg%3E");
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3v4'/%3E%3Cpath d='M9 3v4'/%3E%3Cpath d='M12 3v4'/%3E%3Cpath d='M6 7h6'/%3E%3Cpath d='M9 7v14'/%3E%3Cpath d='M18 3v18'/%3E%3Cpath d='M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3v4'/%3E%3Cpath d='M9 3v4'/%3E%3Cpath d='M12 3v4'/%3E%3Cpath d='M6 7h6'/%3E%3Cpath d='M9 7v14'/%3E%3Cpath d='M18 3v18'/%3E%3Cpath d='M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'/%3E%3C/svg%3E");
 }
 /* Menu empty -> the Menu nav icon (bar chart) */
 .an-empty td::before{
@@ -1880,6 +1910,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
 }
+/* v56: the Plates search-empty carries .ing-empty for layout but overrides the inherited Products cube
+   with the Plates tab's own glyph (fork + knife, v57). Sizing comes from the shared rule above. */
+.plate-noresult::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3v4'/%3E%3Cpath d='M9 3v4'/%3E%3Cpath d='M12 3v4'/%3E%3Cpath d='M6 7h6'/%3E%3Cpath d='M9 7v14'/%3E%3Cpath d='M18 3v18'/%3E%3Cpath d='M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3v4'/%3E%3Cpath d='M9 3v4'/%3E%3Cpath d='M12 3v4'/%3E%3Cpath d='M6 7h6'/%3E%3Cpath d='M9 7v14'/%3E%3Cpath d='M18 3v18'/%3E%3Cpath d='M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'/%3E%3C/svg%3E");
+}
+.plate-noresult .linklike{display:inline-block;margin-top:10px}
 
 /* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
 .king-progress{padding:6px var(--sp-5) 0;font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
@@ -1937,7 +1974,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* menu empty state: centred, no orphaned quotes */
 .an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
 /* dashboard: stat cards collapsed to one quiet line; chart takes the space */
-.stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 2px 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked. v40: left-align with the .stat-lead header (was 16px, sat indented) */
+.stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 0 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked. v40: left-align with .stat-lead. v56: left pad 2px->0, shares the chart block's x0 (title/axis/caption) */
 .stat-line .stat-bit{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
 .stat-line .stat-h{min-width:82px}   /* the three labels line up, so the numbers do too */
 .stat-line .stat-h{font-weight:700}
@@ -1983,8 +2020,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .ni-grid .ni-f.ni-full{grid-column:1/-1}
 .ni-lab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);white-space:nowrap}
 .ni-af{display:none;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-weak);border-radius:var(--radius-pill);padding:2px 7px}
-.ni-f:has(input:not([type=number]):not(:placeholder-shown)) .ni-af,
-.ni-f:has(input[type=number]:not(:placeholder-shown)) .ni-af{display:inline-block}
+/* v55 §F1: the "auto-filled" chip shows only for fields the PARSER filled (marked .af in JS, cleared on
+   the first user edit) — NOT for any non-empty field (the old :placeholder-shown heuristic lit it on
+   user-typed values too). Covers the plain inputs and the combo-wrapped ones. */
+.ni-f:has(.af) .ni-af{display:inline-block}
 .ni-grid .ni-f input,.ni-grid .ni-f select,.ni-grid .ni-f .cat-wrap{width:100%;min-width:0}
 .ni-grid .cat-wrap{position:relative;display:block}
 .ni-grid .cat-drop{min-width:240px;max-width:min(320px,90vw)}
@@ -2086,7 +2125,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    owns the spacing, so the per-card side margins go; empty states span the full grid width. */
 #kingList{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
 #kingList .king-row{margin:0}
-#kingList > .empty,#kingList > .empty-state{grid-column:1 / -1}
+/* v54: empty/no-match states span the whole grid on every card list, so the centred empty-state icon
+   sits in the middle instead of being pinned to column 1 (fixes the Products "padded left" icon; also
+   covers the new Plates grid). */
+#kingList > .empty,#kingList > .empty-state,
+#ingList > .empty-state,#ingList > .ing-empty,
+#plateList > .empty-state,#plateList > .ing-empty{grid-column:1 / -1}
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -2226,18 +2270,17 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 }
 
 
-/* ===== batch (v53): builder misc line is ONE row (Max's mockup) ===== */
-/* name field · $ cost · dotted connector · bold total · × in its usual corner — the
-   "MISC COST · NOT AN INGREDIENT" sub-label is gone. Ingredient-row tokens kept: same
-   control heights, mono bold total. The old two-row-era rules below the fold (≤700px
-   grow-the-costbox, 32px unit gutter) are overridden here, not edited in place. */
-.line.misc-line{display:flex;align-items:baseline;gap:6px}          /* BASELINE, not center — same v46 root fix as .costs: the empty leader's synthesized baseline is its bottom edge, so the dots sit on the total's baseline */
+/* ===== batch (v53, revised v56): builder misc line is ONE row (Max's mockup) ===== */
+/* v56 (Max's spec): DOM order is now name field · dotted connector · $ input · × — the $ input
+   sits right-aligned where the bold total used to be and IS the line total, so the duplicate
+   .lc total is gone. Ingredient-row tokens kept: same control heights. The old two-row-era rules
+   below the fold (≤700px grow-the-costbox, 32px unit gutter) are overridden here, not edited in place. */
+.line.misc-line{display:flex;align-items:baseline;gap:6px}          /* BASELINE, not center — same v46 root fix as .costs: the empty leader's synthesized baseline is its bottom edge, so the dots sit on the input's baseline */
 .line.misc-line .misc-label{padding:9px 10px}                       /* same height token as .qtybox input */
 .line.misc-line .qtybox.misc-costbox{flex:0 0 auto;max-width:none;order:0}  /* beats the ≤700px flex-grow rule AND the legacy mobile .qtybox{order:3} — DOM order everywhere */
 .line.misc-line .qtybox.misc-costbox .u{width:auto}                 /* $ hugs the field — no 32px unit-column gutter on one row */
-.line.misc-line .qtybox.misc-costbox input{width:76px}              /* fixed (border-box; plenty for a misc cost) — the name field takes the spare width */
-.line.misc-line .leader{flex:0 1 40px;min-width:8px;transform:none} /* short connector (base flex:1 would steal the name's width); no stale -4px nudge */
-.line.misc-line .lc{min-width:0;order:0;margin-left:0}              /* 78px floor is for ingredient totals; kill the legacy mobile order:4/margin:auto that pushed the total past the × */
+.line.misc-line .qtybox.misc-costbox input{width:76px}              /* fixed (border-box; plenty for a misc cost); right-aligned via base .qtybox input — the name field takes the spare width */
+.line.misc-line .leader{flex:0 1 40px;min-width:8px;transform:none} /* short connector (base flex:1 would steal the name's width); name flex:1 pushes the $ input to the right edge */
 @media (max-width:700px){
   .line.misc-line .misc-label{min-height:44px}                      /* matches the costbox input's phone hit target */
 }

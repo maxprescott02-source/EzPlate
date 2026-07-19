@@ -54,26 +54,28 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   expect(lc, 'line total must render in the costs row').not.toBeNull();
   expect(lc.w, 'line total must have real width').toBeGreaterThan(10);
   expect(lc.right, 'line total must fit inside the 380px viewport').toBeLessThanOrEqual(380);
-  // v53 (replaces the v44 "label gets full card width" pin — Max's mockup collapsed the misc
-  // line back to ONE row): label + $ field + total share one row, no sub-label, nothing clips
+  // v56 (Max's spec, reverses v53's duplicate total): ONE row, no separate .lc — the $ input IS the
+  // line total and sits right-aligned before the ×. Order: name field · dotted leader · $ input · ×.
   const misc = await page.evaluate(() => {
     const line = document.querySelector('.line.misc-line');
     const mid = el => { const r = el.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
     const lbl = line.querySelector('.misc-label'), box = line.querySelector('.misc-costbox'),
-          tot = line.querySelector('.lc'), x = line.querySelector('.x');
+          x = line.querySelector('.x');
     return {
       sub: line.querySelectorAll('.sub').length, rows: line.querySelectorAll('.top,.costs').length,
+      lc: line.querySelectorAll('.lc').length,          // the duplicate bold total is GONE
       lblW: lbl.getBoundingClientRect().width,
-      sameRow: Math.max(Math.abs(mid(lbl) - mid(box)), Math.abs(mid(lbl) - mid(tot)), Math.abs(mid(lbl) - mid(x))),
-      totRight: tot.getBoundingClientRect().right, xRight: x.getBoundingClientRect().right,
+      sameRow: Math.max(Math.abs(mid(lbl) - mid(box)), Math.abs(mid(lbl) - mid(x))),
+      boxRight: box.getBoundingClientRect().right, xRight: x.getBoundingClientRect().right,
       lineRight: line.getBoundingClientRect().right,
     };
   });
   expect(misc.sub, 'misc sub-label deleted').toBe(0);
   expect(misc.rows, 'no .top/.costs split — ONE row').toBe(0);
+  expect(misc.lc, 'no duplicate bold total — the $ input is the total').toBe(0);
   expect(misc.lblW, 'name field keeps usable width at 380px').toBeGreaterThan(70);
-  expect(misc.sameRow, 'label, $ field, total and × share one row').toBeLessThanOrEqual(3);
-  expect(misc.totRight, 'total left of the × corner').toBeLessThanOrEqual(misc.xRight);
+  expect(misc.sameRow, 'label, $ field and × share one row').toBeLessThanOrEqual(3);
+  expect(misc.boxRight, '$ input sits left of the × corner').toBeLessThanOrEqual(misc.xRight);
   expect(misc.xRight, 'nothing clips the card').toBeLessThanOrEqual(misc.lineRight);
 });
 
@@ -491,9 +493,9 @@ for (const size of SIZES) {
     await page.waitForTimeout(300);
     const rows = await page.evaluate(() => {
       const out = [];
-      // v53: ingredient lines carry the leader in .costs; the misc line is ONE row and
-      // carries it directly — the baseline rule applies to both
-      document.querySelectorAll('#lines .line .costs, #lines .line.misc-line').forEach(costs => {
+      // v56: only ingredient lines carry a text .lc total whose baseline the dotted rule tracks.
+      // The misc line's "total" is now the $ input (no .lc text), so it is checked in the misc test above.
+      document.querySelectorAll('#lines .line .costs').forEach(costs => {
         const leader = costs.querySelector('.leader'), lc = costs.querySelector('.lc');
         if (!leader || !lc) return;
         const r = document.createRange(); r.selectNodeContents(lc);
@@ -502,7 +504,7 @@ for (const size of SIZES) {
       });
       return out;
     });
-    expect(rows.length, 'builder lines rendered').toBeGreaterThanOrEqual(3);
+    expect(rows.length, 'builder ingredient lines rendered').toBeGreaterThanOrEqual(2);
     for (const row of rows) {
       // the dotted rule sits at the total's BASELINE: below the text's vertical centre
       // (never strikethrough) and above its descender bottom

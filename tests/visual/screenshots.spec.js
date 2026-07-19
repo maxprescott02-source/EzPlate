@@ -41,3 +41,24 @@ for (const size of SIZES) {
     });
   }
 }
+
+// v55: the builder is now a POPUP opened from the Plates tab, and publishing is many-to-many
+// via a "Manage menus" modal. Capture both, plus the Plates card grid at desktop width (proves
+// §C — the grid is full-width, not a narrow mobile column).
+for (const size of SIZES) {
+  test(`plates + builder popup @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="builder"]').click();   // the Plates library
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `tests/visual/__shots__/plates-${size.name}.png`, fullPage: true });
+    // open the builder popup on a new plate
+    await page.locator('#newPlateBtn').click();
+    await page.waitForTimeout(400);
+    if (await page.locator('#builderModal.open').count()) {
+      await page.screenshot({ path: `tests/visual/__shots__/builder-popup-${size.name}.png` });
+    }
+    await expect(page.locator('body')).toBeVisible();
+  });
+}
