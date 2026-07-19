@@ -1196,13 +1196,12 @@ input[type=checkbox]{
   /* -- content column -- */
   .wrap{max-width:1000px;padding:0 var(--sp-6)}
 
-  /* -- builder: search + docket side by side -- */
-  #tab-builder{display:grid;grid-template-columns:minmax(320px,400px) 1fr;gap:0 var(--sp-6);align-items:start}
-  #tab-builder > .search-card{grid-column:1}
-  #tab-builder > #docketPanel{grid-column:2;grid-row:1 / span 2}
-  #tab-builder > .hint{grid-column:1;margin:14px 2px 0}
+  /* v55 (§C): the old two-column builder grid is GONE — #tab-builder is now the Plates library, a plain
+     single-column .panel that renders the .ing-list card grid full-width, identical to Products. The
+     search + docket live in #builderModal now, so the old `#tab-builder{display:grid…}` narrowed the
+     Plates panel to ~400px (the mobile-width-on-desktop bug). */
 
-  /* -- ingredients: card grid -- */
+  /* -- ingredients + plates: card grid -- */
   .ing-list{grid-template-columns:repeat(2,1fr);gap:12px;padding:10px var(--sp-5) 8px}
   /* v49: .ing-tools/.ing-controls sit on the shared sp-5 edge at every width now — no desktop special-case */
 
@@ -1227,7 +1226,6 @@ input[type=checkbox]{
 @media (min-width:1280px){
   .wrap{max-width:1120px}
   .ing-list{grid-template-columns:repeat(3,1fr)}
-  #tab-builder{grid-template-columns:minmax(340px,440px) 1fr}
 }
 
 /* sidebar brand block is hidden on mobile/tablet (bottom bar shows icons only) */
