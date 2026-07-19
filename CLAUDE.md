@@ -159,12 +159,16 @@ test locking the fix:
   Publish, invoice Confirm All). A previous density pass (v31) was rolled back
   wholesale — visual changes are surgical, one screen at a time, listed for
   Max's phone.
-- **Publish-to-new-menu is a two-write sequence, not two independent writes**
-  (v40). Creating a menu item and publishing a plate into it happen in one
-  user action; the plate write MUST wait on the menu-item write's result and
-  abort (with a real error toast) if it failed. This was a live data-integrity
-  bug (`plates_menu_id_fkey`), not a style issue — treat any new "publish into
-  X, referencing Y" flow with the same suspicion.
+- **Cross-referencing writes are a SEQUENCE, not two independent writes** (v40;
+  **direction flipped v55**). When one row references another, the referenced row
+  must land on the server first and the dependent write must abort (surfacing the
+  REAL error) if it didn't. In v55 the FK is `menu_items.plate_id → plates.id`, so
+  **publishing sequences the DISH write after the PLATE** via `dbPushMenuAfterPlate`
+  (the plate is normally already saved; it's re-pushed idempotently then the dish
+  chains after). This reverses v40's `plates.menu_id → menu_items.id` ordering
+  (plate-after-menu, `dbPushPlateAfterMenu`), which — with that FK — is gone.
+  Treat any new "write X that references Y" flow with the same suspicion: push Y,
+  confirm it, then X.
 
 ## Data-write rules
 
@@ -304,11 +308,11 @@ merge to `main` as a production deploy.
   Dashboard/Products/Ingredients/Plates/Menu. **v55's §A supersedes v54's single-menu popup.**
   CLAUDE.md "What the app does" §3 + hard rule 7 were updated to v54 with Max's approval.
 
-- **CLAUDE.md hard rule 6 updated with Max's approval (v55):** the plate↔dish link is now
-  **`menu_items.plate_id → plates.id` (many-to-many)**; `plates.menu_id`/`source_plate_id` are
-  legacy and the FK sequencing flipped (`dbPushMenuAfterPlate`). The v40 "Publish-to-new-menu"
-  fragile-area note still references the OLD `plates_menu_id_fkey` — flagged for a follow-up
-  propose (not silently edited).
+- **CLAUDE.md hard rule 6 + the v40 fragile-area sequencing note updated with Max's approval
+  (v55):** the plate↔dish link is now **`menu_items.plate_id → plates.id` (many-to-many)**;
+  `plates.menu_id`/`source_plate_id` are legacy and the FK sequencing FLIPPED — publishing
+  sequences the dish after the plate (`dbPushMenuAfterPlate`); the old `plates_menu_id_fkey` /
+  `dbPushPlateAfterMenu` are gone.
 
 - **Older-batch context (details in the named handovers):** invoice new-item form persists via
   `invRows[i].newItem` snapshot/rehydrate (v50, FRAGILE — now also carries `edited` for the §F1
