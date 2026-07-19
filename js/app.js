@@ -248,9 +248,8 @@ function hl(text,q){q=q.trim();if(!q)return esc(text);const i=text.toLowerCase()
 const qEl=document.getElementById('q'), dropEl=document.getElementById('drop');
 (function(){ var qc=document.getElementById('qClear'); if(qc&&qEl) qc.addEventListener('click',function(){ qEl.value=''; if(dropEl){dropEl.style.display='none';} qEl.setAttribute('aria-expanded','false'); qEl.focus(); }); })();   // v37: same clear affordance as every other search
 let curList=[], hiIdx=-1;
-function kitchenSearchMatches(q){                                     // kitchen ingredients matching the query (by name)
-  q=(q||'').trim().toLowerCase();
-  var list=kitchenIngredients.filter(function(k){ return k && k.name && (!q || k.name.toLowerCase().indexOf(q)>=0 || subseq(q,k.name.toLowerCase())); });
+function kitchenSearchMatches(q){                                     // v55 §G: match the kitchen word's name OR its linked product's description/brand (same as the pantry search, kingSearchFilter). Example: ingredient "Bread" -> product "Bread GF — TipTop" is found by "gf" or "tiptop".
+  var list=kingSearchFilter(q, kitchenIngredients, byId).filter(function(k){ return k && k.name; });
   list.sort(function(a,b){ return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); });
   return list.slice(0,12).map(function(k){ return {__kid:true, id:k.id, name:k.name, pid:k.pid}; });
 }
