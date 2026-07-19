@@ -253,64 +253,61 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 18 Jul 2026 (verify, don't trust)
+## State as of 19 Jul 2026 (verify, don't trust)
 
-- `main` is at **v53** (confirmed on `origin/main` — the `fix/invoice-new-item-state`
-  PR carrying v50–v53 merged after Max's phone sign-off). Earlier batches: v42–v48
-  (`fix/pack-control-and-menus`), v49 (`refactor/panel-structure`), v50–v53 above.
-  Per-batch detail lives in `handovers/HANDOVER-vNN.md` — this snapshot stays short.
-- Branch **`feat/plates-independent-library`** (off `main` @ v53) carries **v54** —
-  committed in 6 staged commits, awaiting Max's phone sign-off then merge to `main`.
-  `npm test` = **134 green**, jsdom smoke green (adds sections [12]–[14]), `node -c`
-  clean, all six spots at **v54**. See `handovers/HANDOVER-v54.md` and its needs-phone
-  list. **Playwright specs are STALE and were NOT run/updated (no browser here)** —
-  the handover lists exactly which `tests/visual/*.spec.js` tests to fix on a browser
-  env before `npm run shots` will pass.
+- `main` is at **v53**. Branch **`feat/plates-independent-library`** (off `main` @ v53)
+  carries **v54 + v55** — committed, awaiting Max's phone sign-off + the three v55
+  migrations applied to prod, then merge. `npm test` = **150 green**, jsdom smoke green,
+  `node -c` clean, six spots at **v55**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
 
-- **v54 shipped — Plates become an independent library (brief:
-  `~/Downloads/ezplate-opus-plates-rework.md`; reverses the v40/v42 holding-area
-  design). See `handovers/HANDOVER-v54.md`.**
-  1. **Plates are first-class.** A plate exists menu or no menu. `plates.menu_id`
-     nullable (already true in prod; migration shipped for parity, idempotent).
-  2. **Holding area REMOVED.** `MENU_UNASSIGNED`/`ensureUnassignedMenu`/
-     `holdingHasDishes`/`realMenus` and every holding special-case are gone.
-     **Menu delete now deletes its dishes and UNLINKS their plates (`menuId→null`),
-     never reassigns** (`doDeleteMenu`). **Zero menus is legitimate** — any menu is
-     deletable; `fallbackMenuId` returns null when none; `ensureDefaultMenu` seeds
-     "Original" only on a genuinely fresh install (`menusKeyExists()`).
-  3. **Builder tab → Plates library.** `#tab-builder` (identifier unchanged; label
-     "Plates") is a `.ing-card` grid; the builder markup is RELOCATED into
-     `#builderModal` (full-screen on mobile, large modal desktop). One primary **Save**
-     (`saveFromBuilder`; `saveCurrentPlate` returns true/false). Card tap →
-     `#plateActionsModal` (Publish/Move · Edit · Delete). `renderPlatesTab`,
-     `menuOfPlate`, `loadPlateState`, `openBuilder*`, `openPlateActions`,
-     `publishPlateFromCard`, `deletePlate` are the new surfaces.
-  4. **Product unit type create-only** on the edit form (`#ig_unit` disabled;
-     `saveIngEdit` reads stored `base_unit`; `syncIgUnitFromPack` guards on disabled).
-     New form + invoice pack-teach path untouched.
-  5. **Products fixes:** centred empty icon (empty states span all card grids), ghost
-     **Clear filters** (hidden when inert).
-  6. **Tab order:** Dashboard, Products, Ingredients, Plates, Menu (data-tab values
-     unchanged). Six version spots → v54.
-  - **Tests:** `menu-fallback.test.js` rewritten to v54; `save-draft.test.js` removed →
-    `plates-independence.test.js` added; `menu-plate-order.test.js` unchanged (publish
-    sequencing survives). smoke [12] full plate lifecycle, [13] unit-read-only, [14]
-    Clear filters.
+- **v55 shipped — Plates completion + bug batch (brief:
+  `~/Downloads/ezplate-opus-plates-completion.md`). See `handovers/HANDOVER-v55.md`.**
+  - **A (LEAD): many-to-many publishing.** A plate can be on ANY number of menus, each
+    entry its own price/category. Canonical link is now **`menu_items.plate_id → plates.id`**
+    (migration + backfill); `plates.menu_id` and `source_plate_id` are legacy (source_plate_id
+    mirrored on write for rollout). **THE FK FLIPPED** — the DISH references the plate, so the
+    dish write sequences AFTER the plate (`dbPushMenuAfterPlate`; `dbPushPlateAfterMenu`
+    removed). Resolution goes through `plateIdOf`/`plateForMenuItem`/`dishesOfPlate`/
+    `menusOfPlate`/`ensurePlateForDish` — never poke raw fields. Card popup → **Manage menus**
+    (`#manageMenusModal`). Menu delete removes only that menu's entries; plates survive.
+  - **B:** every dish gets an (empty) plate (migration); an empty plate reads "not costed yet".
+  - **J:** `plates.category` (migration) + a builder category combo + Plates category filter.
+  - **C (bug):** removed the stale `#tab-builder{display:grid…}` two-column rule that squeezed
+    the Plates grid to ~400px on desktop — now full-width like Products.
+  - **D/E/F/G/H:** removed Menu "→ Builder" chip + plate glyph; price-jump flag compares at the
+    cent (`flagNeedsAttention`); invoice auto-fill chip keys off a JS `.af` mark not
+    `:placeholder-shown`, Kitchen field starts blank; builder search matches linked product
+    text (`kitchenSearchMatches`→`kingSearchFilter`); repoint parks the old product in wizard
+    skips (`parkRepointedProduct`).
+  - **I (protected region):** `packCount("6x8's")`=6 not 48 (the shorthand regex drops the
+    single-digit "8's"); root causes are INSIDE the protected parser and the purchased-quantity
+    column is never captured. Fix (Max's call, OUTSIDE the region): `normPackNotation` rewrites
+    `N x M's`→`(N*M)'s` on the raw text. **Limitation:** fixes the per-pack count only, NOT
+    purchased-quantity — a line priced at its total across packs still needs the taught-pack
+    flow. Details + exact locations in HANDOVER-v55 §I.
+  - **Tests (150):** `plates-independence`/`menu-plate-order` rewritten; new `inv-priceflag`,
+    `builder-search`, `wizard-repoint`, `inv-packnorm`. **Playwright NOT run (no browser)** —
+    `screenshots`/`layout-consistency` updated; **`fresh-states.spec.js` still has v54/v55-stale
+    tests** to fix on a browser env (HANDOVER-v55 §K lists them).
 
-- **CLAUDE.md stable-rule edits applied with Max's approval (v54):** "What the app
-  does" §3 (Builder → Plates library + popup) and **hard rule 7** (menu deletion nulls
-  plate links + deletes dishes; holding area / last-menu guard removed) now match the
-  shipped code.
+- **v54 shipped — Plates independence (see `handovers/HANDOVER-v54.md`):** the Builder tab
+  became the Plates library card grid + a builder popup; the holding area was removed; menu
+  delete unlinks plates; zero menus legitimate; product unit type create-only; tab order
+  Dashboard/Products/Ingredients/Plates/Menu. **v55's §A supersedes v54's single-menu popup.**
+  CLAUDE.md "What the app does" §3 + hard rule 7 were updated to v54 with Max's approval.
 
-- **Older-batch context still worth knowing (details in the named handovers):**
-  invoice new-item form persists via `invRows[i].newItem` snapshot/rehydrate (v50,
-  FRAGILE); chart is a hand-rolled monotone cubic with an on-target tick ladder
-  (`tcTicks`/`tcTangents`/`tcPath`, v47–v48/v52); v49 panel skeleton across all tabs
-  (`layout-consistency.spec.js`); v43 lesson — any `dbPush*` naming a column the live
-  DB lacks fails wholesale, audit against the real schema (see [[supabase-schema-can-lag-app-code]]).
+- **PROPOSED CLAUDE.md rule tweak (v55, NOT yet applied — waiting on Max at merge):** hard
+  rule 6's plate↔dish link is now **`menu_items.plate_id → plates.id` (many-to-many)**, not
+  `plates.menu_id → menu_items.id` (that FK is legacy). Reconcile rule 6 on approval.
 
-- Next up: (a) Max's phone sign-off on **v54**, apply the approved CLAUDE.md rule edits,
-  merge to `main`; (b) the Tidy lists Settings UI (`HANDOVER-v40.md` spec) still not
-  built; (c) update the stale Playwright specs on a browser env (HANDOVER-v54 lists them);
-  (d) optional: multi-menu publishing (v54 out-of-scope), and the matched/review-row
-  tick-persistence parallel flagged in v50.
+- **Older-batch context (details in the named handovers):** invoice new-item form persists via
+  `invRows[i].newItem` snapshot/rehydrate (v50, FRAGILE — now also carries `edited` for the §F1
+  auto-fill mark); chart is a hand-rolled monotone cubic (`tcTicks`/`tcTangents`/`tcPath`);
+  v49 panel skeleton (`layout-consistency.spec.js`); **v43 lesson — any `dbPush*` naming a
+  column the live DB lacks fails wholesale; apply the v55 migrations BEFORE deploy** (see
+  [[supabase-schema-can-lag-app-code]]).
+
+- Next up: (a) Max's phone sign-off on v54+v55, apply the 3 v55 migrations to prod, apply the
+  proposed rule-6 tweak, merge; (b) update `fresh-states.spec.js` on a browser env; (c) the
+  Tidy lists Settings UI still not built; (d) optional: purchased-quantity capture for §I
+  (needs a protected-region edit); Tidy-lists over plate categories.

@@ -9,13 +9,16 @@
  * IDENTICAL within 1px across tabs. Any future per-tab nudge fails here instead
  * of reaching Max's phone.
  *
+ * v55: the "builder" tab is now the PLATES LIBRARY (data-tab unchanged) — a plain
+ * .panel > h2 > .panel-actions card grid; the builder itself moved to #builderModal.
+ * So the old "Publish/Save/Print/Clear at the bottom of the docket" exception is GONE;
+ * the panel/title/divider assertions below cover it like any other tab.
+ *
  * Known, intentional exceptions (do not "fix" by loosening the tolerance):
- * - Builder's Publish/Save/Print/Clear live at the BOTTOM of the docket — they
- *   commit the assembled plate (form-submit semantics), not header actions.
  * - Dashboard simply has no .panel-actions row; the actions-row assertions run
  *   on the tabs that have one (pantry + ingredients/Products + analysis/Menu —
- *   Menu joined the skeleton in v52, its old picker-embedded-buttons exception
- *   is gone).
+ *   Menu joined the skeleton in v52). Plates (builder) now has one too; it's not
+ *   yet added to the strict actions-row checks (verify on a browser env first).
  */
 const { test, expect } = require('@playwright/test');
 
