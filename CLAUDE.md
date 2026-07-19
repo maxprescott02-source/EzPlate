@@ -268,9 +268,28 @@ merge to `main` as a production deploy.
 ## State as of 19 Jul 2026 (verify, don't trust)
 
 - `main` is at **v53**. Branch **`feat/plates-independent-library`** (off `main` @ v53)
-  carries **v54 + v55** — committed, awaiting Max's phone sign-off + the three v55
+  carries **v54 + v55 + v56** — committed, awaiting Max's phone sign-off + the three v55
   migrations applied to prod, then merge. `npm test` = **150 green**, jsdom smoke green,
-  `node -c` clean, six spots at **v55**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  `node -c` clean, six spots at **v56**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v56 shipped — Plates polish batch (brief: `~/Downloads/ezplate-opus-plates-polish.md`).
+  See `handovers/HANDOVER-v56.md`.** All four items are markup/CSS/copy — no logic or
+  data-model change; 150 tests unchanged.
+  - **1:** the plate glyph now propagates to the two empty states that missed it — the builder
+    docket empty (`#lines .empty::before`, was the clipboard) and the Plates search-empty (was
+    the inherited Products cube; a new `.plate-noresult` class overrides just the mask-image,
+    Products untouched). Plates search-empty gains a "Clear filters" `.linklike` affordance
+    (`#plateEmptyClear`) matching the Menu tab.
+  - **2:** builder popup reordered to one top-to-bottom flow — new top panel `#platePanel`
+    ("The plate", name + category), then the Add-ingredient search integrated into the top of
+    `#docketPanel` (its `<h2>` is now "Add ingredient"). Markup relocated only; every id/handler
+    unchanged; the old `.search-card` wrapper is gone.
+  - **3:** dashboard "How today's average compares" — `.stat-lead`/`.stat-line` left offset
+    2px→0 so the block shares the chart's x0 (title/axis/caption).
+  - **4:** misc-cost line is now `name · dotted leader · $ input · ×` — the duplicate bold
+    total (`.lc`) is gone, the `$` input IS the total. `setMiscCost`'s `lc-`+uid lookup is a
+    guarded no-op for misc lines now. `fresh-states.spec.js` misc pins updated deliberately
+    (not run — no browser). **`npm run shots` needed** (builder/misc/plates shots stale).
 
 - **v55 shipped — Plates completion + bug batch (brief:
   `~/Downloads/ezplate-opus-plates-completion.md`). See `handovers/HANDOVER-v55.md`.**
@@ -321,7 +340,8 @@ merge to `main` as a production deploy.
   column the live DB lacks fails wholesale; apply the v55 migrations BEFORE deploy** (see
   [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v54+v55, apply the 3 v55 migrations to prod, apply the
-  proposed rule-6 tweak, merge; (b) update `fresh-states.spec.js` on a browser env; (c) the
-  Tidy lists Settings UI still not built; (d) optional: purchased-quantity capture for §I
-  (needs a protected-region edit); Tidy-lists over plate categories.
+- Next up: (a) Max's phone sign-off on v54+v55+v56, apply the 3 v55 migrations to prod, merge;
+  (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K + v56
+  builder/misc pins); (c) the Tidy lists Settings UI still not built; (d) optional:
+  purchased-quantity capture for §I (needs a protected-region edit); Tidy-lists over plate
+  categories.

@@ -1045,7 +1045,7 @@ input[type=checkbox]{
 #dashBody{padding-bottom:6px}
 /* v49: `.dash-panel h2{margin-bottom:0}` removed — .panel h2 already has margin:0 (a no-op since v3x) */
 .stat-attach{margin-top:6px;border-top:1px solid var(--border);padding-top:10px}
-.stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 2px 8px}
+.stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}   /* v56: left edge = 0 = chart title/axis/caption column (was 2px, sat a hair right) */
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:11px}
@@ -1894,10 +1894,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   -webkit-mask-position:center;mask-position:center;
   -webkit-mask-size:contain;mask-size:contain;
 }
-/* Builder fresh screen -> the Builder nav icon (clipboard), monochrome & static (colour + animation removed) */
+/* Builder empty docket -> the Plates nav glyph (plate: rim + inner circle), monochrome & static.
+   v56: was the clipboard/docket icon; the tab's own glyph is the plate (matches ICON_PLATE_BIG). */
 #lines .empty::before{
-  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cline x1='8' y1='8' x2='16' y2='8'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3Cline x1='8' y1='16' x2='13' y2='16'/%3E%3C/svg%3E");
-  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cline x1='8' y1='8' x2='16' y2='8'/%3E%3Cline x1='8' y1='12' x2='16' y2='12'/%3E%3Cline x1='8' y1='16' x2='13' y2='16'/%3E%3C/svg%3E");
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3C/svg%3E");
 }
 /* Menu empty -> the Menu nav icon (bar chart) */
 .an-empty td::before{
@@ -1909,6 +1910,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
 }
+/* v56: the Plates search-empty carries .ing-empty for layout but overrides the inherited Products cube
+   with the Plates tab's own plate glyph (rim + inner circle). Sizing comes from the shared rule above. */
+.plate-noresult::before{
+  -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3C/svg%3E");
+  mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='4.5'/%3E%3C/svg%3E");
+}
+.plate-noresult .linklike{display:inline-block;margin-top:10px}
 
 /* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
 .king-progress{padding:6px var(--sp-5) 0;font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
@@ -1966,7 +1974,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* menu empty state: centred, no orphaned quotes */
 .an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
 /* dashboard: stat cards collapsed to one quiet line; chart takes the space */
-.stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 2px 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked. v40: left-align with the .stat-lead header (was 16px, sat indented) */
+.stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 0 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked. v40: left-align with .stat-lead. v56: left pad 2px->0, shares the chart block's x0 (title/axis/caption) */
 .stat-line .stat-bit{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
 .stat-line .stat-h{min-width:82px}   /* the three labels line up, so the numbers do too */
 .stat-line .stat-h{font-weight:700}
@@ -2262,18 +2270,17 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 }
 
 
-/* ===== batch (v53): builder misc line is ONE row (Max's mockup) ===== */
-/* name field · $ cost · dotted connector · bold total · × in its usual corner — the
-   "MISC COST · NOT AN INGREDIENT" sub-label is gone. Ingredient-row tokens kept: same
-   control heights, mono bold total. The old two-row-era rules below the fold (≤700px
-   grow-the-costbox, 32px unit gutter) are overridden here, not edited in place. */
-.line.misc-line{display:flex;align-items:baseline;gap:6px}          /* BASELINE, not center — same v46 root fix as .costs: the empty leader's synthesized baseline is its bottom edge, so the dots sit on the total's baseline */
+/* ===== batch (v53, revised v56): builder misc line is ONE row (Max's mockup) ===== */
+/* v56 (Max's spec): DOM order is now name field · dotted connector · $ input · × — the $ input
+   sits right-aligned where the bold total used to be and IS the line total, so the duplicate
+   .lc total is gone. Ingredient-row tokens kept: same control heights. The old two-row-era rules
+   below the fold (≤700px grow-the-costbox, 32px unit gutter) are overridden here, not edited in place. */
+.line.misc-line{display:flex;align-items:baseline;gap:6px}          /* BASELINE, not center — same v46 root fix as .costs: the empty leader's synthesized baseline is its bottom edge, so the dots sit on the input's baseline */
 .line.misc-line .misc-label{padding:9px 10px}                       /* same height token as .qtybox input */
 .line.misc-line .qtybox.misc-costbox{flex:0 0 auto;max-width:none;order:0}  /* beats the ≤700px flex-grow rule AND the legacy mobile .qtybox{order:3} — DOM order everywhere */
 .line.misc-line .qtybox.misc-costbox .u{width:auto}                 /* $ hugs the field — no 32px unit-column gutter on one row */
-.line.misc-line .qtybox.misc-costbox input{width:76px}              /* fixed (border-box; plenty for a misc cost) — the name field takes the spare width */
-.line.misc-line .leader{flex:0 1 40px;min-width:8px;transform:none} /* short connector (base flex:1 would steal the name's width); no stale -4px nudge */
-.line.misc-line .lc{min-width:0;order:0;margin-left:0}              /* 78px floor is for ingredient totals; kill the legacy mobile order:4/margin:auto that pushed the total past the × */
+.line.misc-line .qtybox.misc-costbox input{width:76px}              /* fixed (border-box; plenty for a misc cost); right-aligned via base .qtybox input — the name field takes the spare width */
+.line.misc-line .leader{flex:0 1 40px;min-width:8px;transform:none} /* short connector (base flex:1 would steal the name's width); name flex:1 pushes the $ input to the right edge */
 @media (max-width:700px){
   .line.misc-line .misc-label{min-height:44px}                      /* matches the costbox input's phone hit target */
 }

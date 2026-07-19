@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=55">
+<link rel="stylesheet" href="css/style.css?v=56">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -193,20 +193,7 @@
   <div class="modal modal-builder" role="dialog" aria-modal="true" aria-labelledby="builderModalTitle">
     <div class="mhead"><h3 id="builderModalTitle">New plate</h3><button class="x" id="builderClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <div class="panel search-card">
-        <h2>Add ingredient</h2>
-        <div class="pad">
-          <label class="f" for="q">Search your ingredients</label>
-          <div class="search-wrap">
-            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
-            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
-            <div id="drop" class="drop" role="listbox"></div>
-          </div>
-          <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
-        </div>
-      </div>
-
-      <div class="panel" id="docketPanel">
+      <div class="panel" id="platePanel">
         <h2>The plate</h2>
         <div class="pad">
           <label class="f" for="plateName">Plate name</label>
@@ -216,6 +203,21 @@
           <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">— how it groups in your Plates library (optional)</span></label>
           <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
           <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
+        </div>
+      </div>
+
+      <!-- v56: name the plate first (panel above), THEN add ingredients. The search integrates into the
+           top of the docket panel so the flow reads top-to-bottom: name → add → docket. Ids/handlers unchanged. -->
+      <div class="panel" id="docketPanel">
+        <h2>Add ingredient</h2>
+        <div class="pad">
+          <label class="f" for="q">Search your ingredients</label>
+          <div class="search-wrap">
+            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
+            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+            <div id="drop" class="drop" role="listbox"></div>
+          </div>
+          <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
         </div>
         <div class="docket-head">
           <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
@@ -558,7 +560,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=55"></script>
+<script src="js/app.js?v=56"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

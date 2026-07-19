@@ -342,14 +342,13 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
-  // v53 (Max's mockup, reverses v44's two-row split): ONE row \u2014 name field, $ cost, dotted
-  // connector, bold total, \u00d7 in its usual corner. The "Misc cost \u00b7 not an ingredient"
-  // sub-label is gone. Same ids/handlers; layout only.
+  // v56 (Max's spec, reverses v53's duplicate total): ONE row \u2014 name field, dotted connector,
+  // then the $ input sitting right-aligned where the bold total used to be, then \u00d7. The input IS
+  // the line total, so the separate bold .lc total is GONE (no duplication). Same ids/handlers.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
     +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
-    +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<span class="leader"></span>'
-    +'<span class="lc" id="lc-'+l.uid+'">'+money(Number(l.cost)||0)+'</span>'
+    +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
     +'</div>';
 }
@@ -1775,7 +1774,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v55';
+var APP_VERSION='v56';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2101,7 +2100,12 @@ function renderPlatesTab(){
     if(!q) return true;
     return ((sp.name||'')+' '+(sp.category||'')+' '+(plateMenuSummary(sp)||'')).toLowerCase().indexOf(q)>=0;
   }).slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
-  if(!items.length){ wrap.innerHTML='<div class="an-empty ing-empty">No plates match your search.</div>'; return; }
+  if(!items.length){                                                  // v56: the tab's own plate glyph (not the inherited Products cube) + a Clear-filters affordance, matching the Menu tab's search-empty
+    wrap.innerHTML='<div class="an-empty ing-empty plate-noresult">No plates match your search.<br><button type="button" class="linklike" id="plateEmptyClear">Clear filters</button></div>';
+    var pec=document.getElementById('plateEmptyClear');
+    if(pec) pec.onclick=function(){ var ps=document.getElementById('plateSearch'); if(ps)ps.value=''; var pf=document.getElementById('plateCatFilter'); if(pf)pf.value=''; renderPlatesTab(); };
+    return;
+  }
   wrap.innerHTML=items.map(function(sp){
     return '<button class="ing-card" type="button" data-pid="'+esc(sp.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(sp.name||'Unnamed plate')+'</span>'+(sp.category?'<span class="ing-brand">'+esc(sp.category)+'</span>':'')+'</div>'
