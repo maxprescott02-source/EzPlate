@@ -83,10 +83,18 @@ consistent" has caused rollbacks.
      exist on older projects — the bootstrap read is wrapped in a try/catch.
    - **Dishes / menu items** — `MENU`/`customMenu` (the `menu_items` table). Each
      dish's `.menuId` points at a `menusList` entry. `menuById` keys dishes.
-   - **Plates** — the cost builds (`plates` table). **`plates.menu_id`
-     references a `menu_items` id** (a dish), and THAT is the FK
-     `plates_menu_id_fkey`. A write creating a plate for a menu item must not
-     race ahead of that menu item's own insert — see Data-write rules.
+   - **Plates** — the cost builds (`plates` table), the library's own objects. A
+     dish links to its plate via **`menu_items.plate_id` → `plates.id`** (v55; FK
+     `menu_items_plate_id_fkey`); ONE plate can back MANY dishes — one per menu it's
+     published to (**many-to-many**). Resolve ONLY through `plateIdOf` /
+     `plateForMenuItem` / `dishesOfPlate` / `menusOfPlate` — never poke the raw
+     fields. `plates.menu_id` and `menu_items.source_plate_id` are **LEGACY**
+     (`source_plate_id` still read as a fallback + mirrored on write during rollout;
+     `plates.menu_id` unread/unwritten). Because the DISH now references the plate,
+     a dish write must not race ahead of its plate's insert — sequence with
+     `dbPushMenuAfterPlate`. (The FK direction FLIPPED in v55: the old
+     `plates.menu_id → menu_items.id` FK `plates_menu_id_fkey` and the old
+     `dbPushPlateAfterMenu` are gone.) See Data-write rules.
 7. **Menu deletion deletes its dishes and UNLINKS their plates — never the
    plates.** (v54, reverses v40/v42.) Deleting a menu removes its `menu_items`
    rows and sets each affected plate's `menu_id` to null; every plate survives in
@@ -296,9 +304,11 @@ merge to `main` as a production deploy.
   Dashboard/Products/Ingredients/Plates/Menu. **v55's §A supersedes v54's single-menu popup.**
   CLAUDE.md "What the app does" §3 + hard rule 7 were updated to v54 with Max's approval.
 
-- **PROPOSED CLAUDE.md rule tweak (v55, NOT yet applied — waiting on Max at merge):** hard
-  rule 6's plate↔dish link is now **`menu_items.plate_id → plates.id` (many-to-many)**, not
-  `plates.menu_id → menu_items.id` (that FK is legacy). Reconcile rule 6 on approval.
+- **CLAUDE.md hard rule 6 updated with Max's approval (v55):** the plate↔dish link is now
+  **`menu_items.plate_id → plates.id` (many-to-many)**; `plates.menu_id`/`source_plate_id` are
+  legacy and the FK sequencing flipped (`dbPushMenuAfterPlate`). The v40 "Publish-to-new-menu"
+  fragile-area note still references the OLD `plates_menu_id_fkey` — flagged for a follow-up
+  propose (not silently edited).
 
 - **Older-batch context (details in the named handovers):** invoice new-item form persists via
   `invRows[i].newItem` snapshot/rehydrate (v50, FRAGILE — now also carries `edited` for the §F1
