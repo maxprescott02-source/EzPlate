@@ -325,7 +325,7 @@ function editPrice(uid){
   if(!['g','ml','ea'].includes(p.base_unit))return;
   const chip=document.getElementById('pc-'+uid);if(!chip)return;
   const word=displayUnitWord(p), val=perDisplayValue(p);
-  chip.innerHTML='$<input class="pin" type="number" min="0" step="0.01" value="'+(val!=null?val.toFixed(p.base_unit==='ea'?3:2):'')+'"> /'+word;
+  chip.innerHTML='$<input class="pin" type="number" min="0" step="0.01" value="'+(val!=null?val.toFixed(2):'')+'"> /'+word;   // v55 §E3: autofilled price shows 2dp (the stored cost_per_base_unit stays exact until the user commits an edit)
   const inp=chip.querySelector('input'); inp.focus(); inp.select();
   let cancelled=false;
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){cancelled=true;renderPlate();}});
@@ -3044,7 +3044,11 @@ function flagNeedsAttention(row){                                  // ITEM 4: on
     var p=byId[row.bestId], cur=cpbu(p);
     if(cur!=null && cur>0){
       var curPerRowUnit = p.base_unit==='g'?cur*1000 : p.base_unit==='ml'?cur*1000 : cur;   // stored price expressed in the row's unit
-      if(Math.abs(row.unitPrice-curPerRowUnit)/curPerRowUnit > PRICE_JUMP) priceJump=true;
+      // v55 §E1: compare at CENT precision (CLAUDE.md rounding rule). Two prices that both DISPLAY as the
+      // same $x.xx must never flag a "price change" — the old test ran on unrounded floats, so 0.01 vs 0.01
+      // (differing only past the cent) tripped the alert.
+      var sameAtCent = Math.round(row.unitPrice*100)===Math.round(curPerRowUnit*100);
+      if(!sameAtCent && Math.abs(row.unitPrice-curPerRowUnit)/curPerRowUnit > PRICE_JUMP) priceJump=true;
     }
   }
   row.needsAttention = !!(row.unitMismatch || (row.needManual && !row.remembered) || priceJump);
