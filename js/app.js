@@ -2072,7 +2072,7 @@ function loadPlateState(id){
 function loadPlate(id){ var sp=loadPlateState(id); if(!sp) return; openBuilder(); toast('Loaded: '+(sp.name||'plate')); }
 
 /* ===== v54: Plates tab (card library) + builder popup + card action menu ===== */
-var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>';
+var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>';   // v55 §D3: a plate (rim + inner circle)
 // v55: a plate can be on MANY menus. The badge summarises them; the cost cell shows "not costed" for an
 // empty plate (§B) rather than a misleading $0.00.
 function plateMenuSummary(sp){ var on=menusOfPlate(sp); if(!on.length) return null; return on.length===1?on[0].name:(on.length+' menus'); }
@@ -3273,7 +3273,7 @@ function renderAnalysis(){
   tb.innerHTML=html; bindTips();
   var acs=document.getElementById('anClearSearch');
   if(acs) acs.onclick=function(){ var ms=document.getElementById('menuSearch'); if(ms) ms.value=''; renderAnalysis(); };
-  tb.querySelectorAll('.mi-btn.tobuilder').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); var pid=b.getAttribute('data-pid'); if(pid){ loadPlate(pid); } else { openMenuInBuilder(b.getAttribute('data-id')); } }; });
+  // v55 (§D2): the "→ Builder" chip is gone — no handler to bind.
   // v52 tap-to-edit (replaces the per-card Edit button): the whole card/row opens the edit
   // modal; .tip and .mi-btn clicks stopPropagation so they never fall through to the row.
   tb.querySelectorAll('tr.mi-row').forEach(function(tr){
@@ -3399,9 +3399,9 @@ function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').
 function isBaseMenuId(id){ return BASE_MENU.some(function(m){ return m.id===id; }); }
 function menuActions(m){
   if(!m) return '';
-  // v52: the Edit button is retired \u2014 the whole card/row is tap-to-edit (matches the v46
-  // ingredient cards); "\u2192 Builder" stays as the one visible chip.
-  return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-id="'+esc(m.id)+'" title="Open in plate builder">\u2192 Builder</button></div>';
+  // v55 (\u00a7D2): the "\u2192 Builder" chip is removed. A dish's recipe is edited from its plate in the Plates
+  // tab (tap the card \u2192 Edit plate); the Menu-tab row stays tap-to-edit for price/category/menu only.
+  return '';
 }
 function openMenuInBuilder(mid){                                      // jump from Menu Analysis straight into the Builder for this dish
   var m=menuById[mid]; if(!m) return;
@@ -3659,7 +3659,7 @@ document.getElementById('menuSave').addEventListener('click',submitMenuItem);
 document.getElementById('editClose').addEventListener('click',closeEdit);
 document.getElementById('editCancel').addEventListener('click',closeEdit);
 document.getElementById('editSave').addEventListener('click',onEditSave);
-document.getElementById('ed_openBuilder').addEventListener('click',editOpenInBuilder);
+/* §D2: ed_openBuilder removed — a dish's recipe is edited from its plate in the Plates tab. */
 document.getElementById('ed_delete').addEventListener('click',function(e){e.preventDefault();editDeleteTap();});
 document.getElementById('ed_restore').addEventListener('click',editRestoreToMenu);
 document.getElementById('ed_permDelete').addEventListener('click',function(e){e.preventDefault();editPermDeletePlate();});
