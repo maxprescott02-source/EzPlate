@@ -918,20 +918,22 @@ for (const size of SIZES) {
     await page.waitForTimeout(1500);
     await page.locator('.navbtn[data-tab="analysis"]').click();
     await page.waitForTimeout(400);
-    // force the an-empty card by driving the REAL UI: a search that matches nothing
-    // renders the same .an-empty td/.an-empty-box geometry as "No menu items yet"
+    // v58: a search that matches nothing renders the shared .empty-state (es-built) inside a
+    // .es-row, the same system every tab now uses (variant A: "No menu items match.")
     await page.fill('#menuSearch', 'zzz-no-such-dish');
     await page.waitForTimeout(400);
     await page.screenshot({ path: `tests/visual/__shots__/fresh-analysis-${size.name}.png`, fullPage: true });
-    // the real check is the image, but pin the fix structurally too:
-    // the empty cell must have symmetric horizontal padding (the 28px-right bug)
-    const pad = await page.evaluate(() => {
-      const td = document.querySelector('.an-empty td');
-      if (!td) return null;
+    // the real check is the image, but pin the fix structurally too: the empty cell centres its
+    // .empty-state (td padding is zeroed by .es-row, so left/right are symmetric)
+    const es = await page.evaluate(() => {
+      const td = document.querySelector('tr.es-row td');
+      const box = document.querySelector('tr.es-row .empty-state.es-built');
+      if (!td || !box) return null;
       const cs = getComputedStyle(td);
-      return { left: cs.paddingLeft, right: cs.paddingRight };
+      return { left: cs.paddingLeft, right: cs.paddingRight, marker: !!box };
     });
-    expect(pad, 'an-empty td must exist').not.toBeNull();
-    expect(pad.left, 'empty-state cell must not be padded asymmetrically').toBe(pad.right);
+    expect(es, 'es-row td with an es-built empty-state must exist').not.toBeNull();
+    expect(es.marker, 'Menu empty routes through the shared helper (es-built)').toBe(true);
+    expect(es.left, 'empty-state cell must not be padded asymmetrically').toBe(es.right);
   });
 }

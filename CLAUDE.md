@@ -265,12 +265,26 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 19 Jul 2026 (verify, don't trust)
+## State as of 20 Jul 2026 (verify, don't trust)
 
-- `main` is at **v53**. Branch **`feat/plates-independent-library`** (off `main` @ v53)
-  carries **v54 + v55 + v56 + v57** — committed, awaiting Max's phone sign-off + the three v55
-  migrations applied to prod, then merge. `npm test` = **150 green**, jsdom smoke green,
-  `node -c` clean, six spots at **v57**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+- `main` is at **v57** (PR #5 merged `feat/plates-independent-library` — v54–v57 — into main).
+  Branch **`feat/empty-states-unified`** (off `origin/main` @ v57) carries **v58** — committed,
+  awaiting Max's phone sign-off, then merge. **The three v55 Supabase migrations still need
+  applying to prod before this is live** (see [[supabase-schema-can-lag-app-code]]). `npm test` =
+  **157 green**, jsdom smoke green, `node -c` clean, six spots at **v58**. Per-batch detail lives in
+  `handovers/HANDOVER-vNN.md`.
+
+- **v58 shipped — empty states unified into ONE system (brief:
+  `~/Downloads/ezplate-opus-empty-states.md`). See `handovers/HANDOVER-v58.md`.** All four tabs'
+  empty states now build through the shared helpers in `js/app.js` (~line 920): `emptyStateHtml`
+  (variant B, true-empty) and `emptySearchState` (variant A, search/filter-empty, the ONE shared
+  action label "Clear search & filters"). The marker class `es-built` is emitted only there
+  (route-through test asserts it). Four global clear fns (`clearProductFilters` / `Ingredient` /
+  `Plate` / `Menu`) are shared by the empty-state action AND the header "Clear filters" buttons.
+  `ICON_MENU_BIG` added. All inline variants deleted (`an-empty ing-empty`, bare `.empty` "No
+  ingredients match", v56 `.plate-noresult`, the `.an-empty-box`/`anClearSearch` menu markup).
+  Menu's empty state is a `.empty-state` in `<tr class="es-row">`. New `tests/empty-states.test.js`
+  (7); 150→157.
 
 - **v57 shipped — Plates icon changed to a fork + knife (Max's request). See
   `handovers/HANDOVER-v57.md`.** The plate glyph (two concentric circles) became a hand-authored
@@ -346,8 +360,8 @@ merge to `main` as a production deploy.
   column the live DB lacks fails wholesale; apply the v55 migrations BEFORE deploy** (see
   [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v54+v55+v56, apply the 3 v55 migrations to prod, merge;
-  (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K + v56
-  builder/misc pins); (c) the Tidy lists Settings UI still not built; (d) optional:
-  purchased-quantity capture for §I (needs a protected-region edit); Tidy-lists over plate
-  categories.
+- Next up: (a) Max's phone sign-off on v54–v58, apply the 3 v55 migrations to prod, merge;
+  (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K stale tests
+  + v56 builder/misc pins + v58 empty-state re-baseline); (c) the Tidy lists Settings UI still not
+  built; (d) optional: purchased-quantity capture for §I (needs a protected-region edit);
+  Tidy-lists over plate categories.
