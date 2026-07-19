@@ -2320,6 +2320,7 @@ function handleInvFile(file){
         if(nameEl) nameEl.textContent=file.name;
         showInvFileErr(IMG_PDF_MSG); return;
       }
+      text=normPackNotation(text);                     // v55 §I: normalise "N x M's" -> "(N*M)'s" before parsing (and before it's shown in the textarea, so a manual re-parse stays consistent)
       invGst=invGstDetect(text); invSupplier=invSupplierDetect(text);
       var rows=pdfTextToRows(text), ta=document.getElementById('invCsv');
       if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 '+rows.length+' line'+(rows.length===1?'':'s')+' read, review below'; buildInvRows(rows); }
@@ -2658,8 +2659,20 @@ function parseInvoiceCSV(text){
   });
   return out;
 }
+// v55 §I: the protected parser's packCount reads "6x8's" as just the "6x" multiplier (6) — its
+// shorthand-count regex needs 2-4 digits, so the single-digit "8's" is dropped. Rather than edit the
+// protected region (CLAUDE.md rule 1), we normalise the RAW text here, OUTSIDE it: rewrite a compound
+// "N x M's" into "(N*M)'s" (e.g. "6x8's" -> "48's") so the parser reads the true per-pack count. Only the
+// apostrophe-s compound form is touched; weight packs ("6 x 2.5kg") and bare "6x8" are left alone.
+// NOTE: this rewrites the displayed line text too (name shows "48's"); it does NOT add purchased-quantity
+// capture — that column isn't parsed at all (see HANDOVER-v55 §I).
+function normPackNotation(text){
+  return (text||'').replace(/\b(\d+)\s*[x×*]\s*(\d+)(['’]?s)\b/gi, function(m, a, b){
+    var n=parseInt(a,10)*parseInt(b,10); return (isFinite(n)&&n>0) ? (n+"'s") : m;
+  });
+}
 function parseInvoice(){
-  var txt=document.getElementById('invCsv').value;
+  var txt=normPackNotation(document.getElementById('invCsv').value);
   invGst=invGstDetect(txt); invSupplier=invSupplierDetect(txt);
   var raw=parseInvoiceCSV(txt);
   if(!raw.length){toast('No valid rows. Use: product name, unit price per kg/unit');return;}
