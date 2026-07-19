@@ -268,9 +268,15 @@ merge to `main` as a production deploy.
 ## State as of 19 Jul 2026 (verify, don't trust)
 
 - `main` is at **v53**. Branch **`feat/plates-independent-library`** (off `main` @ v53)
-  carries **v54 + v55 + v56** — committed, awaiting Max's phone sign-off + the three v55
+  carries **v54 + v55 + v56 + v57** — committed, awaiting Max's phone sign-off + the three v55
   migrations applied to prod, then merge. `npm test` = **150 green**, jsdom smoke green,
-  `node -c` clean, six spots at **v56**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  `node -c` clean, six spots at **v57**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v57 shipped — Plates icon changed to a fork + knife (Max's request). See
+  `handovers/HANDOVER-v57.md`.** The plate glyph (two concentric circles) became a hand-authored
+  fork + knife line icon, updated in all four spots that share it (nav tab, `ICON_PLATE_BIG`,
+  `#lines .empty::before`, `.plate-noresult::before`) so the tab and its empty states stay
+  consistent. No logic change; 150 tests unchanged.
 
 - **v56 shipped — Plates polish batch (brief: `~/Downloads/ezplate-opus-plates-polish.md`).
   See `handovers/HANDOVER-v56.md`.** All four items are markup/CSS/copy — no logic or

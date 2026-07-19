@@ -1774,7 +1774,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v56';
+var APP_VERSION='v57';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2075,7 +2075,7 @@ function loadPlateState(id){
 function loadPlate(id){ var sp=loadPlateState(id); if(!sp) return; openBuilder(); toast('Loaded: '+(sp.name||'plate')); }
 
 /* ===== v54: Plates tab (card library) + builder popup + card action menu ===== */
-var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>';   // v55 §D3: a plate (rim + inner circle)
+var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v4"/><path d="M9 3v4"/><path d="M12 3v4"/><path d="M6 7h6"/><path d="M9 7v14"/><path d="M18 3v18"/><path d="M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2"/></svg>';   // v57: fork + knife (matches the Plates nav glyph)
 // v55: a plate can be on MANY menus. The badge summarises them; the cost cell shows "not costed" for an
 // empty plate (§B) rather than a misleading $0.00.
 function plateMenuSummary(sp){ var on=menusOfPlate(sp); if(!on.length) return null; return on.length===1?on[0].name:(on.length+' menus'); }
