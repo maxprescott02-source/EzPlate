@@ -230,11 +230,15 @@ $('newPlateBtn').click();
 ok('+ New plate opens the builder popup', $('builderModal').classList.contains('open'));
 ok('the popup opens on an empty, unlinked plate', $('plateName').value === '' && $('menuLink').value === '');
 $('plateName').value = 'Smoke Plate';
+ok('the builder has a category field (§J)', !!$('plateCat'));
+$('plateCat').value = 'Breakfast';                      // §J: the plate's library category
 window.addMiscCost();                                   // a misc line makes the plate non-empty
 $('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
 ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
 let libCard = window.document.querySelector('#plateList .ing-card');
 ok('the saved plate appears as a card', !!libCard && /Smoke Plate/.test(libCard.textContent), libCard && libCard.textContent);
+ok('the card shows its category (§J)', /Breakfast/.test(libCard.textContent), libCard && libCard.textContent);
+ok('the category filter is populated (§J)', /Breakfast/.test(($('plateCatFilter') || {}).textContent || ''));
 ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
 ok('the card shows a plate-cost cell', !!libCard && /plate cost/.test(libCard.textContent) && /\$/.test(libCard.textContent), libCard && libCard.textContent);
 

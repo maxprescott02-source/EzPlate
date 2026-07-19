@@ -60,8 +60,9 @@ function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function
 function dbPushMenu(item){ var pid=(item.plateId||item.sourcePlateId||null); return pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), plate_id:pid, source_plate_id:pid}); }, 'menu item'); }
 function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
 // v55: a plate no longer carries a menu link (many-to-many lives on menu_items.plate_id). menu_id is left
-// out of the write — the legacy column keeps whatever it had and is never read. (category added in §J.)
-function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, lines:sp.lines||[]}); }, 'plate'); }
+// out of the write — the legacy column keeps whatever it had and is never read. category (§J) is the plate
+// library's own grouping (independent of per-menu sections).
+function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, lines:sp.lines||[], category:(sp.category||null)}); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
@@ -642,8 +643,8 @@ function saveCurrentPlate(asNew){
   var cat=(typeof builderCategoryValue==='function')?builderCategoryValue():null;   // §J: category combo; null before §J
   var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:(l.kid?{kid:l.kid,qty:l.qty}:{pid:l.pid,qty:l.qty}); });
   var sp;
-  if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=cat; } else loadedPlateId=null; }
-  if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines}; if(cat!==null) sp.category=cat; savedPlates.push(sp); loadedPlateId=id; }
+  if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
+  if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   savePlatesLS(); dbPushPlate(sp); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();
   return true;
 }
@@ -679,6 +680,10 @@ function ensurePlateForDish(m){
   dbPushMenuAfterPlate(m, sp);
   return sp;
 }
+// §J: plate categories are the library's own grouping. Suggest existing plate categories AND the per-menu
+// sections already in use, so the vocabulary stays shared.
+function plateCategories(){ var s={}; savedPlates.forEach(function(sp){ if(sp.category) s[sp.category]=1; }); (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){ if(m&&m.section) s[m.section]=1; }); return Object.keys(s).sort(); }
+function builderCategoryValue(){ var el=document.getElementById('plateCat'); return el?(el.value||'').trim():''; }
 function vbadge(a){
   if(a.state==='ok')return '<span class="vbadge vgood">healthy</span>';
   if(a.state==='under')return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'">'+a.absPct+'% under</span>';
@@ -2059,6 +2064,7 @@ function loadPlateState(id){
   plate=[];                                                 // FULL clear first — never blend two plates
   sp.lines.forEach(function(l){ if(l&&l.misc){ plate.push({uid:uidc++,misc:true,label:l.label||'',cost:Number(l.cost)||0}); } else if(l&&l.kid){ plate.push({uid:uidc++,kid:l.kid,qty:l.qty}); } else if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
   document.getElementById('plateName').value=sp.name||'';
+  var pc=document.getElementById('plateCat'); if(pc) pc.value=sp.category||'';   // §J
   menuTouched=false; if(typeof menuLinkEl!=='undefined'&&menuLinkEl) menuLinkEl.value=''; loadedPlateId=sp.id;   // v55: a plate carries no menu link
   hidePlateSuggest(); updateEditTag(); renderPlate();
   return sp;
@@ -2082,8 +2088,10 @@ function renderPlatesTab(){
       '<button class="btn primary" type="button" onclick="openBuilderNew()">+ New plate</button>');
     return;
   }
+  fillFilter(document.getElementById('plateCatFilter'), plateCategories(), 'All categories');   // §J
   var q=(document.getElementById('plateSearch')?document.getElementById('plateSearch').value:'').trim().toLowerCase();
   var cat=(document.getElementById('plateCatFilter')||{}).value||'';   // §J
+  var cf=document.getElementById('plateClearFilters'); if(cf) cf.style.display=(q||cat)?'':'none';
   var items=savedPlates.filter(function(sp){
     if(cat && (sp.category||'')!==cat) return false;
     if(!q) return true;
@@ -2100,11 +2108,12 @@ function renderPlatesTab(){
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
 }
 /* ---- builder popup ---- */
-function openBuilder(){ var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; show('builderModal'); }
+function openBuilder(){ var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal'); }
 function closeBuilder(){ hide('builderModal'); }
 function openBuilderNew(){                                           // + New plate: open the popup on an empty, unlinked plate
   plate=[]; loadedPlateId=null; menuTouched=false;
   var pn=document.getElementById('plateName'); if(pn) pn.value='';
+  var pc=document.getElementById('plateCat'); if(pc) pc.value='';   // §J
   var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none';
   if(typeof menuLinkEl!=='undefined' && menuLinkEl) menuLinkEl.value='';
   var qq=document.getElementById('q'); if(qq) qq.value='';
@@ -2176,6 +2185,8 @@ function mmRemove(dishId){
   var pac=document.getElementById('plateActionsClose'); if(pac) pac.addEventListener('click',closePlateActions);
   var ps=document.getElementById('plateSearch'); if(ps){ ps.addEventListener('input',renderPlatesTab); ps.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ps.blur(); } }); }
   var psc=document.getElementById('plateSearchClear'); if(psc) psc.addEventListener('click',function(){ if(ps){ ps.value=''; renderPlatesTab(); ps.focus(); } });
+  var pcf=document.getElementById('plateCatFilter'); if(pcf) pcf.addEventListener('change',renderPlatesTab);   // §J category filter
+  var pcc=document.getElementById('plateClearFilters'); if(pcc) pcc.addEventListener('click',function(){ if(ps) ps.value=''; if(pcf) pcf.value=''; renderPlatesTab(); });
   var pP=document.getElementById('paPublish'); if(pP) pP.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); openManageMenus(id); });
   var pE=document.getElementById('paEdit'); if(pE) pE.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); editPlateFromCard(id); });
   var pD=document.getElementById('paDelete'); if(pD) pD.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); deletePlate(id); });

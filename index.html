@@ -68,9 +68,13 @@
         <button class="btn primary" id="newPlateBtn" type="button">+ New<span class="btn-noun"> plate</span></button>
         <span class="panel-sub">Your costed plates — save here, publish to a menu when the price is right</span>
       </div>
-      <div class="menu-search plate-search">
-        <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
-        <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      <div class="ing-controls">
+        <div class="menu-search plate-search">
+          <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
+          <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+        </div>
+        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <button class="btn ghost ing-clear-filters" id="plateClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <div id="plateList" class="ing-list"></div>
     </div>
@@ -209,6 +213,8 @@
           <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
           <div class="ferr" id="plateNameErr" style="display:none"></div>
           <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">— how it groups in your Plates library (optional)</span></label>
+          <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
           <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
         </div>
         <div class="docket-head">
