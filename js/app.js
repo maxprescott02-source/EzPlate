@@ -254,7 +254,7 @@ function runSearch(raw){
 function hl(text,q){q=q.trim();if(!q)return esc(text);const i=text.toLowerCase().indexOf(q.toLowerCase());
   if(i<0)return esc(text);return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));}
 const qEl=document.getElementById('q'), dropEl=document.getElementById('drop');
-(function(){ var qc=document.getElementById('qClear'); if(qc&&qEl) qc.addEventListener('click',function(){ qEl.value=''; if(dropEl){dropEl.style.display='none';} qEl.setAttribute('aria-expanded','false'); qEl.focus(); }); })();   // v37: same clear affordance as every other search
+(function(){ var qc=document.getElementById('qClear'); if(qc&&qEl) qc.addEventListener('click',function(){ qEl.value=''; closeDrop(); qEl.focus(); }); })();   // v37: same clear affordance as every other search. v61 item 7 ROOT CAUSE: this used to hide the dropdown with an INLINE display none, which permanently beat .drop.open{display:block} — after one × clear, every later search rendered but stayed invisible (dead till reload). closeDrop() toggles the class only, so the dropdown re-opens normally.
 let curList=[], hiIdx=-1;
 function kitchenSearchMatches(q){                                     // v55 §G: match the kitchen word's name OR its linked product's description/brand (same as the pantry search, kingSearchFilter). Example: ingredient "Bread" -> product "Bread GF — TipTop" is found by "gf" or "tiptop".
   var list=kingSearchFilter(q, kitchenIngredients, byId).filter(function(k){ return k && k.name; });
@@ -264,6 +264,7 @@ function kitchenSearchMatches(q){                                     // v55 §G
 function pickListItem(it){ if(!it) return; if(it.__kid) addKitchenLine(it.id); }   // v59: create-from-search removed — ingredients are made on the Ingredients tab
 function renderDrop(){
   const q=qEl.value;
+  if(dropEl.style.display) dropEl.style.display='';                   // v61 item 7: never let an inline display override .drop.open — visibility is class-driven only
   curList=kitchenSearchMatches(q); hiIdx=-1;                          // BUILDER IS INGREDIENTS-ONLY: recipes are built from kitchen words, never raw supplier products
   if(!curList.length){
     const qt=(q||'').trim();
@@ -1273,7 +1274,8 @@ function wireKingWizSkipped(box){
 }
 function renderKingWizard(){
   var box=document.getElementById('kingWiz'); if(!box) return;
-  if(!kingWizOpen){ box.style.display='none'; box.innerHTML=''; renderKingProgress(); return; }
+  if(!kingWizOpen){ box.style.display='none'; box.innerHTML=''; hide('kingWizModal'); renderKingProgress(); return; }
+  show('kingWizModal');                                               // v61 item 4: the wizard lives in its own modal now — opening is explicit, the × closes it
   var groups=kingWizGroups();
   var skipIds=kingWizSkipIds(), skipHtml=kingWizSkippedHtml(skipIds);
   if(!groups.length){
@@ -1324,6 +1326,7 @@ function renderKingWizard(){
   renderKingProgress();
 }
 function toggleKingWizard(){ kingWizOpen=!kingWizOpen; if(kingWizOpen) kingWizLimit=40; renderKingWizard(); }
+function closeKingWizard(){ if(!kingWizOpen) return; kingWizOpen=false; renderKingWizard(); }   // v61 item 4: the single close path — keeps kingWizOpen in sync with the modal (× / Escape / backdrop all route here)
 /* ---- create / change-product modal (Name + product search-select) ---- */
 var kingEditId=null, kingChosenPid=null, kingAddToPlateOnSave=false;
 function renderKingAlts(){                                            // "Cheaper like-for-like" — only in change-product (edit) mode, compared vs the CURRENT link
@@ -1496,6 +1499,10 @@ function deleteKitchenIngredient(kid){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('kingNew',function(){ openKingModal(null); });
   on('kingWizBtn',toggleKingWizard);
+  on('kingWizClose',closeKingWizard);                                // v61 item 4: the × closes the wizard modal
+  (function(){ var kwm=document.getElementById('kingWizModal'); if(!kwm) return;
+    kwm.addEventListener('mousedown',function(e){ if(e.target===kwm) closeKingWizard(); });   // backdrop tap closes (skips are already persisted — no data loss)
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && kwm.classList.contains('open')) closeKingWizard(); }); })();
   var _goHome=function(){ showTab('dashboard'); };   // v39: the logo is the way home
   ['brandHome','sideBrandHome'].forEach(function(id){   // header logo (mobile) + sidebar logo (desktop >=1024px) — one is always the visible one
     var el=document.getElementById(id); if(!el) return;
@@ -1505,7 +1512,7 @@ function deleteKitchenIngredient(kid){
   var ks=document.getElementById('kingSearch'), kc=document.getElementById('kingSearchClear');
   if(ks){ ks.addEventListener('input',function(){                     // ITEM 3 (v35)
     kingQuery=ks.value||'';
-    if(kingQuery && kingWizOpen){ kingWizOpen=false; renderKingWizard(); }   // searching and the setup wizard are two different jobs — never both at once
+    // v61 item 4: the wizard is a modal takeover now — it can't coexist with the tab search behind it, so the old "searching closes the wizard" coupling is gone. Opening is explicit; the × closes it.
     renderKitchenPanel();
   });
   ks.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ks.blur(); } }); }   // v37: Enter commits the search (dismisses the keyboard)
@@ -1707,16 +1714,13 @@ function trendChart(){
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
   var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
-  // v60 item 1b: the dashed target rule renders only when the target is inside the domain; otherwise a
-  // small edge annotation ("target 30% ↑/↓") tells the user which way it lies without warping the axis.
-  var refLine='', edgeAnno='';
+  // v61 item 6 (SUPERSEDES v60's edge-annotation half): the dashed target rule renders only when the target
+  // is inside the domain (or within one tick, per targetInView). When it's outside, NOTHING is drawn — no edge
+  // marker, no arrow. The user knows their own target; the line's only job is to warn as costs approach it.
+  var refLine='';
   if(targetShown){
     var refY=y(cogsPct).toFixed(1);
     refLine='<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
-  } else {
-    var above=cogsPct>mx;                                          // target above the visible band -> annotate at top, arrow up
-    var ay=above?(padT+9):(H-padB-4), arrow=above?'↑':'↓';
-    edgeAnno='<text class="ax tc-target-edge" x="'+(W-padR)+'" y="'+ay+'" text-anchor="end">target '+fmtTick(cogsPct)+' '+arrow+'</text>';
   }
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
@@ -1740,7 +1744,6 @@ function trendChart(){
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
-    +edgeAnno   // v60 item 1b: the target's edge annotation when it lies outside the domain
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
     +'</svg>';
@@ -1885,7 +1888,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v60';
+var APP_VERSION='v61';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2352,7 +2355,10 @@ function renderPlatesTab(){
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
 }
 /* ---- builder popup ---- */
-function openBuilder(){ var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal'); }
+function openBuilder(){ var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal');
+  // v61 item 2: every open (New AND Edit) starts at the top — the scroller (and the full-screen overlay at mobile widths) can otherwise retain the previous session's position
+  var bm=document.getElementById('builderModal'); if(bm){ bm.scrollTop=0; var mb=bm.querySelector('.mbody'); if(mb) mb.scrollTop=0; }
+}
 function closeBuilder(){ hide('builderModal'); }
 function openBuilderNew(){                                           // + New plate: open the popup on an empty, unlinked plate
   plate=[]; loadedPlateId=null; menuTouched=false;
