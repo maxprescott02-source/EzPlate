@@ -2300,3 +2300,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .line.misc-line .misc-fixed{flex:0 0 auto;font-weight:650;font-size:15px;color:var(--text);line-height:1.3}
 .line.misc-line .leader{flex:1 1 auto;min-width:8px;transform:none}
 @media (max-width:700px){ .line.misc-line .misc-fixed{font-size:16px} }
+/* item 5 (Max): no red "pressed" fill on Delete. On touch, :hover sticks after a tap, so the destructive
+   button reads as flashing solid red on press. Where hover isn't a real pointer state, neutralise the
+   danger hover fill back to the resting outline. Resting styling and desktop (real-hover) fill unchanged. */
+@media (hover:none){
+  .btn.danger:hover{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
+  .btn-danger:hover{background:transparent;color:var(--bad);border-color:var(--bad)}
+}

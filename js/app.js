@@ -746,6 +746,7 @@ function showTab(t){
   if(t==='dashboard')renderDashboard();
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
   if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
+  try{ window.scrollTo(0,0); }catch(e){}   // v60 item 5: switching tabs (or re-tapping the current one — showTab runs on every nav click) starts at the top
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
