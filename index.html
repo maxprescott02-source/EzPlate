@@ -342,7 +342,10 @@
     <div class="mbody">
       <div class="ferr" id="ad_err" style="display:none"></div>
       <p class="hint" style="margin:0 0 8px">Put an already-costed dish onto <b id="ad_menuName">this menu</b> at its own price. The recipe stays shared — update it once and both menus follow.</p>
-      <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed dishes…" autocomplete="off">
+      <div class="menu-search ad-search-wrap">
+        <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed dishes…" autocomplete="off">
+        <button id="ad_searchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      </div>
       <div id="ad_list" class="ad-list"></div>
       <div class="field full" style="margin-top:10px"><label for="ad_price">Sell price on this menu ($) *</label><input id="ad_price" type="number" min="0" step="0.01" placeholder="e.g. 24.00"></div>
     </div>
@@ -458,8 +461,9 @@
         <div class="field full"><label for="king_name">Ingredient name *</label><input id="king_name" type="text" placeholder="e.g. Chips" autocomplete="off"></div>
         <p class="king-used" id="king_used" style="display:none"></p>
         <div class="field full"><label for="king_prod">Supplier product to link to *</label>
-          <span class="cat-wrap">
+          <span class="cat-wrap has-clear">
             <input id="king_prod" type="text" autocomplete="off" placeholder="Search your products…" role="combobox" aria-expanded="false" aria-controls="king_prodDrop">
+            <button id="king_prodClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
             <span id="king_prodDrop" class="cat-drop" style="display:none"></span>
           </span>
           <p class="hint" style="font-weight:400;margin:6px 2px 0">Recipes cost from this product. Switch it later and every recipe follows — one tap, not a rewrite.</p>

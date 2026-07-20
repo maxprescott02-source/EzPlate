@@ -1507,6 +1507,17 @@ function deleteKitchenIngredient(kid){
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
 
+// v60 item 6: ONE shared clear-× wiring pattern. The tab search bars already carry the always-visible ×
+// (ms-clear markup); this reaches the two modal SEARCH boxes that lacked it — the product-link search
+// and the dish picker. Clears the field, re-runs the search, refocuses. onClear carries the per-box redraw.
+function wireSearchClear(inputId, clearId, onClear){
+  var inp=document.getElementById(inputId), btn=document.getElementById(clearId);
+  if(!inp||!btn) return;
+  btn.addEventListener('click',function(){ inp.value=''; if(typeof onClear==='function') onClear(); inp.focus(); });
+}
+wireSearchClear('king_prod','king_prodClear',function(){ kingChosenPid=null; if(typeof kingSyncSave==='function') kingSyncSave(); if(typeof renderKingProdDrop==='function') renderKingProdDrop(); });
+wireSearchClear('ad_search','ad_searchClear',function(){ if(typeof renderDishPicker==='function') renderDishPicker(''); });
+
 
 /* ============================================================
    Feature 2 — Dashboard

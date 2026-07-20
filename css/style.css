@@ -2307,3 +2307,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .btn.danger:hover{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
   .btn-danger:hover{background:transparent;color:var(--bad);border-color:var(--bad)}
 }
+/* item 6: the always-visible × clear affordance reaches the two modal SEARCH boxes that lacked it —
+   the ingredient modal's product-link search (Max's report) and the "add existing dish" picker. Both
+   wrappers are position:relative, so the global .ms-clear positions itself; the input just needs right
+   padding. Category/brand/supplier VALUE pickers stay ×-free (they set a value, like name/price fields). */
+.cat-wrap.has-clear > input{padding-right:36px}
+.ad-search-wrap{margin-bottom:8px}
+.menu-search.ad-search-wrap .ad-search{margin-bottom:0}
