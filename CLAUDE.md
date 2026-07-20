@@ -26,9 +26,13 @@ data drives real menu decisions. Broken deploys cost money. Work accordingly.
    fragile subsystem. Treat with maximum care.
 6. **Dashboard** — food-cost trend chart + highlight cards.
 7. **Settings** — header gear: target food cost %, GST default, JSON backup
-   export, clear cache, About/contact. **Outstanding: "Tidy lists" UI** (see
-   State as of, below) — the pure logic exists and is tested; no Settings
-   section calls it yet.
+   export, clear cache, About/contact, and **"Tidy lists"** (shipped v59) —
+   rename/merge/clear the Category/Brand/Supplier values across products (the
+   Category picker also spans plate categories), each behind one blast-radius
+   confirm, applied through the existing write helpers on the v40 pure core
+   (`tidyFieldValues`/`tidyPlan`/`tidyValuesCombined`/`tidyPlanAll`/
+   `tidySupplierMemMigration`). Ingredient categories are derived from the linked
+   product, so a category rename here flows to the Ingredients tab automatically.
 
 Data: **localStorage (offline-first) + Supabase sync**. No analytics, no
 tracking, no external libraries, no build step — hard product constraints.
@@ -380,5 +384,4 @@ merge to `main` as a production deploy.
 - Next up: (a) Max's phone sign-off on v54–v59, apply the 3 v55 migrations to prod, merge (v58
   then v59); (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K
   stale tests + v56 builder/misc pins + v58 empty-state re-baseline + v59 menu-controls/Tidy-lists);
-  (c) confirm the proposed §7 edit (Tidy-lists is now built — HANDOVER-v59); (d) optional:
-  purchased-quantity capture for §I (needs a protected-region edit).
+  (c) optional: purchased-quantity capture for §I (needs a protected-region edit).
