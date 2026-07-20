@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=60">
+<link rel="stylesheet" href="css/style.css?v=61">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -131,14 +131,13 @@
       <div class="king-progress" id="kingProgress" style="display:none"></div>
       <!-- v59: search + category filter + Clear filters on one controls row, matching Products -->
       <div class="ing-controls">
-        <div class="menu-search king-search">
+        <div class="menu-search">
           <input id="kingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
           <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
         <select id="kingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
         <button class="btn ghost ing-clear-filters" id="kingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
-      <div id="kingWiz" style="display:none"></div>
       <div id="kingList"></div>
     </div>
   </div><!-- /tab-pantry (LABEL: Ingredients) -->
@@ -257,6 +256,14 @@
         <button class="btn danger ghost" id="paDelete" type="button">Delete plate</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- v61 item 4: "Set up from products" is a modal now (was inline in the Ingredients tab). Same chrome as every other popup; full-screen takeover at mobile widths like the builder. -->
+<div class="modal-overlay wiz-overlay" id="kingWizModal" aria-hidden="true">
+  <div class="modal modal-wide modal-wiz" role="dialog" aria-modal="true" aria-labelledby="kingWizTitle">
+    <div class="mhead"><h3 id="kingWizTitle">Set up from products</h3><button class="x" id="kingWizClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody"><div id="kingWiz"></div></div>
   </div>
 </div>
 
@@ -625,7 +632,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=60"></script>
+<script src="js/app.js?v=61"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

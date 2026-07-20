@@ -132,6 +132,33 @@ test('v60: an empty ingredient qty blocks even when a misc line is present', () 
   assert.strictEqual(run().ok, false, 'the misc line is fine but the empty ingredient qty still blocks');
 });
 
+/* ---- 2b. v61 item 1: a 4-digit quantity round-trips into the stored line (the "1100 shows as 110" report was VISUAL clipping, not truncation — this pins that the STORED value is intact) ---- */
+function makeQtyHarness(plate) {
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('plate', `
+    "use strict";
+    function updateLine(){}
+    function updateTotals(){}
+    ${extractFn(SRC, 'setQty')}
+    return function(uid,v){ setQty(uid,v); return plate; };
+  `);
+  return factory(plate);
+}
+
+test('v61: a 4-digit quantity typed into a line is stored in full (1100, not 110)', () => {
+  const plate = [{ uid: 1, kid: 'K1', qty: null }];
+  const setQty = makeQtyHarness(plate);
+  setQty(1, '1100');
+  assert.strictEqual(plate[0].qty, 1100, 'the STORED qty keeps all four digits — costings are not silently wrong');
+});
+
+test('v61: a 5-digit quantity also round-trips intact', () => {
+  const plate = [{ uid: 1, kid: 'K1', qty: null }];
+  const setQty = makeQtyHarness(plate);
+  setQty(1, '10000');
+  assert.strictEqual(plate[0].qty, 10000);
+});
+
 /* ---- 3. deleting a menu removes only that menu's dishes; plates + other menus survive ---- */
 function makeDeleteHarness(opts) {
   const S = { menusList: opts.menusList, savedPlates: opts.savedPlates, customMenu: opts.customMenu, currentMenuId: opts.currentMenuId, calls: [] };

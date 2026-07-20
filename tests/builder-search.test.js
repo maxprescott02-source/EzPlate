@@ -72,3 +72,56 @@ test('v59: token-order-independent — "gf bread" and "bread gf" both find Bread
   assert.deepStrictEqual(search('bread gf').map(x => x.id), ['K1'], 'reversed order still matches');
   assert.deepStrictEqual(search('bread safries').map(x => x.id), [], 'a token that matches no single item fails');
 });
+
+/* ---------------------------------------------------------------------------
+ * v61 item 7: the builder search "sometimes doesn't work" — REPRODUCED.
+ * ROOT CAUSE: the #qClear (×) handler set an INLINE dropEl.style.display='none',
+ * which permanently beats .drop.open{display:block}. After one × clear, every
+ * later search rendered its results but the dropdown stayed invisible — dead
+ * until page reload, and it survived close/reopen because #drop persists in the
+ * modal DOM. Fix: the × routes through closeDrop() (class-only), and renderDrop
+ * defensively clears any inline display so visibility is class-driven only.
+ * These pin BOTH the functional resurrection and the source-level root cause.
+ * ------------------------------------------------------------------------- */
+function makeDropHarness() {
+  // eslint-disable-next-line no-new-func
+  const factory = new Function(`
+    "use strict";
+    function fakeEl(){ var cls=new Set(); return { classList:{add:function(c){cls.add(c);},remove:function(c){cls.delete(c);},contains:function(c){return cls.has(c);}}, style:{}, innerHTML:'' }; }
+    var dropEl=fakeEl();
+    var qEl={ value:'', setAttribute:function(){} };
+    var curList=[], hiIdx=-1;
+    var byId={P1:{description:'Chips'}};
+    function esc(s){return s;}
+    function hl(s){return s;}
+    function unitCostStr(){return '$1';}
+    function kitchenSearchMatches(q){ return q ? [{__kid:true,id:'K1',name:'Chips',pid:'P1'}] : []; }
+    ${extractFn(SRC, 'renderDrop')}
+    ${extractFn(SRC, 'closeDrop')}
+    return { renderDrop:renderDrop, closeDrop:closeDrop, dropEl:dropEl, qEl:qEl };
+  `);
+  return factory();
+}
+
+test('v61 item 7: a search dropdown re-opens after a clear left an inline display:none (not dead)', () => {
+  const h = makeDropHarness();
+  h.qEl.value = 'chips'; h.renderDrop();
+  assert.ok(h.dropEl.classList.contains('open'), 'the dropdown opens on the first search');
+  // reproduce the PRE-v61 stuck state: an inline display:none left on #drop by the old × handler
+  h.dropEl.style.display = 'none';
+  h.qEl.value = 'chips'; h.renderDrop();
+  assert.strictEqual(h.dropEl.style.display, '', 'renderDrop clears the inline display so .drop.open can show it');
+  assert.ok(h.dropEl.classList.contains('open'), 'the dropdown is visible again — the reported "sometimes dead" state is gone');
+});
+
+test('v61 item 7: closeDrop toggles the class only and never leaves a sticky inline display', () => {
+  const h = makeDropHarness();
+  h.qEl.value = 'chips'; h.renderDrop();
+  h.closeDrop();
+  assert.ok(!h.dropEl.style.display, 'no inline display is set (undefined or empty, never "none")');
+  assert.ok(!h.dropEl.classList.contains('open'), 'and the dropdown is closed');
+});
+
+test('v61 item 7: the × clear handler no longer sets an inline display:none (root cause locked out of source)', () => {
+  assert.ok(!/dropEl\.style\.display\s*=\s*'none'/.test(SRC), 'the qClear handler must close via closeDrop(), never an inline display:none');
+});

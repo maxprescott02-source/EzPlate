@@ -73,7 +73,7 @@ test('targetInView: within one tick of the domain is still shown', () => {
   assert.ok(targetInView(24, 28, 33, 5), 'target 24 is within one step below 28 -> shown');
 });
 
-test('targetInView: far outside is hidden (edge annotation instead)', () => {
+test('targetInView: far outside is hidden (v61: nothing is drawn — no edge annotation)', () => {
   assert.ok(!targetInView(30, 52, 60, 5), 'target 30 far below a 52-60 window -> hidden');
   assert.ok(!targetInView(70, 28, 33, 5), 'target 70 far above a 28-33 window -> hidden');
 });

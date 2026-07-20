@@ -124,10 +124,17 @@ window.saveKingModal();
 ok('a valid rename persists', window.kById['K0001'].name === 'Hot Chips', window.kById['K0001'].name);
 ok('and keeps its kid, so saved plates still resolve', !!window.kById['K0001'] && window.kById['K0001'].pid === 'P0108');
 
-console.log('\n[8] item 4 — wizard skips persist');
+console.log('\n[8] item 4 — wizard skips persist (v61: the wizard is a modal)');
 window.kingWizSkip = {};
+// v61 item 4: the "Set up from products" button opens the wizard MODAL; the × closes it.
+window.showTab('pantry');
+$('kingWizBtn').click();
+ok('the button opens the wizard modal', $('kingWizModal').classList.contains('open') && window.kingWizOpen === true);
+$('kingWizClose').click();
+ok('the × closes it and clears kingWizOpen', !$('kingWizModal').classList.contains('open') && window.kingWizOpen === false);
 window.kingWizOpen = true;
 window.renderKingWizard();
+ok('rendering the open wizard shows the modal', $('kingWizModal').classList.contains('open'));
 const skipBtn = window.document.querySelector('#kingWiz .kw-skip');
 ok('the wizard renders skippable rows', !!skipBtn);
 if (skipBtn) {

@@ -269,16 +269,36 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 20 Jul 2026 (verify, don't trust)
+## State as of 21 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v59** (PRs #6 + #7 merged `feat/empty-states-unified` (v58) and
-  `feat/parity-pass` (v59) into main; v54–v57 landed earlier via PR #5). One unmerged branch
-  carries the next batch: **`feat/ux-pass`** (v60, off `origin/main`), committed and awaiting Max's
-  phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via GitHub
-  PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v60 goes live**
-  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **185 green**, jsdom smoke green,
-  `node -c` clean, six spots at **v60**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+- `origin/main` is at **v60** (the `feat/ux-pass` batch merged since the 20 Jul snapshot; v54–v59
+  landed earlier via PRs #5–#7). One unmerged branch carries the next batch: **`fix/ui-pre-gemini`**
+  (v61, off `main`), committed and awaiting Max's phone sign-off, then merge. NOTE: local `main` goes
+  stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main` first
+  ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need
+  applying to prod before any of v54–v61 goes live** (see [[supabase-schema-can-lag-app-code]]).
+  `npm test` = **190 green**, jsdom smoke green, `node -c` clean, six spots at **v61**. Per-batch
+  detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v61 shipped — UI fixes before the Gemini batch (brief: `~/Downloads/ezplate-opus-ui-fixes-pre-gemini.md`).
+  See `handovers/HANDOVER-v61.md`.** (1) Builder qty 4-digit clipping = **VISUAL only, NOT a data bug**
+  (`type=number`, no maxlength, `setQty` stores `parseFloat` untruncated) — hid the native spinners
+  (`.qtybox input`, the `.invPackQty` pattern) + widened `66px`→`76px`; regression tests round-trip a
+  4- and 5-digit qty. (2) `openBuilder` resets the scroller (overlay + `.mbody`) so the popup opens at
+  the top (New AND Edit). (3) Ingredients search stray indent ROOT CAUSE: an extra `.king-search` class
+  added `margin var(--sp-5)` Products' `.menu-search` doesn't — dropped the class + dead CSS. (4) **"Set
+  up from products" is a MODAL now** (`#kingWizModal`, `.modal-wiz`, full-screen at ≤560px like the
+  builder); `renderKingWizard` show/hides it; `closeKingWizard()` is the single close path (×/backdrop/
+  Escape all route through it, keeping `kingWizOpen` in sync); the old search-hides-wizard coupling is
+  gone; `.modal-wiz .mbody{padding:0}` keeps the rows full-bleed. (5) Delete-plate button = **already
+  unified** (the app's only two `.btn.danger` share identical classes; v60's `@media(hover:none)` covers
+  both) — **Max: verify-only, no change**. (6) **Dashboard edge annotation DELETED** — when the target is
+  outside the data-fit domain, nothing draws (no marker/arrow); `targetInView` still gates the dashed
+  line, which still lands on its labelled tick when shown. **This SUPERSEDES the edge-annotation half of
+  v60's item-1b rule; `tcTicks`/`trend-ticks` unchanged.** (7) Builder search "sometimes dead" ROOT CAUSE:
+  the `#qClear` × set an **inline `display:none`** on `#drop` that permanently beat `.drop.open` (dead
+  till reload, survived close/reopen) — the × now calls `closeDrop()` (class-only) + `renderDrop` clears
+  any inline display; 3 regression tests reproduce the clear-then-search path. 185→190 tests.
 
 - **v60 shipped — UX pass (brief: `~/Downloads/ezplate-opus-ux-pass.md`). See
   `handovers/HANDOVER-v60.md`.** (1a) Dashboard staleness ROOT CAUSE: `logHistory` returned early on
