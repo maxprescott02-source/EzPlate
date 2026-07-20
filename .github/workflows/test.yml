@@ -1,6 +1,7 @@
-# Runs your test suite automatically on every push and pull request.
-# Free, no API key, no cost. If a change breaks the parser or pricing maths,
-# GitHub shows a red X on the commit/PR before it can reach production.
+# Runs the checks automatically on every push and pull request.
+# Free, no API key, no cost. If a change breaks the parser, pricing maths, or
+# even just app.js syntax, GitHub shows a red X on the commit/PR before it can
+# reach production. Mirrors what you run locally: `node -c js/app.js` + `npm test`.
 name: tests
 
 on:
@@ -15,4 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/*.test.js
+      - name: Syntax check app.js
+        run: node -c js/app.js
+      - name: Run test suite
+        run: npm test
