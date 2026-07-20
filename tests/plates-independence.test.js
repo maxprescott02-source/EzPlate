@@ -73,19 +73,19 @@ test('v55: a plate can be on MANY menus — menusOfPlate lists them all with per
 
 /* ---- 2. saving a plate stores NO menu link ---- */
 function makeSaveHarness(opts) {
-  const state = { calls: [], savedPlates: opts.savedPlates || [], plateName: opts.plateName };
+  const state = { calls: [], savedPlates: opts.savedPlates || [], plateName: opts.plateName, plate: opts.plate || [{ kid: 'K1', qty: 100 }] };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
     "use strict";
-    var plate=[{kid:'K1',qty:100}];
+    var plate=S.plate;
     var savedPlates=S.savedPlates;
     var loadedPlateId=null;
     var document={getElementById:function(id){
       if(id==='plateName') return {value:S.plateName, focus:function(){}};
       if(id==='plateNameErr') return {style:{}, textContent:''};
       return {value:'', style:{}, textContent:''};
-    }};
-    function toast(m){ S.calls.push('toast'); }
+    }, querySelector:function(){ return {focus:function(){}}; }};   // v60: the empty-qty guard focuses the offending line
+    function toast(m){ S.calls.push('toast:'+m); }
     function savePlatesLS(){}
     function updateEditTag(){}
     function renderAnalysis(){}
@@ -93,7 +93,7 @@ function makeSaveHarness(opts) {
     function dbPushPlate(sp){ S.calls.push('push:'+sp.id); }
     function logHistory(){}   // v60 item 1a: saveCurrentPlate now refreshes the dashboard on re-cost
     ${extractFn(SRC, 'saveCurrentPlate')}
-    return function(){ saveCurrentPlate(false); return { savedPlates: savedPlates }; };
+    return function(){ var ok=saveCurrentPlate(false); return { ok:ok, savedPlates: savedPlates, calls:S.calls }; };
   `);
   return factory(state);
 }
@@ -105,6 +105,31 @@ test('v55: saving a plate stores id/name/lines and NO menuId (a plate carries no
   assert.strictEqual(savedPlates[0].name, 'Big Breakfast');
   assert.ok(!('menuId' in savedPlates[0]), 'the saved plate has no menuId field');
   assert.ok(Array.isArray(savedPlates[0].lines), 'it stores its ingredient lines');
+});
+
+test('v60: a line with an EMPTY quantity blocks the save (must enter a value)', () => {
+  const run = makeSaveHarness({ plateName: 'Half Built', plate: [{ kid: 'K1', qty: null }] });
+  const { ok, savedPlates, calls } = run();
+  assert.strictEqual(ok, false, 'save is refused');
+  assert.strictEqual(savedPlates.length, 0, 'nothing was written');
+  assert.ok(calls.some(c => /Enter a quantity/.test(c)), 'the user is told to enter a quantity');
+});
+
+test('v60: a 0 quantity is treated as no value and also blocks the save', () => {
+  const run = makeSaveHarness({ plateName: 'Zero', plate: [{ kid: 'K1', qty: 0 }] });
+  assert.strictEqual(run().ok, false, '0 is not a valid quantity');
+});
+
+test('v60: a positive quantity on every line lets the save through', () => {
+  const run = makeSaveHarness({ plateName: 'Done', plate: [{ kid: 'K1', qty: 150 }] });
+  const { ok, savedPlates } = run();
+  assert.strictEqual(ok, true, 'save proceeds');
+  assert.strictEqual(savedPlates.length, 1);
+});
+
+test('v60: an empty ingredient qty blocks even when a misc line is present', () => {
+  const run = makeSaveHarness({ plateName: 'Mixed', plate: [{ misc: true, label: '', cost: 2 }, { kid: 'K1', qty: null }] });
+  assert.strictEqual(run().ok, false, 'the misc line is fine but the empty ingredient qty still blocks');
 });
 
 /* ---- 3. deleting a menu removes only that menu's dishes; plates + other menus survive ---- */

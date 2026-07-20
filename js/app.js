@@ -180,7 +180,7 @@ rebuild();
 
 function unitNoun(p){return p.base_unit==='g'?'g':p.base_unit==='ml'?'ml':p.base_unit==='ea'?'unit':'';}
 function displayUnitWord(p){return p.base_unit==='g'?'kg':p.base_unit==='ml'?'L':'unit';}
-function defaultQty(p){return 0;}   // v60 item 4 (Max): new lines start at 0 (grams AND units) — a deliberate entry; line total reads $0.00 until set
+function defaultQty(p){return null;}   // v60 (Max): new lines start EMPTY (blank field) — a quantity must be entered before the plate can be saved (see saveCurrentPlate)
 function cpbu(p){return p.cost_per_base_unit;}
 function perDisplayValue(p){const c=cpbu(p);if(c==null)return null;return (p.base_unit==='g'||p.base_unit==='ml')?c*1000:c;}
 function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
@@ -312,10 +312,10 @@ function alternatives(p){
 let plate=[], uidc=1;
 const linesEl=document.getElementById('lines');
 function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* legacy: no builder UI path in v31 (builder is ingredients-only); retained for programmatic use */
-function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):0});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60 item 4: qty starts at 0 */
+function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):null});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60: qty starts empty */
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
 function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}   /* legacy: alternatives moved to the ingredient popup in v31 */
-function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;l.qty=Math.max(0,parseFloat(v)||0);updateLine(uid);updateTotals();}
+function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;const s=(v==null?'':String(v)).trim();const n=parseFloat(s);l.qty=(s===''||isNaN(n))?null:Math.max(0,n);updateLine(uid);updateTotals();}   // v60: a cleared field is null (empty), not 0 — save requires a real quantity
 function toggleAlts(uid){const el=document.getElementById('alts-'+uid);if(el)el.classList.toggle('open');}
 
 function editPrice(uid){
@@ -377,7 +377,7 @@ function renderPlate(){
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
       <div class="costs">
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
+        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
         <span class="leader"></span>
         <span class="lc"><span class=nocost>no cost</span></span>
       </div></div>`;
@@ -409,7 +409,7 @@ function renderPlate(){
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
       <div class="costs">
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
+        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
         ${priceline}
         <span class="leader"></span>
         <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
@@ -643,6 +643,14 @@ function saveCurrentPlate(asNew){
   var pErr=document.getElementById('plateNameErr');
   if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return false; }
   if(pErr) pErr.style.display='none';
+  // v60 (Max): every ingredient line needs a real quantity before the plate can be saved. New lines
+  // start empty; a blank or 0 qty blocks the save and focuses the first offending line's field.
+  var badLine=plate.find(function(l){ return !l.misc && !(l.qty>0); });
+  if(badLine){
+    toast('Enter a quantity for every ingredient');
+    var qi=document.querySelector('.line[data-uid="'+badLine.uid+'"] .qtybox input'); if(qi){ qi.focus(); }
+    return false;
+  }
   var name=rawName;
   var cat=(typeof builderCategoryValue==='function')?builderCategoryValue():null;   // §J: category combo; null before §J
   var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:(l.kid?{kid:l.kid,qty:l.qty}:{pid:l.pid,qty:l.qty}); });
