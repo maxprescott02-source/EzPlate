@@ -271,14 +271,36 @@ merge to `main` as a production deploy.
 
 ## State as of 21 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v60** (the `feat/ux-pass` batch merged since the 20 Jul snapshot; v54–v59
-  landed earlier via PRs #5–#7). One unmerged branch carries the next batch: **`fix/ui-pre-gemini`**
-  (v61, off `main`), committed and awaiting Max's phone sign-off, then merge. NOTE: local `main` goes
-  stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main` first
-  ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need
-  applying to prod before any of v54–v61 goes live** (see [[supabase-schema-can-lag-app-code]]).
-  `npm test` = **190 green**, jsdom smoke green, `node -c` clean, six spots at **v61**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`.
+- `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
+  earlier via PRs #5–#9). One unmerged branch carries the next batch: **`feat/gemini-dual-reader`**
+  (v62, off `main`), committed and awaiting Max's preview/phone sign-off, then merge. NOTE: local
+  `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
+  first ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need
+  applying to prod before any of v54–v62 goes live** (see [[supabase-schema-can-lag-app-code]]).
+  `npm test` = **215 green**, jsdom smoke green, `node -c` clean (app.js + the two new `api/*.js`),
+  six spots at **v62**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v62 shipped — Gemini dual-reader / AI second reader on invoice import (brief:
+  `~/Downloads/ezplate-opus-gemini-dual-reader.md`). See `handovers/HANDOVER-v62.md`.** Wraps the
+  existing parser + review flow with a second reader; **zero contact with the protected region**;
+  every path degrades to today's app exactly when the AI/network is absent. **FIRST server-side code
+  in the repo:** `api/parse-invoice.js` (Vercel zero-config Node — no build step) + `api/_gemini.js`
+  (underscore = not a route; pure, testable prompt/validation logic). Gemini key lives ONLY in Vercel
+  env (`GEMINI_API_KEY`); model default `gemini-3.1-flash-lite`, overridable via `GEMINI_MODEL`;
+  health check `GET /api/parse-invoice?health=1`. Client: `parseInvoice` renders Reader 1 immediately
+  then fires ONE background request; `gemMergeLine` (pure, extracted, tested) + `gemApplyReadings`
+  reconcile per line. **Rules:** T > P≈G (silent) > history-referee within **±50% band** (`GEM_BAND`,
+  silent) > adopt-G flagged review (rule 4) > append G-only add-new lines (rule 5) > parser stands
+  (rule 6). Late/stale responses and applied imports are discarded (`gemToken`/`gemApplied`) — human
+  ruling is final. `invRowState` gained a `gemReview` clause (auto-tick stays pinned to `matched`).
+  **AI-suggested chip = the existing `.ni-af` system, second label** ("AI suggested" vs "auto-filled")
+  — `niLab(t,src)` + a shared `.ni-af,.ai-sug` CSS rule so metrics can't drift; inline-flow so it
+  can't overlap a wrapping label. Summary gains a muted status note (checking → checked/unavailable).
+  Untrusted invoice text + model output — fenced prompt, strict schema validation → clean
+  "unavailable" over partial garbage. 190→215 tests (11 schema + 14 merge) + jsdom smoke §15.
+  **Two follow-ups for Max:** (a) preview phone-check list incl. the chip at 380px both themes
+  (HANDOVER §"Needs Max's phone"); (b) a proposed CLAUDE.md addition (first-server-code + the
+  free-tier **privacy gate before multi-tenant invoices**) awaiting his yes — NOT added silently.
 
 - **v61 shipped — UI fixes before the Gemini batch (brief: `~/Downloads/ezplate-opus-ui-fixes-pre-gemini.md`).
   See `handovers/HANDOVER-v61.md`.** (1) Builder qty 4-digit clipping = **VISUAL only, NOT a data bug**
