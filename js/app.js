@@ -917,9 +917,28 @@ function invSupplierDetect(text){
 /* Item 1C — shared empty-state (icons echo the nav tab icons at large size) */
 var ICON_LEAF_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg>';   /* v36: tomato (was leaf) — matches the tab glyph */
 var ICON_BOX_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
-function emptyStateHtml(icon,title,body,actionsHtml){
-  return '<div class="empty-state">'+icon+'<h3>'+esc(title)+'</h3><p>'+esc(body)+'</p>'+(actionsHtml?'<div class="es-actions">'+actionsHtml+'</div>':'')+'</div>';
+var ICON_MENU_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg>';   // v58: the Menu nav glyph (ascending bars)
+/* ===== v58: THE empty-state system — ONE place every tab's empty state is built =====
+   Two mutually-exclusive variants; NO inline empty-state markup lives anywhere else. The marker
+   class `es-built` is emitted ONLY here — the route-through test asserts every tab goes through it.
+   A: search/filter-empty (data exists, nothing matches) -> emptySearchState. B: true-empty (no data
+   at all) -> emptyStateHtml. A tab renders exactly one, never both. */
+function emptyStateHtml(icon,title,body,actionsHtml){   // variant B: true-empty
+  return '<div class="empty-state es-built">'+icon+'<h3>'+esc(title)+'</h3>'
+    +(body?'<p>'+esc(body)+'</p>':'')
+    +(actionsHtml?'<div class="es-actions">'+actionsHtml+'</div>':'')+'</div>';
 }
+// variant A: ONE action, the SAME label on every tab; clearFn resets that tab's search AND any
+// active filters, then rerenders. No getting-started guidance in this variant, ever.
+function emptySearchState(icon,noun,clearFn){
+  return emptyStateHtml(icon,'No '+noun+' match.','',
+    '<button class="linklike es-clear" type="button" onclick="'+clearFn+'()">Clear search &amp; filters</button>');
+}
+// per-tab clear helpers — shared by the empty-state action AND the header "Clear filters" button.
+function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); renderIngredients(); }
+function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; renderKitchenPanel(); }
+function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
+function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
 function fillFilter(sel, list, label){
   if(!sel) return; var cur=sel.value;
@@ -931,7 +950,7 @@ function renderIngredients(){
   var cntEl=document.getElementById('ingCount');
   if(!PRODUCTS.length){                                               // brand-new user: no products at all -> full empty state (gate on the store, not the filtered rows)
     if(cntEl) cntEl.textContent='';
-    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet','Products are the things you buy \u2014 import a supplier invoice and EzPlate reads them in, or add one by hand.',
+    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet.',"Import an invoice or tap '+ New product'.",
       '<button class="btn primary" type="button" onclick="document.getElementById(\'importBtn\').click()">Import invoice</button>'
       +'<button class="btn" type="button" onclick="openModal()">+ New product</button>');   // v45 item 4: "Add product" -> "New product" everywhere
     return;
@@ -949,7 +968,7 @@ function renderIngredients(){
     return true;
   }).slice().sort(function(a,b){return (a.description||'').toLowerCase().localeCompare((b.description||'').toLowerCase());});
   if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
-  if(!items.length){ wrap.innerHTML='<div class="an-empty ing-empty">No products match your filters.</div>'; return; }
+  if(!items.length){ wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(p){
     return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
@@ -1058,7 +1077,7 @@ function renderKitchenPanel(){
   var box=document.getElementById('kingList'); if(!box) return;
   var sw=document.getElementById('kingSearch'); if(sw) kingQuery=sw.value||'';
   if(!kitchenIngredients.length){
-    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet','Ingredients are your kitchen words \u2014 \u201cChips\u201d, \u201cFish\u201d, \u201cTartare\u201d. Each one links to a product you buy, so recipes stay simple and brand swaps take one tap.',
+    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet.',"Tap '+ New ingredient' or set up from your products.",
       '<button class="btn primary" type="button" id="kingEmptyNew">+ New ingredient</button>');
     var b=document.getElementById('kingEmptyNew'); if(b) b.onclick=function(){ openKingModal(null); };
     renderKingProgress();                                            // zero kitchen words + many products is EXACTLY when the wizard matters
@@ -1066,7 +1085,7 @@ function renderKitchenPanel(){
   }
   var list=kingSearchFilter(kingQuery, kitchenIngredients, byId).sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
   if(!list.length){                                                  // ITEM 3 (v35): there ARE words, the filter just matched none of them
-    box.innerHTML='<div class="empty">No ingredients match</div>';
+    box.innerHTML=emptySearchState(ICON_LEAF_BIG,'ingredients','clearIngredientFilters');   // v58: variant A via the shared helper
     renderKingProgress();                                            // progress counts PRODUCTS, not the filtered view — it stays true
     return;
   }
@@ -1743,12 +1762,7 @@ function renderDashboard(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
-  var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',function(){   // v54: reset search + both filters at once
-    var s=document.getElementById('ingSearch'); if(s) s.value='';
-    var c=document.getElementById('ingCatFilter'); if(c) c.value='';
-    var u=document.getElementById('ingSupFilter'); if(u) u.value='';
-    renderIngredients();
-  });
+  var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',clearProductFilters);   // v58: same helper the empty-state action uses
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
@@ -1774,7 +1788,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v57';
+var APP_VERSION='v58';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2087,7 +2101,7 @@ function plateCostCell(sp){ return plateIsCosted(sp)
 function renderPlatesTab(){
   var wrap=document.getElementById('plateList'); if(!wrap) return;
   if(!savedPlates.length){
-    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'No plates yet','Plates are your costed recipes. Build one and it lands here — save it, then publish to as many menus as you like when the price is right.',
+    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'No plates yet.',"Tap '+ New plate' to cost your first dish.",
       '<button class="btn primary" type="button" onclick="openBuilderNew()">+ New plate</button>');
     return;
   }
@@ -2100,12 +2114,7 @@ function renderPlatesTab(){
     if(!q) return true;
     return ((sp.name||'')+' '+(sp.category||'')+' '+(plateMenuSummary(sp)||'')).toLowerCase().indexOf(q)>=0;
   }).slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
-  if(!items.length){                                                  // v56: the tab's own plate glyph (not the inherited Products cube) + a Clear-filters affordance, matching the Menu tab's search-empty
-    wrap.innerHTML='<div class="an-empty ing-empty plate-noresult">No plates match your search.<br><button type="button" class="linklike" id="plateEmptyClear">Clear filters</button></div>';
-    var pec=document.getElementById('plateEmptyClear');
-    if(pec) pec.onclick=function(){ var ps=document.getElementById('plateSearch'); if(ps)ps.value=''; var pf=document.getElementById('plateCatFilter'); if(pf)pf.value=''; renderPlatesTab(); };
-    return;
-  }
+  if(!items.length){ wrap.innerHTML=emptySearchState(ICON_PLATE_BIG,'plates','clearPlateFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(sp){
     return '<button class="ing-card" type="button" data-pid="'+esc(sp.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(sp.name||'Unnamed plate')+'</span>'+(sp.category?'<span class="ing-brand">'+esc(sp.category)+'</span>':'')+'</div>'
@@ -2194,7 +2203,7 @@ function mmRemove(dishId){
   var ps=document.getElementById('plateSearch'); if(ps){ ps.addEventListener('input',renderPlatesTab); ps.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ps.blur(); } }); }
   var psc=document.getElementById('plateSearchClear'); if(psc) psc.addEventListener('click',function(){ if(ps){ ps.value=''; renderPlatesTab(); ps.focus(); } });
   var pcf=document.getElementById('plateCatFilter'); if(pcf) pcf.addEventListener('change',renderPlatesTab);   // §J category filter
-  var pcc=document.getElementById('plateClearFilters'); if(pcc) pcc.addEventListener('click',function(){ if(ps) ps.value=''; if(pcf) pcf.value=''; renderPlatesTab(); });
+  var pcc=document.getElementById('plateClearFilters'); if(pcc) pcc.addEventListener('click',clearPlateFilters);   // v58: same helper the empty-state action uses
   var pP=document.getElementById('paPublish'); if(pP) pP.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); openManageMenus(id); });
   var pE=document.getElementById('paEdit'); if(pE) pE.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); editPlateFromCard(id); });
   var pD=document.getElementById('paDelete'); if(pD) pD.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); deletePlate(id); });
@@ -3299,14 +3308,15 @@ function renderAnalysis(){
     });
   });
   // v55: unpublished plates are NOT dishes — they live only in the Plates tab, never on the Menu tab.
-  if(!shown){ html='<tr class="an-empty"><td colspan="6"><div class="an-empty-box">'
-    +'<svg class="an-empty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>'
-    +(q?('<b>No menu items match</b><button type="button" class="linklike" id="anClearSearch">Clear search</button>')
-       :('<b>No menu items yet</b><span>Build a plate in the Plates tab and publish it to this menu to see it here.</span>'))
-    +'</div></td></tr>'; }
+  if(!shown){                                                       // v58: routed through the shared empty-state system, wrapped in a table row
+    var dishesOnMenu=MENU.filter(inMenu).length;                    // variant A only when the menu HAS dishes but the search matched none; else variant B (truly empty menu)
+    var es=dishesOnMenu
+      ? emptySearchState(ICON_MENU_BIG,'menu items','clearMenuFilters')
+      : emptyStateHtml(ICON_MENU_BIG,'Nothing on this menu yet.','Publish a plate from the Plates tab to see it here.');
+    html='<tr class="es-row"><td colspan="6">'+es+'</td></tr>';
+  }
   tb.innerHTML=html; bindTips();
-  var acs=document.getElementById('anClearSearch');
-  if(acs) acs.onclick=function(){ var ms=document.getElementById('menuSearch'); if(ms) ms.value=''; renderAnalysis(); };
+  // v58: the empty-state clear action routes through clearMenuFilters() via onclick — no per-render binding.
   // v55 (§D2): the "→ Builder" chip is gone — no handler to bind.
   // v52 tap-to-edit (replaces the per-card Edit button): the whole card/row opens the edit
   // modal; .tip and .mi-btn clicks stopPropagation so they never fall through to the row.
