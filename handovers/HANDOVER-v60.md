@@ -71,10 +71,15 @@ Extracted the builder's docket renderer into a shared **`printDocketFor(name, li
 docket"** action (`#paPrint`) in the plate card popup prints straight from the
 saved plate's `name` + `lines`.
 
-## 4. Builder line qty default 0
-`defaultQty` returns **0** for grams and units alike (was 100g / 1 unit). Line
-total reads $0.00 until set; saving a 0-qty plate is not blocked (the "not costed
-yet" treatment already flags it).
+## 4. Builder line qty starts EMPTY and is required (revised from the brief's "default 0")
+The brief asked for a default of 0; Max then asked for a truly empty field that
+must be filled. Final behaviour: `defaultQty` returns **null**, so a new ingredient
+line renders a **blank** qty input (placeholder "qty"); `setQty` maps a cleared
+field back to `null` (not 0). **`saveCurrentPlate` refuses to save** while any
+ingredient line has no positive quantity — it toasts "Enter a quantity for every
+ingredient" and focuses the first offending line. Misc lines are unaffected.
+Regression tests (4) in `plates-independence.test.js`: empty blocks, 0 blocks, a
+positive qty saves, and an empty ingredient qty still blocks alongside a misc line.
 
 ## 5. Small fixes
 - **Tab scroll-to-top:** `window.scrollTo(0,0)` at the end of `showTab` — which
@@ -168,7 +173,8 @@ in jsdom.
 3. **Misc line** at 380px: "Misc" label, `$` input, and × sharing the ingredient
    rows' right-edge column.
 4. **Print docket** from a plate card (and still from the builder).
-5. **Qty-0 flow:** new ingredient line reads 0 and $0.00 until you type.
+5. **Empty-qty flow:** new ingredient line's qty field is blank ("qty"
+   placeholder); saving is blocked with a toast until every line has a quantity.
 6. **Delete buttons:** tap on a phone — no red flash/fill (resting outline only).
 7. **Menu controls** at 380px and desktop: two stacked rows matching Products
    exactly (search grows, category + Clear filters beside it, one left edge).

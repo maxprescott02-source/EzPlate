@@ -277,7 +277,7 @@ merge to `main` as a production deploy.
   phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via GitHub
   PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations STILL need applying to prod before any of v54–v60 goes live**
-  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **181 green**, jsdom smoke green,
+  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **185 green**, jsdom smoke green,
   `node -c` clean, six spots at **v60**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
 
 - **v60 shipped — UX pass (brief: `~/Downloads/ezplate-opus-ux-pass.md`). See
@@ -290,15 +290,16 @@ merge to `main` as a production deploy.
   unchanged** (its target-on-a-tick contract still governs the shown case, still pinned by
   `trend-ticks`). New `trend-domain.test.js` (7). (2) Misc line has NO name field — fixed "Misc"
   label · leader · `$` · × (leader now grows so × is flush-right). (3) `printDocketFor(name,lines)`
-  shared by the builder Print button + a new plate-popup "Print docket" (`#paPrint`). (4) `defaultQty`
-  → 0. (5) tab switch scrolls to top; Delete red hover-fill gated behind `@media(hover:none)` (it
+  shared by the builder Print button + a new plate-popup "Print docket" (`#paPrint`). (4) builder qty
+  starts EMPTY (`defaultQty`→null, blank field) and `saveCurrentPlate` requires a positive quantity on
+  every ingredient line (revised from the brief's "default 0" at Max's request). (5) tab switch scrolls to top; Delete red hover-fill gated behind `@media(hover:none)` (it
   stuck on tap); builder category label + product pack-help copy. (6) search-× sweep — added to
   `king_prod` + `ad_search` via shared `wireSearchClear`; value comboboxes stay ×-free. (7) Menu
   controls are a column at all widths = Products parity (dropped the ≥640px row-switch; zeroed nested
   `.ing-controls` padding). (8) **Tidy lists is a MODAL now** (`#tidyManageModal`) — Settings keeps one
   row (`#setTidyOpen`); each category/supplier filter has a "✎ Manage list…" door (`data-tidy-field`)
   handled by a **document capture-phase change listener** (beats the filter's own render, which
-  rebuilds the `<select>`). 174→181 tests.
+  rebuilds the `<select>`). 174→185 tests.
 
 - **v59 shipped — Parity pass (brief: `~/Downloads/ezplate-opus-parity-pass.md`). See
   `handovers/HANDOVER-v59.md`.** (1) builder #q no longer creates ingredients (Ingredients tab
