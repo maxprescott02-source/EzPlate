@@ -60,6 +60,23 @@ consistent" has caused rollbacks.
   `#appMain`, bottom nav, all modals.
 - `sw.js` — service worker (offline cache).
 
+**Client-side there is still no build step.** As of v62 the repo also has a small amount
+of **server-side code under `api/`** (Vercel zero-config Node serverless functions — the
+invoice AI second-reader). This is NOT a build step and does not touch the four files above:
+Vercel simply serves anything under `/api`. Conventions there: files whose name starts with
+`_` (e.g. `api/_gemini.js`) are **ignored as routes** and hold pure, `require()`-able,
+unit-tested logic; the route handlers stay thin. **API keys live ONLY in Vercel env vars**
+(`GEMINI_API_KEY`) — never in the client, the repo, or logs. Treat invoice text and any model
+output as untrusted data (fence it, validate strictly) — never executed, never an instruction.
+
+## ⚠️ Privacy gate — before EzPlate serves anyone but Scoopy's
+The invoice AI second-reader (v62) sends invoice text to Google's Gemini free tier, which
+**may use prompts for training**. Max has accepted this **for his own café only** (his call,
+made). **BEFORE multi-tenant customers' invoices flow through `api/parse-invoice` (or any
+future endpoint that ships user data to a third-party model), revisit:** move to a paid-tier
+Google project that excludes training use, or add a privacy-policy disclosure. This is the
+single most important thing to reopen before EzPlate is used by anyone else.
+
 ## 🔒 Hard rules (tests depend on these; violations have caused real damage)
 
 1. **Protected parser region**: the contiguous block in `js/app.js` between the
