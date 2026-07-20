@@ -340,12 +340,13 @@ function commitPrice(uid,raw){
   renderPlate();
 }
 
-function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
-  // v56 (Max's spec, reverses v53's duplicate total): ONE row \u2014 name field, dotted connector,
-  // then the $ input sitting right-aligned where the bold total used to be, then \u00d7. The input IS
-  // the line total, so the separate bold .lc total is GONE (no duplication). Same ids/handlers.
+function miscRowHtml(l){                                              // a removable non-ingredient cost line (spices, boxes, etc.)
+  // v60 item 2 (Max): NO name field \u2014 a misc line is just a lump cost. Fixed "Misc" label, dotted
+  // connector, the $ input (which IS the line total, no duplicate .lc), then \u00d7 flush-right in the
+  // same column as the ingredient rows' \u00d7 (the leader grows to push it there). Any stored label on a
+  // pre-v60 misc line is left untouched in the data but never shown. Same ids/handlers as before.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
-    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
+    +'<span class="misc-fixed">Misc</span>'
     +'<span class="leader"></span>'
     +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
@@ -354,7 +355,7 @@ function miscRowHtml(l){                                              // an edit
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
   plate.push({uid:uidc++, misc:true, label:'', cost:0});
   renderPlate();
-  var rows=document.querySelectorAll('.misc-line .misc-label'); var last=rows[rows.length-1]; if(last) last.focus();
+  var rows=document.querySelectorAll('.misc-line .misc-costbox input'); var last=rows[rows.length-1]; if(last) last.focus();   // v60 item 2: no name field — focus the $ input
 }
 function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; }
 function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }

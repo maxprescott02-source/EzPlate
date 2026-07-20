@@ -2293,3 +2293,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 @media (max-width:700px){
   .line.misc-line .misc-label{min-height:44px}                      /* matches the costbox input's phone hit target */
 }
+/* ===== batch (v60) — misc line: no name field ===== */
+/* item 2 (Max): the name input is gone. "Misc" is a fixed label; the LEADER now grows (it used to be a
+   short 40px stub because the flex:1 name field did the pushing) so the $ input + × land flush-right in
+   the same column as the ingredient rows' ×. Dead .misc-label rules above are harmless (no such node now). */
+.line.misc-line .misc-fixed{flex:0 0 auto;font-weight:650;font-size:15px;color:var(--text);line-height:1.3}
+.line.misc-line .leader{flex:1 1 auto;min-width:8px;transform:none}
+@media (max-width:700px){ .line.misc-line .misc-fixed{font-size:16px} }
