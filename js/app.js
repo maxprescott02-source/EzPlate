@@ -433,10 +433,13 @@ function updateTotals(){
 }
 
 document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();renderPlate();});
-document.getElementById('printBtn').addEventListener('click',function(){
-  var n=(document.getElementById('plateName').value||'').trim();
+// v60 item 3: ONE docket renderer, shared by the builder's Print button and the plate card's Print
+// docket action (load-then-print not needed \u2014 it prints straight from the passed lines). "lines" are
+// the working/saved shape: {misc,label,cost} | {kid,qty} | {pid,qty}. Do not fork a second template.
+function printDocketFor(name, lines){
+  lines=lines||[];
   var pd=document.getElementById('printDocket'); if(!pd){ window.print(); return; }
-  var rows=plate.map(function(l){
+  var rows=lines.map(function(l){
     if(l.misc){ return '<tr><td class="pd-q"></td><td class="pd-n">'+esc(l.label||'Misc cost')+'</td></tr>'; }
     var p=lineProduct(l);
     var nm=l.kid ? esc((kById[l.kid]&&kById[l.kid].name)||'Ingredient') : (p?esc(p.description||'Item'):'');
@@ -446,11 +449,14 @@ document.getElementById('printBtn').addEventListener('click',function(){
   }).filter(Boolean).join('');
   pd.innerHTML='<div class="pd-card">'
     +'<div class="pd-logo">Ez<span>Plate</span></div>'
-    +'<div class="pd-title">'+esc(n||'Recipe card')+'</div>'
-    +'<div class="pd-meta">Recipe card \u00b7 '+plate.length+' item'+(plate.length===1?'':'s')+'</div>'
+    +'<div class="pd-title">'+esc((name||'').trim()||'Recipe card')+'</div>'
+    +'<div class="pd-meta">Recipe card \u00b7 '+lines.length+' item'+(lines.length===1?'':'s')+'</div>'
     +'<table class="pd-table"><tbody>'+rows+'</tbody></table>'
     +'</div>';
   window.print();
+}
+document.getElementById('printBtn').addEventListener('click',function(){
+  printDocketFor((document.getElementById('plateName').value||''), plate);
 });
 
 /* ---------- add-ingredient modal ---------- */
@@ -2379,6 +2385,7 @@ function mmRemove(dishId){
   var pcc=document.getElementById('plateClearFilters'); if(pcc) pcc.addEventListener('click',clearPlateFilters);   // v58: same helper the empty-state action uses
   var pP=document.getElementById('paPublish'); if(pP) pP.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); openManageMenus(id); });
   var pE=document.getElementById('paEdit'); if(pE) pE.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); editPlateFromCard(id); });
+  var pPr=document.getElementById('paPrint'); if(pPr) pPr.addEventListener('click',function(){ var sp=savedPlates.find(function(s){return s.id===paTargetId;}); closePlateActions(); if(sp) printDocketFor(sp.name, sp.lines); });   // v60 item 3: print straight from the saved plate
   var pD=document.getElementById('paDelete'); if(pD) pD.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); deletePlate(id); });
   var mmc=document.getElementById('manageMenusClose'); if(mmc) mmc.addEventListener('click',closeManageMenus);
   var mmd=document.getElementById('manageMenusDone'); if(mmd) mmd.addEventListener('click',closeManageMenus);
