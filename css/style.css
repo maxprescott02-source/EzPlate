@@ -1638,6 +1638,8 @@ svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 /* ===== batch 3 / design pass (v24) ===== */
 /* item 2+dark: axis labels live in their own gutter; halo + colour from tokens (both themes) */
 svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
+/* v60 item 1b: the target's edge annotation, shown when the target falls outside the data-fit domain */
+svg .tc-target-edge{font-size:10px;fill:var(--muted2);font-weight:600}
 /* item 3: instant tooltip, larger touch targets, no gesture lag */
 .tp-tip{transition:none;background:var(--text);color:var(--bg)}
 .tp-tip::after{border-top-color:var(--text)}
@@ -2234,14 +2236,14 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* Page order: h2 "Menu" > .panel-actions (+ New menu primary, + Existing dish, strapline) >
    .an-controls (menu picker = the page's context filter with Delete glued to it, search under)
    > two QUIET meta lines (target sentence, colour key) > sectioned card list. One left edge. */
+/* v60 item 7 (Max): full Products parity. Two stacked rows at EVERY width — the menu picker + Delete,
+   then a full-width controls row (search flex + category filter + Clear filters) that IS a nested
+   .ing-controls, so it inherits Products' exact heights/gaps/order. The old ≥640px switch to a single
+   flex-direction:row (picker beside search, ragged widths) and the .menu-search flex:0 0 auto override
+   are gone — the search now grows like Products' (governed by .ing-controls .menu-search). */
 .an-controls{display:flex;flex-direction:column;gap:10px;padding-bottom:0}
-.an-controls .menu-search{flex:0 0 auto;min-width:0}   /* the shared .menu-search flex-basis is a WIDTH in row contexts; in this column stack it would become a 220px height */
 .an-controls .menu-picker-row select{font-weight:650}
-@media (min-width:640px){   /* desktop: picker + search share one controls row, like Products */
-  .an-controls{flex-direction:row;flex-wrap:wrap;align-items:center}
-  .an-controls .menu-picker-row{flex:1 1 300px;min-width:260px}
-  .an-controls .menu-search{flex:1 1 220px}
-}
+.an-controls .ing-controls{padding:0}   /* .an-controls already supplies the gutter; without this the nested row's own sp-5/sp-4 padding double-indents it past the picker row's left edge */
 .cogs-meta{font-size:var(--fs-xs)}
 
 /* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
@@ -2291,3 +2293,24 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 @media (max-width:700px){
   .line.misc-line .misc-label{min-height:44px}                      /* matches the costbox input's phone hit target */
 }
+/* ===== batch (v60) — misc line: no name field ===== */
+/* item 2 (Max): the name input is gone. "Misc" is a fixed label; the LEADER now grows (it used to be a
+   short 40px stub because the flex:1 name field did the pushing) so the $ input + × land flush-right in
+   the same column as the ingredient rows' ×. Dead .misc-label rules above are harmless (no such node now). */
+.line.misc-line .misc-fixed{flex:0 0 auto;font-weight:650;font-size:15px;color:var(--text);line-height:1.3}
+.line.misc-line .leader{flex:1 1 auto;min-width:8px;transform:none}
+@media (max-width:700px){ .line.misc-line .misc-fixed{font-size:16px} }
+/* item 5 (Max): no red "pressed" fill on Delete. On touch, :hover sticks after a tap, so the destructive
+   button reads as flashing solid red on press. Where hover isn't a real pointer state, neutralise the
+   danger hover fill back to the resting outline. Resting styling and desktop (real-hover) fill unchanged. */
+@media (hover:none){
+  .btn.danger:hover{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
+  .btn-danger:hover{background:transparent;color:var(--bad);border-color:var(--bad)}
+}
+/* item 6: the always-visible × clear affordance reaches the two modal SEARCH boxes that lacked it —
+   the ingredient modal's product-link search (Max's report) and the "add existing dish" picker. Both
+   wrappers are position:relative, so the global .ms-clear positions itself; the input just needs right
+   padding. Category/brand/supplier VALUE pickers stay ×-free (they set a value, like name/price fields). */
+.cat-wrap.has-clear > input{padding-right:36px}
+.ad-search-wrap{margin-bottom:8px}
+.menu-search.ad-search-wrap .ad-search{margin-bottom:0}

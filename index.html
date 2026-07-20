@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=59">
+<link rel="stylesheet" href="css/style.css?v=60">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -73,7 +73,7 @@
           <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
           <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
-        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
         <button class="btn ghost ing-clear-filters" id="plateClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <div id="plateList" class="ing-list"></div>
@@ -103,7 +103,7 @@
             <input id="menuSearch" type="search" placeholder="Search menu items…" autocomplete="off">
             <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
           </div>
-          <select id="menuCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+          <select id="menuCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
           <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
         </div>
       </div>
@@ -135,7 +135,7 @@
           <input id="kingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
           <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
-        <select id="kingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <select id="kingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
         <button class="btn ghost ing-clear-filters" id="kingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <div id="kingWiz" style="display:none"></div>
@@ -156,8 +156,8 @@
           <input id="ingSearch" type="search" placeholder="Search products…" autocomplete="off">
           <button id="ingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
-        <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
-        <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier"></select>
+        <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
+        <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select>
         <button class="btn ghost ing-clear-filters" id="ingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <p class="hint ing-count panel-meta" id="ingCount"></p>
@@ -206,7 +206,7 @@
           <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
           <div class="ferr" id="plateNameErr" style="display:none"></div>
           <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">— how it groups in your Plates library (optional)</span></label>
+          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">(optional)</span></label>
           <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
           <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
         </div>
@@ -253,6 +253,7 @@
       <div class="pa-choices">
         <button class="btn primary" id="paPublish" type="button">Manage menus</button>
         <button class="btn" id="paEdit" type="button">Edit plate</button>
+        <button class="btn" id="paPrint" type="button">Print docket</button>
         <button class="btn danger ghost" id="paDelete" type="button">Delete plate</button>
       </div>
     </div>
@@ -341,7 +342,10 @@
     <div class="mbody">
       <div class="ferr" id="ad_err" style="display:none"></div>
       <p class="hint" style="margin:0 0 8px">Put an already-costed dish onto <b id="ad_menuName">this menu</b> at its own price. The recipe stays shared — update it once and both menus follow.</p>
-      <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed dishes…" autocomplete="off">
+      <div class="menu-search ad-search-wrap">
+        <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed dishes…" autocomplete="off">
+        <button id="ad_searchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      </div>
       <div id="ad_list" class="ad-list"></div>
       <div class="field full" style="margin-top:10px"><label for="ad_price">Sell price on this menu ($) *</label><input id="ad_price" type="number" min="0" step="0.01" placeholder="e.g. 24.00"></div>
     </div>
@@ -436,8 +440,8 @@
         <div class="field"><label for="ig_sup">Supplier</label><span class="cat-wrap"><input id="ig_sup" type="text" autocomplete="off" placeholder="search suppliers…"><span id="ig_supDrop" class="cat-drop" style="display:none"></span></span></div>
         <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit" disabled aria-disabled="true"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
         <div class="field"><label for="ig_price">Price per unit ($) *</label><input id="ig_price" type="number" min="0" step="0.0001"></div>
-        <div class="field full ig-pack"><label>Pack (optional) — how many base units in one purchase pack
-          <span class="hint" style="font-weight:400">e.g. a carton of eggs = 180 units. Lets invoice imports price this item correctly.</span></label>
+        <div class="field full ig-pack"><label>Pack size (optional)
+          <span class="hint" style="font-weight:400">Units per pack — e.g. a carton of eggs = 180. Helps invoice imports price it right.</span></label>
           <div class="pack-row"><input id="ig_packQty" type="number" min="0" step="any" placeholder="qty" style="max-width:120px">
           <select id="ig_packUnit"><option value="">unit type…</option><option value="ea">units</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">mL</option></select></div>
         </div>
@@ -457,8 +461,9 @@
         <div class="field full"><label for="king_name">Ingredient name *</label><input id="king_name" type="text" placeholder="e.g. Chips" autocomplete="off"></div>
         <p class="king-used" id="king_used" style="display:none"></p>
         <div class="field full"><label for="king_prod">Supplier product to link to *</label>
-          <span class="cat-wrap">
+          <span class="cat-wrap has-clear">
             <input id="king_prod" type="text" autocomplete="off" placeholder="Search your products…" role="combobox" aria-expanded="false" aria-controls="king_prodDrop">
+            <button id="king_prodClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
             <span id="king_prodDrop" class="cat-drop" style="display:none"></span>
           </span>
           <p class="hint" style="font-weight:400;margin:6px 2px 0">Recipes cost from this product. Switch it later and every recipe follows — one tap, not a rewrite.</p>
@@ -518,16 +523,10 @@
 
       <div class="set-group">
         <h4>Tidy lists</h4>
-        <p class="hint">Rename, merge or clear the categories, brands and suppliers on your products — and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
-        <div class="field">
-          <label for="tidyField">List to tidy</label>
-          <select id="tidyField">
-            <option value="category">Category</option>
-            <option value="brand">Brand</option>
-            <option value="supplier">Supplier</option>
-          </select>
+        <div class="set-row">
+          <button class="btn" id="setTidyOpen" type="button">Tidy lists — categories, brands, suppliers →</button>
+          <span class="hint">Rename, merge or clear your product categories, brands, suppliers and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</span>
         </div>
-        <div id="tidyValues" class="tidy-values"></div>
       </div>
 
       <div class="set-group set-about">
@@ -540,6 +539,28 @@
 
     </div>
     <div class="mfoot"><button class="btn primary" id="settingsDone" type="button">Done</button></div>
+  </div>
+</div>
+
+<!-- v60 item 8: Tidy-lists MANAGER modal — the field picker + values list moved out of Settings so
+     Settings stays short. Opened from the Settings row AND from each category/supplier filter's
+     "Manage list…" door (pre-scoped). Per-row Rename/Merge/Clear still open the confirm modal below. -->
+<div class="modal-overlay" id="tidyManageModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tidyManageTitle">
+    <div class="mhead"><h3 id="tidyManageTitle">Tidy lists</h3><button class="x" id="tidyManageClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p class="hint">Rename, merge or clear the categories, brands and suppliers on your products — and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
+      <div class="field">
+        <label for="tidyField">List to tidy</label>
+        <select id="tidyField">
+          <option value="category">Category</option>
+          <option value="brand">Brand</option>
+          <option value="supplier">Supplier</option>
+        </select>
+      </div>
+      <div id="tidyValues" class="tidy-values"></div>
+    </div>
+    <div class="mfoot"><button class="btn primary" id="tidyManageDone" type="button">Done</button></div>
   </div>
 </div>
 
@@ -604,7 +625,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=59"></script>
+<script src="js/app.js?v=60"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

@@ -180,7 +180,7 @@ rebuild();
 
 function unitNoun(p){return p.base_unit==='g'?'g':p.base_unit==='ml'?'ml':p.base_unit==='ea'?'unit':'';}
 function displayUnitWord(p){return p.base_unit==='g'?'kg':p.base_unit==='ml'?'L':'unit';}
-function defaultQty(p){return p.base_unit==='ea'?1:100;}
+function defaultQty(p){return null;}   // v60 (Max): new lines start EMPTY (blank field) — a quantity must be entered before the plate can be saved (see saveCurrentPlate)
 function cpbu(p){return p.cost_per_base_unit;}
 function perDisplayValue(p){const c=cpbu(p);if(c==null)return null;return (p.base_unit==='g'||p.base_unit==='ml')?c*1000:c;}
 function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
@@ -312,10 +312,10 @@ function alternatives(p){
 let plate=[], uidc=1;
 const linesEl=document.getElementById('lines');
 function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* legacy: no builder UI path in v31 (builder is ingredients-only); retained for programmatic use */
-function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):100});qEl.value='';closeDrop();renderPlate();qEl.focus();}
+function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):null});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60: qty starts empty */
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
 function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}   /* legacy: alternatives moved to the ingredient popup in v31 */
-function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;l.qty=Math.max(0,parseFloat(v)||0);updateLine(uid);updateTotals();}
+function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;const s=(v==null?'':String(v)).trim();const n=parseFloat(s);l.qty=(s===''||isNaN(n))?null:Math.max(0,n);updateLine(uid);updateTotals();}   // v60: a cleared field is null (empty), not 0 — save requires a real quantity
 function toggleAlts(uid){const el=document.getElementById('alts-'+uid);if(el)el.classList.toggle('open');}
 
 function editPrice(uid){
@@ -340,12 +340,13 @@ function commitPrice(uid,raw){
   renderPlate();
 }
 
-function miscRowHtml(l){                                              // an editable, removable non-ingredient cost line (spices, boxes, etc.)
-  // v56 (Max's spec, reverses v53's duplicate total): ONE row \u2014 name field, dotted connector,
-  // then the $ input sitting right-aligned where the bold total used to be, then \u00d7. The input IS
-  // the line total, so the separate bold .lc total is GONE (no duplication). Same ids/handlers.
+function miscRowHtml(l){                                              // a removable non-ingredient cost line (spices, boxes, etc.)
+  // v60 item 2 (Max): NO name field \u2014 a misc line is just a lump cost. Fixed "Misc" label, dotted
+  // connector, the $ input (which IS the line total, no duplicate .lc), then \u00d7 flush-right in the
+  // same column as the ingredient rows' \u00d7 (the leader grows to push it there). Any stored label on a
+  // pre-v60 misc line is left untouched in the data but never shown. Same ids/handlers as before.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
-    +'<span class="nm"><input type="text" class="misc-label" placeholder="e.g. Packaging, spices" value="'+esc(l.label||'')+'" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
+    +'<span class="misc-fixed">Misc</span>'
     +'<span class="leader"></span>'
     +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
@@ -354,7 +355,7 @@ function miscRowHtml(l){                                              // an edit
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
   plate.push({uid:uidc++, misc:true, label:'', cost:0});
   renderPlate();
-  var rows=document.querySelectorAll('.misc-line .misc-label'); var last=rows[rows.length-1]; if(last) last.focus();
+  var rows=document.querySelectorAll('.misc-line .misc-costbox input'); var last=rows[rows.length-1]; if(last) last.focus();   // v60 item 2: no name field — focus the $ input
 }
 function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; }
 function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
@@ -376,7 +377,7 @@ function renderPlate(){
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
       <div class="costs">
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
+        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
         <span class="leader"></span>
         <span class="lc"><span class=nocost>no cost</span></span>
       </div></div>`;
@@ -408,7 +409,7 @@ function renderPlate(){
         <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
       </div>
       <div class="costs">
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty}" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
+        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
         ${priceline}
         <span class="leader"></span>
         <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
@@ -432,10 +433,13 @@ function updateTotals(){
 }
 
 document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();renderPlate();});
-document.getElementById('printBtn').addEventListener('click',function(){
-  var n=(document.getElementById('plateName').value||'').trim();
+// v60 item 3: ONE docket renderer, shared by the builder's Print button and the plate card's Print
+// docket action (load-then-print not needed \u2014 it prints straight from the passed lines). "lines" are
+// the working/saved shape: {misc,label,cost} | {kid,qty} | {pid,qty}. Do not fork a second template.
+function printDocketFor(name, lines){
+  lines=lines||[];
   var pd=document.getElementById('printDocket'); if(!pd){ window.print(); return; }
-  var rows=plate.map(function(l){
+  var rows=lines.map(function(l){
     if(l.misc){ return '<tr><td class="pd-q"></td><td class="pd-n">'+esc(l.label||'Misc cost')+'</td></tr>'; }
     var p=lineProduct(l);
     var nm=l.kid ? esc((kById[l.kid]&&kById[l.kid].name)||'Ingredient') : (p?esc(p.description||'Item'):'');
@@ -445,11 +449,14 @@ document.getElementById('printBtn').addEventListener('click',function(){
   }).filter(Boolean).join('');
   pd.innerHTML='<div class="pd-card">'
     +'<div class="pd-logo">Ez<span>Plate</span></div>'
-    +'<div class="pd-title">'+esc(n||'Recipe card')+'</div>'
-    +'<div class="pd-meta">Recipe card \u00b7 '+plate.length+' item'+(plate.length===1?'':'s')+'</div>'
+    +'<div class="pd-title">'+esc((name||'').trim()||'Recipe card')+'</div>'
+    +'<div class="pd-meta">Recipe card \u00b7 '+lines.length+' item'+(lines.length===1?'':'s')+'</div>'
     +'<table class="pd-table"><tbody>'+rows+'</tbody></table>'
     +'</div>';
   window.print();
+}
+document.getElementById('printBtn').addEventListener('click',function(){
+  printDocketFor((document.getElementById('plateName').value||''), plate);
 });
 
 /* ---------- add-ingredient modal ---------- */
@@ -636,6 +643,14 @@ function saveCurrentPlate(asNew){
   var pErr=document.getElementById('plateNameErr');
   if(!rawName){ if(pErr){ pErr.textContent='Give this plate a name before saving.'; pErr.style.display='block'; } var pn=document.getElementById('plateName'); if(pn){ pn.focus(); } return false; }
   if(pErr) pErr.style.display='none';
+  // v60 (Max): every ingredient line needs a real quantity before the plate can be saved. New lines
+  // start empty; a blank or 0 qty blocks the save and focuses the first offending line's field.
+  var badLine=plate.find(function(l){ return !l.misc && !(l.qty>0); });
+  if(badLine){
+    toast('Enter a quantity for every ingredient');
+    var qi=document.querySelector('.line[data-uid="'+badLine.uid+'"] .qtybox input'); if(qi){ qi.focus(); }
+    return false;
+  }
   var name=rawName;
   var cat=(typeof builderCategoryValue==='function')?builderCategoryValue():null;   // §J: category combo; null before §J
   var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:(l.kid?{kid:l.kid,qty:l.qty}:{pid:l.pid,qty:l.qty}); });
@@ -643,6 +658,7 @@ function saveCurrentPlate(asNew){
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   savePlatesLS(); dbPushPlate(sp); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   return true;
 }
 // v54: the builder's one primary action. Save writes the plate to the library (menu link unchanged) and,
@@ -738,6 +754,7 @@ function showTab(t){
   if(t==='dashboard')renderDashboard();
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
   if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
+  try{ window.scrollTo(0,0); }catch(e){}   // v60 item 5: switching tabs (or re-tapping the current one — showTab runs on every nav click) starts at the top
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
@@ -830,14 +847,24 @@ function computeAvgFoodCost(){
   return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
 }
 function logHistory(){
-  var v=computeAvgFoodCost(); if(v==null) return;
-  v=Math.round(v*10)/10;
-  var iso=new Date().toISOString();
-  var last=priceHistory[priceHistory.length-1];
-  if(last && Math.abs(last.v-v)<0.05 && (Date.now()-new Date(last.t).getTime())<3600000) return;  // skip near-duplicate within the hour
-  priceHistory.push({t:iso, v:v});
-  if(priceHistory.length>500) priceHistory=priceHistory.slice(-500);
-  saveHistory(); dbPushHistory(iso, v);
+  // v60 item 1a (LIVENESS): a data-changing event (price edit, invoice apply, plate save) must ALWAYS
+  // refresh a visible dashboard — the header "% today" and stat cards are computed live in renderDashboard,
+  // so the fix is simply to re-render. Logging a NEW trend point is separate and still deduped: two edits a
+  // minute apart shouldn't stipple the line, but the today figure must still move. So the dedup guards only
+  // the point push, NOT the re-render (the old code returned before re-rendering on a deduped change — that
+  // was the staleness bug). Cheapest correct mechanism, no polling.
+  var v=computeAvgFoodCost();
+  if(v!=null){
+    v=Math.round(v*10)/10;
+    var iso=new Date().toISOString();
+    var last=priceHistory[priceHistory.length-1];
+    var dup = last && Math.abs(last.v-v)<0.05 && (Date.now()-new Date(last.t).getTime())<3600000;  // near-duplicate within the hour
+    if(!dup){
+      priceHistory.push({t:iso, v:v});
+      if(priceHistory.length>500) priceHistory=priceHistory.slice(-500);
+      saveHistory(); dbPushHistory(iso, v);
+    }
+  }
   var dash=document.getElementById('tab-dashboard');
   if(dash && dash.style.display!=='none') renderDashboard();
 }
@@ -941,9 +968,11 @@ function clearIngredientFilters(){ var el=document.getElementById('kingSearch');
 function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
 function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
+var TIDY_DOOR='__tidy__';   // v60 item 8: sentinel option value = "open the Tidy modal scoped to this field"
 function fillFilter(sel, list, label){
   if(!sel) return; var cur=sel.value;
   var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+  if(sel.dataset && sel.dataset.tidyField) html+='<option value="'+TIDY_DOOR+'">✎ Manage list…</option>';   // one door per category/supplier filter
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
 function renderIngredients(){
@@ -1488,6 +1517,17 @@ function deleteKitchenIngredient(kid){
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
 })();
 
+// v60 item 6: ONE shared clear-× wiring pattern. The tab search bars already carry the always-visible ×
+// (ms-clear markup); this reaches the two modal SEARCH boxes that lacked it — the product-link search
+// and the dish picker. Clears the field, re-runs the search, refocuses. onClear carries the per-box redraw.
+function wireSearchClear(inputId, clearId, onClear){
+  var inp=document.getElementById(inputId), btn=document.getElementById(clearId);
+  if(!inp||!btn) return;
+  btn.addEventListener('click',function(){ inp.value=''; if(typeof onClear==='function') onClear(); inp.focus(); });
+}
+wireSearchClear('king_prod','king_prodClear',function(){ kingChosenPid=null; if(typeof kingSyncSave==='function') kingSyncSave(); if(typeof renderKingProdDrop==='function') renderKingProdDrop(); });
+wireSearchClear('ad_search','ad_searchClear',function(){ if(typeof renderDishPicker==='function') renderDishPicker(''); });
+
 
 /* ============================================================
    Feature 2 — Dashboard
@@ -1581,6 +1621,28 @@ function tcTicks(target,mn,mx){                                  // v48: 3\u2013
   }
   return out;
 }
+/* v60 item 1b (ZOOM): the y-domain now fits the DATA, not the target. Margins move 1-2 pts at a time;
+   a domain stretched to always reach a distant target flattened that movement into noise. niceStep/niceTicks
+   generate 3-4 round ticks over the data extent WITHOUT anchoring on the target, so the visible band is only
+   as tall as the readings need. The target line is drawn only when it falls inside the domain (or within one
+   tick of it), and THEN tcTicks' "target sits on a labelled tick" rule still governs (see trendChart); when
+   the target is far away it becomes a small edge annotation instead of dragging the whole axis to meet it.
+   This SUPERSEDES v48's always-include-target domain rule (tcTicks itself is unchanged). */
+var TICK_STEPS=[1,2,5,10,20,50];
+function niceStep(raw){ for(var i=0;i<TICK_STEPS.length;i++){ if(TICK_STEPS[i]>=raw) return TICK_STEPS[i]; } return TICK_STEPS[TICK_STEPS.length-1]; }
+function niceTicks(mn,mx){                                        // 3-4 round ticks covering [mn,mx], not anchored on any value
+  var si=TICK_STEPS.indexOf(niceStep((mx-mn)/3));
+  var build=function(step){ var lo=Math.floor(mn/step)*step; if(lo<0) lo=0; var hi=Math.ceil(mx/step)*step;
+    var out=[]; for(var v=lo; v<=hi+1e-9; v+=step) out.push(+v.toFixed(1)); return out; };
+  var out=build(TICK_STEPS[si]);
+  while(out.length>4 && si<TICK_STEPS.length-1){ si++; out=build(TICK_STEPS[si]); }   // widen the step until 4 or fewer labels
+  while(out.length<3){                                            // step bigger than the whole span: pad outward
+    var st=TICK_STEPS[si], lo2=out[0], hi2=out[out.length-1];
+    if(lo2-st>=0) out.unshift(+(lo2-st).toFixed(1)); else out.push(+(hi2+st).toFixed(1));
+  }
+  return out;
+}
+function targetInView(target,dmn,dmx,step){ return target>=dmn-step && target<=dmx+step; }   // shown when inside, or within one tick
 var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
 var AX_CHW=0;         // measured advance of one glyph of the 11px mono axis font (mono: all glyphs equal) — cached once
 function axCharW(){
@@ -1615,19 +1677,22 @@ function trendChart(){
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
       +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
   }
-  var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
-  var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
-  /* v48: the DOMAIN derives from the ticks, not the other way round (replaces v45's proportional
-     28% padding — that made the target line's rendered y jump ~50px between adjacent ranges,
-     the "framing shifts" half of Max's report). Ticks are anchored on the target (see tcTicks),
-     the domain is the tick extent plus half a step each side — so headroom is consistent in
-     tick units and similar ranges can't jitter. The domain still adapts to the data (a 1W view
-     must not be squashed flat); it is stable, not fixed. */
-  var span=mx-mn;
-  if(span<4){ var midY=(mn+mx)/2; mn=midY-2; mx=midY+2; }
-  var ticks=tcTicks(cogsPct,mn,mx);
+  /* v60 item 1b: the DOMAIN fits the DATA (target excluded), so small margin moves read as movement.
+     A minimum span (~5 pts, centred) stops a flat window from magnifying 0.x-pt noise. Ticks derive from
+     the domain: when the target is in view we keep v48's target-on-a-tick generator (extended to cover
+     both data and target); when it's far away we use plain round ticks over the data and annotate the
+     target at the edge instead of stretching the axis to reach it. Domain = tick extent ± half a step,
+     so headroom stays consistent in tick units and similar ranges can't jitter. */
+  var dvals=pts.map(function(p){return p.v;});
+  var dmn=Math.min.apply(null,dvals), dmx=Math.max.apply(null,dvals);
+  var span=dmx-dmn;
+  if(span<5){ var midY=(dmn+dmx)/2; dmn=midY-2.5; dmx=midY+2.5; }   // minimum ~5-pt window
+  if(dmn<0) dmn=0;
+  var probeStep=niceStep((dmx-dmn)/3);
+  var targetShown=targetInView(cogsPct, dmn, dmx, probeStep);
+  var ticks = targetShown ? tcTicks(cogsPct, Math.min(dmn,cogsPct), Math.max(dmx,cogsPct)) : niceTicks(dmn, dmx);
   var step=ticks.length>1?ticks[1]-ticks[0]:5;
-  mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
+  var mn=Math.max(0,ticks[0]-step/2), mx=ticks[ticks.length-1]+step/2;
   var fmtTick=function(v){ return (v%1?v.toFixed(1):v.toFixed(0))+'%'; };
   // v52: the label gutter — sized to the widest tick label so a wide label ("32.5%" from a
   // decimal target) widens the gutter instead of clipping at the svg edge (the v48 bug)
@@ -1642,7 +1707,17 @@ function trendChart(){
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
   var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
-  var refY=y(cogsPct).toFixed(1);
+  // v60 item 1b: the dashed target rule renders only when the target is inside the domain; otherwise a
+  // small edge annotation ("target 30% ↑/↓") tells the user which way it lies without warping the axis.
+  var refLine='', edgeAnno='';
+  if(targetShown){
+    var refY=y(cogsPct).toFixed(1);
+    refLine='<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
+  } else {
+    var above=cogsPct>mx;                                          // target above the visible band -> annotate at top, arrow up
+    var ay=above?(padT+9):(H-padB-4), arrow=above?'↑':'↓';
+    edgeAnno='<text class="ax tc-target-edge" x="'+(W-padR)+'" y="'+ay+'" text-anchor="end">target '+fmtTick(cogsPct)+' '+arrow+'</text>';
+  }
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
   // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
@@ -1661,10 +1736,11 @@ function trendChart(){
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'
-    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+    +refLine   // v60 item 1b: present only when the target is inside the domain
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +edgeAnno   // v60 item 1b: the target's edge annotation when it lies outside the domain
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
     +'</svg>';
@@ -1809,15 +1885,23 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v59';
+var APP_VERSION='v60';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
-  renderTidyValues();                                                // v59 item 6b
   show('settingsPanel');
 }
 function closeSettings(){ hide('settingsPanel'); }
+// v60 item 8: Tidy lists is a modal now (not an inline Settings section) so Settings stays short.
+// One modal, multiple doors: the Settings row opens it on Category; a filter's "Manage list…" door
+// opens it pre-scoped to that field. renderTidyValues reads the #tidyField select, so we set it first.
+function openTidyManage(field){
+  var sel=document.getElementById('tidyField'); if(sel && field) sel.value=field;
+  renderTidyValues();
+  show('tidyManageModal');
+}
+function closeTidyManage(){ hide('tidyManageModal'); }
 
 /* ===== v59 item 6b: Tidy lists UI (Settings) — the Settings surface for the v40 pure core =====
    Category spans products + plate categories; Brand/Supplier are product-only. Every action goes
@@ -1975,12 +2059,30 @@ function clearCacheAndRefresh(){
   if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
-  // v59 item 6b: Tidy lists wiring
+  // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
+  on('setTidyOpen',function(){ closeSettings(); openTidyManage('category'); });   // Settings' single door
+  on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
+  var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
   var tm=document.getElementById('tidyModal'); if(tm) tm.addEventListener('click',function(ev){ if(ev.target===tm) hide('tidyModal'); });
   var tms=document.getElementById('tidyMergeSelect'); if(tms) tms.addEventListener('change',updateTidyWarn);   // refresh the blast-radius line
   var tri=document.getElementById('tidyRenameInput'); if(tri) tri.addEventListener('input',updateTidyWarn);
+  // v60 item 8: the "Manage list…" door on each category/supplier filter (data-tidy-field). Handled at the
+  // DOCUMENT level in the CAPTURE phase so it runs BEFORE the filter's own change→render listener — that
+  // listener rebuilds the <select> (fillFilter), which would clear the sentinel selection before a
+  // per-element handler ever saw it. stopPropagation keeps the render from treating the door as a value;
+  // we restore the previous value (recorded on focusin) and open the manager pre-scoped.
+  document.addEventListener('focusin',function(ev){
+    var s=ev.target; if(s&&s.matches&&s.matches('select[data-tidy-field]')&&s.value!==TIDY_DOOR) s.dataset.prevVal=s.value;
+  });
+  document.addEventListener('change',function(ev){
+    var s=ev.target; if(!s||!s.matches||!s.matches('select[data-tidy-field]')) return;
+    if(s.value!==TIDY_DOOR) return;
+    ev.stopPropagation();
+    s.value=s.dataset.prevVal||'';
+    openTidyManage(s.dataset.tidyField||'category');
+  }, true);
 })();
 syncCogsRead();
 
@@ -2331,6 +2433,7 @@ function mmRemove(dishId){
   var pcc=document.getElementById('plateClearFilters'); if(pcc) pcc.addEventListener('click',clearPlateFilters);   // v58: same helper the empty-state action uses
   var pP=document.getElementById('paPublish'); if(pP) pP.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); openManageMenus(id); });
   var pE=document.getElementById('paEdit'); if(pE) pE.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); editPlateFromCard(id); });
+  var pPr=document.getElementById('paPrint'); if(pPr) pPr.addEventListener('click',function(){ var sp=savedPlates.find(function(s){return s.id===paTargetId;}); closePlateActions(); if(sp) printDocketFor(sp.name, sp.lines); });   // v60 item 3: print straight from the saved plate
   var pD=document.getElementById('paDelete'); if(pD) pD.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); deletePlate(id); });
   var mmc=document.getElementById('manageMenusClose'); if(mmc) mmc.addEventListener('click',closeManageMenus);
   var mmd=document.getElementById('manageMenusDone'); if(mmd) mmd.addEventListener('click',closeManageMenus);
