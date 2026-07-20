@@ -312,5 +312,91 @@ $('ingClearFilters').click();
 ok('clicking it clears the search', $('ingSearch').value === '');
 ok('and it hides itself again', $('ingClearFilters').style.display === 'none');
 
-console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
-process.exit(failures ? 1 : 0);
+console.log('\n[15] v62 — AI second reader (status note, merge, chip)');
+// A matched hi-tier row for P0108 (stored ~$2.63/kg), priced high so the parser reading is far from history.
+const matchedRow = () => ({
+  name: 'CHIPS STRAIGHT CUT 6X2.5KG', raw: 'CHIPS STRAIGHT CUT 6X2.5KG', bestId: 'P0108',
+  unitPrice: 9.99, unit: 'kg', conf: 0.82, tier: 'hi', cands: [{ id: 'P0108', coverage: 0.82 }],
+  addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null
+});
+const invSumText = () => ($('invReview').querySelector('.inv-sum') || {}).textContent || '';
+const tbodyHtml = () => ($('invReview').querySelector('.invtable tbody') || {}).innerHTML || '';
+
+// (a) the summary status note, three states
+window.invRows = [matchedRow()];
+window.gemStatus = 'checking'; window.renderInvReview();
+ok('summary shows "AI double-checking…" while a check is in flight', /AI double-checking/.test(invSumText()));
+const rowsWhileChecking = tbodyHtml();
+window.gemStatus = 'unavailable'; window.renderInvReview();
+ok('unavailable shows "AI check unavailable"', /AI check unavailable/.test(invSumText()));
+ok('TIMEOUT/UNAVAILABLE degrades to IDENTICAL rows — only the summary note differs', tbodyHtml() === rowsWhileChecking);
+window.gemStatus = 'checked'; window.renderInvReview();
+ok('success shows "✓ AI checked"', /AI checked/.test(invSumText()));
+
+// (b) rule 4 via the applier: G disagrees, history can't arbitrate → adopt G, flagged + unticked + chip
+window.invRows = [matchedRow()]; window.gemApplied = false;
+window.gemApplyReadings({ status: 'ok', lines: [
+  { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'Chips', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 }
+] });
+ok('rule 4: G is adopted onto the row', window.invRows[0].unitPrice === 20 && window.invRows[0].aiSuggested === true);
+const r4 = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+ok('rule 4 row is a review state (st-review), not matched', r4.classList.contains('st-review'));
+ok('rule 4 row is NOT auto-ticked (waits for a human)', !r4.querySelector('.invAppr').checked);
+ok('rule 4 row shows the "AI suggested" chip on the price field', !!r4.querySelector('.ai-sug') && /AI suggested/.test(r4.querySelector('.ai-sug').textContent));
+ok('CHIP + FLAG PILL co-exist: the adopted price also trips the existing "price change — check" pill', /price change/.test(r4.textContent));
+ok('summary flips to checked after a successful merge', /AI checked/.test(invSumText()));
+
+// (c) rule 5: a Gemini-only line the parser dropped → appended as an unticked add-new row with AI chips
+window.invRows = [matchedRow()]; window.gemApplied = false;
+window.gemApplyReadings({ status: 'ok', lines: [
+  { rawText: 'MYSTERY SAUCE 2L', description: 'Mystery Sauce', derivedUnitPrice: 5, unitType: 'l', packCount: 1 }
+] });
+ok('rule 5: the parser row is untouched (rule 6, no G match)', window.invRows[0].unitPrice === 9.99);
+ok('rule 5: a new add-new row was appended', window.invRows.length === 2 && window.invRows[1].addNew === true && window.invRows[1].aiSource === true);
+window.expandNewItem(1);
+ok('rule 5: the appended row is never auto-ticked', !window.document.querySelector('#invReview tr.inv-data[data-i="1"] .invAppr').checked);
+const niAf1 = $('ni_name1') && $('ni_name1').closest('.ni-f').querySelector('.ni-af');
+ok('rule 5: the new-item form labels its prefilled fields "AI suggested" (one chip system, two labels)', !!niAf1 && /AI suggested/.test(niAf1.textContent), niAf1 && niAf1.textContent);
+
+// (d) a parser-built new-item form still says "auto-filled" (the other label of the same system)
+window.invRows = [{ name: 'CALAMARI 1KG', raw: 'CALAMARI 1KG', bestId: null, addNew: true, unitPrice: 14.92, unit: 'kg',
+  conf: 0.1, tier: 'lo', cands: [], needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null }];
+window.renderInvReview(); window.expandNewItem(0);
+ok('a parser-built new-item form keeps the "auto-filled" label', /auto-filled/.test($('ni_name0').closest('.ni-f').querySelector('.ni-af').textContent));
+
+// (e) async: the request fires, a stale/late response is discarded, a current one flips to checked
+let pending = [];
+window.fetch = (url, opts) => new Promise((resolve, reject) => { pending.push({ resolve, reject, url, opts }); });
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+(async function asyncSection() {
+  // late-discard: fire, then a newer parse bumps the token; the old response must not mutate the rows
+  window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  ok('fire posts to /api/parse-invoice', pending.length === 1 && /\/api\/parse-invoice/.test(pending[0].url));
+  window.gemToken++;   // a newer parse/openInv invalidates the in-flight request
+  pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'Chips', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 } ] }) });
+  await tick(); await tick();
+  ok('LATE-RESPONSE-DISCARDED: a stale token never alters the rows', window.invRows[0].unitPrice === 9.99);
+
+  // current response: fires, resolves with an agreeing (rule 2) reading → status becomes checked, no change
+  pending = [];
+  window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false; window.gemStatus = 'checking';
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'Chips', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
+  await tick(); await tick();
+  ok('a current, agreeing response flips the note to checked with no row change', /AI checked/.test(invSumText()) && window.invRows[0].unitPrice === 2.63);
+
+  // a failing fetch degrades silently to "unavailable"
+  pending = [];
+  window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  pending[0].reject(new Error('network down'));
+  await tick(); await tick();
+  ok('a failed request degrades to "AI check unavailable" (no error modal)', /AI check unavailable/.test(invSumText()));
+
+  console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
+  process.exit(failures ? 1 : 0);
+})();
