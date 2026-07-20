@@ -271,13 +271,34 @@ merge to `main` as a production deploy.
 
 ## State as of 20 Jul 2026 (verify, don't trust)
 
-- `main` is at **v57** (PR #5 merged `feat/plates-independent-library` — v54–v57 — into main).
-  Two unmerged branches stack toward the next merge: **`feat/empty-states-unified`** (v58, off
-  `origin/main`) and **`feat/parity-pass`** (v59, off the v58 branch). Both committed, awaiting
-  Max's phone sign-off, then merge (v58 first, then v59). **The three v55 Supabase migrations still
-  need applying to prod before any of this is live** (see [[supabase-schema-can-lag-app-code]]).
-  `npm test` = **174 green**, jsdom smoke green, `node -c` clean, six spots at **v59**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`.
+- `origin/main` is at **v59** (PRs #6 + #7 merged `feat/empty-states-unified` (v58) and
+  `feat/parity-pass` (v59) into main; v54–v57 landed earlier via PR #5). One unmerged branch
+  carries the next batch: **`feat/ux-pass`** (v60, off `origin/main`), committed and awaiting Max's
+  phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via GitHub
+  PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v60 goes live**
+  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **181 green**, jsdom smoke green,
+  `node -c` clean, six spots at **v60**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v60 shipped — UX pass (brief: `~/Downloads/ezplate-opus-ux-pass.md`). See
+  `handovers/HANDOVER-v60.md`.** (1a) Dashboard staleness ROOT CAUSE: `logHistory` returned early on
+  a deduped point *before* the re-render, and plate save never called it — now the dedup guards only
+  the point push, the re-render always runs when the dashboard is visible, and `saveCurrentPlate`
+  calls `logHistory`. (1b) The trend y-domain now **fits the data** (`niceStep`/`niceTicks`, min ~5-pt
+  span); the target line shows only when in view (or within one tick, `targetInView`) — else a "target
+  NN% ↑/↓" edge annotation. **This supersedes v48's always-include-target DOMAIN rule; `tcTicks` is
+  unchanged** (its target-on-a-tick contract still governs the shown case, still pinned by
+  `trend-ticks`). New `trend-domain.test.js` (7). (2) Misc line has NO name field — fixed "Misc"
+  label · leader · `$` · × (leader now grows so × is flush-right). (3) `printDocketFor(name,lines)`
+  shared by the builder Print button + a new plate-popup "Print docket" (`#paPrint`). (4) `defaultQty`
+  → 0. (5) tab switch scrolls to top; Delete red hover-fill gated behind `@media(hover:none)` (it
+  stuck on tap); builder category label + product pack-help copy. (6) search-× sweep — added to
+  `king_prod` + `ad_search` via shared `wireSearchClear`; value comboboxes stay ×-free. (7) Menu
+  controls are a column at all widths = Products parity (dropped the ≥640px row-switch; zeroed nested
+  `.ing-controls` padding). (8) **Tidy lists is a MODAL now** (`#tidyManageModal`) — Settings keeps one
+  row (`#setTidyOpen`); each category/supplier filter has a "✎ Manage list…" door (`data-tidy-field`)
+  handled by a **document capture-phase change listener** (beats the filter's own render, which
+  rebuilds the `<select>`). 174→181 tests.
 
 - **v59 shipped — Parity pass (brief: `~/Downloads/ezplate-opus-parity-pass.md`). See
   `handovers/HANDOVER-v59.md`.** (1) builder #q no longer creates ingredients (Ingredients tab
