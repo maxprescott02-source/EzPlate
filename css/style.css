@@ -700,6 +700,14 @@ input[type=checkbox]{
   background:var(--field);color:var(--text);
 }
 .inv-sum{font-size:14px;color:var(--text);margin-bottom:var(--sp-2);font-weight:700}
+/* v62: AI second-reader status, appended inline to the summary line. Muted Fable style; the success
+   state fades out after a beat (pure CSS, no re-render). Never an error modal — offline just reads
+   "unavailable". */
+.ai-status{font-size:var(--fs-xs);font-weight:650;margin-left:8px;white-space:nowrap}
+.ai-status.ai-checking,.ai-status.ai-off{color:var(--muted2)}
+.ai-status.ai-ok{color:var(--good);animation:aiFade .5s ease-out 3.5s forwards}
+@keyframes aiFade{to{opacity:0}}
+@media (prefers-reduced-motion:reduce){ .ai-status.ai-ok{animation:none} }
 .inv-gst{
   font-size:var(--fs-sm);color:var(--text2);background:var(--warn-bg);
   border:1px solid var(--warn);border-radius:var(--radius-chip);padding:10px 12px;margin:0 0 var(--sp-3);
@@ -2031,7 +2039,14 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .ni-grid .ni-f{display:flex;flex-direction:column;gap:5px;min-width:0;position:relative}
 .ni-grid .ni-f.ni-full{grid-column:1/-1}
 .ni-lab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);white-space:nowrap}
-.ni-af{display:none;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-weak);border-radius:var(--radius-pill);padding:2px 7px}
+/* v62: the AI-suggested chip (.ai-sug, on rule-4 price fields) is a true SIBLING of the auto-filled
+   chip — identical dimensions, padding, radius, weight and type scale, shared here so they can never
+   drift apart. No second accent in the palette reads as distinct-but-harmonious, so both use the same
+   accent chip and the LABEL carries the meaning. Both are inline-flow (never absolutely positioned),
+   so a wrapping label/price row pushes the chip to the next line instead of overlapping it. */
+.ni-af,.ai-sug{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-weak);border-radius:var(--radius-pill);padding:2px 7px}
+.ni-af{display:none}
+.ai-sug{display:inline-block;align-self:center;white-space:nowrap}
 /* v55 §F1: the "auto-filled" chip shows only for fields the PARSER filled (marked .af in JS, cleared on
    the first user edit) — NOT for any non-empty field (the old :placeholder-shown heuristic lit it on
    user-typed values too). Covers the plain inputs and the combo-wrapped ones. */
