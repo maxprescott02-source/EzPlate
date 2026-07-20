@@ -2236,14 +2236,14 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* Page order: h2 "Menu" > .panel-actions (+ New menu primary, + Existing dish, strapline) >
    .an-controls (menu picker = the page's context filter with Delete glued to it, search under)
    > two QUIET meta lines (target sentence, colour key) > sectioned card list. One left edge. */
+/* v60 item 7 (Max): full Products parity. Two stacked rows at EVERY width — the menu picker + Delete,
+   then a full-width controls row (search flex + category filter + Clear filters) that IS a nested
+   .ing-controls, so it inherits Products' exact heights/gaps/order. The old ≥640px switch to a single
+   flex-direction:row (picker beside search, ragged widths) and the .menu-search flex:0 0 auto override
+   are gone — the search now grows like Products' (governed by .ing-controls .menu-search). */
 .an-controls{display:flex;flex-direction:column;gap:10px;padding-bottom:0}
-.an-controls .menu-search{flex:0 0 auto;min-width:0}   /* the shared .menu-search flex-basis is a WIDTH in row contexts; in this column stack it would become a 220px height */
 .an-controls .menu-picker-row select{font-weight:650}
-@media (min-width:640px){   /* desktop: picker + search share one controls row, like Products */
-  .an-controls{flex-direction:row;flex-wrap:wrap;align-items:center}
-  .an-controls .menu-picker-row{flex:1 1 300px;min-width:260px}
-  .an-controls .menu-search{flex:1 1 220px}
-}
+.an-controls .ing-controls{padding:0}   /* .an-controls already supplies the gutter; without this the nested row's own sp-5/sp-4 padding double-indents it past the picker row's left edge */
 .cogs-meta{font-size:var(--fs-xs)}
 
 /* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
