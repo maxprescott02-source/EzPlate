@@ -46,8 +46,10 @@ const T = new Function(`
   ${extractFn(SRC, 'tidyFieldValues')}
   ${extractFn(SRC, 'tidyValueExists')}
   ${extractFn(SRC, 'tidyPlan')}
+  ${extractFn(SRC, 'tidyValuesCombined')}
+  ${extractFn(SRC, 'tidyPlanAll')}
   ${extractFn(SRC, 'tidySupplierMemMigration')}
-  return { tidyFieldValues, tidyValueExists, tidyPlan, tidySupplierMemMigration };
+  return { tidyFieldValues, tidyValueExists, tidyPlan, tidyValuesCombined, tidyPlanAll, tidySupplierMemMigration };
 `)();
 
 // A little product set. UI "Products" = PRODUCTS internally (the naming inversion).
@@ -147,4 +149,46 @@ test('v40 item 3: clearing a supplier drops its taught packs (no home to key the
   const moves = T.tidySupplierMemMigration(MEM, 'Bidfood', null);
   assert.strictEqual(moves.length, 2);
   assert.ok(moves.every(m => m.drop === true && m.newId === null), 'cleared supplier memories are dropped');
+});
+
+/* v59 item 6b: the Category picker spans products AND plate categories (Max's call). */
+const PLATES = [
+  { id: 'SP1', name: 'Ham Toastie', category: 'BAKERY' },
+  { id: 'SP2', name: 'Cheese Toastie', category: 'BAKERY' },
+  { id: 'SP3', name: 'Milkshake', category: 'DRINKS' },
+];
+
+test('v59: tidyValuesCombined merges product + plate counts for Category', () => {
+  const cats = T.tidyValuesCombined(PRODUCTS, PLATES, 'category');
+  const bakery = cats.find(c => c.value === 'BAKERY');
+  assert.deepStrictEqual({ products: bakery.products, plates: bakery.plates, count: bakery.count }, { products: 2, plates: 2, count: 4 });
+  const drinks = cats.find(c => c.value === 'DRINKS');
+  assert.deepStrictEqual({ products: drinks.products, plates: drinks.plates, count: drinks.count }, { products: 0, plates: 1, count: 1 }, 'a plate-only category still appears');
+});
+
+test('v59: Brand/Supplier stay product-only (plates carry neither)', () => {
+  const brands = T.tidyValuesCombined(PRODUCTS, PLATES, 'brand');
+  assert.ok(brands.every(b => b.plates === 0), 'no plate side for brand');
+});
+
+test('v59: tidyPlanAll renames a Category across BOTH products and plates in one plan', () => {
+  const plan = T.tidyPlanAll(PRODUCTS, PLATES, 'category', 'rename', 'BAKERY', 'Bakery & Bread');
+  assert.strictEqual(plan.productPatches.length, 2, 'both BAKERY products patched');
+  assert.strictEqual(plan.platePatches.length, 2, 'both BAKERY plates patched');
+  assert.strictEqual(plan.count, 4);
+  assert.ok(plan.productPatches.every(p => p.value === 'Bakery & Bread'));
+  assert.ok(plan.platePatches.every(p => p.value === 'Bakery & Bread'));
+});
+
+test('v59: tidyPlanAll clear nulls the Category on products and plates', () => {
+  const plan = T.tidyPlanAll(PRODUCTS, PLATES, 'category', 'clear', 'DRINKS', null);
+  assert.strictEqual(plan.productPatches.length, 0, 'no product carries DRINKS');
+  assert.strictEqual(plan.platePatches.length, 1);
+  assert.strictEqual(plan.platePatches[0].value, null);
+});
+
+test('v59: tidyPlanAll leaves plates untouched for Brand/Supplier', () => {
+  const plan = T.tidyPlanAll(PRODUCTS, PLATES, 'supplier', 'rename', 'Bidfood', 'Bidfood AU');
+  assert.strictEqual(plan.platePatches.length, 0, 'plates have no supplier');
+  assert.ok(plan.productPatches.length > 0);
 });

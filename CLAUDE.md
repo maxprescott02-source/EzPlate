@@ -268,11 +268,28 @@ merge to `main` as a production deploy.
 ## State as of 20 Jul 2026 (verify, don't trust)
 
 - `main` is at **v57** (PR #5 merged `feat/plates-independent-library` — v54–v57 — into main).
-  Branch **`feat/empty-states-unified`** (off `origin/main` @ v57) carries **v58** — committed,
-  awaiting Max's phone sign-off, then merge. **The three v55 Supabase migrations still need
-  applying to prod before this is live** (see [[supabase-schema-can-lag-app-code]]). `npm test` =
-  **157 green**, jsdom smoke green, `node -c` clean, six spots at **v58**. Per-batch detail lives in
-  `handovers/HANDOVER-vNN.md`.
+  Two unmerged branches stack toward the next merge: **`feat/empty-states-unified`** (v58, off
+  `origin/main`) and **`feat/parity-pass`** (v59, off the v58 branch). Both committed, awaiting
+  Max's phone sign-off, then merge (v58 first, then v59). **The three v55 Supabase migrations still
+  need applying to prod before any of this is live** (see [[supabase-schema-can-lag-app-code]]).
+  `npm test` = **174 green**, jsdom smoke green, `node -c` clean, six spots at **v59**. Per-batch
+  detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v59 shipped — Parity pass (brief: `~/Downloads/ezplate-opus-parity-pass.md`). See
+  `handovers/HANDOVER-v59.md`.** (1) builder #q no longer creates ingredients (Ingredients tab
+  only). (2) modal combobox dropdowns escape the `.mbody` overflow clip via `anchorDrop`
+  (position:fixed to the input) — ROOT CAUSE fixed; one sweep covers `makeInlineCombo` + the king
+  product search. (3) Menu traffic-light key legend removed (`.akey` gone; row dots stay). (4) Menu
+  controls now match Products: search + category filter (`#menuCatFilter`, by dish section) +
+  Clear filters on their own row. (5) ONE shared token matcher `searchTokens`/`matchTokens` — every
+  search bar is token-order-independent ("gluten free bread" ↔ "Bread Gluten Free"); **the old
+  `subseq` fuzzy fallback was dropped (Max approved)**. (6a) ingredient category is DERIVED live
+  from the linked product (`kingCategory`) — chip on cards, category filter on the Ingredients tab,
+  read-only in the edit modal. (6b) **Tidy-lists Settings UI finally built** on the v40 core
+  (`tidyValuesCombined`/`tidyPlanAll`): Category/Brand/Supplier pickers, counts, Rename/Merge/Clear
+  behind one blast-radius confirm, applied via `overrides`→`dbPushIngredient` + `dbPushPlate` +
+  supplier-memory migration; **the Category picker spans product AND plate categories** (Max's
+  call). 164→174 tests.
 
 - **v58 shipped — empty states unified into ONE system (brief:
   `~/Downloads/ezplate-opus-empty-states.md`). See `handovers/HANDOVER-v58.md`.** All four tabs'
@@ -360,8 +377,8 @@ merge to `main` as a production deploy.
   column the live DB lacks fails wholesale; apply the v55 migrations BEFORE deploy** (see
   [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v54–v58, apply the 3 v55 migrations to prod, merge;
-  (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K stale tests
-  + v56 builder/misc pins + v58 empty-state re-baseline); (c) the Tidy lists Settings UI still not
-  built; (d) optional: purchased-quantity capture for §I (needs a protected-region edit);
-  Tidy-lists over plate categories.
+- Next up: (a) Max's phone sign-off on v54–v59, apply the 3 v55 migrations to prod, merge (v58
+  then v59); (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K
+  stale tests + v56 builder/misc pins + v58 empty-state re-baseline + v59 menu-controls/Tidy-lists);
+  (c) confirm the proposed §7 edit (Tidy-lists is now built — HANDOVER-v59); (d) optional:
+  purchased-quantity capture for §I (needs a protected-region edit).

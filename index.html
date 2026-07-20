@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=58">
+<link rel="stylesheet" href="css/style.css?v=59">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -97,17 +97,18 @@
           <select id="menuSelect" aria-label="Menu"></select>
           <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
         </div>
-        <div class="menu-search">
-          <input id="menuSearch" type="search" placeholder="Search menu items or category…" autocomplete="off">
-          <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
+        <!-- v59: search + category filter + Clear filters on their own controls row, matching Products/Plates -->
+        <div class="ing-controls">
+          <div class="menu-search">
+            <input id="menuSearch" type="search" placeholder="Search menu items…" autocomplete="off">
+            <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
+          </div>
+          <select id="menuCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+          <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
         </div>
       </div>
       <p class="hint panel-meta cogs-meta">Suggested prices use your <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> food-cost target — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
-      <div class="akey panel-meta">
-        <span><span class="dot green"></span>at or above suggested</span>
-        <span><span class="dot amber"></span>up to 15% under</span>
-        <span><span class="dot red"></span>more than 15% under</span>
-      </div>
+      <!-- v59: the traffic-light key legend was removed (Max) — the row dots stay -->
       <div class="atable-wrap">
         <table class="atable">
           <thead><tr><th>Plate / menu item</th><th>Ingredient cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Current menu price</th><th>Variance</th><th>Light</th></tr></thead>
@@ -128,9 +129,14 @@
         <span class="king-sub panel-sub">Kitchen words for recipes — each one links to a product you buy</span>
       </div>
       <div class="king-progress" id="kingProgress" style="display:none"></div>
-      <div class="menu-search king-search">
-        <input id="kingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
-        <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      <!-- v59: search + category filter + Clear filters on one controls row, matching Products -->
+      <div class="ing-controls">
+        <div class="menu-search king-search">
+          <input id="kingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
+          <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+        </div>
+        <select id="kingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <button class="btn ghost ing-clear-filters" id="kingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <div id="kingWiz" style="display:none"></div>
       <div id="kingList"></div>
@@ -217,7 +223,7 @@
             <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
             <div id="drop" class="drop" role="listbox"></div>
           </div>
-          <p class="hint" id="builderHint">Build plates from your ingredients. Not there yet? Type a name and create it on the spot.</p>
+          <p class="hint" id="builderHint">Build plates from your ingredients. New ones are added on the Ingredients tab.</p>
         </div>
         <div class="docket-head">
           <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
@@ -457,6 +463,11 @@
           </span>
           <p class="hint" style="font-weight:400;margin:6px 2px 0">Recipes cost from this product. Switch it later and every recipe follows — one tap, not a rewrite.</p>
         </div>
+        <!-- v59 item 6a: category is DERIVED from the linked product (read-only here) -->
+        <div class="field full"><label>Category</label>
+          <div class="king-cat-read" id="king_cat">—</div>
+          <p class="hint" style="font-weight:400;margin:4px 2px 0">Set by the linked product — change it on the Products tab or in Settings → Tidy lists.</p>
+        </div>
       </div>
       <div id="king_alts" class="king-alts" style="display:none"></div>
     </div>
@@ -505,6 +516,20 @@
         </div>
       </div>
 
+      <div class="set-group">
+        <h4>Tidy lists</h4>
+        <p class="hint">Rename, merge or clear the categories, brands and suppliers on your products — and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
+        <div class="field">
+          <label for="tidyField">List to tidy</label>
+          <select id="tidyField">
+            <option value="category">Category</option>
+            <option value="brand">Brand</option>
+            <option value="supplier">Supplier</option>
+          </select>
+        </div>
+        <div id="tidyValues" class="tidy-values"></div>
+      </div>
+
       <div class="set-group set-about">
         <h4>About</h4>
         <p class="hint"><b>EzPlate</b> — Plate costing made easy</p>
@@ -515,6 +540,25 @@
 
     </div>
     <div class="mfoot"><button class="btn primary" id="settingsDone" type="button">Done</button></div>
+  </div>
+</div>
+
+<!-- v59 item 6b: Tidy-lists action modal — ONE blast-radius confirm for rename / merge / clear -->
+<div class="modal-overlay" id="tidyModal" aria-hidden="true">
+  <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="tidyModalTitle">
+    <div class="mhead"><h3 id="tidyModalTitle">Tidy</h3><button class="x" id="tidyModalClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="field" id="tidyRenameWrap" style="display:none">
+        <label for="tidyRenameInput">New name</label>
+        <input id="tidyRenameInput" type="text" autocomplete="off">
+      </div>
+      <div class="field" id="tidyMergeWrap" style="display:none">
+        <label for="tidyMergeSelect">Merge into</label>
+        <select id="tidyMergeSelect"></select>
+      </div>
+      <p id="tidyModalWarn" class="tidy-warn"></p>
+    </div>
+    <div class="mfoot"><button class="btn ghost" id="tidyModalCancel" type="button">Cancel</button><button class="btn primary" id="tidyModalConfirm" type="button">Apply</button></div>
   </div>
 </div>
 
@@ -560,7 +604,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=58"></script>
+<script src="js/app.js?v=59"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

@@ -224,6 +224,14 @@ function lineSig(l){
 
 /* ---------- search ---------- */
 function subseq(q,t){let i=0;for(let k=0;k<t.length&&i<q.length;k++){if(t[k]===q[i])i++;}return i===q.length;}
+/* v59: THE shared search matcher — token-order-independent, used by every list search bar
+   (Products, Ingredients, Plates, Menu, builder #q). The query splits into whitespace tokens;
+   EVERY token must appear as a substring of the (already-lowercased) haystack, in ANY order, so
+   "gluten free bread" matches "Bread Gluten Free". Empty query matches everything. Callers build
+   ONE lowercase haystack per item per render and reuse the tokenised query — no regex, no
+   per-keystroke-per-row allocation. */
+function searchTokens(q){ return String(q==null?'':q).toLowerCase().split(/\s+/).filter(Boolean); }
+function matchTokens(tokens,hay){ for(var i=0;i<tokens.length;i++){ if(hay.indexOf(tokens[i])<0) return false; } return true; }
 function runSearch(raw){
   const q=raw.trim().toLowerCase();
   if(!q) return SEARCHABLE.slice().sort((a,b)=>a.description.localeCompare(b.description)).slice(0,40);
@@ -253,25 +261,16 @@ function kitchenSearchMatches(q){                                     // v55 §G
   list.sort(function(a,b){ return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); });
   return list.slice(0,12).map(function(k){ return {__kid:true, id:k.id, name:k.name, pid:k.pid}; });
 }
-function pickListItem(it){ if(!it) return; if(it.__create){ createIngredientFromSearch(it.q); return; } if(it.__kid) addKitchenLine(it.id); }
-function createIngredientFromSearch(q){                               // "+ Create 'x'": open the ingredient modal pre-filled, and add it to the plate on save
-  closeDrop();
-  openKingModal(null);
-  var nameEl=document.getElementById('king_name'); if(nameEl){ nameEl.value=(q||'').trim(); nameEl.dispatchEvent(new Event('input')); }
-  kingAddToPlateOnSave=true;                                          // consumed once by saveKingModal (create path)
-}
+function pickListItem(it){ if(!it) return; if(it.__kid) addKitchenLine(it.id); }   // v59: create-from-search removed — ingredients are made on the Ingredients tab
 function renderDrop(){
   const q=qEl.value;
   curList=kitchenSearchMatches(q); hiIdx=-1;                          // BUILDER IS INGREDIENTS-ONLY: recipes are built from kitchen words, never raw supplier products
   if(!curList.length){
     const qt=(q||'').trim();
-    if(qt){
-      dropEl.innerHTML='<div class="opt opt-msg" style="cursor:default">No ingredient called \u201c'+esc(qt)+'\u201d yet</div>'
-        +'<div class="opt opt-create" role="option" data-create="1">+ Create \u201c'+esc(qt)+'\u201d</div>';
-      curList=[{__create:true, q:qt}];
-    } else {
-      dropEl.innerHTML='<div class="opt opt-msg" style="cursor:default">Type to find an ingredient, or add one on the Ingredients tab</div>';
-    }
+    // v59: the builder never creates ingredients \u2014 they're made on the Ingredients tab only.
+    dropEl.innerHTML=qt
+      ? '<div class="opt opt-msg" style="cursor:default">No ingredient called \u201c'+esc(qt)+'\u201d \u2014 add it on the Ingredients tab first.</div>'
+      : '<div class="opt opt-msg" style="cursor:default">Type to find an ingredient, or add one on the Ingredients tab.</div>';
     dropEl.classList.add('open');return;
   }
   dropEl.innerHTML=curList.map((it,i)=>{
@@ -294,7 +293,7 @@ qEl.addEventListener('keydown',e=>{
 });
 function paintHi(){[...dropEl.children].filter(c=>c.hasAttribute('role')).forEach((c,i)=>c.classList.toggle('hi',i===hiIdx));const el=dropEl.querySelectorAll('[role="option"]')[hiIdx];if(el)el.scrollIntoView({block:'nearest'});}
 dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o)return;e.preventDefault();
-  if(o.dataset.create){ createIngredientFromSearch((qEl.value||'').trim()); } else if(o.dataset.kid){ addKitchenLine(o.dataset.kid); }});
+  if(o.dataset.kid){ addKitchenLine(o.dataset.kid); }});   // v59: no create branch
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))closeDrop();});
 
 /* ---------- alternatives ---------- */
@@ -419,7 +418,7 @@ function renderPlate(){
   var bh=document.getElementById('builderHint');
   if(bh){
     if(!kitchenIngredients.length){ bh.innerHTML='No ingredients yet \u2014 <a href="#" id="bhGo">create your kitchen words</a> first, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
-    else bh.textContent='Build plates from your ingredients. Not there yet? Type a name and create it on the spot.';
+    else bh.textContent='Build plates from your ingredients. New ones are added on the Ingredients tab.';   // v59: no create-on-the-spot
   }
 }
 function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=lineProduct(l);const lc=lineCost(p,l.qty);
@@ -752,6 +751,8 @@ function restoreLastTab(){                                            // return 
   var ms=document.getElementById('menuSearch'), msc=document.getElementById('menuSearchClear');
   if(ms){ ms.addEventListener('input',function(){ renderAnalysis(); }); ms.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ms.blur(); } }); }
   if(msc){ msc.addEventListener('click',function(){ ms.value=''; renderAnalysis(); ms.focus(); }); }
+  var mcf=document.getElementById('menuCatFilter'); if(mcf) mcf.addEventListener('change',renderAnalysis);   // v59: category filter (dish sections)
+  var mclf=document.getElementById('menuClearFilters'); if(mclf) mclf.addEventListener('click',clearMenuFilters);   // v59: shared clear behaviour
 })();
 buildMenuOptions(); buildMenuSelector(); bindTips();
 
@@ -936,9 +937,9 @@ function emptySearchState(icon,noun,clearFn){
 }
 // per-tab clear helpers — shared by the empty-state action AND the header "Clear filters" button.
 function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); renderIngredients(); }
-function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; renderKitchenPanel(); }
+function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; var c=document.getElementById('kingCatFilter'); if(c) c.value=''; renderKitchenPanel(); }
 function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
-function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; renderAnalysis(); }
+function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
 function fillFilter(sel, list, label){
   if(!sel) return; var cur=sel.value;
@@ -958,13 +959,14 @@ function renderIngredients(){
   fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
   fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
   var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
+  var toks=searchTokens(q);   // v59: shared token matcher
   var cat=(document.getElementById('ingCatFilter')||{}).value||'';
   var sup=(document.getElementById('ingSupFilter')||{}).value||'';
   var cf=document.getElementById('ingClearFilters'); if(cf) cf.style.display=(q||cat||sup)?'':'none';   // v54: hidden when nothing is active (matches the app's hide-inert pattern)
   var items=PRODUCTS.filter(function(p){
     if(cat && p.category!==cat) return false;
     if(sup && (p.supplier||'')!==sup) return false;
-    if(q){ var hay=((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+    if(toks.length){ var hay=((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')).toLowerCase(); if(!matchTokens(toks,hay)) return false; }
     return true;
   }).slice().sort(function(a,b){return (a.description||'').toLowerCase().localeCompare((b.description||'').toLowerCase());});
   if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
@@ -1057,19 +1059,22 @@ function kingProductLabel(k){                                        // "Chips 1
   if(!p) return '(product missing)';
   return p.description+(p.brand?' \u2014 '+p.brand:'')+' \u00b7 '+unitCostStr(p);
 }
+// v59 item 6a: an ingredient's category is DERIVED, live, from its linked product \u2014 never stored on
+// the ingredient. Repointing the link or editing the product's category changes it automatically.
+function kingCategory(k){ var p=k&&byId[k.pid]; return (p&&p.category)||''; }
+function kingCategories(){ var s={}; (kitchenIngredients||[]).forEach(function(k){ var c=kingCategory(k); if(c) s[c]=1; }); return Object.keys(s).sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase());}); }
 /* ITEM 3 (v35): the pantry filter, kept pure (no DOM) so it can be tested directly.
-   Matches the kitchen word's own name — with the same subseq fallback the Builder
-   search uses, so "chps" still finds "Chips" — OR the description/brand of the
-   product behind it, so searching "safries" finds the word "Chips". */
+   v59: routed through the shared token matcher (searchTokens/matchTokens) like every other search
+   bar — matches the kitchen word's name, its linked product's description/brand, AND its DERIVED
+   category (= the linked product's category, item 6a), in any token order. */
 function kingSearchFilter(q, words, prods){
-  q=(q||'').trim().toLowerCase();
-  if(!q) return (words||[]).slice();
+  var toks=searchTokens(q);
+  if(!toks.length) return (words||[]).slice();
   return (words||[]).filter(function(k){
     if(!k) return false;
-    var nm=(k.name||'').toLowerCase();
-    if(nm.indexOf(q)>=0 || subseq(q,nm)) return true;
-    var p=(prods||{})[k.pid]; if(!p) return false;
-    return (((p.description||'')+' '+(p.brand||'')).toLowerCase().indexOf(q)>=0);
+    var p=(prods||{})[k.pid];
+    var hay=((k.name||'')+' '+(p?((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')):'')).toLowerCase();
+    return matchTokens(toks,hay);
   });
 }
 var kingQuery='';
@@ -1083,8 +1088,13 @@ function renderKitchenPanel(){
     renderKingProgress();                                            // zero kitchen words + many products is EXACTLY when the wizard matters
     return;
   }
-  var list=kingSearchFilter(kingQuery, kitchenIngredients, byId).sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
-  if(!list.length){                                                  // ITEM 3 (v35): there ARE words, the filter just matched none of them
+  var kcat=(document.getElementById('kingCatFilter')||{}).value||'';   // v59 item 6a: filter by DERIVED category
+  fillFilter(document.getElementById('kingCatFilter'), kingCategories(), 'All categories');
+  var kcf=document.getElementById('kingClearFilters'); if(kcf) kcf.style.display=(kingQuery||kcat)?'':'none';
+  var list=kingSearchFilter(kingQuery, kitchenIngredients, byId)
+    .filter(function(k){ return !kcat || kingCategory(k)===kcat; })
+    .sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
+  if(!list.length){                                                  // ITEM 3 (v35): there ARE words, the filter/search just matched none of them
     box.innerHTML=emptySearchState(ICON_LEAF_BIG,'ingredients','clearIngredientFilters');   // v58: variant A via the shared helper
     renderKingProgress();                                            // progress counts PRODUCTS, not the filtered view — it stays true
     return;
@@ -1092,8 +1102,10 @@ function renderKitchenPanel(){
   // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
   // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=list.map(function(k){
+    var c=kingCategory(k);                                           // v59 item 6a: muted derived-category chip
     return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
       +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
+      +(c?'<span class="king-cat">'+esc(c)+'</span>':'')
       +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
       +'</div>';
   }).join('');
@@ -1337,7 +1349,14 @@ function kingValid(){
   var nm=(document.getElementById('king_name').value||'').trim();
   return !!nm && !!kingChosenPid && !!byId[kingChosenPid];
 }
-function kingSyncSave(){ var s=document.getElementById('kingModalSave'); if(s) s.disabled=!kingValid(); }
+function kingSyncSave(){ var s=document.getElementById('kingModalSave'); if(s) s.disabled=!kingValid(); updateKingCat(); }
+// v59 item 6a: reflect the DERIVED category live as the linked product changes (read-only display)
+function updateKingCat(){
+  var el=document.getElementById('king_cat'); if(!el) return;
+  var pid=kingChosenPid || (kingEditId && kById[kingEditId] ? kById[kingEditId].pid : null);
+  var p=pid!=null?byId[pid]:null; var c=p&&p.category;
+  el.textContent=c?c:'—';
+}
 function renderKingProdDrop(){
   var inp=document.getElementById('king_prod'), drop=document.getElementById('king_prodDrop'); if(!inp||!drop) return;
   var q=(inp.value||'').trim().toLowerCase();
@@ -1349,14 +1368,14 @@ function renderKingProdDrop(){
       .sort(function(a,b){ return a.description.toLowerCase().indexOf(q)-b.description.toLowerCase().indexOf(q) || a.description.localeCompare(b.description); })
       .slice(0,8);
   }
-  if(!scored.length){ drop.innerHTML='<div class="opt muted">No products match</div>'; drop.style.display='block'; return; }
+  if(!scored.length){ drop.innerHTML='<div class="opt muted">No products match</div>'; drop.style.display='block'; anchorDrop(drop); return; }
   drop.innerHTML=scored.map(function(p){
     return '<div class="opt cat-opt" data-pid="'+esc(p.id)+'">'+esc(p.description)+(p.brand?' <span class="ca">'+esc(p.brand)+'</span>':'')+' <span class="ca">'+esc(unitCostStr(p))+'</span></div>';
   }).join('');
-  drop.style.display='block';
+  drop.style.display='block'; anchorDrop(drop);   // v59 item 2: escape the modal-body clip
   drop.querySelectorAll('.cat-opt').forEach(function(o){ o.addEventListener('mousedown',function(e){ e.preventDefault();
     var pid=o.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
-    kingChosenPid=pid; inp.value=p.description+(p.brand?' \u2014 '+p.brand:''); drop.style.display='none'; kingSyncSave();
+    kingChosenPid=pid; inp.value=p.description+(p.brand?' \u2014 '+p.brand:''); drop.style.display='none'; resetDrop(drop); kingSyncSave();
   }); });
 }
 function openKingModal(kid){
@@ -1374,7 +1393,7 @@ function openKingModal(kid){
   if(!prodEl.__wired){ prodEl.__wired=true;
     prodEl.addEventListener('input',function(){ kingChosenPid=null; kingSyncSave(); renderKingProdDrop(); });
     prodEl.addEventListener('focus',renderKingProdDrop);
-    prodEl.addEventListener('blur',function(){ setTimeout(function(){ document.getElementById('king_prodDrop').style.display='none'; },150); });
+    prodEl.addEventListener('blur',function(){ setTimeout(function(){ var d=document.getElementById('king_prodDrop'); if(d){ d.style.display='none'; resetDrop(d); } },150); });
   }
   if(!nameEl.__wired){ nameEl.__wired=true; nameEl.addEventListener('input',function(){
     var ke=document.getElementById('king_err'); if(ke) ke.style.display='none';   // ITEM 2 (v35): a rejected rename clears as soon as they start fixing it
@@ -1462,6 +1481,8 @@ function deleteKitchenIngredient(kid){
   });
   ks.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ks.blur(); } }); }   // v37: Enter commits the search (dismisses the keyboard)
   if(kc) kc.addEventListener('click',function(){ if(ks){ ks.value=''; } kingQuery=''; renderKitchenPanel(); if(ks) ks.focus(); });
+  var kcf=document.getElementById('kingCatFilter'); if(kcf) kcf.addEventListener('change',renderKitchenPanel);   // v59 item 6a: category filter
+  var kclf=document.getElementById('kingClearFilters'); if(kclf) kclf.addEventListener('click',clearIngredientFilters);   // v59: shared clear behaviour
   on('kingModalSave',saveKingModal); on('kingModalCancel',closeKingModal); on('kingModalClose',closeKingModal);
   on('kingModalRemove',function(){ var kid=kingEditId; if(!kid) return; closeKingModal(); deleteKitchenIngredient(kid); });   // v44 item 6b: close first so the used-in-N confirm sits cleanly on top (same pattern as the unit guard)
   var m=document.getElementById('kingModal'); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) closeKingModal(); });
@@ -1788,14 +1809,111 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v58';
+var APP_VERSION='v59';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
+  renderTidyValues();                                                // v59 item 6b
   show('settingsPanel');
 }
 function closeSettings(){ hide('settingsPanel'); }
+
+/* ===== v59 item 6b: Tidy lists UI (Settings) — the Settings surface for the v40 pure core =====
+   Category spans products + plate categories; Brand/Supplier are product-only. Every action goes
+   through ONE blast-radius confirm and applies via the existing write helpers (setOverride ->
+   dbPushIngredient for products, dbPushPlate for plates, plus tidySupplierMemMigration for a
+   supplier rename/clear so taught invoice packs don't orphan). Ingredient categories mirror their
+   product, so a category rename here flows to the Ingredients tab automatically. */
+var tidyField='category', tidyAction=null, tidyFrom=null;
+function tidyFieldLabel(){ return tidyField.charAt(0).toUpperCase()+tidyField.slice(1); }
+function renderTidyValues(){
+  var box=document.getElementById('tidyValues'); if(!box) return;
+  var sel=document.getElementById('tidyField'); tidyField=(sel&&sel.value)||'category';
+  var rows=tidyValuesCombined(PRODUCTS, savedPlates, tidyField);
+  if(!rows.length){ box.innerHTML='<p class="hint tidy-empty">No '+esc(tidyField)+' values yet.</p>'; return; }
+  box.innerHTML=rows.map(function(r){
+    var meta=(tidyField==='category')
+      ? (r.products+' product'+(r.products===1?'':'s')+(r.plates?(' · '+r.plates+' plate'+(r.plates===1?'':'s')):''))
+      : (r.count+' product'+(r.count===1?'':'s'));
+    return '<div class="tidy-row" data-v="'+esc(r.value)+'">'
+      +'<span class="tidy-val">'+esc(r.value)+'</span><span class="tidy-count">'+esc(meta)+'</span>'
+      +'<span class="tidy-acts">'
+      +'<button type="button" class="linklike" data-act="rename">Rename</button>'
+      +'<button type="button" class="linklike" data-act="merge">Merge</button>'
+      +'<button type="button" class="linklike tidy-clear" data-act="clear">Clear</button>'
+      +'</span></div>';
+  }).join('');
+  box.querySelectorAll('.tidy-row .linklike').forEach(function(b){
+    b.addEventListener('click',function(){ openTidy(tidyField, b.getAttribute('data-act'), b.closest('.tidy-row').getAttribute('data-v')); });
+  });
+}
+function tidyBlast(plan){                                            // "on 14 products and 3 plates"
+  var parts=[]; var np=plan.productPatches.length, nl=plan.platePatches.length;
+  if(np) parts.push(np+' product'+(np===1?'':'s'));
+  if(nl) parts.push(nl+' plate'+(nl===1?'':'s'));
+  return parts.length?('on '+parts.join(' and ')):'nothing';
+}
+function openTidy(field, action, from){
+  tidyField=field; tidyAction=action; tidyFrom=from;
+  var title=document.getElementById('tidyModalTitle'), warn=document.getElementById('tidyModalWarn');
+  var rw=document.getElementById('tidyRenameWrap'), mw=document.getElementById('tidyMergeWrap');
+  var ri=document.getElementById('tidyRenameInput'), ms=document.getElementById('tidyMergeSelect');
+  rw.style.display='none'; mw.style.display='none';
+  var others=tidyValuesCombined(PRODUCTS, savedPlates, field).map(function(x){return x.value;}).filter(function(v){return v!==from;});
+  if(action==='rename'){ title.textContent='Rename '+field; rw.style.display=''; if(ri){ ri.value=from; } }
+  else if(action==='merge'){ title.textContent='Merge '+field;
+    mw.style.display=''; if(ms){ ms.innerHTML=others.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('')||'<option value="">(no other value to merge into)</option>'; } }
+  else { title.textContent='Clear '+field; }
+  updateTidyWarn();                                                  // live blast-radius preview
+  show('tidyModal');
+  if(action==='rename'&&ri){ ri.focus(); ri.select(); }
+}
+function tidyTarget(){                                               // the chosen "to" value for the current action
+  if(tidyAction==='clear') return null;
+  if(tidyAction==='rename'){ var ri=document.getElementById('tidyRenameInput'); return ri?ri.value.trim():tidyFrom; }
+  var ms=document.getElementById('tidyMergeSelect'); return ms?ms.value:null;
+}
+function updateTidyWarn(){
+  var warn=document.getElementById('tidyModalWarn'); if(!warn) return;
+  var plan=tidyPlanAll(PRODUCTS, savedPlates, tidyField, tidyAction, tidyFrom, tidyTarget());
+  var to=tidyTarget();
+  warn.textContent=(tidyAction==='clear'?('Clear “'+tidyFrom+'” '+tidyBlast(plan)+'?')
+                   :tidyAction==='merge'?('Merge “'+tidyFrom+'” into “'+(to||'…')+'” '+tidyBlast(plan)+'?')
+                   :('Rename “'+tidyFrom+'” to “'+(to||'…')+'” '+tidyBlast(plan)+'?'))+' This can’t be undone.';
+}
+function applyTidy(){
+  var field=tidyField, action=tidyAction, from=tidyFrom;
+  var to=null;
+  if(action==='rename'){ to=(document.getElementById('tidyRenameInput').value||'').trim(); if(!to){ toast('Enter a new name'); return; } }
+  else if(action==='merge'){ to=(document.getElementById('tidyMergeSelect').value||''); if(!to){ toast('Pick a value to merge into'); return; } }
+  var plan=tidyPlanAll(PRODUCTS, savedPlates, field, action, from, to);
+  if(!plan.count){ hide('tidyModal'); toast('Nothing to change'); return; }
+  var col=plan.field;   // 'category' | 'brand' | 'supplier'
+  // products: write through overrides (rebuild once, then push each changed row)
+  plan.productPatches.forEach(function(pt){ overrides[pt.id]=Object.assign({}, overrides[pt.id]||{}); overrides[pt.id][col]=pt.value; });
+  if(plan.productPatches.length){ saveOverrides(); rebuild(); plan.productPatches.forEach(function(pt){ dbPushIngredient(pt.id); }); }
+  // plates (category only)
+  plan.platePatches.forEach(function(pt){ var sp=(savedPlates||[]).filter(function(s){return s.id===pt.id;})[0]; if(sp){ sp.category=pt.value; dbPushPlate(sp); } });
+  if(plan.platePatches.length){ savePlatesLS(); }
+  // supplier memory migration (rename/merge/clear a supplier)
+  if(field==='supplier'){
+    tidySupplierMemMigration(supplierMem, from, (action==='clear'?null:to)).forEach(function(mig){
+      if(mig.drop){ delete supplierMem[mig.oldId]; if(typeof dbDeleteSupplierPhrase==='function') dbDeleteSupplierPhrase(mig.oldId); return; }
+      delete supplierMem[mig.oldId]; if(mig.oldId!==mig.newId && typeof dbDeleteSupplierPhrase==='function') dbDeleteSupplierPhrase(mig.oldId);
+      supplierMem[mig.newId]={id:mig.newId, supplier:mig.supplier, phrase_norm:mig.phrase_norm, qty:mig.qty, unit:mig.unit, pid:mig.pid};
+      if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(supplierMem[mig.newId]);
+    });
+    saveSupplierMem();
+  }
+  hide('tidyModal');
+  if(typeof renderIngredients==='function') renderIngredients();
+  if(typeof renderKitchenPanel==='function') renderKitchenPanel();
+  if(typeof renderPlatesTab==='function') renderPlatesTab();
+  if(typeof renderAnalysis==='function') renderAnalysis();
+  renderTidyValues();
+  toast((action==='clear'?'Cleared':action==='merge'?'Merged':'Renamed')+' '+field+' '+tidyBlast(plan));
+}
 function syncCogsRead(){                                              // the Menu tab's read-only mirror of the target
   var r=document.getElementById('cogsTargetRead'); if(r) r.textContent=cogsPct;
 }
@@ -1857,6 +1975,12 @@ function clearCacheAndRefresh(){
   if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
+  // v59 item 6b: Tidy lists wiring
+  var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
+  on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
+  var tm=document.getElementById('tidyModal'); if(tm) tm.addEventListener('click',function(ev){ if(ev.target===tm) hide('tidyModal'); });
+  var tms=document.getElementById('tidyMergeSelect'); if(tms) tms.addEventListener('change',updateTidyWarn);   // refresh the blast-radius line
+  var tri=document.getElementById('tidyRenameInput'); if(tri) tri.addEventListener('input',updateTidyWarn);
 })();
 syncCogsRead();
 
@@ -2107,12 +2231,13 @@ function renderPlatesTab(){
   }
   fillFilter(document.getElementById('plateCatFilter'), plateCategories(), 'All categories');   // §J
   var q=(document.getElementById('plateSearch')?document.getElementById('plateSearch').value:'').trim().toLowerCase();
+  var toks=searchTokens(q);   // v59: shared token matcher
   var cat=(document.getElementById('plateCatFilter')||{}).value||'';   // §J
   var cf=document.getElementById('plateClearFilters'); if(cf) cf.style.display=(q||cat)?'':'none';
   var items=savedPlates.filter(function(sp){
     if(cat && (sp.category||'')!==cat) return false;
-    if(!q) return true;
-    return ((sp.name||'')+' '+(sp.category||'')+' '+(plateMenuSummary(sp)||'')).toLowerCase().indexOf(q)>=0;
+    if(!toks.length) return true;
+    return matchTokens(toks, ((sp.name||'')+' '+(sp.category||'')+' '+(plateMenuSummary(sp)||'')).toLowerCase());
   }).slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
   if(!items.length){ wrap.innerHTML=emptySearchState(ICON_PLATE_BIG,'plates','clearPlateFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(sp){
@@ -2738,6 +2863,25 @@ function tidyPlan(products, field, action, from, to){               // action: '
 // would orphan its taught packs unless the memory entries move too. This pure planner lists the re-keys needed;
 // the entry's phrase_norm is already normalised, so the new id is memKey(to,·) == normSupplier(to)+'|'+phrase_norm
 // — reconstructable WITHOUT re-entering the protected parser region. Clearing a supplier drops its memories.
+// v59 item 6b: the Category picker spans BOTH product categories AND plate categories (Max's call).
+// This pure planner returns the product patches (via dbPushIngredient) and, for category only, the
+// plate patches (via dbPushPlate) — so one Rename/Merge/Clear flows to products, ingredients (which
+// mirror their product), AND plates in a single confirmed action. Brand/Supplier are product-only.
+function tidyValuesCombined(products, plates, field){
+  var pv=tidyFieldValues(products, field);
+  if(field!=='category') return pv.map(function(x){ return {value:x.value, count:x.count, products:x.count, plates:0}; });
+  var byVal={}; pv.forEach(function(x){ byVal[x.value]={value:x.value, products:x.count, plates:0}; });
+  tidyFieldValues(plates, 'category').forEach(function(x){ (byVal[x.value]||(byVal[x.value]={value:x.value,products:0,plates:0})).plates=x.count; });
+  return Object.keys(byVal).map(function(v){ var o=byVal[v]; o.count=o.products+o.plates; return o; })
+    .sort(function(a,b){ return b.count-a.count || a.value.toLowerCase().localeCompare(b.value.toLowerCase()); });
+}
+function tidyPlanAll(products, plates, field, action, from, to){
+  var pp=tidyPlan(products, field, action, from, to);
+  var pl=(field==='category') ? tidyPlan(plates, 'category', action, from, to) : {patches:[], isMerge:false};
+  return { field:field, action:action, from:from, to:pp.to,
+           productPatches:pp.patches, platePatches:pl.patches,
+           isMerge:pp.isMerge||pl.isMerge, count:pp.patches.length+pl.patches.length };
+}
 function tidySupplierMemMigration(supplierMem, from, to){           // to===null => clear (drop the memories); else re-key onto `to`
   var nf=normSupplier(from), nt=(to==null?null:normSupplier(to)), out=[];
   for(var id in supplierMem){ var e=supplierMem[id]; if(!e) continue;
@@ -2750,6 +2894,27 @@ function tidySupplierMemMigration(supplierMem, from, to){           // to===null
 }
 function kingNames(){ return (kitchenIngredients||[]).map(function(k){return k&&k.name;}).filter(Boolean).sort(); }   // ITEM 5 (v35): the combobox source for the invoice Kitchen name field
 var niCombos={};
+/* v59 item 2 ROOT CAUSE: modal comboboxes render `.cat-drop` as position:absolute inside `.mbody`,
+   whose `overflow:auto` (needed so tall modals scroll) CLIPS the dropdown after ~1.5 rows — the
+   Save bar then sits over it. Fix: on open, anchor the dropdown with position:FIXED to the input's
+   viewport rect so it ESCAPES the scroll container entirely (the modal's only transform is the
+   open animation, long finished by interaction time, so fixed is viewport-relative). The
+   `.cat-drop`'s own max-height/overflow give the internal scroll for long lists; opens upward when
+   the input sits low. Reposition on scroll/resize while open; clear the inline geometry on close. */
+function anchorDrop(drop){
+  if(!drop) return;
+  var wrap=drop.closest('.cat-wrap'); var inp=wrap?wrap.querySelector('input'):null;
+  if(!inp && drop.previousElementSibling && drop.previousElementSibling.tagName==='INPUT') inp=drop.previousElementSibling;
+  if(!inp) return;
+  var r=inp.getBoundingClientRect();
+  drop.style.position='fixed'; drop.style.left=r.left+'px'; drop.style.width=r.width+'px'; drop.style.right='auto';
+  var below=window.innerHeight-r.bottom-8, above=r.top-8;
+  if(below>=160 || below>=above){ drop.style.top=(r.bottom+4)+'px'; drop.style.bottom='auto'; drop.style.maxHeight=Math.min(300,Math.max(140,below))+'px'; }
+  else { drop.style.top='auto'; drop.style.bottom=(window.innerHeight-r.top+4)+'px'; drop.style.maxHeight=Math.min(300,Math.max(140,above))+'px'; }   // input low on screen -> open upward
+}
+function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); }
+(function(){ var reflow=function(){ document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); }); };
+  window.addEventListener('resize',reflow); window.addEventListener('scroll',reflow,true); })();   // scroll capture=true catches the modal body scroll
 function makeInlineCombo(inpId, dropId, listFn){
   var inp=document.getElementById(inpId), drop=document.getElementById(dropId); if(!inp||!drop) return;
   var state={value:inp.value.trim(), isNew:false, confirmed:!!inp.value.trim()}; niCombos[inpId]=state;
@@ -2760,17 +2925,17 @@ function makeInlineCombo(inpId, dropId, listFn){
     var hasExact=items.some(function(c){return c.toLowerCase()===q.toLowerCase();});
     if(q && !hasExact) html+='<div class="opt cat-opt cat-create" data-new="'+esc(q)+'">\u2795 Create new: \u201c'+esc(q)+'\u201d</div>';
     if(!html) html='<div class="opt muted">Type to search\u2026</div>';
-    drop.innerHTML=html; drop.style.display='block';
+    drop.innerHTML=html; drop.style.display='block'; anchorDrop(drop);   // v59 item 2: escape the modal-body clip
     drop.querySelectorAll('.cat-opt').forEach(function(o){ o.addEventListener('mousedown',function(e){e.preventDefault();
       var dn=o.getAttribute('data-new');
       if(dn!==null){ inp.value=dn; state.value=dn; state.isNew=true; state.confirmed=true; }
       else { var v=o.getAttribute('data-v'); inp.value=v; state.value=v; state.isNew=false; state.confirmed=true; }
-      drop.style.display='none';
+      drop.style.display='none'; resetDrop(drop);
     }); });
   }
   inp.addEventListener('input',function(){ state.confirmed=false; state.isNew=false; state.value=inp.value.trim(); render(); });
   inp.addEventListener('focus',render);
-  inp.addEventListener('blur',function(){ setTimeout(function(){ drop.style.display='none'; },150); });
+  inp.addEventListener('blur',function(){ setTimeout(function(){ drop.style.display='none'; resetDrop(drop); },150); });
 }
 function resolveCombo(inpId, listFn){
   var inp=document.getElementById(inpId), st=niCombos[inpId]||{}; var v=(inp?inp.value.trim():'');
@@ -3283,7 +3448,9 @@ function renderAnalysis(){
   var tb=document.getElementById('aBody'); if(!tb) return;
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+cogsPct+'%)';
   var qEl=document.getElementById('menuSearch'); var q=(qEl?qEl.value:'').trim().toLowerCase();
-  function hit(nm,sec){ if(!q) return true; return (String(nm||'').toLowerCase().indexOf(q)>=0)||(String(sec||'').toLowerCase().indexOf(q)>=0); }
+  var toks=searchTokens(q);   // v59: shared token matcher
+  var catSel=(document.getElementById('menuCatFilter')||{}).value||'';   // v59: category filter = dish section
+  function hit(nm,sec){ if(!toks.length) return true; return matchTokens(toks,(String(nm||'')+' '+String(sec||'')).toLowerCase()); }
   var shown=0;
   var inMenu=function(m){ return (m.menuId||'MENU_ORIGINAL')===currentMenuId; };   // only show dishes belonging to the selected menu
   var secOf=function(m){var s=(m.section||'').trim(); return s?s:'Uncategorised';};
@@ -3293,9 +3460,12 @@ function renderAnalysis(){
     if(au&&!bu)return 1; if(bu&&!au)return -1;                 // Uncategorised always last
     return a.toLowerCase().localeCompare(b.toLowerCase());      // categories A–Z
   });
+  fillFilter(document.getElementById('menuCatFilter'), sections, 'All categories');   // v59: options = this menu's dish sections
+  var mcf=document.getElementById('menuClearFilters'); if(mcf) mcf.style.display=(q||catSel)?'':'none';
   var byName=function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());};
   var html='';
   sections.forEach(function(sec){
+    if(catSel && sec!==catSel) return;   // v59: category filter narrows to one section
     var items=MENU.filter(function(m){return inMenu(m) && secOf(m)===sec && hit(m.name,sec);}).slice().sort(byName);
     if(!items.length) return;
     html+='<tr class="sec"><td colspan="6">'+esc(sec)+'</td></tr>';

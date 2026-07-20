@@ -457,11 +457,7 @@ input[type=checkbox]{
    Mobile-first: rows are cards with generated labels. From 700px up the
    same markup renders as a clean table. No JS changes required.
    ---------------------------------------------------------------------- */
-.akey{
-  display:flex;gap:6px var(--sp-3);flex-wrap:wrap;font-size:var(--fs-xs);font-weight:600;
-  color:var(--muted2);padding:var(--sp-3) var(--sp-5) 0;
-}
-.akey span{display:flex;align-items:center;background:none;border:0;padding:0;margin-right:var(--sp-2)}   /* v36: the key matches the lights — dots, not pills */
+/* v59: the .akey traffic-light legend was removed (Max) — the row dots (.dot below) stay. */
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:7px;flex:0 0 auto}
 .dot.green{background:var(--good)} .dot.amber{background:var(--warn)}
 .dot.red{background:var(--bad)}   .dot.none{background:var(--border2)}
@@ -874,7 +870,6 @@ input[type=checkbox]{
   .grid{grid-template-columns:1fr}
   .line,.total,.docket-head,.flag{padding-left:var(--sp-4);padding-right:var(--sp-4)}
   .actions{padding:var(--sp-3) var(--sp-4) var(--sp-4)}
-  .akey{padding:var(--sp-3) var(--sp-4) 0}
   .atable-wrap{padding:var(--sp-2) var(--sp-2) var(--sp-3)}
   .line .top{flex-wrap:wrap}
   .qtybox{order:3}
@@ -1813,6 +1808,9 @@ body{overflow-x:clip}
 .king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* v59 item 6a: derived-category chip on the ingredient card + read-only value in the edit modal */
+.king-cat{align-self:flex-start;font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:1px 7px}
+.king-cat-read{font-weight:600;color:var(--text);padding:2px 0}
 /* .king-acts removed v44 item 6b — the card itself opens Edit; Remove moved into the modal */
 .king-row .linklike{flex:0 0 auto}
 .king-empty{padding:var(--sp-4) var(--sp-5);color:var(--muted2);font-size:var(--fs-sm)}
@@ -1953,6 +1951,18 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    ========================================================================== */
 .settings-panel{max-width:560px}
 .set-group{padding:0 0 var(--sp-5);margin-bottom:var(--sp-5);border-bottom:1px solid var(--border)}
+/* v59 item 6b: Tidy lists */
+.tidy-values{margin-top:var(--sp-3);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.tidy-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--border)}
+.tidy-row:first-child{border-top:0}
+.tidy-val{font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tidy-count{font-size:var(--fs-xs);color:var(--muted2);flex:0 0 auto;white-space:nowrap}
+.tidy-acts{display:flex;gap:12px;flex:0 0 auto}
+.tidy-acts .linklike{font-size:13px}
+.tidy-acts .tidy-clear{color:var(--bad)}
+.tidy-empty{margin:var(--sp-3) 0 0}
+.tidy-warn{margin:6px 0 0;color:var(--text2);font-size:var(--fs-sm);line-height:1.5}
+@media (max-width:560px){ .tidy-row{flex-wrap:wrap} .tidy-acts{flex-basis:100%;justify-content:flex-end} }
 .set-group:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
 .set-group h4{margin:0 0 var(--sp-3);font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2)}
 .set-group .hint{font-weight:400;margin:6px 0 0}
@@ -2233,7 +2243,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .an-controls .menu-search{flex:1 1 220px}
 }
 .cogs-meta{font-size:var(--fs-xs)}
-.akey{padding:0}   /* v52: the key carries .panel-meta now — the shared meta margins/collapse own its edge */
 
 /* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
 .atable tbody tr.mi-row{cursor:pointer;transition:border-color .15s}
