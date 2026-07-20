@@ -1638,6 +1638,8 @@ svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 /* ===== batch 3 / design pass (v24) ===== */
 /* item 2+dark: axis labels live in their own gutter; halo + colour from tokens (both themes) */
 svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
+/* v60 item 1b: the target's edge annotation, shown when the target falls outside the data-fit domain */
+svg .tc-target-edge{font-size:10px;fill:var(--muted2);font-weight:600}
 /* item 3: instant tooltip, larger touch targets, no gesture lag */
 .tp-tip{transition:none;background:var(--text);color:var(--bg)}
 .tp-tip::after{border-top-color:var(--text)}

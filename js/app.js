@@ -643,6 +643,7 @@ function saveCurrentPlate(asNew){
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   savePlatesLS(); dbPushPlate(sp); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   return true;
 }
 // v54: the builder's one primary action. Save writes the plate to the library (menu link unchanged) and,
@@ -830,14 +831,24 @@ function computeAvgFoodCost(){
   return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
 }
 function logHistory(){
-  var v=computeAvgFoodCost(); if(v==null) return;
-  v=Math.round(v*10)/10;
-  var iso=new Date().toISOString();
-  var last=priceHistory[priceHistory.length-1];
-  if(last && Math.abs(last.v-v)<0.05 && (Date.now()-new Date(last.t).getTime())<3600000) return;  // skip near-duplicate within the hour
-  priceHistory.push({t:iso, v:v});
-  if(priceHistory.length>500) priceHistory=priceHistory.slice(-500);
-  saveHistory(); dbPushHistory(iso, v);
+  // v60 item 1a (LIVENESS): a data-changing event (price edit, invoice apply, plate save) must ALWAYS
+  // refresh a visible dashboard — the header "% today" and stat cards are computed live in renderDashboard,
+  // so the fix is simply to re-render. Logging a NEW trend point is separate and still deduped: two edits a
+  // minute apart shouldn't stipple the line, but the today figure must still move. So the dedup guards only
+  // the point push, NOT the re-render (the old code returned before re-rendering on a deduped change — that
+  // was the staleness bug). Cheapest correct mechanism, no polling.
+  var v=computeAvgFoodCost();
+  if(v!=null){
+    v=Math.round(v*10)/10;
+    var iso=new Date().toISOString();
+    var last=priceHistory[priceHistory.length-1];
+    var dup = last && Math.abs(last.v-v)<0.05 && (Date.now()-new Date(last.t).getTime())<3600000;  // near-duplicate within the hour
+    if(!dup){
+      priceHistory.push({t:iso, v:v});
+      if(priceHistory.length>500) priceHistory=priceHistory.slice(-500);
+      saveHistory(); dbPushHistory(iso, v);
+    }
+  }
   var dash=document.getElementById('tab-dashboard');
   if(dash && dash.style.display!=='none') renderDashboard();
 }
@@ -1581,6 +1592,28 @@ function tcTicks(target,mn,mx){                                  // v48: 3\u2013
   }
   return out;
 }
+/* v60 item 1b (ZOOM): the y-domain now fits the DATA, not the target. Margins move 1-2 pts at a time;
+   a domain stretched to always reach a distant target flattened that movement into noise. niceStep/niceTicks
+   generate 3-4 round ticks over the data extent WITHOUT anchoring on the target, so the visible band is only
+   as tall as the readings need. The target line is drawn only when it falls inside the domain (or within one
+   tick of it), and THEN tcTicks' "target sits on a labelled tick" rule still governs (see trendChart); when
+   the target is far away it becomes a small edge annotation instead of dragging the whole axis to meet it.
+   This SUPERSEDES v48's always-include-target domain rule (tcTicks itself is unchanged). */
+var TICK_STEPS=[1,2,5,10,20,50];
+function niceStep(raw){ for(var i=0;i<TICK_STEPS.length;i++){ if(TICK_STEPS[i]>=raw) return TICK_STEPS[i]; } return TICK_STEPS[TICK_STEPS.length-1]; }
+function niceTicks(mn,mx){                                        // 3-4 round ticks covering [mn,mx], not anchored on any value
+  var si=TICK_STEPS.indexOf(niceStep((mx-mn)/3));
+  var build=function(step){ var lo=Math.floor(mn/step)*step; if(lo<0) lo=0; var hi=Math.ceil(mx/step)*step;
+    var out=[]; for(var v=lo; v<=hi+1e-9; v+=step) out.push(+v.toFixed(1)); return out; };
+  var out=build(TICK_STEPS[si]);
+  while(out.length>4 && si<TICK_STEPS.length-1){ si++; out=build(TICK_STEPS[si]); }   // widen the step until 4 or fewer labels
+  while(out.length<3){                                            // step bigger than the whole span: pad outward
+    var st=TICK_STEPS[si], lo2=out[0], hi2=out[out.length-1];
+    if(lo2-st>=0) out.unshift(+(lo2-st).toFixed(1)); else out.push(+(hi2+st).toFixed(1));
+  }
+  return out;
+}
+function targetInView(target,dmn,dmx,step){ return target>=dmn-step && target<=dmx+step; }   // shown when inside, or within one tick
 var TREND_GEO=null;   // geometry handoff trendChart -> wireTrendScrub (same render pass; null when the chart is empty)
 var AX_CHW=0;         // measured advance of one glyph of the 11px mono axis font (mono: all glyphs equal) — cached once
 function axCharW(){
@@ -1615,19 +1648,22 @@ function trendChart(){
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
       +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
   }
-  var vals=pts.map(function(p){return p.v;}).concat([cogsPct]);
-  var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
-  /* v48: the DOMAIN derives from the ticks, not the other way round (replaces v45's proportional
-     28% padding — that made the target line's rendered y jump ~50px between adjacent ranges,
-     the "framing shifts" half of Max's report). Ticks are anchored on the target (see tcTicks),
-     the domain is the tick extent plus half a step each side — so headroom is consistent in
-     tick units and similar ranges can't jitter. The domain still adapts to the data (a 1W view
-     must not be squashed flat); it is stable, not fixed. */
-  var span=mx-mn;
-  if(span<4){ var midY=(mn+mx)/2; mn=midY-2; mx=midY+2; }
-  var ticks=tcTicks(cogsPct,mn,mx);
+  /* v60 item 1b: the DOMAIN fits the DATA (target excluded), so small margin moves read as movement.
+     A minimum span (~5 pts, centred) stops a flat window from magnifying 0.x-pt noise. Ticks derive from
+     the domain: when the target is in view we keep v48's target-on-a-tick generator (extended to cover
+     both data and target); when it's far away we use plain round ticks over the data and annotate the
+     target at the edge instead of stretching the axis to reach it. Domain = tick extent ± half a step,
+     so headroom stays consistent in tick units and similar ranges can't jitter. */
+  var dvals=pts.map(function(p){return p.v;});
+  var dmn=Math.min.apply(null,dvals), dmx=Math.max.apply(null,dvals);
+  var span=dmx-dmn;
+  if(span<5){ var midY=(dmn+dmx)/2; dmn=midY-2.5; dmx=midY+2.5; }   // minimum ~5-pt window
+  if(dmn<0) dmn=0;
+  var probeStep=niceStep((dmx-dmn)/3);
+  var targetShown=targetInView(cogsPct, dmn, dmx, probeStep);
+  var ticks = targetShown ? tcTicks(cogsPct, Math.min(dmn,cogsPct), Math.max(dmx,cogsPct)) : niceTicks(dmn, dmx);
   var step=ticks.length>1?ticks[1]-ticks[0]:5;
-  mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
+  var mn=Math.max(0,ticks[0]-step/2), mx=ticks[ticks.length-1]+step/2;
   var fmtTick=function(v){ return (v%1?v.toFixed(1):v.toFixed(0))+'%'; };
   // v52: the label gutter — sized to the widest tick label so a wide label ("32.5%" from a
   // decimal target) widens the gutter instead of clipping at the svg edge (the v48 bug)
@@ -1642,7 +1678,17 @@ function trendChart(){
   var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
   var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
   var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
-  var refY=y(cogsPct).toFixed(1);
+  // v60 item 1b: the dashed target rule renders only when the target is inside the domain; otherwise a
+  // small edge annotation ("target 30% ↑/↓") tells the user which way it lies without warping the axis.
+  var refLine='', edgeAnno='';
+  if(targetShown){
+    var refY=y(cogsPct).toFixed(1);
+    refLine='<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
+  } else {
+    var above=cogsPct>mx;                                          // target above the visible band -> annotate at top, arrow up
+    var ay=above?(padT+9):(H-padB-4), arrow=above?'↑':'↓';
+    edgeAnno='<text class="ax tc-target-edge" x="'+(W-padR)+'" y="'+ay+'" text-anchor="end">target '+fmtTick(cogsPct)+' '+arrow+'</text>';
+  }
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
   // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
@@ -1661,10 +1707,11 @@ function trendChart(){
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'
-    +'<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>'
+    +refLine   // v60 item 1b: present only when the target is inside the domain
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +edgeAnno   // v60 item 1b: the target's edge annotation when it lies outside the domain
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
     +'</svg>';

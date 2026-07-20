@@ -91,6 +91,7 @@ function makeSaveHarness(opts) {
     function renderAnalysis(){}
     function renderPlatesTab(){}
     function dbPushPlate(sp){ S.calls.push('push:'+sp.id); }
+    function logHistory(){}   // v60 item 1a: saveCurrentPlate now refreshes the dashboard on re-cost
     ${extractFn(SRC, 'saveCurrentPlate')}
     return function(){ saveCurrentPlate(false); return { savedPlates: savedPlates }; };
   `);
