@@ -29,7 +29,8 @@ function makeSearch(kitchen, byId) {
   const factory = new Function('KI', 'BYID', `
     "use strict";
     var kitchenIngredients = KI, byId = BYID;
-    ${extractFn(SRC, 'subseq')}
+    ${extractFn(SRC, 'searchTokens')}
+    ${extractFn(SRC, 'matchTokens')}
     ${extractFn(SRC, 'kingSearchFilter')}
     ${extractFn(SRC, 'kitchenSearchMatches')}
     return kitchenSearchMatches;
@@ -63,4 +64,11 @@ test('v55 §G: the kitchen word name still matches', () => {
 test('v55 §G: a term in NEITHER name nor product text does not match (correct)', () => {
   const search = makeSearch(KITCHEN, BYID);
   assert.deepStrictEqual(search('zzznope').map(x => x.id), [], 'no phantom matches');
+});
+
+test('v59: token-order-independent — "gf bread" and "bread gf" both find Bread', () => {
+  const search = makeSearch(KITCHEN, BYID);
+  assert.deepStrictEqual(search('gf bread').map(x => x.id), ['K1']);
+  assert.deepStrictEqual(search('bread gf').map(x => x.id), ['K1'], 'reversed order still matches');
+  assert.deepStrictEqual(search('bread safries').map(x => x.id), [], 'a token that matches no single item fails');
 });

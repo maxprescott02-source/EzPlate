@@ -5,7 +5,7 @@
  * product, and staff think in BOTH. "Chips" is the word; "Safries" is what's on
  * the invoice. Searching either has to land on the same row.
  *
- * kingSearchFilter + subseq are brace-extracted from the REAL shipped js/app.js.
+ * kingSearchFilter + the shared token matcher are brace-extracted from the REAL shipped js/app.js.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -26,18 +26,20 @@ function extractFn(src, name) {
 }
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+// v59: kingSearchFilter routes through the shared token matcher (searchTokens/matchTokens).
 // eslint-disable-next-line no-new-func
 const kingSearchFilter = new Function(`
   "use strict";
-  ${extractFn(SRC, 'subseq')}
+  ${extractFn(SRC, 'searchTokens')}
+  ${extractFn(SRC, 'matchTokens')}
   ${extractFn(SRC, 'kingSearchFilter')}
   return kingSearchFilter;
 `)();
 
 const PRODS = {
-  P0108: { id: 'P0108', description: 'Chips 10Mm Straight Cut', brand: 'Safries' },
-  P0010: { id: 'P0010', description: 'Barramundi Flt 100/200 S/Less', brand: 'Seacrest' },
-  P0298: { id: 'P0298', description: 'Sauce Tartare Pouch Gluten Free', brand: 'Edlyn' }
+  P0108: { id: 'P0108', description: 'Chips 10Mm Straight Cut', brand: 'Safries', category: 'Frozen' },
+  P0010: { id: 'P0010', description: 'Barramundi Flt 100/200 S/Less', brand: 'Seacrest', category: 'Seafood' },
+  P0298: { id: 'P0298', description: 'Sauce Tartare Pouch Gluten Free', brand: 'Edlyn', category: 'Sauces' }
 };
 const WORDS = [
   { id: 'K0001', name: 'Chips', pid: 'P0108' },
@@ -68,9 +70,16 @@ test('ITEM 3: matches the LINKED PRODUCT\u2019s description and brand \u2014 sea
   assert.deepEqual(names(kingSearchFilter('pouch', WORDS, PRODS)), ['Tartare']);
 });
 
-test('ITEM 3: the Builder\u2019s subseq fallback applies to the word name, so a typo still lands', () => {
-  assert.deepEqual(names(kingSearchFilter('chps', WORDS, PRODS)), ['Chips']);
-  assert.deepEqual(names(kingSearchFilter('trtr', WORDS, PRODS)), ['Tartare']);
+test('v59: token order does not matter \u2014 every token must appear, in any order', () => {
+  assert.deepEqual(names(kingSearchFilter('gluten free', WORDS, PRODS)), ['Tartare']);
+  assert.deepEqual(names(kingSearchFilter('free gluten', WORDS, PRODS)), ['Tartare'], 'reversed order still matches');
+  assert.deepEqual(names(kingSearchFilter('glut fr', WORDS, PRODS)), ['Tartare'], 'partial tokens (substring) match');
+  assert.deepEqual(names(kingSearchFilter('gluten chips', WORDS, PRODS)), [], 'a token absent from the haystack fails the whole query');
+});
+
+test('v59: ingredients match by their DERIVED category (the linked product\u2019s category)', () => {
+  assert.deepEqual(names(kingSearchFilter('sauces', WORDS, PRODS)), ['Tartare'], 'category of the linked product');
+  assert.deepEqual(names(kingSearchFilter('seafood barramundi', WORDS, PRODS)), ['Fish'], 'category token + description token');
 });
 
 test('ITEM 3: a query matching nothing returns nothing (the caller shows \u201cNo ingredients match\u201d)', () => {

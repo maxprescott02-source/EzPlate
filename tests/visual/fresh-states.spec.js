@@ -871,8 +871,8 @@ for (const size of SIZES) {
       const L = s => document.querySelector(s).getBoundingClientRect().left;
       const T = s => document.querySelector(s).getBoundingClientRect().top;
       return {
-        order: [T('.an-head'), T('.an-controls'), T('.cogs-meta'), T('.akey'), T('.atable-wrap')],
-        edges: [L('.an-head .btn'), L('#menuSelect'), L('.cogs-meta'), L('.akey')],
+        order: [T('.an-head'), T('.an-controls'), T('.cogs-meta'), T('.atable-wrap')],   // v59: .akey (traffic-light key) removed
+        edges: [L('.an-head .btn'), L('#menuSelect'), L('.cogs-meta')],
         target: document.querySelector('.cogs-meta').textContent,
         link: !!document.querySelector('.cogs-meta #cogsToSettings'),
         val: document.getElementById('cogsTargetRead').textContent,
