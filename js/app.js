@@ -960,9 +960,11 @@ function clearIngredientFilters(){ var el=document.getElementById('kingSearch');
 function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
 function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
+var TIDY_DOOR='__tidy__';   // v60 item 8: sentinel option value = "open the Tidy modal scoped to this field"
 function fillFilter(sel, list, label){
   if(!sel) return; var cur=sel.value;
   var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+  if(sel.dataset && sel.dataset.tidyField) html+='<option value="'+TIDY_DOOR+'">✎ Manage list…</option>';   // one door per category/supplier filter
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
 function renderIngredients(){
@@ -1880,10 +1882,18 @@ function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
-  renderTidyValues();                                                // v59 item 6b
   show('settingsPanel');
 }
 function closeSettings(){ hide('settingsPanel'); }
+// v60 item 8: Tidy lists is a modal now (not an inline Settings section) so Settings stays short.
+// One modal, multiple doors: the Settings row opens it on Category; a filter's "Manage list…" door
+// opens it pre-scoped to that field. renderTidyValues reads the #tidyField select, so we set it first.
+function openTidyManage(field){
+  var sel=document.getElementById('tidyField'); if(sel && field) sel.value=field;
+  renderTidyValues();
+  show('tidyManageModal');
+}
+function closeTidyManage(){ hide('tidyManageModal'); }
 
 /* ===== v59 item 6b: Tidy lists UI (Settings) — the Settings surface for the v40 pure core =====
    Category spans products + plate categories; Brand/Supplier are product-only. Every action goes
@@ -2041,12 +2051,30 @@ function clearCacheAndRefresh(){
   if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
-  // v59 item 6b: Tidy lists wiring
+  // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
+  on('setTidyOpen',function(){ closeSettings(); openTidyManage('category'); });   // Settings' single door
+  on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
+  var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
   var tm=document.getElementById('tidyModal'); if(tm) tm.addEventListener('click',function(ev){ if(ev.target===tm) hide('tidyModal'); });
   var tms=document.getElementById('tidyMergeSelect'); if(tms) tms.addEventListener('change',updateTidyWarn);   // refresh the blast-radius line
   var tri=document.getElementById('tidyRenameInput'); if(tri) tri.addEventListener('input',updateTidyWarn);
+  // v60 item 8: the "Manage list…" door on each category/supplier filter (data-tidy-field). Handled at the
+  // DOCUMENT level in the CAPTURE phase so it runs BEFORE the filter's own change→render listener — that
+  // listener rebuilds the <select> (fillFilter), which would clear the sentinel selection before a
+  // per-element handler ever saw it. stopPropagation keeps the render from treating the door as a value;
+  // we restore the previous value (recorded on focusin) and open the manager pre-scoped.
+  document.addEventListener('focusin',function(ev){
+    var s=ev.target; if(s&&s.matches&&s.matches('select[data-tidy-field]')&&s.value!==TIDY_DOOR) s.dataset.prevVal=s.value;
+  });
+  document.addEventListener('change',function(ev){
+    var s=ev.target; if(!s||!s.matches||!s.matches('select[data-tidy-field]')) return;
+    if(s.value!==TIDY_DOOR) return;
+    ev.stopPropagation();
+    s.value=s.dataset.prevVal||'';
+    openTidyManage(s.dataset.tidyField||'category');
+  }, true);
 })();
 syncCogsRead();
 

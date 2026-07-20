@@ -73,7 +73,7 @@
           <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
           <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
-        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
         <button class="btn ghost ing-clear-filters" id="plateClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <div id="plateList" class="ing-list"></div>
@@ -103,7 +103,7 @@
             <input id="menuSearch" type="search" placeholder="Search menu items…" autocomplete="off">
             <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
           </div>
-          <select id="menuCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+          <select id="menuCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
           <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
         </div>
       </div>
@@ -135,7 +135,7 @@
           <input id="kingSearch" type="search" placeholder="Search ingredients…" autocomplete="off">
           <button id="kingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
-        <select id="kingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
+        <select id="kingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
         <button class="btn ghost ing-clear-filters" id="kingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <div id="kingWiz" style="display:none"></div>
@@ -156,8 +156,8 @@
           <input id="ingSearch" type="search" placeholder="Search products…" autocomplete="off">
           <button id="ingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
         </div>
-        <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category"></select>
-        <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier"></select>
+        <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
+        <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select>
         <button class="btn ghost ing-clear-filters" id="ingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <p class="hint ing-count panel-meta" id="ingCount"></p>
@@ -523,16 +523,10 @@
 
       <div class="set-group">
         <h4>Tidy lists</h4>
-        <p class="hint">Rename, merge or clear the categories, brands and suppliers on your products — and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
-        <div class="field">
-          <label for="tidyField">List to tidy</label>
-          <select id="tidyField">
-            <option value="category">Category</option>
-            <option value="brand">Brand</option>
-            <option value="supplier">Supplier</option>
-          </select>
+        <div class="set-row">
+          <button class="btn" id="setTidyOpen" type="button">Tidy lists — categories, brands, suppliers →</button>
+          <span class="hint">Rename, merge or clear your product categories, brands, suppliers and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</span>
         </div>
-        <div id="tidyValues" class="tidy-values"></div>
       </div>
 
       <div class="set-group set-about">
@@ -545,6 +539,28 @@
 
     </div>
     <div class="mfoot"><button class="btn primary" id="settingsDone" type="button">Done</button></div>
+  </div>
+</div>
+
+<!-- v60 item 8: Tidy-lists MANAGER modal — the field picker + values list moved out of Settings so
+     Settings stays short. Opened from the Settings row AND from each category/supplier filter's
+     "Manage list…" door (pre-scoped). Per-row Rename/Merge/Clear still open the confirm modal below. -->
+<div class="modal-overlay" id="tidyManageModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tidyManageTitle">
+    <div class="mhead"><h3 id="tidyManageTitle">Tidy lists</h3><button class="x" id="tidyManageClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p class="hint">Rename, merge or clear the categories, brands and suppliers on your products — and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
+      <div class="field">
+        <label for="tidyField">List to tidy</label>
+        <select id="tidyField">
+          <option value="category">Category</option>
+          <option value="brand">Brand</option>
+          <option value="supplier">Supplier</option>
+        </select>
+      </div>
+      <div id="tidyValues" class="tidy-values"></div>
+    </div>
+    <div class="mfoot"><button class="btn primary" id="tidyManageDone" type="button">Done</button></div>
   </div>
 </div>
 
