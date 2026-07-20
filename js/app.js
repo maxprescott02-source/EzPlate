@@ -180,7 +180,7 @@ rebuild();
 
 function unitNoun(p){return p.base_unit==='g'?'g':p.base_unit==='ml'?'ml':p.base_unit==='ea'?'unit':'';}
 function displayUnitWord(p){return p.base_unit==='g'?'kg':p.base_unit==='ml'?'L':'unit';}
-function defaultQty(p){return p.base_unit==='ea'?1:100;}
+function defaultQty(p){return 0;}   // v60 item 4 (Max): new lines start at 0 (grams AND units) — a deliberate entry; line total reads $0.00 until set
 function cpbu(p){return p.cost_per_base_unit;}
 function perDisplayValue(p){const c=cpbu(p);if(c==null)return null;return (p.base_unit==='g'||p.base_unit==='ml')?c*1000:c;}
 function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
@@ -312,7 +312,7 @@ function alternatives(p){
 let plate=[], uidc=1;
 const linesEl=document.getElementById('lines');
 function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* legacy: no builder UI path in v31 (builder is ingredients-only); retained for programmatic use */
-function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):100});qEl.value='';closeDrop();renderPlate();qEl.focus();}
+function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):0});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60 item 4: qty starts at 0 */
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
 function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}   /* legacy: alternatives moved to the ingredient popup in v31 */
 function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;l.qty=Math.max(0,parseFloat(v)||0);updateLine(uid);updateTotals();}
