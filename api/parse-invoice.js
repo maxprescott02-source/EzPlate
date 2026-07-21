@@ -181,8 +181,11 @@ module.exports = async function handler(req, res) {
     // uses it. Reports the resolved model and whether a key is configured, never
     // the key itself.
     if (req.method === 'GET') {
+      // The probe makes REAL (billed, rate-limited) Gemini calls with no auth, so it must NOT be open
+      // on public production. Off by default; set env GEMINI_DEBUG=1 (e.g. only on the preview) to use it.
       if (req.query && (req.query.probe === '1' || req.query.probe === 'true')) {
-        return sendJson(res, 200, await probeGemini(req.query.text));
+        if (process.env.GEMINI_DEBUG === '1') return sendJson(res, 200, await probeGemini(req.query.text));
+        return sendJson(res, 404, { error: 'not-found' });
       }
       if (req.query && (req.query.health === '1' || req.query.health === 'true')) {
         return sendJson(res, 200, { ok: true, model: model(), keyPresent: !!process.env.GEMINI_API_KEY });
