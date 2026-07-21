@@ -106,11 +106,23 @@ async function callGemini(text) {
  * call comes back "unavailable" (bad model / unauthorized key / API not enabled / rate limit /
  * rejected schema) without leaking the key. Remove or gate before EzPlate is multi-tenant.
  */
-async function probeGemini() {
+var PROBE_SAMPLE = [
+  'ACME FOODS PTY LTD    Tax Invoice 12345',
+  'Chips Straight Cut 6x2.5kg      59.94',
+  'Canola Oil 20L                  48.00',
+  'Chicken Breast Skinless 5kg     42.50',
+  'Subtotal                       150.44',
+  'GST                             15.04',
+  'Total                          165.48'
+].join('\n');
+
+async function probeGemini(sampleText) {
   var key = process.env.GEMINI_API_KEY;
   var out = { model: model(), keyPresent: !!key };
   if (!key) { out.probe = 'no-key'; return out; }
   var base = 'https://generativelanguage.googleapis.com/v1beta';
+  var sample = (typeof sampleText === 'string' && sampleText.trim()) ? sampleText : PROBE_SAMPLE;
+  out.sampleUsed = sample.slice(0, 200);
   // 1) which models can this key actually use for generateContent?
   try {
     var lr = await fetch(base + '/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
@@ -123,19 +135,28 @@ async function probeGemini() {
       error: (lj && lj.error) ? String(lj.error.message || '').slice(0, 300) : undefined
     };
   } catch (e) { out.listModels = { error: 'fetch-failed: ' + (e && e.message) }; }
-  // 2) actually try the configured model on a trivial invoice and report the raw result
+  // 2) RAW generateContent on the realistic sample — the exact text the model emits
   try {
     var gr = await fetch(base + '/models/' + encodeURIComponent(model()) + ':generateContent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: G.buildPrompt('Widget Deluxe 1kg  $5.00') }] }],
+        contents: [{ role: 'user', parts: [{ text: G.buildPrompt(sample) }] }],
         generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema() }
       })
     });
     var gt = ''; try { gt = await gr.text(); } catch (e) {}
-    out.generate = { httpStatus: gr.status, ok: gr.ok, bodySnippet: gt.slice(0, 700) };
+    // pull the model's text out of the candidates envelope, exactly like callGemini does
+    var extracted = '';
+    try {
+      var gj = JSON.parse(gt);
+      var parts = gj && gj.candidates && gj.candidates[0] && gj.candidates[0].content && gj.candidates[0].content.parts;
+      if (Array.isArray(parts)) extracted = parts.map(function (p) { return (p && p.text) || ''; }).join('');
+    } catch (e) {}
+    out.generate = { httpStatus: gr.status, ok: gr.ok, extractedText: extracted.slice(0, 800), bodySnippet: extracted ? undefined : gt.slice(0, 500) };
   } catch (e) { out.generate = { error: 'fetch-failed: ' + (e && e.message) }; }
+  // 3) the FULL client pipeline result on the same sample — what the browser would actually receive
+  try { out.pipeline = await callGemini(sample); } catch (e) { out.pipeline = { status: 'unavailable', reason: 'probe-exception' }; }
   return out;
 }
 
@@ -146,7 +167,7 @@ module.exports = async function handler(req, res) {
     // the key itself.
     if (req.method === 'GET') {
       if (req.query && (req.query.probe === '1' || req.query.probe === 'true')) {
-        return sendJson(res, 200, await probeGemini());
+        return sendJson(res, 200, await probeGemini(req.query.text));
       }
       if (req.query && (req.query.health === '1' || req.query.health === 'true')) {
         return sendJson(res, 200, { ok: true, model: model(), keyPresent: !!process.env.GEMINI_API_KEY });
