@@ -53,6 +53,10 @@ function build() {
   const gemMerge = extractFn(src, 'gemMergeLine');
   const gemCanon = extractFn(src, 'gemCanon');
   const gemPackEq = extractFn(src, 'gemPackEq');
+  // v63: the PURE suspected-wrong-match decision and the deterministic insight engine — both
+  // dependency-free (aiCands/histories/dishes are passed in as primitives), so testable with no DOM.
+  const gemMatchSuspect = extractFn(src, 'gemMatchSuspect');
+  const deriveInsights = extractFn(src, 'deriveInsights');
 
   // eslint-disable-next-line no-new-func
   const factory = new Function(`
@@ -64,7 +68,9 @@ function build() {
     ${gemCanon}
     ${gemPackEq}
     ${gemMerge}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq };
+    ${gemMatchSuspect}
+    ${deriveInsights}
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, deriveInsights };
   `);
   return factory();
 }

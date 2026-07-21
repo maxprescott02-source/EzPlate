@@ -336,7 +336,7 @@ ok('success shows "✓ AI checked"', /AI checked/.test(invSumText()));
 // (b) rule 4 via the applier: G disagrees, history can't arbitrate → adopt G, flagged + unticked + chip
 window.invRows = [matchedRow()]; window.gemApplied = false;
 window.gemApplyReadings({ status: 'ok', lines: [
-  { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'Chips', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 }
+  { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 }
 ] });
 ok('rule 4: G is adopted onto the row', window.invRows[0].unitPrice === 20 && window.invRows[0].aiSuggested === true);
 const r4 = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
@@ -376,7 +376,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('fire posts to /api/parse-invoice', pending.length === 1 && /\/api\/parse-invoice/.test(pending[0].url));
   window.gemToken++;   // a newer parse/openInv invalidates the in-flight request
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
-    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'Chips', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 } ] }) });
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
   ok('LATE-RESPONSE-DISCARDED: a stale token never alters the rows', window.invRows[0].unitPrice === 9.99);
 
@@ -385,7 +385,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
-    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'Chips', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
   ok('a current, agreeing response flips the note to checked with no row change', /AI checked/.test(invSumText()) && window.invRows[0].unitPrice === 2.63);
 
@@ -396,6 +396,56 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   pending[0].reject(new Error('network down'));
   await tick(); await tick();
   ok('a failed request degrades to "AI check unavailable" (no error modal)', /AI check unavailable/.test(invSumText()));
+
+  console.log('\n[16] v63 — status flicker guard, check-match row, Dashboard insights');
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  // (a) flicker guard: a fast/agreeing response must NOT flip the note before it can be read
+  pending = [];
+  window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false;
+  window.gemStatus = 'checking'; window.gemCheckStart = Date.now();   // exactly as parseInvoice stamps it
+  window.renderInvReview();                                            // paint the "checking" note first
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
+  await tick(); await tick();
+  ok('FLICKER GUARD: a fast result does NOT flip the note instantly — "checking" is still up', /AI double-checking/.test(invSumText()));
+  await wait(window.GEM_MIN_VISIBLE + 80);
+  ok('FLICKER GUARD: once the minimum-visible window passes, the note flips to checked', /AI checked/.test(invSumText()));
+
+  // (b) item 2 — a suspected wrong-match row renders unticked, flagged "check match", AI product ranked first
+  window.invRows = [{ name: 'MAPLE SYRUP 1L', raw: 'MAPLE SYRUP 1L', bestId: 'P0108', unitPrice: 12, unit: 'l', conf: 0.4, tier: 'mid',
+    gemMatchReview: true, gemSuggestId: 'P0107', cands: [{ id: 'P0107', coverage: 0.8, ai: true }, { id: 'P0108', coverage: 0.4 }],
+    addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null }];
+  window.renderInvReview();
+  const cm = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+  ok('check-match: the row is a review state (st-review)', cm.classList.contains('st-review'));
+  ok('check-match: the row is NOT auto-ticked (a human ticks the right product)', !cm.querySelector('.invAppr').checked);
+  ok('check-match: the "check match" flag pill shows (not "price change")', /check match/.test(cm.textContent) && !/price change/.test(cm.textContent));
+  ok('check-match: the AI-suggested product is the FIRST candidate chip and carries the AI marker',
+    !!cm.querySelector('.cand-chip') && cm.querySelector('.cand-chip').classList.contains('ai') && /AI/.test((cm.querySelector('.cc-ai') || {}).textContent || ''));
+
+  // (c) item 3 — the Dashboard "Suggestions" card renders templates, then a valid rephrasing swaps in
+  const stashCI = window.computeInsights;
+  window.computeInsights = () => ([
+    { kind: 'over', facts: { pts: 10, menuPrice: 15, targetPrice: 20, targetPct: 30 }, text: 'Barra & Chips is 10 pts over target — $15.00 → $20.00 gets you to ~30%.' },
+    { kind: 'count', facts: { over: 1, total: 3, targetPct: 30 }, text: '1 of 3 costed dishes sits over your 30% target.' }
+  ]);
+  pending = [];
+  let dashThrew = null; try { window.renderDashboard(); } catch (e) { dashThrew = e; }
+  ok('dashboard renders without throwing', !dashThrew, dashThrew && dashThrew.message);
+  const di = $('dashInsights');
+  ok('the "Suggestions" card renders when there are insights', !!di);
+  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.dash-insight-line').length === 2 && !di.querySelector('input,textarea'));
+  ok('the over-target template shows its computed numbers verbatim', di && /10 pts over target/.test(di.textContent) && /\$20\.00/.test(di.textContent));
+  ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
+  const ip = pending.find(p => /\/api\/insight/.test(p.url));
+  if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { text: 'Heads up — Barra & Chips runs 10 pts hot; nudging $15.00 to $20.00 lands you at ~30%.' },
+    { text: '1 of 3 costed dishes sits over your 30% target.' } ] }) });
+  await tick(); await tick();
+  ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
+  window.computeInsights = stashCI;
 
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
