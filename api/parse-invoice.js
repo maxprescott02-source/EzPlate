@@ -135,28 +135,42 @@ async function probeGemini(sampleText) {
       error: (lj && lj.error) ? String(lj.error.message || '').slice(0, 300) : undefined
     };
   } catch (e) { out.listModels = { error: 'fetch-failed: ' + (e && e.message) }; }
-  // 2) RAW generateContent on the realistic sample — the exact text the model emits
-  try {
-    var gr = await fetch(base + '/models/' + encodeURIComponent(model()) + ':generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: G.buildPrompt(sample) }] }],
-        generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema() }
-      })
-    });
-    var gt = ''; try { gt = await gr.text(); } catch (e) {}
-    // pull the model's text out of the candidates envelope, exactly like callGemini does
-    var extracted = '';
+  // 2) Try several generation configs on the SAME sample and report which one actually returns
+  //    line items. gemini-3.x flash is a thinking model; the leading theory is that thinking +
+  //    responseSchema makes it emit a partial object. thinkingBudget:0 and a required-lines schema
+  //    are the candidate fixes. Each attempt is independent (a 400 on one doesn't stop the rest).
+  var strict = G.responseSchema();
+  try { strict.required = ['lines']; strict.properties.lines.items.required = ['rawText', 'derivedUnitPrice']; } catch (e) {}
+  var attempts = [
+    { name: 'A_schema_think', gen: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema() } },
+    { name: 'B_schema_nothink', gen: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema(), thinkingConfig: { thinkingBudget: 0 } } },
+    { name: 'C_strictschema_nothink', gen: { temperature: 0, responseMimeType: 'application/json', responseSchema: strict, thinkingConfig: { thinkingBudget: 0 } } },
+    { name: 'D_jsononly_nothink', gen: { temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } } }
+  ];
+  out.attempts = [];
+  for (var ai = 0; ai < attempts.length; ai++) {
+    var cfg = attempts[ai], r = { name: cfg.name };
     try {
-      var gj = JSON.parse(gt);
-      var parts = gj && gj.candidates && gj.candidates[0] && gj.candidates[0].content && gj.candidates[0].content.parts;
-      if (Array.isArray(parts)) extracted = parts.map(function (p) { return (p && p.text) || ''; }).join('');
-    } catch (e) {}
-    out.generate = { httpStatus: gr.status, ok: gr.ok, extractedText: extracted.slice(0, 800), bodySnippet: extracted ? undefined : gt.slice(0, 500) };
-  } catch (e) { out.generate = { error: 'fetch-failed: ' + (e && e.message) }; }
-  // 3) the FULL client pipeline result on the same sample — what the browser would actually receive
-  try { out.pipeline = await callGemini(sample); } catch (e) { out.pipeline = { status: 'unavailable', reason: 'probe-exception' }; }
+      var gr = await fetch(base + '/models/' + encodeURIComponent(model()) + ':generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: G.buildPrompt(sample) }] }], generationConfig: cfg.gen })
+      });
+      var gt = ''; try { gt = await gr.text(); } catch (e) {}
+      var extracted = '';
+      try {
+        var gj = JSON.parse(gt);
+        var parts = gj && gj.candidates && gj.candidates[0] && gj.candidates[0].content && gj.candidates[0].content.parts;
+        if (Array.isArray(parts)) extracted = parts.map(function (p) { return (p && p.text) || ''; }).join('');
+      } catch (e) {}
+      r.httpStatus = gr.status; r.ok = gr.ok;
+      var validated = extracted ? G.validatePayload(extracted) : { status: 'unavailable', reason: 'empty' };
+      r.lineCount = (validated.status === 'ok' && Array.isArray(validated.lines)) ? validated.lines.length : 0;
+      r.pipelineStatus = validated.status; r.reason = validated.reason;
+      r.textSnippet = (extracted || gt).slice(0, 300);
+    } catch (e) { r.error = 'fetch-failed: ' + (e && e.message); }
+    out.attempts.push(r);
+  }
   return out;
 }
 
