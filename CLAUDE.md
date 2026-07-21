@@ -296,13 +296,22 @@ merge to `main` as a production deploy.
 
 - `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
   earlier via PRs #5–#9). One unmerged branch (PR #11) carries the next batch: **`feat/gemini-dual-reader`**,
-  now stacking **v62 AND v63** (Max asked to keep the v63 work on the SAME branch), off `main`, awaiting
+  now stacking **v62 + v63 + a v64 hotfix** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
   Max's preview/phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v63 goes live**
+  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v64 goes live**
   (see [[supabase-schema-can-lag-app-code]]). `npm test` = **239 green**, jsdom smoke green, `node -c`
-  clean (app.js + the three `api/*.js`), six spots at **v63**. Per-batch detail lives in
+  clean (app.js + the three `api/*.js`), six spots at **v64**. Per-batch detail lives in
   `handovers/HANDOVER-vNN.md`.
+
+- **v64 hotfix (same branch) — two v63 integration bugs Max caught testing the preview.** (1) **Uploaded
+  PDF invoices never fired the second reader:** `handleInvFile`'s PDF branch calls `buildInvRows` directly,
+  bypassing `parseInvoice`, so `gemStatus`/`gemFireSecondReader` never ran (no note, no AI) — and uploading
+  is how Max actually imports. Now the PDF branch stamps the status + fires the reader like `parseInvoice`.
+  (2) **The Dashboard "Suggestions" card found nothing:** `computeInsights` used the legacy `sp.menuId`
+  map, but v55 moved the canonical link to `menu_items.plate_id`; it now resolves via `plateForMenuItem(m)`
+  like the rest of the dashboard. **Lesson: a passing `/api/…?health=1` proves only the serverless FUNCTION +
+  key are live — NOT the client bundle or its wiring; both these features are client-side.** See HANDOVER-v63 top.
 
 - **v63 shipped — Gemini reader v2: status fix + match suggestions + first Dashboard insight (brief:
   `~/Downloads/ezplate-opus-gemini-reader-v2.md`). See `handovers/HANDOVER-v63.md`.** Same branch as v62,

@@ -1,4 +1,21 @@
-# HANDOVER v63 — Gemini reader v2 (status fix · match suggestions · first Dashboard insight)
+# HANDOVER v63/v64 — Gemini reader v2 (status fix · match suggestions · first Dashboard insight)
+
+> **v64 hotfix (same branch, after Max tested v63 on the preview):** two integration bugs found
+> because both features looked dead on a real preview even though the health check passed:
+> 1. **Uploaded PDF invoices never fired the second reader.** `handleInvFile`'s PDF branch calls
+>    `buildInvRows(rows)` DIRECTLY (not via `parseInvoice`), so `gemStatus` was never set and
+>    `gemFireSecondReader` never ran — no status note, no AI, for the way Max actually imports
+>    (uploading, not pasting CSV). Fixed: the PDF branch now stamps `gemStatus='checking'`/
+>    `gemCheckStart` and fires `gemFireSecondReader(text)`, mirroring `parseInvoice`.
+> 2. **The Dashboard "Suggestions" card silently found nothing.** `computeInsights` used the LEGACY
+>    `sp.menuId` reverse-map, but v55 moved the canonical menu↔plate link to `menu_items.plate_id`
+>    (`plate.menu_id` is left unset since v55). Fixed: it now resolves via `plateForMenuItem(m)` —
+>    the exact pattern `dashComparisons`/the trend + highlight cards already use.
+>
+> Lesson worth keeping: **a passing `?health=1` only proves the serverless FUNCTION + key are live.
+> It says nothing about the client bundle or its wiring.** Both these features are client-side; the
+> health check was a red herring. Six spots bumped v63 → **v64**. 239 tests still green.
+
 
 Brief: `~/Downloads/ezplate-opus-gemini-reader-v2.md`. **Same branch as v62**
 (`feat/gemini-dual-reader`, PR #11) — Max asked to stack this on the unmerged v62 work, not
