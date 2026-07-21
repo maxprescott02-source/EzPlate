@@ -99,12 +99,55 @@ async function callGemini(text) {
   return G.validatePayload(textOut);   // -> {status:'ok',...} or {status:'unavailable',...}
 }
 
+/*
+ * DIAGNOSTIC PROBE (dev only — behind Vercel preview SSO). GET ?probe=1 does a REAL
+ * generateContent on the configured model AND lists the models the key can see, returning
+ * the raw HTTP status + a snippet of Gemini's own error body. This is how we find out WHY a
+ * call comes back "unavailable" (bad model / unauthorized key / API not enabled / rate limit /
+ * rejected schema) without leaking the key. Remove or gate before EzPlate is multi-tenant.
+ */
+async function probeGemini() {
+  var key = process.env.GEMINI_API_KEY;
+  var out = { model: model(), keyPresent: !!key };
+  if (!key) { out.probe = 'no-key'; return out; }
+  var base = 'https://generativelanguage.googleapis.com/v1beta';
+  // 1) which models can this key actually use for generateContent?
+  try {
+    var lr = await fetch(base + '/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+    var lj = null; try { lj = await lr.json(); } catch (e) {}
+    out.listModels = {
+      httpStatus: lr.status,
+      names: (lj && Array.isArray(lj.models)) ? lj.models
+        .filter(function (m) { return !m.supportedGenerationMethods || m.supportedGenerationMethods.indexOf('generateContent') >= 0; })
+        .map(function (m) { return String(m.name || '').replace('models/', ''); }).slice(0, 80) : undefined,
+      error: (lj && lj.error) ? String(lj.error.message || '').slice(0, 300) : undefined
+    };
+  } catch (e) { out.listModels = { error: 'fetch-failed: ' + (e && e.message) }; }
+  // 2) actually try the configured model on a trivial invoice and report the raw result
+  try {
+    var gr = await fetch(base + '/models/' + encodeURIComponent(model()) + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: G.buildPrompt('Widget Deluxe 1kg  $5.00') }] }],
+        generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema() }
+      })
+    });
+    var gt = ''; try { gt = await gr.text(); } catch (e) {}
+    out.generate = { httpStatus: gr.status, ok: gr.ok, bodySnippet: gt.slice(0, 700) };
+  } catch (e) { out.generate = { error: 'fetch-failed: ' + (e && e.message) }; }
+  return out;
+}
+
 module.exports = async function handler(req, res) {
   try {
     // Health check — lets Max verify wiring from the preview before any invoice
     // uses it. Reports the resolved model and whether a key is configured, never
     // the key itself.
     if (req.method === 'GET') {
+      if (req.query && (req.query.probe === '1' || req.query.probe === 'true')) {
+        return sendJson(res, 200, await probeGemini());
+      }
       if (req.query && (req.query.health === '1' || req.query.health === 'true')) {
         return sendJson(res, 200, { ok: true, model: model(), keyPresent: !!process.env.GEMINI_API_KEY });
       }
