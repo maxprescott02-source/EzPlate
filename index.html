@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=66">
+<link rel="stylesheet" href="css/style.css?v=67">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -108,6 +108,10 @@
         </div>
       </div>
       <p class="hint panel-meta cogs-meta">Suggested prices use your <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> food-cost target — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
+      <!-- v67 item 5a (revised): the grounded, menu-scoped "Suggestions" callout sits ABOVE the dish
+           table — a long menu's table would push it off-screen at the bottom where it gets missed.
+           renderAnalysis fills it; it reflects the currently selected menu and hides when empty. -->
+      <div id="menuInsights"></div>
       <!-- v59: the traffic-light key legend was removed (Max) — the row dots stay -->
       <div class="atable-wrap">
         <table class="atable">
@@ -205,8 +209,6 @@
           <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
           <div class="ferr" id="plateNameErr" style="display:none"></div>
           <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">(optional)</span></label>
-          <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
           <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
         </div>
       </div>
@@ -232,6 +234,12 @@
         <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
         <div class="flag" id="flag" style="display:none"></div>
         <select id="menuLink" style="display:none" aria-hidden="true"></select>
+        <!-- v67 item 1: category lives at the BOTTOM of the plate flow (name up top, category down low —
+             matches the app's card rhythm). Ids/handlers unchanged; makeInlineCombo binds by id in openBuilder. -->
+        <div class="plate-cat-field">
+          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">(optional)</span></label>
+          <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
+        </div>
         <div class="actions">
           <button class="btn primary" id="saveBtn" type="button">Save plate</button>
           <button class="btn" id="printBtn" type="button">Print docket</button>
@@ -316,14 +324,21 @@
         <button class="inv-introx" id="invIntroX" type="button" aria-label="Dismiss">&times;</button>
       </div>
       <div class="ferr" id="invFileErr" style="display:none"></div>
+      <!-- v67 item 4: the raw-text paste box + its CSV hint are COLLAPSED behind a quiet link that sits
+           INLINE with the Upload button (the alternative action, right where you decide how to import).
+           Most users upload a PDF and never touch it; the power path stays one tap away. Nothing removed —
+           uploading still fills the (hidden) textarea and renders the review directly. -->
       <div class="inv-upload">
         <input type="file" id="invFile" accept="application/pdf,.pdf,text/csv,.csv,text/plain" style="display:none">
         <button class="btn" id="invFileBtn" type="button">Upload PDF or CSV</button>
+        <button type="button" id="invManualToggle" class="linklike inv-manual-toggle" aria-expanded="false" aria-controls="invManualBox">or paste text manually</button>
         <span class="hint" id="invFileName"></span>
       </div>
-      <p class="hint" style="margin:12px 0 6px">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
-      <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
-      <div style="margin-top:10px"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
+      <div id="invManualBox" class="inv-manual-box" hidden>
+        <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
+        <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
+      </div>
+      <div style="margin-top:12px"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
       <div id="invReview" style="display:none;margin-top:14px"></div>
       <div style="margin-top:12px"><button type="button" id="smemLink" class="linklike">Remembered items</button></div>
     </div>
@@ -632,7 +647,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=66"></script>
+<script src="js/app.js?v=67"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

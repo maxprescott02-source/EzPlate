@@ -370,6 +370,17 @@ input[type=checkbox]{
 .total .lbl{font-size:var(--fs-sm);letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);font-family:var(--ui);font-weight:700}
 .total .amt{font-size:28px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .flag{font-size:var(--fs-sm);color:var(--warn);padding:0 var(--sp-5) var(--sp-3);font-family:var(--mono)}
+/* ===== batch (v67) — builder top section + relocated category (items 1 & 2) ===== */
+/* item 2: the plate's top section (heading → name) reads cramped. Give it even rhythm on the
+   standard --sp scale — no invented token, just stop under-spacing. */
+#platePanel .pad{padding:var(--sp-6) var(--sp-5)}                    /* was --sp-5 all round — the section breathes */
+.modal-builder label.f{margin-bottom:var(--sp-2)}                   /* even 8px label→field gap across the builder (was 6px) */
+/* item 1: the category field is relocated to the BOTTOM of the plate flow (below the docket/total,
+   just above Save) so it follows the app's "name up top, category down low" card rhythm. It's a
+   direct child of #docketPanel like .total/.actions, so it carries the same horizontal padding and
+   an even vertical gap above (from the total) and below (the actions). */
+.plate-cat-field{padding:var(--sp-5) var(--sp-5) 0}
+@media (max-width:700px){ .plate-cat-field{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
 
 /* ----------------------------------------------------------------------
    9. PLATE LINES
@@ -708,10 +719,17 @@ input[type=checkbox]{
 .ai-status.ai-ok{color:var(--good);animation:aiFade .5s ease-out 3.5s forwards}
 @keyframes aiFade{to{opacity:0}}
 @media (prefers-reduced-motion:reduce){ .ai-status.ai-ok{animation:none} }
+/* v67 item 4: the GST-default note is edge reassurance, not a headline — quieted from the loud
+   warn-box to a small muted line so it doesn't shout on every import. Still always present. */
 .inv-gst{
-  font-size:var(--fs-sm);color:var(--text2);background:var(--warn-bg);
-  border:1px solid var(--warn);border-radius:var(--radius-chip);padding:10px 12px;margin:0 0 var(--sp-3);
+  font-size:var(--fs-xs);color:var(--muted2);background:transparent;
+  border:0;border-radius:0;padding:2px 0 0;margin:0 0 var(--sp-3);line-height:1.45;
 }
+/* v67 item 4: collapsed raw-text paste box — the toggle sits inline with the Upload button (in
+   .inv-upload); the box is revealed below on demand. */
+.inv-manual-toggle{font-size:var(--fs-sm);margin-left:2px}
+.inv-manual-box{margin-top:var(--sp-3)}
+.inv-manual-box .inv-csv-hint{margin-top:0;margin-bottom:6px}
 .inv-actions{margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
 .flag-review{
   font-family:var(--ui);font-size:var(--fs-xs);font-weight:700;color:var(--bad);
@@ -1082,11 +1100,17 @@ input[type=checkbox]{
 @media(min-width:640px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
 /* v63 item 3: grounded "Suggestions" — a muted card built from existing panel tokens, theme-aware.
    No input box, no chat: a short list of 1–3 insight lines. */
-.dash-insights{margin:10px 16px 4px}
-.dash-insights .pad{padding:12px 16px}
-.dash-insights .di-head{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}
-.dash-insight-line{font-size:13px;line-height:1.5;color:var(--text);padding:5px 0}
-.dash-insight-line+.dash-insight-line{border-top:1px solid var(--border)}
+/* v67 (redesign 3 — a mix of the two) — the Menu-tab suggestions above the dish table. Brings back a
+   soft, borderless warm container (the gentle presence of pass 1) but NO icon/logo and no uppercase
+   eyebrow (the clutter pass 2 stripped). A warm italic lead names the menu; the observations are clean
+   full-text prose lines. Personal through the copy + the italic aside; quiet through the soft, chrome-light
+   card. Aligned with the .panel-meta inset. */
+.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-2);padding:var(--sp-3) var(--sp-4);background:var(--surface2);border-radius:var(--radius-card)}
+.mi-intro{margin:0 0 var(--sp-2);font-size:var(--fs-sm);color:var(--muted2);font-style:italic}
+.mi-intro b{font-weight:800;color:var(--text2);font-style:normal}
+.mi-line{margin:0;font-size:14px;line-height:1.6;color:var(--text)}
+.mi-line+.mi-line{margin-top:var(--sp-2)}
+@media (max-width:700px){ .menu-insights{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
   /* invoice review: streamlined no-match "Add as New Item" button */
   .ni-add-btn{width:100%;font-size:13px;padding:8px 10px;border-style:dashed}
@@ -1222,7 +1246,6 @@ input[type=checkbox]{
   #dashBody{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--sp-5);align-items:start}
   #dashBody .dash-panel{grid-column:1;margin:var(--sp-5) 0 0}   /* v49: same top offset as every other tab's .panel */
   #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin:0}
-  #dashBody .dash-insights{grid-column:1/-1;margin:var(--sp-5) 0 0}   /* v63: spans full width below the chart + highlights */
   .dash-chart svg{height:auto}
   .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
 
@@ -1612,11 +1635,8 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .misc-add-wrap{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
 .btn.misc-add{padding:7px 12px;font-size:.9rem}
 .misc-hint{font-size:.8rem;color:var(--muted2)}
-.line.misc-line .misc-label{width:100%;border:1px solid var(--line,#e4dccb);border-radius:8px;padding:7px 9px;font:inherit;background:var(--card,#fff)}
-.line.misc-line .qtybox.misc-costbox{display:inline-flex;align-items:center;gap:2px}
-.line.misc-line .qtybox.misc-costbox .u{opacity:.7}
-.line.misc-line .qtybox.misc-costbox input{width:74px}
-.line.misc-line .sub{color:var(--muted2)}
+/* v67 item 3: the pre-v67 single-row misc rules were removed here — the misc line now reuses the
+   ingredient .line skeleton (see the v67 misc block later in this file). */
 /* item 3: → Builder button in Menu Analysis */
 .mi-act .mi-btn.tobuilder{margin-right:6px}   /* v39: colour moved to the single quiet rule near .an-empty; this stayed for spacing only */
 /* item 1: trend chart point tooltip */
@@ -1673,7 +1693,6 @@ svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 .btn.danger{color:var(--bad);border-color:var(--bad-bg)}
 .btn.danger:hover{background:var(--bad);color:var(--on-bad);border-color:var(--bad)}
 #lines .line:hover{background:var(--hover);box-shadow:inset 0 0 0 1px var(--border)}
-.line.misc-line .misc-label{border-color:var(--border);background:var(--field);color:var(--text)}
 /* item 6 UI: the before/after preview — the user sees exactly what will be written */
 .pt-preview{font-size:var(--fs-xs);font-weight:650;color:var(--accent-ink);margin-top:4px;min-height:1em;font-variant-numeric:tabular-nums}
 /* skill audit: aligned numerals wherever money/percentages column up */
@@ -1726,13 +1745,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
 /* item 6: needs-attention rows — skimmable, warm, not an error (DORMANT until the Opus hook lands) */
 .inv-data.needs-attention{background:var(--bad-bg);box-shadow:inset 3px 0 0 var(--bad)}
 .inv-data.needs-attention td:first-child{padding-left:calc(var(--sp-4) + 3px)}
-/* item 8: misc-cost inputs readable on a phone */
-.line.misc-line .qtybox.misc-costbox input{width:92px;text-align:right}
-@media (max-width:700px){
-  .line.misc-line .qtybox.misc-costbox{flex:1 1 auto;max-width:190px}
-  .line.misc-line .qtybox.misc-costbox input{width:100%;font-size:16px;padding:10px 10px;min-height:44px}   /* v36: the field grows with its box */
-  .line.misc-line .misc-label{font-size:16px}
-}
+/* v67 item 3: the pre-v67 phone misc-cost overrides were removed here — see the v67 misc block. */
 
 /* ===== v28 — notification, attention, stability, hover parity ===== */
 /* item 5a: the tint now OUTGUNS the card rule (.invtable tbody tr:not():not() was winning on specificity) */
@@ -1827,8 +1840,10 @@ body{overflow-x:clip}
 .king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* v59 item 6a: derived-category chip on the ingredient card + read-only value in the edit modal */
-.king-cat{align-self:flex-start;font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:1px 7px}
+/* v67 follow-up: the derived-category chip sits in a bottom meta row, mirroring the Products card
+   (.ing-main then .ing-meta) and reusing the .ing-tag chip so the two card types match. */
+.king-meta{grid-column:1;display:flex;gap:6px;flex-wrap:wrap}
+/* v59 item 6a: read-only category value in the edit modal (the card chip is .ing-tag now) */
 .king-cat-read{font-weight:600;color:var(--text);padding:2px 0}
 /* .king-acts removed v44 item 6b — the card itself opens Edit; Remove moved into the modal */
 .king-row .linklike{flex:0 0 auto}
@@ -1838,8 +1853,7 @@ body{overflow-x:clip}
 .line.missing-line{opacity:.72}
 .line.missing-line .sub.warn{color:var(--bad)}
 @media (max-width:700px){
-  .king-row{flex-wrap:wrap}
-  .king-link{flex-basis:100%;order:3;white-space:normal}
+  .king-link{white-space:normal}   /* v67: the old flex-basis/order hack was for the inline-category layout, now gone */
 }
 
 
@@ -2118,7 +2132,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .line .costs .qtybox input{width:72px}   /* a hair narrower than the one-row era so qty + unit price + line total all fit at 380px */
 .line .costs .priceline{margin-top:0;white-space:nowrap}
 .line .costs .lc{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.line.misc-line .misc-label{width:100%}
 /* item 6b: ingredient cards are tap-to-edit (Products pattern) — cursor + focus ring for the
    button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
 .king-row{cursor:pointer}
@@ -2153,7 +2166,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .line .costs .qtybox input{width:76px}   /* v61 item 1: fits 4–5 digit quantities comfortably (spinners hidden above) — the leader absorbs the extra 10px */
 .line .costs .priceline{flex:0 0 116px}          /* fixed price column = the leader starts at the same x on every row */
 .line .costs .lc{min-width:0}                    /* the one-row era's .lc{min-width:78px} inflated small totals past the card edge */
-.line.misc-line .qtybox.misc-costbox .u{width:auto;min-width:0}
 /* item 3 (v49): retired — the negative-margin divider trick is gone; the divider lives on the
    real .panel h2 like every other tab. See the v49 batch. */
 
@@ -2308,27 +2320,21 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 }
 
 
-/* ===== batch (v53, revised v56): builder misc line is ONE row (Max's mockup) ===== */
-/* v56 (Max's spec): DOM order is now name field · dotted connector · $ input · × — the $ input
-   sits right-aligned where the bold total used to be and IS the line total, so the duplicate
-   .lc total is gone. Ingredient-row tokens kept: same control heights. The old two-row-era rules
-   below the fold (≤700px grow-the-costbox, 32px unit gutter) are overridden here, not edited in place. */
-.line.misc-line{display:flex;align-items:baseline;gap:6px}          /* BASELINE, not center — same v46 root fix as .costs: the empty leader's synthesized baseline is its bottom edge, so the dots sit on the input's baseline */
-.line.misc-line .misc-label{padding:9px 10px}                       /* same height token as .qtybox input */
-.line.misc-line .qtybox.misc-costbox{flex:0 0 auto;max-width:none;order:0}  /* beats the ≤700px flex-grow rule AND the legacy mobile .qtybox{order:3} — DOM order everywhere */
-.line.misc-line .qtybox.misc-costbox .u{width:auto}                 /* $ hugs the field — no 32px unit-column gutter on one row */
-.line.misc-line .qtybox.misc-costbox input{width:76px}              /* fixed (border-box; plenty for a misc cost); right-aligned via base .qtybox input — the name field takes the spare width */
-.line.misc-line .leader{flex:0 1 40px;min-width:8px;transform:none} /* short connector (base flex:1 would steal the name's width); name flex:1 pushes the $ input to the right edge */
+/* ===== batch (v67) — misc line is a SIBLING of the ingredient line (item 3) ===== */
+/* The misc line now reuses the ingredient .line two-row skeleton (.top = "Misc cost" label + ×,
+   .costs = dotted leader + the $ amount). It therefore INHERITS .line / .line .top / .line .costs /
+   .leader from the ingredient rules, so row height, the × column and the total column all align
+   pixel-wise for free. Only three things differ on the costs row: the amount is an editable $ box
+   (not static text), it must NOT take .qtybox's order:-1 (that's for qty, which leads an ingredient
+   row — a misc line has none), and the $ hugs the field (no 32px unit gutter). "Misc cost" is a fixed
+   label — the v60 "no name field" rule stands. */
+.line.misc-line .nm b{color:var(--muted2)}                          /* the fixed "Misc cost" label reads quieter than a real ingredient name */
+.line.misc-line .costs .misc-costbox{order:0;flex:0 0 auto;max-width:none;gap:2px}  /* beats .line .costs .qtybox{order:-1}; leader (flex:1) pushes it to the total column */
+.line.misc-line .costs .misc-costbox .u{width:auto;min-width:0;color:var(--muted2)} /* $ hugs the field — no 32px unit-column gutter */
+.line.misc-line .costs .misc-costbox input{width:92px;text-align:right}             /* right-aligned in the total slot; spinners hidden via the base .qtybox input rule */
 @media (max-width:700px){
-  .line.misc-line .misc-label{min-height:44px}                      /* matches the costbox input's phone hit target */
+  .line.misc-line .costs .misc-costbox input{min-height:44px}       /* phone hit target, matching the qty inputs */
 }
-/* ===== batch (v60) — misc line: no name field ===== */
-/* item 2 (Max): the name input is gone. "Misc" is a fixed label; the LEADER now grows (it used to be a
-   short 40px stub because the flex:1 name field did the pushing) so the $ input + × land flush-right in
-   the same column as the ingredient rows' ×. Dead .misc-label rules above are harmless (no such node now). */
-.line.misc-line .misc-fixed{flex:0 0 auto;font-weight:650;font-size:15px;color:var(--text);line-height:1.3}
-.line.misc-line .leader{flex:1 1 auto;min-width:8px;transform:none}
-@media (max-width:700px){ .line.misc-line .misc-fixed{font-size:16px} }
 /* item 5 (Max): no red "pressed" fill on Delete. On touch, :hover sticks after a tap, so the destructive
    button reads as flashing solid red on press. Where hover isn't a real pointer state, neutralise the
    danger hover fill back to the resting outline. Resting styling and desktop (real-hover) fill unchanged. */

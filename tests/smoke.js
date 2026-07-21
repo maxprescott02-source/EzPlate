@@ -432,24 +432,26 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('check-match: the AI-suggested product is the FIRST candidate chip and carries the AI marker',
     !!cm.querySelector('.cand-chip') && cm.querySelector('.cand-chip').classList.contains('ai') && /AI/.test((cm.querySelector('.cc-ai') || {}).textContent || ''));
 
-  // (c) item 3 — the Dashboard "Suggestions" card renders templates, then a valid rephrasing swaps in
+  // (c) item 5 (v67) — the "Suggestions" card now lives on the MENU tab (moved off the Dashboard),
+  // scoped to the current menu. Templates render immediately; a valid rephrasing swaps in place.
   const stashCI = window.computeInsights;
   window.computeInsights = () => ([
-    { kind: 'over', facts: { pts: 10, menuPrice: 15, targetPrice: 20, targetPct: 30 }, text: 'Barra & Chips is 10 pts over target — $15.00 → $20.00 gets you to ~30%.' },
-    { kind: 'count', facts: { over: 1, total: 3, targetPct: 30 }, text: '1 of 3 costed dishes sits over your 30% target.' }
+    { kind: 'reprice', facts: { name: 'Barra & Chips', pts: 10, menuPrice: 15, targetPrice: 20, targetPct: 30 }, text: 'Barra & Chips runs 10 pts over at $15.00 — lift it to $20.00 to land near 30%.' },
+    { kind: 'count', facts: { over: 1, total: 3, targetPct: 30 }, text: '1 of 3 costed dishes sit over your 30% target.' }
   ]);
   pending = [];
-  let dashThrew = null; try { window.renderDashboard(); } catch (e) { dashThrew = e; }
-  ok('dashboard renders without throwing', !dashThrew, dashThrew && dashThrew.message);
-  const di = $('dashInsights');
-  ok('the "Suggestions" card renders when there are insights', !!di);
-  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.dash-insight-line').length === 2 && !di.querySelector('input,textarea'));
-  ok('the over-target template shows its computed numbers verbatim', di && /10 pts over target/.test(di.textContent) && /\$20\.00/.test(di.textContent));
+  let menuThrew = null; try { window.renderMenuInsights(); } catch (e) { menuThrew = e; }
+  ok('menu Suggestions renders without throwing', !menuThrew, menuThrew && menuThrew.message);
+  const di = $('menuInsightsPanel');
+  ok('the "Suggestions" note renders on the MENU tab when there are insights', !!di);
+  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.mi-line').length === 2 && !di.querySelector('input,textarea'));
+  ok('it reads as a plain note with no card/eyebrow chrome', di && /A read on/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
+  ok('the reprice template shows its computed numbers verbatim', di && /10 pts over/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));
   if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
     { text: 'Heads up — Barra & Chips runs 10 pts hot; nudging $15.00 to $20.00 lands you at ~30%.' },
-    { text: '1 of 3 costed dishes sits over your 30% target.' } ] }) });
+    { text: '1 of 3 costed dishes sit over your 30% target.' } ] }) });
   await tick(); await tick();
   ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   window.computeInsights = stashCI;

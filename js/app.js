@@ -343,15 +343,21 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // a removable non-ingredient cost line (spices, boxes, etc.)
-  // v60 item 2 (Max): NO name field \u2014 a misc line is just a lump cost. Fixed "Misc" label, dotted
-  // connector, the $ input (which IS the line total, no duplicate .lc), then \u00d7 flush-right in the
-  // same column as the ingredient rows' \u00d7 (the leader grows to push it there). Any stored label on a
-  // pre-v60 misc line is left untouched in the data but never shown. Same ids/handlers as before.
+  // v67 item 3: a misc line is a SIBLING of an ingredient line \u2014 it reuses the exact two-row .line
+  // skeleton (.top = label + \u00d7, .costs = leader + amount) so row height and every column line up
+  // pixel-wise. NO name field (v60 rule kept): "Misc cost" is a fixed label. The $ input sits in the
+  // far-right slot the ingredient line's total (.lc) occupies; the leader grows to push it there. The
+  // \u00d7 lands in the same top-right column as every ingredient row's \u00d7. Same ids/handlers (setMiscCost/
+  // removeLine); any stored label on a pre-v60 misc line stays in the data but is never shown.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
-    +'<span class="misc-fixed">Misc</span>'
-    +'<span class="leader"></span>'
-    +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
-    +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'<div class="top">'
+      +'<span class="nm"><b>Misc cost</b></span>'
+      +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
+    +'</div>'
+    +'<div class="costs">'
+      +'<span class="leader"></span>'
+      +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
+    +'</div>'
     +'</div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
@@ -1133,11 +1139,14 @@ function renderKitchenPanel(){
   // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
   // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=list.map(function(k){
-    var c=kingCategory(k);                                           // v59 item 6a: muted derived-category chip
+    var c=kingCategory(k);                                           // v59 item 6a: derived-category chip
+    // v67 follow-up: category chip sits in a meta row at the BOTTOM of the card (name → linked product →
+    // category), matching the Products card layout (.ing-main then .ing-meta), and reuses the same .ing-tag
+    // chip so ingredient and product cards read identically. It used to sit inline between name and link.
     return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
       +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
-      +(c?'<span class="king-cat">'+esc(c)+'</span>':'')
       +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
+      +(c?'<div class="king-meta"><span class="ing-tag">'+esc(c)+'</span></div>':'')
       +'</div>';
   }).join('');
   box.querySelectorAll('.king-row').forEach(function(row){
@@ -1783,62 +1792,188 @@ function openHighlight(kind){
   show('hlModal');
 }
 /* =====================================================================================
-   v63 item 3 — first AI-assisted helper, built as GROUNDED INSIGHTS (not a chatbot).
-   Hard law: the app computes EVERY number deterministically here; the AI (optional layer
-   below) may only rephrase the SAME sentence and is forbidden to produce a figure. This
-   deterministic engine ships and is useful with NO API call.
+   AI-assisted helper, built as GROUNDED INSIGHTS (not a chatbot). v63 shipped the first,
+   single-shape version (over-target → reprice); v67 (item 5) BROADENS it into several
+   insight TYPES so the list reads varied and smart, and MOVES it from the Dashboard onto
+   the Menu tab (menu-specific — one menu's dishes at a time).
+   Hard law unchanged: the app computes EVERY number deterministically here; the AI (optional
+   layer below) may only rephrase the SAME sentence and is forbidden to produce a figure.
+   The whole engine ships and is useful with NO API call.
+
+   Each insight TYPE is a pure function (tests pin them) returning zero+ candidates of the
+   shape {kind, facts, text, score}: `facts` holds every number, `text` is the ready template,
+   `score` is how notable it is. selectInsights ranks by score, enforces type VARIETY (≤1 per
+   kind in the diverse pass) and ROTATES the near-top group by a per-render seed so the list
+   stops always leading with the same over-target dish. deriveInsights orchestrates; the impure
+   computeInsights builds the data bundle from the CURRENT menu's live dishes.
    ===================================================================================== */
-/* PURE (tests pin it): derive 1–3 concrete observations from already-costed dishes.
-   Input dishes:[{name, cost, menuPrice}], targetFrac e.g. 0.30. Each insight carries
-   `facts` (every number) and ready `text` (the plain-English template). No DOM, no globals. */
-function deriveInsights(dishes, targetFrac){
-  if(!Array.isArray(dishes) || !(targetFrac>0)) return [];
-  var targetPct=Math.round(targetFrac*100);
+function insTargetPrice(cost, targetFrac){ return Math.ceil((cost/targetFrac)*2)/2; }   // price that hits target, rounded UP to the nearest $0.50
+
+// TYPE: reprice — every dish whose food cost sits over target, worst first (the v63 insight, now one type among many).
+function insReprice(dishes, targetFrac){
+  var out=[], tp=Math.round(targetFrac*100);
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)) return;
+    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
+    if(pts<1) return;
+    var target=insTargetPrice(d.cost, targetFrac);
+    out.push({kind:'reprice', score:Math.min(100, 45+pts*3),
+      facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPrice:target, targetPct:tp},
+      text:d.name+' runs '+pts+' pt'+(pts===1?'':'s')+' over at $'+d.menuPrice.toFixed(2)+' — lift it to $'+target.toFixed(2)+' to land near '+tp+'%.'});
+  });
+  return out.sort(function(a,b){ return b.facts.pts-a.facts.pts; });
+}
+// TYPE: near-miss — a dish only ~1 pt over: a low-effort win worth calling out on its own.
+function insNearMiss(dishes, targetFrac){
+  var tp=Math.round(targetFrac*100), best=null;
+  dishes.forEach(function(d){
+    if(best || !(d.cost>0)||!(d.menuPrice>0)) return;
+    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
+    if(pts!==1) return;
+    var target=insTargetPrice(d.cost, targetFrac);
+    best={kind:'nearmiss', score:48,
+      facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPrice:target, targetPct:tp},
+      text:d.name+' is a whisker over — a nudge from $'+d.menuPrice.toFixed(2)+' to $'+target.toFixed(2)+' puts it on target.'};
+  });
+  return best?[best]:[];
+}
+// TYPE: volatility — a dish whose cost swings with a volatile ingredient (uses the logged price ranges).
+function insVolatility(dishes){
+  var best=null, bestSpread=0;
+  dishes.forEach(function(d){
+    if(!d.hasRange || !(d.cost>0)) return;
+    var lo=d.costMin, hi=d.costMax; if(!(hi>lo)) return;
+    var spreadPct=(hi-lo)/d.cost*100;
+    if(spreadPct>bestSpread){ bestSpread=spreadPct;
+      best={kind:'volatility', score:Math.min(92, 35+spreadPct),
+        facts:{name:d.name, costMin:Math.round(lo*100)/100, costMax:Math.round(hi*100)/100},
+        text:d.name+' cost has ranged $'+lo.toFixed(2)+'–$'+hi.toFixed(2)+' with '+(d.volatileIng||'ingredient')+' prices — watch it even when today looks fine.'};
+    }
+  });
+  return best?[best]:[];
+}
+// TYPE: shared-ingredient leverage — an ingredient across many of this menu's dishes; a better price moves more than one reprice.
+function insShared(shared){
+  if(!shared || !shared.length) return [];
+  var s=shared.slice().sort(function(a,b){ return b.dishCount-a.dishCount; })[0];
+  if(!s || s.dishCount<2) return [];
+  return [{kind:'shared', score:Math.min(80, 30+s.dishCount*5),
+    facts:{name:s.name, dishCount:s.dishCount},
+    text:s.name+' is in '+s.dishCount+' dishes here — a better price or supplier on it moves more than any single reprice.'}];
+}
+// TYPE: biggest mover — the ingredient whose logged price changed most, and how many of this menu's dishes it feeds.
+function insMover(mover){
+  if(!mover || !(Math.abs(mover.pct)>=3)) return [];
+  var up=mover.pct>0, n=(mover.dishes&&mover.dishes.length)||0, pct=Math.abs(Math.round(mover.pct));
+  return [{kind:'mover', score:Math.min(88, 40+Math.abs(mover.pct)),
+    facts:{name:mover.name, pct:pct, dishCount:n},
+    text:mover.name+' just '+(up?'rose':'fell')+' '+pct+'% — it feeds '+n+' dish'+(n===1?'':'es')+' on this menu'+(up?', so recheck their margins.':', a chance to bank the saving.')}];
+}
+// TYPE: best performer — a positive: a dish sitting comfortably under target (not everything is a warning).
+function insBest(dishes, targetFrac){
+  var tp=Math.round(targetFrac*100), best=null, bestUnder=0;
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)) return;
+    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);       // negative = under target
+    var under=-pts;
+    if(under>=3 && under>bestUnder){ bestUnder=under;
+      best={kind:'best', score:28+Math.min(18, under),
+        facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPct:tp},
+        text:d.name+' is pulling a strong margin — '+under+' pt'+(under===1?'':'s')+' under your '+tp+'% target at $'+d.menuPrice.toFixed(2)+'.'};
+    }
+  });
+  return best?[best]:[];
+}
+// TYPE: summary — always-available filler so the panel never renders empty when there IS data: the over/under count.
+function insSummary(dishes, targetFrac){
+  var tp=Math.round(targetFrac*100), total=dishes.length;
+  var over=dishes.filter(function(d){ return d.cost>0 && d.menuPrice>0 && Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
+  if(over) return [{kind:'count', score:22, facts:{over:over, total:total, targetPct:tp},
+    text:over+' of '+total+' costed dish'+(total===1?'':'es')+' sit over your '+tp+'% target.'}];
+  return [{kind:'allgood', score:26, facts:{total:total, targetPct:tp},
+    text:'All '+total+' costed dish'+(total===1?'':'es')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
+}
+// Rank by notability, keep type VARIETY (≤1 per kind first), and ROTATE the near-top group by seed
+// so equally-notable insights take turns leading across renders/menu-switches. Pure + tested.
+function selectInsights(cands, seed, max){
+  max=max||3; seed=seed||0;
+  var sorted=cands.map(function(c,i){ return {c:c,i:i}; })
+    .sort(function(a,b){ return (b.c.score-a.c.score) || (a.i-b.i); })
+    .map(function(x){ return x.c; });
+  if(sorted.length>1){                                              // rotate only the near-top (similarly notable) group
+    var BAND=12, top=sorted[0].score, g=0;
+    while(g<sorted.length && sorted[g].score>=top-BAND) g++;
+    if(g>1){ var off=((seed%g)+g)%g; sorted=sorted.slice(off,g).concat(sorted.slice(0,off)).concat(sorted.slice(g)); }
+  }
+  var out=[], kinds={};
+  for(var i=0;i<sorted.length && out.length<max;i++){ var k=sorted[i].kind; if(kinds[k]) continue; kinds[k]=1; out.push(sorted[i]); }   // diverse pass: ≤1 per kind
+  for(var j=0;j<sorted.length && out.length<max;j++){ if(out.indexOf(sorted[j])<0) out.push(sorted[j]); }                                // fill pass: only if still short
+  return out;
+}
+/* PURE orchestrator (tests pin it). data = {dishes, shared, mover}; a bare array is treated as
+   {dishes}. Returns the chosen 2–3 insights as {kind, facts, text} (internal score stripped). */
+function deriveInsights(data, targetFrac, seed){
+  if(Array.isArray(data)) data={dishes:data};
+  data=data||{};
+  var dishes=Array.isArray(data.dishes)?data.dishes:[];
+  if(!(targetFrac>0)) return [];
   var costed=dishes.filter(function(d){ return d && d.cost>0 && d.menuPrice>0; });   // published + costed only
   if(!costed.length) return [];                                     // nothing useful to say → the area hides
-  var ann=costed.map(function(d){
-    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);       // percentage points over target (negative = under)
-    var targetPrice=Math.ceil((d.cost/targetFrac)*2)/2;             // price that hits target, rounded UP to the nearest $0.50 (so it lands at/under target)
-    return {name:d.name, menuPrice:d.menuPrice, pts:pts, targetPrice:targetPrice};
-  });
-  var over=ann.filter(function(a){ return a.pts>=1; }).sort(function(a,b){ return b.pts-a.pts; });
-  var out=[];
-  if(over.length){
-    var w=over[0];
-    out.push({kind:'over', facts:{name:w.name, pts:w.pts, menuPrice:w.menuPrice, targetPrice:w.targetPrice, targetPct:targetPct},
-      text:w.name+' is '+w.pts+' pt'+(w.pts===1?'':'s')+' over target — $'+w.menuPrice.toFixed(2)+' → $'+w.targetPrice.toFixed(2)+' gets you to ~'+targetPct+'%.'});
-  }
-  if(over.length>1){
-    var s=over[1];
-    out.push({kind:'over2', facts:{name:s.name, pts:s.pts, menuPrice:s.menuPrice, targetPrice:s.targetPrice, targetPct:targetPct},
-      text:s.name+' is '+s.pts+' pt'+(s.pts===1?'':'s')+' over — $'+s.menuPrice.toFixed(2)+' → $'+s.targetPrice.toFixed(2)+' hits ~'+targetPct+'%.'});
-  }
-  if(over.length){
-    out.push({kind:'count', facts:{over:over.length, total:costed.length, targetPct:targetPct},
-      text:over.length+' of '+costed.length+' costed dishes sit'+(over.length===1?'s':'')+' over your '+targetPct+'% target.'});
-  }else{
-    out.push({kind:'allgood', facts:{total:costed.length, targetPct:targetPct},
-      text:'All '+costed.length+' costed dishes are at or under your '+targetPct+'% target.'});
-  }
-  return out.slice(0,3);
+  var cands=[]
+    .concat(insReprice(costed, targetFrac))
+    .concat(insNearMiss(costed, targetFrac))
+    .concat(insVolatility(costed))
+    .concat(insShared(data.shared||[]))
+    .concat(insMover(data.mover||null))
+    .concat(insBest(costed, targetFrac))
+    .concat(insSummary(costed, targetFrac));
+  return selectInsights(cands, seed||0, 3).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
 }
-/* Wrapper: build the dish list from live data and derive. Cached per data-signature so a
-   dashboard re-render neither recomputes nor re-triggers the phrasing call. */
-var gemInsightPhrased=null;                                         // {sig, lines:[text]} — at most ONE phrasing per session per insight set
-function computeInsights(){
-  var dishes=[];
+/* Impure wrapper: build the data bundle from the CURRENTLY SELECTED menu's live dishes and derive.
+   v67 item 5a: menu-scoped (was all-menus on the Dashboard). Draws cost ranges from costRangeForLines,
+   shared-ingredient counts from kitchen-word usage, and the biggest mover from the per-ingredient price
+   log (ingPriceLog) — all numbers the app already computes. */
+var gemInsightPhrased=null;                                         // {key, lines:[text]} — ONE phrasing per session per menu (key = menuId|sig)
+var insightSeed=Math.floor(Date.now()/86400000);                   // day-based base so the lead rotates over time; onMenuSelectChange bumps it per switch
+function computeInsights(seed){
+  var dishes=[], usage={}, nameByPid={}, dishNamesByPid={};
   try{
-    // v63 fix: resolve each dish's plate via plateForMenuItem — the CANONICAL v55 link
-    // (menu_items.plate_id). The old sp.menuId reverse-map missed every modern synced plate
-    // (menu_id is left unset since v55), so the card silently found nothing. This mirrors exactly
-    // what dashComparisons and the trend/highlight cards already do (see MENU.forEach at ~L834/L1759).
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
+      if((m.menuId||'MENU_ORIGINAL')!==currentMenuId) return;       // v67 5a: the SELECTED menu only
       var sp=plateForMenuItem(m); if(!sp) return;
-      dishes.push({name:m.name, cost:costFromLines(sp.lines), menuPrice:m.price});
+      var cost=costFromLines(sp.lines); if(!(cost>0)) return;
+      var range=costRangeForLines(sp.lines);
+      var volName=null, volSpread=0, seen={};
+      (sp.lines||[]).forEach(function(l){
+        if(!l || l.misc) return;
+        var p=lineProduct(l); if(!p) return;
+        var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
+        var nm=l.kid?((kById[l.kid]&&kById[l.kid].name)||p.description):p.description;
+        if(nm && !seen[nm]){ seen[nm]=1; usage[nm]=(usage[nm]||0)+1; }   // distinct dishes per kitchen ingredient
+        if(pid){
+          nameByPid[pid]=nm;
+          (dishNamesByPid[pid]||(dishNamesByPid[pid]=[])).push(m.name);
+          var band=ingPriceBand(pid); if(band){ var s=(band.max-band.min)*(l.qty||0); if(s>volSpread){ volSpread=s; volName=nm; } }
+        }
+      });
+      dishes.push({name:m.name, cost:cost, menuPrice:m.price, costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName});
     });
   }catch(e){ return []; }
-  return deriveInsights(dishes, foodTarget());
+  var shared=Object.keys(usage).filter(function(n){ return usage[n]>=2; }).map(function(n){ return {name:n, dishCount:usage[n]}; });
+  var mover=null;
+  try{
+    Object.keys(dishNamesByPid).forEach(function(pid){
+      var a=ingPriceLog[pid]; if(!a || a.length<2) return;
+      var prev=a[a.length-2].v, last=a[a.length-1].v; if(!(prev>0)) return;
+      var pct=(last-prev)/prev*100;
+      if(!mover || Math.abs(pct)>Math.abs(mover.pct)){
+        var uniq=[], s2={}; dishNamesByPid[pid].forEach(function(dn){ if(!s2[dn]){ s2[dn]=1; uniq.push(dn); } });
+        mover={name:nameByPid[pid]||pid, pct:pct, dishes:uniq};
+      }
+    });
+  }catch(e){}
+  return deriveInsights({dishes:dishes, shared:shared, mover:mover}, foodTarget(), (seed==null?insightSeed:seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
@@ -1855,13 +1990,13 @@ function gemPhrasingOk(text, facts){
   }
   return true;
 }
-/* Optional warmer phrasing (degrades to templates). ONE background POST per session per
-   insight set; offline / unavailable / invalid → the deterministic templates stand. Never
-   blocks the dashboard — it swaps text in place only if the dashboard is still showing. */
-function gemPhraseInsights(insights){
+/* Optional warmer phrasing (degrades to templates). ONE background POST per session per MENU
+   (key = menuId|sig); offline / unavailable / invalid → the deterministic templates stand. Never
+   blocks the render — it swaps text in place only if the Menu tab is still showing this set. */
+function gemPhraseInsights(insights, menuKey){
   if(!insights || !insights.length) return;
-  var sig=insightSig(insights);
-  if(gemInsightPhrased && gemInsightPhrased.sig===sig){ applyPhrasedInsights(gemInsightPhrased.lines, insights); return; }
+  var sig=insightSig(insights), key=(menuKey||'')+'|'+sig;
+  if(gemInsightPhrased && gemInsightPhrased.key===key){ applyPhrasedInsights(gemInsightPhrased.lines, insights); return; }
   if(typeof fetch!=='function') return;
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
@@ -1874,18 +2009,35 @@ function gemPhraseInsights(insights){
         var cand=payload.lines[ix] && payload.lines[ix].text;
         return (cand && gemPhrasingOk(cand, ins.facts))?String(cand).trim():ins.text;
       });
-      gemInsightPhrased={sig:sig, lines:lines};
+      gemInsightPhrased={key:key, lines:lines};
       applyPhrasedInsights(lines, insights);
     })
     .catch(function(){ clearTimeout(timer); });                     // any failure → templates already shown, nothing to do
 }
 function applyPhrasedInsights(lines, insights){
   try{
-    var host=document.getElementById('dashInsights'); if(!host) return;
-    if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // dashboard moved on → don't overwrite
-    lines.forEach(function(t,ix){ var el=host.querySelector('.dash-insight-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
+    var host=document.getElementById('menuInsightsPanel'); if(!host) return;
+    if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // menu moved on → don't overwrite
+    lines.forEach(function(t,ix){ var el=host.querySelector('.mi-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
   }catch(e){}
 }
+/* v67 item 5a (redesign 2): a plain, quiet note above the dish table — NO card, border, tint, icon or
+   eyebrow (all of which read as a "feature widget"). Just a small muted lead that names the menu and the
+   observations as clean prose lines, so it comes across as a note someone jotted on the menu, not a
+   dashboard panel. Personal through the copy + restraint; quiet through the absence of chrome.
+   renderAnalysis calls this after painting the table; switching menus re-renders it. */
+function renderMenuInsights(){
+  var host=document.getElementById('menuInsights'); if(!host) return;
+  var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
+  if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the note hides
+  var sig=insightSig(insights), mn=menuNameFor(currentMenuId);
+  host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
+    +'<p class="mi-intro">'+(mn?('A read on <b>'+esc(mn)+'</b>'):'A read on this menu')+'</p>'
+    +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
+    +'</div>';
+  try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
+}
+function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
   if(typeof priceHistory==='undefined' || typeof savedPlates==='undefined'){ return; }  // data not initialised yet; boot-ready will re-render
@@ -1898,17 +2050,10 @@ function renderDashboard(){
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
-  // v63 item 3: grounded "Suggestions" — templates render immediately from deterministic facts;
-  // the optional AI phrasing (if reachable) only swaps the wording in place, never a number.
-  var insights=[]; try{ insights=computeInsights(); }catch(e){ insights=[]; }
-  if(insights.length){
-    html+='<div class="panel dash-insights" id="dashInsights" data-sig="'+esc(insightSig(insights))+'"><div class="pad">'
-      +'<div class="di-head">Suggestions</div>'
-      +insights.map(function(ins,ix){ return '<div class="dash-insight-line" data-ix="'+ix+'">'+esc(ins.text)+'</div>'; }).join('')
-      +'</div></div>';
-  }
+  // v67 item 5a: the grounded "Suggestions" panel MOVED off the Dashboard onto the Menu tab
+  // (suggestions are menu-specific — one menu's dishes at a time — where the Dashboard averages all
+  // menus). See renderMenuInsights / renderAnalysis.
   root.innerHTML=html;
-  if(insights.length){ try{ gemPhraseInsights(insights); }catch(e){} }
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
@@ -1983,6 +2128,7 @@ function renderDashboard(){
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
   on('hlClose',function(){hide('hlModal');}); on('hlDone',function(){hide('hlModal');});
   on('invIntroX',function(){ try{localStorage.setItem('ezInvIntroDismissed','1');}catch(e){} var el=document.getElementById('invIntro'); if(el)el.style.display='none'; });
+  on('invManualToggle',toggleInvManual);   // v67 item 4: reveal/hide the collapsed raw-text paste box
   ['ingModal','hlModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });
 })();
 
@@ -2003,7 +2149,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v66';
+var APP_VERSION='v67';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2688,7 +2834,7 @@ function handleInvFile(file){
       // v63 fix: the PDF path builds rows DIRECTLY (it doesn't go through parseInvoice), so the AI
       // second reader was never firing and the status note never set for uploaded invoices \u2014 which is
       // how Max actually imports. Mirror parseInvoice here: stamp the status, then fire ONE reader.
-      if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 '+rows.length+' line'+(rows.length===1?'':'s')+' read, review below'; gemStatus='checking'; gemApplied=false; gemCheckStart=Date.now(); buildInvRows(rows); gemFireSecondReader(text); }
+      if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=''; gemStatus='checking'; gemApplied=false; gemCheckStart=Date.now(); buildInvRows(rows); gemFireSecondReader(text); }   // v67 follow-up: no "N lines read, review below" line \u2014 the "X matched \u00b7 X new" summary below already confirms it worked
       else { ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 review the extracted text'; toast('Couldn\u2019t auto-detect priced lines \u2014 review the text below or enter manually'); }
     }).catch(function(e){
       if(nameEl) nameEl.textContent=file.name;
@@ -2697,12 +2843,22 @@ function handleInvFile(file){
     });
   } else {
     var r=new FileReader();
-    r.onload=function(){ document.getElementById('invCsv').value=String(r.result||''); parseInvoice(); };
+    r.onload=function(){ if(nameEl) nameEl.textContent=''; document.getElementById('invCsv').value=String(r.result||''); parseInvoice(); };   // v67 follow-up: no filename line — the "X matched · X new" summary confirms it worked
     r.onerror=function(){ toast('Could not read that file'); };
     r.readAsText(file);
   }
 }
-function openInv(){gemStatus=null;gemToken++;gemApplied=false;document.getElementById('invCsv').value='';var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';invSupplier='';var _in=document.getElementById('invIntro');if(_in){var _d='';try{_d=localStorage.getItem('ezInvIntroDismissed');}catch(e){}_in.style.display=_d?'none':'';}updateLastImport();show('invModal');}
+// v67 item 4: the raw-text paste box is collapsed by default. Toggle reveals it (power path) and
+// focuses the textarea; setInvManual(false) re-collapses. openInv resets it closed on every open so
+// a first-time user always sees the clean "upload → match → review" flow, never a wall of monospace.
+function setInvManual(open){
+  var box=document.getElementById('invManualBox'), tog=document.getElementById('invManualToggle');
+  if(box) box.hidden=!open;
+  if(tog){ tog.setAttribute('aria-expanded', open?'true':'false'); tog.textContent=open?'Hide paste box':'or paste text manually'; }
+  if(open){ var ta=document.getElementById('invCsv'); if(ta) ta.focus(); }
+}
+function toggleInvManual(){ var box=document.getElementById('invManualBox'); setInvManual(!!(box&&box.hidden)); }
+function openInv(){gemStatus=null;gemToken++;gemApplied=false;document.getElementById('invCsv').value='';setInvManual(false);var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';invSupplier='';var _in=document.getElementById('invIntro');if(_in){var _d='';try{_d=localStorage.getItem('ezInvIntroDismissed');}catch(e){}_in.style.display=_d?'none':'';}updateLastImport();show('invModal');}
 function closeInv(){hide('invModal');}
 function inorm(s){return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
 function itoks(s){return inorm(s).split(' ').filter(Boolean);}
@@ -3941,6 +4097,7 @@ function renderAnalysis(){
   tb.querySelectorAll('tr.mi-row').forEach(function(tr){
     tr.onclick=function(){ var pid=tr.getAttribute('data-pid'); if(pid){ openPlateEdit(pid); } else { var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); } };
   });
+  try{ renderMenuInsights(); }catch(e){}   // v67 item 5a: menu-scoped Suggestions panel below the table
 }
 
 /* ===== multiple menus: selector, pickers, create modal ===== */
@@ -3964,6 +4121,7 @@ function buildMenuPickers(){                                   // fill the menu 
 }
 function onMenuSelectChange(){
   var sel=document.getElementById('menuSelect'); if(!sel) return;
+  insightSeed++;                                                   // v67 5b: advance the rotation so a menu switch varies which insight leads
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
