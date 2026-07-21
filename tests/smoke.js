@@ -443,8 +443,9 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   let menuThrew = null; try { window.renderMenuInsights(); } catch (e) { menuThrew = e; }
   ok('menu Suggestions renders without throwing', !menuThrew, menuThrew && menuThrew.message);
   const di = $('menuInsightsPanel');
-  ok('the "Suggestions" card renders on the MENU tab when there are insights', !!di);
-  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.dash-insight-line').length === 2 && !di.querySelector('input,textarea'));
+  ok('the "Suggestions" note renders on the MENU tab when there are insights', !!di);
+  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.mi-line').length === 2 && !di.querySelector('input,textarea'));
+  ok('it reads as a personal note (first-person lead), not a "Suggestions" eyebrow', di && /What I’m seeing/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent));
   ok('the reprice template shows its computed numbers verbatim', di && /10 pts over/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));

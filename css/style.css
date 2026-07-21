@@ -1100,17 +1100,21 @@ input[type=checkbox]{
 @media(min-width:640px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
 /* v63 item 3: grounded "Suggestions" — a muted card built from existing panel tokens, theme-aware.
    No input box, no chat: a short list of 1–3 insight lines. */
-.dash-insights{margin:10px 16px 4px}
-.dash-insights .pad{padding:12px 16px}
-.dash-insights .di-head{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}
-.dash-insight-line{font-size:13px;line-height:1.5;color:var(--text);padding:5px 0}
-.dash-insight-line+.dash-insight-line{border-top:1px solid var(--border)}
-/* v67 item 5a (revised): the Suggestions callout on the MENU tab sits ABOVE the dish table (a long menu
-   would push it off-screen at the bottom). It's a light INSET — its own subtle border + tint, aligned with
-   the .panel-meta inset — not a nested .panel card, so it reads as a highlighted takeaway, not a second slab. */
-.menu-insights{margin:var(--sp-3) var(--sp-5) 0;border:1px solid var(--border);border-radius:var(--radius-ctl);background:var(--surface2)}
-.menu-insights .di-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px}
-.di-sub{font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted2)}
+/* v67 (redesign) — the Menu-tab "Suggestions" as a quiet, PERSONAL note above the dish table: the app's
+   kitchen-sense reading THIS menu's numbers WITH you, not a dashboard widget. Less in-your-face: a soft
+   borderless warm inset (no hard border, no uppercase eyebrow), aligned with the .panel-meta inset. More
+   personal: the small EzPlate arc "voice" mark + an italic first-person lead, then airy note lines with no
+   dividers. Boldness is spent in ONE place — the marmalade arc; everything else is espresso/neutral, so
+   --accent stays effectively reserved for CTAs. */
+.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-2);padding:var(--sp-4) var(--sp-4) calc(var(--sp-4) - 2px);background:var(--surface2);border-radius:var(--radius-card)}
+.mi-lead{display:flex;align-items:center;gap:8px;margin:0 0 var(--sp-3);font-style:italic;font-size:var(--fs-sm);color:var(--text2);letter-spacing:.01em}
+.mi-lead b{font-style:normal;font-weight:800;color:var(--brand);letter-spacing:0}
+.mi-mark{flex:0 0 auto;width:18px;height:18px;line-height:0}
+.mi-mark svg{width:18px;height:18px;overflow:visible}
+.mi-mark .mi-ring{stroke:var(--border2);stroke-width:2;fill:none}
+.mi-mark .mi-arc{stroke:var(--accent);stroke-width:2.4;stroke-linecap:round;fill:none}
+.mi-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-3)}
+.mi-line{font-size:14px;line-height:1.55;color:var(--text)}
 @media (max-width:700px){ .menu-insights{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
   /* invoice review: streamlined no-match "Add as New Item" button */
@@ -1247,7 +1251,6 @@ input[type=checkbox]{
   #dashBody{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--sp-5);align-items:start}
   #dashBody .dash-panel{grid-column:1;margin:var(--sp-5) 0 0}   /* v49: same top offset as every other tab's .panel */
   #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin:0}
-  #dashBody .dash-insights{grid-column:1/-1;margin:var(--sp-5) 0 0}   /* v63: spans full width below the chart + highlights */
   .dash-chart svg{height:auto}
   .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
 

@@ -2015,25 +2015,31 @@ function applyPhrasedInsights(lines, insights){
   try{
     var host=document.getElementById('menuInsightsPanel'); if(!host) return;
     if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // menu moved on → don't overwrite
-    lines.forEach(function(t,ix){ var el=host.querySelector('.dash-insight-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
+    lines.forEach(function(t,ix){ var el=host.querySelector('.mi-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
   }catch(e){}
 }
-/* v67 item 5a: the Suggestions panel now lives on the MENU tab, below the dish table, scoped to the
-   selected menu. renderAnalysis calls this after painting the table; switching menus re-renders it. */
+// v67 redesign: the small EzPlate arc "voice" mark — a faint ring + a single marmalade arc quarter,
+// echoing the header logo. It's the ONE spot of accent colour in the note (boldness spent in one place);
+// everything else stays espresso/neutral. The arc/ring are coloured via CSS classes (SVG attrs can't take
+// var()), so it follows the theme.
+var MI_MARK='<span class="mi-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle class="mi-ring" cx="12" cy="12" r="9"/><path class="mi-arc" d="M12 3a9 9 0 0 1 6.36 2.64"/></svg></span>';
+/* v67 item 5a (redesigned): a quiet, PERSONAL note above the dish table — the app's kitchen-sense
+   reading THIS menu's numbers with you, not a dashboard widget. Soft borderless warm card, the arc voice
+   mark, an italic first-person lead, and airy note lines (no eyebrow, no dividers). renderAnalysis calls
+   this after painting the table; switching menus re-renders it. */
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
-  if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the callout hides
-  var sig=insightSig(insights);
-  // v67 (revised): a light INSET callout above the table (not a nested .panel card) — .menu-insights
-  // supplies its own subtle border/tint so it reads as a highlighted takeaway, not a second slab.
-  host.innerHTML='<div class="dash-insights menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'"><div class="pad">'
-    +'<div class="di-head">Suggestions<span class="di-sub">'+esc(menuNameFor(currentMenuId))+'</span></div>'
-    +insights.map(function(ins,ix){ return '<div class="dash-insight-line" data-ix="'+ix+'">'+esc(ins.text)+'</div>'; }).join('')
-    +'</div></div>';
+  if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the note hides
+  var sig=insightSig(insights), mn=menuNameFor(currentMenuId);
+  host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
+    +'<p class="mi-lead">'+MI_MARK+'<span>What I’m seeing'+(mn?(' on <b>'+esc(mn)+'</b>'):'')+'</span></p>'
+    +'<ul class="mi-list">'
+    +insights.map(function(ins,ix){ return '<li class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</li>'; }).join('')
+    +'</ul></div>';
   try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
 }
-function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?(' · '+m.name):''; }
+function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
   if(typeof priceHistory==='undefined' || typeof savedPlates==='undefined'){ return; }  // data not initialised yet; boot-ready will re-render
@@ -2830,7 +2836,7 @@ function handleInvFile(file){
       // v63 fix: the PDF path builds rows DIRECTLY (it doesn't go through parseInvoice), so the AI
       // second reader was never firing and the status note never set for uploaded invoices \u2014 which is
       // how Max actually imports. Mirror parseInvoice here: stamp the status, then fire ONE reader.
-      if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 '+rows.length+' line'+(rows.length===1?'':'s')+' read, review below'; gemStatus='checking'; gemApplied=false; gemCheckStart=Date.now(); buildInvRows(rows); gemFireSecondReader(text); }
+      if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=''; gemStatus='checking'; gemApplied=false; gemCheckStart=Date.now(); buildInvRows(rows); gemFireSecondReader(text); }   // v67 follow-up: no "N lines read, review below" line \u2014 the "X matched \u00b7 X new" summary below already confirms it worked
       else { ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 review the extracted text'; toast('Couldn\u2019t auto-detect priced lines \u2014 review the text below or enter manually'); }
     }).catch(function(e){
       if(nameEl) nameEl.textContent=file.name;
@@ -2839,7 +2845,7 @@ function handleInvFile(file){
     });
   } else {
     var r=new FileReader();
-    r.onload=function(){ document.getElementById('invCsv').value=String(r.result||''); parseInvoice(); };
+    r.onload=function(){ if(nameEl) nameEl.textContent=''; document.getElementById('invCsv').value=String(r.result||''); parseInvoice(); };   // v67 follow-up: no filename line — the "X matched · X new" summary confirms it worked
     r.onerror=function(){ toast('Could not read that file'); };
     r.readAsText(file);
   }

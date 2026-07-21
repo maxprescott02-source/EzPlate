@@ -52,10 +52,16 @@ override pile (the v36/v53/v56/v60 `.misc-label`/`.misc-fixed`/single-row-`.line
 - The GST-default notice (`.inv-gst`) restyled from the loud warn-box (border + `--warn-bg`) to a small
   muted line (`--fs-xs`, `--muted2`, no border/background). Still always present, just no longer shouting.
 
-**Kept prominent, unchanged:** the Upload button, the Match products CTA, and the matched/new/review +
-"AI checked" summary. The filename / "N lines read, review below" line was already small + muted — left as is.
+**Removed** (redundant): the filename / "**N lines read, review below**" reassurance line (`#invFileName`,
+both the PDF and CSV upload paths). The "**X matched · X new · X to review**" summary directly below already
+confirms the import worked, so the extra line was just clutter. The `#invFileName` element stays and still
+carries the useful transient states — "filename — reading…" during a PDF extract, and the image-PDF /
+"couldn't detect priced lines" fallbacks — it just no longer shows the success line.
 
-**Deleted: nothing.** Only the paste box moved behind a toggle and the GST note lost its box.
+**Kept prominent, unchanged:** the Upload button, the Match products CTA, and the matched/new/review +
+"AI checked" summary.
+
+**Deleted:** only the redundant success line above (the paste box moved behind a toggle; the GST note lost its box).
 
 ## 5 — AI Suggestions: relocated to the Menu tab AND broadened
 **5a — placement.** The grounded "Suggestions" panel was **removed from `renderDashboard`** and now renders
@@ -63,10 +69,22 @@ on the **Menu tab, ABOVE the dish table** (`#menuInsights` host inside the menu 
 food-cost-target meta line and the table; `renderMenuInsights` called at the end of the live
 `renderAnalysis`). Placed above the table because a long menu would push it off-screen at the bottom where
 it gets missed. It's **scoped to the currently selected menu** (`computeInsights` filters `MENU` by
-`currentMenuId`, mirroring `renderAnalysis`'s `inMenu`) and re-renders on every menu switch. Rendered as a
-light **inset callout** (reuses the `.dash-insights` tokens but with its own subtle border + `--surface2`
-tint — not a nested `.panel` card / oversized slab), aligned with the `.panel-meta` inset, with a
-"· <menu name>" sub-label. Phrasing cache is keyed **per menu** (`menuId|sig`).
+`currentMenuId`, mirroring `renderAnalysis`'s `inMenu`) and re-renders on every menu switch. Phrasing cache
+is keyed **per menu** (`menuId|sig`).
+
+**Redesign (`/frontend-design`) — quieter + more personal.** Max found the first version too "in your
+face" and impersonal. Reframed from a dashboard widget into a **quiet personal note**: the app's
+kitchen-sense reading THIS menu's numbers *with* you.
+- **Less in-your-face:** dropped the hard border and the uppercase "SUGGESTIONS" eyebrow; it's now a soft
+  **borderless warm inset** (`--surface2`, `--radius-card`), aligned with the `.panel-meta` inset, with airy
+  note lines and **no dividers**.
+- **More personal:** a small **EzPlate arc "voice" mark** (`MI_MARK` — a faint ring + one marmalade arc
+  quarter, echoing the header logo) + an **italic, first-person lead** — "*What I'm seeing on **{menu}***"
+  (the menu name in espresso `--brand`). The lines read as observations, not a data readout.
+- **Palette discipline (per the skill):** boldness spent in ONE place — the marmalade arc is the only spot
+  of `--accent` colour, so `--accent` stays effectively reserved for CTAs; everything else is espresso/neutral.
+- Classes renamed `.dash-insight-line`→`.mi-line`, `.di-head`→`.mi-lead`; `applyPhrasedInsights` + smoke
+  updated. The old `.dash-insights`/`di-*` CSS (now fully unused after the Dashboard removal) was deleted.
 
 **5b — broadened engine (the insights were flat because every line was the same shape).** Rebuilt as **one
 pure, tested function per insight TYPE** (each returns `{kind, facts, text, score}`) plus a pure
@@ -117,12 +135,14 @@ still pinned by `api-insight.test.js`).
 2. **Misc line at 380px:** add a misc cost — it should read as a sibling of the ingredient rows (same
    height, the `$` input lined up under the ingredient totals, `×` in the same column). Both themes.
 3. **Invoice header as a NEW user sees it:** the "or paste text manually" link sits inline next to Upload;
-   paste box collapsed; upload → match → review with no monospace wall; the GST note is a quiet muted line;
-   expanding the toggle reveals + focuses the textarea. Both themes.
-4. **Suggestions on the Menu tab, switching between two menus:** the callout sits ABOVE the dish table
-   (visible without scrolling a long menu), shows a varied 2–3 (not all "raise price"), reflects the
-   selected menu, and the lead rotates on menu switch. With the API reachable the wording is warmer but
-   **every number identical**; offline → templates. Both themes.
+   paste box collapsed; upload → match → review with no monospace wall and **no filename / "N lines read"
+   line** (just the matched/new summary); a PDF still shows "reading…" while it extracts; the GST note is a
+   quiet muted line; expanding the toggle reveals + focuses the textarea. Both themes.
+4. **Suggestions on the Menu tab, switching between two menus:** the **personal note** sits ABOVE the dish
+   table (visible without scrolling a long menu) — soft warm inset, the arc mark + italic "What I'm seeing
+   on {menu}" lead, airy lines. Shows a varied 2–3 (not all "raise price"), reflects the selected menu, lead
+   rotates on switch. API reachable → warmer wording, **every number identical**; offline → templates. Both
+   themes. **Check the note doesn't read as a loud card and the arc mark is the only colour pop.**
 
 ## NOT built (deliberately)
 - No DB/schema change (branch-safe; still unrelated to the pending v55 migrations).
