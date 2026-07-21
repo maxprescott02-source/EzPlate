@@ -68,6 +68,7 @@ function build() {
   const insSummary = extractFn(src, 'insSummary');
   const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
+  const lightFilterPass = extractFn(src, 'lightFilterPass');   // v68: Menu margin-light filter (pure)
 
   // eslint-disable-next-line no-new-func
   const factory = new Function(`
@@ -90,7 +91,8 @@ function build() {
     ${insSummary}
     ${selectInsights}
     ${deriveInsights}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, selectInsights, deriveInsights };
+    ${lightFilterPass}
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }

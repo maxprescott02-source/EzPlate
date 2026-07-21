@@ -294,14 +294,31 @@ merge to `main` as a production deploy.
 
 ## State as of 22 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v66** — PR #11 (`feat/gemini-dual-reader`, the whole v62–v66 Gemini line) is now
-  MERGED (`4874956`). One unmerged branch carries the next batch: **`fix/builder-invoice-suggestions`**
-  (**v67**), off `main`, awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between
-  sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main` first
-  ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need applying
-  to prod before the v54+ line goes live** (see [[supabase-schema-can-lag-app-code]]). `npm test` = **256
-  green**, jsdom smoke green, `node -c` clean (app.js + the four `api/*.js`), six spots at **v67**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`.
+- `origin/main` is at **v67** — PR #12 (`fix/builder-invoice-suggestions`, v67) is now MERGED (`fe13432`).
+  One unmerged branch carries the next batch: **`fix/visual-consistency-pass`** (**v68**), off `main`,
+  awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
+  GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+  **The three v55 Supabase migrations STILL need applying to prod before the v54+ line goes live** (see
+  [[supabase-schema-can-lag-app-code]]). `npm test` = **261 green**, jsdom smoke green, `node -c` clean
+  (app.js + the four `api/*.js`), six spots at **v68**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v68 (branch `fix/visual-consistency-pass`) — Menu light-chip filter · Suggestions title + honest AI
+  credit · whole-site grid-snap (brief: `~/Downloads/ezplate-opus-visual-consistency_1.md`). See
+  `handovers/HANDOVER-v68.md`.** (1) **Menu tab margin-light filter** — multi-select tappable chips
+  (Healthy/Watch/Reprice = green/amber/red, reusing the `.dot` key so they double as the legend); pure
+  `lightFilterPass(active,light)` (tested: red-only / amber+red / cleared) filters `renderAnalysis`'s
+  precomputed per-dish `analyze()`; folds into `clearMenuFilters`. (2) **Suggestions** retitled
+  `.mi-intro` → **"What stands out on {menu}"**; **honest attribution** — a muted "Refined by Gemini" corner
+  credit (`.mi-credit`) revealed ONLY when Gemini actually phrased a shown line (`gemPhraseInsights` tracks
+  `refined`, `applyPhrasedInsights` reveals; template-only → nothing). (3) **Whole-site grid-snap** (Max
+  chose the full scope over targeted): spacing/type ONLY, snapped ~96 non-invoice off-scale values to the
+  `--sp`/`--fs` scale (`gap:10px`→sp-2/sp-3, `6px`→sp-2, `font-size:14px`→fs-base/fs-sm, `font-weight:650`
+  →700, rem→tokens, card padding→12×16), applied as a count-asserted replacement manifest (91/91 one-for-one
+  swap, zero structural diff). **Invoice review area, control paddings, touch targets, heading tier, legacy
+  pricing section deliberately excluded.** The Suggestions-crowds-the-target-line trigger fixed by reordering
+  the card above that line + a clear section gap. 256→261 (`menu-light-filter.test.js` +5; smoke §16 retitle
+  +credit, §17 chips). Six spots → **v68**. **This is a v31-shaped app-wide density change — needs Max's
+  phone across every tab/modal both themes before merge.**
 
 - **v67 (branch `fix/builder-invoice-suggestions`) — builder polish · invoice header · Suggestions → Menu
   tab + broadened (brief: `~/Downloads/ezplate-opus-builder-invoice-suggestions.md`). See

@@ -778,6 +778,8 @@ function restoreLastTab(){                                            // return 
   if(msc){ msc.addEventListener('click',function(){ ms.value=''; renderAnalysis(); ms.focus(); }); }
   var mcf=document.getElementById('menuCatFilter'); if(mcf) mcf.addEventListener('change',renderAnalysis);   // v59: category filter (dish sections)
   var mclf=document.getElementById('menuClearFilters'); if(mclf) mclf.addEventListener('click',clearMenuFilters);   // v59: shared clear behaviour
+  var mlc=document.getElementById('menuLightChips');                 // v68: margin-light filter chips (multi-select) — delegated
+  if(mlc) mlc.addEventListener('click',function(e){ var b=e.target.closest('.mlf-chip'); var lt=b&&b.getAttribute('data-light'); if(lt) toggleMenuLight(lt); });
 })();
 buildMenuOptions(); buildMenuSelector(); bindTips();
 
@@ -974,7 +976,26 @@ function emptySearchState(icon,noun,clearFn){
 function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); renderIngredients(); }
 function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; var c=document.getElementById('kingCatFilter'); if(c) c.value=''; renderKitchenPanel(); }
 function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
-function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; renderAnalysis(); }
+// v68: Menu tab margin-light filter — multi-select tappable chips (green/amber/red). Empty = show all;
+// tapping red shows red only; tapping amber too shows amber+red (the "everything needing attention" case).
+var menuLightFilter=[];
+function lightFilterPass(active, light){                            // pure (tested): no active lights ⇒ everything; else only the active lights
+  if(!active || !active.length) return true;
+  return active.indexOf(light)>=0;
+}
+function toggleMenuLight(light){
+  var i=menuLightFilter.indexOf(light);
+  if(i>=0) menuLightFilter.splice(i,1); else menuLightFilter.push(light);
+  syncMenuLightChips(); renderAnalysis();
+}
+function syncMenuLightChips(){                                      // reflect state on the chips (active vs inactive + aria-pressed)
+  ['green','amber','red'].forEach(function(lt){
+    var b=document.querySelector('.mlf-chip[data-light="'+lt+'"]'); if(!b) return;
+    var on=menuLightFilter.indexOf(lt)>=0;
+    b.classList.toggle('on',on); b.setAttribute('aria-pressed',on?'true':'false');
+  });
+}
+function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; menuLightFilter=[]; syncMenuLightChips(); renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
 var TIDY_DOOR='__tidy__';   // v60 item 8: sentinel option value = "open the Tidy modal scoped to this field"
 function fillFilter(sel, list, label){
@@ -1996,7 +2017,7 @@ function gemPhrasingOk(text, facts){
 function gemPhraseInsights(insights, menuKey){
   if(!insights || !insights.length) return;
   var sig=insightSig(insights), key=(menuKey||'')+'|'+sig;
-  if(gemInsightPhrased && gemInsightPhrased.key===key){ applyPhrasedInsights(gemInsightPhrased.lines, insights); return; }
+  if(gemInsightPhrased && gemInsightPhrased.key===key){ applyPhrasedInsights(gemInsightPhrased.lines, insights, gemInsightPhrased.refined); return; }
   if(typeof fetch!=='function') return;
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
@@ -2005,20 +2026,23 @@ function gemPhraseInsights(insights, menuKey){
     .then(function(payload){
       clearTimeout(timer);
       if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)) return;
+      var refined=false;                                             // v68: true only if ≥1 shown line is actually Gemini's phrasing (drives the honest credit)
       var lines=insights.map(function(ins,ix){                       // per line: accept the phrasing only if it passes the number check, else keep the template
         var cand=payload.lines[ix] && payload.lines[ix].text;
-        return (cand && gemPhrasingOk(cand, ins.facts))?String(cand).trim():ins.text;
+        if(cand && gemPhrasingOk(cand, ins.facts)){ refined=true; return String(cand).trim(); }
+        return ins.text;
       });
-      gemInsightPhrased={key:key, lines:lines};
-      applyPhrasedInsights(lines, insights);
+      gemInsightPhrased={key:key, lines:lines, refined:refined};
+      applyPhrasedInsights(lines, insights, refined);
     })
     .catch(function(){ clearTimeout(timer); });                     // any failure → templates already shown, nothing to do
 }
-function applyPhrasedInsights(lines, insights){
+function applyPhrasedInsights(lines, insights, refined){
   try{
     var host=document.getElementById('menuInsightsPanel'); if(!host) return;
     if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // menu moved on → don't overwrite
     lines.forEach(function(t,ix){ var el=host.querySelector('.mi-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
+    if(refined){ var c=host.querySelector('.mi-credit'); if(c) c.hidden=false; }   // v68: reveal the credit only when Gemini truly phrased a shown line
   }catch(e){}
 }
 /* v67 item 5a (redesign 2): a plain, quiet note above the dish table — NO card, border, tint, icon or
@@ -2031,9 +2055,13 @@ function renderMenuInsights(){
   var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
   if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the note hides
   var sig=insightSig(insights), mn=menuNameFor(currentMenuId);
+  // v68: title is now "What stands out on {menu}" (works whether the news is good or bad). The
+  // "Refined by Gemini" credit is honest — it stays hidden while the deterministic template shows and is
+  // revealed by applyPhrasedInsights ONLY when Gemini actually phrased a shown line (see gemPhraseInsights).
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">'+(mn?('A read on <b>'+esc(mn)+'</b>'):'A read on this menu')+'</p>'
+    +'<p class="mi-intro">'+(mn?('What stands out on <b>'+esc(mn)+'</b>'):'What stands out on this menu')+'</p>'
     +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
+    +'<span class="mi-credit" hidden>Refined by Gemini</span>'
     +'</div>';
   try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
 }
@@ -2149,7 +2177,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v67';
+var APP_VERSION='v68';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4065,20 +4093,24 @@ function renderAnalysis(){
     return a.toLowerCase().localeCompare(b.toLowerCase());      // categories A–Z
   });
   fillFilter(document.getElementById('menuCatFilter'), sections, 'All categories');   // v59: options = this menu's dish sections
-  var mcf=document.getElementById('menuClearFilters'); if(mcf) mcf.style.display=(q||catSel)?'':'none';
+  var mcf=document.getElementById('menuClearFilters'); if(mcf) mcf.style.display=(q||catSel||menuLightFilter.length)?'':'none';
   var byName=function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());};
   var html='';
   sections.forEach(function(sec){
     if(catSel && sec!==catSel) return;   // v59: category filter narrows to one section
-    var items=MENU.filter(function(m){return inMenu(m) && secOf(m)===sec && hit(m.name,sec);}).slice().sort(byName);
+    var items=MENU.filter(function(m){return inMenu(m) && secOf(m)===sec && hit(m.name,sec);}).slice().sort(byName)
+      .map(function(m){                                               // v68: precompute each dish's analysis so the margin-light chips can filter on it
+        var sp=plateForMenuItem(m); var costed=!!(sp && sp.lines && sp.lines.length);   // v55: the dish's plate via plate_id
+        return {m:m, sp:sp, costed:costed, a:costed?analyze(costFromLines(sp.lines),m.price):{light:'none'}};   // §B: an EMPTY plate is "not costed yet", not a $0.00 cost
+      })
+      .filter(function(it){ return lightFilterPass(menuLightFilter, it.a.light); });   // v68: active chips narrow to those margin lights
     if(!items.length) return;
     html+='<tr class="sec"><td colspan="6">'+esc(sec)+'</td></tr>';
-    items.forEach(function(m){
+    items.forEach(function(it){
       shown++;
-      var sp=plateForMenuItem(m);                                     // v55: the dish's plate via plate_id
-      if(sp && sp.lines && sp.lines.length){ html+=aRow(m.name||sp.name, analyze(costFromLines(sp.lines),m.price), m); }   // §B: an EMPTY plate is "not costed yet", not a $0.00 cost
-      else{ var note=m.notes?' <span class="mi-note" title="'+esc(m.notes)+'">ⓘ</span>':'';
-        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(m.id)+'"><td><button type="button" class="mi-name">'+esc(m.name)+'</button>'+note+menuActions(m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
+      if(it.costed){ html+=aRow(it.m.name||it.sp.name, it.a, it.m); }
+      else{ var note=it.m.notes?' <span class="mi-note" title="'+esc(it.m.notes)+'">ⓘ</span>':'';
+        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
     });
   });
   // v55: unpublished plates are NOT dishes — they live only in the Plates tab, never on the Menu tab.

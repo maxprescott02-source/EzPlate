@@ -219,10 +219,10 @@ header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
 .pad{padding:var(--sp-5)}
 label.f{
   display:block;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
-  color:var(--muted2);text-transform:uppercase;margin-bottom:6px;
+  color:var(--muted2);text-transform:uppercase;margin-bottom:var(--sp-2);
 }
 .hint{font-size:var(--fs-sm);color:var(--muted2);margin:var(--sp-2) 2px 0;line-height:1.5}
-.empty{padding:36px var(--sp-5);text-align:center;color:var(--muted2);font-size:14px;line-height:1.6}
+.empty{padding:36px var(--sp-5);text-align:center;color:var(--muted2);font-size:var(--fs-base);line-height:1.6}
 
 /* ----------------------------------------------------------------------
    5. FORM CONTROLS
@@ -243,15 +243,15 @@ select,.field select{
 .field select{padding-right:38px}
 .field input[readonly]{background:var(--surface2);color:var(--muted2)}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3) var(--sp-4)}
-.field{display:flex;flex-direction:column;gap:6px}
+.field{display:flex;flex-direction:column;gap:var(--sp-2)}
 .field.full{grid-column:1 / -1}
 .field label{
   font-size:var(--fs-xs);font-weight:700;color:var(--muted2);
   text-transform:uppercase;letter-spacing:.05em;
 }
 .field label.chk{
-  display:flex;flex-direction:row;align-items:center;gap:10px;
-  text-transform:none;font-size:14px;color:var(--text);font-weight:500;letter-spacing:0;
+  display:flex;flex-direction:row;align-items:center;gap:var(--sp-2);
+  text-transform:none;font-size:var(--fs-base);color:var(--text);font-weight:500;letter-spacing:0;
 }
 .field label.chk input{width:auto}
 input[type=checkbox]{
@@ -273,7 +273,7 @@ input[type=checkbox]{
 .btn{
   border:1.5px solid var(--border2);background:var(--surface);color:var(--text);
   padding:11px 18px;border-radius:var(--radius-ctl);cursor:pointer;
-  font-size:14px;font-weight:600;
+  font-size:var(--fs-base);font-weight:600;
   transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),
              color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease);
 }
@@ -311,12 +311,12 @@ input[type=checkbox]{
 .drop.open{display:block;animation:dropIn var(--t-med) var(--ease)}
 @keyframes dropIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .opt{
-  display:flex;align-items:baseline;gap:10px;padding:12px 14px;min-height:44px;
+  display:flex;align-items:baseline;gap:var(--sp-2);padding:12px 14px;min-height:44px;
   cursor:pointer;border-bottom:1px solid var(--border);
 }
 .opt:last-child{border-bottom:0}
 .opt:hover,.opt.hi{background:var(--hover)}
-.opt .nm{flex:1;font-size:14px;color:var(--text)}
+.opt .nm{flex:1;font-size:var(--fs-base);color:var(--text)}
 .opt .ca{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
 .opt .uc{font-family:var(--mono);font-size:var(--fs-sm);color:var(--text2);white-space:nowrap}
 .opt mark{background:var(--accent-weak);color:var(--accent-ink);border-radius:3px;font-weight:700}
@@ -334,7 +334,7 @@ input[type=checkbox]{
 }
 .suggest-drop .sug-opt:last-child{border-bottom:0}
 .suggest-drop .sug-opt:hover{background:var(--hover)}
-.suggest-drop .sug-opt .nm{font-size:14px;color:var(--text);font-weight:500}
+.suggest-drop .sug-opt .nm{font-size:var(--fs-base);color:var(--text);font-weight:500}
 .suggest-drop .sug-opt .ca{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
 
 /* ----------------------------------------------------------------------
@@ -353,11 +353,11 @@ input[type=checkbox]{
   background-size:16px 12px;background-repeat:repeat-x;
   filter:drop-shadow(0 3px 3px rgba(56,38,30,.07));
 }
-.plate-tools{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.plate-tools{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
 .edit-tag{font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700;font-family:var(--mono)}
 .docket-head{
   display:flex;justify-content:space-between;align-items:center;
-  margin-top:14px;   /* v49: was an inline style in index.html */
+  margin-top:var(--sp-4);   /* v49: was an inline style in index.html */
   padding:12px var(--sp-5);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);
   font-family:var(--mono);font-size:var(--fs-xs);letter-spacing:.08em;color:var(--muted2);
   background:var(--surface2);
@@ -386,11 +386,11 @@ input[type=checkbox]{
    9. PLATE LINES
    ---------------------------------------------------------------------- */
 .line{padding:var(--sp-4) var(--sp-5);border-bottom:1px dashed var(--border)}
-.line .top{display:flex;align-items:flex-start;gap:10px}
+.line .top{display:flex;align-items:flex-start;gap:var(--sp-2)}
 .line .nm{flex:1;min-width:0}
-.line .nm b{font-size:15px;font-weight:650;display:block;line-height:1.3;color:var(--text)}
+.line .nm b{font-size:15px;font-weight:700;display:block;line-height:1.3;color:var(--text)}
 .line .nm .sub{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;display:block}
-.priceline{display:block;font-family:var(--mono);font-size:var(--fs-sm);color:var(--muted2);margin-top:6px}
+.priceline{display:block;font-family:var(--mono);font-size:var(--fs-sm);color:var(--muted2);margin-top:var(--sp-2)}
 .pchip{
   display:inline-flex;align-items:center;gap:5px;cursor:pointer;
   border:1px dashed var(--border2);border-radius:var(--radius-chip);padding:3px 9px;
@@ -401,7 +401,7 @@ input[type=checkbox]{
 .pchip .pen{opacity:.55;font-size:11px}
 .pchip .pin{width:72px;border:0;outline:none;font-family:var(--mono);font-size:13px!important;padding:2px 0;background:transparent;color:var(--text);min-height:0}
 .edited{color:var(--warn);font-size:var(--fs-xs);font-family:var(--ui);margin-left:4px;font-weight:600}
-.qtybox{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.qtybox{display:flex;align-items:center;gap:var(--sp-2);flex:0 0 auto}
 .qtybox input{width:82px;text-align:right;padding:9px 10px;border-radius:var(--radius-chip);font-variant-numeric:tabular-nums}
 /* v61 item 1: hide the number spinners so 4–5 digit quantities aren't clipped by the arrow gutter (same reasoning as .invPackQty — staff type, they don't step) */
 .qtybox input::-webkit-outer-spin-button,.qtybox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -412,7 +412,7 @@ input[type=checkbox]{
   color:var(--text);font-variant-numeric:tabular-nums;
 }
 .leader{flex:1;border-bottom:1px dotted var(--border2);transform:translateY(-4px);margin:0 4px}
-.row2{display:flex;align-items:center;gap:var(--sp-2);margin-top:10px}
+.row2{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-3)}
 .alt-btn{
   border:1px solid var(--border2);background:var(--surface);color:var(--text2);
   font-size:var(--fs-sm);font-weight:600;padding:7px 13px;border-radius:var(--radius-pill);cursor:pointer;
@@ -420,10 +420,10 @@ input[type=checkbox]{
 }
 .alt-btn:hover{background:var(--hover);color:var(--text)}
 .cheapest{font-size:var(--fs-sm);color:var(--good);font-weight:700}
-.alts{margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-chip);display:none}
+.alts{margin-top:var(--sp-3);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-chip);display:none}
 .alts.open{display:block}
 .alts .ah{font-size:var(--fs-xs);letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);padding:9px 13px;border-bottom:1px solid var(--border);font-weight:700}
-.alt{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border)}
+.alt{display:flex;align-items:center;gap:var(--sp-2);padding:10px 13px;border-bottom:1px solid var(--border)}
 .alt:last-child{border-bottom:0}
 .alt .an{flex:1;font-size:13px}
 .alt .au{font-family:var(--mono);font-size:var(--fs-sm);color:var(--text2);white-space:nowrap}
@@ -440,7 +440,7 @@ input[type=checkbox]{
    10. PLATE ACTIONS — one clear primary, quiet destructive
    ---------------------------------------------------------------------- */
 .actions{
-  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);
   padding:var(--sp-4) var(--sp-5) var(--sp-5);align-items:stretch;
 }
 .btn-stack{
@@ -475,13 +475,23 @@ input[type=checkbox]{
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:7px;flex:0 0 auto}
 .dot.green{background:var(--good)} .dot.amber{background:var(--warn)}
 .dot.red{background:var(--bad)}   .dot.none{background:var(--border2)}
+/* v68: margin-light filter chips (Menu tab). Reuse the .dot colour-key; multi-select toggle buttons. */
+.mlf{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center}
+.mlf-chip{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:36px;padding:8px 14px;
+  border:1px solid var(--border2);background:var(--surface);color:var(--text2);border-radius:var(--radius-pill);
+  font-size:var(--fs-sm);font-weight:600;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.mlf-chip .dot{margin:0}
+.mlf-chip:hover{background:var(--hover);color:var(--text)}
+.mlf-chip.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
+.mlf-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .vbadge{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap}
 .vbadge.vgood,.vbadge.inrange{color:var(--good)}
 .vbadge.vwarn,.vbadge.over{color:var(--warn)}
 .vbadge.vbad,.vbadge.under{color:var(--bad)}
 .muted-dash{color:var(--muted2)}
 .mi-note{cursor:pointer;color:var(--text2);margin-left:2px}
-.mi-act{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mi-act{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:8px}
 .mi-act .mi-btn{margin-left:0}
 .mi-btn{
   display:inline-block;font:inherit;font-size:12px;font-weight:700;line-height:1;
@@ -504,7 +514,7 @@ input[type=checkbox]{
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
   color:var(--muted2);flex:0 0 auto;
 }
-.atable td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px}
+.atable td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-sm)}
 
 /* section headers */
 .atable tr.sec{background:none;margin:var(--sp-4) var(--sp-1) var(--sp-2)}
@@ -516,10 +526,10 @@ input[type=checkbox]{
 /* item cards */
 .atable tbody tr:not(.sec):not(.ni-row){
   position:relative;background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;padding:12px 14px;margin-bottom:var(--sp-2);   /* v36: one card system — matches .ing-card / .king-row */
+  border-radius:12px;padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);   /* v36: one card system — matches .ing-card / .king-row */
 }
 .atable tr.muted td{color:var(--muted2)}
-.atable tbody tr > td:first-child{display:block;font-size:15px;font-weight:650;color:var(--text);padding:0 28px 6px 0}
+.atable tbody tr > td:first-child{display:block;font-size:15px;font-weight:700;color:var(--text);padding:0 28px 6px 0}
 .atable tr.muted > td:first-child{color:var(--text2);font-weight:600}
 
 /* generated labels — analysis table columns */
@@ -604,7 +614,7 @@ input[type=checkbox]{
 .mhead .x{color:var(--muted2)}
 .mhead .x:hover{background:var(--hover);color:var(--text)}
 .mbody{padding:var(--sp-5)}
-.mfoot{display:flex;justify-content:flex-end;gap:10px;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
+.mfoot{display:flex;justify-content:flex-end;gap:var(--sp-2);padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
 .confirm-msg{margin:0;font-size:15px;line-height:1.5;color:var(--text)}
 #confirmOk{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 #confirmOk:hover{background:var(--accent-press);border-color:var(--accent-press)}
@@ -625,23 +635,23 @@ input[type=checkbox]{
 .ing-tag.pub-on{color:var(--accent)}
 .ing-tag.pub-off{color:var(--muted2)}
 /* plate card action chooser */
-.plate-actions .pa-sub,.manage-menus .pa-sub{margin:0 0 14px;font-size:13px;color:var(--muted2)}
+.plate-actions .pa-sub,.manage-menus .pa-sub{margin:0 0 var(--sp-4);font-size:13px;color:var(--muted2)}
 .pa-choices{display:flex;flex-direction:column;gap:8px}
 .pa-choices .btn{width:100%;min-height:44px}
 /* manage-menus: one row per menu (name · price/Add/Remove) */
 .mm-list{display:flex;flex-direction:column;gap:8px}
-.mm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px}
+.mm-row{display:flex;align-items:center;gap:var(--sp-2);padding:10px 12px;border:1px solid var(--border);border-radius:10px}
 .mm-name{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mm-price{font-variant-numeric:tabular-nums;color:var(--muted2)}
 .mm-row .btn{min-height:36px;padding:6px 14px}
-.mm-empty{padding:18px 4px;text-align:center;color:var(--muted2);font-size:14px}
+.mm-empty{padding:18px 4px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
 /* §B: an uncosted plate reads "not costed yet", not a misleading $0.00 */
 .ing-price.notcosted b{color:var(--muted2);font-weight:600}
 /* v54: unit type is create-only on the product EDIT form — shown, not editable */
 #ig_unit:disabled{opacity:.75;cursor:not-allowed;background:var(--surface2)}
 .ro-note{display:block;margin-top:4px;font-weight:400;color:var(--muted2)}
 .edit-delete-row{padding:var(--sp-3) var(--sp-5) var(--sp-4);text-align:center;border-top:1px solid var(--border);background:var(--surface2);border-radius:0 0 var(--radius-card) var(--radius-card)}
-#ed_plateActions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+#ed_plateActions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2)}
 
 /* ----------------------------------------------------------------------
    15. CATEGORY COMBOBOX
@@ -658,7 +668,7 @@ input[type=checkbox]{
 .cat-drop .opt.muted{color:var(--muted2);cursor:default}
 .cat-drop .cat-create{color:var(--accent-ink);font-weight:700}
 .cat-drop .ca{font-size:var(--fs-xs);color:var(--muted2);font-weight:700;margin-left:6px}
-.cat-new{margin-top:6px;font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700}
+.cat-new{margin-top:var(--sp-2);font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700}
 .pack-in{display:flex;gap:8px;align-items:center}
 .pack-in input{flex:1 1 auto;min-width:0}
 .pack-in select{flex:0 0 auto;width:auto}
@@ -672,7 +682,7 @@ input[type=checkbox]{
 .ad-item.sel{background:rgba(184,78,12,.10);box-shadow:inset 3px 0 0 var(--accent)}
 .ad-nm{font-weight:700;font-size:15px}
 .ad-meta{font-size:12px;color:var(--muted2)}
-.ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:14px}
+.ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
 /* invoice match candidate chips — the real choices, visible immediately */
 .cand-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}
 .cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -681,7 +691,7 @@ input[type=checkbox]{
 .cand-chip .cc-pct{font-weight:400;color:var(--muted2);margin-left:2px}
 .cand-chip.sel .cc-pct{color:var(--accent-ink)}
 /* dashboard clarity */
-.h2-val{font-size:14px;font-weight:800;color:var(--accent-ink);margin-left:8px;vertical-align:middle}
+.h2-val{font-size:var(--fs-base);font-weight:800;color:var(--accent-ink);margin-left:8px;vertical-align:middle}
 .stat-nums{font-size:12px;color:var(--muted2);margin:2px 0 3px;font-variant-numeric:tabular-nums}
 /* supplier memory: pack helper + remembered chip */
 .pack-teach{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
@@ -835,7 +845,7 @@ input[type=checkbox]{
   position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));
   transform:translateX(-50%) translateY(8px);
   background:var(--text);color:var(--bg);padding:12px 18px;border-radius:var(--radius-ctl);
-  font-size:14px;font-weight:600;z-index:90;opacity:0;pointer-events:none;
+  font-size:var(--fs-base);font-weight:600;z-index:90;opacity:0;pointer-events:none;
   box-shadow:var(--shadow-lg);max-width:calc(100% - 32px);text-align:center;
   transition:opacity var(--t-med) var(--ease),transform var(--t-med) var(--ease);
 }
@@ -872,12 +882,12 @@ input[type=checkbox]{
   box-shadow:var(--shadow-lg);max-width:740px;margin:0 auto;
 }
 .install-banner .ib-text{flex:1;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--text)}
-.install-banner .ib-text strong{font-size:14px;color:var(--text)}
+.install-banner .ib-text strong{font-size:var(--fs-base);color:var(--text)}
 .install-banner .ib-text span{color:var(--muted2)}
 .install-banner .ios-hint{color:var(--accent)!important;font-weight:700}
 .ib-install{
   background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--radius-ctl);
-  padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;min-height:44px;
+  padding:10px 16px;font-size:var(--fs-base);font-weight:700;cursor:pointer;min-height:44px;
   transition:background var(--t-fast) var(--ease);
 }
 .ib-install:hover{background:var(--accent-press)}
@@ -895,7 +905,7 @@ input[type=checkbox]{
   .brand-text b{font-size:15px}
   .pad{padding:var(--sp-4)}
   .panel{margin-top:var(--sp-4)}
-  .panel h2{padding:var(--sp-3) var(--sp-4) 10px}
+  .panel h2{padding:var(--sp-3) var(--sp-4) var(--sp-3)}
   .grid{grid-template-columns:1fr}
   .line,.total,.docket-head,.flag{padding-left:var(--sp-4);padding-right:var(--sp-4)}
   .actions{padding:var(--sp-3) var(--sp-4) var(--sp-4)}
@@ -1027,7 +1037,7 @@ input[type=checkbox]{
 .btn-danger{background:transparent;color:var(--bad);border:1.5px solid var(--bad);
   border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
 .btn-danger:hover{background:var(--bad);color:#fff}
-.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:var(--radius-pill);
+.badge{display:inline-flex;align-items:center;gap:var(--sp-2);padding:4px 12px;border-radius:var(--radius-pill);
   font-size:var(--fs-xs);font-weight:600;background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
 .badge-success{background:var(--good-bg);color:var(--good);border-color:transparent}
 .badge-warning{background:var(--warn-bg);color:var(--warn);border-color:transparent}
@@ -1039,19 +1049,19 @@ input[type=checkbox]{
 
 /* ============ Ingredients page ============ */
 /* v49: .ing-tools layout retired — it carries the shared .panel-actions class now (v49 batch) */
-.ing-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px var(--sp-5) var(--sp-1)}
+.ing-controls{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
 .ing-controls .menu-search{flex:1 1 200px;min-width:160px}
 .ing-filter{flex:0 1 auto;padding:9px 10px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);max-width:48%}
 .ing-count{color:var(--muted2);font-size:12px}
 .ing-list{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
-.ing-card{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;width:100%;text-align:left;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--text);transition:border-color .15s,transform .05s}
+.ing-card{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);transition:border-color .15s,transform .05s}
 .ing-card:hover{border-color:var(--accent)}
 .ing-card:active{transform:scale(.996)}
 .ing-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ing-name{font-weight:700;line-height:1.2}
 .ing-brand{font-size:12px;color:var(--muted2)}
-.ing-meta{grid-column:1;display:flex;gap:6px;flex-wrap:wrap}
+.ing-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
 .ing-tag{font-size:11px;font-weight:600;color:var(--muted2);background:rgba(0,0,0,.05);border-radius:6px;padding:1px 7px}
 .ing-tag.sup{color:var(--accent)}
 [data-theme="dark"] .ing-tag{background:rgba(255,255,255,.08)}
@@ -1066,33 +1076,33 @@ input[type=checkbox]{
 .inv-introx{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:20px;line-height:1;color:var(--muted2);cursor:pointer}
 
 /* ============ Dashboard ============ */
-#dashBody{padding-bottom:6px}
+#dashBody{padding-bottom:var(--sp-2)}
 /* v49: `.dash-panel h2{margin-bottom:0}` removed — .panel h2 already has margin:0 (a no-op since v3x) */
-.stat-attach{margin-top:6px;border-top:1px solid var(--border);padding-top:10px}
+.stat-attach{margin-top:var(--sp-2);border-top:1px solid var(--border);padding-top:var(--sp-3)}
 .stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}   /* v56: left edge = 0 = chart title/axis/caption column (was 2px, sat a hair right) */
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:11px}
-.chart-hint{margin:6px 2px 0;font-size:var(--fs-xs);color:var(--muted2);font-weight:400}
+.chart-hint{margin:var(--sp-2) 2px 0;font-size:var(--fs-xs);color:var(--muted2);font-weight:400}
 .ref-pill{position:absolute;top:6px;right:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);
   font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px;cursor:pointer}
 .ref-pill-static{cursor:default;color:var(--muted2);font-weight:600}   /* ITEM 3 (v33): read-only target marker */
 .ref-pill.ref-pill-static:hover{border-color:var(--border);color:var(--muted2)}   /* not interactive: no hover affordance */
-.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 4px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);padding:0 16px 4px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4)}
 .stat-h{font-size:12px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
-.stat-v{font-size:24px;font-weight:800;margin-top:4px;display:flex;align-items:center;gap:6px}
+.stat-v{font-size:24px;font-weight:800;margin-top:4px;display:flex;align-items:center;gap:var(--sp-2)}
 .stat-arrow{font-size:16px}
 .stat-arrow.good,.stat-sub.good{color:var(--good)}
 .stat-arrow.bad,.stat-sub.bad{color:var(--bad)}
 .stat-sub{font-size:12px;margin-top:2px;color:var(--muted2)}
 .stat-sub.flat{color:var(--muted2)}
-.hl-row{display:flex;flex-direction:column;gap:10px;padding:10px 16px 4px}
-.hl-card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--text)}
+.hl-row{display:flex;flex-direction:column;gap:var(--sp-3);padding:10px 16px 4px}
+.hl-card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text)}
 .hl-card:hover{border-color:var(--accent)}
 .hl-head{font-weight:700;margin-bottom:8px}
-.hl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.hl-list li,.hl-full li{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.hl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-2)}
+.hl-list li,.hl-full li{display:flex;justify-content:space-between;gap:var(--sp-2);font-size:13px}
 .hl-list .hl-n,.hl-full .hl-n{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hl-list .hl-v,.hl-full .hl-v{font-weight:700;white-space:nowrap}
 .hl-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent)}
@@ -1105,11 +1115,14 @@ input[type=checkbox]{
    eyebrow (the clutter pass 2 stripped). A warm italic lead names the menu; the observations are clean
    full-text prose lines. Personal through the copy + the italic aside; quiet through the soft, chrome-light
    card. Aligned with the .panel-meta inset. */
-.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-2);padding:var(--sp-3) var(--sp-4);background:var(--surface2);border-radius:var(--radius-card)}
+.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-5);padding:var(--sp-4);background:var(--surface2);border-radius:var(--radius-card)}
 .mi-intro{margin:0 0 var(--sp-2);font-size:var(--fs-sm);color:var(--muted2);font-style:italic}
 .mi-intro b{font-weight:800;color:var(--text2);font-style:normal}
-.mi-line{margin:0;font-size:14px;line-height:1.6;color:var(--text)}
+.mi-line{margin:0;font-size:var(--fs-base);line-height:1.6;color:var(--text)}
 .mi-line+.mi-line{margin-top:var(--sp-2)}
+/* v68: honest AI credit — shown only when Gemini actually phrased a line (JS reveals it); quiet corner text */
+.mi-credit{display:block;margin-top:var(--sp-3);text-align:right;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:.02em}
+.mi-credit[hidden]{display:none}
 @media (max-width:700px){ .menu-insights{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
   /* invoice review: streamlined no-match "Add as New Item" button */
@@ -1147,7 +1160,7 @@ input[type=checkbox]{
 
 /* ---- empty states: Ingredients + Menu (illustrated, matching the Builder plate) ---- */
 .an-empty,.ing-empty{font-style:normal}
-.ing-empty{padding:34px 16px 30px;text-align:center;color:var(--text2);font-size:14px;line-height:1.6}
+.ing-empty{padding:34px 16px 30px;text-align:center;color:var(--text2);font-size:var(--fs-base);line-height:1.6}
 .ing-empty::before{
   content:"";display:block;width:150px;height:105px;margin:0 auto 14px;
   background:var(--empty-ing) center/contain no-repeat;
@@ -1186,7 +1199,7 @@ input[type=checkbox]{
 /* ============================ TABLET ≥640px ============================ */
 @media (min-width:640px){
   .wrap{max-width:760px;padding:0 var(--sp-5)}
-  .ing-list{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ing-list{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
   .stat-row{gap:var(--sp-3)}
   .actions{grid-template-columns:1fr 1fr}
   .btn-stack{grid-column:auto}
@@ -1206,8 +1219,8 @@ input[type=checkbox]{
     border-top:0;border-right:1px solid var(--border);box-shadow:none;
   }
   .side-brand{
-    display:flex;align-items:center;gap:10px;padding:6px 8px 18px;
-    border-bottom:1px solid var(--border);margin-bottom:14px;color:var(--brand);
+    display:flex;align-items:center;gap:var(--sp-2);padding:6px 8px 18px;
+    border-bottom:1px solid var(--border);margin-bottom:var(--sp-4);color:var(--brand);
     cursor:pointer;border-radius:8px;   /* v39: sidebar logo is a Dashboard shortcut too */
   }
   .side-brand:focus-visible{outline:2px solid var(--accent,#3a6b4f);outline-offset:2px}
@@ -1218,13 +1231,13 @@ input[type=checkbox]{
   .navbtn{
     flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;
     min-height:46px;padding:11px 14px;border-radius:var(--radius-ctl);
-    font-size:14px;font-weight:600;color:var(--text2);
+    font-size:var(--fs-sm);font-weight:600;color:var(--text2);
   }
   .navbtn svg{width:var(--icon-sm);height:var(--icon-sm);padding:0;border-radius:0;background:none}
   .navbtn:hover{background:var(--hover);color:var(--text)}
   .navbtn.active{background:var(--accent-weak);color:var(--accent-ink)}
   .navbtn.active svg{background:none}
-  .nl{font-size:14px}
+  .nl{font-size:var(--fs-sm)}
 
   /* -- slim utility header: the sidebar owns the brand on desktop -- */
   header .brand{display:none}
@@ -1293,8 +1306,8 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
 .mhead,.mfoot,.edit-delete-row{flex:0 0 auto}
 .mbody{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 #hlBody{padding-top:var(--sp-3)}
-.hl-full{list-style:none;padding:0;margin:0;counter-reset:hl;gap:10px}
-.hl-full li{align-items:center;gap:12px;font-size:14px}
+.hl-full{list-style:none;padding:0;margin:0;counter-reset:hl;gap:var(--sp-3)}
+.hl-full li{align-items:center;gap:12px;font-size:var(--fs-base)}
 .hl-full li::before{
   counter-increment:hl;content:counter(hl);
   flex:0 0 auto;width:26px;height:26px;border-radius:50%;
@@ -1482,12 +1495,12 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 /* ---- Fix 3: mobile dashboard rhythm — the trend chart leads, stats compact ---- */
 /* v49: no bespoke top offsets — the dash panel starts where every other tab's panel starts
    (.panel's own margin-top; the old 2px pad + sp-4 margin put it 18px down vs 16 elsewhere) */
-#dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:0 0 10px}
+#dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:0 0 var(--sp-3)}
 #dashBody .stat-row,#dashBody .hl-row{padding:0;margin:0;gap:var(--sp-3)}
-.stat-card{padding:14px 16px}
+.stat-card{padding:var(--sp-3) var(--sp-4)}
 .stat-v{font-size:24px}
 .stat-sub{font-size:11px}
-.hl-card{padding:14px 16px}
+.hl-card{padding:var(--sp-3) var(--sp-4)}
 .hl-list{gap:8px}
 @media (min-width:1024px){
   #dashBody{display:grid;gap:0 var(--sp-5);padding:0}
@@ -1632,13 +1645,13 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 
 /* ===== bugfix batch (v22) ===== */
 /* item 4: misc cost lines + add button */
-.misc-add-wrap{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
-.btn.misc-add{padding:7px 12px;font-size:.9rem}
-.misc-hint{font-size:.8rem;color:var(--muted2)}
+.misc-add-wrap{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-2) 0 2px}
+.btn.misc-add{padding:7px 12px;font-size:var(--fs-base)}
+.misc-hint{font-size:var(--fs-xs);color:var(--muted2)}
 /* v67 item 3: the pre-v67 single-row misc rules were removed here — the misc line now reuses the
    ingredient .line skeleton (see the v67 misc block later in this file). */
 /* item 3: → Builder button in Menu Analysis */
-.mi-act .mi-btn.tobuilder{margin-right:6px}   /* v39: colour moved to the single quiet rule near .an-empty; this stayed for spacing only */
+.mi-act .mi-btn.tobuilder{margin-right:var(--sp-2)}   /* v39: colour moved to the single quiet rule near .an-empty; this stayed for spacing only */
 /* item 1: trend chart point tooltip */
 .dash-chart#trendWrap{position:relative}
 .tp-dot{cursor:pointer;transition:r .1s ease}
@@ -1663,7 +1676,7 @@ svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 /* item 8: don't let taps highlight chart chrome (scoped to the chart + interactive chrome only) */
 .dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .mi-btn, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
 /* item 2: misc-cost button sits as part of the builder, not bolted on */
-.misc-add-wrap{display:flex;align-items:center;gap:10px;margin:10px 2px 4px;padding-top:10px;border-top:1px dashed var(--line,#e4dccb)}
+.misc-add-wrap{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-3) 2px var(--sp-1);padding-top:var(--sp-3);border-top:1px dashed var(--line,#e4dccb)}
 /* item 3: docket/plate hover highlight keeps clear of the card edge */
 #lines .line{border-radius:10px}
 #lines .line:hover{background:var(--hover,#f6f1e7);box-shadow:inset 0 0 0 1px var(--line,#efe7d6)}
@@ -1825,7 +1838,7 @@ body{overflow-x:clip}
 /* v40: on narrow phones the 6-button range bar squeezed the title into a 3-line stack — give the title its
    own row above the (still right-aligned) range bar. */
 @media (max-width:639px){
-  .chart-controls{flex-direction:column;align-items:stretch;gap:6px}
+  .chart-controls{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
 }
 
 /* FEATURE 1 — "My ingredients" (kitchen words) */
@@ -1834,15 +1847,15 @@ body{overflow-x:clip}
    pantry title is a real .panel h2 now and the buttons row is the shared .panel-actions
    (see the v49 batch at the end of this file). Nothing here to override anymore. */
 /* v36: ingredient rows share the Products card language (one card system app-wide) */
-.king-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;
+.king-row{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:12px 14px;margin:0 var(--sp-5) var(--sp-2)}
+  padding:var(--sp-3) var(--sp-4);margin:0 var(--sp-5) var(--sp-2)}
 .king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* v67 follow-up: the derived-category chip sits in a bottom meta row, mirroring the Products card
    (.ing-main then .ing-meta) and reusing the .ing-tag chip so the two card types match. */
-.king-meta{grid-column:1;display:flex;gap:6px;flex-wrap:wrap}
+.king-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
 /* v59 item 6a: read-only category value in the edit modal (the card chip is .ing-tag now) */
 .king-cat-read{font-weight:600;color:var(--text);padding:2px 0}
 /* .king-acts removed v44 item 6b — the card itself opens Edit; Remove moved into the modal */
@@ -1870,10 +1883,10 @@ body{overflow-x:clip}
 .empty-state .es-icon{width:64px;height:64px;color:var(--muted2);opacity:.65}
 .empty-state h3{margin:0;font-size:17px;color:var(--text)}
 .empty-state p{margin:0;font-size:var(--fs-sm);color:var(--muted2);line-height:1.5}
-.es-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.es-actions{display:flex;gap:var(--sp-2);flex-wrap:wrap;justify-content:center;margin-top:var(--sp-2)}
 
 /* ===== v31: ingredient-popup alternatives + builder dropdown create affordance (Item 2) ===== */
-.king-alts{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+.king-alts{margin-top:var(--sp-4);border-top:1px solid var(--border);padding-top:12px}
 .ka-head{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px}
 .ka-cheapest{font-size:var(--fs-sm);color:var(--good,#2E7D32)}
 .ka-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
@@ -1945,7 +1958,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    helper (fork+knife/box/tomato glyph is an inline es-icon SVG), so the old .plate-noresult
    mask-image override is gone. Menu's empty state is one .empty-state div inside a table row. */
 .es-row td{padding:0;border:0;background:transparent}
-.es-actions .es-clear{font-size:14px}
+.es-actions .es-clear{font-size:var(--fs-base)}
 
 /* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
 .king-progress{padding:6px var(--sp-5) 0;font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
@@ -1953,14 +1966,14 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    padding so the rows keep their own var(--sp-5) indent and the separators span edge-to-edge, exactly as before;
    the old tab-context top border/margin is gone (the mhead's border already separates it). */
 .modal-wiz .mbody{padding:0}
-.kw-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px var(--sp-5)}
+.kw-head{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;padding:10px var(--sp-5)}
 .kw-explain{font-size:12px;color:var(--text2);flex:1 1 220px}
-.kw-row{display:grid;grid-template-columns:1fr auto auto;gap:6px 8px;align-items:center;padding:8px var(--sp-5);border-top:1px solid var(--border)}   /* v36: fixed grid — long words can't shift the fields */
-.kw-name{grid-column:1;grid-row:1;width:100%;min-width:0;padding:8px 10px;font:inherit;font-size:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.kw-row{display:grid;grid-template-columns:1fr auto auto;gap:var(--sp-2) var(--sp-2);align-items:center;padding:8px var(--sp-5);border-top:1px solid var(--border)}   /* v36: fixed grid — long words can't shift the fields */
+.kw-name{grid-column:1;grid-row:1;width:100%;min-width:0;padding:8px 10px;font:inherit;font-size:var(--fs-base);border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
 .kw-add{grid-column:2;grid-row:1}
 .kw-skip{grid-column:3;grid-row:1}
 .kw-prod{grid-column:1/-1;grid-row:2;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kw-pick{grid-column:1/-1;grid-row:2;min-width:0;font-size:14px;min-height:44px}
+.kw-pick{grid-column:1/-1;grid-row:2;min-width:0;font-size:var(--fs-base);min-height:44px}
 .kw-add{min-height:40px;padding:6px 16px}
 .kw-skip,.kw-more{color:var(--muted2)}
 .kw-more{display:block;padding:10px var(--sp-5)}
@@ -1969,7 +1982,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .kw-skiptoggle{display:block;padding:10px var(--sp-5);color:var(--muted2)}
 .kw-srow{display:flex;align-items:center;gap:8px;padding:6px var(--sp-5);flex-wrap:wrap}
 .kw-unskip{color:var(--accent-ink)}
-.kw-done{padding:12px var(--sp-5);font-size:14px;color:var(--good)}
+.kw-done{padding:12px var(--sp-5);font-size:var(--fs-base);color:var(--good)}
 .king-used{margin:2px 0 8px;font-size:12px;color:var(--muted2)}
 
 
@@ -1989,7 +2002,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .set-group{padding:0 0 var(--sp-5);margin-bottom:var(--sp-5);border-bottom:1px solid var(--border)}
 /* v59 item 6b: Tidy lists */
 .tidy-values{margin-top:var(--sp-3);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.tidy-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--border)}
+.tidy-row{display:flex;align-items:center;gap:var(--sp-2);padding:10px 12px;border-top:1px solid var(--border)}
 .tidy-row:first-child{border-top:0}
 .tidy-val{font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tidy-count{font-size:var(--fs-xs);color:var(--muted2);flex:0 0 auto;white-space:nowrap}
@@ -1997,11 +2010,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .tidy-acts .linklike{font-size:13px}
 .tidy-acts .tidy-clear{color:var(--bad)}
 .tidy-empty{margin:var(--sp-3) 0 0}
-.tidy-warn{margin:6px 0 0;color:var(--text2);font-size:var(--fs-sm);line-height:1.5}
+.tidy-warn{margin:var(--sp-2) 0 0;color:var(--text2);font-size:var(--fs-sm);line-height:1.5}
 @media (max-width:560px){ .tidy-row{flex-wrap:wrap} .tidy-acts{flex-basis:100%;justify-content:flex-end} }
 .set-group:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
 .set-group h4{margin:0 0 var(--sp-3);font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2)}
-.set-group .hint{font-weight:400;margin:6px 0 0}
+.set-group .hint{font-weight:400;margin:var(--sp-2) 0 0}
 .set-group select{width:100%;max-width:320px;padding:10px;font:inherit;min-height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
 .set-row{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
 .set-row:last-child{margin-bottom:0}
@@ -2019,7 +2032,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
 /* dashboard: stat cards collapsed to one quiet line; chart takes the space */
 .stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 0 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked. v40: left-align with .stat-lead. v56: left pad 2px->0, shares the chart block's x0 (title/axis/caption) */
-.stat-line .stat-bit{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.stat-line .stat-bit{display:flex;align-items:baseline;gap:var(--sp-2);white-space:nowrap}
 .stat-line .stat-h{min-width:82px}   /* the three labels line up, so the numbers do too */
 .stat-line .stat-h{font-weight:700}
 .stat-line .stat-arrow.good{color:var(--good)} .stat-line .stat-arrow.bad{color:var(--bad)}
@@ -2051,7 +2064,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    in the v33/v35 migration, so its CSS-injected sentence duplicated the JS-rendered line and pushed the box
    off-centre. The an-empty-box (icon + heading + text) is now the single source. */
 .an-empty td::before,.an-empty td::after{content:none!important}
-.an-empty .an-empty-box{min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--muted2);padding:18px}
+.an-empty .an-empty-box{min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-2);text-align:center;color:var(--muted2);padding:18px}
 .an-empty .an-empty-box b{color:var(--text2);font-size:15px}
 /* menu: the Builder shortcut is a quiet action, not an orange highlight */
 .mi-btn.tobuilder{color:var(--text2);border-color:var(--border2);background:var(--surface)}
@@ -2161,7 +2174,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    Here: the misc "$" hugs its input (the fixed 32px .u width WAS the gap), the dotted leader
    gets no extra margin, and the price column takes a fixed basis so the leader starts at a
    consistent column instead of drifting with each row's price width. */
-.line .costs{gap:10px}
+.line .costs{gap:var(--sp-2)}
 .line .costs .leader{margin:0;min-width:14px}   /* the dotted connector must survive at 380px */
 .line .costs .qtybox input{width:76px}   /* v61 item 1: fits 4–5 digit quantities comfortably (spinners hidden above) — the leader absorbs the extra 10px */
 .line .costs .priceline{flex:0 0 116px}          /* fixed price column = the leader starts at the same x on every row */
@@ -2186,7 +2199,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:10px} }
+@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)} }
 @media (min-width:1024px){ #kingList{gap:12px;padding:10px var(--sp-5) 8px} }
 @media (min-width:1280px){ #kingList{grid-template-columns:repeat(3,1fr)} }
 /* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
@@ -2260,7 +2273,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    to var(--sp-4) at ≤560px in ONE place below, never per-tab. This exists because five
    hand-written headers kept drifting apart; the skeleton is enforced by
    tests/visual/layout-consistency.spec.js (±1px across tabs), so drift fails the suite. */
-.panel-actions{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
+.panel-actions{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
 .panel-actions .btn{margin-top:0}   /* .newbtn's legacy margin-top would double the row's own top padding */
 .panel-sub{font-size:var(--fs-xs);color:var(--muted2)}
 @media (min-width:640px){ .panel-sub{flex:1 1 auto;min-width:0} }   /* strapline inline on the buttons row (v46 behaviour, now shared) */
@@ -2282,8 +2295,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    .ing-controls, so it inherits Products' exact heights/gaps/order. The old ≥640px switch to a single
    flex-direction:row (picker beside search, ragged widths) and the .menu-search flex:0 0 auto override
    are gone — the search now grows like Products' (governed by .ing-controls .menu-search). */
-.an-controls{display:flex;flex-direction:column;gap:10px;padding-bottom:0}
-.an-controls .menu-picker-row select{font-weight:650}
+.an-controls{display:flex;flex-direction:column;gap:var(--sp-3);padding-bottom:0}
+.an-controls .menu-picker-row select{font-weight:700}
 .an-controls .ing-controls{padding:0}   /* .an-controls already supplies the gutter; without this the nested row's own sp-5/sp-4 padding double-indents it past the picker row's left edge */
 .cogs-meta{font-size:var(--fs-xs)}
 
@@ -2303,12 +2316,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 
 @media (max-width:639px){   /* phones: the four numbers as a 2×2 grid — the card is half as tall */
   .atable tbody tr.mi-row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--sp-3)}
-  .atable tbody tr.mi-row > td:first-child{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+  .atable tbody tr.mi-row > td:first-child{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2)}
   .atable tbody tr.mi-row .mi-act{margin-top:0;margin-left:auto}   /* the chip rides the name line instead of costing a row */
 }
 @media (min-width:640px){   /* desktop rows: stripe on the first cell, hover invite */
   .atable:not(.invtable) tbody tr.mi-row{border-left:0}   /* (0,3,2) to actually beat the mobile stripe rule above */
-  .atable tbody tr.mi-row .mi-act{display:inline-flex;margin:0 0 0 10px;vertical-align:middle}   /* chip inline with the name — keeps rows one line tall */
+  .atable tbody tr.mi-row .mi-act{display:inline-flex;margin:0 0 0 var(--sp-2);vertical-align:middle}   /* chip inline with the name — keeps rows one line tall */
   /* v52.1 (Max): the stripe is an INSET box-shadow, not a border — a 3px collapsed-table
      border widened data rows ~1.5px past the section banner's edge, showing a white sliver
      on the banner's left. A shadow paints inside the cell and moves no geometry. */
