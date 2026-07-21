@@ -311,7 +311,13 @@ merge to `main` as a production deploy.
   (2) **The Dashboard "Suggestions" card found nothing:** `computeInsights` used the legacy `sp.menuId`
   map, but v55 moved the canonical link to `menu_items.plate_id`; it now resolves via `plateForMenuItem(m)`
   like the rest of the dashboard. **Lesson: a passing `/api/…?health=1` proves only the serverless FUNCTION +
-  key are live — NOT the client bundle or its wiring; both these features are client-side.** See HANDOVER-v63 top.
+  key are live — NOT the client bundle or its wiring; both these features are client-side.** (3) **Gemini
+  returned no line items:** once the key was valid, calls still came back `bad-shape` — `responseSchema`
+  didn't mark `lines` required, so `gemini-3.1-flash-lite` emitted `{supplier}` and omitted the array. Fix:
+  `responseSchema()` now sets `required:['lines']` (+per-line `rawText`/`derivedUnitPrice`) and both handlers
+  pass `thinkingConfig:{thinkingBudget:0}`. **A diagnostic `GET /api/parse-invoice?probe=1[&text=…]` (real
+  model calls, behind preview SSO) was added — GATE OR REMOVE before multi-tenant.** All server-only (no bump).
+  See HANDOVER-v63 top.
 
 - **v63 shipped — Gemini reader v2: status fix + match suggestions + first Dashboard insight (brief:
   `~/Downloads/ezplate-opus-gemini-reader-v2.md`). See `handovers/HANDOVER-v63.md`.** Same branch as v62,

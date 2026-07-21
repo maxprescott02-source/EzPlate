@@ -15,6 +15,16 @@
 > Lesson worth keeping: **a passing `?health=1` only proves the serverless FUNCTION + key are live.
 > It says nothing about the client bundle or its wiring.** Both these features are client-side; the
 > health check was a red herring. Six spots bumped v63 → **v64**. 239 tests still green.
+>
+> **v64 — third live-debug fix: the Gemini call returned no line items.** With the key finally valid
+> (it had been an INVALID_ARGUMENT / bad-value env var — a Vercel-side fix), every call still came back
+> `unavailable`/`bad-shape`. Root cause found via a temporary A/B/C/D probe: **`responseSchema` didn't
+> mark `lines` required, so `gemini-3.1-flash-lite` legally emitted `{supplier}` and omitted the array.**
+> Fix: `responseSchema()` now sets `required:['lines']` (+ per-line `rawText`/`derivedUnitPrice`), and both
+> handlers pass `thinkingConfig:{thinkingBudget:0}` (pure extraction, faster/cheaper). Probe config C then
+> returned all 3 lines with correctly per-kg-normalized prices. **A diagnostic probe `GET
+> /api/parse-invoice?probe=1[&text=…]` was added for all this — it does REAL model calls; GATE OR REMOVE it
+> before EzPlate is multi-tenant.** These were all server-only changes (no client/version bump).
 
 
 Brief: `~/Downloads/ezplate-opus-gemini-reader-v2.md`. **Same branch as v62**

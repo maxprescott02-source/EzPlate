@@ -62,7 +62,8 @@ async function callGemini(text) {
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
-      responseSchema: G.responseSchema()
+      responseSchema: G.responseSchema(),   // now marks lines (+ per-line rawText/derivedUnitPrice) required — see _gemini.js
+      thinkingConfig: { thinkingBudget: 0 }  // v64: pure extraction, no thinking — faster/cheaper and the winning probe config
     }
   };
 

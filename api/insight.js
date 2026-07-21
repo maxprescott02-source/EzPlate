@@ -58,7 +58,8 @@ async function callGemini(insights) {
     generationConfig: {
       temperature: 0.4,                 // a little warmth; the numbers are pinned by validation regardless
       responseMimeType: 'application/json',
-      responseSchema: I.insightSchema()
+      responseSchema: I.insightSchema(),   // v64: marks lines required (same fix as the invoice reader)
+      thinkingConfig: { thinkingBudget: 0 }
     }
   };
 

@@ -107,9 +107,11 @@ function insightSchema() {
     properties: {
       lines: {
         type: 'ARRAY',
-        items: { type: 'OBJECT', properties: { text: { type: 'STRING' } } }
+        items: { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] }
       }
-    }
+    },
+    // v64: same lesson as the invoice reader — mark lines required so the model can't omit the array.
+    required: ['lines']
   };
 }
 

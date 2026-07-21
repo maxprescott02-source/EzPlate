@@ -192,10 +192,15 @@ function responseSchema() {
             derivedUnitPrice: num,
             unitType: unit,
             supplier: str
-          }
+          },
+          // v64: REQUIRED so the model can't emit a line without them. Diagnosed live: without a
+          // required list, gemini-3.1-flash-lite returned {supplier} and omitted lines entirely.
+          required: ['rawText', 'derivedUnitPrice']
         }
       }
-    }
+    },
+    // v64: the whole point of the call — force the array to be present, not optional.
+    required: ['lines']
   };
 }
 
