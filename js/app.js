@@ -1139,11 +1139,14 @@ function renderKitchenPanel(){
   // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
   // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=list.map(function(k){
-    var c=kingCategory(k);                                           // v59 item 6a: muted derived-category chip
+    var c=kingCategory(k);                                           // v59 item 6a: derived-category chip
+    // v67 follow-up: category chip sits in a meta row at the BOTTOM of the card (name → linked product →
+    // category), matching the Products card layout (.ing-main then .ing-meta), and reuses the same .ing-tag
+    // chip so ingredient and product cards read identically. It used to sit inline between name and link.
     return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
       +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
-      +(c?'<span class="king-cat">'+esc(c)+'</span>':'')
       +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
+      +(c?'<div class="king-meta"><span class="ing-tag">'+esc(c)+'</span></div>':'')
       +'</div>';
   }).join('');
   box.querySelectorAll('.king-row').forEach(function(row){

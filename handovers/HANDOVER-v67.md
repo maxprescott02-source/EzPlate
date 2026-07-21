@@ -77,12 +77,23 @@ your face" and impersonal. Two passes:
 - **Pass 1 (rejected):** a soft borderless warm inset card (`--surface2`) with a small EzPlate arc "voice"
   mark + an italic first-person lead. Max: *"worse — the logo is clutter."* The card still read as a widget
   and the mark was fussy.
-- **Pass 2 (shipped):** **strip all chrome.** No card, border, tint, icon or eyebrow — just a small muted
-  lead that names the menu ("A read on **{menu}**", the name in `--text2` bold) and the observations as
-  clean prose lines (`.mi-line`, full `--text`, airy). It reads as a note jotted on the menu, not a
-  dashboard panel. Personal through the **copy + restraint**; quiet through the **absence of chrome**.
+- **Pass 2 (rejected — too bare):** stripped ALL chrome — no card/border/tint/icon/eyebrow, just a muted
+  lead + prose lines. Read as too plain / easy to miss.
+- **Pass 3 (shipped — a mix of the two):** a **soft, borderless warm container** (`--surface2`,
+  `--radius-card` — the gentle presence from pass 1) but **no icon/logo and no uppercase eyebrow** (the
+  clutter pass 2 removed). A **warm italic lead** names the menu — "*A read on **{menu}***" — over clean
+  full-text prose lines (`.mi-line`). Personal through the copy + the italic aside; quiet through the soft,
+  chrome-light card.
 - Classes: `.dash-insight-line`→`.mi-line`, header is `.mi-intro`; `applyPhrasedInsights` + smoke updated.
   The old `.dash-insights`/`di-*` and the pass-1 `.mi-mark`/arc CSS were deleted (all unused).
+
+## 6 — Ingredient card: category chip moved to the bottom (Products parity)
+On the Ingredients (kitchen-words) cards the derived-category chip sat **inline between the name and the
+linked-product line**; on Products cards it sits in a **meta row at the bottom**. Fixed the ingredient card
+to match: `.king-row` now renders `.king-main` (name → linked product) then a `.king-meta` row carrying the
+category, and the chip reuses the **same `.ing-tag`** as Products so the two card types read identically.
+Removed the bespoke `.king-cat` card-chip CSS (the modal's read-only `.king-cat-read` is unrelated, kept)
+and the stale mobile `flex-basis/order:3` hack that only existed for the old inline layout.
 
 **5b — broadened engine (the insights were flat because every line was the same shape).** Rebuilt as **one
 pure, tested function per insight TYPE** (each returns `{kind, facts, text, score}`) plus a pure
@@ -136,11 +147,14 @@ still pinned by `api-insight.test.js`).
    paste box collapsed; upload → match → review with no monospace wall and **no filename / "N lines read"
    line** (just the matched/new summary); a PDF still shows "reading…" while it extracts; the GST note is a
    quiet muted line; expanding the toggle reveals + focuses the textarea. Both themes.
-4. **Suggestions on the Menu tab, switching between two menus:** the **plain note** sits ABOVE the dish
-   table (visible without scrolling a long menu) — no card/border/icon, just an "A read on {menu}" lead +
-   clean prose lines. Shows a varied 2–3 (not all "raise price"), reflects the selected menu, lead rotates
-   on switch. API reachable → warmer wording, **every number identical**; offline → templates. Both themes.
-   **Check it reads as a quiet note, not a widget.**
+4. **Suggestions on the Menu tab, switching between two menus:** the note sits ABOVE the dish table
+   (visible without scrolling a long menu) — a soft warm card (no icon/eyebrow) with an italic "A read on
+   {menu}" lead + clean prose lines. Shows a varied 2–3 (not all "raise price"), reflects the selected menu,
+   lead rotates on switch. API reachable → warmer wording, **every number identical**; offline → templates.
+   Both themes. **Check the soft card reads warm, not like a loud widget.**
+5. **Ingredient (kitchen-words) cards:** the category chip now sits at the BOTTOM of the card (below the
+   linked-product line), matching the Products cards — same `.ing-tag` chip. Check at 380px both themes that
+   ingredient and product cards read consistently.
 
 ## NOT built (deliberately)
 - No DB/schema change (branch-safe; still unrelated to the pending v55 migrations).
