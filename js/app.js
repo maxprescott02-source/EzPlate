@@ -2003,7 +2003,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v65';
+var APP_VERSION='v66';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3316,6 +3316,7 @@ function invRowState(r){                                            // ITEM 4: s
   if(r.needsAttention) return 'review';                              // price jump etc.
   if(r.gemReview) return 'review';                                   // v62: AI second reader adopted a value P disagreed with + no history to arbitrate (rule 4) — a human confirms. Auto-tick stays pinned to 'matched' below, so this row waits for the user's tick.
   if(r.gemMatchReview) return 'review';                              // v63 item 2: AI suspects the parser matched the WRONG product — a human ticks the right one
+  if(r.gemPriceReview) return 'review';                              // v66: AI + price history suggest the parser MISREAD the price — a human checks (price is NOT changed)
   if(r.tier!=='hi') return 'review';                                 // low-confidence match still wants a human tick
   return 'matched';
 }
@@ -3389,7 +3390,7 @@ function renderInvReview(){
     }
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
-    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.gemMatchReview?' <span class="flag-review">check match</span>':(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':''))):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > suspected wrong match (v63) > price jump > low match.
+    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.gemMatchReview?' <span class="flag-review">check match</span>':(r.gemPriceReview?' <span class="flag-review">check price</span>':(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')))):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > suspected wrong match (v63) > AI price-check (v66) > price jump > low match.
     var checked = (invRowState(r)==='matched') || !!(r.newItem && r.newItem.approved);  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick. v50 item 1: once the user ticks a new-item row, that tick persists on r.newItem so a re-render can't drop it (v39 still holds — rows with no newItem never pre-tick)
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
@@ -3427,6 +3428,7 @@ function renderInvReview(){
       var v=parseFloat(inp.value); r.unitPrice=(!isNaN(v)&&v>=0)?v:null;
       if(r.bestId && byId[r.bestId] && (!r.unit || r.unit==='auto')){ var b=byId[r.bestId].base_unit; r.unit=(b==='g'?'kg':b==='ml'?'l':'ea'); }
       r.needManual=(r.unitPrice==null && !r.packTaught);
+      r.gemPriceReview=false;                                              // v66: the human just set the price — the AI price-check is resolved
       renderInvReview();                                                   // full repaint so the red state, summary counts and Apply tick all stay consistent (fires on blur, not per keystroke)
     });
   });
@@ -3579,18 +3581,18 @@ function gemMergeLine(P, G, H, T, opts){
   if(!pc) return {rule:4, action:'adopt', winner:'G', unitPrice:gc.per, unit:gc.cat, flagged:true};   // parser had nothing, Gemini does → adopt as a flagged review
   if(pc.cat===gc.cat && Math.round(pc.per*100)===Math.round(gc.per*100) && gemPackEq(P&&P.packCount, G&&G.packCount))
     return {rule:2, action:'keep', winner:'P=G'};                 // rule 2: P ≈ G at cent precision, same unit, packs agree → verified silently
-  if(H && H.per>0){                                               // rule 3: disagreement, price history can referee
-    var lo=H.per*(1-band), hi=H.per*(1+band), cands=[];
-    if(pc.cat===H.cat && pc.per>=lo && pc.per<=hi) cands.push({w:'P', per:pc.per, price:P.unitPrice, unit:P.unit});
-    if(gc.cat===H.cat && gc.per>=lo && gc.per<=hi) cands.push({w:'G', per:gc.per, price:gc.per,      unit:gc.cat});
-    if(cands.length){
-      cands.sort(function(a,b){ return Math.abs(a.per-H.per)-Math.abs(b.per-H.per); });   // closest to H wins
-      var win=cands[0];
-      return {rule:3, action:(win.w==='P'?'keep':'adopt'), winner:win.w, unitPrice:win.price, unit:win.unit, flagged:false, H:H.per};
-    }
-    // neither reading is within the band → history can't arbitrate; fall through to rule 4
+  // v66: parser HAS a price and Gemini disagrees. MONEY STAYS DETERMINISTIC — the AI NEVER overrules the
+  // parser's price (Gemini misreads/hallucinates). Only FLAG for a human when price HISTORY independently
+  // shows the parser's number is off (parser out of the band, Gemini inside it). Otherwise the parser
+  // stands, silently — we can't say who's right, and the deterministic reader is the backbone. (Pre-v66
+  // this ADOPTED Gemini's price, which overruled correct parser readings once the API went live.)
+  if(H && H.per>0){
+    var lo=H.per*(1-band), hi=H.per*(1+band);
+    var pIn=(pc.cat===H.cat && pc.per>=lo && pc.per<=hi);
+    var gIn=(gc.cat===H.cat && gc.per>=lo && gc.per<=hi);
+    if(!pIn && gIn) return {rule:3, action:'flag', winner:'review', gPer:gc.per, gCat:gc.cat, H:H.per};   // parser looks wrong per history → flag "check price"; the price is NOT changed
   }
-  return {rule:4, action:'adopt', winner:'G', unitPrice:gc.per, unit:gc.cat, flagged:true};   // rule 4: adopt G (AI wins pack-structure fights), present as a flagged unticked review card
+  return {rule:7, action:'keep', winner:'P'};                    // can't adjudicate → parser stands, silent
 }
 /* v63 item 2 / v65 WIDENED — suspected WRONG MATCH. PURE (tests pin it): decide whether Gemini's
    line points at a DIFFERENT product than the parser's local match. Mirrors the price rules — never
@@ -3672,9 +3674,11 @@ function gemApplyReadings(payload){
     var dec=gemMergeLine({unitPrice:r.unitPrice, unit:r.unit, packCount:Pc},
                          {derivedUnitPrice:g.derivedUnitPrice, unitType:g.unitType, packCount:g.packCount}, H, T, {band:GEM_BAND});
     gemDiag(r, dec, H);
-    if(dec.action==='adopt'){
+    if(dec.action==='adopt'){                                      // ONLY when the parser had NO price (rule 4) — filling a blank, never overruling a reading
       r.unitPrice=dec.unitPrice; r.unit=dec.unit; r.needManual=false; r.unitMismatch=false;
-      if(dec.flagged){ r.gemReview=true; r.aiSuggested=true; }     // rule 4: flagged, unticked, AI-suggested chip on the price field
+      if(dec.flagged){ r.gemReview=true; r.aiSuggested=true; }     // flagged, unticked, AI-suggested chip on the price field
+    } else if(dec.action==='flag'){                                // v66: rule 3 — history says the parser looks wrong. FLAG only; the parser's price is left untouched.
+      r.gemPriceReview=true;
     }
   });
   // rule 5: lines Gemini found that the parser dropped entirely → append as unticked add-new cards,
@@ -3704,6 +3708,7 @@ function invSelChanged(tr){
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
   r.addNew=false; r.newItem=null; collapseNewItem(i);   // v50 item 1: picking a real match abandons any in-progress new-item form
   r.gemMatchReview=false; r.gemSuggestId=null;          // v63 item 2: the human has now ruled on the match — the "check match" flag is spent
+  r.gemPriceReview=false;                               // v66: a new match re-derives the price — any AI price-check is moot
   if(sel.value==='skip'){ r.bestId=null; r.manualPick=false; r.needsAttention=false; renderInvReview(); return; }  // one render path — no per-cell poking
   // switching the matched product: throw away any half-done pack-teach state and resolve cleanly for the NEW product
   r.remembered=false; r.unitMismatch=false; r.needManual=(r.unitPrice==null); r.taughtQty=null; r.taughtUnit=null; r.packTaught=false; r.unit=(r.rawUnit||r.unit||'auto');

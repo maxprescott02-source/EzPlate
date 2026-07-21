@@ -333,18 +333,25 @@ ok('TIMEOUT/UNAVAILABLE degrades to IDENTICAL rows — only the summary note dif
 window.gemStatus = 'checked'; window.renderInvReview();
 ok('success shows "✓ AI checked"', /AI checked/.test(invSumText()));
 
-// (b) rule 4 via the applier: G disagrees, history can't arbitrate → adopt G, flagged + unticked + chip
-window.invRows = [matchedRow()]; window.gemApplied = false;
+// (b) v66: parser HAS a price and Gemini disagrees — the AI must NEVER overrule the parser's money.
+//   b1: both readings far from history → history can't arbitrate → parser stands, no change, no flag.
+window.invRows = [matchedRow()]; window.gemApplied = false;   // matchedRow priced 9.99/kg; P0108 history ~2.63/kg
 window.gemApplyReadings({ status: 'ok', lines: [
   { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 }
 ] });
-ok('rule 4: G is adopted onto the row', window.invRows[0].unitPrice === 20 && window.invRows[0].aiSuggested === true);
-const r4 = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
-ok('rule 4 row is a review state (st-review), not matched', r4.classList.contains('st-review'));
-ok('rule 4 row is NOT auto-ticked (waits for a human)', !r4.querySelector('.invAppr').checked);
-ok('rule 4 row shows the "AI suggested" chip on the price field', !!r4.querySelector('.ai-sug') && /AI suggested/.test(r4.querySelector('.ai-sug').textContent));
-ok('CHIP + FLAG PILL co-exist: the adopted price also trips the existing "price change — check" pill', /price change/.test(r4.textContent));
-ok('summary flips to checked after a successful merge', /AI checked/.test(invSumText()));
+ok('MONEY STAYS DETERMINISTIC: the AI does NOT overrule the parser price on disagreement', window.invRows[0].unitPrice === 9.99 && !window.invRows[0].aiSuggested);
+const rKeep = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+ok('no AI flag when history can\'t arbitrate (both far from history) — parser just stands', !/check price/.test(rKeep.textContent));
+
+//   b2: parser out of band, Gemini IN band (history says parser looks wrong) → FLAG "check price", price untouched.
+window.invRows = [matchedRow()]; window.gemApplied = false;
+window.gemApplyReadings({ status: 'ok', lines: [
+  { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.60, unitType: 'kg', packCount: 6 }
+] });
+ok('rule 3 FLAG: the parser price is left UNCHANGED (never overruled)', window.invRows[0].unitPrice === 9.99);
+const rFlag = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+ok('rule 3 FLAG: review-state, unticked, shows "check price"', rFlag.classList.contains('st-review') && !rFlag.querySelector('.invAppr').checked && /check price/.test(rFlag.textContent));
+ok('summary flips to checked after the merge', /AI checked/.test(invSumText()));
 
 // (c) rule 5: a Gemini-only line the parser dropped → appended as an unticked add-new row with AI chips
 window.invRows = [matchedRow()]; window.gemApplied = false;

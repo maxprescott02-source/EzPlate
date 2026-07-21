@@ -53,47 +53,44 @@ test('rule 2 does NOT fire when pack counts disagree (falls to history/rule tabl
   assert.notEqual(d.rule, 2);
 });
 
-test('rule 3: history referees — adopt whichever reading is closest to H (G wins here)', () => {
-  // P says $2.00/ea, G says $1.60/ea, history is $1.55/ea. Both within ±50%; G is closer → adopt G.
+test('v66 rule 3: parser price OUT of band, Gemini IN band → FLAG for review, price NOT changed', () => {
+  // P says $9.30/ea, G says $1.55/ea, history $1.55/ea. Parser looks wrong per history → flag; NEVER adopt.
+  const d = gemMergeLine(P(9.30, 'ea', 1), Gm(1.55, 'ea', 1), H(1.55, 'ea'), false);
+  assert.equal(d.rule, 3);
+  assert.equal(d.action, 'flag');
+  assert.equal(d.winner, 'review');
+  assert.equal(d.unitPrice, undefined);          // the AI never writes a price — money stays deterministic
+});
+
+test('v66 rule 3: parser price IN band → parser stands silently, even if Gemini is closer to H', () => {
+  // P=$2.00, G=$1.60, H=$1.55 — both inside ±50%. The AI does NOT overrule the parser just because G is closer.
   const d = gemMergeLine(P(2.00, 'ea', 1), Gm(1.60, 'ea', 1), H(1.55, 'ea'), false);
-  assert.equal(d.rule, 3);
-  assert.equal(d.winner, 'G');
-  assert.equal(d.action, 'adopt');
-  assert.equal(d.flagged, false);          // silent adoption — user never sees the disagreement
-  assert.equal(d.unitPrice, 1.60);
-  assert.equal(d.unit, 'ea');
-});
-
-test('rule 3: history referees — P closest to H → keep P (no change)', () => {
-  const d = gemMergeLine(P(1.50, 'ea', 1), Gm(2.20, 'ea', 1), H(1.55, 'ea'), false);
-  assert.equal(d.rule, 3);
-  assert.equal(d.winner, 'P');
   assert.equal(d.action, 'keep');
+  assert.equal(d.winner, 'P');
+  assert.equal(d.rule, 7);
 });
 
-test('rule 3 → rule 4 fallthrough: neither reading within the band → adopt G, flagged', () => {
-  // History $1.00/ea; P=$5 and G=$4 are both way outside ±50% → history can't arbitrate → rule 4.
+test('v66: disagreement, neither reading within the band → parser stands, silent (no overrule)', () => {
   const d = gemMergeLine(P(5.00, 'ea', 1), Gm(4.00, 'ea', 1), H(1.00, 'ea'), false);
-  assert.equal(d.rule, 4);
-  assert.equal(d.winner, 'G');
-  assert.equal(d.action, 'adopt');
-  assert.equal(d.flagged, true);
+  assert.equal(d.action, 'keep');
+  assert.equal(d.winner, 'P');
+  assert.equal(d.rule, 7);
 });
 
-test('rule 4: disagreement with no history at all → adopt G as a flagged review card', () => {
+test('v66: disagreement with NO history → parser stands, silent (the AI never overrules a price)', () => {
   const d = gemMergeLine(P(5.00, 'ea', 48), Gm(1.00, 'ea', 288), null, false);
-  assert.equal(d.rule, 4);
-  assert.equal(d.action, 'adopt');
-  assert.equal(d.unitPrice, 1.00);
-  assert.equal(d.flagged, true);
+  assert.equal(d.action, 'keep');
+  assert.equal(d.winner, 'P');
+  assert.equal(d.rule, 7);
 });
 
-test('rule 4: parser had no usable price but Gemini does → adopt G, flagged', () => {
+test('rule 4: parser had NO usable price but Gemini does → adopt G, flagged (fills a blank, no overrule)', () => {
   const d = gemMergeLine(P(null, 'auto', null), Gm(3.20, 'kg', 6), null, false);
   assert.equal(d.rule, 4);
   assert.equal(d.action, 'adopt');
   assert.equal(d.unitPrice, 3.20);
   assert.equal(d.unit, 'kg');
+  assert.equal(d.flagged, true);
 });
 
 test('rule 6: parser found the line, Gemini gave no usable reading → parser stands', () => {
@@ -103,16 +100,14 @@ test('rule 6: parser found the line, Gemini gave no usable reading → parser st
   assert.equal(d.winner, 'P');
 });
 
-test('PANCAKE case end to end: P=48/pack confident, G=288, H≈$1.55/unit → G adopted silently, no AI flag', () => {
-  // The parser derived a per-unit price off 48/pack; Gemini read the true 288/pack, giving a per-unit
-  // price near history. Both compared to H=$1.55/ea: G ($1.55) lands in band, P ($9.30) does not → G wins
-  // via rule 3, adopted SILENTLY (flagged:false). Any residual price-change flag is the existing one.
+test('PANCAKE case: parser over-priced 6x (out of band), Gemini correct (in band) → FLAG, price untouched', () => {
+  // The parser derived a per-unit price off 48/pack; Gemini read the true 288/pack. Compared to H=$1.55/ea:
+  // G ($1.55) lands in band, P ($9.30) does not → rule 3 FLAG. v66: flagged for a human, NOT silently adopted.
   const perUnitFromParser = 1.55 * (288 / 48);   // parser over-priced 6x because it saw 48 not 288
   const d = gemMergeLine(P(perUnitFromParser, 'ea', 48), Gm(1.55, 'ea', 288), H(1.55, 'ea'), false);
   assert.equal(d.rule, 3);
-  assert.equal(d.winner, 'G');
-  assert.equal(d.flagged, false);                // silent — no flag beyond any genuine price change
-  assert.equal(d.unitPrice, 1.55);
+  assert.equal(d.action, 'flag');
+  assert.equal(d.unitPrice, undefined);          // the parser's (wrong) price stays until the human fixes it
 });
 
 test('CHEESE case: taught pack/supplier memory resolves the line → T wins, no conflict', () => {
@@ -123,11 +118,11 @@ test('CHEESE case: taught pack/supplier memory resolves the line → T wins, no 
   assert.equal(d.action, 'keep');
 });
 
-test('band boundary: a reading exactly at ±50% of H is inside the band', () => {
+test('band boundary: Gemini exactly at ±50% of H (parser outside) → rule 3 flag', () => {
   const d = gemMergeLine(P(2.40, 'ea', 1), Gm(1.50, 'ea', 1), H(1.00, 'ea'), false, { band: 0.5 });
-  // G at 1.50 == H*1.5 (boundary, inside); P at 2.40 outside → G wins rule 3.
+  // G at 1.50 == H*1.5 (boundary, inside); P at 2.40 outside → rule 3 flag (parser looks off per history).
   assert.equal(d.rule, 3);
-  assert.equal(d.winner, 'G');
+  assert.equal(d.action, 'flag');
 });
 
 test('purity: gemMergeLine never mutates its inputs', () => {

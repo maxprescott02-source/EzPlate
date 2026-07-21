@@ -296,13 +296,24 @@ merge to `main` as a production deploy.
 
 - `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
   earlier via PRs #5–#9). One unmerged branch (PR #11) carries the next batch: **`feat/gemini-dual-reader`**,
-  now stacking **v62 + v63 + v64/v65 follow-ups** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
+  now stacking **v62 + v63 + v64/v65/v66 follow-ups** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
   Max's preview/phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v65 goes live**
+  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v66 goes live**
   (see [[supabase-schema-can-lag-app-code]]). `npm test` = **242 green**, jsdom smoke green, `node -c`
-  clean (app.js + the three `api/*.js`), six spots at **v65**. Per-batch detail lives in
+  clean (app.js + the three `api/*.js`), six spots at **v66**. Per-batch detail lives in
   `handovers/HANDOVER-vNN.md`.
+
+- **v66 (same branch) — the AI NO LONGER OVERRULES the parser's price (Max: "hallucinating prices, parser
+  readings overruled").** Once the API went live (v64), the v62 price rules that ADOPTED Gemini's reading on
+  disagreement (rule 3 closest-to-history, rule 4 adopt-G) started replacing correct parser prices with
+  Gemini's misreads. Fixed to honour "money stays deterministic": `gemMergeLine` now NEVER writes Gemini's
+  price when the parser already has one. Rule 2 (agreement) silent as before; when they disagree it only
+  **flags** ("check price", new `gemPriceReview` → `st-review`, price left untouched) and ONLY when price
+  history independently shows the parser out of band while Gemini is in (rule 3, action `'flag'`); otherwise
+  the parser stands silently (rule 7). Rule 4 adopt survives ONLY for the parser-had-NO-price case (filling a
+  blank, nothing to overrule). Flag clears when the human edits the price or changes the match. 242 tests
+  (merge + smoke §15b rewritten to pin "flag, never overrule"). Six spots → **v66**.
 
 - **v65 (same branch) — WIDENED the AI wrong-match detection (Max's call: catch more mismatches).**
   `gemMatchSuspect` was DECOUPLED from the parser's own confidence. The old rule needed Gemini's pick to
