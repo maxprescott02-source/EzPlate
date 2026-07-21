@@ -42,10 +42,11 @@ override pile (the v36/v53/v56/v60 `.misc-label`/`.misc-fixed`/single-row-`.line
 ## 4 — Invoice reader header de-intimidated (nothing deleted — collapsed / quieted)
 **Collapsed** (present, one tap away — NOT removed):
 - The big raw-text paste box (`#invCsv`) **and its CSV hint** now live in `#invManualBox`, hidden behind a
-  quiet "**or paste text manually**" link (`#invManualToggle`, `linklike`). `openInv` re-collapses it on
-  every open, so a first-time user always sees the clean upload → match → review flow, never a wall of
-  monospace. Uploading still fills the (hidden) textarea and renders the review directly; expanding focuses
-  the textarea for the power path. New JS: `setInvManual`/`toggleInvManual`.
+  quiet "**or paste text manually**" link (`#invManualToggle`, `linklike`) that sits **inline with the
+  Upload button** (the alternative action, right where you decide how to import); the box reveals below.
+  `openInv` re-collapses it on every open, so a first-time user always sees the clean upload → match →
+  review flow, never a wall of monospace. Uploading still fills the (hidden) textarea and renders the
+  review directly; expanding focuses the textarea for the power path. New JS: `setInvManual`/`toggleInvManual`.
 
 **Quieted** (kept, de-emphasised):
 - The GST-default notice (`.inv-gst`) restyled from the loud warn-box (border + `--warn-bg`) to a small
@@ -58,11 +59,14 @@ override pile (the v36/v53/v56/v60 `.misc-label`/`.misc-fixed`/single-row-`.line
 
 ## 5 — AI Suggestions: relocated to the Menu tab AND broadened
 **5a — placement.** The grounded "Suggestions" panel was **removed from `renderDashboard`** and now renders
-on the **Menu tab, below the dish table** (`#menuInsights` host in `#tab-analysis`; `renderMenuInsights`
-called at the end of the live `renderAnalysis`). It's **scoped to the currently selected menu**
-(`computeInsights` filters `MENU` by `currentMenuId`, mirroring `renderAnalysis`'s `inMenu`) and re-renders
-on every menu switch. Reuses the `.dash-insights` tokens (`.menu-insights` — a normal card, not an
-oversized slab) with a "· <menu name>" sub-label. Phrasing cache is now keyed **per menu** (`menuId|sig`).
+on the **Menu tab, ABOVE the dish table** (`#menuInsights` host inside the menu `.panel`, between the
+food-cost-target meta line and the table; `renderMenuInsights` called at the end of the live
+`renderAnalysis`). Placed above the table because a long menu would push it off-screen at the bottom where
+it gets missed. It's **scoped to the currently selected menu** (`computeInsights` filters `MENU` by
+`currentMenuId`, mirroring `renderAnalysis`'s `inMenu`) and re-renders on every menu switch. Rendered as a
+light **inset callout** (reuses the `.dash-insights` tokens but with its own subtle border + `--surface2`
+tint — not a nested `.panel` card / oversized slab), aligned with the `.panel-meta` inset, with a
+"· <menu name>" sub-label. Phrasing cache is keyed **per menu** (`menuId|sig`).
 
 **5b — broadened engine (the insights were flat because every line was the same shape).** Rebuilt as **one
 pure, tested function per insight TYPE** (each returns `{kind, facts, text, score}`) plus a pure
@@ -112,12 +116,13 @@ still pinned by `api-insight.test.js`).
    the bottom just above Save and its existing-category suggest still drops.
 2. **Misc line at 380px:** add a misc cost — it should read as a sibling of the ingredient rows (same
    height, the `$` input lined up under the ingredient totals, `×` in the same column). Both themes.
-3. **Invoice header as a NEW user sees it:** paste box collapsed behind "or paste text manually"; upload →
-   match → review with no monospace wall; the GST note is a quiet muted line; expanding the toggle reveals
-   + focuses the textarea. Both themes.
-4. **Suggestions on the Menu tab, switching between two menus:** the card sits below the dish table, shows a
-   varied 2–3 (not all "raise price"), reflects the selected menu, and the lead rotates on menu switch.
-   With the API reachable the wording is warmer but **every number identical**; offline → templates. Both themes.
+3. **Invoice header as a NEW user sees it:** the "or paste text manually" link sits inline next to Upload;
+   paste box collapsed; upload → match → review with no monospace wall; the GST note is a quiet muted line;
+   expanding the toggle reveals + focuses the textarea. Both themes.
+4. **Suggestions on the Menu tab, switching between two menus:** the callout sits ABOVE the dish table
+   (visible without scrolling a long menu), shows a varied 2–3 (not all "raise price"), reflects the
+   selected menu, and the lead rotates on menu switch. With the API reachable the wording is warmer but
+   **every number identical**; offline → templates. Both themes.
 
 ## NOT built (deliberately)
 - No DB/schema change (branch-safe; still unrelated to the pending v55 migrations).

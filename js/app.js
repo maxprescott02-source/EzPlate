@@ -2023,9 +2023,11 @@ function applyPhrasedInsights(lines, insights){
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
-  if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the card hides
+  if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the callout hides
   var sig=insightSig(insights);
-  host.innerHTML='<div class="panel dash-insights menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'"><div class="pad">'
+  // v67 (revised): a light INSET callout above the table (not a nested .panel card) — .menu-insights
+  // supplies its own subtle border/tint so it reads as a highlighted takeaway, not a second slab.
+  host.innerHTML='<div class="dash-insights menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'"><div class="pad">'
     +'<div class="di-head">Suggestions<span class="di-sub">'+esc(menuNameFor(currentMenuId))+'</span></div>'
     +insights.map(function(ins,ix){ return '<div class="dash-insight-line" data-ix="'+ix+'">'+esc(ins.text)+'</div>'; }).join('')
     +'</div></div>';

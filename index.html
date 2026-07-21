@@ -108,6 +108,10 @@
         </div>
       </div>
       <p class="hint panel-meta cogs-meta">Suggested prices use your <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> food-cost target — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
+      <!-- v67 item 5a (revised): the grounded, menu-scoped "Suggestions" callout sits ABOVE the dish
+           table — a long menu's table would push it off-screen at the bottom where it gets missed.
+           renderAnalysis fills it; it reflects the currently selected menu and hides when empty. -->
+      <div id="menuInsights"></div>
       <!-- v59: the traffic-light key legend was removed (Max) — the row dots stay -->
       <div class="atable-wrap">
         <table class="atable">
@@ -116,9 +120,6 @@
         </table>
       </div>
     </div>
-    <!-- v67 item 5a: grounded, menu-scoped "Suggestions" panel (moved off the Dashboard). renderAnalysis
-         fills this below the dish table; it reflects the currently selected menu and hides when empty. -->
-    <div id="menuInsights"></div>
   </div><!-- /tab-analysis -->
 
   <div id="tab-pantry" style="display:none">
@@ -323,20 +324,19 @@
         <button class="inv-introx" id="invIntroX" type="button" aria-label="Dismiss">&times;</button>
       </div>
       <div class="ferr" id="invFileErr" style="display:none"></div>
+      <!-- v67 item 4: the raw-text paste box + its CSV hint are COLLAPSED behind a quiet link that sits
+           INLINE with the Upload button (the alternative action, right where you decide how to import).
+           Most users upload a PDF and never touch it; the power path stays one tap away. Nothing removed —
+           uploading still fills the (hidden) textarea and renders the review directly. -->
       <div class="inv-upload">
         <input type="file" id="invFile" accept="application/pdf,.pdf,text/csv,.csv,text/plain" style="display:none">
         <button class="btn" id="invFileBtn" type="button">Upload PDF or CSV</button>
+        <button type="button" id="invManualToggle" class="linklike inv-manual-toggle" aria-expanded="false" aria-controls="invManualBox">or paste text manually</button>
         <span class="hint" id="invFileName"></span>
       </div>
-      <!-- v67 item 4: the raw-text paste box + its CSV hint are COLLAPSED behind a quiet link. Most
-           users upload a PDF and never touch it; the power path stays one tap away. Nothing removed —
-           uploading still fills the (hidden) textarea and renders the review directly. -->
-      <div class="inv-manual">
-        <button type="button" id="invManualToggle" class="linklike inv-manual-toggle" aria-expanded="false" aria-controls="invManualBox">or paste text manually</button>
-        <div id="invManualBox" class="inv-manual-box" hidden>
-          <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
-          <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
-        </div>
+      <div id="invManualBox" class="inv-manual-box" hidden>
+        <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
+        <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
       </div>
       <div style="margin-top:12px"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
       <div id="invReview" style="display:none;margin-top:14px"></div>

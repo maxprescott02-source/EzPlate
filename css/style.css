@@ -725,9 +725,9 @@ input[type=checkbox]{
   font-size:var(--fs-xs);color:var(--muted2);background:transparent;
   border:0;border-radius:0;padding:2px 0 0;margin:0 0 var(--sp-3);line-height:1.45;
 }
-/* v67 item 4: collapsed raw-text paste box — a quiet link, the box revealed on demand. */
-.inv-manual{margin-top:var(--sp-3)}
-.inv-manual-toggle{font-size:var(--fs-sm)}
+/* v67 item 4: collapsed raw-text paste box — the toggle sits inline with the Upload button (in
+   .inv-upload); the box is revealed below on demand. */
+.inv-manual-toggle{font-size:var(--fs-sm);margin-left:2px}
 .inv-manual-box{margin-top:var(--sp-3)}
 .inv-manual-box .inv-csv-hint{margin-top:0;margin-bottom:6px}
 .inv-actions{margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
@@ -1105,11 +1105,13 @@ input[type=checkbox]{
 .dash-insights .di-head{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}
 .dash-insight-line{font-size:13px;line-height:1.5;color:var(--text);padding:5px 0}
 .dash-insight-line+.dash-insight-line{border-top:1px solid var(--border)}
-/* v67 item 5a: the Suggestions panel on the MENU tab — a normal .panel below the dish table (reuses the
-   .dash-insights tokens; sized like every other card, not an oversized slab). */
-.menu-insights{margin:var(--sp-5) 0 0}
+/* v67 item 5a (revised): the Suggestions callout on the MENU tab sits ABOVE the dish table (a long menu
+   would push it off-screen at the bottom). It's a light INSET — its own subtle border + tint, aligned with
+   the .panel-meta inset — not a nested .panel card, so it reads as a highlighted takeaway, not a second slab. */
+.menu-insights{margin:var(--sp-3) var(--sp-5) 0;border:1px solid var(--border);border-radius:var(--radius-ctl);background:var(--surface2)}
 .menu-insights .di-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px}
 .di-sub{font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted2)}
+@media (max-width:700px){ .menu-insights{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
   /* invoice review: streamlined no-match "Add as New Item" button */
   .ni-add-btn{width:100%;font-size:13px;padding:8px 10px;border-style:dashed}
