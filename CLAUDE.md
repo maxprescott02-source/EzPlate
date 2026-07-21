@@ -292,17 +292,36 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 21 Jul 2026 (verify, don't trust)
+## State as of 22 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
-  earlier via PRs #5–#9). One unmerged branch (PR #11) carries the next batch: **`feat/gemini-dual-reader`**,
-  now stacking **v62 + v63 + v64/v65/v66 follow-ups** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
-  Max's preview/phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via
-  GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v66 goes live**
-  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **242 green**, jsdom smoke green, `node -c`
-  clean (app.js + the three `api/*.js`), six spots at **v66**. Per-batch detail lives in
-  `handovers/HANDOVER-vNN.md`.
+- `origin/main` is at **v66** — PR #11 (`feat/gemini-dual-reader`, the whole v62–v66 Gemini line) is now
+  MERGED (`4874956`). One unmerged branch carries the next batch: **`fix/builder-invoice-suggestions`**
+  (**v67**), off `main`, awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between
+  sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main` first
+  ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need applying
+  to prod before the v54+ line goes live** (see [[supabase-schema-can-lag-app-code]]). `npm test` = **256
+  green**, jsdom smoke green, `node -c` clean (app.js + the four `api/*.js`), six spots at **v67**. Per-batch
+  detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v67 (branch `fix/builder-invoice-suggestions`) — builder polish · invoice header · Suggestions → Menu
+  tab + broadened (brief: `~/Downloads/ezplate-opus-builder-invoice-suggestions.md`). See
+  `handovers/HANDOVER-v67.md`.** (1) Plate **category field moved to the BOTTOM** of the builder flow (just
+  above Save) — ids/handlers unchanged, combo binds by id in `openBuilder`. (2) Builder top section spacing
+  evened on the `--sp` scale. (3) **Misc line rebuilt as a SIBLING of the ingredient line** — reuses the
+  two-row `.line` skeleton (`.top` = "Misc cost" + ×, `.costs` = leader + `$` in the ingredient total slot);
+  the whole accumulated single-row misc CSS pile (`.misc-label`/`.misc-fixed`) was removed. (4) **Invoice
+  header de-intimidated** — the raw-text paste box + CSV hint COLLAPSED behind an "or paste text manually"
+  link (`#invManualBox`/`setInvManual`; re-collapses on open; upload still fills it hidden), and the
+  `.inv-gst` GST note QUIETED to a muted line. Nothing deleted. (5) **AI "Suggestions" MOVED off the
+  Dashboard onto the Menu tab** (`#menuInsights`/`renderMenuInsights`, scoped to `currentMenuId`, below the
+  dish table) and **BROADENED** from one shape into one pure-tested function per TYPE (`insReprice`,
+  `insNearMiss`, `insVolatility`, `insShared`, `insMover`, `insBest`, `insSummary`) + `selectInsights`
+  (rank by notability, ≤1 per kind, rotate the near-top group by a per-menu/day seed → most-relevant 2–3).
+  Volatility + biggest-mover are now feasible off the **v66 per-ingredient price log**
+  (`ingPriceLog`/`ingPriceBand`/`costRangeForLines`) — v63 had dropped both for lack of data. Money law
+  intact (app computes every number; `api/_insight.js` unchanged except a tone tweak). `tests/insights.test.js`
+  rewritten 8→22 (pinned-contract change, noted), `_extract.js` exposes the nine new fns, smoke §16 rewritten
+  to the Menu tab. 242→256. Six spots → **v67**.
 
 - **v66 (same branch) — the AI NO LONGER OVERRULES the parser's price (Max: "hallucinating prices, parser
   readings overruled").** Once the API went live (v64), the v62 price rules that ADOPTED Gemini's reading on

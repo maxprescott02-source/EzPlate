@@ -53,9 +53,20 @@ function build() {
   const gemMerge = extractFn(src, 'gemMergeLine');
   const gemCanon = extractFn(src, 'gemCanon');
   const gemPackEq = extractFn(src, 'gemPackEq');
-  // v63: the PURE suspected-wrong-match decision and the deterministic insight engine — both
-  // dependency-free (aiCands/histories/dishes are passed in as primitives), so testable with no DOM.
+  // v63: the PURE suspected-wrong-match decision. Dependency-free (aiCands/histories passed in), no DOM.
   const gemMatchSuspect = extractFn(src, 'gemMatchSuspect');
+  // v63/v67: the deterministic insight engine. v67 broadened it into one pure function PER insight
+  // TYPE + a pure selector; deriveInsights orchestrates them. All are dependency-free (dishes/shared/
+  // mover are passed in as primitives), so each is testable with no DOM and no live API.
+  const insTargetPrice = extractFn(src, 'insTargetPrice');
+  const insReprice = extractFn(src, 'insReprice');
+  const insNearMiss = extractFn(src, 'insNearMiss');
+  const insVolatility = extractFn(src, 'insVolatility');
+  const insShared = extractFn(src, 'insShared');
+  const insMover = extractFn(src, 'insMover');
+  const insBest = extractFn(src, 'insBest');
+  const insSummary = extractFn(src, 'insSummary');
+  const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
 
   // eslint-disable-next-line no-new-func
@@ -69,8 +80,17 @@ function build() {
     ${gemPackEq}
     ${gemMerge}
     ${gemMatchSuspect}
+    ${insTargetPrice}
+    ${insReprice}
+    ${insNearMiss}
+    ${insVolatility}
+    ${insShared}
+    ${insMover}
+    ${insBest}
+    ${insSummary}
+    ${selectInsights}
     ${deriveInsights}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, deriveInsights };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, selectInsights, deriveInsights };
   `);
   return factory();
 }
