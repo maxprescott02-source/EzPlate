@@ -2018,25 +2018,20 @@ function applyPhrasedInsights(lines, insights){
     lines.forEach(function(t,ix){ var el=host.querySelector('.mi-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
   }catch(e){}
 }
-// v67 redesign: the small EzPlate arc "voice" mark — a faint ring + a single marmalade arc quarter,
-// echoing the header logo. It's the ONE spot of accent colour in the note (boldness spent in one place);
-// everything else stays espresso/neutral. The arc/ring are coloured via CSS classes (SVG attrs can't take
-// var()), so it follows the theme.
-var MI_MARK='<span class="mi-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle class="mi-ring" cx="12" cy="12" r="9"/><path class="mi-arc" d="M12 3a9 9 0 0 1 6.36 2.64"/></svg></span>';
-/* v67 item 5a (redesigned): a quiet, PERSONAL note above the dish table — the app's kitchen-sense
-   reading THIS menu's numbers with you, not a dashboard widget. Soft borderless warm card, the arc voice
-   mark, an italic first-person lead, and airy note lines (no eyebrow, no dividers). renderAnalysis calls
-   this after painting the table; switching menus re-renders it. */
+/* v67 item 5a (redesign 2): a plain, quiet note above the dish table — NO card, border, tint, icon or
+   eyebrow (all of which read as a "feature widget"). Just a small muted lead that names the menu and the
+   observations as clean prose lines, so it comes across as a note someone jotted on the menu, not a
+   dashboard panel. Personal through the copy + restraint; quiet through the absence of chrome.
+   renderAnalysis calls this after painting the table; switching menus re-renders it. */
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
   if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the note hides
   var sig=insightSig(insights), mn=menuNameFor(currentMenuId);
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-lead">'+MI_MARK+'<span>What I’m seeing'+(mn?(' on <b>'+esc(mn)+'</b>'):'')+'</span></p>'
-    +'<ul class="mi-list">'
-    +insights.map(function(ins,ix){ return '<li class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</li>'; }).join('')
-    +'</ul></div>';
+    +'<p class="mi-intro">'+(mn?('A read on <b>'+esc(mn)+'</b>'):'A read on this menu')+'</p>'
+    +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
+    +'</div>';
   try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
 }
 function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }

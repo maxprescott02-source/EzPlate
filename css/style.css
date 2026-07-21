@@ -1100,21 +1100,15 @@ input[type=checkbox]{
 @media(min-width:640px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
 /* v63 item 3: grounded "Suggestions" — a muted card built from existing panel tokens, theme-aware.
    No input box, no chat: a short list of 1–3 insight lines. */
-/* v67 (redesign) — the Menu-tab "Suggestions" as a quiet, PERSONAL note above the dish table: the app's
-   kitchen-sense reading THIS menu's numbers WITH you, not a dashboard widget. Less in-your-face: a soft
-   borderless warm inset (no hard border, no uppercase eyebrow), aligned with the .panel-meta inset. More
-   personal: the small EzPlate arc "voice" mark + an italic first-person lead, then airy note lines with no
-   dividers. Boldness is spent in ONE place — the marmalade arc; everything else is espresso/neutral, so
-   --accent stays effectively reserved for CTAs. */
-.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-2);padding:var(--sp-4) var(--sp-4) calc(var(--sp-4) - 2px);background:var(--surface2);border-radius:var(--radius-card)}
-.mi-lead{display:flex;align-items:center;gap:8px;margin:0 0 var(--sp-3);font-style:italic;font-size:var(--fs-sm);color:var(--text2);letter-spacing:.01em}
-.mi-lead b{font-style:normal;font-weight:800;color:var(--brand);letter-spacing:0}
-.mi-mark{flex:0 0 auto;width:18px;height:18px;line-height:0}
-.mi-mark svg{width:18px;height:18px;overflow:visible}
-.mi-mark .mi-ring{stroke:var(--border2);stroke-width:2;fill:none}
-.mi-mark .mi-arc{stroke:var(--accent);stroke-width:2.4;stroke-linecap:round;fill:none}
-.mi-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-3)}
-.mi-line{font-size:14px;line-height:1.55;color:var(--text)}
+/* v67 (redesign 2) — the Menu-tab suggestions as a plain, quiet note above the dish table. NO card,
+   border, tint, icon or eyebrow (that chrome is what made it read as an "in your face" feature widget).
+   Just a small muted lead naming the menu + the observations as clean prose lines, aligned with the
+   .panel-meta inset. Personal through the copy; quiet through the absence of chrome. */
+.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-2)}
+.mi-intro{margin:0 0 var(--sp-2);font-size:var(--fs-sm);color:var(--muted2)}
+.mi-intro b{font-weight:800;color:var(--text2)}
+.mi-line{margin:0;font-size:14px;line-height:1.6;color:var(--text)}
+.mi-line+.mi-line{margin-top:var(--sp-2)}
 @media (max-width:700px){ .menu-insights{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
   /* invoice review: streamlined no-match "Add as New Item" button */

@@ -72,19 +72,17 @@ it gets missed. It's **scoped to the currently selected menu** (`computeInsights
 `currentMenuId`, mirroring `renderAnalysis`'s `inMenu`) and re-renders on every menu switch. Phrasing cache
 is keyed **per menu** (`menuId|sig`).
 
-**Redesign (`/frontend-design`) — quieter + more personal.** Max found the first version too "in your
-face" and impersonal. Reframed from a dashboard widget into a **quiet personal note**: the app's
-kitchen-sense reading THIS menu's numbers *with* you.
-- **Less in-your-face:** dropped the hard border and the uppercase "SUGGESTIONS" eyebrow; it's now a soft
-  **borderless warm inset** (`--surface2`, `--radius-card`), aligned with the `.panel-meta` inset, with airy
-  note lines and **no dividers**.
-- **More personal:** a small **EzPlate arc "voice" mark** (`MI_MARK` — a faint ring + one marmalade arc
-  quarter, echoing the header logo) + an **italic, first-person lead** — "*What I'm seeing on **{menu}***"
-  (the menu name in espresso `--brand`). The lines read as observations, not a data readout.
-- **Palette discipline (per the skill):** boldness spent in ONE place — the marmalade arc is the only spot
-  of `--accent` colour, so `--accent` stays effectively reserved for CTAs; everything else is espresso/neutral.
-- Classes renamed `.dash-insight-line`→`.mi-line`, `.di-head`→`.mi-lead`; `applyPhrasedInsights` + smoke
-  updated. The old `.dash-insights`/`di-*` CSS (now fully unused after the Dashboard removal) was deleted.
+**Redesign (`/frontend-design`) — quieter + more personal.** Max found the first shipped version too "in
+your face" and impersonal. Two passes:
+- **Pass 1 (rejected):** a soft borderless warm inset card (`--surface2`) with a small EzPlate arc "voice"
+  mark + an italic first-person lead. Max: *"worse — the logo is clutter."* The card still read as a widget
+  and the mark was fussy.
+- **Pass 2 (shipped):** **strip all chrome.** No card, border, tint, icon or eyebrow — just a small muted
+  lead that names the menu ("A read on **{menu}**", the name in `--text2` bold) and the observations as
+  clean prose lines (`.mi-line`, full `--text`, airy). It reads as a note jotted on the menu, not a
+  dashboard panel. Personal through the **copy + restraint**; quiet through the **absence of chrome**.
+- Classes: `.dash-insight-line`→`.mi-line`, header is `.mi-intro`; `applyPhrasedInsights` + smoke updated.
+  The old `.dash-insights`/`di-*` and the pass-1 `.mi-mark`/arc CSS were deleted (all unused).
 
 **5b — broadened engine (the insights were flat because every line was the same shape).** Rebuilt as **one
 pure, tested function per insight TYPE** (each returns `{kind, facts, text, score}`) plus a pure
@@ -138,11 +136,11 @@ still pinned by `api-insight.test.js`).
    paste box collapsed; upload → match → review with no monospace wall and **no filename / "N lines read"
    line** (just the matched/new summary); a PDF still shows "reading…" while it extracts; the GST note is a
    quiet muted line; expanding the toggle reveals + focuses the textarea. Both themes.
-4. **Suggestions on the Menu tab, switching between two menus:** the **personal note** sits ABOVE the dish
-   table (visible without scrolling a long menu) — soft warm inset, the arc mark + italic "What I'm seeing
-   on {menu}" lead, airy lines. Shows a varied 2–3 (not all "raise price"), reflects the selected menu, lead
-   rotates on switch. API reachable → warmer wording, **every number identical**; offline → templates. Both
-   themes. **Check the note doesn't read as a loud card and the arc mark is the only colour pop.**
+4. **Suggestions on the Menu tab, switching between two menus:** the **plain note** sits ABOVE the dish
+   table (visible without scrolling a long menu) — no card/border/icon, just an "A read on {menu}" lead +
+   clean prose lines. Shows a varied 2–3 (not all "raise price"), reflects the selected menu, lead rotates
+   on switch. API reachable → warmer wording, **every number identical**; offline → templates. Both themes.
+   **Check it reads as a quiet note, not a widget.**
 
 ## NOT built (deliberately)
 - No DB/schema change (branch-safe; still unrelated to the pending v55 migrations).
