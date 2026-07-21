@@ -700,6 +700,14 @@ input[type=checkbox]{
   background:var(--field);color:var(--text);
 }
 .inv-sum{font-size:14px;color:var(--text);margin-bottom:var(--sp-2);font-weight:700}
+/* v62: AI second-reader status, appended inline to the summary line. Muted Fable style; the success
+   state fades out after a beat (pure CSS, no re-render). Never an error modal — offline just reads
+   "unavailable". */
+.ai-status{font-size:var(--fs-xs);font-weight:650;margin-left:8px;white-space:nowrap}
+.ai-status.ai-checking,.ai-status.ai-off{color:var(--muted2)}
+.ai-status.ai-ok{color:var(--good);animation:aiFade .5s ease-out 3.5s forwards}
+@keyframes aiFade{to{opacity:0}}
+@media (prefers-reduced-motion:reduce){ .ai-status.ai-ok{animation:none} }
 .inv-gst{
   font-size:var(--fs-sm);color:var(--text2);background:var(--warn-bg);
   border:1px solid var(--warn);border-radius:var(--radius-chip);padding:10px 12px;margin:0 0 var(--sp-3);
@@ -1072,6 +1080,13 @@ input[type=checkbox]{
 .hl-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent)}
 .hl-full{list-style:decimal;margin:0;padding:0 0 0 22px;display:flex;flex-direction:column;gap:8px}
 @media(min-width:640px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
+/* v63 item 3: grounded "Suggestions" — a muted card built from existing panel tokens, theme-aware.
+   No input box, no chat: a short list of 1–3 insight lines. */
+.dash-insights{margin:10px 16px 4px}
+.dash-insights .pad{padding:12px 16px}
+.dash-insights .di-head{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}
+.dash-insight-line{font-size:13px;line-height:1.5;color:var(--text);padding:5px 0}
+.dash-insight-line+.dash-insight-line{border-top:1px solid var(--border)}
 
   /* invoice review: streamlined no-match "Add as New Item" button */
   .ni-add-btn{width:100%;font-size:13px;padding:8px 10px;border-style:dashed}
@@ -1207,6 +1222,7 @@ input[type=checkbox]{
   #dashBody{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--sp-5);align-items:start}
   #dashBody .dash-panel{grid-column:1;margin:var(--sp-5) 0 0}   /* v49: same top offset as every other tab's .panel */
   #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin:0}
+  #dashBody .dash-insights{grid-column:1/-1;margin:var(--sp-5) 0 0}   /* v63: spans full width below the chart + highlights */
   .dash-chart svg{height:auto}
   .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
 
@@ -2031,7 +2047,19 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .ni-grid .ni-f{display:flex;flex-direction:column;gap:5px;min-width:0;position:relative}
 .ni-grid .ni-f.ni-full{grid-column:1/-1}
 .ni-lab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);white-space:nowrap}
-.ni-af{display:none;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-weak);border-radius:var(--radius-pill);padding:2px 7px}
+/* v62: the AI-suggested chip (.ai-sug, on rule-4 price fields) is a true SIBLING of the auto-filled
+   chip — identical dimensions, padding, radius, weight and type scale, shared here so they can never
+   drift apart. No second accent in the palette reads as distinct-but-harmonious, so both use the same
+   accent chip and the LABEL carries the meaning. Both are inline-flow (never absolutely positioned),
+   so a wrapping label/price row pushes the chip to the next line instead of overlapping it. */
+.ni-af,.ai-sug,.cc-ai{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-weak);border-radius:var(--radius-pill);padding:2px 7px}
+.ni-af{display:none}
+.ai-sug{display:inline-block;align-self:center;white-space:nowrap}
+/* v63 item 2: the AI-suggested MATCH candidate carries the SAME accent chip system (shared rule above,
+   so it can never drift from .ni-af/.ai-sug) as a compact inline "AI" tag at the head of the chip label —
+   inline-flow, so it wraps with the chip text and never overlaps it. */
+.cc-ai{display:inline-block;padding:1px 5px;vertical-align:middle}
+.cand-chip.ai{border-color:var(--accent-ink)}
 /* v55 §F1: the "auto-filled" chip shows only for fields the PARSER filled (marked .af in JS, cleared on
    the first user edit) — NOT for any non-empty field (the old :placeholder-shown heuristic lit it on
    user-typed values too). Covers the plain inputs and the combo-wrapped ones. */

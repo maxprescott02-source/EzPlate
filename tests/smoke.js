@@ -312,5 +312,148 @@ $('ingClearFilters').click();
 ok('clicking it clears the search', $('ingSearch').value === '');
 ok('and it hides itself again', $('ingClearFilters').style.display === 'none');
 
-console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
-process.exit(failures ? 1 : 0);
+console.log('\n[15] v62 — AI second reader (status note, merge, chip)');
+// A matched hi-tier row for P0108 (stored ~$2.63/kg), priced high so the parser reading is far from history.
+const matchedRow = () => ({
+  name: 'CHIPS STRAIGHT CUT 6X2.5KG', raw: 'CHIPS STRAIGHT CUT 6X2.5KG', bestId: 'P0108',
+  unitPrice: 9.99, unit: 'kg', conf: 0.82, tier: 'hi', cands: [{ id: 'P0108', coverage: 0.82 }],
+  addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null
+});
+const invSumText = () => ($('invReview').querySelector('.inv-sum') || {}).textContent || '';
+const tbodyHtml = () => ($('invReview').querySelector('.invtable tbody') || {}).innerHTML || '';
+
+// (a) the summary status note, three states
+window.invRows = [matchedRow()];
+window.gemStatus = 'checking'; window.renderInvReview();
+ok('summary shows "AI double-checking…" while a check is in flight', /AI double-checking/.test(invSumText()));
+const rowsWhileChecking = tbodyHtml();
+window.gemStatus = 'unavailable'; window.renderInvReview();
+ok('unavailable shows "AI check unavailable"', /AI check unavailable/.test(invSumText()));
+ok('TIMEOUT/UNAVAILABLE degrades to IDENTICAL rows — only the summary note differs', tbodyHtml() === rowsWhileChecking);
+window.gemStatus = 'checked'; window.renderInvReview();
+ok('success shows "✓ AI checked"', /AI checked/.test(invSumText()));
+
+// (b) v66: parser HAS a price and Gemini disagrees — the AI must NEVER overrule the parser's money.
+//   b1: both readings far from history → history can't arbitrate → parser stands, no change, no flag.
+window.invRows = [matchedRow()]; window.gemApplied = false;   // matchedRow priced 9.99/kg; P0108 history ~2.63/kg
+window.gemApplyReadings({ status: 'ok', lines: [
+  { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 }
+] });
+ok('MONEY STAYS DETERMINISTIC: the AI does NOT overrule the parser price on disagreement', window.invRows[0].unitPrice === 9.99 && !window.invRows[0].aiSuggested);
+const rKeep = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+ok('no AI flag when history can\'t arbitrate (both far from history) — parser just stands', !/check price/.test(rKeep.textContent));
+
+//   b2: parser out of band, Gemini IN band (history says parser looks wrong) → FLAG "check price", price untouched.
+window.invRows = [matchedRow()]; window.gemApplied = false;
+window.gemApplyReadings({ status: 'ok', lines: [
+  { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.60, unitType: 'kg', packCount: 6 }
+] });
+ok('rule 3 FLAG: the parser price is left UNCHANGED (never overruled)', window.invRows[0].unitPrice === 9.99);
+const rFlag = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+ok('rule 3 FLAG: review-state, unticked, shows "check price"', rFlag.classList.contains('st-review') && !rFlag.querySelector('.invAppr').checked && /check price/.test(rFlag.textContent));
+ok('summary flips to checked after the merge', /AI checked/.test(invSumText()));
+
+// (c) rule 5: a Gemini-only line the parser dropped → appended as an unticked add-new row with AI chips
+window.invRows = [matchedRow()]; window.gemApplied = false;
+window.gemApplyReadings({ status: 'ok', lines: [
+  { rawText: 'MYSTERY SAUCE 2L', description: 'Mystery Sauce', derivedUnitPrice: 5, unitType: 'l', packCount: 1 }
+] });
+ok('rule 5: the parser row is untouched (rule 6, no G match)', window.invRows[0].unitPrice === 9.99);
+ok('rule 5: a new add-new row was appended', window.invRows.length === 2 && window.invRows[1].addNew === true && window.invRows[1].aiSource === true);
+window.expandNewItem(1);
+ok('rule 5: the appended row is never auto-ticked', !window.document.querySelector('#invReview tr.inv-data[data-i="1"] .invAppr').checked);
+const niAf1 = $('ni_name1') && $('ni_name1').closest('.ni-f').querySelector('.ni-af');
+ok('rule 5: the new-item form labels its prefilled fields "AI suggested" (one chip system, two labels)', !!niAf1 && /AI suggested/.test(niAf1.textContent), niAf1 && niAf1.textContent);
+
+// (d) a parser-built new-item form still says "auto-filled" (the other label of the same system)
+window.invRows = [{ name: 'CALAMARI 1KG', raw: 'CALAMARI 1KG', bestId: null, addNew: true, unitPrice: 14.92, unit: 'kg',
+  conf: 0.1, tier: 'lo', cands: [], needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null }];
+window.renderInvReview(); window.expandNewItem(0);
+ok('a parser-built new-item form keeps the "auto-filled" label', /auto-filled/.test($('ni_name0').closest('.ni-f').querySelector('.ni-af').textContent));
+
+// (e) async: the request fires, a stale/late response is discarded, a current one flips to checked
+let pending = [];
+window.fetch = (url, opts) => new Promise((resolve, reject) => { pending.push({ resolve, reject, url, opts }); });
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+(async function asyncSection() {
+  // late-discard: fire, then a newer parse bumps the token; the old response must not mutate the rows
+  window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  ok('fire posts to /api/parse-invoice', pending.length === 1 && /\/api\/parse-invoice/.test(pending[0].url));
+  window.gemToken++;   // a newer parse/openInv invalidates the in-flight request
+  pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 20, unitType: 'kg', packCount: 6 } ] }) });
+  await tick(); await tick();
+  ok('LATE-RESPONSE-DISCARDED: a stale token never alters the rows', window.invRows[0].unitPrice === 9.99);
+
+  // current response: fires, resolves with an agreeing (rule 2) reading → status becomes checked, no change
+  pending = [];
+  window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false; window.gemStatus = 'checking';
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
+  await tick(); await tick();
+  ok('a current, agreeing response flips the note to checked with no row change', /AI checked/.test(invSumText()) && window.invRows[0].unitPrice === 2.63);
+
+  // a failing fetch degrades silently to "unavailable"
+  pending = [];
+  window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  pending[0].reject(new Error('network down'));
+  await tick(); await tick();
+  ok('a failed request degrades to "AI check unavailable" (no error modal)', /AI check unavailable/.test(invSumText()));
+
+  console.log('\n[16] v63 — status flicker guard, check-match row, Dashboard insights');
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  // (a) flicker guard: a fast/agreeing response must NOT flip the note before it can be read
+  pending = [];
+  window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false;
+  window.gemStatus = 'checking'; window.gemCheckStart = Date.now();   // exactly as parseInvoice stamps it
+  window.renderInvReview();                                            // paint the "checking" note first
+  window.gemFireSecondReader('SOME INVOICE TEXT');
+  pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
+  await tick(); await tick();
+  ok('FLICKER GUARD: a fast result does NOT flip the note instantly — "checking" is still up', /AI double-checking/.test(invSumText()));
+  await wait(window.GEM_MIN_VISIBLE + 80);
+  ok('FLICKER GUARD: once the minimum-visible window passes, the note flips to checked', /AI checked/.test(invSumText()));
+
+  // (b) item 2 — a suspected wrong-match row renders unticked, flagged "check match", AI product ranked first
+  window.invRows = [{ name: 'MAPLE SYRUP 1L', raw: 'MAPLE SYRUP 1L', bestId: 'P0108', unitPrice: 12, unit: 'l', conf: 0.4, tier: 'mid',
+    gemMatchReview: true, gemSuggestId: 'P0107', cands: [{ id: 'P0107', coverage: 0.8, ai: true }, { id: 'P0108', coverage: 0.4 }],
+    addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null }];
+  window.renderInvReview();
+  const cm = window.document.querySelector('#invReview tr.inv-data[data-i="0"]');
+  ok('check-match: the row is a review state (st-review)', cm.classList.contains('st-review'));
+  ok('check-match: the row is NOT auto-ticked (a human ticks the right product)', !cm.querySelector('.invAppr').checked);
+  ok('check-match: the "check match" flag pill shows (not "price change")', /check match/.test(cm.textContent) && !/price change/.test(cm.textContent));
+  ok('check-match: the AI-suggested product is the FIRST candidate chip and carries the AI marker',
+    !!cm.querySelector('.cand-chip') && cm.querySelector('.cand-chip').classList.contains('ai') && /AI/.test((cm.querySelector('.cc-ai') || {}).textContent || ''));
+
+  // (c) item 3 — the Dashboard "Suggestions" card renders templates, then a valid rephrasing swaps in
+  const stashCI = window.computeInsights;
+  window.computeInsights = () => ([
+    { kind: 'over', facts: { pts: 10, menuPrice: 15, targetPrice: 20, targetPct: 30 }, text: 'Barra & Chips is 10 pts over target — $15.00 → $20.00 gets you to ~30%.' },
+    { kind: 'count', facts: { over: 1, total: 3, targetPct: 30 }, text: '1 of 3 costed dishes sits over your 30% target.' }
+  ]);
+  pending = [];
+  let dashThrew = null; try { window.renderDashboard(); } catch (e) { dashThrew = e; }
+  ok('dashboard renders without throwing', !dashThrew, dashThrew && dashThrew.message);
+  const di = $('dashInsights');
+  ok('the "Suggestions" card renders when there are insights', !!di);
+  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.dash-insight-line').length === 2 && !di.querySelector('input,textarea'));
+  ok('the over-target template shows its computed numbers verbatim', di && /10 pts over target/.test(di.textContent) && /\$20\.00/.test(di.textContent));
+  ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
+  const ip = pending.find(p => /\/api\/insight/.test(p.url));
+  if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
+    { text: 'Heads up — Barra & Chips runs 10 pts hot; nudging $15.00 to $20.00 lands you at ~30%.' },
+    { text: '1 of 3 costed dishes sits over your 30% target.' } ] }) });
+  await tick(); await tick();
+  ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
+  window.computeInsights = stashCI;
+
+  console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
+  process.exit(failures ? 1 : 0);
+})();

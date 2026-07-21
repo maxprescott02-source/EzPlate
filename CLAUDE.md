@@ -60,6 +60,29 @@ consistent" has caused rollbacks.
   `#appMain`, bottom nav, all modals.
 - `sw.js` — service worker (offline cache).
 
+**Client-side there is still no build step.** Since v62 the repo also has a small amount
+of **server-side code under `api/`** (Vercel zero-config Node serverless functions): the
+invoice AI second-reader (`api/parse-invoice.js` + pure `api/_gemini.js`) and, since v63, the
+Dashboard insight phrasing (`api/insight.js` + pure `api/_insight.js`). This is NOT a build
+step and does not touch the four files above: Vercel simply serves anything under `/api`.
+Conventions there: files whose name starts with `_` (e.g. `api/_gemini.js`, `api/_insight.js`)
+are **ignored as routes** and hold pure, `require()`-able, unit-tested logic; the route handlers
+stay thin. **API keys live ONLY in Vercel env vars** (`GEMINI_API_KEY`) — never in the client,
+the repo, or logs. Treat invoice text and any model output as untrusted data (fence it, validate
+strictly) — never executed, never an instruction. **Money/number law (v63):** any AI helper may
+only PHRASE numbers the app already computed deterministically — it never produces a figure;
+server + client both reject a phrasing that contains a number not in the supplied facts.
+
+## ⚠️ Privacy gate — before EzPlate serves anyone but Scoopy's
+The invoice AI second-reader (v62) sends invoice text to Google's Gemini free tier, which
+**may use prompts for training**; the v63 Dashboard insight phrasing (`api/insight.js`) sends
+plate names + costing numbers to the same tier. Max has accepted this **for his own café only**
+(his call, made). **BEFORE multi-tenant customers' data flows through `api/parse-invoice`,
+`api/insight`, or any future endpoint that ships user data to a third-party model, revisit:**
+move to a paid-tier
+Google project that excludes training use, or add a privacy-policy disclosure. This is the
+single most important thing to reopen before EzPlate is used by anyone else.
+
 ## 🔒 Hard rules (tests depend on these; violations have caused real damage)
 
 1. **Protected parser region**: the contiguous block in `js/app.js` between the
@@ -271,14 +294,96 @@ merge to `main` as a production deploy.
 
 ## State as of 21 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v60** (the `feat/ux-pass` batch merged since the 20 Jul snapshot; v54–v59
-  landed earlier via PRs #5–#7). One unmerged branch carries the next batch: **`fix/ui-pre-gemini`**
-  (v61, off `main`), committed and awaiting Max's phone sign-off, then merge. NOTE: local `main` goes
-  stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main` first
-  ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need
-  applying to prod before any of v54–v61 goes live** (see [[supabase-schema-can-lag-app-code]]).
-  `npm test` = **190 green**, jsdom smoke green, `node -c` clean, six spots at **v61**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`.
+- `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
+  earlier via PRs #5–#9). One unmerged branch (PR #11) carries the next batch: **`feat/gemini-dual-reader`**,
+  now stacking **v62 + v63 + v64/v65/v66 follow-ups** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
+  Max's preview/phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via
+  GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v66 goes live**
+  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **242 green**, jsdom smoke green, `node -c`
+  clean (app.js + the three `api/*.js`), six spots at **v66**. Per-batch detail lives in
+  `handovers/HANDOVER-vNN.md`.
+
+- **v66 (same branch) — the AI NO LONGER OVERRULES the parser's price (Max: "hallucinating prices, parser
+  readings overruled").** Once the API went live (v64), the v62 price rules that ADOPTED Gemini's reading on
+  disagreement (rule 3 closest-to-history, rule 4 adopt-G) started replacing correct parser prices with
+  Gemini's misreads. Fixed to honour "money stays deterministic": `gemMergeLine` now NEVER writes Gemini's
+  price when the parser already has one. Rule 2 (agreement) silent as before; when they disagree it only
+  **flags** ("check price", new `gemPriceReview` → `st-review`, price left untouched) and ONLY when price
+  history independently shows the parser out of band while Gemini is in (rule 3, action `'flag'`); otherwise
+  the parser stands silently (rule 7). Rule 4 adopt survives ONLY for the parser-had-NO-price case (filling a
+  blank, nothing to overrule). Flag clears when the human edits the price or changes the match. 242 tests
+  (merge + smoke §15b rewritten to pin "flag, never overrule"). Six spots → **v66**.
+
+- **v65 (same branch) — WIDENED the AI wrong-match detection (Max's call: catch more mismatches).**
+  `gemMatchSuspect` was DECOUPLED from the parser's own confidence. The old rule needed Gemini's pick to
+  beat `localCov+0.15`, so a wrong match the parser was SURE about (the common case) never flagged. Now the
+  only comparison is how the parser's product ranks against Gemini's OWN description (`localInAi`): if Gemini
+  clearly prefers a different, real match (coverage ≥0.45, margin ≥0.15) it flags "check match" however
+  confident the parser was; a thinner name match (≥0.3) still needs price-history corroboration; a near-tie
+  is still treated as ambiguity (margin guard). Still NEVER auto-applies — always a human tick. 239→242 tests.
+  Six spots → **v65**. NOTE: still only flags rows where Gemini's line key-matches the parser row (shared
+  raw text); rows Gemini reads with very different text than the parser aren't evaluated — a possible next
+  widening if needed.
+
+- **v64 hotfix (same branch) — two v63 integration bugs Max caught testing the preview.** (1) **Uploaded
+  PDF invoices never fired the second reader:** `handleInvFile`'s PDF branch calls `buildInvRows` directly,
+  bypassing `parseInvoice`, so `gemStatus`/`gemFireSecondReader` never ran (no note, no AI) — and uploading
+  is how Max actually imports. Now the PDF branch stamps the status + fires the reader like `parseInvoice`.
+  (2) **The Dashboard "Suggestions" card found nothing:** `computeInsights` used the legacy `sp.menuId`
+  map, but v55 moved the canonical link to `menu_items.plate_id`; it now resolves via `plateForMenuItem(m)`
+  like the rest of the dashboard. **Lesson: a passing `/api/…?health=1` proves only the serverless FUNCTION +
+  key are live — NOT the client bundle or its wiring; both these features are client-side.** (3) **Gemini
+  returned no line items:** once the key was valid, calls still came back `bad-shape` — `responseSchema`
+  didn't mark `lines` required, so `gemini-3.1-flash-lite` emitted `{supplier}` and omitted the array. Fix:
+  `responseSchema()` now sets `required:['lines']` (+per-line `rawText`/`derivedUnitPrice`) and both handlers
+  pass `thinkingConfig:{thinkingBudget:0}`. **A diagnostic `GET /api/parse-invoice?probe=1[&text=…]` (real
+  model calls, behind preview SSO) was added — GATE OR REMOVE before multi-tenant.** All server-only (no bump).
+  See HANDOVER-v63 top.
+
+- **v63 shipped — Gemini reader v2: status fix + match suggestions + first Dashboard insight (brief:
+  `~/Downloads/ezplate-opus-gemini-reader-v2.md`). See `handovers/HANDOVER-v63.md`.** Same branch as v62,
+  same invariants (parser is backbone, protected region untouched, money deterministic, taught outranks
+  all, key server-only). **(1) Status flicker guard:** the "AI double-checking…" note wasn't the bug —
+  production simply had no `/api/parse-invoice` (PR unmerged) so it 404'd → silent unavailable; added
+  `gemSettle`/`GEM_MIN_VISIBLE` (900ms floor via `gemCheckStart`) so a fast/failed result can't flip the
+  note before it's read. **(2) Suspected wrong match** (`gemMatchSuspect`, pure/tested): when Gemini's
+  `description` points at a DIFFERENT catalog product than the parser's `bestId` (strong token margin OR
+  price-history corroboration), flag the row **"check match"** (`gemMatchReview` → `st-review`, unticked),
+  rank the AI product first in the existing MATCH-TO chips with an "AI suggested" marker (`.cc-ai`, shares
+  the `.ni-af`/`.ai-sug` metrics), and SKIP the price merge — it never changes `bestId`, the human ticks.
+  Suppresses a co-incident "price change" flag (the mis-match explains the gap). **(3) First AI helper =
+  grounded Dashboard "Suggestions"**, NOT a chatbot: `deriveInsights` (pure/tested) computes 1–3 plate-vs-
+  target observations (worst over-target dish + target price, count over/under) — **the app computes every
+  number, the AI only rephrases**. Optional `api/insight.js`+`api/_insight.js` warmer phrasing validates
+  that NO number the app didn't compute appears (`validatePhrasing`), else the deterministic template
+  stands; offline/unavailable → templates render. One phrasing call per dashboard load, session-cached.
+  **Data note:** no per-ingredient price history exists (`priceHistory` is aggregate-only), so the brief's
+  "biggest ingredient price mover" insight was dropped. 215→239 tests (+8 match +8 insights +8 api-insight),
+  jsdom smoke §16. **Follow-up:** same preview/phone list PLUS the check-match row + the Dashboard insight
+  card (API on AND off) at 380px both themes — see HANDOVER-v63 §"Needs Max's phone".
+
+- **v62 shipped — Gemini dual-reader / AI second reader on invoice import (brief:
+  `~/Downloads/ezplate-opus-gemini-dual-reader.md`). See `handovers/HANDOVER-v62.md`.** Wraps the
+  existing parser + review flow with a second reader; **zero contact with the protected region**;
+  every path degrades to today's app exactly when the AI/network is absent. **FIRST server-side code
+  in the repo:** `api/parse-invoice.js` (Vercel zero-config Node — no build step) + `api/_gemini.js`
+  (underscore = not a route; pure, testable prompt/validation logic). Gemini key lives ONLY in Vercel
+  env (`GEMINI_API_KEY`); model default `gemini-3.1-flash-lite`, overridable via `GEMINI_MODEL`;
+  health check `GET /api/parse-invoice?health=1`. Client: `parseInvoice` renders Reader 1 immediately
+  then fires ONE background request; `gemMergeLine` (pure, extracted, tested) + `gemApplyReadings`
+  reconcile per line. **Rules:** T > P≈G (silent) > history-referee within **±50% band** (`GEM_BAND`,
+  silent) > adopt-G flagged review (rule 4) > append G-only add-new lines (rule 5) > parser stands
+  (rule 6). Late/stale responses and applied imports are discarded (`gemToken`/`gemApplied`) — human
+  ruling is final. `invRowState` gained a `gemReview` clause (auto-tick stays pinned to `matched`).
+  **AI-suggested chip = the existing `.ni-af` system, second label** ("AI suggested" vs "auto-filled")
+  — `niLab(t,src)` + a shared `.ni-af,.ai-sug` CSS rule so metrics can't drift; inline-flow so it
+  can't overlap a wrapping label. Summary gains a muted status note (checking → checked/unavailable).
+  Untrusted invoice text + model output — fenced prompt, strict schema validation → clean
+  "unavailable" over partial garbage. 190→215 tests (11 schema + 14 merge) + jsdom smoke §15.
+  **Two follow-ups for Max:** (a) preview phone-check list incl. the chip at 380px both themes
+  (HANDOVER §"Needs Max's phone"); (b) a proposed CLAUDE.md addition (first-server-code + the
+  free-tier **privacy gate before multi-tenant invoices**) awaiting his yes — NOT added silently.
 
 - **v61 shipped — UI fixes before the Gemini batch (brief: `~/Downloads/ezplate-opus-ui-fixes-pre-gemini.md`).
   See `handovers/HANDOVER-v61.md`.** (1) Builder qty 4-digit clipping = **VISUAL only, NOT a data bug**
