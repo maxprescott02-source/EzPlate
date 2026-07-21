@@ -60,20 +60,26 @@ consistent" has caused rollbacks.
   `#appMain`, bottom nav, all modals.
 - `sw.js` — service worker (offline cache).
 
-**Client-side there is still no build step.** As of v62 the repo also has a small amount
-of **server-side code under `api/`** (Vercel zero-config Node serverless functions — the
-invoice AI second-reader). This is NOT a build step and does not touch the four files above:
-Vercel simply serves anything under `/api`. Conventions there: files whose name starts with
-`_` (e.g. `api/_gemini.js`) are **ignored as routes** and hold pure, `require()`-able,
-unit-tested logic; the route handlers stay thin. **API keys live ONLY in Vercel env vars**
-(`GEMINI_API_KEY`) — never in the client, the repo, or logs. Treat invoice text and any model
-output as untrusted data (fence it, validate strictly) — never executed, never an instruction.
+**Client-side there is still no build step.** Since v62 the repo also has a small amount
+of **server-side code under `api/`** (Vercel zero-config Node serverless functions): the
+invoice AI second-reader (`api/parse-invoice.js` + pure `api/_gemini.js`) and, since v63, the
+Dashboard insight phrasing (`api/insight.js` + pure `api/_insight.js`). This is NOT a build
+step and does not touch the four files above: Vercel simply serves anything under `/api`.
+Conventions there: files whose name starts with `_` (e.g. `api/_gemini.js`, `api/_insight.js`)
+are **ignored as routes** and hold pure, `require()`-able, unit-tested logic; the route handlers
+stay thin. **API keys live ONLY in Vercel env vars** (`GEMINI_API_KEY`) — never in the client,
+the repo, or logs. Treat invoice text and any model output as untrusted data (fence it, validate
+strictly) — never executed, never an instruction. **Money/number law (v63):** any AI helper may
+only PHRASE numbers the app already computed deterministically — it never produces a figure;
+server + client both reject a phrasing that contains a number not in the supplied facts.
 
 ## ⚠️ Privacy gate — before EzPlate serves anyone but Scoopy's
 The invoice AI second-reader (v62) sends invoice text to Google's Gemini free tier, which
-**may use prompts for training**. Max has accepted this **for his own café only** (his call,
-made). **BEFORE multi-tenant customers' invoices flow through `api/parse-invoice` (or any
-future endpoint that ships user data to a third-party model), revisit:** move to a paid-tier
+**may use prompts for training**; the v63 Dashboard insight phrasing (`api/insight.js`) sends
+plate names + costing numbers to the same tier. Max has accepted this **for his own café only**
+(his call, made). **BEFORE multi-tenant customers' data flows through `api/parse-invoice`,
+`api/insight`, or any future endpoint that ships user data to a third-party model, revisit:**
+move to a paid-tier
 Google project that excludes training use, or add a privacy-policy disclosure. This is the
 single most important thing to reopen before EzPlate is used by anyone else.
 
@@ -289,13 +295,36 @@ merge to `main` as a production deploy.
 ## State as of 21 Jul 2026 (verify, don't trust)
 
 - `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
-  earlier via PRs #5–#9). One unmerged branch carries the next batch: **`feat/gemini-dual-reader`**
-  (v62, off `main`), committed and awaiting Max's preview/phone sign-off, then merge. NOTE: local
-  `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
-  first ([[verify-origin-main-before-trusting-local]]). **The three v55 Supabase migrations STILL need
-  applying to prod before any of v54–v62 goes live** (see [[supabase-schema-can-lag-app-code]]).
-  `npm test` = **215 green**, jsdom smoke green, `node -c` clean (app.js + the two new `api/*.js`),
-  six spots at **v62**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  earlier via PRs #5–#9). One unmerged branch (PR #11) carries the next batch: **`feat/gemini-dual-reader`**,
+  now stacking **v62 AND v63** (Max asked to keep the v63 work on the SAME branch), off `main`, awaiting
+  Max's preview/phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via
+  GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v63 goes live**
+  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **239 green**, jsdom smoke green, `node -c`
+  clean (app.js + the three `api/*.js`), six spots at **v63**. Per-batch detail lives in
+  `handovers/HANDOVER-vNN.md`.
+
+- **v63 shipped — Gemini reader v2: status fix + match suggestions + first Dashboard insight (brief:
+  `~/Downloads/ezplate-opus-gemini-reader-v2.md`). See `handovers/HANDOVER-v63.md`.** Same branch as v62,
+  same invariants (parser is backbone, protected region untouched, money deterministic, taught outranks
+  all, key server-only). **(1) Status flicker guard:** the "AI double-checking…" note wasn't the bug —
+  production simply had no `/api/parse-invoice` (PR unmerged) so it 404'd → silent unavailable; added
+  `gemSettle`/`GEM_MIN_VISIBLE` (900ms floor via `gemCheckStart`) so a fast/failed result can't flip the
+  note before it's read. **(2) Suspected wrong match** (`gemMatchSuspect`, pure/tested): when Gemini's
+  `description` points at a DIFFERENT catalog product than the parser's `bestId` (strong token margin OR
+  price-history corroboration), flag the row **"check match"** (`gemMatchReview` → `st-review`, unticked),
+  rank the AI product first in the existing MATCH-TO chips with an "AI suggested" marker (`.cc-ai`, shares
+  the `.ni-af`/`.ai-sug` metrics), and SKIP the price merge — it never changes `bestId`, the human ticks.
+  Suppresses a co-incident "price change" flag (the mis-match explains the gap). **(3) First AI helper =
+  grounded Dashboard "Suggestions"**, NOT a chatbot: `deriveInsights` (pure/tested) computes 1–3 plate-vs-
+  target observations (worst over-target dish + target price, count over/under) — **the app computes every
+  number, the AI only rephrases**. Optional `api/insight.js`+`api/_insight.js` warmer phrasing validates
+  that NO number the app didn't compute appears (`validatePhrasing`), else the deterministic template
+  stands; offline/unavailable → templates render. One phrasing call per dashboard load, session-cached.
+  **Data note:** no per-ingredient price history exists (`priceHistory` is aggregate-only), so the brief's
+  "biggest ingredient price mover" insight was dropped. 215→239 tests (+8 match +8 insights +8 api-insight),
+  jsdom smoke §16. **Follow-up:** same preview/phone list PLUS the check-match row + the Dashboard insight
+  card (API on AND off) at 380px both themes — see HANDOVER-v63 §"Needs Max's phone".
 
 - **v62 shipped — Gemini dual-reader / AI second reader on invoice import (brief:
   `~/Downloads/ezplate-opus-gemini-dual-reader.md`). See `handovers/HANDOVER-v62.md`.** Wraps the
