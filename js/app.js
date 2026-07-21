@@ -1828,11 +1828,14 @@ var gemInsightPhrased=null;                                         // {sig, lin
 function computeInsights(){
   var dishes=[];
   try{
-    var byMenu={};
-    (savedPlates||[]).forEach(function(sp){ if(sp && sp.menuId) byMenu[sp.menuId]=sp; });
+    // v63 fix: resolve each dish's plate via plateForMenuItem — the CANONICAL v55 link
+    // (menu_items.plate_id). The old sp.menuId reverse-map missed every modern synced plate
+    // (menu_id is left unset since v55), so the card silently found nothing. This mirrors exactly
+    // what dashComparisons and the trend/highlight cards already do (see MENU.forEach at ~L834/L1759).
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
-      if(!m) return; var sp=byMenu[m.id]; if(!sp) return;
-      dishes.push({name:sp.name||m.name, cost:costFromLines(sp.lines), menuPrice:m.price});
+      if(!m || !(m.price>0)) return;
+      var sp=plateForMenuItem(m); if(!sp) return;
+      dishes.push({name:m.name, cost:costFromLines(sp.lines), menuPrice:m.price});
     });
   }catch(e){ return []; }
   return deriveInsights(dishes, foodTarget());
@@ -2000,7 +2003,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v63';
+var APP_VERSION='v64';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2682,7 +2685,10 @@ function handleInvFile(file){
       text=normPackNotation(text);                     // v55 §I: normalise "N x M's" -> "(N*M)'s" before parsing (and before it's shown in the textarea, so a manual re-parse stays consistent)
       invGst=invGstDetect(text); invSupplier=invSupplierDetect(text);
       var rows=pdfTextToRows(text), ta=document.getElementById('invCsv');
-      if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 '+rows.length+' line'+(rows.length===1?'':'s')+' read, review below'; buildInvRows(rows); }
+      // v63 fix: the PDF path builds rows DIRECTLY (it doesn't go through parseInvoice), so the AI
+      // second reader was never firing and the status note never set for uploaded invoices \u2014 which is
+      // how Max actually imports. Mirror parseInvoice here: stamp the status, then fire ONE reader.
+      if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 '+rows.length+' line'+(rows.length===1?'':'s')+' read, review below'; gemStatus='checking'; gemApplied=false; gemCheckStart=Date.now(); buildInvRows(rows); gemFireSecondReader(text); }
       else { ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 review the extracted text'; toast('Couldn\u2019t auto-detect priced lines \u2014 review the text below or enter manually'); }
     }).catch(function(e){
       if(nameEl) nameEl.textContent=file.name;
