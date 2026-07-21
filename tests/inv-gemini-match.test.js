@@ -45,12 +45,30 @@ test('a real price rise on the CORRECT match → NOT a suspected wrong match', (
   assert.equal(d.suspect, false);
 });
 
-test('weak token overlap but price history backs the AI product → suspect (corroborated)', () => {
-  // token evidence alone is thin (0.45, only +0.15 over local); but the line price fits the AI product's
-  // history and NOT the local match's → the mis-match explains the apparent jump.
+test('v65 WIDENED: a CONFIDENT-but-wrong parser match is now flagged when Gemini names a different product', () => {
+  // The common painful case: the parser matched P_TABLE with HIGH confidence (0.85), but the invoice
+  // really says maple syrup. Pre-v65 this never fired (Gemini had to beat the parser's confidence).
   const d = gemMatchSuspect({
-    bestId: 'P_LOCAL', localCov: 0.3,
-    aiCands: [cand('P_AI', 0.45), cand('P_LOCAL', 0.3)],
+    bestId: 'P_TABLE', localCov: 0.85,               // parser was very sure — no longer a shield
+    aiCands: [cand('P_MAPLE', 0.7), cand('P_TABLE', 0.2)]
+  });
+  assert.equal(d.suspect, true);
+  assert.equal(d.suggestId, 'P_MAPLE');
+});
+
+test('v65 WIDENED: a solid name match (>=0.45) fires WITHOUT needing price corroboration', () => {
+  const d = gemMatchSuspect({
+    bestId: 'P_LOCAL', localCov: 0.6,
+    aiCands: [cand('P_AI', 0.5), cand('P_LOCAL', 0.2)]   // no histories at all
+  });
+  assert.equal(d.suspect, true);
+  assert.equal(d.suggestId, 'P_AI');
+});
+
+test('a thin name match (<0.45) with price history backing the AI product → suspect (corroborated)', () => {
+  const d = gemMatchSuspect({
+    bestId: 'P_LOCAL',
+    aiCands: [cand('P_AI', 0.35), cand('P_LOCAL', 0.15)],
     gCanon: { cat: 'kg', per: 20 },
     localHist: { per: 5, cat: 'kg' },   // line ($20/kg) is nowhere near local's $5/kg
     suggHist: { per: 19, cat: 'kg' }    // …but sits right on the AI product's $19/kg
@@ -60,21 +78,29 @@ test('weak token overlap but price history backs the AI product → suspect (cor
   assert.equal(d.corroborated, true);
 });
 
-test('weak token overlap with NO corroborating history → not suspect (avoids noise)', () => {
+test('a thin name match (<0.45) with NO corroborating history → not suspect (the floor)', () => {
   const d = gemMatchSuspect({
-    bestId: 'P_LOCAL', localCov: 0.3,
-    aiCands: [cand('P_AI', 0.45), cand('P_LOCAL', 0.3)]
-    // no gCanon/histories → priceBacked can't fire, token margin too thin for strongToken
+    bestId: 'P_LOCAL',
+    aiCands: [cand('P_AI', 0.35), cand('P_LOCAL', 0.15)]
+    // 0.35 is below the 0.45 name floor and there's no price backing → stays quiet
   });
   assert.equal(d.suspect, false);
 });
 
-test('price fits the LOCAL match (not the AI one) → not corroborated → not suspect on thin tokens', () => {
+test('near-tie in Gemini\'s own ranking → ambiguity, not a wrong match (margin guard)', () => {
   const d = gemMatchSuspect({
-    bestId: 'P_LOCAL', localCov: 0.3,
-    aiCands: [cand('P_AI', 0.45), cand('P_LOCAL', 0.3)],
+    bestId: 'P_LOCAL',
+    aiCands: [cand('P_AI', 0.6), cand('P_LOCAL', 0.55)]   // Gemini barely prefers P_AI → don't cry wolf
+  });
+  assert.equal(d.suspect, false);
+});
+
+test('a thin name match (<0.45) where price fits the LOCAL match → not suspect', () => {
+  const d = gemMatchSuspect({
+    bestId: 'P_LOCAL',
+    aiCands: [cand('P_AI', 0.35), cand('P_LOCAL', 0.15)],
     gCanon: { cat: 'kg', per: 5 },
-    localHist: { per: 5, cat: 'kg' },   // line matches LOCAL history → local is plausible
+    localHist: { per: 5, cat: 'kg' },   // line matches LOCAL history → local is plausible → not corroborated
     suggHist: { per: 19, cat: 'kg' }
   });
   assert.equal(d.suspect, false);

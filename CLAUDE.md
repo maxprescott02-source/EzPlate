@@ -296,13 +296,24 @@ merge to `main` as a production deploy.
 
 - `origin/main` is at **v61** (`fix/ui-pre-gemini` merged via PR #10 — `ce0f44b`; v54–v60 landed
   earlier via PRs #5–#9). One unmerged branch (PR #11) carries the next batch: **`feat/gemini-dual-reader`**,
-  now stacking **v62 + v63 + a v64 hotfix** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
+  now stacking **v62 + v63 + v64/v65 follow-ups** (Max asked to keep the follow-on work on the SAME branch), off `main`, awaiting
   Max's preview/phone sign-off, then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v64 goes live**
-  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **239 green**, jsdom smoke green, `node -c`
-  clean (app.js + the three `api/*.js`), six spots at **v64**. Per-batch detail lives in
+  **The three v55 Supabase migrations STILL need applying to prod before any of v54–v65 goes live**
+  (see [[supabase-schema-can-lag-app-code]]). `npm test` = **242 green**, jsdom smoke green, `node -c`
+  clean (app.js + the three `api/*.js`), six spots at **v65**. Per-batch detail lives in
   `handovers/HANDOVER-vNN.md`.
+
+- **v65 (same branch) — WIDENED the AI wrong-match detection (Max's call: catch more mismatches).**
+  `gemMatchSuspect` was DECOUPLED from the parser's own confidence. The old rule needed Gemini's pick to
+  beat `localCov+0.15`, so a wrong match the parser was SURE about (the common case) never flagged. Now the
+  only comparison is how the parser's product ranks against Gemini's OWN description (`localInAi`): if Gemini
+  clearly prefers a different, real match (coverage ≥0.45, margin ≥0.15) it flags "check match" however
+  confident the parser was; a thinner name match (≥0.3) still needs price-history corroboration; a near-tie
+  is still treated as ambiguity (margin guard). Still NEVER auto-applies — always a human tick. 239→242 tests.
+  Six spots → **v65**. NOTE: still only flags rows where Gemini's line key-matches the parser row (shared
+  raw text); rows Gemini reads with very different text than the parser aren't evaluated — a possible next
+  widening if needed.
 
 - **v64 hotfix (same branch) — two v63 integration bugs Max caught testing the preview.** (1) **Uploaded
   PDF invoices never fired the second reader:** `handleInvFile`'s PDF branch calls `buildInvRows` directly,

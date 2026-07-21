@@ -2003,7 +2003,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v64';
+var APP_VERSION='v65';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3592,31 +3592,35 @@ function gemMergeLine(P, G, H, T, opts){
   }
   return {rule:4, action:'adopt', winner:'G', unitPrice:gc.per, unit:gc.cat, flagged:true};   // rule 4: adopt G (AI wins pack-structure fights), present as a flagged unticked review card
 }
-/* v63 item 2 — suspected WRONG MATCH. PURE (tests pin it): decide whether Gemini's line points
-   at a DIFFERENT product than the parser's local match. Mirrors the price rules — never silent,
-   never auto-applies; the caller only FLAGS the row and ranks the AI product first, the human ticks.
-   All inputs are primitives so it needs no DOM/PRODUCTS: aiCands is rankCandidates(g.description)
-   already computed by the caller; gCanon/localHist/suggHist are canonical {cat,per} readings.
-   Two ways to fire: (a) strong token evidence for a different product, or (b) the line's derived
-   price fits the AI-suggested product's history where the LOCAL match's makes it look like a jump. */
+/* v63 item 2 / v65 WIDENED — suspected WRONG MATCH. PURE (tests pin it): decide whether Gemini's
+   line points at a DIFFERENT product than the parser's local match. Mirrors the price rules — never
+   silent, never auto-applies; the caller only FLAGS the row "check match" and ranks the AI product
+   first, the human ticks. All inputs are primitives so it needs no DOM/PRODUCTS: aiCands is
+   rankCandidates(g.description) already computed by the caller; gCanon/localHist/suggHist are
+   canonical {cat,per} readings.
+   v65: DECOUPLED from the parser's own confidence. The old rule required Gemini's pick to beat the
+   parser's CONFIDENCE (top.coverage >= localCov+0.15), so a wrong match the parser was SURE about —
+   the common, painful case — never got flagged. Now the only comparison that matters is how the
+   parser's product ranks against Gemini's OWN description (localInAi): if Gemini clearly prefers a
+   different product (margin >= 0.15) and that product is a real match (>=0.45), flag it — however
+   confident the parser was. A thinner name match (>=0.3) still needs price-history corroboration. */
 function gemMatchSuspect(o){
   o=o||{}; var band=(o.band!=null?o.band:GEM_BAND);
   var cands=o.aiCands||[]; if(!cands.length) return {suspect:false};
   var top=cands[0]; if(!top || top.id==null) return {suspect:false};
   if(top.id===o.bestId) return {suspect:false};                   // Gemini agrees with the local match → nothing to flag
-  var localCov=(o.localCov!=null?o.localCov:0);
-  // How strongly the AI's OWN ranking of its description rates the parser's current match. If the
-  // local match is a near-tie for the AI product, that's ambiguity (e.g. two similar chips), not a
-  // wrong match — defer to the price merge. Absent from the AI's list → it truly points elsewhere.
+  // How strongly Gemini's OWN ranking of its description rates the parser's current match. If the
+  // parser's pick is a near-tie for Gemini's pick, that's ambiguity (e.g. two similar chips), not a
+  // wrong match — defer to the price merge. Absent from the list → Gemini truly points elsewhere.
   var localInAi=0;
   for(var ci=0;ci<cands.length;ci++){ if(cands[ci] && cands[ci].id===o.bestId){ localInAi=cands[ci].coverage||0; break; } }
-  if(top.coverage-localInAi < 0.15) return {suspect:false};
+  if(top.coverage-localInAi < 0.15) return {suspect:false};       // Gemini doesn't clearly prefer a different product
   var inBand=function(h){ return !!(h && o.gCanon && h.cat===o.gCanon.cat && o.gCanon.per>=h.per*(1-band) && o.gCanon.per<=h.per*(1+band)); };
   var suggPlausible=inBand(o.suggHist), localPlausible=inBand(o.localHist);
   var corroborated=!!(suggPlausible && !localPlausible);          // price fits the AI product, not the local one — the mis-match explains the "jump"
-  var strongToken=(top.coverage>=0.5 && top.coverage>=localCov+0.15);   // AI names a clearly better-matching product
-  var priceBacked=(top.coverage>=0.4 && corroborated);            // weaker token overlap, but history backs the swap
-  if(!(strongToken || priceBacked)) return {suspect:false};
+  var strongName=(top.coverage>=0.45);                            // Gemini names a real, clearly-better-matching product (no longer gated on parser confidence)
+  var priceBacked=(top.coverage>=0.3 && corroborated);           // thinner name match, but price history backs the swap
+  if(!(strongName || priceBacked)) return {suspect:false};
   return {suspect:true, suggestId:top.id, coverage:top.coverage, corroborated:corroborated};
 }
 /* A row the human has already ruled on is frozen — a late AI result never re-opens it. */
