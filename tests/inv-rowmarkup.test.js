@@ -180,7 +180,10 @@ test('v72: the new-item form slot nests INSIDE the row card and PRECEDES the App
   const apply = html.indexOf('class="invAppr"');
   assert.ok(slot >= 0, 'an add-new row carries the nested form slot (.ni-slot)');
   assert.ok(panel >= 0, 'and the .ni-panel the form fills');
-  assert.ok(slot < apply, 'the form slot must come BEFORE the Apply checkbox (form above Apply)');
+  // full source order: the slot opens, the panel sits inside it, THEN the Apply checkbox (form above Apply)
+  assert.ok(slot < panel && panel < apply, 'order must be ni-slot < ni-panel < Apply, got slot=' + slot + ' panel=' + panel + ' apply=' + apply);
+  // and the panel is the slot's CHILD, not a detached sibling — the whole point of the nesting fix
+  assert.ok(/class="ni-slot"[^>]*>\s*<div class="ni-panel">/.test(html), 'the .ni-panel must be nested directly inside the .ni-slot');
   // a matched row has no inline new-item slot
   const m = buildRow(Object.assign(attentionRow(), { needsAttention: false }), 0);
   assert.ok(m.indexOf('ni-slot') < 0, 'a matched row carries no nested new-item slot');

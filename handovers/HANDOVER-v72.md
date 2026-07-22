@@ -4,8 +4,9 @@
 
 Branch off **v71** (`origin/main` = `1baeddb`, PR #16 merged — v71 had landed by this batch, so the baseline was
 v71, not v70 as CLAUDE.md's stale "State as of" implied). Baseline **271 node tests green**, jsdom smoke green, six
-spots v71. Ended **271 node green** (unchanged — this is presentation only), jsdom smoke green (incl. a new **[18] v72**
-close-out section), `node -c` clean (app.js, sw.js, all four `api/*.js`), six spots → **v72**.
+spots v71. Ended **272 node green** — the animation work itself is presentation-only and left the count at 271; the
+invoice new-item nesting folded into this branch added +1 pin (see that section). jsdom smoke green (incl. a new
+**[18] v72** close-out section), `node -c` clean (app.js, sw.js, all four `api/*.js`), six spots → **v72**.
 
 **CSS + a small, central JS wiring change + one smoke section only.** Zero contact with the protected parser region,
 the money law, the naming inversion, the plate/dish/menu data model, or any pricing logic. No new deps, no build step.
@@ -106,7 +107,8 @@ Two design points that matter:
   focus). Flagging this honestly rather than claiming a full audit.
 
 ## Tests / verification
-- `npm test` = **271 green** (unchanged — presentation only; no pinned contract changed).
+- `npm test` = **272 green** at ship. The animation work is presentation-only and changed no pinned contract (271);
+  the invoice new-item nesting folded into this branch added the +1 pin (see that section).
 - jsdom smoke green, incl. new **[18] v72** section pinning the close-out contract: open adds `.open`+clears
   aria-hidden; close drops `.open` synchronously, sets aria-hidden, adds `.closing`; reopen clears `.closing`.
 - `node -c` clean on `js/app.js`, `sw.js`, and all four `api/*.js`.
