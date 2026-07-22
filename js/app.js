@@ -494,8 +494,8 @@ function initAddCombos(){
   makeInlineCombo('f_sup','f_supDrop',prodSuppliers);
   makeInlineCombo('f_category','f_categoryDrop',prodCategories);
 }
-function openModal(){initAddCombos();updateAddCalc();modal.classList.add('open');modal.setAttribute('aria-hidden','false');}
-function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+function openModal(){initAddCombos();updateAddCalc();openOverlay(modal);}
+function closeModal(){closeOverlay(modal);}
 function clearForm(){['f_desc','f_brand','f_sup','f_category','f_packsize','f_price'].forEach(id=>{var e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('f_food').checked=true;document.getElementById('f_packunit').value='kg';updateAddCalc();document.getElementById('ferr').style.display='none';}
 function submitNew(){
@@ -2341,7 +2341,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v71';
+var APP_VERSION='v72';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2593,8 +2593,23 @@ if ('serviceWorker' in navigator) {
 
 
 /* ====== v2 features: load/edit, promote-to-menu, invoice import, name match ====== */
-function show(id){var el=document.getElementById(id);if(el){el.classList.add('open');el.setAttribute('aria-hidden','false');}}
-function hide(id){var el=document.getElementById(id);if(el){el.classList.remove('open');el.setAttribute('aria-hidden','true');}}
+// v72 motion: reduced-motion probe (CSS handles the killswitch; JS needs it to skip the close-out timing).
+function prefersReducedMotion(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches); }catch(e){ return false; } }
+// v72 motion: modal open/close go through ONE pair so every overlay shares the same entrance AND the reverse-out.
+// Open cancels any pending close so a fast reopen can't be swallowed by the close timer.
+function openOverlay(el){ if(!el) return; clearTimeout(el.__closeT); el.classList.remove('closing'); el.classList.add('open'); el.setAttribute('aria-hidden','false'); }
+function closeOverlay(el){
+  if(!el) return;
+  var wasOpen=el.classList.contains('open');
+  el.setAttribute('aria-hidden','true');                          // a11y + logic: closed at once, whatever the visual does
+  clearTimeout(el.__closeT);
+  el.classList.remove('open');                                    // .open drops synchronously so every `.open` check + CSS layout sees it closed now
+  if(!wasOpen || prefersReducedMotion()){ el.classList.remove('closing'); return; }
+  el.classList.add('closing');                                    // .modal-overlay.closing re-asserts display + runs the fade-out (CSS §14)
+  el.__closeT=setTimeout(function(){ el.classList.remove('closing'); }, 320);
+}
+function show(id){ openOverlay(document.getElementById(id)); }
+function hide(id){ closeOverlay(document.getElementById(id)); }
 
 function updateEditTag(){
   var t=document.getElementById('editTag');

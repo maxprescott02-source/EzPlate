@@ -513,6 +513,19 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   window.clearMenuFilters();
   ok('Clear filters resets every light chip', ['green', 'amber', 'red'].every((l) => !pressed(l)));
 
+  // ---- [18] v72 — modal reverse-out wiring (close animates but .open drops synchronously) ----
+  console.log('\n[18] v72 — modal close-out animation');
+  const mm2 = $('menuModal');
+  window.show('menuModal');
+  ok('opening adds .open and clears aria-hidden', mm2.classList.contains('open') && mm2.getAttribute('aria-hidden') === 'false');
+  window.hide('menuModal');
+  ok('closing drops .open synchronously (every .open check stays honest)', !mm2.classList.contains('open'));
+  ok('closing marks the modal closed for a11y at once', mm2.getAttribute('aria-hidden') === 'true');
+  ok('closing adds .closing so CSS can run the fade-out', mm2.classList.contains('closing'));
+  window.show('menuModal');
+  ok('reopening cancels the pending close (.closing cleared, .open back)', mm2.classList.contains('open') && !mm2.classList.contains('closing'));
+  window.hide('menuModal');
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();

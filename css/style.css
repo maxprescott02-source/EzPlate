@@ -44,8 +44,20 @@
   /* shape */
   --radius-card:16px; --radius-ctl:12px; --radius-chip:9px; --radius-pill:999px;
 
-  /* motion */
-  --ease:cubic-bezier(.2,.7,.3,1); --t-fast:.14s; --t-med:.22s;
+  /* motion system (v72) — ONE easing + a small fixed duration scale.
+     No ad-hoc durations/easings anywhere else; everything transitions off these.
+     Durations:  --t-fast  taps / hovers / toggles / chips
+                 --t-med   most state changes (dropdowns, cards, toasts)
+                 --t-slow  larger surfaces (modal + panel open/close)
+     Easing:     --ease         primary ease-out for entrances / most motion
+                 --ease-in-out  symmetric moves (e.g. a modal fading back out)
+                 --ease-spring  gentle overshoot — reserved for the ONE
+                                signature moment (the Gemini panel expand).
+     All motion is disabled wholesale under prefers-reduced-motion (§22). */
+  --ease:cubic-bezier(.2,.7,.3,1);
+  --ease-in-out:cubic-bezier(.65,0,.35,1);
+  --ease-spring:cubic-bezier(.34,1.4,.64,1);
+  --t-fast:.14s; --t-med:.22s; --t-slow:.3s;
 }
 
 /* Light — EzPlate default: warm paper, espresso ink, marmalade accent */
@@ -395,9 +407,10 @@ input[type=checkbox]{
   display:inline-flex;align-items:center;gap:5px;cursor:pointer;
   border:1px dashed var(--border2);border-radius:var(--radius-chip);padding:3px 9px;
   color:var(--text2);background:var(--field);
-  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease);
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease);
 }
 .pchip:hover{background:var(--hover);border-color:var(--accent-ink);color:var(--accent-ink)}
+.pchip:active{transform:scale(.96)}
 .pchip .pen{opacity:.55;font-size:11px}
 .pchip .pin{width:72px;border:0;outline:none;font-family:var(--mono);font-size:13px!important;padding:2px 0;background:transparent;color:var(--text);min-height:0}
 .edited{color:var(--warn);font-size:var(--fs-xs);font-family:var(--ui);margin-left:4px;font-weight:600}
@@ -480,9 +493,10 @@ input[type=checkbox]{
 .mlf-chip{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:36px;padding:8px 14px;
   border:1px solid var(--border2);background:var(--surface);color:var(--text2);border-radius:var(--radius-pill);
   font-size:var(--fs-sm);font-weight:600;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
 .mlf-chip .dot{margin:0}
 .mlf-chip:hover{background:var(--hover);color:var(--text)}
+.mlf-chip:active{transform:scale(.96)}
 .mlf-chip.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
 .mlf-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .vbadge{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap}
@@ -595,13 +609,20 @@ input[type=checkbox]{
   padding:calc(env(safe-area-inset-top) + 20px) var(--sp-4) calc(env(safe-area-inset-bottom) + 20px);
   z-index:80;overflow:auto;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
 }
-.modal-overlay.open{display:flex;animation:fadeIn var(--t-med) var(--ease)}
+.modal-overlay.open{display:flex;animation:fadeIn var(--t-slow) var(--ease)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* v72 motion: reverse-out. JS drops .open synchronously (so every .open check stays
+   honest) and adds .closing, which re-asserts display + runs the fade-out, then clears
+   after --t-slow. */
+.modal-overlay.closing{display:flex;animation:fadeOut var(--t-slow) var(--ease-in-out) forwards}
+.modal-overlay.closing .modal{animation:modalOut var(--t-slow) var(--ease-in-out) forwards}
+@keyframes fadeOut{from{opacity:1}to{opacity:0}}
+@keyframes modalOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px) scale(.99)}}
 .modal{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   max-width:640px;width:100%;box-shadow:var(--shadow-lg);
 }
-.modal-overlay.open .modal{animation:modalIn var(--t-med) var(--ease)}
+.modal-overlay.open .modal{animation:modalIn var(--t-slow) var(--ease)}
 @keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 .modal-wide{max-width:780px}
 .confirm-modal{max-width:420px}
@@ -685,8 +706,9 @@ input[type=checkbox]{
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
 /* invoice match candidate chips — the real choices, visible immediately */
 .cand-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}
-.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-touch-callout:none}   /* v71: suppress the iOS long-press callout — long-press reveals the full name instead */
+.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-touch-callout:none;transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}   /* v71: suppress the iOS long-press callout — long-press reveals the full name instead. v72: motion on the .sel state change + tap press. */
 .cand-chip:hover{border-color:var(--accent)}
+.cand-chip:active{transform:scale(.96)}
 .cand-chip.sel{background:rgba(184,78,12,.12);border-color:var(--accent);color:var(--accent-ink);font-weight:800}
 .cand-chip .cc-pct{font-weight:400;color:var(--muted2);margin-left:2px}
 .cand-chip.sel .cc-pct{color:var(--accent-ink)}
@@ -725,9 +747,9 @@ input[type=checkbox]{
 /* v62: AI second-reader status, appended inline to the summary line. Muted Fable style; the success
    state fades out after a beat (pure CSS, no re-render). Never an error modal — offline just reads
    "unavailable". */
-.ai-status{font-size:var(--fs-xs);font-weight:650;margin-left:8px;white-space:nowrap}
+.ai-status{font-size:var(--fs-xs);font-weight:650;margin-left:8px;white-space:nowrap;transition:color var(--t-med) var(--ease)}   /* v72: ease the checking→checked colour shift */
 .ai-status.ai-checking,.ai-status.ai-off{color:var(--muted2)}
-.ai-status.ai-ok{color:var(--good);animation:aiFade .5s ease-out 3.5s forwards}
+.ai-status.ai-ok{color:var(--good);animation:aiFade .5s var(--ease) 3.5s forwards}
 @keyframes aiFade{to{opacity:0}}
 @media (prefers-reduced-motion:reduce){ .ai-status.ai-ok{animation:none} }
 /* v67 item 4: the GST-default note is edge reassurance, not a headline — quieted from the loud
@@ -936,6 +958,13 @@ input[type=checkbox]{
   .actions{grid-template-columns:1fr}
 }
 
+/* v72 motion: tab switch — a gentle settle, not a hard snap. showTab() flips
+   display:none→'' on the panel, which re-triggers this one-shot each switch.
+   Kept fast (--t-med) since it happens constantly. */
+#tab-builder,#tab-analysis,#tab-pantry,#tab-ingredients,#tab-dashboard{
+  animation:tabIn var(--t-med) var(--ease)}
+@keyframes tabIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
 /* ----------------------------------------------------------------------
    21. PRINT — the docket prints like a docket
    ---------------------------------------------------------------------- */
@@ -1068,9 +1097,10 @@ input[type=checkbox]{
 .ing-count{color:var(--muted2);font-size:12px}
 .ing-list{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
 .ing-card{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;width:100%;text-align:left;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);transition:border-color .15s,transform .05s}
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
+  transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
 .ing-card:hover{border-color:var(--accent)}
-.ing-card:active{transform:scale(.996)}
+.ing-card:active{transform:scale(.985)}   /* v72: shared tap press — see .hl-card */
 .ing-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ing-name{font-weight:700;line-height:1.2}
 .ing-brand{font-size:12px;color:var(--muted2)}
@@ -1111,8 +1141,10 @@ input[type=checkbox]{
 .stat-sub{font-size:12px;margin-top:2px;color:var(--muted2)}
 .stat-sub.flat{color:var(--muted2)}
 .hl-row{display:flex;flex-direction:column;gap:var(--sp-3);padding:10px 16px 4px}
-.hl-card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text)}
+.hl-card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
+  transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
 .hl-card:hover{border-color:var(--accent)}
+.hl-card:active{transform:scale(.985)}    /* v72: same press treatment as .ing-card, app-wide */
 .hl-head{font-weight:700;margin-bottom:8px}
 .hl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-2)}
 .hl-list li,.hl-full li{display:flex;justify-content:space-between;gap:var(--sp-2);font-size:13px}
@@ -1405,7 +1437,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   .ms-clear:hover{background:var(--border2)}
   .ing-filter:hover,.menu-search input:hover{border-color:var(--border2)}
   .invAppr,.ing-filter,select{cursor:pointer}
-  .hl-card:active,.ing-card:active{transform:scale(.995)}
+  .hl-card:active,.ing-card:active{transform:scale(.985)}   /* v72: matches the base press */
 }
 @media (hover:hover) and (pointer:fine) and (min-width:1024px){
   .btn{min-height:40px}
@@ -1791,9 +1823,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
 .corner-toast{pointer-events:auto;position:relative;max-width:340px;min-width:240px;padding:10px 30px 10px 14px;
   background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);
   border-radius:10px;box-shadow:var(--shadow-lg,0 8px 28px rgba(30,20,10,.16));
-  opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
+  /* v72 signature moment: successful invoice import. Springs up from the corner it
+     docks to; a green check lands just after (both transform/opacity — the §22
+     reduced-motion killswitch drops both cleanly, leaving the check simply present). */
+  opacity:0;transform:translateY(12px) scale(.96);transform-origin:bottom right;
+  transition:opacity var(--t-med) var(--ease),transform var(--t-slow) var(--ease-spring)}
 .corner-toast.show{opacity:1;transform:none}
 .corner-toast .ct-head{font-weight:700;font-size:var(--fs-sm);color:var(--text)}
+.corner-toast .ct-head::before{content:"\2713\00a0";color:var(--good);font-weight:800;display:inline-block;
+  animation:ctCheck var(--t-slow) var(--ease-spring) .12s both}
+@keyframes ctCheck{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
 .corner-toast .ct-margin{margin-top:3px;font-size:var(--fs-xs)}
 .corner-toast .ct-mover{margin-top:3px;font-size:var(--fs-xs);color:var(--text2);font-variant-numeric:tabular-nums}
 .corner-toast .is-warn{color:var(--bad);font-weight:650}
@@ -2317,7 +2356,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .cogs-meta{font-size:var(--fs-xs)}
 
 /* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
-.atable tbody tr.mi-row{cursor:pointer;transition:border-color .15s}
+.atable tbody tr.mi-row{cursor:pointer;transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}
 .mi-name{display:inline;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .mi-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
@@ -2436,7 +2475,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg);padding:var(--sp-2) var(--sp-4) var(--sp-4);
-  transform-origin:bottom right;animation:msugPop var(--t-med) var(--ease);
+  /* v72 signature moment: the AI panel springs up from the rainbow button —
+     the one place we spend a little overshoot. Quick (--t-med), origin at the
+     button corner. Reduced-motion strips the animation just below. */
+  transform-origin:bottom right;animation:msugPop var(--t-med) var(--ease-spring);
 }
 .msug-panel[hidden]{display:none}
 .msug-head{display:flex;align-items:center;justify-content:flex-end;margin-bottom:var(--sp-1)}   /* just the close × — the title lives in .mi-intro below */
@@ -2446,7 +2488,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* the insight block is flush inside the panel — the panel supplies the chrome the inline card used to */
 .msug-panel .menu-insights{margin:0;padding:0;background:none;border-radius:0}
 .msug-panel .mi-intro{font-style:normal;font-size:var(--fs-md);font-weight:800;color:var(--text);margin-bottom:var(--sp-3)}   /* the panel's title now (no eyebrow) */
-@keyframes msugPop{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:none}}
+@keyframes msugPop{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
 @media (min-width:1024px){   /* no bottom nav on desktop; the sidebar is on the LEFT so the right corner is clear */
   .msug{right:var(--sp-5);bottom:var(--sp-5)}
