@@ -58,7 +58,6 @@ function build() {
   // v63/v67: the deterministic insight engine. v67 broadened it into one pure function PER insight
   // TYPE + a pure selector; deriveInsights orchestrates them. All are dependency-free (dishes/shared/
   // mover are passed in as primitives), so each is testable with no DOM and no live API.
-  const insTargetPrice = extractFn(src, 'insTargetPrice');
   const insReprice = extractFn(src, 'insReprice');
   const insNearMiss = extractFn(src, 'insNearMiss');
   const insVolatility = extractFn(src, 'insVolatility');
@@ -66,11 +65,9 @@ function build() {
   const insMover = extractFn(src, 'insMover');
   const insBest = extractFn(src, 'insBest');
   const insSummary = extractFn(src, 'insSummary');
-  const insPortion = extractFn(src, 'insPortion');   // v69: portion/spec lever
-  const insSub = extractFn(src, 'insSub');           // v69: cheaper same-category substitution
+  const insPortion = extractFn(src, 'insPortion');   // v71: costly dominant ingredient (point, don't prescribe)
   const insCut = extractFn(src, 'insCut');           // v69: far-over-target → rework/drop
-  const searchTokens = extractFn(src, 'searchTokens');   // shared token splitter (subCandidate's name-safety net)
-  const subCandidate = extractFn(src, 'subCandidate');   // v69: conservative substitution matcher (never crosses foodstuffs)
+  const healthyLine = extractFn(src, 'healthyLine'); // v71: warm all-healthy line
   const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
   const lightFilterPass = extractFn(src, 'lightFilterPass');   // v68: Menu margin-light filter (pure)
@@ -87,7 +84,6 @@ function build() {
     ${gemPackEq}
     ${gemMerge}
     ${gemMatchSuspect}
-    ${insTargetPrice}
     ${insReprice}
     ${insNearMiss}
     ${insVolatility}
@@ -96,14 +92,12 @@ function build() {
     ${insBest}
     ${insSummary}
     ${insPortion}
-    ${insSub}
     ${insCut}
-    ${searchTokens}
-    ${subCandidate}
+    ${healthyLine}
     ${selectInsights}
     ${deriveInsights}
     ${lightFilterPass}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insSub, insCut, searchTokens, subCandidate, selectInsights, deriveInsights, lightFilterPass };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }

@@ -294,15 +294,41 @@ merge to `main` as a production deploy.
 
 ## State as of 22 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v69** — PR #14 (`feature/suggestions-fab`, v69) is now MERGED (`cd98207`).
-  One unmerged branch carries the next batch: **`chore/fresh-states-and-probe-gate`** (**v70**), off `main`,
+- `origin/main` is at **v70** — PR #15 (`chore/fresh-states-and-probe-gate`, v70) is now MERGED (`48358e5`).
+  One unmerged branch carries the next batch: **`feature/suggestions-refine`** (**v71**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **274 green**, jsdom smoke green, **`fresh-states.spec.js` Playwright suite now GREEN too
-  (reconciled v70)**, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v70**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`.
+  `npm test` = **271 green** (v71's −3 is deliberate — removed swap-suggestion pins; see HANDOVER-v71),
+  jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v71**. Per-batch
+  detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v71** (no browser) — the
+  builder `#platePanel` spacing + new FAB markup may shift visual pins; reconcile on a browser env.
+
+- **v71 (branch `feature/suggestions-refine`) — Suggestions refinement: point, don't prescribe · remembered
+  packs → Settings · dismissable Gemini FAB · builder gap (brief: `~/Downloads/ezplate-opus-suggestions-refine.md`).
+  See `handovers/HANDOVER-v71.md`.** Client + one server prompt + tests; zero contact with the protected region,
+  money law, naming inversion, data model. (1) **Insight engine now POINTS, never PRESCRIBES:** the substitution
+  insight is REMOVED (`insSub` + `subCandidate` gone — the cost engine can't know two products are culinarily
+  interchangeable, Max's call); `insReprice`/`insNearMiss` drop the target-price directive ("worth a rework",
+  "a small tweak"); `insPortion` → "costly dominant ingredient" (no prescribed trim/saving, `top` is just
+  `{name,share}`); `insTargetPrice` removed. `insReprice` threshold `pts>=1`→`>=2` (1 pt is `insNearMiss`'s).
+  (2) **Tone** (`api/_insight.js` prompt): a consultant who knows THIS café — never defaults to "charge more"
+  (reprints cost Max money); numbers still validated/discarded, offline→templates. (3) **Count scales with menu
+  size:** 1 dish→≤1, 2–5→≤2, 6+→≤3, never padded. (4) **All-healthy → ONE warm seed-varied line** (`healthyLine`).
+  (5) **Remembered packs moved OUT of the invoice modal into Settings** (`#setSmemOpen`, next to Tidy lists) and
+  made **read-only** (view + Remove; the inline qty edit is gone — a taught pack is ground truth, correct it by
+  Remove-then-re-teach). Teaching flow + precedence UNCHANGED. (6) **Gemini FAB is dismissable + recallable:**
+  swipe-right (gesture scoped to the button, doesn't fight scroll) or a "Hide the suggestions button" link in the
+  panel foot dismisses it to a **slim rainbow edge tab** (`.msug-restore`, never lost); tap restores. State is
+  **GLOBAL**, persisted (`cafeDB_suggestFabHidden` + `dbSetSetting('suggest_fab_hidden')`, read in `bootstrapSync`)
+  — a per-menu flag would flicker on menu switch. (7) **Builder Name↔Category gap** tightened — three stacked
+  spacing sources (name `.pad` bottom + empty `.plate-tools` margin + `.plate-cat-field` top ≈ 56px) collapsed to
+  one ~20px field step (token-only, heading + Save untouched). `insights.test.js` rewritten to the
+  point-not-prescribe contract (35→32; pinned-contract change noted), smoke +v71 dismiss/restore/persist. 274→271.
+  Six spots → **v71**. **Needs Max's phone:** varied non-prescriptive advice across menu sizes + all-healthy warm
+  line both themes; the FAB swipe-away/edge-tab restore/persist at 380px; remembered packs in Settings; the
+  builder gap.
 
 - **v69 (branch `feature/suggestions-fab`) — Suggestions rainbow FAB · richer non-reprice advice · misc name
   field back · invoice-header mobile stacking (brief: `~/Downloads/ezplate-opus-suggestions-fab.md`). See
@@ -597,8 +623,11 @@ merge to `main` as a production deploy.
   column the live DB lacks fails wholesale; apply any NEW migration to prod BEFORE the deploy that reads
   it** (the v55 migrations themselves are already applied — see [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v70; (b) optional: purchased-quantity capture for v55 §I (needs a
-  protected-region edit). **Done in v70:** the diagnostic `?probe=1` endpoint was REMOVED (multi-tenant
-  safety); `fresh-states.spec.js` was reconciled to the current app (green) — the builder-modal navigation,
-  the v60 target-line-in-view behaviour, and one real mobile empty-state centring bug were fixed, and three
-  tests for features removed in v54/v55 (holding area, `→ Builder` chip) were dropped.
+- Next up: (a) Max's phone sign-off on v71 (then merge); (b) reconcile `fresh-states.spec.js` on a browser env
+  for v71's builder-spacing + FAB-markup changes; (c) optional: purchased-quantity capture for v55 §I (needs a
+  protected-region edit). **Done in v71:** Suggestions engine reworked to point-not-prescribe (substitution
+  removed, no prescribed prices/portions), count scales with menu size, all-healthy warm line, tone steered off
+  "charge more"; remembered packs moved to Settings and made read-only; the Gemini FAB is swipe/link dismissable
+  with a slim edge-tab restore (global, persisted); builder Name↔Category gap tightened. **Two product decisions
+  Max confirmed this batch:** remembered packs are view+Remove only (not editable); the FAB dismiss is global
+  scope (not per-menu).

@@ -475,6 +475,15 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   $('menuSuggestClose').click();
   ok('v69: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
   ok('v69: focus returns to the trigger button on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
+  // v71 item 6: the button is dismissable (→ slim restore tab) and recallable; the state persists globally.
+  window.localStorage.removeItem('cafeDB_suggestFabHidden');
+  window.suggestFabDismiss();
+  ok('v71: dismissing swaps the button for the restore edge tab', fab.classList.contains('dismissed') && !!$('menuSuggestRestore'));
+  ok('v71: the dismissed state persists to localStorage (survives reload)', window.localStorage.getItem('cafeDB_suggestFabHidden') === '1');
+  window.renderMenuInsights();
+  ok('v71: a re-render keeps it dismissed (global, not reset per menu switch)', fab.hidden === false && fab.classList.contains('dismissed'));
+  $('menuSuggestRestore').click();
+  ok('v71: the restore tab brings the button straight back and clears the flag', !fab.classList.contains('dismissed') && window.localStorage.getItem('cafeDB_suggestFabHidden') === '0');
   window.computeInsights = () => [];
   try { window.renderMenuInsights(); } catch (e) {}
   ok('v69: a menu with nothing to say hides the whole FAB', fab.hidden === true);
