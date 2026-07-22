@@ -100,80 +100,6 @@ async function callGemini(text) {
   return G.validatePayload(textOut);   // -> {status:'ok',...} or {status:'unavailable',...}
 }
 
-/*
- * DIAGNOSTIC PROBE (dev only — behind Vercel preview SSO). GET ?probe=1 does a REAL
- * generateContent on the configured model AND lists the models the key can see, returning
- * the raw HTTP status + a snippet of Gemini's own error body. This is how we find out WHY a
- * call comes back "unavailable" (bad model / unauthorized key / API not enabled / rate limit /
- * rejected schema) without leaking the key. Remove or gate before EzPlate is multi-tenant.
- */
-var PROBE_SAMPLE = [
-  'ACME FOODS PTY LTD    Tax Invoice 12345',
-  'Chips Straight Cut 6x2.5kg      59.94',
-  'Canola Oil 20L                  48.00',
-  'Chicken Breast Skinless 5kg     42.50',
-  'Subtotal                       150.44',
-  'GST                             15.04',
-  'Total                          165.48'
-].join('\n');
-
-async function probeGemini(sampleText) {
-  var key = process.env.GEMINI_API_KEY;
-  var out = { model: model(), keyPresent: !!key };
-  if (!key) { out.probe = 'no-key'; return out; }
-  var base = 'https://generativelanguage.googleapis.com/v1beta';
-  var sample = (typeof sampleText === 'string' && sampleText.trim()) ? sampleText : PROBE_SAMPLE;
-  out.sampleUsed = sample.slice(0, 200);
-  // 1) which models can this key actually use for generateContent?
-  try {
-    var lr = await fetch(base + '/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
-    var lj = null; try { lj = await lr.json(); } catch (e) {}
-    out.listModels = {
-      httpStatus: lr.status,
-      names: (lj && Array.isArray(lj.models)) ? lj.models
-        .filter(function (m) { return !m.supportedGenerationMethods || m.supportedGenerationMethods.indexOf('generateContent') >= 0; })
-        .map(function (m) { return String(m.name || '').replace('models/', ''); }).slice(0, 80) : undefined,
-      error: (lj && lj.error) ? String(lj.error.message || '').slice(0, 300) : undefined
-    };
-  } catch (e) { out.listModels = { error: 'fetch-failed: ' + (e && e.message) }; }
-  // 2) Try several generation configs on the SAME sample and report which one actually returns
-  //    line items. gemini-3.x flash is a thinking model; the leading theory is that thinking +
-  //    responseSchema makes it emit a partial object. thinkingBudget:0 and a required-lines schema
-  //    are the candidate fixes. Each attempt is independent (a 400 on one doesn't stop the rest).
-  var strict = G.responseSchema();
-  try { strict.required = ['lines']; strict.properties.lines.items.required = ['rawText', 'derivedUnitPrice']; } catch (e) {}
-  var attempts = [
-    { name: 'A_schema_think', gen: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema() } },
-    { name: 'B_schema_nothink', gen: { temperature: 0, responseMimeType: 'application/json', responseSchema: G.responseSchema(), thinkingConfig: { thinkingBudget: 0 } } },
-    { name: 'C_strictschema_nothink', gen: { temperature: 0, responseMimeType: 'application/json', responseSchema: strict, thinkingConfig: { thinkingBudget: 0 } } },
-    { name: 'D_jsononly_nothink', gen: { temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } } }
-  ];
-  out.attempts = [];
-  for (var ai = 0; ai < attempts.length; ai++) {
-    var cfg = attempts[ai], r = { name: cfg.name };
-    try {
-      var gr = await fetch(base + '/models/' + encodeURIComponent(model()) + ':generateContent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: G.buildPrompt(sample) }] }], generationConfig: cfg.gen })
-      });
-      var gt = ''; try { gt = await gr.text(); } catch (e) {}
-      var extracted = '';
-      try {
-        var gj = JSON.parse(gt);
-        var parts = gj && gj.candidates && gj.candidates[0] && gj.candidates[0].content && gj.candidates[0].content.parts;
-        if (Array.isArray(parts)) extracted = parts.map(function (p) { return (p && p.text) || ''; }).join('');
-      } catch (e) {}
-      r.httpStatus = gr.status; r.ok = gr.ok;
-      var validated = extracted ? G.validatePayload(extracted) : { status: 'unavailable', reason: 'empty' };
-      r.lineCount = (validated.status === 'ok' && Array.isArray(validated.lines)) ? validated.lines.length : 0;
-      r.pipelineStatus = validated.status; r.reason = validated.reason;
-      r.textSnippet = (extracted || gt).slice(0, 300);
-    } catch (e) { r.error = 'fetch-failed: ' + (e && e.message); }
-    out.attempts.push(r);
-  }
-  return out;
-}
 
 module.exports = async function handler(req, res) {
   try {
@@ -181,12 +107,9 @@ module.exports = async function handler(req, res) {
     // uses it. Reports the resolved model and whether a key is configured, never
     // the key itself.
     if (req.method === 'GET') {
-      // The probe makes REAL (billed, rate-limited) Gemini calls with no auth, so it must NOT be open
-      // on public production. Off by default; set env GEMINI_DEBUG=1 (e.g. only on the preview) to use it.
-      if (req.query && (req.query.probe === '1' || req.query.probe === 'true')) {
-        if (process.env.GEMINI_DEBUG === '1') return sendJson(res, 200, await probeGemini(req.query.text));
-        return sendJson(res, 404, { error: 'not-found' });
-      }
+      // v70: the diagnostic ?probe=1 endpoint (real, billed Gemini calls; added v64 to debug the reader
+      // rollout) has been REMOVED — the reader is live and stable, and a billed no-auth endpoint has no
+      // place before EzPlate is multi-tenant. Only the key-free health check remains.
       if (req.query && (req.query.health === '1' || req.query.health === 'true')) {
         return sendJson(res, 200, { ok: true, model: model(), keyPresent: !!process.env.GEMINI_API_KEY });
       }
