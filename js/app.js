@@ -2342,7 +2342,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v72';
+var APP_VERSION='v73';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3550,6 +3550,17 @@ function niLab(t, src){ return '<span class="ni-lab">'+t+'<span class="ni-af">'+
    combo state + the row's Apply tick); niRehydrate writes it back after a rebuild. renderInvReview
    snapshots every OPEN form BEFORE the wipe, then rehydrates after — no per-cell poking (v33 holds). */
 var NI_COMBOS=['brand','cat','sup','king'];
+// v73: which new-item form fields the Gemini reader can prefill, mapping the field id stem to its
+// key on r.aiClean. Name is a plain text field; brand/cat/sup are combos (king is never AI-filled).
+var AI_FIELD={ name:'name', brand:'brand', cat:'category', sup:'supplier' };
+// v73: commit an AI-suggested (or invoice-header) value into a combo — set the input + niCombos state
+// so Confirm All doesn't treat it as an unconfirmed new value. Auto-confirmed (Max's call); isNew still
+// reflects whether it's genuinely new, so a matching existing value resolves to that canonical entry.
+function niSetCombo(id, val, listFn){
+  var e=document.getElementById(id); if(!e || val==null || val==='') return;
+  e.value=val; var st=niCombos[id];
+  if(st){ st.value=val; st.confirmed=true; st.isNew=!listFn().some(function(x){return (x||'').toLowerCase()===String(val).toLowerCase();}); }
+}
 function niSnapshot(i){
   if(!document.getElementById('ni_name'+i)) return null;           // form not built for this row -> nothing to capture
   var g=function(id){ var e=document.getElementById(id); return e?e.value:''; };
@@ -3562,10 +3573,18 @@ function niSnapshot(i){
            combos:combos, edited:Object.assign({}, prev&&prev.edited), approved:(ap?!!ap.checked:(prev?!!prev.approved:false)) };   // §F1: which parser-filled fields the user has since edited (so the "auto-filled" chip doesn't come back)
 }
 function niRehydrate(i){
-  var s=invRows[i]&&invRows[i].newItem; if(!s) return;
+  var r=invRows[i], s=r&&r.newItem; if(!s) return;
+  var clean=r.aiClean||{}, ed=s.edited||{};
+  // v73 late-response upgrade: an AI-filled field the user hasn't touched keeps its build-time AI
+  // prefill — don't restore the pre-upgrade snapshot over it. aiClean only exists AFTER the reader
+  // returns, so before that aiHeld is always false and this path is byte-identical to today.
+  var aiHeld=function(field){ var k=AI_FIELD[field]; return !!k && !ed[field] && clean[k]!=null && clean[k]!==''; };
   var set=function(id,v){ var e=document.getElementById(id); if(e&&v!=null) e.value=v; };
-  set('ni_name'+i,s.name); set('ni_unit'+i,s.unit); set('ni_price'+i,s.price); set('ni_pack'+i,s.pack);
-  NI_COMBOS.forEach(function(f){ var id='ni_'+f+i, e=document.getElementById(id), c=s.combos&&s.combos[f];
+  if(!aiHeld('name')) set('ni_name'+i,s.name);
+  set('ni_unit'+i,s.unit); set('ni_price'+i,s.price); set('ni_pack'+i,s.pack);
+  NI_COMBOS.forEach(function(f){
+    if(aiHeld(f)) return;                                          // leave the AI prefill for this untouched, AI-filled combo
+    var id='ni_'+f+i, e=document.getElementById(id), c=s.combos&&s.combos[f];
     if(c){ if(e) e.value=(c.value||''); niCombos[id]={value:(c.value||''), isNew:!!c.isNew, confirmed:!!c.confirmed}; } });
 }
 function expandNewItem(i){
@@ -3581,15 +3600,29 @@ function expandNewItem(i){
     var ed=(r.newItem&&r.newItem.edited)||{};
     function afA(f,filled){ return (filled && !ed[f]) ? ' class="af"' : ''; }
     var src=r.aiSource?'ai':'';                              // v62: an AI-appended row (rule 5) labels its prefilled fields "AI suggested"; a parser-built row keeps "auto-filled". Same chip system.
+    // v73: per-field descriptive prefill. When the Gemini reader has a clean value for a field the user
+    // hasn't edited, use it with the "AI suggested" mark; otherwise fall back to today's deterministic
+    // value (parser name / blank brand+cat / invoice-header supplier) with its normal treatment. The AI
+    // INTERPRETS the raw text, so its fills carry the AI mark (Max's call), never the plain auto-filled one.
+    var clean=r.aiClean||{};
+    function niFld(field,detVal,detFilled){
+      var k=AI_FIELD[field], aiVal=(k?clean[k]:null);
+      if(aiVal && !ed[field]) return {val:aiVal, src:'ai', filled:true, ai:true};
+      return {val:detVal, src:src, filled:detFilled, ai:false};
+    }
+    var fName=niFld('name', r.name, true),
+        fBrand=niFld('brand', '', false),
+        fCat=niFld('cat', '', false),
+        fSup=niFld('sup', (invSupplier||''), !!invSupplier);
     panel.innerHTML=''
      +'<button type="button" class="x ni-close" aria-label="Close add-new-item form">\u00d7</button>'
      +'<div class="ni-head">Add new item from this invoice line</div>'
      +'<div class="ni-grid">'
      /* v37: every field is label-line + control-line; the auto-filled chip lives INLINE on the label — one place, every field, no overlap possible */
-     +'<label class="ni-f">'+niLab('Name',src)+'<input id="ni_name'+i+'" type="text"'+afA('name',true)+' value="'+esc(r.name)+'"></label>'
-     +'<label class="ni-f">'+niLab('Brand',src)+'<span class="cat-wrap"><input id="ni_brand'+i+'" type="text" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label class="ni-f">'+niLab('Category',src)+'<span class="cat-wrap"><input id="ni_cat'+i+'" type="text" autocomplete="off" placeholder="search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label class="ni-f">'+niLab('Supplier',src)+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text"'+afA('sup',!!invSupplier)+' autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Name',fName.src)+'<input id="ni_name'+i+'" type="text"'+afA('name',fName.filled)+' value="'+esc(fName.val)+'"></label>'
+     +'<label class="ni-f">'+niLab('Brand',fBrand.src)+'<span class="cat-wrap"><input id="ni_brand'+i+'" type="text"'+afA('brand',fBrand.filled)+' value="'+esc(fBrand.val)+'" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Category',fCat.src)+'<span class="cat-wrap"><input id="ni_cat'+i+'" type="text"'+afA('cat',fCat.filled)+' value="'+esc(fCat.val)+'" autocomplete="off" placeholder="search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Supplier',fSup.src)+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text"'+afA('sup',fSup.filled)+' value="'+esc(fSup.val)+'" autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'<label class="ni-f">'+niLab('Unit type',src)+'<select id="ni_unit'+i+'"'+afA('unit',!!r.unit)+'><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
      +'<label class="ni-f">'+niLab('Price per unit ($)',src)+'<input id="ni_price'+i+'" type="number" min="0" step="0.01"'+afA('price',pv!=='')+' value="'+pv+'"></label>'
      +'<label class="ni-f">'+niLab('Pack size (optional)',src)+'<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
@@ -3608,12 +3641,23 @@ function expandNewItem(i){
     // user types (rank + pick to repoint, or type a new one) — but nothing is auto-filled, so the form never
     // silently means "repoint this word" without the user choosing it.
     makeInlineCombo('ni_king'+i,'ni_kingDrop'+i,kingNames);
-    if(invSupplier){ var _si=document.getElementById('ni_sup'+i); if(_si){ _si.value=invSupplier; var _st=niCombos['ni_sup'+i]; if(_st){ _st.value=invSupplier; _st.confirmed=true; _st.isNew=!prodSuppliers().some(function(x){return x.toLowerCase()===invSupplier.toLowerCase();}); } } }
-    // v55 §F1: drop the "auto-filled" mark the instant the user edits a marked field, and remember it was
-    // edited so a later re-render doesn't re-mark it (the mark lives on r.newItem.edited).
-    var niClearAf=function(e){ var t=e.target; if(t&&t.classList&&t.classList.contains('af')){ t.classList.remove('af'); var f=(t.id||'').replace('ni_','').replace(new RegExp(i+'$'),''); if(f){ r.newItem=r.newItem||{}; r.newItem.edited=r.newItem.edited||{}; r.newItem.edited[f]=true; } } };
-    panel.addEventListener('input', niClearAf, true);
-    panel.addEventListener('change', niClearAf, true);
+    // v73: commit each prefilled combo's value into niCombos state so Confirm All accepts it (a prefilled
+    // value that makeInlineCombo captured with isNew=false would otherwise fail resolveCombo when it's new).
+    // Supplier keeps today's invoice-header behaviour when the AI has none; brand/cat only when AI-filled.
+    if(fBrand.filled) niSetCombo('ni_brand'+i, fBrand.val, prodBrands);
+    if(fCat.filled)   niSetCombo('ni_cat'+i,   fCat.val,   prodCategories);
+    if(fSup.filled)   niSetCombo('ni_sup'+i,   fSup.val,   prodSuppliers);
+    // v55 §F1 + v73: mark a field EDITED on ANY user change (type OR combo-pick) and drop its chip. The
+    // edited flag both stops the chip re-marking on re-render AND stops a late AI response from overwriting
+    // a field the user has touched (niRehydrate honours it). v73 broadens v55's af-only marking to every
+    // field so a value typed before the reader returns is preserved through the upgrade.
+    var niFieldId=function(id){ return (id||'').replace('ni_','').replace(new RegExp(i+'$'),''); };
+    var niMarkEdited=function(f){ if(!f) return; r.newItem=r.newItem||{}; r.newItem.edited=r.newItem.edited||{}; r.newItem.edited[f]=true; };
+    var niOnEdit=function(e){ var t=e.target; if(!t||!t.id) return; var f=niFieldId(t.id); niMarkEdited(f); if(t.classList&&t.classList.contains('af')) t.classList.remove('af'); };
+    panel.addEventListener('input', niOnEdit, true);
+    panel.addEventListener('change', niOnEdit, true);
+    // a combo PICK sets the input via mousedown on a .cat-opt and fires no input/change event — count it too
+    panel.addEventListener('mousedown', function(e){ var opt=(e.target&&e.target.closest)?e.target.closest('.cat-opt'):null; if(!opt) return; var wrap=opt.closest('.ni-f'), ctrl=wrap&&wrap.querySelector('input[id^="ni_"],select[id^="ni_"]'); if(ctrl) niMarkEdited(niFieldId(ctrl.id)); }, true);
   }
   nirow.style.display='';
   // v50 item 1: first open -> snapshot the prefilled defaults onto the row; every later (re)build ->
@@ -3915,7 +3959,7 @@ function gemFireSecondReader(text){
   };
   try{
     if(typeof fetch!=='function'){ clearTimeout(timer); gemSettle(token, function(){ gemStatus='unavailable'; renderInvReview(); }); return; }
-    fetch('/api/parse-invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text}),signal:ctrl?ctrl.signal:undefined})
+    fetch('/api/parse-invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text, categories:prodCategories()}),signal:ctrl?ctrl.signal:undefined})   // v73: send existing categories so the model reuses one rather than inventing a near-duplicate
       .then(function(res){ return res.ok?res.json():null; })
       .then(function(payload){ done(payload); })
       .catch(function(){ done(null); });                          // network error / abort / offline
@@ -4011,6 +4055,19 @@ function gemRowLocked(r){
   return false;
 }
 function gemNormKey(s){ try{ return normalizePhrase(s||''); }catch(e){ return String(s||'').toLowerCase().trim(); } }
+/* v73: PURE — distil a validated Gemini line + the invoice header supplier into the clean DESCRIPTIVE
+   candidates the add-new-item form prefills from. Descriptive only (never price/pack/unit). A missing
+   field is null, and the form falls back to today's deterministic value for it. cleanName only (never
+   description, which can be the messy raw) drives the AI name mark — an absent cleanName leaves the
+   deterministic name with its plain auto-filled treatment. Supplier prefers the per-line value, else
+   the invoice header the reader already extracted (this is what corrects a parser mis-grab like
+   "Document No:"). */
+function gemCleanFields(g, headerSupplier){
+  if(!g) return null;
+  var pick=function(v){ v=(v==null?'':String(v)).trim(); return v||null; };
+  return { name:pick(g.cleanName), brand:pick(g.brand), category:pick(g.category),
+           supplier:pick(g.supplier)||pick(headerSupplier) };
+}
 /* Apply a validated payload: reconcile each matched line, then append Gemini-only lines. Mutates
    invRows in place and does ONE full-row re-render (open new-item forms survive it, v50 fix). */
 function gemApplyReadings(payload){
@@ -4022,12 +4079,17 @@ function gemApplyReadings(payload){
   });
   var usedG={};
   invRows.forEach(function(r){
-    if(gemRowLocked(r) || r.addNew) return;                       // human-ruled or already an add-new line → leave it
+    if(gemRowLocked(r)) return;                                   // human-ruled (manual pick / approved new) → leave it entirely
     var n1=gemNormKey(r.raw||r.name), n2=gemNormKey(r.name);
     var gi=(gmap[n1]!=null)?gmap[n1]:(gmap[n2]!=null?gmap[n2]:null);
     if(gi==null) return;                                          // rule 6: parser found it, Gemini didn't — no flag from absence
     usedG[gi]=true;
     var g=payload.lines[gi];
+    // v73: stash the clean descriptive candidates on the row so the add-new form (this line, now or
+    // later) prefills cleanly. Set for matched AND already-open add-new rows — the latter is the
+    // late-response upgrade path (form opened before the reader returned).
+    r.aiClean=gemCleanFields(g, payload.supplier);
+    if(r.addNew) return;                                          // an add-new line: descriptive prefill only, no price/match referee
     var T=!!(r.remembered || r.fromProductPack || r.packTaught || r.taughtQty!=null);
     var H=(r.bestId && byId[r.bestId])?gemHist(byId[r.bestId]):null;
     // v63 item 2: BEFORE reconciling price, ask whether Gemini's text points at a DIFFERENT product
@@ -4071,7 +4133,7 @@ function gemApplyReadings(payload){
     invRows.push({ name:name, raw:g.rawText||name, unitPrice:(gc?gc.per:null), unit:(gc?gc.cat:'auto'), rawUnit:'auto',
       needManual:(gc==null), uncertain:false, cands:cands, bestId:null, conf:top,
       tier:(top>=0.6?'hi':(top>=0.3?'mid':'lo')), addNew:true, newItem:null, remembered:false,
-      gemNew:true, aiSource:true });                              // aiSource → the new-item form labels its chips "AI suggested"
+      gemNew:true, aiSource:true, aiClean:gemCleanFields(g, payload.supplier) });   // v73: aiSource → chips read "AI suggested"; aiClean prefills the form's descriptive fields
   });
   gemStatus='checked';
   renderInvReview();
