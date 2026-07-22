@@ -186,6 +186,20 @@ data row, right after the "Editing new item ↓" toggle. DOM/card order becomes 
    muddy brown. Changed to `var(--field)` — the dashed border alone signals "empty/optional", clean in both themes.
    (The small AUTO-FILLED chip keeps its accent-weak tint — that's correct.)
 
+**Two more invoice tweaks after Max's mobile screenshot (same branch, still v72):**
+1. **Match-to chip: show the full name on mobile, drop the white-toast reveal.** The chip truncated the product
+   name and v71 revealed the full text via a jarring full-width white `toast()` on long-press. Max wanted something
+   subtle like desktop. Root fix: the chip now emits the FULL name (no JS `slice`); **desktop** keeps the compact
+   chip (CSS `ellipsis` + native `title` on hover, unchanged); **mobile** (`@media max-width:700px`) stacks the
+   chips full-width and lets them WRAP, so the name is never cut off — which removes the need for any reveal. The
+   long-press touch wiring + `toast` + `data-full` are gone; a chip is now simply tap-to-select. (`-webkit-touch-
+   callout:none` stays, to keep a long-press from firing the iOS selection menu.) Smoke updated: the chip's `title`
+   is now a substring of its own text and `data-full` is absent.
+2. **"Match products" moved into the paste-manually box.** An upload auto-parses (PDF → `buildInvRows`, CSV →
+   `parseInvoice`), so the button is only ever needed after a manual paste. It now lives inside `#invManualBox`
+   (after the textarea), revealed only when the user opens "or paste text manually"; "Prices last updated" stays
+   visible on its own line. `invParse` is still wired by id (unchanged handler), so moving it in the DOM is safe.
+
 ## NOT built / deliberately left (restraint)
 - **No hover-lift** (translateY on hover) on cards — the app's cards signal hover with border-colour consistently;
   adding a lift would be a second, competing treatment. Press-on-tap is the shared feedback.

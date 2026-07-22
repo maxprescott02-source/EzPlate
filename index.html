@@ -369,8 +369,10 @@
       <div id="invManualBox" class="inv-manual-box" hidden>
         <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
         <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
+        <!-- v72 (Max): Match products lives with the paste box — an upload auto-parses, so the button is only ever needed after a manual paste. -->
+        <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button></div>
       </div>
-      <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
+      <div class="inv-parse-row"><span class="hint" id="lastImport2"></span></div>
       <div id="invReview" style="display:none;margin-top:14px"></div>
     </div>
   </div>

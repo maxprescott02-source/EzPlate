@@ -3761,11 +3761,11 @@ function renderInvReview(){
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
         var p=byId[c.id]; if(!p) return '';
-        var fullNm=p.description+(p.brand?' \u00b7 '+p.brand:'');     // v71: the untruncated name \u2014 for the hover tooltip + mobile long-press reveal
-        var nm=fullNm; if(nm.length>34) nm=nm.slice(0,32)+'\u2026';   // the chip label stays short; a chip also ellipsis-clips via CSS
-        // v71 (Max): the match name is cut off by the narrow chip. `title` gives the full text on desktop hover;
-        // `data-full` feeds the mobile long-press reveal (see the chip wiring below). esc() guards both attrs.
-        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'" data-full="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
+        var fullNm=p.description+(p.brand?' \u00b7 '+p.brand:'');     // the full name \u2014 shown in the chip on mobile (wraps), title-hover on desktop
+        // v72 (Max): emit the FULL name, no JS truncation. Desktop keeps the compact chip \u2014 CSS clips with an
+        // ellipsis and `title` reveals it on hover (unchanged). Mobile lets the chip WRAP so the name is never
+        // cut off \u2014 which removes the need for the old white-toast long-press reveal (wiring dropped below).
+        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(fullNm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
       }).join('')+'</div>';
     }
     // v72: the new-item form now nests INSIDE the line's card, in the Match-to cell right below the
@@ -3829,16 +3829,9 @@ function renderInvReview(){
   });
   box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){
-    // v71 (Max): the chip label is truncated. Desktop hover shows the full name (native `title`); on mobile a
-    // long-press reveals it as a toast. A long-press must NOT also select the match, so it swallows the click.
-    var lpT=null, lpFired=false, sx=0, sy=0;
-    function lpClear(){ if(lpT){ clearTimeout(lpT); lpT=null; } }
-    ch.addEventListener('touchstart', function(e){ var t=e.touches[0]; sx=t.clientX; sy=t.clientY; lpFired=false; lpClear();
-      lpT=setTimeout(function(){ lpFired=true; toast(ch.getAttribute('data-full')||ch.textContent.trim()); if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(_){} } }, 450); }, {passive:true});
-    ch.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(lpT && (Math.abs(t.clientX-sx)>8||Math.abs(t.clientY-sy)>8)) lpClear(); }, {passive:true});
-    ch.addEventListener('touchend', function(e){ lpClear(); if(lpFired){ e.preventDefault(); } });   // long-press showed the name → don't select
+    // v72 (Max): the chip now shows the FULL name (wraps on mobile, ellipsis + `title` hover on desktop), so the
+    // old white-toast long-press reveal is gone — a chip is simply tap-to-select.
     ch.onclick=function(){
-      if(lpFired){ lpFired=false; return; }                          // this click follows a long-press → swallow it
       var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
       var sel=tr.querySelector('.invSel'); if(!sel) return;
       sel.value=ch.getAttribute('data-cid');
