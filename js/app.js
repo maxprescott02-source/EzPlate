@@ -917,9 +917,8 @@ function renderSmemList(){
   // it is READ-ONLY here (no inline qty edit \u2014 that risked silently miscosting, the same reason pack/unit are
   // create-only on products). The deliberate correction path is Remove, then let the next invoice re-teach it.
   box.innerHTML=ids.map(function(id){ var e=supplierMem[id]; var ul=e.unit==='ea'?'units':e.unit==='l'?'L':e.unit==='ml'?'mL':e.unit;
-    var qv=(e.qty%1===0?e.qty:e.qty);
     return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-sentence">'+esc(cap(e.phrase_norm))+' \u2014 from '+esc(e.supplier)+'</div></div>'
-      +'<span class="smem-eq">=</span><span class="smem-qty-ro">'+esc(String(qv))+' '+esc(ul)+'</span>'
+      +'<span class="smem-eq">=</span><span class="smem-qty-ro">'+esc(String(e.qty))+' '+esc(ul)+'</span>'
       +'<button type="button" class="smem-del">Remove</button></div>';
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
