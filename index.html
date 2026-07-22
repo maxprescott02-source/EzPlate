@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=68">
+<link rel="stylesheet" href="css/style.css?v=69">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -90,7 +90,7 @@
       <div class="an-head panel-actions">
         <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
         <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing dish</button>
-        <span class="an-sub panel-sub">Cost vs price for every dish — the lights show what needs repricing</span>
+        <span class="an-sub panel-sub">Cost vs price for every dish — the lights show what needs a rework</span>
       </div>
       <div class="an-controls">
         <div class="menu-picker-row">
@@ -109,17 +109,11 @@
           <div class="mlf" id="menuLightChips" role="group" aria-label="Filter by margin light">
             <button type="button" class="mlf-chip" data-light="green" aria-pressed="false"><span class="dot green" aria-hidden="true"></span>Healthy</button>
             <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false"><span class="dot amber" aria-hidden="true"></span>Watch</button>
-            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Reprice</button>
+            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Rework</button>
           </div>
           <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
         </div>
       </div>
-      <!-- v67 item 5a (revised): the grounded, menu-scoped "Suggestions" callout sits ABOVE the dish
-           table — a long menu's table would push it off-screen at the bottom where it gets missed.
-           renderAnalysis fills it; it reflects the currently selected menu and hides when empty.
-           v68: the callout now sits ABOVE the food-cost-target line (which explains the table's
-           "Suggested" column, so it belongs right above the table) with a clear section gap. -->
-      <div id="menuInsights"></div>
       <p class="hint panel-meta cogs-meta">Suggested prices use your <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> food-cost target — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
       <!-- v59: the traffic-light key legend was removed (Max) — the row dots stay -->
       <div class="atable-wrap">
@@ -128,6 +122,30 @@
           <tbody id="aBody"></tbody>
         </table>
       </div>
+    </div>
+    <!-- v69 item 1: the menu Suggestions moved OFF the inline slot into an on-demand floating panel.
+         A persistent square button (the EzPlate logo in a Gemini rainbow gradient — signals the Gemini
+         pairing) sits bottom-RIGHT of the Menu view (Max); tapping it expands the panel with the menu's
+         suggestions. renderMenuInsights fills #menuInsights and shows/hides the whole FAB by whether
+         there's anything to say; it lives inside #tab-analysis so it only appears on the Menu tab.
+         The panel's own title ("What stands out on this menu") is the header, so no separate eyebrow. -->
+    <div id="menuSuggestFab" class="msug" hidden>
+      <div id="menuSuggestPanel" class="msug-panel" role="dialog" aria-label="Menu suggestions" tabindex="-1" hidden>
+        <div class="msug-head">
+          <button type="button" class="msug-x" id="menuSuggestClose" aria-label="Close suggestions">&times;</button>
+        </div>
+        <div id="menuInsights"></div>
+      </div>
+      <button type="button" class="msug-btn" id="menuSuggestBtn" aria-label="Menu suggestions" aria-expanded="false" aria-controls="menuSuggestPanel" aria-haspopup="dialog">
+        <svg viewBox="0 0 64 64" role="img" aria-hidden="true" class="msug-logo" focusable="false">
+          <defs><linearGradient id="msugGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#4285F4"/><stop offset=".38" stop-color="#9B72CB"/>
+            <stop offset=".72" stop-color="#D96570"/><stop offset="1" stop-color="#F2A65A"/>
+          </linearGradient></defs>
+          <circle cx="32" cy="32" r="26" fill="none" stroke="url(#msugGrad)" stroke-width="6"/>
+          <path d="M 32 17.5 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="url(#msugGrad)" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
   </div><!-- /tab-analysis -->
 
@@ -211,21 +229,11 @@
   <div class="modal modal-builder" role="dialog" aria-modal="true" aria-labelledby="builderModalTitle">
     <div class="mhead"><h3 id="builderModalTitle">New plate</h3><button class="x" id="builderClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <div class="panel" id="platePanel">
-        <h2>The plate</h2>
-        <div class="pad">
-          <label class="f" for="plateName">Plate name</label>
-          <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
-          <div class="ferr" id="plateNameErr" style="display:none"></div>
-          <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-          <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
-        </div>
-      </div>
-
-      <!-- v56: name the plate first (panel above), THEN add ingredients. The search integrates into the
-           top of the docket panel so the flow reads top-to-bottom: name → add → docket. Ids/handlers unchanged. -->
+      <!-- v69 (Max): the flow reads top-to-bottom the way a cook works — ADD INGREDIENTS first, THEN name
+           the plate, THEN categorise, THEN save. (Reverses v56's name-first; category still sits just above
+           Save per v67.) All ids/handlers unchanged; makeInlineCombo binds by id in openBuilder. -->
       <div class="panel" id="docketPanel">
-        <h2>Add ingredient</h2>
+        <h2>Add ingredients</h2>
         <div class="pad">
           <label class="f" for="q">Search your ingredients</label>
           <div class="search-wrap">
@@ -242,19 +250,29 @@
         <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
         <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
         <div class="flag" id="flag" style="display:none"></div>
-        <select id="menuLink" style="display:none" aria-hidden="true"></select>
-        <!-- v67 item 1: category lives at the BOTTOM of the plate flow (name up top, category down low —
-             matches the app's card rhythm). Ids/handlers unchanged; makeInlineCombo binds by id in openBuilder. -->
+        <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
+      </div>
+
+      <div class="panel" id="platePanel">
+        <h2>Name &amp; save</h2>
+        <div class="pad">
+          <label class="f" for="plateName">Plate name</label>
+          <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
+          <div class="ferr" id="plateNameErr" style="display:none"></div>
+          <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+          <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
+        </div>
+        <!-- category just above Save (v67 rhythm: name up top of this panel, category down low) -->
         <div class="plate-cat-field">
           <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">(optional)</span></label>
           <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
         </div>
+        <select id="menuLink" style="display:none" aria-hidden="true"></select>
         <div class="actions">
           <button class="btn primary" id="saveBtn" type="button">Save plate</button>
           <button class="btn" id="printBtn" type="button">Print docket</button>
           <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
         </div>
-        <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
       </div>
     </div>
   </div>
@@ -347,9 +365,9 @@
         <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
         <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
       </div>
-      <div style="margin-top:12px"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
+      <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
       <div id="invReview" style="display:none;margin-top:14px"></div>
-      <div style="margin-top:12px"><button type="button" id="smemLink" class="linklike">Remembered items</button></div>
+      <div class="inv-smem-row"><button type="button" id="smemLink" class="linklike">Remembered items</button></div>
     </div>
   </div>
 </div>
@@ -656,7 +674,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=68"></script>
+<script src="js/app.js?v=69"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

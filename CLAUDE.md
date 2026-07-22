@@ -294,14 +294,46 @@ merge to `main` as a production deploy.
 
 ## State as of 22 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v67** — PR #12 (`fix/builder-invoice-suggestions`, v67) is now MERGED (`fe13432`).
-  One unmerged branch carries the next batch: **`fix/visual-consistency-pass`** (**v68**), off `main`,
+- `origin/main` is at **v68** — PR #13 (`fix/visual-consistency-pass`, v68) is now MERGED (`167a53d`).
+  One unmerged branch carries the next batch: **`feature/suggestions-fab`** (**v69**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before the v54+ line goes live** (see
-  [[supabase-schema-can-lag-app-code]]). `npm test` = **261 green** (was 256 pre-batch), jsdom smoke green,
-  `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v68**. Per-batch detail lives in
+  **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
+  live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
+  `npm test` = **270 green** (was 261 pre-batch), jsdom smoke green,
+  `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v69**. Per-batch detail lives in
   `handovers/HANDOVER-vNN.md`.
+
+- **v69 (branch `feature/suggestions-fab`) — Suggestions rainbow FAB · richer non-reprice advice · misc name
+  field back · invoice-header mobile stacking (brief: `~/Downloads/ezplate-opus-suggestions-fab.md`). See
+  `handovers/HANDOVER-v69.md`.** Client/CSS/tests only, branch-safe. (1) **Menu Suggestions moved off the inline
+  slot into an on-demand floating panel** behind a persistent **bottom-RIGHT** button (Max, moved from left) —
+  the EzPlate logo in a Gemini rainbow gradient (`#menuSuggestFab`/`#menuSuggestPanel`/`#menuSuggestBtn`,
+  `.msug*` CSS). Same content system (`renderMenuInsights` toggles the FAB `[hidden]` by whether the menu has
+  anything to say; the "Refined by Gemini" credit lives in the panel); tap/×/outside-click/Escape close;
+  reflects the selected menu; clears the bottom nav (mobile) / content column (desktop). Panel title always
+  **"What stands out on this menu"** (no menu name, no eyebrow). (2) **Suggestions broadened beyond reprice** —
+  three new pure/tested types: `insPortion` (trim the costliest portion, no price change), `insSub` (a cheaper
+  **same-ingredient** product), `insCut` (≥ `CUT_PTS`=12 over → rework/drop). **Reprice DEMOTED to last-resort**:
+  now only `[1,CUT_PTS)` pts, score dropped below the cheaper levers, copy softened. **Substitution is SAFE
+  (Max caught Bacon→Ham):** `insSub` uses `subCandidate` — matches only the SAME ingredient (finest grain first:
+  `sub_category`, else `item_type`; **never** the coarse `category`) + a shared-leading-noun net; fails closed.
+  (3) **"Reprice" → "Rework"** on the margin-light chip + Menu strapline; reprice copy softened. (4) **Misc line
+  name field RESTORED (reverses v60):** editable `.misc-name` back in the `.nm` slot wired to `setMiscLabel`,
+  placeholder "Misc"; v67 two-row skeleton kept; label round-trips. (5) **Invoice import HEADER mobile stacking
+  only** (`@media max-width:700px`); desktop byte-identical; **fragile invoice review area untouched**.
+  **Insights CACHED per menu per period (1 day) then rotate** — `insightSeedFor(menuId)` (period + menu hash)
+  seeds a stable-then-rotating selection; `gemPhraseInsights` reads/writes a localStorage cache
+  (`cafeDB_insightCache`) so reloads within a period don't re-hit Gemini (saves quota); a price change (new sig)
+  forces a fresh call. 261→**274** (`insights.test.js` +9 types, +4 `subCandidate`; smoke §16 extended for the
+  FAB + the "no second Gemini call on re-render" cache check). Six spots → **v69**. **Builder flow reordered
+  (Max): Add ingredients → Name & save (name → category → Save)** — `#docketPanel` first, `#platePanel` second;
+  misc name field restyled to read as a clean editable label (bold text + underline, not a boxy input);
+  Suggestions panel got focus management (CodeRabbit). `fresh-states.spec.js` misc
+  pins updated to `.misc-name` + two-row but NOT runnable to green in-env (dies earlier at the builder-modal
+  screenshot — pre-existing) — full reconciliation still deferred. **Needs Max's phone: the FAB+panel at 380px
+  both themes bottom-right (no nav overlap), varied SAFE non-reprice advice, misc name field, invoice header
+  stacking.**
 
 - **v68 (branch `fix/visual-consistency-pass`) — Menu light-chip filter · Suggestions title + honest AI
   credit · whole-site grid-snap (brief: `~/Downloads/ezplate-opus-visual-consistency_1.md`). See
@@ -562,10 +594,12 @@ merge to `main` as a production deploy.
   `invRows[i].newItem` snapshot/rehydrate (v50, FRAGILE — now also carries `edited` for the §F1
   auto-fill mark); chart is a hand-rolled monotone cubic (`tcTicks`/`tcTangents`/`tcPath`);
   v49 panel skeleton (`layout-consistency.spec.js`); **v43 lesson — any `dbPush*` naming a
-  column the live DB lacks fails wholesale; apply the v55 migrations BEFORE deploy** (see
-  [[supabase-schema-can-lag-app-code]]).
+  column the live DB lacks fails wholesale; apply any NEW migration to prod BEFORE the deploy that reads
+  it** (the v55 migrations themselves are already applied — see [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v54–v59, apply the 3 v55 migrations to prod, merge (v58
-  then v59); (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K
-  stale tests + v56 builder/misc pins + v58 empty-state re-baseline + v59 menu-controls/Tidy-lists);
-  (c) optional: purchased-quantity capture for §I (needs a protected-region edit).
+- Next up: (a) Max's phone sign-off on v69 (the Suggestions FAB + panel, non-reprice advice, misc name
+  field, invoice-header stacking) then merge PR #14; (b) run `npm run shots` + reconcile
+  `fresh-states.spec.js` on a browser env — it has ~12 pre-existing stale failures (the builder became a
+  `#builderModal` popup in v54/v55 so the spec never opens it, plus v56/v58/v59 pins and the v69
+  `.misc-name`/two-row misc updates); (c) gate or remove the diagnostic `GET /api/parse-invoice?probe=1`
+  before multi-tenant; (d) optional: purchased-quantity capture for v55 §I (needs a protected-region edit).

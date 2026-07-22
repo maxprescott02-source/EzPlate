@@ -309,6 +309,30 @@ function alternatives(p){
   const cheaper=pool.filter(x=>cpbu(x)<cpbu(p));
   return {alts:pool.slice(0,3), cheapest:cheaper.length===0};
 }
+/* v69 (Max): the SUBSTITUTION insight must never cross distinct foodstuffs — it once suggested swapping
+   Bacon for Ham because both share the coarse category "SMALLGOODS" (alternatives()'s category fallback).
+   For a suggestion the app puts in a chef's face, matching must be CONSERVATIVE and fail closed:
+   the cheaper product must be the SAME ingredient (finest grain first — sub_category, else the specific
+   item_type; NEVER the coarse category) AND share the current product's leading noun as a name-safety net.
+   No item_type and no sub_category → we can't be sure → suggest nothing. `list` is injectable for tests. */
+function subCandidate(p, list){
+  var C=function(x){ return x.cost_per_base_unit; };
+  if(!p || C(p)==null) return null;
+  var primary=(searchTokens(p.description||'')[0]||'');            // the leading word is the ingredient (bacon, cheese…)
+  function sameKind(x){
+    if(p.sub_category) return x.sub_category===p.sub_category;     // finest grain wins (e.g. "Bacon Rashers")
+    if(p.item_type)   return x.item_type===p.item_type;           // else the specific type — never the coarse category
+    return false;                                                  // nothing precise to match on → don't guess
+  }
+  var pool=(list||PRODUCTS).filter(function(x){
+    if(!x || !x.is_food || C(x)==null || x.base_unit!==p.base_unit || x.id===p.id) return false;
+    if(!(C(x)<C(p))) return false;                                 // cheaper only
+    if(!sameKind(x)) return false;
+    return primary && String(x.description||'').toLowerCase().indexOf(primary)>=0;   // must share the ingredient word
+  });
+  pool.sort(function(a,b){ return C(a)-C(b); });
+  return pool[0]||null;
+}
 
 /* ---------- plate ---------- */
 let plate=[], uidc=1;
@@ -345,13 +369,14 @@ function commitPrice(uid,raw){
 function miscRowHtml(l){                                              // a removable non-ingredient cost line (spices, boxes, etc.)
   // v67 item 3: a misc line is a SIBLING of an ingredient line \u2014 it reuses the exact two-row .line
   // skeleton (.top = label + \u00d7, .costs = leader + amount) so row height and every column line up
-  // pixel-wise. NO name field (v60 rule kept): "Misc cost" is a fixed label. The $ input sits in the
-  // far-right slot the ingredient line's total (.lc) occupies; the leader grows to push it there. The
-  // \u00d7 lands in the same top-right column as every ingredient row's \u00d7. Same ids/handlers (setMiscCost/
-  // removeLine); any stored label on a pre-v60 misc line stays in the data but is never shown.
+  // pixel-wise. v69 (REVERSAL of the v60 "no name field" rule, Max's call): the name is EDITABLE again so
+  // the user can label the line ("Packaging", "Spices"), occupying the ingredient row's name slot (.nm);
+  // blank shows "Misc" as a placeholder. The $ input stays in the far-right total (.lc) slot; the leader
+  // grows to push it there. The \u00d7 lands in the same top-right column as every ingredient row's \u00d7.
+  // Same ids/handlers (setMiscLabel/setMiscCost/removeLine); the stored label now round-trips through save.
   return '<div class="line misc-line" data-uid="'+l.uid+'">'
     +'<div class="top">'
-      +'<span class="nm"><b>Misc cost</b></span>'
+      +'<span class="nm"><input type="text" class="misc-name" value="'+esc(l.label||'')+'" placeholder="Misc" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
       +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
     +'</div>'
     +'<div class="costs">'
@@ -363,7 +388,7 @@ function miscRowHtml(l){                                              // a remov
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
   plate.push({uid:uidc++, misc:true, label:'', cost:0});
   renderPlate();
-  var rows=document.querySelectorAll('.misc-line .misc-costbox input'); var last=rows[rows.length-1]; if(last) last.focus();   // v60 item 2: no name field — focus the $ input
+  var rows=document.querySelectorAll('.misc-line .misc-name'); var last=rows[rows.length-1]; if(last) last.focus();   // v69: name field restored (reverses v60) — focus it so the line can be labelled
 }
 function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; }
 function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
@@ -1829,18 +1854,22 @@ function openHighlight(kind){
    computeInsights builds the data bundle from the CURRENT menu's live dishes.
    ===================================================================================== */
 function insTargetPrice(cost, targetFrac){ return Math.ceil((cost/targetFrac)*2)/2; }   // price that hits target, rounded UP to the nearest $0.50
+var CUT_PTS=12;   // v69: a dish this far over target is an insCut candidate (rework/drop), not a routine reprice
 
-// TYPE: reprice — every dish whose food cost sits over target, worst first (the v63 insight, now one type among many).
+// TYPE: reprice — a dish over target where a price nudge closes the gap. v69: DEMOTED to the last-resort lever
+// (Max reprices rarely — reprinting menus is expensive), so its score sits below the cheaper levers (portion,
+// substitution, shared-ingredient) and its copy frames price as the fallback if a rework can't close the gap.
+// Extreme dishes (>= CUT_PTS over) belong to insCut, not here.
 function insReprice(dishes, targetFrac){
   var out=[], tp=Math.round(targetFrac*100);
   dishes.forEach(function(d){
     if(!(d.cost>0)||!(d.menuPrice>0)) return;
     var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
-    if(pts<1) return;
+    if(pts<1 || pts>=CUT_PTS) return;
     var target=insTargetPrice(d.cost, targetFrac);
-    out.push({kind:'reprice', score:Math.min(100, 45+pts*3),
+    out.push({kind:'reprice', score:Math.min(60, 22+pts*2),
       facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPrice:target, targetPct:tp},
-      text:d.name+' runs '+pts+' pt'+(pts===1?'':'s')+' over at $'+d.menuPrice.toFixed(2)+' — lift it to $'+target.toFixed(2)+' to land near '+tp+'%.'});
+      text:d.name+' sits '+pts+' pt'+(pts===1?'':'s')+' over at $'+d.menuPrice.toFixed(2)+' — if a rework can’t close it, $'+target.toFixed(2)+' would bring it to '+tp+'%.'});
   });
   return out.sort(function(a,b){ return b.facts.pts-a.facts.pts; });
 }
@@ -1914,6 +1943,49 @@ function insSummary(dishes, targetFrac){
   return [{kind:'allgood', score:26, facts:{total:total, targetPct:tp},
     text:'All '+total+' costed dish'+(total===1?'':'es')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
 }
+// TYPE: portion / spec — a dish leaning heavily on ONE costly ingredient. Trimming that portion saves money
+// with NO price change (Max's cheapest lever). Each dish carries `top` = {name, share, trimPct, saving},
+// precomputed by computeInsights from the plate lines; this pure fn picks the most lopsided plate.
+function insPortion(dishes){
+  var best=null, bestShare=0;
+  dishes.forEach(function(d){
+    var t=d.top; if(!t || !(t.saving>0) || !(t.share>=0.45)) return;   // one ingredient must dominate the plate cost
+    if(t.share>bestShare){ bestShare=t.share;
+      var pct=Math.round(t.share*100), sv=Math.round(t.saving*100)/100;
+      best={kind:'portion', score:Math.min(90, 50+Math.round((t.share-0.45)*100)),
+        facts:{name:d.name, ing:t.name, sharePct:pct, saving:sv, trimPct:t.trimPct},
+        text:t.name+' is '+pct+'% of '+d.name+'’s cost — a '+t.trimPct+'% smaller portion saves about $'+sv.toFixed(2)+' a plate, no price change.'};
+    }
+  });
+  return best?[best]:[];
+}
+// TYPE: cheaper input / substitution — a same-category product in Products undercuts one this menu leans on.
+// computeInsights builds `subs` (only where a real cheaper in-category product exists); this fn picks the
+// biggest saving. Swapping the linked product once updates every recipe, so it beats any single reprice.
+function insSub(subs){
+  if(!subs || !subs.length) return [];
+  var s=subs.slice().sort(function(a,b){ return b.saving-a.saving; })[0];
+  if(!s || !(s.saving>0)) return [];
+  var sv=Math.round(s.saving*100)/100;
+  return [{kind:'sub', score:Math.min(92, 48+Math.round(sv*4)),
+    facts:{ing:s.ing, curPer:s.curPer, altPer:s.altPer, plateCount:s.plateCount, saving:sv},
+    text:'You buy '+s.ing+' at $'+s.curPer.toFixed(2)+'/'+s.unit+'; '+s.altName+' is $'+s.altPer.toFixed(2)+'/'+s.unit+' — swapping saves about $'+sv.toFixed(2)+' across '+s.plateCount+' plate'+(s.plateCount===1?'':'s')+'.'}];
+}
+// TYPE: cut — a dish so far over target that repricing alone is a hard ask (would need a big, menu-reprinting
+// jump). Flag it to rework the spec or drop it, rather than pretend a price nudge fixes it.
+function insCut(dishes, targetFrac){
+  var best=null;
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)) return;
+    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
+    if(pts<CUT_PTS) return;
+    if(!best || pts>best.facts.pts){
+      best={kind:'cut', score:Math.min(96, 58+pts), facts:{name:d.name, pts:pts},
+        text:d.name+' runs '+pts+' pts over and is hard to reprice cleanly — worth reworking the spec or dropping it.'};
+    }
+  });
+  return best?[best]:[];
+}
 // Rank by notability, keep type VARIETY (≤1 per kind first), and ROTATE the near-top group by seed
 // so equally-notable insights take turns leading across renders/menu-switches. Pure + tested.
 function selectInsights(cands, seed, max){
@@ -1941,6 +2013,9 @@ function deriveInsights(data, targetFrac, seed){
   var costed=dishes.filter(function(d){ return d && d.cost>0 && d.menuPrice>0; });   // published + costed only
   if(!costed.length) return [];                                     // nothing useful to say → the area hides
   var cands=[]
+    .concat(insPortion(costed))                                       // v69: cheaper levers first — Max reprices rarely
+    .concat(insSub(data.subs||[]))
+    .concat(insCut(costed, targetFrac))
     .concat(insReprice(costed, targetFrac))
     .concat(insNearMiss(costed, targetFrac))
     .concat(insVolatility(costed))
@@ -1954,10 +2029,18 @@ function deriveInsights(data, targetFrac, seed){
    v67 item 5a: menu-scoped (was all-menus on the Dashboard). Draws cost ranges from costRangeForLines,
    shared-ingredient counts from kitchen-word usage, and the biggest mover from the per-ingredient price
    log (ingPriceLog) — all numbers the app already computes. */
-var gemInsightPhrased=null;                                         // {key, lines:[text]} — ONE phrasing per session per menu (key = menuId|sig)
-var insightSeed=Math.floor(Date.now()/86400000);                   // day-based base so the lead rotates over time; onMenuSelectChange bumps it per switch
+var gemInsightPhrased=null;                                         // in-render guard: {key, lines:[text], refined} (key = menuId|sig)
+/* v69 (Max): insights + their Gemini phrasing are CACHED per menu for a PERIOD, then rotate. This (a) saves
+   the limited Gemini quota — no re-call on every reload/session within the period — and (b) refreshes what the
+   user sees afterwards. The period index also seeds the selection (varied per menu), so each new period leads
+   with a different insight. A price change mid-period changes the sig → a fresh call (the insight genuinely
+   changed); otherwise one call per menu per period. */
+var INSIGHT_PERIOD_MS=24*60*60*1000;                               // one day
+function insightPeriod(){ return Math.floor(Date.now()/INSIGHT_PERIOD_MS); }
+function menuSeedHash(id){ var h=0, s=String(id||''); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return h; }
+function insightSeedFor(menuId){ return (insightPeriod()+menuSeedHash(menuId))|0; }   // stable within a period (so it caches), rotates across periods, varies per menu
 function computeInsights(seed){
-  var dishes=[], usage={}, nameByPid={}, dishNamesByPid={};
+  var dishes=[], usage={}, nameByPid={}, dishNamesByPid={}, prodUse={};
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
@@ -1966,22 +2049,39 @@ function computeInsights(seed){
       var cost=costFromLines(sp.lines); if(!(cost>0)) return;
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
+      var topCost=0, topName=null;                                   // v69: costliest ingredient line → portion insight
       (sp.lines||[]).forEach(function(l){
         if(!l || l.misc) return;
         var p=lineProduct(l); if(!p) return;
         var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
         var nm=l.kid?((kById[l.kid]&&kById[l.kid].name)||p.description):p.description;
         if(nm && !seen[nm]){ seen[nm]=1; usage[nm]=(usage[nm]||0)+1; }   // distinct dishes per kitchen ingredient
+        var lc=lineCost(p, l.qty); if(lc!=null && lc>topCost){ topCost=lc; topName=nm; }
         if(pid){
           nameByPid[pid]=nm;
           (dishNamesByPid[pid]||(dishNamesByPid[pid]=[])).push(m.name);
           var band=ingPriceBand(pid); if(band){ var s=(band.max-band.min)*(l.qty||0); if(s>volSpread){ volSpread=s; volName=nm; } }
+          // v69: menu-wide product usage for the substitution insight (qty summed, distinct dishes counted)
+          var pu=prodUse[pid]||(prodUse[pid]={prod:p, qty:0, dishes:{}, ing:nm});
+          pu.qty+=(l.qty||0); pu.dishes[m.name]=1;
         }
       });
-      dishes.push({name:m.name, cost:cost, menuPrice:m.price, costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName});
+      var top=null;
+      if(topName && topCost>0){ var share=topCost/cost; top={name:topName, share:share, trimPct:15, saving:topCost*0.15}; }   // trim ~15% of the costliest portion
+      dishes.push({name:m.name, cost:cost, menuPrice:m.price, costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName, top:top});
     });
   }catch(e){ return []; }
   var shared=Object.keys(usage).filter(function(n){ return usage[n]>=2; }).map(function(n){ return {name:n, dishCount:usage[n]}; });
+  var subs=[];                                                       // v69: only a conservative same-ingredient cheaper product (subCandidate — never cross foodstuffs)
+  try{
+    Object.keys(prodUse).forEach(function(pid){
+      var pu=prodUse[pid], p=pu.prod; if(!p || cpbu(p)==null) return;
+      var alt; try{ alt=subCandidate(p); }catch(e){ return; }
+      if(!alt || cpbu(alt)==null || !(cpbu(alt)<cpbu(p))) return;
+      var saving=(cpbu(p)-cpbu(alt))*pu.qty; if(!(saving>0)) return;
+      subs.push({ing:pu.ing, altName:alt.description, curPer:perDisplayValue(p), altPer:perDisplayValue(alt), unit:displayUnitWord(p), plateCount:Object.keys(pu.dishes).length, saving:saving});
+    });
+  }catch(e){}
   var mover=null;
   try{
     Object.keys(dishNamesByPid).forEach(function(pid){
@@ -1994,7 +2094,7 @@ function computeInsights(seed){
       }
     });
   }catch(e){}
-  return deriveInsights({dishes:dishes, shared:shared, mover:mover}, foodTarget(), (seed==null?insightSeed:seed));
+  return deriveInsights({dishes:dishes, shared:shared, mover:mover, subs:subs}, foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
@@ -2011,12 +2111,24 @@ function gemPhrasingOk(text, facts){
   }
   return true;
 }
-/* Optional warmer phrasing (degrades to templates). ONE background POST per session per MENU
-   (key = menuId|sig); offline / unavailable / invalid → the deterministic templates stand. Never
-   blocks the render — it swaps text in place only if the Menu tab is still showing this set. */
-function gemPhraseInsights(insights, menuKey){
+/* v69: the per-menu, per-period phrasing cache (localStorage). Only SUCCESSFUL phrasings are stored, so
+   offline/unavailable never poisons it; stale periods are pruned on write. */
+function insightCacheRead(){ try{ return JSON.parse(localStorage.getItem('cafeDB_insightCache')||'{}')||{}; }catch(e){ return {}; } }
+function insightCacheWrite(c){ try{ localStorage.setItem('cafeDB_insightCache', JSON.stringify(c)); }catch(e){} }
+/* Optional warmer phrasing (degrades to templates). ONE background POST per menu per PERIOD (v69) — a
+   cached phrasing for this menu+period+sig is reused with NO new call (saving the limited Gemini quota);
+   offline / unavailable / invalid → the deterministic templates stand. Never blocks the render — it swaps
+   text in place only if the Menu tab is still showing this set. */
+function gemPhraseInsights(insights, menuId){
   if(!insights || !insights.length) return;
-  var sig=insightSig(insights), key=(menuKey||'')+'|'+sig;
+  var sig=insightSig(insights), period=insightPeriod(), mk=menuId||'', key=mk+'|'+sig;
+  // 1) persistent cache hit: same menu + period + sig → reuse the stored phrasing, no API call
+  var cache=insightCacheRead(), ce=cache[mk];
+  if(ce && ce.period===period && ce.sig===sig && Array.isArray(ce.lines)){
+    gemInsightPhrased={key:key, lines:ce.lines, refined:!!ce.refined};
+    applyPhrasedInsights(ce.lines, insights, !!ce.refined); return;
+  }
+  // 2) in-render guard: don't fire a duplicate fetch before the cache write lands this session
   if(gemInsightPhrased && gemInsightPhrased.key===key){ applyPhrasedInsights(gemInsightPhrased.lines, insights, gemInsightPhrased.refined); return; }
   if(typeof fetch!=='function') return;
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
@@ -2025,7 +2137,7 @@ function gemPhraseInsights(insights, menuKey){
     .then(function(res){ return res.ok?res.json():null; })
     .then(function(payload){
       clearTimeout(timer);
-      if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)) return;
+      if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)) return;   // invalid → don't cache, retry next render
       var refined=false;                                             // v68: true only if ≥1 shown line is actually Gemini's phrasing (drives the honest credit)
       var lines=insights.map(function(ins,ix){                       // per line: accept the phrasing only if it passes the number check, else keep the template
         var cand=payload.lines[ix] && payload.lines[ix].text;
@@ -2033,6 +2145,10 @@ function gemPhraseInsights(insights, menuKey){
         return ins.text;
       });
       gemInsightPhrased={key:key, lines:lines, refined:refined};
+      var c2=insightCacheRead();                                     // persist so reloads within this period don't re-hit Gemini
+      c2[mk]={period:period, sig:sig, lines:lines, refined:refined};
+      Object.keys(c2).forEach(function(k){ if(!c2[k] || c2[k].period<period-1) delete c2[k]; });   // prune stale periods
+      insightCacheWrite(c2);
       applyPhrasedInsights(lines, insights, refined);
     })
     .catch(function(){ clearTimeout(timer); });                     // any failure → templates already shown, nothing to do
@@ -2045,26 +2161,55 @@ function applyPhrasedInsights(lines, insights, refined){
     if(refined){ var c=host.querySelector('.mi-credit'); if(c) c.hidden=false; }   // v68: reveal the credit only when Gemini truly phrased a shown line
   }catch(e){}
 }
-/* v67 item 5a (redesign 2): a plain, quiet note above the dish table — NO card, border, tint, icon or
-   eyebrow (all of which read as a "feature widget"). Just a small muted lead that names the menu and the
-   observations as clean prose lines, so it comes across as a note someone jotted on the menu, not a
-   dashboard panel. Personal through the copy + restraint; quiet through the absence of chrome.
-   renderAnalysis calls this after painting the table; switching menus re-renders it. */
+/* v67 item 5a (redesign 2): quiet prose lines that read as a note jotted on the menu, not a dashboard
+   widget. v69 item 1: the SAME content system now lives inside an on-demand floating panel (the rainbow
+   FAB, bottom-left) rather than an always-visible inline block — this fn fills #menuInsights inside the
+   panel and shows/hides the WHOLE FAB by whether there's anything worth saying. renderAnalysis calls it
+   after painting the table; switching menus re-renders it (the panel reflects the selected menu). */
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
-  var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
-  if(!insights.length){ host.innerHTML=''; return; }                 // nothing worth saying for this menu → the note hides
-  var sig=insightSig(insights), mn=menuNameFor(currentMenuId);
-  // v68: title is now "What stands out on {menu}" (works whether the news is good or bad). The
-  // "Refined by Gemini" credit is honest — it stays hidden while the deterministic template shows and is
-  // revealed by applyPhrasedInsights ONLY when Gemini actually phrased a shown line (see gemPhraseInsights).
+  var fab=document.getElementById('menuSuggestFab');
+  var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
+  if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole FAB
+  if(fab) fab.hidden=false;
+  var sig=insightSig(insights);
+  // v69 (Max): the panel title always reads "What stands out on this menu" — the selected menu is already
+  // obvious from the picker, so naming it here is noise. The "Refined by Gemini" credit stays honest —
+  // hidden while the template shows, revealed by applyPhrasedInsights only when Gemini phrased a shown line.
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">'+(mn?('What stands out on <b>'+esc(mn)+'</b>'):'What stands out on this menu')+'</p>'
+    +'<p class="mi-intro">What stands out on this menu</p>'
     +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
     +'<span class="mi-credit" hidden>Refined by Gemini</span>'
     +'</div>';
   try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
 }
+/* v69 item 1: the floating Suggestions panel — expands from the bottom-right rainbow button, closes on the
+   ×, a re-tap, an outside click or Escape. Content is filled by renderMenuInsights; the panel only exists
+   while the FAB is shown (i.e. this menu has something to say). Focus moves INTO the panel on open and is
+   RESTORED to the trigger on an explicit close (× / Escape / re-tap) so keyboard focus never lands on the
+   now-hidden panel. Outside-click leaves focus wherever the click sent it (don't yank it back). */
+function menuSuggestOpen(){
+  var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
+  var p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
+  if(p) p.hidden=false; f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
+  if(p){ try{ p.focus(); }catch(e){} }                               // move focus into the now-visible dialog (announces it, reads from the top)
+}
+function menuSuggestClose(restoreFocus){
+  var f=document.getElementById('menuSuggestFab'), p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
+  var wasOpen=p && !p.hidden;
+  if(p) p.hidden=true; if(f) f.classList.remove('open'); if(b) b.setAttribute('aria-expanded','false');
+  if(restoreFocus && wasOpen && b && f && !f.hidden){ try{ b.focus(); }catch(e){} }   // return focus to the trigger — never to now-hidden content
+}
+function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(true); }
+(function wireMenuSuggestFab(){
+  var b=document.getElementById('menuSuggestBtn'); if(b) b.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestToggle(); });
+  var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
+  document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
+    var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
+    var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose(false);
+  });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden) menuSuggestClose(true); } });
+})();
 function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
@@ -2177,7 +2322,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v68';
+var APP_VERSION='v69';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4153,7 +4298,8 @@ function buildMenuPickers(){                                   // fill the menu 
 }
 function onMenuSelectChange(){
   var sel=document.getElementById('menuSelect'); if(!sel) return;
-  insightSeed++;                                                   // v67 5b: advance the rotation so a menu switch varies which insight leads
+  // v69: the selection seed is now period+menu based (insightSeedFor) so it caches within a period and
+  // varies per menu on its own — no per-switch bump needed (that would have defeated the cache).
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }

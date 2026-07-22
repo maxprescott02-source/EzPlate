@@ -456,6 +456,28 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   await tick(); await tick();
   ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('v68: once Gemini actually phrased a shown line, the "Refined by Gemini" credit is revealed', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === false);
+  // v69 (Max): insights + their phrasing are cached per menu per period — a re-render within the period must
+  // NOT hit Gemini again (saves the limited quota); the cached phrasing + its credit show straight away.
+  const fetchesBefore = pending.filter((p) => /\/api\/insight/.test(p.url)).length;
+  window.renderMenuInsights();
+  const dj = $('menuInsightsPanel');
+  ok('v69: a re-render within the period reuses the cache — no second Gemini call', pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
+  ok('v69: the cached phrasing (and its credit) apply immediately on the cache hit', dj && /runs 10 pts hot/.test(dj.textContent) && dj.querySelector('.mi-credit') && dj.querySelector('.mi-credit').hidden === false);
+  // v69 item 1: the Suggestions content lives behind a floating rainbow button (bottom-RIGHT of the Menu).
+  const fab = $('menuSuggestFab');
+  ok('v69: the Suggestions FAB is shown when the menu has insights', !!fab && fab.hidden === false);
+  ok('v69: the rainbow button carries a gradient logo + an accessible label', !!$('menuSuggestBtn') && !!$('menuSuggestBtn').querySelector('svg linearGradient') && $('menuSuggestBtn').getAttribute('aria-label') === 'Menu suggestions');
+  ok('v69: the panel starts closed until the button is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
+  $('menuSuggestBtn').click();
+  ok('v69: tapping the button opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');
+  ok('v69: focus moves into the panel on open (a11y — never left on hidden content)', window.document.activeElement === $('menuSuggestPanel'));
+  ok('v69: the panel holds the same insight content (mi-lines) + the credit', $('menuSuggestPanel').querySelectorAll('.mi-line').length === 2 && !!$('menuSuggestPanel').querySelector('.mi-credit'));
+  $('menuSuggestClose').click();
+  ok('v69: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
+  ok('v69: focus returns to the trigger button on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
+  window.computeInsights = () => [];
+  try { window.renderMenuInsights(); } catch (e) {}
+  ok('v69: a menu with nothing to say hides the whole FAB', fab.hidden === true);
   window.computeInsights = stashCI;
 
   // ---- [17] v68 — Menu margin-light filter chips (multi-select) wire up + fold into Clear filters ----

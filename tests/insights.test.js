@@ -15,8 +15,45 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary,
-  selectInsights, deriveInsights,
+  insPortion, insSub, insCut, subCandidate, selectInsights, deriveInsights,
 } = require('./_extract.js');
+
+/* ---------------------------------------------------------------- v69: conservative substitution matcher */
+// Real-shaped catalog rows. Bacon and Ham share the coarse category "SMALLGOODS" (the trap) but differ on
+// item_type + sub_category — subCandidate must NEVER cross them.
+const P = (id, description, extra) => Object.assign(
+  { id, description, is_food: true, base_unit: 'g', category: 'SMALLGOODS', sub_category: null, item_type: null, cost_per_base_unit: 0.02 },
+  extra || {});
+const CATALOG = [
+  P('P0004', 'Bacon Middle Rindless', { sub_category: 'Bacon Rashers', item_type: 'bacon', cost_per_base_unit: 0.0122 }),
+  P('P0100', 'Bacon Shortcut Value',  { sub_category: 'Bacon Rashers', item_type: 'bacon', cost_per_base_unit: 0.0098 }),  // cheaper, SAME ingredient
+  P('P0200', 'Ham Leg Sliced',        { sub_category: 'Sliced Ham',   item_type: 'ham',    cost_per_base_unit: 0.0080 }),  // cheaper but a DIFFERENT foodstuff
+  P('P0300', 'Cheese Tasty Block',    { category: 'DAIRY', sub_category: 'Tasty Cheese', item_type: 'cheese', cost_per_base_unit: 0.0122 }),
+  P('P0301', 'Cheese Block Alfa',     { category: 'DAIRY', sub_category: 'Tasty Cheese', item_type: 'cheese', cost_per_base_unit: 0.0098 }),
+];
+
+test('subCandidate: NEVER swaps across foodstuffs — Bacon does not become Ham', () => {
+  const bacon = CATALOG[0];
+  const pick = subCandidate(bacon, CATALOG);
+  assert.ok(pick, 'a cheaper bacon exists, so it should suggest one');
+  assert.equal(pick.id, 'P0100');                 // the cheaper BACON, not the cheaper ham
+  assert.notEqual(pick.item_type, 'ham');
+});
+
+test('subCandidate: suggests a cheaper like-for-like when one truly exists (Cheese → cheaper Cheese)', () => {
+  const pick = subCandidate(CATALOG[3], CATALOG);
+  assert.equal(pick.id, 'P0301');
+});
+
+test('subCandidate: nothing precise to match on (no item_type/sub_category) → no guess', () => {
+  const loose = P('P0400', 'Mixed Thing', { sub_category: null, item_type: null, cost_per_base_unit: 0.05 });
+  assert.equal(subCandidate(loose, CATALOG.concat(loose)), null);
+});
+
+test('subCandidate: no cheaper same-ingredient product → null (never reaches for the category)', () => {
+  const cheapBacon = P('P0500', 'Bacon Budget', { sub_category: 'Bacon Rashers', item_type: 'bacon', cost_per_base_unit: 0.001 });
+  assert.equal(subCandidate(cheapBacon, CATALOG.concat(cheapBacon)), null);   // already cheapest bacon; Ham is cheaper but off-limits
+});
 
 const dish = (name, cost, menuPrice, extra) => Object.assign({ name, cost, menuPrice }, extra || {});
 
@@ -204,4 +241,82 @@ test('deriveInsights: pure — does not mutate its input', () => {
   const snap = JSON.stringify(data);
   deriveInsights(data, 0.3, 0);
   assert.equal(JSON.stringify(data), snap);
+});
+
+/* ---------------------------------------------------------------- v69: portion / spec type */
+test('insPortion: a dish dominated by one ingredient → trim-the-portion advice, no price change', () => {
+  const out = insPortion([dish('Barra & Chips', 6, 15, { top: { name: 'Fish', share: 0.6, trimPct: 15, saving: 0.54 } })]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'portion');
+  assert.equal(out[0].facts.sharePct, 60);
+  assert.equal(out[0].facts.trimPct, 15);
+  assert.equal(out[0].facts.saving, 0.54);
+  assert.match(out[0].text, /Fish is 60% of Barra & Chips/);
+  assert.match(out[0].text, /15% smaller portion/);
+  assert.match(out[0].text, /\$0\.54/);
+  assert.match(out[0].text, /no price change/);
+});
+
+test('insPortion: no single ingredient dominates (share < 45%) → nothing', () => {
+  assert.deepEqual(insPortion([dish('Even', 6, 15, { top: { name: 'A', share: 0.3, trimPct: 15, saving: 0.3 } })]), []);
+  assert.deepEqual(insPortion([dish('NoTop', 6, 15)]), []);
+});
+
+test('insPortion: picks the MOST lopsided plate across the menu', () => {
+  const out = insPortion([
+    dish('X', 6, 15, { top: { name: 'A', share: 0.5, trimPct: 15, saving: 0.4 } }),
+    dish('Y', 6, 15, { top: { name: 'B', share: 0.7, trimPct: 15, saving: 0.6 } }),
+  ]);
+  assert.equal(out[0].facts.name, 'Y');
+  assert.equal(out[0].facts.sharePct, 70);
+});
+
+/* ---------------------------------------------------------------- v69: substitution type */
+test('insSub: a cheaper same-category product → swap advice with per-unit prices + plate count', () => {
+  const out = insSub([{ ing: 'Cheese', altName: 'Cheese Block Alfa', curPer: 12.20, altPer: 9.80, unit: 'kg', plateCount: 8, saving: 3.2 }]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'sub');
+  assert.equal(out[0].facts.plateCount, 8);
+  assert.equal(out[0].facts.saving, 3.2);
+  assert.match(out[0].text, /You buy Cheese at \$12\.20\/kg/);
+  assert.match(out[0].text, /Cheese Block Alfa is \$9\.80\/kg/);
+  assert.match(out[0].text, /across 8 plates/);
+});
+
+test('insSub: no cheaper product available → nothing', () => {
+  assert.deepEqual(insSub([]), []);
+  assert.deepEqual(insSub(null), []);
+});
+
+test('insSub: picks the biggest saving when several exist', () => {
+  const out = insSub([
+    { ing: 'Cheese', altName: 'Alfa', curPer: 12, altPer: 11, unit: 'kg', plateCount: 2, saving: 1.0 },
+    { ing: 'Oil', altName: 'Beta', curPer: 8, altPer: 5, unit: 'L', plateCount: 4, saving: 5.0 },
+  ]);
+  assert.equal(out[0].facts.ing, 'Oil');
+});
+
+/* ---------------------------------------------------------------- v69: cut type + reprice hand-off */
+test('insCut: a dish far over target (>= 12 pts) → rework/drop, and insReprice leaves it alone', () => {
+  const cut = insCut([dish('Steak Works', 6.3, 15)], 0.3);   // 42% = 12 pts over
+  assert.equal(cut.length, 1);
+  assert.equal(cut[0].kind, 'cut');
+  assert.equal(cut[0].facts.pts, 12);
+  assert.match(cut[0].text, /12 pts over/);
+  assert.match(cut[0].text, /dropping it/);
+  assert.deepEqual(insReprice([dish('Steak Works', 6.3, 15)], 0.3), []);   // handed off to insCut, not repriced
+});
+
+test('insCut: a merely-over dish (< 12 pts) is not a cut candidate', () => {
+  assert.deepEqual(insCut([dish('Roll', 5, 14)], 0.3), []);   // ~6 pts over → reprice territory, not cut
+});
+
+/* ---------------------------------------------------------------- v69: reprice is now the LAST-resort lever */
+test('deriveInsights: cheaper levers (portion/substitution) lead over reprice', () => {
+  const out = deriveInsights({
+    dishes: [dish('Barra & Chips', 6, 15, { top: { name: 'Fish', share: 0.6, trimPct: 15, saving: 0.9 } })],
+    subs: [{ ing: 'Cheese', altName: 'Alfa', curPer: 12, altPer: 9, unit: 'kg', plateCount: 5, saving: 4 }],
+  }, 0.3, 0);
+  assert.notEqual(out[0].kind, 'reprice');                    // reprice never leads when a cheaper lever applies
+  assert.ok(out.some((x) => x.kind === 'portion' || x.kind === 'sub'));
 });
