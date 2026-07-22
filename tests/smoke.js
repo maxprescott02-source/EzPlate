@@ -216,6 +216,8 @@ window.renderInvReview();
 // open + fill the new-item form on row 0
 window.document.querySelector('#invReview tr.inv-data[data-i="0"] .ni-add-btn').click();
 ok('the new-item form opened on row 0', !!$('ni_name0'));
+ok('v72: the form nests INSIDE the line card (in the row, no separate .ni-row)',
+  !!$('ni_name0') && $('ni_name0').closest('.inv-data') === window.document.querySelector('#invReview tr.inv-data[data-i="0"]') && !window.document.querySelector('#invReview .ni-row'));
 $('ni_name0').value = 'Pure Maple Syrup';
 $('ni_name0').dispatchEvent(new window.Event('input'));   // §F1: editing clears the auto-filled mark
 ok('§F1: editing a marked field clears its auto-filled mark', !$('ni_name0').classList.contains('af'));

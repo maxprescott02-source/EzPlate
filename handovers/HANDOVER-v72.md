@@ -137,6 +137,43 @@ Test each at **380px, both themes**, then repeat with **OS reduced-motion ON** c
   271 tests + smoke green (the v69 open/focus pins still pass through the new open path). No version bump — branch
   unshipped.
 
+## Second feature added same-branch (Max: "fix this in this branch too") — invoice new-item form nesting
+Brief `~/Downloads/ezplate-opus-invoice-newitem-nesting.md` (its `/new-branch` step ignored per Max — folded into
+this branch, so it ships as part of v72, one deploy, no extra version bump). **Documented FRAGILE area** — read
+`tests/inv-rowmarkup.test.js` + the invoice-review history first; diagnosed before patching; Max approved the approach.
+
+**Problem:** opening "Add new item" on an invoice line rendered the form as a SEPARATE white card *below* the line's
+red review card, with the Apply checkbox stranded *above* the form (invites filling the form then missing the tick).
+
+**Root of the structure:** the review is a `<table class="invtable">`; each line emitted TWO `<tr>`s — the 6-col
+`.inv-data` row (Apply is its final cell) then a separate `<tr class="ni-row"><td colspan=6>` holding the form panel,
+and `.ni-panel` was styled as a standalone white card. Also confirmed: clicking "+ New" always sets `r.addNew=true`
+and re-renders, so **the form is only ever visible on an add-new row**.
+
+**Fix (relocate, don't rebuild):** the form panel now lives in a `.ni-slot` div INSIDE the Match-to cell (td3) of the
+data row, right after the "Editing new item ↓" toggle. DOM/card order becomes header → unit price → match + **form** →
+(Old/Conf hidden) → **Apply last**. The separate `.ni-row` `<tr>` is gone.
+- **The Apply checkbox is UNMOVED** (still the row's final `<td>`), so the `inv-rowmarkup` ROW_END anchor AND the v50
+  "checked persists across re-render" contract are untouched — that's why only 1 pin needed adding, none rewritten.
+- Form is **relocated, not rebuilt**: same `ni_*` fields, same `expandNewItem`/`collectNewItem`, same ID-based
+  snapshot/rehydrate (persistence keys on `ni_name{i}` IDs, which don't change). `expandNewItem`/`collapseNewItem`
+  now query `.ni-slot[data-ni]` instead of `.ni-row[data-ni]`.
+- **CSS:** `.ni-slot .ni-panel` (higher specificity than the four base `.ni-panel` rules) restyles the panel as an
+  inset continuation of the red card — transparent, a dashed top divider, no separate slab. Add-new rows are forced
+  to the stacked-CARD layout on desktop too (`@media min-width:640`, `.inv-data.is-new` cells → block) so the form
+  isn't crammed into the narrow desktop Match column and Apply sits below it; matched rows keep the desktop table.
+- **Dropdowns:** the form moved within the SAME `table.invtable > .atable-wrap` ancestor it already lived in, so no
+  NEW overflow clipper is introduced (invoice modal is `.modal-wide` → `.atable-wrap` overflow visible). Unchanged.
+- **Tests:** +1 unit pin (`inv-rowmarkup`: the `.ni-slot`/`.ni-panel` renders in the row card and PRECEDES the
+  `invAppr` checkbox; a matched row has no slot). Smoke [11] persistence repro (form on row 0 survives editing row 1)
+  still passes AND gained an explicit nesting assertion (`ni_name0`.closest('.inv-data') is row 0; no `.ni-row`
+  exists). 271→**272** node, smoke +1.
+- **Dead CSS left (noted):** the old `.ni-row` / `.ni-row td` / `.invtable .ni-row td` rules are now inert (no
+  `.ni-row` element ships). Left in place to avoid churn in this fragile file — safe to remove in a later cleanup.
+- **Needs Max's phone:** open Add-new on a line — form nests in the ONE red card, Apply below the form; the
+  brand/category/supplier dropdowns aren't clipped; a form on line A survives editing line B; at 380px AND desktop,
+  both themes. The desktop stacked-card override for add-new rows is logically sound but browser-unverified here.
+
 ## NOT built / deliberately left (restraint)
 - **No hover-lift** (translateY on hover) on cards — the app's cards signal hover with border-colour consistently;
   adding a lift would be a second, competing treatment. Press-on-tap is the shared feedback.

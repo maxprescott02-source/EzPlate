@@ -854,7 +854,13 @@ input[type=checkbox]{
   .invtable select.invSel{max-width:230px;width:auto;min-height:40px;padding:8px 34px 8px 10px}
   .invtable input.invPrice{width:96px}
   .invtable td[style*="text-align:center"]{text-align:center!important}
-  .ni-row td{display:table-cell;padding:0 12px 12px}
+  /* v72: an add-new row keeps the stacked-CARD layout on desktop too (it already breaks the
+     table model by hiding Old/Conf) so the nested form isn't crammed into the narrow Match
+     column and Apply sits below it, not beside it. Matched rows keep the desktop table. */
+  .invtable tr.inv-data.is-new > td:first-child{display:block;font-weight:650;padding:0 0 8px}
+  .invtable tr.inv-data.is-new td:nth-child(2){display:flex;padding:0 0 8px}
+  .invtable tr.inv-data.is-new td:nth-child(3){display:block;padding:6px 0}
+  .invtable tr.inv-data.is-new td:nth-child(6){text-align:left!important;padding:6px 0 0}
 }
 
 /* ----------------------------------------------------------------------
@@ -1586,6 +1592,14 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-card);box-shadow:var(--shadow);
   padding:var(--sp-5);margin:6px 0 10px;
+}
+/* v72: nested in the line's card (inside the Match cell). Read as a continuation of the
+   red card, NOT a separate white slab — no own background/border/shadow, just a divider
+   above and inset padding. Higher specificity than the four base .ni-panel rules. */
+.ni-slot{display:block;width:100%}
+.ni-slot .ni-panel{
+  background:transparent;border:0;border-top:1px dashed var(--border);
+  border-radius:0;box-shadow:none;margin:var(--sp-3) 0 0;padding:var(--sp-4) 0 var(--sp-1);
 }
 .ni-head{font-size:15px;font-weight:800;letter-spacing:-.01em;margin-bottom:6px}
 .ni-head::before{content:"+";display:inline-flex;align-items:center;justify-content:center;

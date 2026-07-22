@@ -325,9 +325,16 @@ merge to `main` as a production deploy.
   check + the 4 existing smoke close-assertions stay honest — that's why the suite needed zero edits) while a
   separate `.closing` class re-asserts display and runs the fade-out for 320ms; reopen cancels it; reduced-motion
   (JS `matchMedia`) + the pre-existing global CSS killswitch both close instantly. All added keyframes animate
-  **transform/opacity only**. 271 tests unchanged; smoke +[18]; six spots → **v72**. **Needs Max's phone:**
-  modal open/close, tab switches, the Gemini panel expand, card taps, the Confirm-All corner-toast+✓, and the
-  AI-note easing — all at 380px both themes, then re-tested with OS reduced-motion ON confirming motion drops out.
+  **transform/opacity only**. smoke +[18]; six spots → **v72**. **Also folded into v72 (Max: "fix this in this
+  branch too"): invoice new-item form NESTING** (brief `~/Downloads/ezplate-opus-invoice-newitem-nesting.md`) — the
+  Add-new form was a separate white card below the red line card with Apply stranded above it; it now nests in the
+  line's Match cell (`.ni-slot`, was a colspan-6 `.ni-row`) so one card reads header → price → match → form → Apply
+  (last). Apply checkbox UNMOVED (v50 persistence + `inv-rowmarkup` anchor intact); form relocated not rebuilt
+  (`expandNewItem` queries `.ni-slot`); add-new rows stay stacked cards on desktop too. Tests 271→**272** (+1 nesting
+  pin; smoke [11] persistence repro + nesting assertion). **Needs Max's phone:** modal open/close, tab switches, the
+  Gemini panel expand, card taps, the Confirm-All corner-toast+✓, the AI-note easing, AND the nested invoice new-item
+  form (Apply below the form, dropdowns not clipped, form survives editing another line) — all at 380px both themes,
+  then re-tested with OS reduced-motion ON confirming motion drops out.
 
 - **v71 (branch `feature/suggestions-refine`) — Suggestions refinement: point, don't prescribe · remembered
   packs → Settings · dismissable Gemini FAB · builder gap (brief: `~/Downloads/ezplate-opus-suggestions-refine.md`).

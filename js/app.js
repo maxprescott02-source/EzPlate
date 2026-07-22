@@ -3569,7 +3569,7 @@ function niRehydrate(i){
     if(c){ if(e) e.value=(c.value||''); niCombos[id]={value:(c.value||''), isNew:!!c.isNew, confirmed:!!c.confirmed}; } });
 }
 function expandNewItem(i){
-  var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(!nirow) return;
+  var nirow=document.querySelector('.ni-slot[data-ni="'+i+'"]'); if(!nirow) return;   // v72: the form slot now lives inside the row's Match cell (was a separate .ni-row)
   var panel=nirow.querySelector('.ni-panel'), r=invRows[i];
   if(!panel.dataset.built){
     var ut=r.unit==='kg'?'kg':r.unit==='l'?'litre':r.unit==='ea'?'unit':'kg';
@@ -3620,7 +3620,7 @@ function expandNewItem(i){
   // rehydrate from what the user had typed, so an unrelated re-render can't wipe an in-progress item.
   if(r.newItem){ niRehydrate(i); } else { r.newItem=niSnapshot(i); }
 }
-function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
+function collapseNewItem(i){ var nirow=document.querySelector('.ni-slot[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
   var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; r.newItem=null; }   /* dismissing the form = this line is neither new nor matched (skip); drop its saved form state */
@@ -3768,8 +3768,14 @@ function renderInvReview(){
         return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'" data-full="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
       }).join('')+'</div>';
     }
+    // v72: the new-item form now nests INSIDE the line's card, in the Match-to cell right below the
+    // "Editing new item" toggle — so the one card reads header → price → match → form → Apply (last).
+    // The form panel lives in this .ni-slot (was a separate colspan-6 .ni-row that rendered as a detached
+    // white card); expandNewItem fills it. The Apply checkbox is UNMOVED (still the row's final cell), so
+    // the inv-rowmarkup ROW_END anchor + the v50 checked-persistence contract are untouched.
     var matchCell = r.addNew
-      ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
+      ? '<div class="match-cell match-new"><button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
+        +'<div class="ni-slot" data-ni="'+i+'" style="display:none"><div class="ni-panel"></div></div></div>'
       : '<div class="match-cell">'+chips+'<select class="invSel">'+invMatchOptions(r)+'</select>'
         +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
     // ITEM 1 (v33): a matched row — auto OR manual — always shows the linked product's current price and a real confidence.
@@ -3785,7 +3791,7 @@ function renderInvReview(){
       oldCell+
       confCell+
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
-    html+='<tr class="ni-row" data-ni="'+i+'" style="display:none"><td colspan="6"><div class="ni-panel"></div></td></tr>';
+    // v72: the form panel moved INTO the row's Match cell (.ni-slot, see matchCell above) — no separate row.
   });
   html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Only ticked rows are saved when you tap Confirm All.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';

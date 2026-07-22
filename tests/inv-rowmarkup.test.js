@@ -170,6 +170,22 @@ test('v50 item 1: a new-item row persists its ticked state across re-renders (ne
   assert.ok(/ st-new"/.test(ticked), 'and the row is still st-new (a filled new item is not "matched")');
 });
 
+test('v72: the new-item form slot nests INSIDE the row card and PRECEDES the Apply control', () => {
+  // add-new mode: the form panel lives inline in the Match cell, before the Apply checkbox,
+  // so one card reads header -> price -> match -> form -> Apply (last). The checkbox is unmoved.
+  const r = Object.assign(attentionRow(), { addNew: true, bestId: null, needsAttention: false });
+  const html = buildRow(r, 0);
+  const slot = html.indexOf('ni-slot');
+  const panel = html.indexOf('ni-panel');
+  const apply = html.indexOf('class="invAppr"');
+  assert.ok(slot >= 0, 'an add-new row carries the nested form slot (.ni-slot)');
+  assert.ok(panel >= 0, 'and the .ni-panel the form fills');
+  assert.ok(slot < apply, 'the form slot must come BEFORE the Apply checkbox (form above Apply)');
+  // a matched row has no inline new-item slot
+  const m = buildRow(Object.assign(attentionRow(), { needsAttention: false }), 0);
+  assert.ok(m.indexOf('ni-slot') < 0, 'a matched row carries no nested new-item slot');
+});
+
 test('ITEM 1: a hand-picked match is never called a low match — the user already made that call', () => {
   const r = Object.assign(attentionRow(), { manualPick: true, bestId: 'P0999', needsAttention: false });
   const html = buildRow(r, 0);
