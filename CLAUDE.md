@@ -292,18 +292,42 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 22 Jul 2026 (verify, don't trust)
+## State as of 23 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v71** — PR #16 (`feature/suggestions-refine`, v71) is now MERGED (`1baeddb`).
-  One unmerged branch carries the next batch: **`feature/animation-system`** (**v72**), off `main`,
+- `origin/main` is at **v72** — PR #17 (`feature/animation-system`, v72) is now MERGED (`49636f7`).
+  One unmerged branch carries the next batch: **`feature/gemini-newitem-prefill`** (**v73**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **271 green** (unchanged in v72 — a presentation-only batch), jsdom smoke green (incl. a new
-  [18] v72 modal close-out section), `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v72**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72**
-  (no browser) — markup is unchanged but motion timing can only be judged on a device; reconcile on a browser env.
+  `npm test` = **287 green** (272→287 in v73), jsdom smoke green (incl. a new [19] v73 AI-prefill section),
+  `node -c` clean (app.js, sw.js + the four `api/*.js`), CodeRabbit clean, six spots at **v73**. Per-batch
+  detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72/v73** (no browser) —
+  markup is essentially unchanged but timing/feel can only be judged on a device; reconcile on a browser env.
+
+- **v73 (branch `feature/gemini-newitem-prefill`) — Gemini clean-prefill for the invoice new-item form (brief:
+  `~/Downloads/ezplate-opus-gemini-newitem-prefill.md`). See `handovers/HANDOVER-v73.md`.** Extends the EXISTING
+  dual-reader (same serverless fn, same server-only key, ONE call per import, same offline→degrade) — **descriptive
+  fields only**, zero contact with the protected region, money law, naming inversion, data model, or the invoice
+  row-build / `invRowState` / auto-tick / v72 `.ni-slot` nesting. (1) **Server** (`api/_gemini.js`): `validateLine`
+  gains bounded `cleanName`(≤120)/`brand`(≤60)/`category`(≤60) via a new `boundedStr` (over-cap → null, never
+  truncated); `buildPrompt(text,{categories})` folds in the user's existing category list (each ≤60, ≤200 items,
+  framed as untrusted label data) so the model PREFERS an existing category; `responseSchema` declares the three.
+  `parse-invoice.js` passes `body.categories`. (2) **Client** (`js/app.js`): `gemFireSecondReader` sends
+  `{text, categories:prodCategories()}`; new PURE `gemCleanFields(g,headerSupplier)` (→ `_extract.js`, unit-tested)
+  distils `{name,brand,category,supplier}` — **name from `cleanName` ONLY** (never the messy `description`), supplier
+  prefers per-line then invoice header (corrects a parser mis-grab like "Document No:"). `gemApplyReadings` stashes
+  `r.aiClean` on matched AND appended AI-new rows, and (changed early-return) also on an already-open add-new form for
+  the late path. `expandNewItem` prefills **per field**: AI value + "AI suggested" mark when present & unedited, else
+  today's deterministic value/blank; combos commit via new `niSetCombo` — **AI-suggested new brand/category
+  AUTO-CONFIRM** (Max, 23 Jul) so Confirm All never errors. (3) **Late-response upgrade**: edit-tracking broadened to
+  every field (type OR combo-pick), `niRehydrate` leaves an AI-filled untouched field as its build prefill (`aiHeld`
+  via `AI_FIELD`) — because `aiClean` only exists post-response, **pre-response behaviour is byte-identical to v72**;
+  a user-edited field is never overwritten. **No CSS change** (reuses the v37/v55/v62 chip system + v72 nested layout).
+  272→**287** node (+`gemini-newitem.test.js`, server + pure `gemCleanFields`), smoke +[19]. Six spots → **v73**.
+  **Needs Max's phone:** a real invoice new-item line shows a clean readable Name + inferred brand/category/supplier
+  with AI marks (vs the raw string); wifi OFF → deterministic prefill exactly as today; open the form before "✓ AI
+  checked", edit a field, let AI land (edit preserved, untouched fields upgrade); dropdowns unclipped; 380px both themes.
 
 - **v72 (branch `feature/animation-system`) — Animation system: make it feel finished (brief:
   `~/Downloads/ezplate-opus-animation-system.md`). See `handovers/HANDOVER-v72.md`.** A SYSTEM pass (not

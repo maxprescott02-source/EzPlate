@@ -55,6 +55,9 @@ function build() {
   const gemPackEq = extractFn(src, 'gemPackEq');
   // v63: the PURE suspected-wrong-match decision. Dependency-free (aiCands/histories passed in), no DOM.
   const gemMatchSuspect = extractFn(src, 'gemMatchSuspect');
+  // v73: the PURE distiller of a Gemini line + header supplier into the add-new form's clean
+  // descriptive candidates. Dependency-free, no DOM — testable against canned readings.
+  const gemCleanFields = extractFn(src, 'gemCleanFields');
   // v63/v67: the deterministic insight engine. v67 broadened it into one pure function PER insight
   // TYPE + a pure selector; deriveInsights orchestrates them. All are dependency-free (dishes/shared/
   // mover are passed in as primitives), so each is testable with no DOM and no live API.
@@ -84,6 +87,7 @@ function build() {
     ${gemPackEq}
     ${gemMerge}
     ${gemMatchSuspect}
+    ${gemCleanFields}
     ${insReprice}
     ${insNearMiss}
     ${insVolatility}
@@ -97,7 +101,7 @@ function build() {
     ${selectInsights}
     ${deriveInsights}
     ${lightFilterPass}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }

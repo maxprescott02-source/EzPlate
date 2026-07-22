@@ -528,6 +528,61 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('reopening cancels the pending close (.closing cleared, .open back)', mm2.classList.contains('open') && !mm2.classList.contains('closing'));
   window.hide('menuModal');
 
+  // ---- [19] v73 — Gemini prefills the add-new-item form's descriptive fields cleanly ----
+  console.log('\n[19] v73 — clean AI prefill for the new-item form');
+  const niRow = () => ({
+    name: 'CTN 140201 #MUFFINS ENGLISH TIP TOP 6x400gr', raw: 'CTN 140201 #MUFFINS ENGLISH TIP TOP 6x400gr',
+    bestId: null, addNew: false, unitPrice: 1.2, unit: 'ea', conf: 0.1, tier: 'lo', cands: [],
+    needManual: false, unitMismatch: false, uncertain: false, remembered: false, newItem: null
+  });
+  const niAiLine = (over) => Object.assign({
+    rawText: 'CTN 140201 #MUFFINS ENGLISH TIP TOP 6x400gr', description: 'Muffins',
+    derivedUnitPrice: 1.2, unitType: 'ea', cleanName: 'English Muffins', brand: 'Tip Top',
+    category: 'Bakery', supplier: null
+  }, over || {});
+  const openNew = () => window.document.querySelector('#invReview tr.inv-data[data-i="0"] .ni-add-btn').click();
+  const niMark = (id) => { const c = $(id) && $(id).closest('.ni-f').querySelector('.ni-af'); return c ? c.textContent : ''; };
+
+  // (a) full clean prefill + AI-suggested marks; the mis-grabbed parser supplier is corrected
+  window.invSupplier = 'Document No:';   // the parser's WRONG header supplier
+  window.invRows = [niRow()]; window.gemApplied = false;
+  window.gemApplyReadings({ status: 'ok', supplier: 'Bidfood', lines: [niAiLine()] });
+  ok('v73: aiClean is stashed on the row for the form to read', !!(window.invRows[0].aiClean && window.invRows[0].aiClean.name === 'English Muffins'));
+  openNew();
+  ok('v73: Name prefills the CLEAN name, not the raw code string', $('ni_name0').value === 'English Muffins', $('ni_name0').value);
+  ok('v73: Brand prefills from the AI', $('ni_brand0').value === 'Tip Top', $('ni_brand0').value);
+  ok('v73: Category prefills from the AI', $('ni_cat0').value === 'Bakery', $('ni_cat0').value);
+  ok('v73: Supplier prefills the AI/header supplier, NOT the parser mis-grab', $('ni_sup0').value === 'Bidfood', $('ni_sup0').value);
+  ok('v73: the AI-filled Name carries the "AI suggested" mark', /AI suggested/.test(niMark('ni_name0')) && $('ni_name0').classList.contains('af'));
+  ok('v73: the AI-filled Brand carries the "AI suggested" mark', /AI suggested/.test(niMark('ni_brand0')) && $('ni_brand0').classList.contains('af'));
+  ok('v73: the AI category is AUTO-CONFIRMED so Confirm All accepts it', !!(window.niCombos['ni_cat0'] && window.niCombos['ni_cat0'].confirmed === true));
+
+  // (b) fall back cleanly when the AI has nothing for a field
+  window.invSupplier = '';
+  window.invRows = [niRow()]; window.gemApplied = false;
+  window.gemApplyReadings({ status: 'ok', supplier: null, lines: [niAiLine({ cleanName: null, brand: null, category: null })] });
+  openNew();
+  ok('v73: no cleanName → Name falls back to the raw parsed name (auto-filled)', $('ni_name0').value === niRow().name && /auto-filled/.test(niMark('ni_name0')));
+  ok('v73: no AI brand → Brand blank, no chip', $('ni_brand0').value === '' && !$('ni_brand0').classList.contains('af'));
+  ok('v73: no AI category → Category blank, no chip (deterministic fall-back)', $('ni_cat0').value === '' && !$('ni_cat0').classList.contains('af'));
+
+  // (c) offline / no reader response → aiClean never set → form is byte-for-byte today's deterministic prefill
+  window.invRows = [niRow()]; window.gemApplied = false; window.renderInvReview();
+  openNew();
+  ok('v73: offline (no aiClean) → Name is the deterministic parsed name, exactly as today', $('ni_name0').value === niRow().name);
+  ok('v73: offline → Brand blank, no chip (identical to pre-v73)', $('ni_brand0').value === '' && !$('ni_brand0').classList.contains('af'));
+
+  // (d) late-response upgrade: form opened BEFORE the reader returns → deterministic; when AI lands,
+  //     an untouched field upgrades but a user-EDITED field is never overwritten (human ruling is final)
+  window.invRows = [niRow()]; window.gemApplied = false; window.renderInvReview();
+  openNew();
+  ok('v73 late: form opens deterministically before the reader returns', $('ni_name0').value === niRow().name && $('ni_brand0').value === '');
+  $('ni_name0').value = 'My Muffins';
+  $('ni_name0').dispatchEvent(new window.Event('input'));   // the user edits Name; leaves Brand untouched
+  window.gemApplyReadings({ status: 'ok', supplier: 'Bidfood', lines: [niAiLine()] });   // the AI response lands
+  ok('v73 late: a user-EDITED field is NEVER overwritten by the late AI value', $('ni_name0').value === 'My Muffins', $('ni_name0').value);
+  ok('v73 late: an UNtouched field upgrades to the AI value', $('ni_brand0').value === 'Tip Top', $('ni_brand0').value);
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();

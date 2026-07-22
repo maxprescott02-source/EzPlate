@@ -50,7 +50,7 @@ function readBody(req) {
   });
 }
 
-async function callGemini(text) {
+async function callGemini(text, categories) {
   var key = process.env.GEMINI_API_KEY;
   if (!key) return { status: 'unavailable', reason: 'no-key' };
 
@@ -58,7 +58,7 @@ async function callGemini(text) {
     encodeURIComponent(model()) + ':generateContent';
 
   var payload = {
-    contents: [{ role: 'user', parts: [{ text: G.buildPrompt(text) }] }],
+    contents: [{ role: 'user', parts: [{ text: G.buildPrompt(text, { categories: categories }) }] }],
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
@@ -120,8 +120,11 @@ module.exports = async function handler(req, res) {
     var body = await readBody(req);
     var text = body && typeof body.text === 'string' ? body.text : '';
     if (!text.trim()) return sendJson(res, 200, { status: 'unavailable', reason: 'no-text' });
+    // v73: the client sends its existing category list so the model reuses one that fits. Untrusted
+    // like the invoice text — buildPrompt trims/bounds it; a missing/bad list is just an empty hint.
+    var categories = (body && Array.isArray(body.categories)) ? body.categories : [];
 
-    var result = await callGemini(text);
+    var result = await callGemini(text, categories);
     return sendJson(res, 200, result);   // always 200: unavailable is a normal, expected outcome
   } catch (e) {
     // Last-resort: never leak a stack; the client just sees unavailable.
