@@ -2206,18 +2206,23 @@ function suggestFabRestore(){
   var b=document.getElementById('menuSuggestBtn'); if(b){ try{ b.focus(); }catch(e){} }        // focus lands back on the now-visible button
 }
 (function wireMenuSuggestFab(){
-  var b=document.getElementById('menuSuggestBtn'); if(b) b.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestToggle(); });
+  var b=document.getElementById('menuSuggestBtn');
+  var suppressClick=false;                                            // set by a completed swipe so the trailing click can't also toggle the panel
+  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); if(suppressClick){ suppressClick=false; return; } menuSuggestToggle(); });
   var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
   var hide=document.getElementById('menuSuggestDismiss'); if(hide) hide.addEventListener('click', function(e){ e.stopPropagation(); suggestFabDismiss(); });
   var rest=document.getElementById('menuSuggestRestore'); if(rest) rest.addEventListener('click', function(e){ e.stopPropagation(); suggestFabRestore(); });
-  // v71 item 6: swipe the button toward its edge (rightward) to dismiss. Scoped to the button so it never
-  // fights page scroll; a small move is still a tap (the click toggles the panel), only a clear horizontal
-  // drag past the threshold dismisses (and we swallow the trailing click so it can't also open the panel).
-  if(b){
-    var x0=null,y0=null,swiped=false;
-    b.addEventListener('touchstart', function(e){ var t=e.touches[0]; x0=t.clientX; y0=t.clientY; swiped=false; }, {passive:true});
-    b.addEventListener('touchmove', function(e){ if(x0==null) return; var t=e.touches[0]; if(Math.abs(t.clientX-x0)>Math.abs(t.clientY-y0) && Math.abs(t.clientX-x0)>10) swiped=true; }, {passive:true});
-    b.addEventListener('touchend', function(e){ if(x0!=null && swiped){ var t=e.changedTouches[0]; if(t.clientX-x0>40){ e.preventDefault(); suggestFabDismiss(); } } x0=y0=null; });
+  // v71 item 6: DRAG the button toward its edge (rightward) to dismiss. Pointer events (not touch-only) so it
+  // works with BOTH a mouse on desktop and a finger on mobile (v71 follow-up: swipe was dead on desktop). The
+  // button drags under the cursor for feedback; a small move is still a tap (toggles the panel), only a clear
+  // horizontal drag past the threshold dismisses (and we swallow the trailing click). touch-action:none on the
+  // button (CSS) keeps a touch-drag from scrolling the page instead.
+  if(b && typeof window.PointerEvent!=='undefined'){
+    var px=null,py=null,swiped=false;
+    b.addEventListener('pointerdown', function(e){ px=e.clientX; py=e.clientY; swiped=false; try{ b.setPointerCapture(e.pointerId); }catch(_){} });
+    b.addEventListener('pointermove', function(e){ if(px==null) return; var dx=e.clientX-px, dy=e.clientY-py; if(Math.abs(dx)>Math.abs(dy) && Math.abs(dx)>8){ swiped=true; b.style.transform='translateX('+Math.max(0,dx)+'px)'; } });
+    b.addEventListener('pointerup', function(e){ if(px!=null && swiped && (e.clientX-px)>40){ suppressClick=true; suggestFabDismiss(); } px=py=null; swiped=false; b.style.transform=''; });
+    b.addEventListener('pointercancel', function(){ px=py=null; swiped=false; b.style.transform=''; });
   }
   document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
     var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
@@ -3741,8 +3746,11 @@ function renderInvReview(){
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
         var p=byId[c.id]; if(!p) return '';
-        var nm=p.description+(p.brand?' \u00b7 '+p.brand:''); if(nm.length>34) nm=nm.slice(0,32)+'\u2026';
-        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
+        var fullNm=p.description+(p.brand?' \u00b7 '+p.brand:'');     // v71: the untruncated name \u2014 for the hover tooltip + mobile long-press reveal
+        var nm=fullNm; if(nm.length>34) nm=nm.slice(0,32)+'\u2026';   // the chip label stays short; a chip also ellipsis-clips via CSS
+        // v71 (Max): the match name is cut off by the narrow chip. `title` gives the full text on desktop hover;
+        // `data-full` feeds the mobile long-press reveal (see the chip wiring below). esc() guards both attrs.
+        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'" data-full="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
       }).join('')+'</div>';
     }
     var matchCell = r.addNew
@@ -3799,14 +3807,25 @@ function renderInvReview(){
     pt.querySelector('.invPackUnit').addEventListener('change', recompute);
   });
   box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
-  box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
-    var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
-    var sel=tr.querySelector('.invSel'); if(!sel) return;
-    sel.value=ch.getAttribute('data-cid');
-    invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
-    var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
-    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
-  }; });
+  box.querySelectorAll('.cand-chip').forEach(function(ch){
+    // v71 (Max): the chip label is truncated. Desktop hover shows the full name (native `title`); on mobile a
+    // long-press reveals it as a toast. A long-press must NOT also select the match, so it swallows the click.
+    var lpT=null, lpFired=false, sx=0, sy=0;
+    function lpClear(){ if(lpT){ clearTimeout(lpT); lpT=null; } }
+    ch.addEventListener('touchstart', function(e){ var t=e.touches[0]; sx=t.clientX; sy=t.clientY; lpFired=false; lpClear();
+      lpT=setTimeout(function(){ lpFired=true; toast(ch.getAttribute('data-full')||ch.textContent.trim()); if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(_){} } }, 450); }, {passive:true});
+    ch.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(lpT && (Math.abs(t.clientX-sx)>8||Math.abs(t.clientY-sy)>8)) lpClear(); }, {passive:true});
+    ch.addEventListener('touchend', function(e){ lpClear(); if(lpFired){ e.preventDefault(); } });   // long-press showed the name → don't select
+    ch.onclick=function(){
+      if(lpFired){ lpFired=false; return; }                          // this click follows a long-press → swallow it
+      var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
+      var sel=tr.querySelector('.invSel'); if(!sel) return;
+      sel.value=ch.getAttribute('data-cid');
+      invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
+      var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
+      var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
+    };
+  });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
     if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */

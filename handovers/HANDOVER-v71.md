@@ -102,6 +102,23 @@ cat top 8). No `:has()`, token-only. Save/Print buttons + section heading untouc
 - **`fresh-states.spec.js` / `npm run shots`** (Playwright, not runnable here): the builder `#platePanel` spacing
   and the new FAB markup may shift visual pins — re-run on a browser env and reconcile if needed.
 
+## Follow-ups added same-branch (Max, after first review — still v71, one deploy)
+- **Gemini button translucent at rest.** `.msug-btn` now sits at `opacity:.5` and goes fully opaque on
+  hover / focus-visible / active / when the panel is open (opacity added to its transition). Low-profile until
+  wanted; on mobile it's translucent until tapped (tap opens the panel → opaque).
+- **Invoice suggested-match chips: full name on hover / long-press.** The `.cand-chip` label is truncated (JS
+  slice + CSS ellipsis), so the full "description · brand" is now on the chip's `title` (desktop hover) and
+  `data-full` (mobile). On mobile a **long-press (~450ms, movement-cancelled)** reveals it via `toast` and
+  swallows the trailing click so it can't also select the match; `-webkit-touch-callout:none` suppresses the iOS
+  callout. Additive to the fragile invoice-review render — no change to row state / `invRowState` / auto-tick /
+  the re-render path; the chip's selection onclick is unchanged except for the long-press guard. Smoke pins the
+  `title`===`data-full` exposure.
+- **Swipe-to-dismiss now works on desktop.** The FAB dismiss gesture was touch-only (dead with a mouse). Rewired
+  to **Pointer Events** so a mouse drag OR a finger drag rightward past the threshold dismisses; the button
+  tracks the cursor for feedback and snaps back; a completed drag swallows the trailing click. `touch-action:none`
+  on the button keeps a touch-drag from scrolling the page. The panel "Hide the suggestions button" link remains
+  as the click-only path.
+
 ## NOT built / deliberately left
 - No change to how packs are TAUGHT or to the price-precedence chain (item 5 was placement + editability only).
 - No `×`-on-the-button dismiss badge — the panel-foot "Hide" link + swipe cover both input modes more clearly.

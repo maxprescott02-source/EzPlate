@@ -685,7 +685,7 @@ input[type=checkbox]{
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
 /* invoice match candidate chips — the real choices, visible immediately */
 .cand-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}
-.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-touch-callout:none}   /* v71: suppress the iOS long-press callout — long-press reveals the full name instead */
 .cand-chip:hover{border-color:var(--accent)}
 .cand-chip.sel{background:rgba(184,78,12,.12);border-color:var(--accent);color:var(--accent-ink);font-weight:800}
 .cand-chip .cc-pct{font-weight:400;color:var(--muted2);margin-left:2px}
@@ -2400,14 +2400,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   display:grid;place-items:center;width:54px;height:54px;padding:0;cursor:pointer;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg), 0 0 0 1px rgba(155,114,203,.28);   /* neutral lift + a faint Gemini-purple edge */
-  transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
-  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-med) var(--ease);
+  -webkit-tap-highlight-color:transparent;touch-action:none;   /* v71: pointer-drag to dismiss without the page scrolling */
+  opacity:.5;   /* v71 (Max): translucent at rest, fully opaque on hover/focus/engage — stays low-profile until wanted */
 }
 .msug-logo{width:32px;height:32px;display:block}
-.msug-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.42)}
-.msug-btn:active{transform:translateY(0)}
-.msug-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.msug.open .msug-btn{box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.55)}
+.msug-btn:hover{transform:translateY(-1px);opacity:1;box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.42)}
+.msug-btn:active{transform:translateY(0);opacity:1}
+.msug-btn:focus-visible{opacity:1;outline:2px solid var(--accent);outline-offset:3px}
+.msug.open .msug-btn{opacity:1;box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.55)}
 
 /* v71 item 6: dismiss/restore. When dismissed, the round button is replaced by a slim rainbow edge tab that
    hugs the screen's right edge — the low-profile, never-lost way back. */
