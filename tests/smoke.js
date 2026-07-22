@@ -445,7 +445,8 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const di = $('menuInsightsPanel');
   ok('the "Suggestions" note renders on the MENU tab when there are insights', !!di);
   ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.mi-line').length === 2 && !di.querySelector('input,textarea'));
-  ok('it reads as a plain note with no card/eyebrow chrome', di && /A read on/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
+  ok('v68: the title reads "What stands out on {menu}", no eyebrow/mark chrome', di && /What stands out on/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
+  ok('v68: the "Refined by Gemini" credit is present but HIDDEN while the template shows (honest attribution)', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === true);
   ok('the reprice template shows its computed numbers verbatim', di && /10 pts over/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));
@@ -454,7 +455,22 @@ const tick = () => new Promise(r => setTimeout(r, 0));
     { text: '1 of 3 costed dishes sit over your 30% target.' } ] }) });
   await tick(); await tick();
   ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
+  ok('v68: once Gemini actually phrased a shown line, the "Refined by Gemini" credit is revealed', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === false);
   window.computeInsights = stashCI;
+
+  // ---- [17] v68 — Menu margin-light filter chips (multi-select) wire up + fold into Clear filters ----
+  console.log('\n[17] v68 — Menu margin-light filter chips');
+  const chip = (l) => window.document.querySelector('.mlf-chip[data-light="' + l + '"]');
+  const pressed = (l) => chip(l) && chip(l).getAttribute('aria-pressed') === 'true';
+  ok('three light chips render in the Menu controls', ['green', 'amber', 'red'].every((l) => !!chip(l)));
+  chip('red').click();
+  ok('tapping Reprice activates red only', pressed('red') && !pressed('amber') && !pressed('green'));
+  chip('amber').click();
+  ok('tapping Watch too activates amber+red (everything needing attention)', pressed('red') && pressed('amber') && !pressed('green'));
+  chip('red').click();
+  ok('tapping Reprice again clears red, leaving amber', pressed('amber') && !pressed('red'));
+  window.clearMenuFilters();
+  ok('Clear filters resets every light chip', ['green', 'amber', 'red'].every((l) => !pressed(l)));
 
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
