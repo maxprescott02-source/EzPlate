@@ -175,6 +175,16 @@ ok('a 44% match now carries a visible low-match cue', /low match/.test(low.textC
 ok('and still shows its Old price', !low.querySelector('td.invOld').classList.contains('dash'));
 ok('a low match is NOT auto-ticked \u2014 it waits for a human', !low.querySelector('.invAppr').checked);
 
+// v71 (Max): a suggested-match chip's name is truncated, so it exposes the FULL name for desktop hover
+// (native title) and mobile long-press (data-full). Two candidates \u2192 chips render.
+window.invRows = [{ name: 'CHIPS', raw: 'CHIPS', bestId: 'P0108', unitPrice: 2.65, unit: 'kg', conf: 0.6, tier: 'mid',
+  cands: [{ id: 'P0108', coverage: 0.6 }, { id: 'P0107', coverage: 0.5 }],
+  addNew: false, manualPick: false, needManual: false, unitMismatch: false, uncertain: false, remembered: false }];
+window.renderInvReview();
+const chip0 = window.document.querySelector('#invReview .cand-chip');
+ok('v71: a suggested-match chip exposes the full product name (title + data-full, consistent)',
+  !!chip0 && !!chip0.getAttribute('title') && chip0.getAttribute('title') === chip0.getAttribute('data-full'));
+
 console.log('\n[10] item 5 — the kitchen-name combobox exists on an add-new line');
 window.invRows = [{ name: 'CALAMARI RINGS 1KG', raw: 'CALAMARI RINGS 1KG', bestId: null, addNew: true,
   unitPrice: 14.92, unit: 'kg', conf: 0.1, tier: 'lo', cands: [], needManual: false,
@@ -475,6 +485,15 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   $('menuSuggestClose').click();
   ok('v69: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
   ok('v69: focus returns to the trigger button on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
+  // v71 item 6: the button is dismissable (→ slim restore tab) and recallable; the state persists globally.
+  window.localStorage.removeItem('cafeDB_suggestFabHidden');
+  window.suggestFabDismiss();
+  ok('v71: dismissing swaps the button for the restore edge tab', fab.classList.contains('dismissed') && !!$('menuSuggestRestore'));
+  ok('v71: the dismissed state persists to localStorage (survives reload)', window.localStorage.getItem('cafeDB_suggestFabHidden') === '1');
+  window.renderMenuInsights();
+  ok('v71: a re-render keeps it dismissed (global, not reset per menu switch)', fab.hidden === false && fab.classList.contains('dismissed'));
+  $('menuSuggestRestore').click();
+  ok('v71: the restore tab brings the button straight back and clears the flag', !fab.classList.contains('dismissed') && window.localStorage.getItem('cafeDB_suggestFabHidden') === '0');
   window.computeInsights = () => [];
   try { window.renderMenuInsights(); } catch (e) {}
   ok('v69: a menu with nothing to say hides the whole FAB', fab.hidden === true);

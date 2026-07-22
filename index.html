@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=70">
+<link rel="stylesheet" href="css/style.css?v=71">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -135,7 +135,12 @@
           <button type="button" class="msug-x" id="menuSuggestClose" aria-label="Close suggestions">&times;</button>
         </div>
         <div id="menuInsights"></div>
+        <!-- v71 item 6: dismiss the whole button (persisted, global). Distinct from the × above, which just
+             collapses the panel. Restore is the slim edge tab below. -->
+        <div class="msug-foot"><button type="button" class="msug-hide" id="menuSuggestDismiss">Hide the suggestions button</button></div>
       </div>
+      <!-- v71 item 6: once dismissed, this slim rainbow edge tab is the low-profile way back — never lost. -->
+      <button type="button" class="msug-restore" id="menuSuggestRestore" aria-label="Show menu suggestions"><span class="msug-restore-grip" aria-hidden="true"></span></button>
       <button type="button" class="msug-btn" id="menuSuggestBtn" aria-label="Menu suggestions" aria-expanded="false" aria-controls="menuSuggestPanel" aria-haspopup="dialog">
         <svg viewBox="0 0 64 64" role="img" aria-hidden="true" class="msug-logo" focusable="false">
           <defs><linearGradient id="msugGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
@@ -367,7 +372,6 @@
       </div>
       <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
       <div id="invReview" style="display:none;margin-top:14px"></div>
-      <div class="inv-smem-row"><button type="button" id="smemLink" class="linklike">Remembered items</button></div>
     </div>
   </div>
 </div>
@@ -377,7 +381,7 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="smemTitle">
     <div class="mhead"><h3 id="smemTitle">Remembered items</h3><button class="x" id="smemClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <p class="hint" style="margin:0 0 10px">Pack sizes EzPlate has learned from your invoices. Edit a quantity or remove one anytime \u2014 changes apply to future imports.</p>
+      <p class="hint" style="margin:0 0 10px">Pack sizes EzPlate has learned from your invoices. These keep your costings right, so they\u2019re read-only here \u2014 to correct one, remove it and the next invoice that includes it will teach the right size again.</p>
       <div id="smemList"></div>
     </div>
     <div class="mfoot"><button class="btn primary" id="smemDone" type="button">Done</button></div>
@@ -576,6 +580,10 @@
           <button class="btn" id="setTidyOpen" type="button">Tidy lists — categories, brands, suppliers →</button>
           <span class="hint">Rename, merge or clear your product categories, brands, suppliers and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</span>
         </div>
+        <div class="set-row">
+          <button class="btn" id="setSmemOpen" type="button">Remembered packs →</button>
+          <span class="hint">Pack sizes EzPlate learned from your invoices. View them, and remove any that are wrong (the next invoice re-teaches the right size).</span>
+        </div>
       </div>
 
       <div class="set-group set-about">
@@ -674,7 +682,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=70"></script>
+<script src="js/app.js?v=71"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

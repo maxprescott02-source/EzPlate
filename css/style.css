@@ -373,13 +373,13 @@ input[type=checkbox]{
 /* ===== batch (v67) — builder top section + relocated category (items 1 & 2) ===== */
 /* item 2: the plate's top section (heading → name) reads cramped. Give it even rhythm on the
    standard --sp scale — no invented token, just stop under-spacing. */
-#platePanel .pad{padding:var(--sp-6) var(--sp-5)}                    /* was --sp-5 all round — the section breathes */
+#platePanel .pad{padding:var(--sp-6) var(--sp-5) 0}                  /* v71 item 7: keep the heading→name breathing (sp-6 top) but drop the bottom padding — name→category is a field gap owned by .plate-cat-field, not a stacked section gap (the old sp-6 bottom + sp-5 cat-top summed to ~56px) */
 .modal-builder label.f{margin-bottom:var(--sp-2)}                   /* even 8px label→field gap across the builder (was 6px) */
 /* item 1: the category field is relocated to the BOTTOM of the plate flow (below the docket/total,
    just above Save) so it follows the app's "name up top, category down low" card rhythm. It's a
    direct child of #docketPanel like .total/.actions, so it carries the same horizontal padding and
    an even vertical gap above (from the total) and below (the actions). */
-.plate-cat-field{padding:var(--sp-5) var(--sp-5) 0}
+.plate-cat-field{padding:var(--sp-2) var(--sp-5) 0}                  /* v71 item 7: tightened top sp-5→sp-2 so name→category reads as one field step (~20px with the plate-tools margin above), not a disconnected section break */
 @media (max-width:700px){ .plate-cat-field{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
 
 /* ----------------------------------------------------------------------
@@ -685,7 +685,7 @@ input[type=checkbox]{
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
 /* invoice match candidate chips — the real choices, visible immediately */
 .cand-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}
-.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-touch-callout:none}   /* v71: suppress the iOS long-press callout — long-press reveals the full name instead */
 .cand-chip:hover{border-color:var(--accent)}
 .cand-chip.sel{background:rgba(184,78,12,.12);border-color:var(--accent);color:var(--accent-ink);font-weight:800}
 .cand-chip .cc-pct{font-weight:400;color:var(--muted2);margin-left:2px}
@@ -706,6 +706,7 @@ input[type=checkbox]{
 .smem-phrase{font-weight:700;font-size:14px}
 .smem-sup{font-size:12px;color:var(--muted2)}
 .smem-row .invPackQty{width:60px;padding:6px 8px;font:inherit;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.smem-qty-ro{white-space:nowrap;font-weight:700;color:var(--text)}   /* v71 item 5: taught packs are read-only here */
 .smem-del{background:transparent;border:0;color:var(--bad);font-weight:700;cursor:pointer;font-size:13px}
 .smem-empty{padding:18px;text-align:center;color:var(--muted2)}
 .linklike{background:transparent;border:0;padding:0;color:var(--accent-ink);font-weight:700;font-size:13px;cursor:pointer;text-decoration:underline}
@@ -743,16 +744,14 @@ input[type=checkbox]{
 /* v69 item 5: spacing for the two header rows moved off inline styles onto classes (desktop unchanged —
    these equal the old inline margin-top:12px) so the mobile breakpoint below can restack them. */
 .inv-parse-row{margin-top:var(--sp-3)}
-.inv-smem-row{margin-top:var(--sp-3)}
 @media (max-width:700px){
   /* v69 item 5 (mobile-only, no desktop regression): the import header read as a loose pile at 380px —
      the Upload/paste pair and the Match/meta pair each fought for one row and wrapped. Stack them as
-     ordered steps (upload → paste option → match → meta → remembered) with even vertical rhythm. */
+     ordered steps (upload → paste option → match → meta) with even vertical rhythm. */
   .inv-upload{flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-2)}
   .inv-upload .inv-manual-toggle{margin-left:0}
   .inv-parse-row{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-4)}
   .inv-parse-row #lastImport2{margin-left:0}
-  .inv-smem-row{margin-top:var(--sp-4)}
 }
 .inv-actions{margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
 .flag-review{
@@ -2401,14 +2400,35 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   display:grid;place-items:center;width:54px;height:54px;padding:0;cursor:pointer;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg), 0 0 0 1px rgba(155,114,203,.28);   /* neutral lift + a faint Gemini-purple edge */
-  transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
-  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-med) var(--ease);
+  -webkit-tap-highlight-color:transparent;touch-action:none;   /* v71: pointer-drag to dismiss without the page scrolling */
+  opacity:.5;   /* v71 (Max): translucent at rest, fully opaque on hover/focus/engage — stays low-profile until wanted */
 }
 .msug-logo{width:32px;height:32px;display:block}
-.msug-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.42)}
-.msug-btn:active{transform:translateY(0)}
-.msug-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.msug.open .msug-btn{box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.55)}
+.msug-btn:hover{transform:translateY(-1px);opacity:1;box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.42)}
+.msug-btn:active{transform:translateY(0);opacity:1}
+.msug-btn:focus-visible{opacity:1;outline:2px solid var(--accent);outline-offset:3px}
+.msug.open .msug-btn{opacity:1;box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.55)}
+
+/* v71 item 6: dismiss/restore. When dismissed, the round button is replaced by a slim rainbow edge tab that
+   hugs the screen's right edge — the low-profile, never-lost way back. */
+.msug.dismissed .msug-btn{display:none}
+.msug-restore{display:none}
+.msug.dismissed .msug-restore{
+  display:grid;place-items:center;position:absolute;right:calc(-1 * var(--sp-4));bottom:0;
+  width:22px;height:52px;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  background:var(--surface);border:1px solid var(--border);border-right:0;
+  border-radius:var(--radius-card) 0 0 var(--radius-card);box-shadow:var(--shadow);
+  transition:right var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.msug.dismissed .msug-restore:hover{right:calc(-1 * var(--sp-5));box-shadow:var(--shadow-lg)}
+.msug.dismissed .msug-restore:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.msug-restore-grip{width:5px;height:30px;border-radius:3px;background:linear-gradient(180deg,#4285F4,#9B72CB 45%,#D96570 78%,#F2A65A)}
+/* the dismiss control lives in the panel foot, quiet and clearly labelled (distinct from the close ×) */
+.msug-foot{margin-top:var(--sp-3);padding-top:var(--sp-2);border-top:1px solid var(--border)}
+.msug-hide{background:none;border:0;color:var(--muted2);font-size:var(--fs-xs);cursor:pointer;padding:var(--sp-1) 0;min-height:32px;text-align:left}
+.msug-hide:hover{color:var(--text);text-decoration:underline}
+.msug-hide:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
 /* Panel expands upward FROM the button (transform-origin bottom-right), anchored to the same corner. */
 .msug-panel{

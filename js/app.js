@@ -143,6 +143,8 @@ async function bootstrapSync(){
     if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
+    var fabRow=setRows.filter(function(r){return r.key==='suggest_fab_hidden';})[0];             // v71 item 6: the dismissed Suggestions button is a global, synced setting
+    if(fabRow && fabRow.value!=null){ suggestFabHidden=(String(fabRow.value)==='1'); try{ localStorage.setItem('cafeDB_suggestFabHidden', suggestFabHidden?'1':'0'); }catch(e){} if(typeof applySuggestFabDismissed==='function') applySuggestFabDismissed(); }
     buildMenuOptions(); buildMenuSelector(); renderPlate(); renderPlatesTab(); renderAnalysis(); updateLastImport(); updateEditTag();
     setSync('ok'); window.__ezReady=true;
   }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
@@ -308,30 +310,6 @@ function alternatives(p){
   pool.sort((a,b)=>cpbu(a)-cpbu(b));
   const cheaper=pool.filter(x=>cpbu(x)<cpbu(p));
   return {alts:pool.slice(0,3), cheapest:cheaper.length===0};
-}
-/* v69 (Max): the SUBSTITUTION insight must never cross distinct foodstuffs — it once suggested swapping
-   Bacon for Ham because both share the coarse category "SMALLGOODS" (alternatives()'s category fallback).
-   For a suggestion the app puts in a chef's face, matching must be CONSERVATIVE and fail closed:
-   the cheaper product must be the SAME ingredient (finest grain first — sub_category, else the specific
-   item_type; NEVER the coarse category) AND share the current product's leading noun as a name-safety net.
-   No item_type and no sub_category → we can't be sure → suggest nothing. `list` is injectable for tests. */
-function subCandidate(p, list){
-  var C=function(x){ return x.cost_per_base_unit; };
-  if(!p || C(p)==null) return null;
-  var primary=(searchTokens(p.description||'')[0]||'');            // the leading word is the ingredient (bacon, cheese…)
-  function sameKind(x){
-    if(p.sub_category) return x.sub_category===p.sub_category;     // finest grain wins (e.g. "Bacon Rashers")
-    if(p.item_type)   return x.item_type===p.item_type;           // else the specific type — never the coarse category
-    return false;                                                  // nothing precise to match on → don't guess
-  }
-  var pool=(list||PRODUCTS).filter(function(x){
-    if(!x || !x.is_food || C(x)==null || x.base_unit!==p.base_unit || x.id===p.id) return false;
-    if(!(C(x)<C(p))) return false;                                 // cheaper only
-    if(!sameKind(x)) return false;
-    return primary && String(x.description||'').toLowerCase().indexOf(primary)>=0;   // must share the ingredient word
-  });
-  pool.sort(function(a,b){ return C(a)-C(b); });
-  return pool[0]||null;
 }
 
 /* ---------- plate ---------- */
@@ -935,14 +913,16 @@ function renderSmemList(){
   if(!ids.length){ box.innerHTML='<div class="smem-empty">Nothing saved yet. When you tell EzPlate a pack size while importing an invoice, it\u2019ll be remembered here.</div>'; return; }
   ids.sort(function(a,b){ return (supplierMem[a].supplier+supplierMem[a].phrase_norm).localeCompare(supplierMem[b].supplier+supplierMem[b].phrase_norm); });
   function cap(s){ s=String(s||'').trim(); return s?s.charAt(0).toUpperCase()+s.slice(1):s; }
+  // v71 item 5 (Max): a taught pack is user-confirmed ground truth the app relies on for correct costings, so
+  // it is READ-ONLY here (no inline qty edit \u2014 that risked silently miscosting, the same reason pack/unit are
+  // create-only on products). The deliberate correction path is Remove, then let the next invoice re-teach it.
   box.innerHTML=ids.map(function(id){ var e=supplierMem[id]; var ul=e.unit==='ea'?'units':e.unit==='l'?'L':e.unit==='ml'?'mL':e.unit;
     return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-sentence">'+esc(cap(e.phrase_norm))+' \u2014 from '+esc(e.supplier)+'</div></div>'
-      +'<span class="smem-eq">=</span><input type="number" class="invPackQty smem-qty" min="0" step="0.01" value="'+e.qty+'"><span class="smem-unit">'+esc(ul)+'</span>'
+      +'<span class="smem-eq">=</span><span class="smem-qty-ro">'+esc(String(e.qty))+' '+esc(ul)+'</span>'
       +'<button type="button" class="smem-del">Remove</button></div>';
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
     var id=row.getAttribute('data-id');
-    row.querySelector('.smem-qty').addEventListener('change', function(e){ var q=parseFloat(e.target.value); var m=supplierMem[id]; if(m && q>0){ m.qty=q; saveSupplierMem(); dbPushSupplierPhrase(m); toast('Updated'); } });
     row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; saveSupplierMem(); dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
   });
 }
@@ -1853,37 +1833,35 @@ function openHighlight(kind){
    stops always leading with the same over-target dish. deriveInsights orchestrates; the impure
    computeInsights builds the data bundle from the CURRENT menu's live dishes.
    ===================================================================================== */
-function insTargetPrice(cost, targetFrac){ return Math.ceil((cost/targetFrac)*2)/2; }   // price that hits target, rounded UP to the nearest $0.50
 var CUT_PTS=12;   // v69: a dish this far over target is an insCut candidate (rework/drop), not a routine reprice
 
-// TYPE: reprice — a dish over target where a price nudge closes the gap. v69: DEMOTED to the last-resort lever
-// (Max reprices rarely — reprinting menus is expensive), so its score sits below the cheaper levers (portion,
-// substitution, shared-ingredient) and its copy frames price as the fallback if a rework can't close the gap.
-// Extreme dishes (>= CUT_PTS over) belong to insCut, not here.
+// TYPE: over target — a dish costing more than target. v71 (Max): POINT, DON’T PRESCRIBE. The app knows cost,
+// not the fix — it must never dictate a new price (menu reprints are expensive here). So the copy names the
+// problem and its size ("N pts over") and stops; whether that’s a rework, a portion trim or a price change is
+// the cook’s call. The old $-target directive is gone. Near-misses (1 pt) are insNearMiss; extreme dishes
+// (>= CUT_PTS over) are insCut; this covers the 2..11-pt middle.
 function insReprice(dishes, targetFrac){
   var out=[], tp=Math.round(targetFrac*100);
   dishes.forEach(function(d){
     if(!(d.cost>0)||!(d.menuPrice>0)) return;
     var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
-    if(pts<1 || pts>=CUT_PTS) return;
-    var target=insTargetPrice(d.cost, targetFrac);
+    if(pts<2 || pts>=CUT_PTS) return;                               // v71: 1 pt → insNearMiss owns it (no double-flagging)
     out.push({kind:'reprice', score:Math.min(60, 22+pts*2),
-      facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPrice:target, targetPct:tp},
-      text:d.name+' sits '+pts+' pt'+(pts===1?'':'s')+' over at $'+d.menuPrice.toFixed(2)+' — if a rework can’t close it, $'+target.toFixed(2)+' would bring it to '+tp+'%.'});
+      facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPct:tp},
+      text:d.name+' is running '+pts+' pts over your '+tp+'% target at $'+d.menuPrice.toFixed(2)+' — worth a rework when you get to it.'});
   });
   return out.sort(function(a,b){ return b.facts.pts-a.facts.pts; });
 }
-// TYPE: near-miss — a dish only ~1 pt over: a low-effort win worth calling out on its own.
+// TYPE: near-miss — a dish only ~1 pt over: a low-effort win. v71: point, don’t prescribe — no $-nudge stated.
 function insNearMiss(dishes, targetFrac){
   var tp=Math.round(targetFrac*100), best=null;
   dishes.forEach(function(d){
     if(best || !(d.cost>0)||!(d.menuPrice>0)) return;
     var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
     if(pts!==1) return;
-    var target=insTargetPrice(d.cost, targetFrac);
     best={kind:'nearmiss', score:48,
-      facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPrice:target, targetPct:tp},
-      text:d.name+' is a whisker over — a nudge from $'+d.menuPrice.toFixed(2)+' to $'+target.toFixed(2)+' puts it on target.'};
+      facts:{name:d.name, pts:pts, menuPrice:d.menuPrice, targetPct:tp},
+      text:d.name+' is a whisker over your '+tp+'% target at $'+d.menuPrice.toFixed(2)+' — a small tweak would bring it home.'};
   });
   return best?[best]:[];
 }
@@ -1943,34 +1921,29 @@ function insSummary(dishes, targetFrac){
   return [{kind:'allgood', score:26, facts:{total:total, targetPct:tp},
     text:'All '+total+' costed dish'+(total===1?'':'es')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
 }
-// TYPE: portion / spec — a dish leaning heavily on ONE costly ingredient. Trimming that portion saves money
-// with NO price change (Max's cheapest lever). Each dish carries `top` = {name, share, trimPct, saving},
-// precomputed by computeInsights from the plate lines; this pure fn picks the most lopsided plate.
+// TYPE: costly dominant ingredient — a dish leaning heavily on ONE ingredient. v71 (Max): POINT, DON'T
+// PRESCRIBE — name the lever (which ingredient, how much of the plate it is) and stop. The old copy dictated
+// a "15% smaller portion saves $X"; but the app can't know how far a portion can safely be trimmed, so it no
+// longer prescribes a size or a saving. Each dish carries `top` = {name, share}, precomputed by
+// computeInsights; this pure fn picks the most lopsided plate.
 function insPortion(dishes){
   var best=null, bestShare=0;
   dishes.forEach(function(d){
-    var t=d.top; if(!t || !(t.saving>0) || !(t.share>=0.45)) return;   // one ingredient must dominate the plate cost
+    var t=d.top; if(!t || !(t.share>=0.45)) return;                   // one ingredient must dominate the plate cost
     if(t.share>bestShare){ bestShare=t.share;
-      var pct=Math.round(t.share*100), sv=Math.round(t.saving*100)/100;
+      var pct=Math.round(t.share*100);
       best={kind:'portion', score:Math.min(90, 50+Math.round((t.share-0.45)*100)),
-        facts:{name:d.name, ing:t.name, sharePct:pct, saving:sv, trimPct:t.trimPct},
-        text:t.name+' is '+pct+'% of '+d.name+'’s cost — a '+t.trimPct+'% smaller portion saves about $'+sv.toFixed(2)+' a plate, no price change.'};
+        facts:{name:d.name, ing:t.name, sharePct:pct},
+        text:t.name+' is '+pct+'% of '+d.name+'’s cost — the biggest lever on this plate if you want to bring it down.'};
     }
   });
   return best?[best]:[];
 }
-// TYPE: cheaper input / substitution — a same-category product in Products undercuts one this menu leans on.
-// computeInsights builds `subs` (only where a real cheaper in-category product exists); this fn picks the
-// biggest saving. Swapping the linked product once updates every recipe, so it beats any single reprice.
-function insSub(subs){
-  if(!subs || !subs.length) return [];
-  var s=subs.slice().sort(function(a,b){ return b.saving-a.saving; })[0];
-  if(!s || !(s.saving>0)) return [];
-  var sv=Math.round(s.saving*100)/100;
-  return [{kind:'sub', score:Math.min(92, 48+Math.round(sv*4)),
-    facts:{ing:s.ing, curPer:s.curPer, altPer:s.altPer, plateCount:s.plateCount, saving:sv},
-    text:'You buy '+s.ing+' at $'+s.curPer.toFixed(2)+'/'+s.unit+'; '+s.altName+' is $'+s.altPer.toFixed(2)+'/'+s.unit+' — swapping saves about $'+sv.toFixed(2)+' across '+s.plateCount+' plate'+(s.plateCount===1?'':'s')+'.'}];
-}
+// v71 (Max): the SUBSTITUTION insight ("swap X for cheaper Y") was REMOVED. The cost engine can't know two
+// products are culinarily interchangeable (a burger patty vs a sausage patty are just two meat products to it),
+// and the alternative a cook would actually reach for may not be in the supplier data at all. Suggesting a
+// specific swap is a class of error no data fixes — so the app points at costly/volatile ingredients (insPortion,
+// insShared, insMover, insVolatility) and leaves the choice of substitute to the cook. subCandidate went too.
 // TYPE: cut — a dish so far over target that repricing alone is a hard ask (would need a big, menu-reprinting
 // jump). Flag it to rework the spec or drop it, rather than pretend a price nudge fixes it.
 function insCut(dishes, targetFrac){
@@ -2003,8 +1976,23 @@ function selectInsights(cands, seed, max){
   for(var j=0;j<sorted.length && out.length<max;j++){ if(out.indexOf(sorted[j])<0) out.push(sorted[j]); }                                // fill pass: only if still short
   return out;
 }
-/* PURE orchestrator (tests pin it). data = {dishes, shared, mover}; a bare array is treated as
-   {dishes}. Returns the chosen 2–3 insights as {kind, facts, text} (internal score stripped). */
+/* v71 item 4: ONE warm, genuine line for an all-healthy menu — varied by seed so it doesn't read as a fixed
+   template. Only reached when nothing is over target, so "in good shape" is always true. Every number (the
+   dish count, the target %) is in facts, so the Gemini phrasing layer's number check still passes. */
+function healthyLine(total, tp, seed){
+  var pool=[
+    'Nothing needs attention on this menu right now — all '+total+' costed dish'+(total===1?'':'es')+' sit at or under your '+tp+'% target.',
+    'This menu’s in good shape — every one of its '+total+' costed dish'+(total===1?'':'es')+' is holding at or under '+tp+'%.',
+    'All clear here — your '+total+' costed dish'+(total===1?'':'es')+' are at or under the '+tp+'% target, so nothing’s calling for a look.',
+    'A healthy menu — nothing sits over your '+tp+'% target across '+total+' costed dish'+(total===1?'':'es')+'.'
+  ];
+  var i=((seed%pool.length)+pool.length)%pool.length;
+  return {kind:'allgood', facts:{total:total, targetPct:tp}, text:pool[i]};
+}
+/* PURE orchestrator (tests pin it). data = {dishes, shared, mover}; a bare array is treated as {dishes}.
+   Returns the chosen insights as {kind, facts, text} (internal score stripped). v71: point-not-prescribe
+   types only (substitution removed); the COUNT scales with menu size (§item 3) and an all-healthy menu gets
+   a single warm line (§item 4). */
 function deriveInsights(data, targetFrac, seed){
   if(Array.isArray(data)) data={dishes:data};
   data=data||{};
@@ -2012,9 +2000,14 @@ function deriveInsights(data, targetFrac, seed){
   if(!(targetFrac>0)) return [];
   var costed=dishes.filter(function(d){ return d && d.cost>0 && d.menuPrice>0; });   // published + costed only
   if(!costed.length) return [];                                     // nothing useful to say → the area hides
+  // v71 item 4: nothing over target → say ONE warm thing, don't stack positives or manufacture concern.
+  var over=costed.filter(function(d){ return Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
+  if(!over) return [healthyLine(costed.length, Math.round(targetFrac*100), seed||0)];
+  // v71 item 3: cap scales with menu size — 1 dish → 1, 2–5 → 2, 6+ → 3. selectInsights only ever returns
+  // real candidates, so a sparse menu shows fewer; nothing is padded to reach the cap.
+  var max=costed.length>=6?3:(costed.length>=2?2:1);
   var cands=[]
-    .concat(insPortion(costed))                                       // v69: cheaper levers first — Max reprices rarely
-    .concat(insSub(data.subs||[]))
+    .concat(insPortion(costed))                                       // v71: costly-ingredient / other cheaper levers before reprice
     .concat(insCut(costed, targetFrac))
     .concat(insReprice(costed, targetFrac))
     .concat(insNearMiss(costed, targetFrac))
@@ -2023,7 +2016,7 @@ function deriveInsights(data, targetFrac, seed){
     .concat(insMover(data.mover||null))
     .concat(insBest(costed, targetFrac))
     .concat(insSummary(costed, targetFrac));
-  return selectInsights(cands, seed||0, 3).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
+  return selectInsights(cands, seed||0, max).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
 }
 /* Impure wrapper: build the data bundle from the CURRENTLY SELECTED menu's live dishes and derive.
    v67 item 5a: menu-scoped (was all-menus on the Dashboard). Draws cost ranges from costRangeForLines,
@@ -2040,7 +2033,7 @@ function insightPeriod(){ return Math.floor(Date.now()/INSIGHT_PERIOD_MS); }
 function menuSeedHash(id){ var h=0, s=String(id||''); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return h; }
 function insightSeedFor(menuId){ return (insightPeriod()+menuSeedHash(menuId))|0; }   // stable within a period (so it caches), rotates across periods, varies per menu
 function computeInsights(seed){
-  var dishes=[], usage={}, nameByPid={}, dishNamesByPid={}, prodUse={};
+  var dishes=[], usage={}, nameByPid={}, dishNamesByPid={};
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
@@ -2049,7 +2042,7 @@ function computeInsights(seed){
       var cost=costFromLines(sp.lines); if(!(cost>0)) return;
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
-      var topCost=0, topName=null;                                   // v69: costliest ingredient line → portion insight
+      var topCost=0, topName=null;                                   // v69: costliest ingredient line → costly-ingredient insight
       (sp.lines||[]).forEach(function(l){
         if(!l || l.misc) return;
         var p=lineProduct(l); if(!p) return;
@@ -2061,27 +2054,14 @@ function computeInsights(seed){
           nameByPid[pid]=nm;
           (dishNamesByPid[pid]||(dishNamesByPid[pid]=[])).push(m.name);
           var band=ingPriceBand(pid); if(band){ var s=(band.max-band.min)*(l.qty||0); if(s>volSpread){ volSpread=s; volName=nm; } }
-          // v69: menu-wide product usage for the substitution insight (qty summed, distinct dishes counted)
-          var pu=prodUse[pid]||(prodUse[pid]={prod:p, qty:0, dishes:{}, ing:nm});
-          pu.qty+=(l.qty||0); pu.dishes[m.name]=1;
         }
       });
       var top=null;
-      if(topName && topCost>0){ var share=topCost/cost; top={name:topName, share:share, trimPct:15, saving:topCost*0.15}; }   // trim ~15% of the costliest portion
+      if(topName && topCost>0){ top={name:topName, share:topCost/cost}; }   // v71: just which ingredient dominates + by how much (no prescribed trim)
       dishes.push({name:m.name, cost:cost, menuPrice:m.price, costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName, top:top});
     });
   }catch(e){ return []; }
   var shared=Object.keys(usage).filter(function(n){ return usage[n]>=2; }).map(function(n){ return {name:n, dishCount:usage[n]}; });
-  var subs=[];                                                       // v69: only a conservative same-ingredient cheaper product (subCandidate — never cross foodstuffs)
-  try{
-    Object.keys(prodUse).forEach(function(pid){
-      var pu=prodUse[pid], p=pu.prod; if(!p || cpbu(p)==null) return;
-      var alt; try{ alt=subCandidate(p); }catch(e){ return; }
-      if(!alt || cpbu(alt)==null || !(cpbu(alt)<cpbu(p))) return;
-      var saving=(cpbu(p)-cpbu(alt))*pu.qty; if(!(saving>0)) return;
-      subs.push({ing:pu.ing, altName:alt.description, curPer:perDisplayValue(p), altPer:perDisplayValue(alt), unit:displayUnitWord(p), plateCount:Object.keys(pu.dishes).length, saving:saving});
-    });
-  }catch(e){}
   var mover=null;
   try{
     Object.keys(dishNamesByPid).forEach(function(pid){
@@ -2094,7 +2074,7 @@ function computeInsights(seed){
       }
     });
   }catch(e){}
-  return deriveInsights({dishes:dishes, shared:shared, mover:mover, subs:subs}, foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
+  return deriveInsights({dishes:dishes, shared:shared, mover:mover}, foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
@@ -2170,8 +2150,9 @@ function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var fab=document.getElementById('menuSuggestFab');
   var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
-  if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole FAB
-  if(fab) fab.hidden=false;
+  if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole FAB (button AND restore tab)
+  if(fab){ fab.hidden=false; fab.classList.toggle('dismissed', !!suggestFabHidden); }               // v71 item 6: dismissed → show the slim restore tab instead of the button
+  if(suggestFabHidden) menuSuggestClose();                                                          // never leave the panel open while dismissed
   var sig=insightSig(insights);
   // v69 (Max): the panel title always reads "What stands out on this menu" — the selected menu is already
   // obvious from the picker, so naming it here is noise. The "Refined by Gemini" credit stays honest —
@@ -2201,9 +2182,47 @@ function menuSuggestClose(restoreFocus){
   if(restoreFocus && wasOpen && b && f && !f.hidden){ try{ b.focus(); }catch(e){} }   // return focus to the trigger — never to now-hidden content
 }
 function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(true); }
+/* v71 item 6: the rainbow Suggestions button is dismissable and recallable. Scope is GLOBAL, not per-menu:
+   the user hides the assistant because it's in the way, not because of one menu — a per-menu flag would make
+   it flicker back on every menu switch and read as broken. Persisted via the settings pattern (localStorage
+   mirror + dbSetSetting) so it survives reload and syncs across the café's devices. When dismissed the FAB
+   swaps its round button for a slim edge tab (never lost); restoring brings the button straight back. */
+function loadSuggestFabHidden(){ try{ return localStorage.getItem('cafeDB_suggestFabHidden')==='1'; }catch(e){ return false; } }
+var suggestFabHidden=loadSuggestFabHidden();
+function applySuggestFabDismissed(){ var f=document.getElementById('menuSuggestFab'); if(f && !f.hidden) f.classList.toggle('dismissed', !!suggestFabHidden); }
+function setSuggestFabHidden(v){
+  suggestFabHidden=!!v;
+  try{ localStorage.setItem('cafeDB_suggestFabHidden', suggestFabHidden?'1':'0'); }catch(e){}
+  dbSetSetting('suggest_fab_hidden', suggestFabHidden?'1':'0');
+}
+function suggestFabDismiss(){
+  menuSuggestClose(false);                                            // fold the panel away first
+  setSuggestFabHidden(true); applySuggestFabDismissed();
+  var r=document.getElementById('menuSuggestRestore'); if(r){ try{ r.focus(); }catch(e){} }   // keyboard focus follows onto the restore tab
+}
+function suggestFabRestore(){
+  setSuggestFabHidden(false); applySuggestFabDismissed();
+  var b=document.getElementById('menuSuggestBtn'); if(b){ try{ b.focus(); }catch(e){} }        // focus lands back on the now-visible button
+}
 (function wireMenuSuggestFab(){
-  var b=document.getElementById('menuSuggestBtn'); if(b) b.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestToggle(); });
+  var b=document.getElementById('menuSuggestBtn');
+  var suppressClick=false;                                            // set by a completed swipe so the trailing click can't also toggle the panel
+  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); if(suppressClick){ suppressClick=false; return; } menuSuggestToggle(); });
   var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
+  var hide=document.getElementById('menuSuggestDismiss'); if(hide) hide.addEventListener('click', function(e){ e.stopPropagation(); suggestFabDismiss(); });
+  var rest=document.getElementById('menuSuggestRestore'); if(rest) rest.addEventListener('click', function(e){ e.stopPropagation(); suggestFabRestore(); });
+  // v71 item 6: DRAG the button toward its edge (rightward) to dismiss. Pointer events (not touch-only) so it
+  // works with BOTH a mouse on desktop and a finger on mobile (v71 follow-up: swipe was dead on desktop). The
+  // button drags under the cursor for feedback; a small move is still a tap (toggles the panel), only a clear
+  // horizontal drag past the threshold dismisses (and we swallow the trailing click). touch-action:none on the
+  // button (CSS) keeps a touch-drag from scrolling the page instead.
+  if(b && typeof window.PointerEvent!=='undefined'){
+    var px=null,py=null,swiped=false;
+    b.addEventListener('pointerdown', function(e){ px=e.clientX; py=e.clientY; swiped=false; try{ b.setPointerCapture(e.pointerId); }catch(_){} });
+    b.addEventListener('pointermove', function(e){ if(px==null) return; var dx=e.clientX-px, dy=e.clientY-py; if(Math.abs(dx)>Math.abs(dy) && Math.abs(dx)>8){ swiped=true; b.style.transform='translateX('+Math.max(0,dx)+'px)'; } });
+    b.addEventListener('pointerup', function(e){ if(px!=null && swiped && (e.clientX-px)>40){ suppressClick=true; suggestFabDismiss(); } px=py=null; swiped=false; b.style.transform=''; });
+    b.addEventListener('pointercancel', function(){ px=py=null; swiped=false; b.style.transform=''; });
+  }
   document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
     var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
     var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose(false);
@@ -2322,7 +2341,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v70';
+var APP_VERSION='v71';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2499,6 +2518,7 @@ function clearCacheAndRefresh(){
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
   on('setTidyOpen',function(){ closeSettings(); openTidyManage('category'); });   // Settings' single door
+  on('setSmemOpen',function(){ closeSettings(); openSmem(); });                    // v71 item 5: remembered packs now live in Settings, not the invoice modal
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
   var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
@@ -3725,8 +3745,11 @@ function renderInvReview(){
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
         var p=byId[c.id]; if(!p) return '';
-        var nm=p.description+(p.brand?' \u00b7 '+p.brand:''); if(nm.length>34) nm=nm.slice(0,32)+'\u2026';
-        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
+        var fullNm=p.description+(p.brand?' \u00b7 '+p.brand:'');     // v71: the untruncated name \u2014 for the hover tooltip + mobile long-press reveal
+        var nm=fullNm; if(nm.length>34) nm=nm.slice(0,32)+'\u2026';   // the chip label stays short; a chip also ellipsis-clips via CSS
+        // v71 (Max): the match name is cut off by the narrow chip. `title` gives the full text on desktop hover;
+        // `data-full` feeds the mobile long-press reveal (see the chip wiring below). esc() guards both attrs.
+        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'" data-full="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
       }).join('')+'</div>';
     }
     var matchCell = r.addNew
@@ -3783,14 +3806,25 @@ function renderInvReview(){
     pt.querySelector('.invPackUnit').addEventListener('change', recompute);
   });
   box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
-  box.querySelectorAll('.cand-chip').forEach(function(ch){ ch.onclick=function(){
-    var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
-    var sel=tr.querySelector('.invSel'); if(!sel) return;
-    sel.value=ch.getAttribute('data-cid');
-    invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
-    var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
-    var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
-  }; });
+  box.querySelectorAll('.cand-chip').forEach(function(ch){
+    // v71 (Max): the chip label is truncated. Desktop hover shows the full name (native `title`); on mobile a
+    // long-press reveals it as a toast. A long-press must NOT also select the match, so it swallows the click.
+    var lpT=null, lpFired=false, sx=0, sy=0;
+    function lpClear(){ if(lpT){ clearTimeout(lpT); lpT=null; } }
+    ch.addEventListener('touchstart', function(e){ var t=e.touches[0]; sx=t.clientX; sy=t.clientY; lpFired=false; lpClear();
+      lpT=setTimeout(function(){ lpFired=true; toast(ch.getAttribute('data-full')||ch.textContent.trim()); if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(_){} } }, 450); }, {passive:true});
+    ch.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(lpT && (Math.abs(t.clientX-sx)>8||Math.abs(t.clientY-sy)>8)) lpClear(); }, {passive:true});
+    ch.addEventListener('touchend', function(e){ lpClear(); if(lpFired){ e.preventDefault(); } });   // long-press showed the name → don't select
+    ch.onclick=function(){
+      if(lpFired){ lpFired=false; return; }                          // this click follows a long-press → swallow it
+      var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
+      var sel=tr.querySelector('.invSel'); if(!sel) return;
+      sel.value=ch.getAttribute('data-cid');
+      invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
+      var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
+      var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
+    };
+  });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
     if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */
@@ -4641,7 +4675,6 @@ document.getElementById('menuSave').addEventListener('click',submitMenuItem);
   var ms=document.getElementById('menuSelect'); if(ms) ms.addEventListener('change',onMenuSelectChange);
   var mnb=document.getElementById('menuNewBtn'); if(mnb) mnb.addEventListener('click',openNewMenuModal);
   var madb=document.getElementById('menuAddDishBtn'); if(madb) madb.addEventListener('click',openAddDishModal);
-  var sml=document.getElementById('smemLink'); if(sml) sml.addEventListener('click',openSmem);
   var smc=document.getElementById('smemClose'); if(smc) smc.addEventListener('click',closeSmem);
   var smd=document.getElementById('smemDone'); if(smd) smd.addEventListener('click',closeSmem);
   var adc=document.getElementById('addDishClose'); if(adc) adc.addEventListener('click',closeAddDishModal);
