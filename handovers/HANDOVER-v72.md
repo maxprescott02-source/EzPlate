@@ -174,6 +174,16 @@ data row, right after the "Editing new item ↓" toggle. DOM/card order becomes 
   brand/category/supplier dropdowns aren't clipped; a form on line A survives editing line B; at 380px AND desktop,
   both themes. The desktop stacked-card override for add-new rows is logically sound but browser-unverified here.
 
+**Two polish fixes after Max's dark-mode screenshot (same branch, still v72):**
+1. **Price per unit prefill now rounds to the cent.** The `ni_price` auto-fill used the RAW `r.unitPrice` (showed
+   `12.774509803921568` in the field); it now uses `.toFixed(2)` — matching the matched-row `.invPrice` prefill and
+   the display-rounds-to-cent rule. The default price unit is per kg/litre/each (dollars), and storage behaves like
+   matched rows already do (read from the field), so no precision concern; the money law is respected (display only).
+2. **Empty form fields no longer read as muddy orange boxes in dark mode.** `.ni-grid input:placeholder-shown` used
+   `background:var(--accent-weak)`; on the now-transparent panel that orange sat over the red `st-new` card →
+   muddy brown. Changed to `var(--field)` — the dashed border alone signals "empty/optional", clean in both themes.
+   (The small AUTO-FILLED chip keeps its accent-weak tint — that's correct.)
+
 ## NOT built / deliberately left (restraint)
 - **No hover-lift** (translateY on hover) on cards — the app's cards signal hover with border-colour consistently;
   adding a lift would be a second, competing treatment. Press-on-tap is the shared feedback.

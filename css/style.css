@@ -1244,7 +1244,7 @@ input[type=checkbox]{
 /* pre-filled (extracted from the PDF) reads as confirmed; empty fields that still
    need attention are dashed with a soft accent wash */
 .ni-grid input{border-style:solid}
-.ni-grid input:placeholder-shown{border-style:dashed;background:var(--accent-weak)}
+.ni-grid input:placeholder-shown{border-style:dashed;background:var(--field)}   /* v72: empty cue is the dashed border ONLY — the accent-weak orange fill read as muddy brown on the red card in dark mode */
 .ni-grid input:focus{border-style:solid;background:var(--field)}
 
 /* ============================ TABLET ≥640px ============================ */

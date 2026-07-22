@@ -3573,7 +3573,7 @@ function expandNewItem(i){
   var panel=nirow.querySelector('.ni-panel'), r=invRows[i];
   if(!panel.dataset.built){
     var ut=r.unit==='kg'?'kg':r.unit==='l'?'litre':r.unit==='ea'?'unit':'kg';
-    var pv=(r.unitPrice!=null)?r.unitPrice:'';
+    var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';   // v72: display rounds to the cent, like the matched-row .invPrice prefill (was raw — showed 12.77450980… in the field)
     // v55 §F1: the "auto-filled" chip must key off fields the PARSER filled, not off emptiness (the old
     // :placeholder-shown CSS lit the chip on ANY typed value). Mark those fields with class "af" at build,
     // omit it for fields the user has already edited (tracked on r.newItem.edited so it survives re-renders),
