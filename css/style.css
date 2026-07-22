@@ -740,6 +740,20 @@ input[type=checkbox]{
 .inv-manual-toggle{font-size:var(--fs-sm);margin-left:2px}
 .inv-manual-box{margin-top:var(--sp-3)}
 .inv-manual-box .inv-csv-hint{margin-top:0;margin-bottom:6px}
+/* v69 item 5: spacing for the two header rows moved off inline styles onto classes (desktop unchanged —
+   these equal the old inline margin-top:12px) so the mobile breakpoint below can restack them. */
+.inv-parse-row{margin-top:var(--sp-3)}
+.inv-smem-row{margin-top:var(--sp-3)}
+@media (max-width:700px){
+  /* v69 item 5 (mobile-only, no desktop regression): the import header read as a loose pile at 380px —
+     the Upload/paste pair and the Match/meta pair each fought for one row and wrapped. Stack them as
+     ordered steps (upload → paste option → match → meta → remembered) with even vertical rhythm. */
+  .inv-upload{flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-2)}
+  .inv-upload .inv-manual-toggle{margin-left:0}
+  .inv-parse-row{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-4)}
+  .inv-parse-row #lastImport2{margin-left:0}
+  .inv-smem-row{margin-top:var(--sp-4)}
+}
 .inv-actions{margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
 .flag-review{
   font-family:var(--ui);font-size:var(--fs-xs);font-weight:700;color:var(--bad);
@@ -2334,14 +2348,21 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 
 
 /* ===== batch (v67) — misc line is a SIBLING of the ingredient line (item 3) ===== */
-/* The misc line now reuses the ingredient .line two-row skeleton (.top = "Misc cost" label + ×,
-   .costs = dotted leader + the $ amount). It therefore INHERITS .line / .line .top / .line .costs /
-   .leader from the ingredient rules, so row height, the × column and the total column all align
-   pixel-wise for free. Only three things differ on the costs row: the amount is an editable $ box
-   (not static text), it must NOT take .qtybox's order:-1 (that's for qty, which leads an ingredient
-   row — a misc line has none), and the $ hugs the field (no 32px unit gutter). "Misc cost" is a fixed
-   label — the v60 "no name field" rule stands. */
-.line.misc-line .nm b{color:var(--muted2)}                          /* the fixed "Misc cost" label reads quieter than a real ingredient name */
+/* The misc line reuses the ingredient .line two-row skeleton (.top = name + ×, .costs = dotted leader +
+   the $ amount). It INHERITS .line / .line .top / .line .costs / .leader from the ingredient rules, so
+   row height, the × column and the total column all align pixel-wise for free. Only the costs row differs:
+   the amount is an editable $ box (not static text), it must NOT take .qtybox's order:-1 (that's for qty,
+   which leads an ingredient row — a misc line has none), and the $ hugs the field (no 32px unit gutter).
+   v69 (Max, reversing v60): the name is an editable field again — it fills the .nm slot so it reads without
+   truncation at 380px, styled to match the app's other inline inputs. */
+.line.misc-line .nm{align-self:center}                              /* single-line field: centre it against the × in the top row */
+.line.misc-line .nm .misc-name{
+  width:100%;max-width:100%;font-size:var(--fs-base);font-weight:600;color:var(--text);
+  background:var(--field);border:1px solid var(--border);border-radius:var(--radius-ctl);
+  padding:8px 10px;min-height:40px;
+}
+.line.misc-line .nm .misc-name::placeholder{color:var(--muted2);font-weight:500}
+@media (max-width:700px){ .line.misc-line .nm .misc-name{min-height:44px} }   /* phone hit target, matching the $ + qty inputs */
 .line.misc-line .costs .misc-costbox{order:0;flex:0 0 auto;max-width:none;gap:2px}  /* beats .line .costs .qtybox{order:-1}; leader (flex:1) pushes it to the total column */
 .line.misc-line .costs .misc-costbox .u{width:auto;min-width:0;color:var(--muted2)} /* $ hugs the field — no 32px unit-column gutter */
 .line.misc-line .costs .misc-costbox input{width:92px;text-align:right}             /* right-aligned in the total slot; spinners hidden via the base .qtybox input rule */
@@ -2362,3 +2383,46 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .cat-wrap.has-clear > input{padding-right:36px}
 .ad-search-wrap{margin-bottom:8px}
 .menu-search.ad-search-wrap .ad-search{margin-bottom:0}
+
+/* ===== batch (v69) — floating Menu Suggestions button + panel (item 1) ===== */
+/* The Suggestions content (renderMenuInsights) moved off the inline slot into an on-demand panel behind a
+   persistent bottom-left button. The button carries the ONE bold flourish of this screen: the EzPlate logo
+   in a Gemini rainbow gradient, signalling the AI pairing. Everything around it stays quiet. The FAB lives
+   inside #tab-analysis so it only shows on the Menu tab; renderMenuInsights toggles [hidden] by whether the
+   menu has anything to say. Positioned clear of the bottom nav (mobile) and the sidebar (desktop). */
+.msug{position:fixed;left:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));z-index:60}
+.msug[hidden]{display:none}
+.msug-btn{
+  display:grid;place-items:center;width:54px;height:54px;padding:0;cursor:pointer;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  box-shadow:var(--shadow-lg), 0 0 0 1px rgba(155,114,203,.28);   /* neutral lift + a faint Gemini-purple edge */
+  transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.msug-logo{width:32px;height:32px;display:block}
+.msug-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.42)}
+.msug-btn:active{transform:translateY(0)}
+.msug-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.msug.open .msug-btn{box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.55)}
+
+/* Panel expands upward FROM the button (transform-origin bottom-left), anchored to the same corner. */
+.msug-panel{
+  position:absolute;left:0;bottom:calc(100% + var(--sp-2));
+  width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  box-shadow:var(--shadow-lg);padding:var(--sp-3) var(--sp-4) var(--sp-4);
+  transform-origin:bottom left;animation:msugPop var(--t-med) var(--ease);
+}
+.msug-panel[hidden]{display:none}
+.msug-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-1)}
+.msug-eyebrow{font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)}
+.msug-x{background:none;border:0;color:var(--muted2);font-size:22px;line-height:1;cursor:pointer;padding:2px 4px;min-height:32px;min-width:32px;border-radius:8px}
+.msug-x:hover{color:var(--text);background:var(--hover)}
+.msug-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* the insight block is flush inside the panel — the panel supplies the chrome the inline card used to */
+.msug-panel .menu-insights{margin:0;padding:0;background:none;border-radius:0}
+@keyframes msugPop{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
+@media (min-width:1024px){   /* clear of the left sidebar; no bottom nav down here on desktop */
+  .msug{left:calc(232px + var(--sp-5));bottom:var(--sp-5)}
+}

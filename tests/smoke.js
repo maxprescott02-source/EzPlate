@@ -456,6 +456,19 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   await tick(); await tick();
   ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('v68: once Gemini actually phrased a shown line, the "Refined by Gemini" credit is revealed', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === false);
+  // v69 item 1: the Suggestions content lives behind a floating rainbow button (bottom-left of the Menu).
+  const fab = $('menuSuggestFab');
+  ok('v69: the Suggestions FAB is shown when the menu has insights', !!fab && fab.hidden === false);
+  ok('v69: the rainbow button carries a gradient logo + an accessible label', !!$('menuSuggestBtn') && !!$('menuSuggestBtn').querySelector('svg linearGradient') && $('menuSuggestBtn').getAttribute('aria-label') === 'Menu suggestions');
+  ok('v69: the panel starts closed until the button is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
+  $('menuSuggestBtn').click();
+  ok('v69: tapping the button opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');
+  ok('v69: the panel holds the same insight content (mi-lines) + the credit', $('menuSuggestPanel').querySelectorAll('.mi-line').length === 2 && !!$('menuSuggestPanel').querySelector('.mi-credit'));
+  $('menuSuggestClose').click();
+  ok('v69: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
+  window.computeInsights = () => [];
+  try { window.renderMenuInsights(); } catch (e) {}
+  ok('v69: a menu with nothing to say hides the whole FAB', fab.hidden === true);
   window.computeInsights = stashCI;
 
   // ---- [17] v68 — Menu margin-light filter chips (multi-select) wire up + fold into Clear filters ----

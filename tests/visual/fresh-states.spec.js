@@ -41,7 +41,7 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   // drive the real add paths (global fns): one product line + one misc line
   await page.evaluate(() => {
     window.addProduct('P0108'); window.addMiscCost();
-    const ml = document.querySelector('.misc-label'); if (ml) ml.value = 'Packaging + napkins';
+    const ml = document.querySelector('.misc-name'); if (ml) { ml.value = 'Packaging + napkins'; ml.dispatchEvent(new Event('input', { bubbles: true })); }
     const ib = document.querySelector('.install-banner, #installBanner'); if (ib) ib.remove();
   });
   await page.waitForTimeout(300);
@@ -54,28 +54,28 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   expect(lc, 'line total must render in the costs row').not.toBeNull();
   expect(lc.w, 'line total must have real width').toBeGreaterThan(10);
   expect(lc.right, 'line total must fit inside the 380px viewport').toBeLessThanOrEqual(380);
-  // v56 (Max's spec, reverses v53's duplicate total): ONE row, no separate .lc — the $ input IS the
-  // line total and sits right-aligned before the ×. Order: name field · dotted leader · $ input · ×.
+  // v69 (Max, reverses v60's "no name field"): the misc line keeps the v67 two-row .line skeleton (matching
+  // ingredient rows) — .top holds the EDITABLE name field + ×, .costs holds the dotted leader + the $ input
+  // (which is the line total; there is no separate .lc). The name field must read without truncation at 380px.
   const misc = await page.evaluate(() => {
     const line = document.querySelector('.line.misc-line');
     const mid = el => { const r = el.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
-    const lbl = line.querySelector('.misc-label'), box = line.querySelector('.misc-costbox'),
+    const name = line.querySelector('.misc-name'), box = line.querySelector('.misc-costbox'),
           x = line.querySelector('.x');
     return {
-      sub: line.querySelectorAll('.sub').length, rows: line.querySelectorAll('.top,.costs').length,
-      lc: line.querySelectorAll('.lc').length,          // the duplicate bold total is GONE
-      lblW: lbl.getBoundingClientRect().width,
-      sameRow: Math.max(Math.abs(mid(lbl) - mid(box)), Math.abs(mid(lbl) - mid(x))),
+      rows: line.querySelectorAll('.top,.costs').length,   // v67 two-row skeleton (.top + .costs)
+      lc: line.querySelectorAll('.lc').length,             // misc has no separate bold total — the $ input is it
+      nameW: name.getBoundingClientRect().width,
+      nameXRow: Math.abs(mid(name) - mid(x)),              // the name field + × share the top row
       boxRight: box.getBoundingClientRect().right, xRight: x.getBoundingClientRect().right,
       lineRight: line.getBoundingClientRect().right,
     };
   });
-  expect(misc.sub, 'misc sub-label deleted').toBe(0);
-  expect(misc.rows, 'no .top/.costs split — ONE row').toBe(0);
+  expect(misc.rows, 'v69: two-row skeleton (.top name+×, .costs leader+$) matching ingredient rows').toBe(2);
   expect(misc.lc, 'no duplicate bold total — the $ input is the total').toBe(0);
-  expect(misc.lblW, 'name field keeps usable width at 380px').toBeGreaterThan(70);
-  expect(misc.sameRow, 'label, $ field and × share one row').toBeLessThanOrEqual(3);
-  expect(misc.boxRight, '$ input sits left of the × corner').toBeLessThanOrEqual(misc.xRight);
+  expect(misc.nameW, 'restored name field keeps usable width at 380px (no truncation)').toBeGreaterThan(120);
+  expect(misc.nameXRow, 'name field and × share the top row').toBeLessThanOrEqual(3);
+  expect(misc.boxRight, '$ input sits inside the card edge').toBeLessThanOrEqual(misc.lineRight);
   expect(misc.xRight, 'nothing clips the card').toBeLessThanOrEqual(misc.lineRight);
 });
 
@@ -279,7 +279,7 @@ test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient 
     window.addProduct('P0004');   // branded product (subtitle = supplier only now)
     window.addProduct('P0005');   // per-unit priced
     window.addMiscCost();
-    const ml = document.querySelector('.misc-label'); if (ml) ml.value = 'Packaging + napkins';
+    const ml = document.querySelector('.misc-name'); if (ml) { ml.value = 'Packaging + napkins'; ml.dispatchEvent(new Event('input', { bubbles: true })); }
     const ib = document.querySelector('.install-banner, #installBanner'); if (ib) ib.remove();
   });
   await page.waitForTimeout(300);
