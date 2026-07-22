@@ -294,15 +294,15 @@ merge to `main` as a production deploy.
 
 ## State as of 22 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v68** — PR #13 (`fix/visual-consistency-pass`, v68) is now MERGED (`167a53d`).
-  One unmerged branch carries the next batch: **`feature/suggestions-fab`** (**v69**), off `main`,
+- `origin/main` is at **v69** — PR #14 (`feature/suggestions-fab`, v69) is now MERGED (`cd98207`).
+  One unmerged branch carries the next batch: **`chore/fresh-states-and-probe-gate`** (**v70**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **270 green** (was 261 pre-batch), jsdom smoke green,
-  `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v69**. Per-batch detail lives in
-  `handovers/HANDOVER-vNN.md`.
+  `npm test` = **274 green**, jsdom smoke green, **`fresh-states.spec.js` Playwright suite now GREEN too
+  (reconciled v70)**, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v70**. Per-batch
+  detail lives in `handovers/HANDOVER-vNN.md`.
 
 - **v69 (branch `feature/suggestions-fab`) — Suggestions rainbow FAB · richer non-reprice advice · misc name
   field back · invoice-header mobile stacking (brief: `~/Downloads/ezplate-opus-suggestions-fab.md`). See
@@ -597,9 +597,8 @@ merge to `main` as a production deploy.
   column the live DB lacks fails wholesale; apply any NEW migration to prod BEFORE the deploy that reads
   it** (the v55 migrations themselves are already applied — see [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v69 (the Suggestions FAB + panel, non-reprice advice, misc name
-  field, invoice-header stacking) then merge PR #14; (b) run `npm run shots` + reconcile
-  `fresh-states.spec.js` on a browser env — it has ~12 pre-existing stale failures (the builder became a
-  `#builderModal` popup in v54/v55 so the spec never opens it, plus v56/v58/v59 pins and the v69
-  `.misc-name`/two-row misc updates); (c) gate or remove the diagnostic `GET /api/parse-invoice?probe=1`
-  before multi-tenant; (d) optional: purchased-quantity capture for v55 §I (needs a protected-region edit).
+- Next up: (a) Max's phone sign-off on v70; (b) optional: purchased-quantity capture for v55 §I (needs a
+  protected-region edit). **Done in v70:** the diagnostic `?probe=1` endpoint was REMOVED (multi-tenant
+  safety); `fresh-states.spec.js` was reconciled to the current app (green) — the builder-modal navigation,
+  the v60 target-line-in-view behaviour, and one real mobile empty-state centring bug were fixed, and three
+  tests for features removed in v54/v55 (holding area, `→ Builder` chip) were dropped.

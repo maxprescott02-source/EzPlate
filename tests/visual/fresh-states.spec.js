@@ -17,6 +17,16 @@ const SIZES = [
   { name: 'desktop', width: 1280, height: 900 },
 ];
 
+// v54: the Builder became the Plates library + a #builderModal popup. Tests that drive #lines must OPEN
+// that popup first (openBuilder resets the plate, so open BEFORE adding lines). This helper navigates to
+// the Plates tab and opens a fresh builder.
+async function openFreshBuilder(page) {
+  await page.locator('.navbtn[data-tab="builder"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('#newPlateBtn').click();
+  await page.waitForTimeout(300);
+}
+
 // viewport-only (not fullPage) header shots — the review artifact for the header/button work
 for (const tab of ['pantry', 'ingredients', 'builder']) {
   test(`fresh ${tab} header @ mobile`, async ({ page }) => {
@@ -36,8 +46,7 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
   await page.goto('/');
   await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="builder"]').click();
-  await page.waitForTimeout(300);
+  await openFreshBuilder(page);
   // drive the real add paths (global fns): one product line + one misc line
   await page.evaluate(() => {
     window.addProduct('P0108'); window.addMiscCost();
@@ -151,7 +160,7 @@ test('v44 dark theme: builder lines + pack control still read correctly', async 
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'dark'); });
-  await page.locator('.navbtn[data-tab="builder"]').click();
+  await openFreshBuilder(page);
   await page.evaluate(() => { window.addProduct('P0108'); window.addMiscCost(); });
   await page.waitForTimeout(300);
   await page.locator('#lines').screenshot({ path: 'tests/visual/__shots__/builder-lines-dark.png' });
@@ -170,28 +179,10 @@ test('v44 dark theme: builder lines + pack control still read correctly', async 
   await expect(page.locator('body')).toBeVisible();
 });
 
-test('v44 item 9: Save draft parks the plate under "Unassigned dishes" in the menu selector', async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
-  await page.goto('/');
-  await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="builder"]').click();
-  await page.evaluate(() => window.addProduct('P0108'));
-  await page.fill('#plateName', 'WIP Winter Special');
-  await page.locator('#saveBtn').click();
-  await page.waitForTimeout(400);
-  // the selector now offers the holding menu, and the draft is really on it
-  await page.locator('.navbtn[data-tab="analysis"]').click();
-  await page.waitForTimeout(300);
-  const opt = page.locator('#menuSelect option[value="MENU_UNASSIGNED"]');
-  await expect(opt).toHaveCount(1);
-  await expect(opt).toContainText('Unassigned dishes');
-  await page.selectOption('#menuSelect', 'MENU_UNASSIGNED');
-  await page.waitForTimeout(300);
-  await expect(page.locator('#tab-analysis')).toContainText('WIP Winter Special');
-  await expect(page.locator('#menuDelBtn')).toBeHidden();            // the holding menu is never deletable
-  await page.screenshot({ path: 'tests/visual/__shots__/save-draft-unassigned.png' });
-});
+// REMOVED (v70): "v44 item 9: Save draft parks the plate under Unassigned dishes" tested the holding-area
+// (MENU_UNASSIGNED) machinery, which v54 deleted entirely ("no holding area; zero menus is a legitimate
+// state"). There is no Save-draft button and no MENU_UNASSIGNED option anymore — the test asserted a feature
+// that no longer exists, so it is dropped rather than rewritten.
 
 test('v44 item 6: a confirm dialog stacks ABOVE the Settings panel', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
@@ -270,7 +261,7 @@ test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient 
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
   await page.goto('/');
   await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="builder"]').click();
+  await openFreshBuilder(page);
   await page.evaluate(() => {
     // the exact case that broke: several real lines — kid line, direct products, misc
     window.kitchenIngredients.push({ id: 'K1', name: 'Chips', pid: 'P0108' });
@@ -357,38 +348,12 @@ test('v45 item 4: button copy at both breakpoints', async ({ page }) => {
   expect((await page.locator('#newBtn').innerText()).trim(), 'desktop says + New product').toBe('+ New product');
 });
 
-test('v45 item 5: dashboard target line keeps consistent headroom on every range', async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
-  await page.goto('/');
-  await page.waitForTimeout(1500);
-  await page.evaluate(() => {
-    // worst case everywhere: all data BELOW the target so the target is the topmost line.
-    // recent points tight (the old <4 branch), older points spread wide (the old flat ±1).
-    const day = 86400000, now = Date.now(), pts = [];
-    for (let d = 1; d <= 6; d++) pts.push({ t: now - d * day, v: 27 + (d % 2) * 0.5 });      // 7d: tight
-    for (let d = 10; d <= 360; d += 14) pts.push({ t: now - d * day, v: 20 + (d % 10) });     // long: wide
-    window.priceHistory = pts.sort((a, b) => a.t - b.t);
-    window.cogsPct = 30;
-  });
-  await page.locator('.navbtn[data-tab="dashboard"]').click();
-  await page.waitForTimeout(400);
-  const headrooms = {};
-  for (const rg of ['1w', '1m', '3m', '6m', '1y', 'all']) {
-    await page.evaluate(r => window.setDashRange(r), rg);
-    await page.waitForTimeout(250);
-    const y1 = await page.evaluate(() => {
-      const l = document.querySelector('.ref-line');
-      return l ? parseFloat(l.getAttribute('y1')) : null;
-    });
-    expect(y1, `range ${rg} renders the target line`).not.toBeNull();
-    headrooms[rg] = y1;
-    // proportional padding guarantees ≥ ~18% of plot height above the target (≈45 viewBox units incl. padT)
-    expect(y1, `range ${rg}: target line must not hug the range bar`).toBeGreaterThanOrEqual(40);
-    await page.locator('.dash-chart').screenshot({ path: `tests/visual/__shots__/v45-dash-${rg}.png` });
-  }
-  console.log('[v45 item 5] ref-line y per range:', headrooms);
-});
+// REMOVED (v70): "v45 item 5: dashboard target line keeps consistent headroom on every range" asserted the
+// OLD always-draw-the-target rule (target is the topmost line with headroom on every range). v60 SUPERSEDED
+// this — the y-domain now FITS THE DATA and the target line shows only when it's in view (else v61 draws
+// nothing). Its whole premise (data forced below the target, target still drawn) is now invalid. The current
+// domain/target contract is pinned by the node suite (trend-domain.test.js + trend-ticks), so this stale
+// Playwright test is dropped rather than rewritten to duplicate them.
 
 /* ===== v46 Fable UX polish ===== */
 
@@ -481,7 +446,7 @@ for (const size of SIZES) {
     await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
     await page.goto('/');
     await page.waitForTimeout(1500);
-    await page.locator('.navbtn[data-tab="builder"]').click();
+    await openFreshBuilder(page);
     await page.evaluate(() => {
       window.kitchenIngredients.push({ id: 'K1', name: 'Chips', pid: 'P0108' });
       window.rebuildKById();
@@ -598,11 +563,15 @@ for (const size of SIZES) {
             const s = svg.getBoundingClientRect();
             return s.left + (window.TREND_GEO.padL / window.TREND_GEO.W) * s.width;
           })(),
-          // leftmost RENDERED pixel of any plot element (fill+curve+dots group, target line)
-          drawnLeft: +Math.min(
-            svg.querySelector('g[clip-path]').getBoundingClientRect().left,
-            svg.querySelector('.ref-line').getBoundingClientRect().left,
-          ).toFixed(1),
+          // v60: the target line only draws when it's in the data-fit domain, so it may be absent on a tight
+          // range where the data all sits below the target — guard against a null .ref-line.
+          refLine: !!svg.querySelector('.ref-line'),
+          // leftmost RENDERED pixel of any plot element (fill+curve+dots group, and the target line if drawn)
+          drawnLeft: (() => {
+            const clipLeft = svg.querySelector('g[clip-path]').getBoundingClientRect().left;
+            const ref = svg.querySelector('.ref-line');
+            return +(ref ? Math.min(clipLeft, ref.getBoundingClientRect().left) : clipLeft).toFixed(1);
+          })(),
           titleLeft: +title.left.toFixed(1),
           padL: window.TREND_GEO.padL,
           bezier: svg.querySelector('g[clip-path] path[stroke]').getAttribute('d').includes('C'),
@@ -616,7 +585,10 @@ for (const size of SIZES) {
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeGreaterThanOrEqual(3);
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
       expect(st.xLbls, `${rg}: x-axis date labels removed (v48)`).toBe(0);
-      expect(st.targetTick, `${rg}: the target value IS one of the labelled ticks`).toBe(true);
+      // v60: when the target line is drawn (in view), it sits ON a labelled tick (trend-ticks contract).
+      // On a tight range where the data is all below the target it isn't drawn — then it isn't a tick, which
+      // is correct, so only assert the tick when the line is actually shown.
+      if (st.refLine) expect(st.targetTick, `${rg}: a shown target line sits on a labelled tick`).toBe(true);
       // v52 gutter contract (replaces v51's "no gutter" pin, which drew the plot UNDER the labels):
       // labels live inside a gutter sized to the widest label, right-aligned so digits sit flush;
       // the widest label's LEFT edge = the title's left edge; ZERO plot pixels left of the label
@@ -887,27 +859,10 @@ for (const size of SIZES) {
     await page.locator('#tab-analysis .panel').screenshot({ path: `tests/visual/__shots__/v52-menu-header-${size.name}.png` });
   });
 
-  test(`v52: tap-to-edit — card opens the edit modal, chip still routes to the Builder @ ${size.name}`, async ({ page }) => {
-    await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
-    await page.goto('/');
-    await page.waitForTimeout(1500);
-    await page.locator('.navbtn[data-tab="analysis"]').click();
-    await page.waitForTimeout(400);
-    // the per-card Edit button is GONE (tap-to-edit owns that path now); → Builder remains
-    await expect(page.locator('#aBody .mi-btn.edit')).toHaveCount(0);
-    const name = (await page.locator('#aBody tr.mi-row .mi-name').first().innerText()).trim();
-    await page.locator('#aBody tr.mi-row').first().click();
-    await expect(page.locator('#editModal'), 'card tap opens the edit modal').toHaveClass(/open/);
-    expect((await page.inputValue('#ed_name')).trim(), 'the modal is loaded with the tapped dish').toBe(name);
-    await page.locator('#editClose').click();
-    await expect(page.locator('#editModal')).not.toHaveClass(/open/);
-    // the chip must NOT fall through to the row's edit handler
-    await page.locator('#aBody tr.mi-row .mi-btn.tobuilder').first().click();
-    await page.waitForTimeout(300);
-    await expect(page.locator('#editModal'), 'chip tap must not open the modal').not.toHaveClass(/open/);
-    await expect(page.locator('#tab-builder'), 'chip lands in the Builder').toBeVisible();
-  });
+  // REMOVED (v70): "v52: tap-to-edit — card opens the edit modal, chip still routes to the Builder" tested
+  // the Menu row's "→ Builder" CHIP (.mi-btn.tobuilder), which v55 §D removed ("removed Menu '→ Builder'
+  // chip"). It also required seeded menu dishes that a fresh install doesn't have (tr.mi-row is empty). Both
+  // premises are gone, so the test is dropped rather than rewritten.
 }
 
 for (const size of SIZES) {

@@ -1971,7 +1971,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v58: the Plates/Products/Ingredients search-empties now route through the shared .empty-state
    helper (fork+knife/box/tomato glyph is an inline es-icon SVG), so the old .plate-noresult
    mask-image override is gone. Menu's empty state is one .empty-state div inside a table row. */
-.es-row td{padding:0;border:0;background:transparent}
+/* v70: at mobile the card-collapse rule `.atable tbody tr > td:first-child{padding:0 28px 6px 0}` (0,2,3)
+   out-specifies a plain `.es-row td` (0,1,1) and pads the empty cell asymmetrically (0 left / 28px right),
+   shoving the centred empty-state 14px off-centre. Match that specificity so the reset actually wins. */
+.atable tbody tr.es-row > td{padding:0;border:0;background:transparent}
 .es-actions .es-clear{font-size:var(--fs-base)}
 
 /* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
