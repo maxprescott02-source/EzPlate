@@ -470,9 +470,11 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v69: the panel starts closed until the button is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
   $('menuSuggestBtn').click();
   ok('v69: tapping the button opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');
+  ok('v69: focus moves into the panel on open (a11y — never left on hidden content)', window.document.activeElement === $('menuSuggestPanel'));
   ok('v69: the panel holds the same insight content (mi-lines) + the credit', $('menuSuggestPanel').querySelectorAll('.mi-line').length === 2 && !!$('menuSuggestPanel').querySelector('.mi-credit'));
   $('menuSuggestClose').click();
   ok('v69: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
+  ok('v69: focus returns to the trigger button on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
   window.computeInsights = () => [];
   try { window.renderMenuInsights(); } catch (e) {}
   ok('v69: a menu with nothing to say hides the whole FAB', fab.hidden === true);

@@ -2183,27 +2183,32 @@ function renderMenuInsights(){
     +'</div>';
   try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
 }
-/* v69 item 1: the floating Suggestions panel — expands from the bottom-left rainbow button, closes on the
+/* v69 item 1: the floating Suggestions panel — expands from the bottom-right rainbow button, closes on the
    ×, a re-tap, an outside click or Escape. Content is filled by renderMenuInsights; the panel only exists
-   while the FAB is shown (i.e. this menu has something to say). */
+   while the FAB is shown (i.e. this menu has something to say). Focus moves INTO the panel on open and is
+   RESTORED to the trigger on an explicit close (× / Escape / re-tap) so keyboard focus never lands on the
+   now-hidden panel. Outside-click leaves focus wherever the click sent it (don't yank it back). */
 function menuSuggestOpen(){
   var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
   var p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
   if(p) p.hidden=false; f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
+  if(p){ try{ p.focus(); }catch(e){} }                               // move focus into the now-visible dialog (announces it, reads from the top)
 }
-function menuSuggestClose(){
+function menuSuggestClose(restoreFocus){
   var f=document.getElementById('menuSuggestFab'), p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
+  var wasOpen=p && !p.hidden;
   if(p) p.hidden=true; if(f) f.classList.remove('open'); if(b) b.setAttribute('aria-expanded','false');
+  if(restoreFocus && wasOpen && b && f && !f.hidden){ try{ b.focus(); }catch(e){} }   // return focus to the trigger — never to now-hidden content
 }
-function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(); }
+function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(true); }
 (function wireMenuSuggestFab(){
   var b=document.getElementById('menuSuggestBtn'); if(b) b.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestToggle(); });
-  var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(); });
-  document.addEventListener('click', function(e){                       // outside-click closes it
+  var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
+  document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
     var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
-    var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose();
+    var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose(false);
   });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden) menuSuggestClose(); } });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden) menuSuggestClose(true); } });
 })();
 function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 function renderDashboard(){
