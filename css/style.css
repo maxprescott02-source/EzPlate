@@ -2390,7 +2390,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    in a Gemini rainbow gradient, signalling the AI pairing. Everything around it stays quiet. The FAB lives
    inside #tab-analysis so it only shows on the Menu tab; renderMenuInsights toggles [hidden] by whether the
    menu has anything to say. Positioned clear of the bottom nav (mobile) and the sidebar (desktop). */
-.msug{position:fixed;left:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));z-index:60}
+.msug{position:fixed;right:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));z-index:60}   /* v69: Max — bottom-RIGHT */
 .msug[hidden]{display:none}
 .msug-btn{
   display:grid;place-items:center;width:54px;height:54px;padding:0;cursor:pointer;
@@ -2405,24 +2405,24 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .msug.open .msug-btn{box-shadow:var(--shadow-lg), 0 0 0 2px rgba(155,114,203,.55)}
 
-/* Panel expands upward FROM the button (transform-origin bottom-left), anchored to the same corner. */
+/* Panel expands upward FROM the button (transform-origin bottom-right), anchored to the same corner. */
 .msug-panel{
-  position:absolute;left:0;bottom:calc(100% + var(--sp-2));
+  position:absolute;right:0;bottom:calc(100% + var(--sp-2));
   width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
-  box-shadow:var(--shadow-lg);padding:var(--sp-3) var(--sp-4) var(--sp-4);
-  transform-origin:bottom left;animation:msugPop var(--t-med) var(--ease);
+  box-shadow:var(--shadow-lg);padding:var(--sp-2) var(--sp-4) var(--sp-4);
+  transform-origin:bottom right;animation:msugPop var(--t-med) var(--ease);
 }
 .msug-panel[hidden]{display:none}
-.msug-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-1)}
-.msug-eyebrow{font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)}
+.msug-head{display:flex;align-items:center;justify-content:flex-end;margin-bottom:var(--sp-1)}   /* just the close × — the title lives in .mi-intro below */
 .msug-x{background:none;border:0;color:var(--muted2);font-size:22px;line-height:1;cursor:pointer;padding:2px 4px;min-height:32px;min-width:32px;border-radius:8px}
 .msug-x:hover{color:var(--text);background:var(--hover)}
 .msug-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* the insight block is flush inside the panel — the panel supplies the chrome the inline card used to */
 .msug-panel .menu-insights{margin:0;padding:0;background:none;border-radius:0}
+.msug-panel .mi-intro{font-style:normal;font-size:var(--fs-md);font-weight:800;color:var(--text);margin-bottom:var(--sp-3)}   /* the panel's title now (no eyebrow) */
 @keyframes msugPop{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
-@media (min-width:1024px){   /* clear of the left sidebar; no bottom nav down here on desktop */
-  .msug{left:calc(232px + var(--sp-5));bottom:var(--sp-5)}
+@media (min-width:1024px){   /* no bottom nav on desktop; the sidebar is on the LEFT so the right corner is clear */
+  .msug{right:var(--sp-5);bottom:var(--sp-5)}
 }

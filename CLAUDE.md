@@ -307,25 +307,30 @@ merge to `main` as a production deploy.
 - **v69 (branch `feature/suggestions-fab`) — Suggestions rainbow FAB · richer non-reprice advice · misc name
   field back · invoice-header mobile stacking (brief: `~/Downloads/ezplate-opus-suggestions-fab.md`). See
   `handovers/HANDOVER-v69.md`.** Client/CSS/tests only, branch-safe. (1) **Menu Suggestions moved off the inline
-  slot into an on-demand floating panel** behind a persistent bottom-left button — the EzPlate logo in a Gemini
-  rainbow gradient (`#menuSuggestFab`/`#menuSuggestPanel`/`#menuSuggestBtn`, `.msug*` CSS). Same content system
-  (`renderMenuInsights` now toggles the FAB `[hidden]` by whether the menu has anything to say; the "Refined by
-  Gemini" credit lives in the panel); tap/×/outside-click/Escape close; reflects the selected menu; clears the
-  bottom nav (mobile) and the 232px sidebar (desktop). (2) **Suggestions broadened beyond reprice** — three new
-  pure/tested types: `insPortion` (trim the costliest portion, no price change), `insSub` (a cheaper
-  same-category product via the existing `alternatives()`), `insCut` (≥ `CUT_PTS`=12 over → rework/drop).
-  **Reprice DEMOTED to last-resort**: now only `[1,CUT_PTS)` pts, score dropped below the cheaper levers, copy
-  softened. `deriveInsights`/`computeInsights`/`_extract` extended; `selectInsights` (≤1/kind + rotation)
-  reused. (3) **"Reprice" → "Rework"** on the margin-light chip + Menu strapline; reprice insight copy softened.
-  (4) **Misc line name field RESTORED (reverses v60):** `miscRowHtml` puts an editable `.misc-name` field back
-  in the `.nm` slot wired to `setMiscLabel`, placeholder "Misc"; keeps the v67 two-row skeleton; label
-  round-trips through save (it was preserved in data all along). (5) **Invoice import HEADER mobile stacking
-  only** (`@media max-width:700px`): `.inv-upload` + `.inv-parse-row` restack as ordered steps; desktop
-  byte-identical; **the fragile invoice review render area untouched**. 261→270 (`insights.test.js` +9; smoke
-  §16 extended for the FAB). Six spots → **v69**. `fresh-states.spec.js` misc pins updated to `.misc-name` +
-  two-row but NOT runnable to green in-env (dies earlier at the builder-modal screenshot — pre-existing) — full
-  reconciliation still deferred. **Needs Max's phone: the FAB+panel at 380px both themes (no nav overlap),
-  varied non-reprice advice, misc name field, invoice header stacking.**
+  slot into an on-demand floating panel** behind a persistent **bottom-RIGHT** button (Max, moved from left) —
+  the EzPlate logo in a Gemini rainbow gradient (`#menuSuggestFab`/`#menuSuggestPanel`/`#menuSuggestBtn`,
+  `.msug*` CSS). Same content system (`renderMenuInsights` toggles the FAB `[hidden]` by whether the menu has
+  anything to say; the "Refined by Gemini" credit lives in the panel); tap/×/outside-click/Escape close;
+  reflects the selected menu; clears the bottom nav (mobile) / content column (desktop). Panel title always
+  **"What stands out on this menu"** (no menu name, no eyebrow). (2) **Suggestions broadened beyond reprice** —
+  three new pure/tested types: `insPortion` (trim the costliest portion, no price change), `insSub` (a cheaper
+  **same-ingredient** product), `insCut` (≥ `CUT_PTS`=12 over → rework/drop). **Reprice DEMOTED to last-resort**:
+  now only `[1,CUT_PTS)` pts, score dropped below the cheaper levers, copy softened. **Substitution is SAFE
+  (Max caught Bacon→Ham):** `insSub` uses `subCandidate` — matches only the SAME ingredient (finest grain first:
+  `sub_category`, else `item_type`; **never** the coarse `category`) + a shared-leading-noun net; fails closed.
+  (3) **"Reprice" → "Rework"** on the margin-light chip + Menu strapline; reprice copy softened. (4) **Misc line
+  name field RESTORED (reverses v60):** editable `.misc-name` back in the `.nm` slot wired to `setMiscLabel`,
+  placeholder "Misc"; v67 two-row skeleton kept; label round-trips. (5) **Invoice import HEADER mobile stacking
+  only** (`@media max-width:700px`); desktop byte-identical; **fragile invoice review area untouched**.
+  **Insights CACHED per menu per period (1 day) then rotate** — `insightSeedFor(menuId)` (period + menu hash)
+  seeds a stable-then-rotating selection; `gemPhraseInsights` reads/writes a localStorage cache
+  (`cafeDB_insightCache`) so reloads within a period don't re-hit Gemini (saves quota); a price change (new sig)
+  forces a fresh call. 261→**274** (`insights.test.js` +9 types, +4 `subCandidate`; smoke §16 extended for the
+  FAB + the "no second Gemini call on re-render" cache check). Six spots → **v69**. `fresh-states.spec.js` misc
+  pins updated to `.misc-name` + two-row but NOT runnable to green in-env (dies earlier at the builder-modal
+  screenshot — pre-existing) — full reconciliation still deferred. **Needs Max's phone: the FAB+panel at 380px
+  both themes bottom-right (no nav overlap), varied SAFE non-reprice advice, misc name field, invoice header
+  stacking.**
 
 - **v68 (branch `fix/visual-consistency-pass`) — Menu light-chip filter · Suggestions title + honest AI
   credit · whole-site grid-snap (brief: `~/Downloads/ezplate-opus-visual-consistency_1.md`). See

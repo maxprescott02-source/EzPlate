@@ -15,8 +15,45 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary,
-  insPortion, insSub, insCut, selectInsights, deriveInsights,
+  insPortion, insSub, insCut, subCandidate, selectInsights, deriveInsights,
 } = require('./_extract.js');
+
+/* ---------------------------------------------------------------- v69: conservative substitution matcher */
+// Real-shaped catalog rows. Bacon and Ham share the coarse category "SMALLGOODS" (the trap) but differ on
+// item_type + sub_category — subCandidate must NEVER cross them.
+const P = (id, description, extra) => Object.assign(
+  { id, description, is_food: true, base_unit: 'g', category: 'SMALLGOODS', sub_category: null, item_type: null, cost_per_base_unit: 0.02 },
+  extra || {});
+const CATALOG = [
+  P('P0004', 'Bacon Middle Rindless', { sub_category: 'Bacon Rashers', item_type: 'bacon', cost_per_base_unit: 0.0122 }),
+  P('P0100', 'Bacon Shortcut Value',  { sub_category: 'Bacon Rashers', item_type: 'bacon', cost_per_base_unit: 0.0098 }),  // cheaper, SAME ingredient
+  P('P0200', 'Ham Leg Sliced',        { sub_category: 'Sliced Ham',   item_type: 'ham',    cost_per_base_unit: 0.0080 }),  // cheaper but a DIFFERENT foodstuff
+  P('P0300', 'Cheese Tasty Block',    { category: 'DAIRY', sub_category: 'Tasty Cheese', item_type: 'cheese', cost_per_base_unit: 0.0122 }),
+  P('P0301', 'Cheese Block Alfa',     { category: 'DAIRY', sub_category: 'Tasty Cheese', item_type: 'cheese', cost_per_base_unit: 0.0098 }),
+];
+
+test('subCandidate: NEVER swaps across foodstuffs — Bacon does not become Ham', () => {
+  const bacon = CATALOG[0];
+  const pick = subCandidate(bacon, CATALOG);
+  assert.ok(pick, 'a cheaper bacon exists, so it should suggest one');
+  assert.equal(pick.id, 'P0100');                 // the cheaper BACON, not the cheaper ham
+  assert.notEqual(pick.item_type, 'ham');
+});
+
+test('subCandidate: suggests a cheaper like-for-like when one truly exists (Cheese → cheaper Cheese)', () => {
+  const pick = subCandidate(CATALOG[3], CATALOG);
+  assert.equal(pick.id, 'P0301');
+});
+
+test('subCandidate: nothing precise to match on (no item_type/sub_category) → no guess', () => {
+  const loose = P('P0400', 'Mixed Thing', { sub_category: null, item_type: null, cost_per_base_unit: 0.05 });
+  assert.equal(subCandidate(loose, CATALOG.concat(loose)), null);
+});
+
+test('subCandidate: no cheaper same-ingredient product → null (never reaches for the category)', () => {
+  const cheapBacon = P('P0500', 'Bacon Budget', { sub_category: 'Bacon Rashers', item_type: 'bacon', cost_per_base_unit: 0.001 });
+  assert.equal(subCandidate(cheapBacon, CATALOG.concat(cheapBacon)), null);   // already cheapest bacon; Ham is cheaper but off-limits
+});
 
 const dish = (name, cost, menuPrice, extra) => Object.assign({ name, cost, menuPrice }, extra || {});
 

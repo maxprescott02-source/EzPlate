@@ -309,6 +309,30 @@ function alternatives(p){
   const cheaper=pool.filter(x=>cpbu(x)<cpbu(p));
   return {alts:pool.slice(0,3), cheapest:cheaper.length===0};
 }
+/* v69 (Max): the SUBSTITUTION insight must never cross distinct foodstuffs — it once suggested swapping
+   Bacon for Ham because both share the coarse category "SMALLGOODS" (alternatives()'s category fallback).
+   For a suggestion the app puts in a chef's face, matching must be CONSERVATIVE and fail closed:
+   the cheaper product must be the SAME ingredient (finest grain first — sub_category, else the specific
+   item_type; NEVER the coarse category) AND share the current product's leading noun as a name-safety net.
+   No item_type and no sub_category → we can't be sure → suggest nothing. `list` is injectable for tests. */
+function subCandidate(p, list){
+  var C=function(x){ return x.cost_per_base_unit; };
+  if(!p || C(p)==null) return null;
+  var primary=(searchTokens(p.description||'')[0]||'');            // the leading word is the ingredient (bacon, cheese…)
+  function sameKind(x){
+    if(p.sub_category) return x.sub_category===p.sub_category;     // finest grain wins (e.g. "Bacon Rashers")
+    if(p.item_type)   return x.item_type===p.item_type;           // else the specific type — never the coarse category
+    return false;                                                  // nothing precise to match on → don't guess
+  }
+  var pool=(list||PRODUCTS).filter(function(x){
+    if(!x || !x.is_food || C(x)==null || x.base_unit!==p.base_unit || x.id===p.id) return false;
+    if(!(C(x)<C(p))) return false;                                 // cheaper only
+    if(!sameKind(x)) return false;
+    return primary && String(x.description||'').toLowerCase().indexOf(primary)>=0;   // must share the ingredient word
+  });
+  pool.sort(function(a,b){ return C(a)-C(b); });
+  return pool[0]||null;
+}
 
 /* ---------- plate ---------- */
 let plate=[], uidc=1;
@@ -2005,8 +2029,16 @@ function deriveInsights(data, targetFrac, seed){
    v67 item 5a: menu-scoped (was all-menus on the Dashboard). Draws cost ranges from costRangeForLines,
    shared-ingredient counts from kitchen-word usage, and the biggest mover from the per-ingredient price
    log (ingPriceLog) — all numbers the app already computes. */
-var gemInsightPhrased=null;                                         // {key, lines:[text]} — ONE phrasing per session per menu (key = menuId|sig)
-var insightSeed=Math.floor(Date.now()/86400000);                   // day-based base so the lead rotates over time; onMenuSelectChange bumps it per switch
+var gemInsightPhrased=null;                                         // in-render guard: {key, lines:[text], refined} (key = menuId|sig)
+/* v69 (Max): insights + their Gemini phrasing are CACHED per menu for a PERIOD, then rotate. This (a) saves
+   the limited Gemini quota — no re-call on every reload/session within the period — and (b) refreshes what the
+   user sees afterwards. The period index also seeds the selection (varied per menu), so each new period leads
+   with a different insight. A price change mid-period changes the sig → a fresh call (the insight genuinely
+   changed); otherwise one call per menu per period. */
+var INSIGHT_PERIOD_MS=24*60*60*1000;                               // one day
+function insightPeriod(){ return Math.floor(Date.now()/INSIGHT_PERIOD_MS); }
+function menuSeedHash(id){ var h=0, s=String(id||''); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return h; }
+function insightSeedFor(menuId){ return (insightPeriod()+menuSeedHash(menuId))|0; }   // stable within a period (so it caches), rotates across periods, varies per menu
 function computeInsights(seed){
   var dishes=[], usage={}, nameByPid={}, dishNamesByPid={}, prodUse={};
   try{
@@ -2040,13 +2072,12 @@ function computeInsights(seed){
     });
   }catch(e){ return []; }
   var shared=Object.keys(usage).filter(function(n){ return usage[n]>=2; }).map(function(n){ return {name:n, dishCount:usage[n]}; });
-  var subs=[];                                                       // v69: only where a real cheaper same-category product exists in Products
+  var subs=[];                                                       // v69: only a conservative same-ingredient cheaper product (subCandidate — never cross foodstuffs)
   try{
     Object.keys(prodUse).forEach(function(pid){
       var pu=prodUse[pid], p=pu.prod; if(!p || cpbu(p)==null) return;
-      var res; try{ res=alternatives(p); }catch(e){ return; }
-      if(res.cheapest || !res.alts.length) return;                  // no cheaper in-category product → skip (per the brief)
-      var alt=res.alts[0]; if(!alt || cpbu(alt)==null || !(cpbu(alt)<cpbu(p))) return;
+      var alt; try{ alt=subCandidate(p); }catch(e){ return; }
+      if(!alt || cpbu(alt)==null || !(cpbu(alt)<cpbu(p))) return;
       var saving=(cpbu(p)-cpbu(alt))*pu.qty; if(!(saving>0)) return;
       subs.push({ing:pu.ing, altName:alt.description, curPer:perDisplayValue(p), altPer:perDisplayValue(alt), unit:displayUnitWord(p), plateCount:Object.keys(pu.dishes).length, saving:saving});
     });
@@ -2063,7 +2094,7 @@ function computeInsights(seed){
       }
     });
   }catch(e){}
-  return deriveInsights({dishes:dishes, shared:shared, mover:mover, subs:subs}, foodTarget(), (seed==null?insightSeed:seed));
+  return deriveInsights({dishes:dishes, shared:shared, mover:mover, subs:subs}, foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
@@ -2080,12 +2111,24 @@ function gemPhrasingOk(text, facts){
   }
   return true;
 }
-/* Optional warmer phrasing (degrades to templates). ONE background POST per session per MENU
-   (key = menuId|sig); offline / unavailable / invalid → the deterministic templates stand. Never
-   blocks the render — it swaps text in place only if the Menu tab is still showing this set. */
-function gemPhraseInsights(insights, menuKey){
+/* v69: the per-menu, per-period phrasing cache (localStorage). Only SUCCESSFUL phrasings are stored, so
+   offline/unavailable never poisons it; stale periods are pruned on write. */
+function insightCacheRead(){ try{ return JSON.parse(localStorage.getItem('cafeDB_insightCache')||'{}')||{}; }catch(e){ return {}; } }
+function insightCacheWrite(c){ try{ localStorage.setItem('cafeDB_insightCache', JSON.stringify(c)); }catch(e){} }
+/* Optional warmer phrasing (degrades to templates). ONE background POST per menu per PERIOD (v69) — a
+   cached phrasing for this menu+period+sig is reused with NO new call (saving the limited Gemini quota);
+   offline / unavailable / invalid → the deterministic templates stand. Never blocks the render — it swaps
+   text in place only if the Menu tab is still showing this set. */
+function gemPhraseInsights(insights, menuId){
   if(!insights || !insights.length) return;
-  var sig=insightSig(insights), key=(menuKey||'')+'|'+sig;
+  var sig=insightSig(insights), period=insightPeriod(), mk=menuId||'', key=mk+'|'+sig;
+  // 1) persistent cache hit: same menu + period + sig → reuse the stored phrasing, no API call
+  var cache=insightCacheRead(), ce=cache[mk];
+  if(ce && ce.period===period && ce.sig===sig && Array.isArray(ce.lines)){
+    gemInsightPhrased={key:key, lines:ce.lines, refined:!!ce.refined};
+    applyPhrasedInsights(ce.lines, insights, !!ce.refined); return;
+  }
+  // 2) in-render guard: don't fire a duplicate fetch before the cache write lands this session
   if(gemInsightPhrased && gemInsightPhrased.key===key){ applyPhrasedInsights(gemInsightPhrased.lines, insights, gemInsightPhrased.refined); return; }
   if(typeof fetch!=='function') return;
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
@@ -2094,7 +2137,7 @@ function gemPhraseInsights(insights, menuKey){
     .then(function(res){ return res.ok?res.json():null; })
     .then(function(payload){
       clearTimeout(timer);
-      if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)) return;
+      if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)) return;   // invalid → don't cache, retry next render
       var refined=false;                                             // v68: true only if ≥1 shown line is actually Gemini's phrasing (drives the honest credit)
       var lines=insights.map(function(ins,ix){                       // per line: accept the phrasing only if it passes the number check, else keep the template
         var cand=payload.lines[ix] && payload.lines[ix].text;
@@ -2102,6 +2145,10 @@ function gemPhraseInsights(insights, menuKey){
         return ins.text;
       });
       gemInsightPhrased={key:key, lines:lines, refined:refined};
+      var c2=insightCacheRead();                                     // persist so reloads within this period don't re-hit Gemini
+      c2[mk]={period:period, sig:sig, lines:lines, refined:refined};
+      Object.keys(c2).forEach(function(k){ if(!c2[k] || c2[k].period<period-1) delete c2[k]; });   // prune stale periods
+      insightCacheWrite(c2);
       applyPhrasedInsights(lines, insights, refined);
     })
     .catch(function(){ clearTimeout(timer); });                     // any failure → templates already shown, nothing to do
@@ -2122,15 +2169,15 @@ function applyPhrasedInsights(lines, insights, refined){
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var fab=document.getElementById('menuSuggestFab');
-  var insights=[]; try{ insights=computeInsights(insightSeed); }catch(e){ insights=[]; }
+  var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
   if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole FAB
   if(fab) fab.hidden=false;
-  var sig=insightSig(insights), mn=menuNameFor(currentMenuId);
-  // v68: title is "What stands out on {menu}" (works whether the news is good or bad). The
-  // "Refined by Gemini" credit is honest — it stays hidden while the deterministic template shows and is
-  // revealed by applyPhrasedInsights ONLY when Gemini actually phrased a shown line (see gemPhraseInsights).
+  var sig=insightSig(insights);
+  // v69 (Max): the panel title always reads "What stands out on this menu" — the selected menu is already
+  // obvious from the picker, so naming it here is noise. The "Refined by Gemini" credit stays honest —
+  // hidden while the template shows, revealed by applyPhrasedInsights only when Gemini phrased a shown line.
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">'+(mn?('What stands out on <b>'+esc(mn)+'</b>'):'What stands out on this menu')+'</p>'
+    +'<p class="mi-intro">What stands out on this menu</p>'
     +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
     +'<span class="mi-credit" hidden>Refined by Gemini</span>'
     +'</div>';
@@ -4246,7 +4293,8 @@ function buildMenuPickers(){                                   // fill the menu 
 }
 function onMenuSelectChange(){
   var sel=document.getElementById('menuSelect'); if(!sel) return;
-  insightSeed++;                                                   // v67 5b: advance the rotation so a menu switch varies which insight leads
+  // v69: the selection seed is now period+menu based (insightSeedFor) so it caches within a period and
+  // varies per menu on its own — no per-switch bump needed (that would have defeated the cache).
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
 function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }

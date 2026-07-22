@@ -5,7 +5,7 @@
 Brief: `~/Downloads/ezplate-opus-suggestions-fab.md`. Branch off **v68** (origin/main was already at v68 — PR #13
 `fix/visual-consistency-pass` had merged; the v68 CLAUDE.md "State as of" still described that branch as
 unmerged). **Client + CSS + tests only — no DB/schema change, branch-safe** (unrelated to the still-pending
-v55 migrations, which are already applied to prod). Baseline **261 green** → **270 green**; jsdom smoke green (§16 extended, §17 unchanged);
+v55 migrations, which are already applied to prod). Baseline **261 green** → **274 green** (270 in the first pass, +4 for the substitution-safety matcher); jsdom smoke green (§16 extended, §17 unchanged);
 `node -c` clean on `js/app.js`, `sw.js` + all four `api/*.js`. **Six spots v68 → v69.**
 
 Invariants held: protected parser region untouched; **money stays deterministic** (the app computes every
@@ -14,12 +14,32 @@ types all pass numbers through `facts`); naming inversion left alone; no new dep
 `renderAnalysis`/`aRow` untouched. Two Max decisions taken up front: (5) proceed on the written description
 (no screenshot arrived); (1) FAB-only — suggestions live entirely behind the button, as briefed.
 
+### Follow-up refinements (Max review of v69, same PR — no version bump, v69 wasn't deployed)
+1. **FAB moved bottom-LEFT → bottom-RIGHT** (`.msug{right:…}`, panel anchors bottom-right, `transform-origin`
+   bottom-right; desktop simplified to `right:sp-5` since the sidebar is on the left).
+2. **Panel title simplified** to always **"What stands out on this menu"** (dropped the menu-name branch) and
+   the redundant "Suggestions" eyebrow removed — that title IS the panel header now (`.mi-intro` restyled as
+   the header; `.msug-head` holds just the ×).
+3. **Substitution made SAFE** — Max caught it suggesting *Bacon → Ham*. Root cause: `alternatives()` falls back
+   to the coarse `category` ("SMALLGOODS" lumps bacon + ham). New `subCandidate(p, list)` matches only the SAME
+   ingredient — finest grain first (`sub_category`, else the specific `item_type`; **never** the coarse
+   `category`) AND requires the cheaper product to share the current product's leading noun. No precise key ⇒
+   suggest nothing (fails closed). `computeInsights` uses it instead of `alternatives()`.
+4. **Insights cached per menu per PERIOD (1 day), then rotate** — saves the limited Gemini quota (no re-call on
+   reload/session within the period) and refreshes what the user sees afterwards. The selection seed is now
+   `insightSeedFor(menuId)` = period index + a per-menu hash (stable within a period → cacheable, rotates across
+   periods, varies per menu; the per-switch `insightSeed++` bump is gone). `gemPhraseInsights` reads/writes a
+   localStorage cache (`cafeDB_insightCache`, keyed by menu; stores period + sig + lines + refined; only
+   successful phrasings cached; stale periods pruned). A price change mid-period changes the sig → a fresh call.
+   Tests **270 → 274** (subCandidate ×4); smoke §16 gains a "re-render within the period = no second Gemini
+   call" check.
+
 The three design skills (`/frontend-design`, `/web-design-guidelines`) guided the FAB; the ONE flourish (the
 gradient logo) is spent on the button, everything around it stays quiet.
 
 ---
 
-## 1 — Menu Suggestions → floating rainbow button + panel (bottom-left of the Menu tab)
+## 1 — Menu Suggestions → floating rainbow button + panel (bottom-RIGHT of the Menu tab — moved from left in review)
 The whole content system (`computeInsights` → `renderMenuInsights` → Gemini phrasing) is unchanged; **only the
 container moved** from an always-visible inline block to an on-demand panel behind a persistent button.
 - **DOM** (`index.html`, inside `#tab-analysis` so it only shows on the Menu tab): `#menuSuggestFab` wraps
@@ -31,10 +51,10 @@ container moved** from an always-visible inline block to an on-demand panel behi
   tracks state. The panel reflects the SELECTED menu (re-rendered by `renderAnalysis` on menu switch); an open
   panel stays open and just updates content. The honest "Refined by Gemini" credit lives inside the panel
   (unchanged `applyPhrasedInsights`, still keyed to `#menuInsightsPanel`).
-- **CSS** (`css/style.css`, new v69 section): `.msug` fixed bottom-left, clears the bottom nav on mobile
+- **CSS** (`css/style.css`, new v69 section): `.msug` fixed bottom-RIGHT, clears the bottom nav on mobile
   (`bottom:calc(72px + safe-area)`) and the 232px sidebar on desktop (`left:calc(232px + sp-5)`); 54px button
   (touch-safe), faint Gemini-purple edge; `.msug-panel` `width:min(320px, 100vw − 2·sp-4)` so it fits at 380px,
-  `max-height:min(62vh,460px)` scroll, expands from the bottom-left corner (`@keyframes msugPop`, disabled
+  `max-height:min(62vh,460px)` scroll, expands from the bottom-right corner (`@keyframes msugPop`, disabled
   under `prefers-reduced-motion`). `.msug-panel .menu-insights` is flush (panel supplies the chrome).
 - **a11y:** button `aria-label="Menu suggestions"`, `aria-haspopup="dialog"`, `aria-controls`, `aria-expanded`;
   panel `role="dialog"`; `:focus-visible` rings; SVG `aria-hidden`.
@@ -45,10 +65,11 @@ Three new **pure, tested** insight functions in the existing `{kind,facts,text,s
 - **`insPortion`** — a dish leaning on ONE costly ingredient (share ≥ 45%): "Fish is 60% of Barra & Chips'
   cost — a 15% smaller portion saves about $0.40 a plate, no price change." `computeInsights` finds the
   costliest line per dish and passes `top={name,share,trimPct:15,saving}`.
-- **`insSub`** — a **cheaper same-category** product actually in Products (reuses the existing `alternatives(p)`
-  helper): "You buy Cheese at $12.20/kg; Cheese Block Alfa is $9.80/kg — swapping saves about $3.20 across 8
-  plates." `computeInsights` sums qty per product menu-wide, takes the cheapest in-category alt, computes the
-  saving. **Only emits when a real cheaper in-category product exists** (per the brief).
+- **`insSub`** — a **cheaper same-ingredient** product actually in Products: "You buy Cheese at $12.20/kg;
+  Cheese Block Alfa is $9.80/kg — swapping saves about $3.20 across 8 plates." `computeInsights` sums qty per
+  product menu-wide and takes the cheapest **safe** alternative via `subCandidate` (see Follow-up #3 — the
+  first pass used `alternatives()` and Max caught it crossing Bacon → Ham; the conservative matcher replaced
+  it). **Only emits when a real cheaper same-ingredient product exists.**
 - **`insCut`** — a dish ≥ `CUT_PTS` (12) over target: "Steak Works runs 12 pts over and is hard to reprice
   cleanly — worth reworking the spec or dropping it."
 - **Reprice demoted to LAST-RESORT:** `insReprice` now only covers `[1, CUT_PTS)` pts (extreme dishes hand off
@@ -83,7 +104,7 @@ restacks: `.inv-upload` becomes a column (Upload → "or paste text manually" �
 sequence (upload → paste → match → meta → Remembered) gets even `sp-4` rhythm. **No id/handler change; the
 fragile invoice REVIEW render area was not touched** (this is the import *header* only).
 
-## Tests — 261 → 270 green
+## Tests — 261 → 274 green (270 first pass, +4 substitution-safety)
 - `tests/insights.test.js` +9 (22→31): `insPortion` (dominant / not-dominant / most-lopsided), `insSub`
   (formats per-unit + plate count / empty / biggest-saving), `insCut` (≥12 pts → cut + `insReprice` hands it
   off / <12 pts not a cut), and `deriveInsights` (cheaper levers lead over reprice). Require + `_extract`
@@ -107,10 +128,10 @@ reconciliation (open the builder modal first, re-baseline the 12) remains the st
 
 ## Needs Max's phone (nothing here is "feel"-verified — no phone in the container)
 1. **The rainbow FAB + panel on the Menu tab, 380px + desktop, both themes:** the gradient logo button sits
-   bottom-left clear of the bottom nav (mobile) / the sidebar (desktop); tap expands the panel from the corner
+   bottom-right, clear of the bottom nav (mobile) / the content column (desktop); tap expands the panel from the corner
    (no clipping at 380px, panel scrolls if long); ×/outside-tap/Escape close it; switching menus updates the
    content; it hides entirely on a menu with nothing to say. Confirm it doesn't cover the last table row or
-   any other bottom-left chrome.
+   any other bottom-right chrome.
 2. **Varied non-reprice advice:** on a real menu, confirm the suggestions lead with portion/substitution/cut
    advice and only fall back to a (softened) reprice line — never three reprice lines. Sanity-check the
    substitution figures against a known cheaper product.

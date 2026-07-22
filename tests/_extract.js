@@ -69,6 +69,8 @@ function build() {
   const insPortion = extractFn(src, 'insPortion');   // v69: portion/spec lever
   const insSub = extractFn(src, 'insSub');           // v69: cheaper same-category substitution
   const insCut = extractFn(src, 'insCut');           // v69: far-over-target → rework/drop
+  const searchTokens = extractFn(src, 'searchTokens');   // shared token splitter (subCandidate's name-safety net)
+  const subCandidate = extractFn(src, 'subCandidate');   // v69: conservative substitution matcher (never crosses foodstuffs)
   const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
   const lightFilterPass = extractFn(src, 'lightFilterPass');   // v68: Menu margin-light filter (pure)
@@ -96,10 +98,12 @@ function build() {
     ${insPortion}
     ${insSub}
     ${insCut}
+    ${searchTokens}
+    ${subCandidate}
     ${selectInsights}
     ${deriveInsights}
     ${lightFilterPass}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insSub, insCut, selectInsights, deriveInsights, lightFilterPass };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, insTargetPrice, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insSub, insCut, searchTokens, subCandidate, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }
