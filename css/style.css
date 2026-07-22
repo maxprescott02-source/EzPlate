@@ -2353,16 +2353,18 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    row height, the × column and the total column all align pixel-wise for free. Only the costs row differs:
    the amount is an editable $ box (not static text), it must NOT take .qtybox's order:-1 (that's for qty,
    which leads an ingredient row — a misc line has none), and the $ hugs the field (no 32px unit gutter).
-   v69 (Max, reversing v60): the name is an editable field again — it fills the .nm slot so it reads without
-   truncation at 380px, styled to match the app's other inline inputs. */
+   v69 (Max, reversing v60): the name is an editable field again, but it must READ like the line's label
+   ("Misc") on the top row — not a heavy form box. So it's styled as the ingredient name (bold text, same
+   15/700) with only a faint underline to signal it's editable; the $ amount stays on the .costs row in the
+   total column. Top row = name + ×; bottom row = the $ field, in line with every ingredient's cost. */
 .line.misc-line .nm{align-self:center}                              /* single-line field: centre it against the × in the top row */
 .line.misc-line .nm .misc-name{
-  width:100%;max-width:100%;font-size:var(--fs-base);font-weight:600;color:var(--text);
-  background:var(--field);border:1px solid var(--border);border-radius:var(--radius-ctl);
-  padding:8px 10px;min-height:40px;
+  width:100%;max-width:100%;font-size:15px;font-weight:700;color:var(--text);line-height:1.3;
+  background:transparent;border:0;border-bottom:1px solid var(--border);border-radius:0;
+  padding:4px 0;min-height:32px;
 }
-.line.misc-line .nm .misc-name::placeholder{color:var(--muted2);font-weight:500}
-@media (max-width:700px){ .line.misc-line .nm .misc-name{min-height:44px} }   /* phone hit target, matching the $ + qty inputs */
+.line.misc-line .nm .misc-name::placeholder{color:var(--muted2);font-weight:700}
+.line.misc-line .nm .misc-name:focus{outline:none;box-shadow:none;border-bottom-color:var(--accent)}   /* editable affordance without the boxy ring */
 .line.misc-line .costs .misc-costbox{order:0;flex:0 0 auto;max-width:none;gap:2px}  /* beats .line .costs .qtybox{order:-1}; leader (flex:1) pushes it to the total column */
 .line.misc-line .costs .misc-costbox .u{width:auto;min-width:0;color:var(--muted2)} /* $ hugs the field — no 32px unit-column gutter */
 .line.misc-line .costs .misc-costbox input{width:92px;text-align:right}             /* right-aligned in the total slot; spinners hidden via the base .qtybox input rule */

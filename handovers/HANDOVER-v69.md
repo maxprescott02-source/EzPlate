@@ -34,6 +34,22 @@ types all pass numbers through `facts`); naming inversion left alone; no new dep
    Tests **270 → 274** (subCandidate ×4); smoke §16 gains a "re-render within the period = no second Gemini
    call" check.
 
+### Follow-up round 2 (Max review — builder flow + misc line, verified against 380px screenshots)
+5. **Focus management for the Suggestions panel** (CodeRabbit): the panel gains `tabindex="-1"` and focus moves
+   into it on open, back to the trigger on an explicit close (× / Escape / re-tap); outside-click leaves focus
+   where it went; the auto-hide path never steals focus to a hidden button. Smoke asserts both. (Two other
+   CodeRabbit nits skipped: `msugPop` keyframe name is valid + matches existing camelCase keyframes; the misc
+   `xRight`-vs-card-edge assertion was already present.)
+6. **Builder flow reordered** (Max: "pick ingredients → name → categorise → save"). `#docketPanel`
+   ("Add ingredients": search + docket + total) now comes FIRST; `#platePanel` ("Name & save": plate name →
+   category → Save/Print/Clear) second (category + actions moved into it — all self-padded, ids/handlers
+   unchanged). Reverses v56's name-first. Verified at 380px.
+7. **Misc name field restyled** (Max: "say misc on top line with the ×, field on the bottom line in line with
+   the cost field"). The name was a heavy bordered form box; it now reads as the line's **label** — bold text
+   (15/700, matching the ingredient name) with only a faint underline to signal it's editable — on the top row
+   with ×; the `$` amount stays on the `.costs` row in the total column, in line with every ingredient's cost.
+   Structure unchanged (two-row skeleton); CSS only.
+
 The three design skills (`/frontend-design`, `/web-design-guidelines`) guided the FAB; the ONE flourish (the
 gradient logo) is spent on the button, everything around it stays quiet.
 

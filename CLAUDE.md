@@ -326,7 +326,10 @@ merge to `main` as a production deploy.
   seeds a stable-then-rotating selection; `gemPhraseInsights` reads/writes a localStorage cache
   (`cafeDB_insightCache`) so reloads within a period don't re-hit Gemini (saves quota); a price change (new sig)
   forces a fresh call. 261→**274** (`insights.test.js` +9 types, +4 `subCandidate`; smoke §16 extended for the
-  FAB + the "no second Gemini call on re-render" cache check). Six spots → **v69**. `fresh-states.spec.js` misc
+  FAB + the "no second Gemini call on re-render" cache check). Six spots → **v69**. **Builder flow reordered
+  (Max): Add ingredients → Name & save (name → category → Save)** — `#docketPanel` first, `#platePanel` second;
+  misc name field restyled to read as a clean editable label (bold text + underline, not a boxy input);
+  Suggestions panel got focus management (CodeRabbit). `fresh-states.spec.js` misc
   pins updated to `.misc-name` + two-row but NOT runnable to green in-env (dies earlier at the builder-modal
   screenshot — pre-existing) — full reconciliation still deferred. **Needs Max's phone: the FAB+panel at 380px
   both themes bottom-right (no nav overlap), varied SAFE non-reprice advice, misc name field, invoice header
