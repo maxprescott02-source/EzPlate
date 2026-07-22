@@ -298,8 +298,9 @@ merge to `main` as a production deploy.
   One unmerged branch carries the next batch: **`feature/suggestions-fab`** (**v69**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
-  **The three v55 Supabase migrations STILL need applying to prod before the v54+ line goes live** (see
-  [[supabase-schema-can-lag-app-code]]). `npm test` = **270 green** (was 261 pre-batch), jsdom smoke green,
+  **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
+  live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
+  `npm test` = **270 green** (was 261 pre-batch), jsdom smoke green,
   `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v69**. Per-batch detail lives in
   `handovers/HANDOVER-vNN.md`.
 
@@ -585,10 +586,12 @@ merge to `main` as a production deploy.
   `invRows[i].newItem` snapshot/rehydrate (v50, FRAGILE — now also carries `edited` for the §F1
   auto-fill mark); chart is a hand-rolled monotone cubic (`tcTicks`/`tcTangents`/`tcPath`);
   v49 panel skeleton (`layout-consistency.spec.js`); **v43 lesson — any `dbPush*` naming a
-  column the live DB lacks fails wholesale; apply the v55 migrations BEFORE deploy** (see
-  [[supabase-schema-can-lag-app-code]]).
+  column the live DB lacks fails wholesale; apply any NEW migration to prod BEFORE the deploy that reads
+  it** (the v55 migrations themselves are already applied — see [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v54–v59, apply the 3 v55 migrations to prod, merge (v58
-  then v59); (b) run `npm run shots` + reconcile `fresh-states.spec.js` on a browser env (v55 §K
-  stale tests + v56 builder/misc pins + v58 empty-state re-baseline + v59 menu-controls/Tidy-lists);
-  (c) optional: purchased-quantity capture for §I (needs a protected-region edit).
+- Next up: (a) Max's phone sign-off on v69 (the Suggestions FAB + panel, non-reprice advice, misc name
+  field, invoice-header stacking) then merge PR #14; (b) run `npm run shots` + reconcile
+  `fresh-states.spec.js` on a browser env — it has ~12 pre-existing stale failures (the builder became a
+  `#builderModal` popup in v54/v55 so the spec never opens it, plus v56/v58/v59 pins and the v69
+  `.misc-name`/two-row misc updates); (c) gate or remove the diagnostic `GET /api/parse-invoice?probe=1`
+  before multi-tenant; (d) optional: purchased-quantity capture for v55 §I (needs a protected-region edit).

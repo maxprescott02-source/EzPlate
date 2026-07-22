@@ -5,7 +5,7 @@
 Brief: `~/Downloads/ezplate-opus-suggestions-fab.md`. Branch off **v68** (origin/main was already at v68 — PR #13
 `fix/visual-consistency-pass` had merged; the v68 CLAUDE.md "State as of" still described that branch as
 unmerged). **Client + CSS + tests only — no DB/schema change, branch-safe** (unrelated to the still-pending
-v55 migrations). Baseline **261 green** → **270 green**; jsdom smoke green (§16 extended, §17 unchanged);
+v55 migrations, which are already applied to prod). Baseline **261 green** → **270 green**; jsdom smoke green (§16 extended, §17 unchanged);
 `node -c` clean on `js/app.js`, `sw.js` + all four `api/*.js`. **Six spots v68 → v69.**
 
 Invariants held: protected parser region untouched; **money stays deterministic** (the app computes every
@@ -126,8 +126,8 @@ reconciliation (open the builder modal first, re-baseline the 12) remains the st
 - No new suggestion beyond the four levers named in the brief; `selectInsights`/rotation reused as-is.
 - fresh-states full reconciliation not attempted (deferred, sign-off-gated — see above).
 
-## Still outstanding (unchanged from v68)
-- The three v55 Supabase migrations still need applying to prod before the v54+ line goes live.
+## Still outstanding
+- ~~The three v55 Supabase migrations~~ — **applied to prod (Max, confirmed 22 Jul 2026)**; the v54+ line is live.
 - `fresh-states.spec.js` baseline reconciliation (now also: the v69 misc name field + the moved Suggestions
   FAB) once Max signs off the look on a browser env.
 - The diagnostic `GET /api/parse-invoice?probe=1` (gated off) — gate or remove before multi-tenant.
