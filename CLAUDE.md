@@ -294,16 +294,47 @@ merge to `main` as a production deploy.
 
 ## State as of 22 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v70** — PR #15 (`chore/fresh-states-and-probe-gate`, v70) is now MERGED (`48358e5`).
-  One unmerged branch carries the next batch: **`feature/suggestions-refine`** (**v71**), off `main`,
+- `origin/main` is at **v71** — PR #16 (`feature/suggestions-refine`, v71) is now MERGED (`1baeddb`).
+  One unmerged branch carries the next batch: **`feature/animation-system`** (**v72**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **271 green** (v71's −3 is deliberate — removed swap-suggestion pins; see HANDOVER-v71),
-  jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v71**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v71** (no browser) — the
-  builder `#platePanel` spacing + new FAB markup may shift visual pins; reconcile on a browser env.
+  `npm test` = **271 green** (unchanged in v72 — a presentation-only batch), jsdom smoke green (incl. a new
+  [18] v72 modal close-out section), `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v72**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72**
+  (no browser) — markup is unchanged but motion timing can only be judged on a device; reconcile on a browser env.
+
+- **v72 (branch `feature/animation-system`) — Animation system: make it feel finished (brief:
+  `~/Downloads/ezplate-opus-animation-system.md`). See `handovers/HANDOVER-v72.md`.** A SYSTEM pass (not
+  sprinkle-effects) — the app already had ~70% of a motion system; this formalised it + added two signature
+  moments. **CSS + one central JS wiring change + one smoke section only;** zero contact with the protected
+  region, money law, naming inversion, data model, or invoice-review render/row-state (the only invoice CSS is
+  a transition on the existing `.cand-chip` `.sel` state — motion on an existing state change). No new deps.
+  (1) **Motion tokens formalised** (`css :root`): kept `--ease`/`--t-fast`/`--t-med` (NOT renamed to `--motion-*`
+  — churn for nothing, and ~40 call sites), **added** `--t-slow:.3s`, `--ease-in-out`, and `--ease-spring`
+  (the one overshoot), documented in a comment block; no ad-hoc durations/easings elsewhere. (2) **Applied
+  consistently:** modal open→`--t-slow`; **modal CLOSE now reverses** (fade+scale) via one central mechanism;
+  tab-switch `tabIn` settle on the five `#tab-*`; ONE shared card/row press (`:active{scale(.985)}` on
+  `.ing-card`/`.hl-card`, .96 on chips) + token transitions on `.mi-row`/`.pchip`/`.mlf-chip`/`.cand-chip`; the
+  invoice "AI checking→checked" note eases its colour. (3) **Two signature moments:** the **Gemini panel
+  spring-expand** (`msugPop`→`--ease-spring`, the app's AI surface — the one place to spend boldness) and the
+  **invoice-import corner-toast** springing up with a green ✓ that lands after (routed through the already-shown
+  corner-toast, NOT the fragile review markup). **Modal close is centralised** in `openOverlay`/`closeOverlay`
+  (`show`/`hide`/`openModal`/`closeModal` route through them): `.open` drops SYNCHRONOUSLY (so every `.open`
+  check + the 4 existing smoke close-assertions stay honest — that's why the suite needed zero edits) while a
+  separate `.closing` class re-asserts display and runs the fade-out for 320ms; reopen cancels it; reduced-motion
+  (JS `matchMedia`) + the pre-existing global CSS killswitch both close instantly. All added keyframes animate
+  **transform/opacity only**. smoke +[18]; six spots → **v72**. **Also folded into v72 (Max: "fix this in this
+  branch too"): invoice new-item form NESTING** (brief `~/Downloads/ezplate-opus-invoice-newitem-nesting.md`) — the
+  Add-new form was a separate white card below the red line card with Apply stranded above it; it now nests in the
+  line's Match cell (`.ni-slot`, was a colspan-6 `.ni-row`) so one card reads header → price → match → form → Apply
+  (last). Apply checkbox UNMOVED (v50 persistence + `inv-rowmarkup` anchor intact); form relocated not rebuilt
+  (`expandNewItem` queries `.ni-slot`); add-new rows stay stacked cards on desktop too. Tests 271→**272** (+1 nesting
+  pin; smoke [11] persistence repro + nesting assertion). **Needs Max's phone:** modal open/close, tab switches, the
+  Gemini panel expand, card taps, the Confirm-All corner-toast+✓, the AI-note easing, AND the nested invoice new-item
+  form (Apply below the form, dropdowns not clipped, form survives editing another line) — all at 380px both themes,
+  then re-tested with OS reduced-motion ON confirming motion drops out.
 
 - **v71 (branch `feature/suggestions-refine`) — Suggestions refinement: point, don't prescribe · remembered
   packs → Settings · dismissable Gemini FAB · builder gap (brief: `~/Downloads/ezplate-opus-suggestions-refine.md`).
@@ -623,11 +654,13 @@ merge to `main` as a production deploy.
   column the live DB lacks fails wholesale; apply any NEW migration to prod BEFORE the deploy that reads
   it** (the v55 migrations themselves are already applied — see [[supabase-schema-can-lag-app-code]]).
 
-- Next up: (a) Max's phone sign-off on v71 (then merge); (b) reconcile `fresh-states.spec.js` on a browser env
-  for v71's builder-spacing + FAB-markup changes; (c) optional: purchased-quantity capture for v55 §I (needs a
-  protected-region edit). **Done in v71:** Suggestions engine reworked to point-not-prescribe (substitution
-  removed, no prescribed prices/portions), count scales with menu size, all-healthy warm line, tone steered off
-  "charge more"; remembered packs moved to Settings and made read-only; the Gemini FAB is swipe/link dismissable
-  with a slim edge-tab restore (global, persisted); builder Name↔Category gap tightened. **Two product decisions
-  Max confirmed this batch:** remembered packs are view+Remove only (not editable); the FAB dismiss is global
-  scope (not per-menu).
+- Next up: (a) Max's phone sign-off on v72's motion (then merge) — modal open/close, tab switches, the Gemini
+  panel spring-expand, card taps, the Confirm-All corner-toast+✓, the AI-note easing, all at 380px both themes,
+  then re-tested with OS reduced-motion ON; (b) reconcile `fresh-states.spec.js` on a browser env (v71's
+  builder-spacing + FAB markup and v72's timing); (c) optional: purchased-quantity capture for v55 §I (needs a
+  protected-region edit). **Done in v72:** motion-token scale formalised (added `--t-slow`/`--ease-in-out`/
+  `--ease-spring`, kept `--t-fast`/`--t-med`); modal close now reverses via central `openOverlay`/`closeOverlay`
+  (`.open` drops synchronously, `.closing` drives the fade); tab-switch settle; ONE shared card/row press;
+  two signature moments (Gemini panel spring-expand + invoice corner-toast with a landing ✓); reduced-motion +
+  GPU-only (transform/opacity) throughout. **Two decisions Max confirmed this batch:** include the modal
+  close-reverse (touches shared `hide()`/`closeModal()`); ship both signature moments (not Gemini-panel-only).

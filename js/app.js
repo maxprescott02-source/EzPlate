@@ -494,8 +494,8 @@ function initAddCombos(){
   makeInlineCombo('f_sup','f_supDrop',prodSuppliers);
   makeInlineCombo('f_category','f_categoryDrop',prodCategories);
 }
-function openModal(){initAddCombos();updateAddCalc();modal.classList.add('open');modal.setAttribute('aria-hidden','false');}
-function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+function openModal(){initAddCombos();updateAddCalc();openOverlay(modal);}
+function closeModal(){closeOverlay(modal);}
 function clearForm(){['f_desc','f_brand','f_sup','f_category','f_packsize','f_price'].forEach(id=>{var e=document.getElementById(id);if(e)e.value='';});
   document.getElementById('f_food').checked=true;document.getElementById('f_packunit').value='kg';updateAddCalc();document.getElementById('ferr').style.display='none';}
 function submitNew(){
@@ -2172,7 +2172,8 @@ function renderMenuInsights(){
 function menuSuggestOpen(){
   var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
   var p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
-  if(p) p.hidden=false; f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
+  if(p){ p.hidden=false; p.style.animation='none'; void p.offsetWidth; p.style.animation=''; }   // v72: force the signature spring to restart on EVERY open (a re-open otherwise skips it)
+  f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
   if(p){ try{ p.focus(); }catch(e){} }                               // move focus into the now-visible dialog (announces it, reads from the top)
 }
 function menuSuggestClose(restoreFocus){
@@ -2341,7 +2342,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v71';
+var APP_VERSION='v72';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2593,8 +2594,23 @@ if ('serviceWorker' in navigator) {
 
 
 /* ====== v2 features: load/edit, promote-to-menu, invoice import, name match ====== */
-function show(id){var el=document.getElementById(id);if(el){el.classList.add('open');el.setAttribute('aria-hidden','false');}}
-function hide(id){var el=document.getElementById(id);if(el){el.classList.remove('open');el.setAttribute('aria-hidden','true');}}
+// v72 motion: reduced-motion probe (CSS handles the killswitch; JS needs it to skip the close-out timing).
+function prefersReducedMotion(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches); }catch(e){ return false; } }
+// v72 motion: modal open/close go through ONE pair so every overlay shares the same entrance AND the reverse-out.
+// Open cancels any pending close so a fast reopen can't be swallowed by the close timer.
+function openOverlay(el){ if(!el) return; clearTimeout(el.__closeT); el.classList.remove('closing'); el.classList.add('open'); el.setAttribute('aria-hidden','false'); }
+function closeOverlay(el){
+  if(!el) return;
+  var wasOpen=el.classList.contains('open');
+  el.setAttribute('aria-hidden','true');                          // a11y + logic: closed at once, whatever the visual does
+  clearTimeout(el.__closeT);
+  el.classList.remove('open');                                    // .open drops synchronously so every `.open` check + CSS layout sees it closed now
+  if(!wasOpen || prefersReducedMotion()){ el.classList.remove('closing'); return; }
+  el.classList.add('closing');                                    // .modal-overlay.closing re-asserts display + runs the fade-out (CSS §14)
+  el.__closeT=setTimeout(function(){ el.classList.remove('closing'); }, 320);
+}
+function show(id){ openOverlay(document.getElementById(id)); }
+function hide(id){ closeOverlay(document.getElementById(id)); }
 
 function updateEditTag(){
   var t=document.getElementById('editTag');
@@ -3553,11 +3569,11 @@ function niRehydrate(i){
     if(c){ if(e) e.value=(c.value||''); niCombos[id]={value:(c.value||''), isNew:!!c.isNew, confirmed:!!c.confirmed}; } });
 }
 function expandNewItem(i){
-  var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(!nirow) return;
+  var nirow=document.querySelector('.ni-slot[data-ni="'+i+'"]'); if(!nirow) return;   // v72: the form slot now lives inside the row's Match cell (was a separate .ni-row)
   var panel=nirow.querySelector('.ni-panel'), r=invRows[i];
   if(!panel.dataset.built){
     var ut=r.unit==='kg'?'kg':r.unit==='l'?'litre':r.unit==='ea'?'unit':'kg';
-    var pv=(r.unitPrice!=null)?r.unitPrice:'';
+    var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';   // v72: display rounds to the cent, like the matched-row .invPrice prefill (was raw — showed 12.77450980… in the field)
     // v55 §F1: the "auto-filled" chip must key off fields the PARSER filled, not off emptiness (the old
     // :placeholder-shown CSS lit the chip on ANY typed value). Mark those fields with class "af" at build,
     // omit it for fields the user has already edited (tracked on r.newItem.edited so it survives re-renders),
@@ -3604,7 +3620,7 @@ function expandNewItem(i){
   // rehydrate from what the user had typed, so an unrelated re-render can't wipe an in-progress item.
   if(r.newItem){ niRehydrate(i); } else { r.newItem=niSnapshot(i); }
 }
-function collapseNewItem(i){ var nirow=document.querySelector('.ni-row[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
+function collapseNewItem(i){ var nirow=document.querySelector('.ni-slot[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
   var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; r.newItem=null; }   /* dismissing the form = this line is neither new nor matched (skip); drop its saved form state */
@@ -3745,15 +3761,21 @@ function renderInvReview(){
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
         var p=byId[c.id]; if(!p) return '';
-        var fullNm=p.description+(p.brand?' \u00b7 '+p.brand:'');     // v71: the untruncated name \u2014 for the hover tooltip + mobile long-press reveal
-        var nm=fullNm; if(nm.length>34) nm=nm.slice(0,32)+'\u2026';   // the chip label stays short; a chip also ellipsis-clips via CSS
-        // v71 (Max): the match name is cut off by the narrow chip. `title` gives the full text on desktop hover;
-        // `data-full` feeds the mobile long-press reveal (see the chip wiring below). esc() guards both attrs.
-        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'" data-full="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(nm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
+        var fullNm=p.description+(p.brand?' \u00b7 '+p.brand:'');     // the full name \u2014 shown in the chip on mobile (wraps), title-hover on desktop
+        // v72 (Max): emit the FULL name, no JS truncation. Desktop keeps the compact chip \u2014 CSS clips with an
+        // ellipsis and `title` reveals it on hover (unchanged). Mobile lets the chip WRAP so the name is never
+        // cut off \u2014 which removes the need for the old white-toast long-press reveal (wiring dropped below).
+        return '<button type="button" class="cand-chip'+((!r.addNew&&r.bestId===c.id)?' sel':'')+(c.ai?' ai':'')+'" data-i="'+i+'" data-cid="'+esc(c.id)+'" title="'+esc(fullNm)+'">'+(c.ai?'<span class="cc-ai" title="Suggested by the AI second reader">AI</span> ':'')+esc(fullNm)+' <span class="cc-pct">'+Math.round(c.coverage*100)+'%</span></button>';   // v63 item 2: the AI-suspected product is ranked first and carries the same accent chip system (see .cc-ai)
       }).join('')+'</div>';
     }
+    // v72: the new-item form now nests INSIDE the line's card, in the Match-to cell right below the
+    // "Editing new item" toggle — so the one card reads header → price → match → form → Apply (last).
+    // The form panel lives in this .ni-slot (was a separate colspan-6 .ni-row that rendered as a detached
+    // white card); expandNewItem fills it. The Apply checkbox is UNMOVED (still the row's final cell), so
+    // the inv-rowmarkup ROW_END anchor + the v50 checked-persistence contract are untouched.
     var matchCell = r.addNew
-      ? '<button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
+      ? '<div class="match-cell match-new"><button class="btn ni-add-btn" type="button" data-add="'+i+'">+ Add as New Item</button>'
+        +'<div class="ni-slot" data-ni="'+i+'" style="display:none"><div class="ni-panel"></div></div></div>'
       : '<div class="match-cell">'+chips+'<select class="invSel">'+invMatchOptions(r)+'</select>'
         +'<button class="btn ni-add-btn ni-add-alt" type="button" data-add="'+i+'">+ New</button></div>';
     // ITEM 1 (v33): a matched row — auto OR manual — always shows the linked product's current price and a real confidence.
@@ -3769,7 +3791,7 @@ function renderInvReview(){
       oldCell+
       confCell+
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
-    html+='<tr class="ni-row" data-ni="'+i+'" style="display:none"><td colspan="6"><div class="ni-panel"></div></td></tr>';
+    // v72: the form panel moved INTO the row's Match cell (.ni-slot, see matchCell above) — no separate row.
   });
   html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Only ticked rows are saved when you tap Confirm All.</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
@@ -3807,16 +3829,9 @@ function renderInvReview(){
   });
   box.querySelectorAll('.pt-done').forEach(function(d){ d.onclick=function(){ renderInvReview(); }; });
   box.querySelectorAll('.cand-chip').forEach(function(ch){
-    // v71 (Max): the chip label is truncated. Desktop hover shows the full name (native `title`); on mobile a
-    // long-press reveals it as a toast. A long-press must NOT also select the match, so it swallows the click.
-    var lpT=null, lpFired=false, sx=0, sy=0;
-    function lpClear(){ if(lpT){ clearTimeout(lpT); lpT=null; } }
-    ch.addEventListener('touchstart', function(e){ var t=e.touches[0]; sx=t.clientX; sy=t.clientY; lpFired=false; lpClear();
-      lpT=setTimeout(function(){ lpFired=true; toast(ch.getAttribute('data-full')||ch.textContent.trim()); if(navigator.vibrate){ try{ navigator.vibrate(10); }catch(_){} } }, 450); }, {passive:true});
-    ch.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(lpT && (Math.abs(t.clientX-sx)>8||Math.abs(t.clientY-sy)>8)) lpClear(); }, {passive:true});
-    ch.addEventListener('touchend', function(e){ lpClear(); if(lpFired){ e.preventDefault(); } });   // long-press showed the name → don't select
+    // v72 (Max): the chip now shows the FULL name (wraps on mobile, ellipsis + `title` hover on desktop), so the
+    // old white-toast long-press reveal is gone — a chip is simply tap-to-select.
     ch.onclick=function(){
-      if(lpFired){ lpFired=false; return; }                          // this click follows a long-press → swallow it
       var tr=ch.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10);
       var sel=tr.querySelector('.invSel'); if(!sel) return;
       sel.value=ch.getAttribute('data-cid');

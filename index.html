@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=71">
+<link rel="stylesheet" href="css/style.css?v=72">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -369,8 +369,10 @@
       <div id="invManualBox" class="inv-manual-box" hidden>
         <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
         <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
+        <!-- v72 (Max): Match products lives with the paste box — an upload auto-parses, so the button is only ever needed after a manual paste. -->
+        <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button></div>
       </div>
-      <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button> <span class="hint" id="lastImport2"></span></div>
+      <div class="inv-parse-row"><span class="hint" id="lastImport2"></span></div>
       <div id="invReview" style="display:none;margin-top:14px"></div>
     </div>
   </div>
@@ -682,7 +684,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=71"></script>
+<script src="js/app.js?v=72"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
