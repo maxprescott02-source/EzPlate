@@ -143,8 +143,8 @@ async function bootstrapSync(){
     if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
-    var fabRow=setRows.filter(function(r){return r.key==='suggest_fab_hidden';})[0];             // v71 item 6: the dismissed Suggestions button is a global, synced setting
-    if(fabRow && fabRow.value!=null){ suggestFabHidden=(String(fabRow.value)==='1'); try{ localStorage.setItem('cafeDB_suggestFabHidden', suggestFabHidden?'1':'0'); }catch(e){} if(typeof applySuggestFabDismissed==='function') applySuggestFabDismissed(); }
+    // v74: the v71 'suggest_fab_hidden' synced setting is retired — the insights are a static inline pill now,
+    // nothing to hide. An old value left in the DB/localStorage is simply ignored (no reader remains).
     buildMenuOptions(); buildMenuSelector(); renderPlate(); renderPlatesTab(); renderAnalysis(); updateLastImport(); updateEditTag();
     setSync('ok'); window.__ezReady=true;
   }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
@@ -2150,9 +2150,8 @@ function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var fab=document.getElementById('menuSuggestFab');
   var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
-  if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole FAB (button AND restore tab)
-  if(fab){ fab.hidden=false; fab.classList.toggle('dismissed', !!suggestFabHidden); }               // v71 item 6: dismissed → show the slim restore tab instead of the button
-  if(suggestFabHidden) menuSuggestClose();                                                          // never leave the panel open while dismissed
+  if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole pill (v74)
+  if(fab) fab.hidden=false;                                                                          // v74: the pill shows whenever the menu has something to say
   var sig=insightSig(insights);
   // v69 (Max): the panel title always reads "What stands out on this menu" — the selected menu is already
   // obvious from the picker, so naming it here is noise. The "Refined by Gemini" credit stays honest —
@@ -2164,11 +2163,13 @@ function renderMenuInsights(){
     +'</div>';
   try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
 }
-/* v69 item 1: the floating Suggestions panel — expands from the bottom-right rainbow button, closes on the
-   ×, a re-tap, an outside click or Escape. Content is filled by renderMenuInsights; the panel only exists
-   while the FAB is shown (i.e. this menu has something to say). Focus moves INTO the panel on open and is
-   RESTORED to the trigger on an explicit close (× / Escape / re-tap) so keyboard focus never lands on the
-   now-hidden panel. Outside-click leaves focus wherever the click sent it (don't yank it back). */
+/* v74 (Max): the Suggestions panel now drops DOWN from a static "EzPlate Insights" pill in the Menu actions
+   row (was a floating bottom-right rainbow FAB, v69). Closes on the ×, a re-tap, an outside click or Escape.
+   Content is filled by renderMenuInsights; the pill (and panel) only exist while this menu has something to
+   say. Focus moves INTO the panel on open and is RESTORED to the pill on an explicit close (× / Escape /
+   re-tap) so keyboard focus never lands on the now-hidden panel. Outside-click leaves focus wherever the
+   click sent it (don't yank it back). The v71 swipe-to-hide / edge-tab dismiss is GONE — a static inline
+   pill is never "in the way", so there is nothing to hide. */
 function menuSuggestOpen(){
   var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
   var p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
@@ -2183,47 +2184,10 @@ function menuSuggestClose(restoreFocus){
   if(restoreFocus && wasOpen && b && f && !f.hidden){ try{ b.focus(); }catch(e){} }   // return focus to the trigger — never to now-hidden content
 }
 function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(true); }
-/* v71 item 6: the rainbow Suggestions button is dismissable and recallable. Scope is GLOBAL, not per-menu:
-   the user hides the assistant because it's in the way, not because of one menu — a per-menu flag would make
-   it flicker back on every menu switch and read as broken. Persisted via the settings pattern (localStorage
-   mirror + dbSetSetting) so it survives reload and syncs across the café's devices. When dismissed the FAB
-   swaps its round button for a slim edge tab (never lost); restoring brings the button straight back. */
-function loadSuggestFabHidden(){ try{ return localStorage.getItem('cafeDB_suggestFabHidden')==='1'; }catch(e){ return false; } }
-var suggestFabHidden=loadSuggestFabHidden();
-function applySuggestFabDismissed(){ var f=document.getElementById('menuSuggestFab'); if(f && !f.hidden) f.classList.toggle('dismissed', !!suggestFabHidden); }
-function setSuggestFabHidden(v){
-  suggestFabHidden=!!v;
-  try{ localStorage.setItem('cafeDB_suggestFabHidden', suggestFabHidden?'1':'0'); }catch(e){}
-  dbSetSetting('suggest_fab_hidden', suggestFabHidden?'1':'0');
-}
-function suggestFabDismiss(){
-  menuSuggestClose(false);                                            // fold the panel away first
-  setSuggestFabHidden(true); applySuggestFabDismissed();
-  var r=document.getElementById('menuSuggestRestore'); if(r){ try{ r.focus(); }catch(e){} }   // keyboard focus follows onto the restore tab
-}
-function suggestFabRestore(){
-  setSuggestFabHidden(false); applySuggestFabDismissed();
-  var b=document.getElementById('menuSuggestBtn'); if(b){ try{ b.focus(); }catch(e){} }        // focus lands back on the now-visible button
-}
 (function wireMenuSuggestFab(){
   var b=document.getElementById('menuSuggestBtn');
-  var suppressClick=false;                                            // set by a completed swipe so the trailing click can't also toggle the panel
-  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); if(suppressClick){ suppressClick=false; return; } menuSuggestToggle(); });
+  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestToggle(); });
   var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
-  var hide=document.getElementById('menuSuggestDismiss'); if(hide) hide.addEventListener('click', function(e){ e.stopPropagation(); suggestFabDismiss(); });
-  var rest=document.getElementById('menuSuggestRestore'); if(rest) rest.addEventListener('click', function(e){ e.stopPropagation(); suggestFabRestore(); });
-  // v71 item 6: DRAG the button toward its edge (rightward) to dismiss. Pointer events (not touch-only) so it
-  // works with BOTH a mouse on desktop and a finger on mobile (v71 follow-up: swipe was dead on desktop). The
-  // button drags under the cursor for feedback; a small move is still a tap (toggles the panel), only a clear
-  // horizontal drag past the threshold dismisses (and we swallow the trailing click). touch-action:none on the
-  // button (CSS) keeps a touch-drag from scrolling the page instead.
-  if(b && typeof window.PointerEvent!=='undefined'){
-    var px=null,py=null,swiped=false;
-    b.addEventListener('pointerdown', function(e){ px=e.clientX; py=e.clientY; swiped=false; try{ b.setPointerCapture(e.pointerId); }catch(_){} });
-    b.addEventListener('pointermove', function(e){ if(px==null) return; var dx=e.clientX-px, dy=e.clientY-py; if(Math.abs(dx)>Math.abs(dy) && Math.abs(dx)>8){ swiped=true; b.style.transform='translateX('+Math.max(0,dx)+'px)'; } });
-    b.addEventListener('pointerup', function(e){ if(px!=null && swiped && (e.clientX-px)>40){ suppressClick=true; suggestFabDismiss(); } px=py=null; swiped=false; b.style.transform=''; });
-    b.addEventListener('pointercancel', function(){ px=py=null; swiped=false; b.style.transform=''; });
-  }
   document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
     var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
     var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose(false);
@@ -2342,7 +2306,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v73';
+var APP_VERSION='v74';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
