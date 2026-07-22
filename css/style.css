@@ -767,12 +767,12 @@ input[type=checkbox]{
    these equal the old inline margin-top:12px) so the mobile breakpoint below can restack them. */
 .inv-parse-row{margin-top:var(--sp-3)}
 @media (max-width:700px){
-  /* v69 item 5 (mobile-only, no desktop regression): the import header read as a loose pile at 380px —
-     the Upload/paste pair and the Match/meta pair each fought for one row and wrapped. Stack them as
-     ordered steps (upload → paste option → match → meta) with even vertical rhythm. */
-  .inv-upload{flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-2)}
+  /* v72 (Max): the upload button + the "or paste text manually" link read as one choice, so keep them on
+     ONE row (they fit at phone width; wrap gracefully only if very narrow), and tighten the gap down to
+     Match products — the v69 full-column stack left the link floating and a loose gap to the CTA. */
+  .inv-upload{flex-direction:row;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3);margin-top:var(--sp-2)}
   .inv-upload .inv-manual-toggle{margin-left:0}
-  .inv-parse-row{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-4)}
+  .inv-parse-row{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-3)}
   .inv-parse-row #lastImport2{margin-left:0}
 }
 .inv-actions{margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
