@@ -299,8 +299,9 @@ merge to `main` as a production deploy.
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations STILL need applying to prod before the v54+ line goes live** (see
-  [[supabase-schema-can-lag-app-code]]). `npm test` = **261 green**, jsdom smoke green, `node -c` clean
-  (app.js + the four `api/*.js`), six spots at **v68**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  [[supabase-schema-can-lag-app-code]]). `npm test` = **261 green** (was 256 pre-batch), jsdom smoke green,
+  `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at **v68**. Per-batch detail lives in
+  `handovers/HANDOVER-vNN.md`.
 
 - **v68 (branch `fix/visual-consistency-pass`) — Menu light-chip filter · Suggestions title + honest AI
   credit · whole-site grid-snap (brief: `~/Downloads/ezplate-opus-visual-consistency_1.md`). See

@@ -1,5 +1,7 @@
 # HANDOVER v68 — Menu light-chip filter · Suggestions title + honest AI credit · whole-site grid-snap
 
+**Completed:** 22 Jul 2026 · branch `fix/visual-consistency-pass` (PR #13).
+
 Brief: `~/Downloads/ezplate-opus-visual-consistency_1.md`. Branch `fix/visual-consistency-pass` off **v67**
 (origin/main was already at v67 — PR #12 `fix/builder-invoice-suggestions` had merged; the v67 CLAUDE.md
 "State as of" still described that branch as unmerged). **Client + CSS only — no DB/schema change,
