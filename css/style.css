@@ -51,12 +51,12 @@
                  --t-slow  larger surfaces (modal + panel open/close)
      Easing:     --ease         primary ease-out for entrances / most motion
                  --ease-in-out  symmetric moves (e.g. a modal fading back out)
-                 --ease-spring  gentle overshoot — reserved for the ONE
-                                signature moment (the Gemini panel expand).
+                 --ease-spring  overshoot bounce — the signature moments only
+                                (Gemini panel expand + invoice-import toast).
      All motion is disabled wholesale under prefers-reduced-motion (§22). */
   --ease:cubic-bezier(.2,.7,.3,1);
   --ease-in-out:cubic-bezier(.65,0,.35,1);
-  --ease-spring:cubic-bezier(.34,1.4,.64,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);   /* easeOutBack — visible overshoot for the signature moments */
   --t-fast:.14s; --t-med:.22s; --t-slow:.3s;
 }
 
@@ -2475,10 +2475,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg);padding:var(--sp-2) var(--sp-4) var(--sp-4);
-  /* v72 signature moment: the AI panel springs up from the rainbow button —
-     the one place we spend a little overshoot. Quick (--t-med), origin at the
-     button corner. Reduced-motion strips the animation just below. */
-  transform-origin:bottom right;animation:msugPop var(--t-med) var(--ease-spring);
+  /* v72 signature moment: the AI panel springs UP OUT of the rainbow button —
+     grows from ~60% at the button corner with a real overshoot bounce. The one
+     place we spend presence. menuSuggestOpen() force-restarts it every open.
+     Reduced-motion strips the animation just below. */
+  transform-origin:bottom right;animation:msugPop var(--t-slow) var(--ease-spring);
 }
 .msug-panel[hidden]{display:none}
 .msug-head{display:flex;align-items:center;justify-content:flex-end;margin-bottom:var(--sp-1)}   /* just the close × — the title lives in .mi-intro below */
@@ -2488,7 +2489,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* the insight block is flush inside the panel — the panel supplies the chrome the inline card used to */
 .msug-panel .menu-insights{margin:0;padding:0;background:none;border-radius:0}
 .msug-panel .mi-intro{font-style:normal;font-size:var(--fs-md);font-weight:800;color:var(--text);margin-bottom:var(--sp-3)}   /* the panel's title now (no eyebrow) */
-@keyframes msugPop{from{opacity:0;transform:scale(.9) translateY(10px)}to{opacity:1;transform:none}}
+@keyframes msugPop{from{opacity:0;transform:scale(.6) translateY(20px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
 @media (min-width:1024px){   /* no bottom nav on desktop; the sidebar is on the LEFT so the right corner is clear */
   .msug{right:var(--sp-5);bottom:var(--sp-5)}

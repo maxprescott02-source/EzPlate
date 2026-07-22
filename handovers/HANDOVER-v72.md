@@ -125,6 +125,18 @@ Test each at **380px, both themes**, then repeat with **OS reduced-motion ON** c
 - **`fresh-states.spec.js` / `npm run shots`** (Playwright, not runnable here): unchanged markup, but the corner-toast
   and modal timing may shift nothing visual in a static shot — re-run on a browser env and reconcile only if a pin moves.
 
+## Follow-up added same-branch (Max, after first preview — still v72, one deploy)
+- **Gemini panel spring was too subtle to notice.** Max on the v72 preview couldn't see the signature expand. Made
+  it a real moment: `msugPop` now grows from `scale(.6) translateY(20px)` (was `.9`/`10px`) over `--t-slow` (was
+  `--t-med`), and `--ease-spring` bumped to `cubic-bezier(.34,1.56,.64,1)` (easeOutBack) for a visible overshoot
+  bounce — the panel springs UP OUT of the button corner (origin bottom-right; right edge stays put so the overshoot
+  can't clip). The bouncier spring also enriches the corner-toast (shares the token). **Also guaranteed re-fire:**
+  `menuSuggestOpen` now force-restarts the animation every open (`animation='none'` → reflow `void offsetWidth` →
+  `animation=''`) so a re-open can't silently skip it. Reduced-motion still wins — clearing the inline animation
+  reverts to the stylesheet rule, which the global `!important` killswitch overrides. Still transform/opacity only.
+  271 tests + smoke green (the v69 open/focus pins still pass through the new open path). No version bump — branch
+  unshipped.
+
 ## NOT built / deliberately left (restraint)
 - **No hover-lift** (translateY on hover) on cards — the app's cards signal hover with border-colour consistently;
   adding a lift would be a second, competing treatment. Press-on-tap is the shared feedback.

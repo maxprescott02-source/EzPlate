@@ -2172,7 +2172,8 @@ function renderMenuInsights(){
 function menuSuggestOpen(){
   var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
   var p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
-  if(p) p.hidden=false; f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
+  if(p){ p.hidden=false; p.style.animation='none'; void p.offsetWidth; p.style.animation=''; }   // v72: force the signature spring to restart on EVERY open (a re-open otherwise skips it)
+  f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
   if(p){ try{ p.focus(); }catch(e){} }                               // move focus into the now-visible dialog (announces it, reads from the top)
 }
 function menuSuggestClose(restoreFocus){
