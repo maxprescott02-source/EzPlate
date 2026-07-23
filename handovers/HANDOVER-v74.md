@@ -71,11 +71,12 @@ here and in the PR.
 
 ## Needs Max's phone (motion + layout only show on device — nothing here is browser-verified)
 At **380px and desktop, both themes**, then with **OS reduced-motion ON** (spring should drop out):
-- The **pill** parked at the RIGHT edge of the Menu card — the rainbow **outline + gradient-clipped text + sparkle**
-  read cleanly in light AND dark. **Watch the gradient text contrast** (the orange stop is the lowest-contrast on a
-  light surface — bump the text to a solid accent if it reads weak); confirm it isn't invisible on any OS/browser
-  that lacks `background-clip:text`. On a narrow phone the strapline drops below the buttons and the pill stays with
-  them (right-aligned) — check it doesn't look stranded.
+- The insights trigger: on **desktop (≥640px)** it's the full **"EzPlate Insights" pill** at the RIGHT edge of the
+  Menu card (rainbow outline + gradient-clipped text + sparkle) — **watch the gradient text contrast** in light mode
+  (the orange stop is the lowest-contrast on a light surface; bump the text to a solid accent if it reads weak), and
+  confirm it isn't invisible on any browser lacking `background-clip:text`. On **phones (<640px)** it collapses to a
+  compact **44px rainbow circle** with just the sparkle (right-aligned on the buttons row) — check the spacing looks
+  tidy and it doesn't wrap awkwardly.
 - **Tap → the panel springs DOWN from the pill** (the signature moment, now downward); the panel isn't clipped and
   doesn't run off the right edge at 380px (it anchors to the pill's left; if the pill ends up mid-row on some width,
   watch for right-edge overflow — flag if seen).
