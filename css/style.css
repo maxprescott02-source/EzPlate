@@ -2484,16 +2484,17 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
 
-/* Panel drops DOWN from the pill (transform-origin top-left), anchored to the pill's left edge. */
+/* Panel drops DOWN from the pill, anchored to the pill's RIGHT edge and extending LEFT so it stays on-screen
+   (the pill lives at the right edge of the card — anchoring left would run the panel off the right, v74 fix). */
 .msug-panel{
-  position:absolute;left:0;top:calc(100% + var(--sp-2));z-index:60;
+  position:absolute;right:0;top:calc(100% + var(--sp-2));z-index:60;
   width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg);padding:var(--sp-2) var(--sp-4) var(--sp-4);
   /* v72 signature moment, v74: the AI panel springs DOWN OUT of the pill — grows from ~60% at the pill's
      top-left with a real overshoot bounce. menuSuggestOpen() force-restarts it every open. Reduced-motion
      strips the animation just below. */
-  transform-origin:top left;animation:msugPop var(--t-slow) var(--ease-spring);
+  transform-origin:top right;animation:msugPop var(--t-slow) var(--ease-spring);
 }
 .msug-panel[hidden]{display:none}
 .msug-head{display:flex;align-items:center;justify-content:flex-end;margin-bottom:var(--sp-1)}   /* just the close × — the title lives in .mi-intro below */

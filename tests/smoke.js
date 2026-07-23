@@ -495,15 +495,17 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   $('menuSuggestClose').click();
   ok('v74: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
   ok('v74: focus returns to the pill on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
-  // Escape closes it too
+  // Escape closes it too — and, like the ×, resets aria-expanded + returns focus to the pill (a11y)
   $('menuSuggestBtn').click();
   window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
-  ok('v74: Escape closes the panel', $('menuSuggestPanel').hidden === true);
+  ok('v74: Escape closes the panel, resets aria-expanded, and returns focus to the pill',
+    $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false' && window.document.activeElement === $('menuSuggestBtn'));
   // the dismiss/restore machinery is gone entirely
   ok('v74: the swipe-to-hide edge tab is removed', !$('menuSuggestRestore') && !$('menuSuggestDismiss'));
   ok('v74: the suggest_fab_hidden dismiss API is gone', typeof window.suggestFabDismiss === 'undefined' && typeof window.suggestFabHidden === 'undefined');
   window.computeInsights = () => [];
-  try { window.renderMenuInsights(); } catch (e) {}
+  let emptyThrew = null; try { window.renderMenuInsights(); } catch (e) { emptyThrew = e; }
+  ok('v74: rendering with no insights does not throw', !emptyThrew, emptyThrew && emptyThrew.message);
   ok('v74: a menu with nothing to say hides the whole pill', fab.hidden === true);
   window.computeInsights = stashCI;
 
