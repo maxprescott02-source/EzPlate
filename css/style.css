@@ -2460,7 +2460,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug{position:relative;display:inline-flex}
 .msug[hidden]{display:none}
 .an-head .msug{margin-left:auto}                     /* park the pill at the right edge of the actions row */
-@media (max-width:639px){ .an-head .panel-sub{order:1} }   /* phones: pill stays with the buttons, strapline drops below */
 /* The pill — a rainbow-gradient OUTLINE (surface fill via padding-box, gradient via border-box); the icon
    and text share that same rainbow (gradient-clipped). The icon is a GENERIC four-point AI sparkle, not
    Google's Gemini logo. Sized to sit on the .panel-actions row; fully present (not translucent). */
@@ -2483,12 +2482,18 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-pill:active{transform:scale(.985)}
 .msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
-/* v74 (Max): on phones the pill got squished into the buttons row — give it its OWN full-width row below the
-   buttons (strapline drops beneath it). Full labelled pill, centred. Desktop keeps it inline at the right edge. */
+/* v74 (Max): on phones the inline pill overcrowds the header — FLOAT it as a small AI circle bottom-right,
+   out of the actions row (styled exactly like the desktop pill: rainbow outline + gradient sparkle). Desktop
+   keeps the full labelled pill inline at the right edge. */
 @media (max-width:639px){
-  .an-head .msug{flex-basis:100%;margin-left:0}
-  .msug-pill{width:100%;justify-content:center}
+  .an-head .msug{position:fixed;right:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));margin:0;z-index:60}
+  .msug-pill{width:48px;height:48px;padding:0;gap:0;justify-content:center;border-radius:50%}
+  .msug-pill-text{display:none}
+  .msug-pill-spark{width:22px;height:22px}
+  /* it sits near the bottom of the screen, so the panel springs UP out of the button (not down) */
+  .msug-panel{top:auto;bottom:calc(100% + var(--sp-2));transform-origin:bottom right;animation-name:msugPopUp}
 }
+@keyframes msugPopUp{ from{opacity:0;transform:scale(.6) translateY(20px)} to{opacity:1;transform:none} }
 
 /* Panel drops DOWN from the pill, anchored to the pill's RIGHT edge and extending LEFT so it stays on-screen
    (the pill lives at the right edge of the card — anchoring left would run the panel off the right, v74 fix). */

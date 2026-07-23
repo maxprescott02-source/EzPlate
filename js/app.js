@@ -1940,21 +1940,8 @@ function insMover(mover){
     facts:{name:mover.name, pct:pct, dishCount:n},
     text:mover.name+' '+(up?'rose':'fell')+' '+pct+'% — it feeds '+n+' dish'+(n===1?'':'es')+' here'+(up?', so recheck their margins.':', a chance to bank the saving.')}];
 }
-// TYPE: best performer — a positive: a dish sitting comfortably under target (not everything is a warning).
-function insBest(dishes, targetFrac){
-  var tp=Math.round(targetFrac*100), best=null, bestUnder=0;
-  dishes.forEach(function(d){
-    if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);       // negative = under target
-    var under=-pts;
-    if(under>=3 && under>bestUnder){ bestUnder=under;
-      best={kind:'best', dim:'comparative', score:28+Math.min(18, under),
-        facts:{name:d.name, pts:pts, targetPct:tp},
-        text:d.name+' holds your strongest margin — '+under+' pt'+(under===1?'':'s')+' under the '+tp+'% target.'};
-    }
-  });
-  return best?[best]:[];
-}
+// v74 (Max): insBest was REMOVED — "X dish has your best margin" states a fact without anything to act on.
+// Insights are for critical problems + real leverage; a healthy menu says so with the one all-healthy line.
 // TYPE: summary — always-available filler so the panel never renders empty when there IS data: the over/under count.
 function insSummary(dishes, targetFrac){
   var tp=Math.round(targetFrac*100), total=dishes.length;
@@ -1964,32 +1951,15 @@ function insSummary(dishes, targetFrac){
   return [{kind:'allgood', dim:'comparative', score:26, facts:{total:total, targetPct:tp},
     text:'All '+total+' costed dish'+(total===1?'':'es')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
 }
-// TYPE: costly dominant ingredient — a dish leaning heavily on ONE ingredient. v71 (Max): POINT, DON'T
-// PRESCRIBE — name the lever (which ingredient, how much of the plate it is) and stop. The old copy dictated
-// a "15% smaller portion saves $X"; but the app can't know how far a portion can safely be trimmed, so it no
-// longer prescribes a size or a saving. Each dish carries `top` = {name, share}, precomputed by
-// computeInsights; this pure fn picks the most lopsided plate.
-function insPortion(dishes, targetFrac){
-  var best=null, bestShare=0;
-  dishes.forEach(function(d){
-    // over-target dishes are covered by reprice/cut (which already name the driver) — insPortion is for the
-    // healthy/near-target plate whose cost leans hard on ONE input (a volatility-exposure heads-up).
-    if(d.cost>0 && d.menuPrice>0 && Math.round((d.cost/d.menuPrice-targetFrac)*100)>=2) return;
-    var drv=dishDriver(d); if(!drv) return;                          // ≥2 ingredients, 40–90% share (never single-ingredient)
-    if(drv.sharePct>bestShare){ bestShare=drv.sharePct;
-      var f={name:d.name, sharePct:drv.sharePct}; if(drv.movePct!=null) f.movePct=Math.abs(drv.movePct);
-      best={kind:'portion', dim:'composition', score:Math.min(90, 50+(drv.sharePct-40)),
-        facts:f, text:drv.name+' is '+drv.sharePct+'% of '+d.name+'’s cost'+
-          (drv.movePct!=null ? (', '+(drv.movePct>0?'up':'down')+' '+Math.abs(drv.movePct)+'% this month') : '')+'.'};
-    }
-  });
-  return best?[best]:[];
-}
+// v74 (Max): insPortion (the standalone "X ingredient is Y% of this plate's cost") was REMOVED — on its own
+// it states a fact, not an insight; it gives the owner nothing to act on. Composition now appears ONLY as the
+// driver clause on an OVER-TARGET line (see insReprice/insNearMiss via dishDriver), where it explains a real
+// margin problem. dishDriver/driverClause stay for exactly that use.
 // v71 (Max): the SUBSTITUTION insight ("swap X for cheaper Y") was REMOVED. The cost engine can't know two
 // products are culinarily interchangeable (a burger patty vs a sausage patty are just two meat products to it),
 // and the alternative a cook would actually reach for may not be in the supplier data at all. Suggesting a
-// specific swap is a class of error no data fixes — so the app points at costly/volatile ingredients (insPortion,
-// insShared, insMover, insVolatility) and leaves the choice of substitute to the cook. subCandidate went too.
+// specific swap is a class of error no data fixes — so the app points at shared/volatile/moving ingredients
+// (insShared, insMover, insVolatility) and leaves the choice of substitute to the cook. subCandidate went too.
 // TYPE: cut — a dish so far over target that repricing alone is a hard ask (would need a big, menu-reprinting
 // jump). Flag it to rework the spec or drop it, rather than pretend a price nudge fixes it.
 function insCut(dishes, targetFrac){
@@ -2054,16 +2024,19 @@ function deriveInsights(data, targetFrac, seed){
   // only ever returns REAL candidates, so a sparse or healthy menu shows fewer; nothing is padded to the cap.
   var n=costed.length;
   var max = n>=30?5 : n>=16?4 : n>=6?3 : n>=2?2 : 1;
+  // v74 (Max): insights must be CRITICAL — real margin/cost problems and genuine leverage — not neutral facts.
+  // The standalone composition line ("X ingredient is Y% of cost") and the best-performer line ("X is your best
+  // margin") were dropped: they state a fact without a problem to act on. Composition survives ONLY as the driver
+  // clause on an over-target line, where it explains a real problem. When nothing critical exists the menu is
+  // "practically perfect" → the all-healthy line (returned above) is all that shows.
   var cands=[]
-    .concat(insPortion(costed, targetFrac))                          // v71: costly-ingredient / other cheaper levers before reprice
-    .concat(insCut(costed, targetFrac))
-    .concat(insReprice(costed, targetFrac))
-    .concat(insNearMiss(costed, targetFrac))
-    .concat(insVolatility(costed))
-    .concat(insShared(data.shared||[]))
-    .concat(insMover(data.mover||null))
-    .concat(insBest(costed, targetFrac))
-    .concat(insSummary(costed, targetFrac))
+    .concat(insCut(costed, targetFrac))                              // far over target — severe
+    .concat(insReprice(costed, targetFrac))                          // over target — a margin problem (carries its driver)
+    .concat(insNearMiss(costed, targetFrac))                         // just over — a low-effort win
+    .concat(insVolatility(costed))                                   // cost swinging with a volatile input — a real risk
+    .concat(insShared(data.shared||[]))                              // shared-ingredient leverage (the benchmark: reveals the invisible)
+    .concat(insMover(data.mover||null))                              // an ingredient's price moved, feeding N dishes — real money
+    .concat(insSummary(costed, targetFrac))                          // low-priority floor: the over-target roll-up
     .filter(nonObvious);                                             // v74 Rule 1: drop anything that only restates the table
   return selectInsights(cands, seed||0, max).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
 }

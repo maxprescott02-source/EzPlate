@@ -3,13 +3,14 @@
 **Completed:** 23 Jul 2026 · branch `feature/menu-insights-pill` · request from Max (relaying a user suggestion).
 
 Branch off **v73** (`origin/main` = `dfe28a2`, PR #18 merged). Baseline **287 node tests green**, jsdom smoke green,
-six spots v73. Ended **287 node green** (unchanged — presentation change; the smoke FAB section was rewritten in
-place, node suite untouched), jsdom smoke green ([16] Suggestions section rewritten to the pill), `node -c` clean,
-six spots → **v74**.
+six spots v73. Ended **299 node green**, jsdom smoke green, `node -c` clean, six spots → **v74**.
 
-**Client only — HTML + CSS + JS + one smoke section.** Zero contact with the protected parser region, the money law,
-the naming inversion, the plate/dish/menu data model, the invoice subsystem, or the insight ENGINE (`computeInsights`
-/ `deriveInsights` / phrasing are all unchanged — only the surface that shows them moved). No new deps, no build step.
+**v74 grew across three same-branch pieces** (all shipped in PR #19, one deploy): (1) the pill surface move
+(HTML/CSS/JS + smoke) — no engine contact; (2) the **insight-quality** pass, which DOES change the insight ENGINE
+(`deriveInsights` / the `ins*` types / `_insight.js` phrasing) — see that section; (3) Max's follow-ups (mobile
+floating circle + critical-only insights). Untouched throughout: the protected parser region, the money law (the app
+still computes every number; phrasing only rephrases), the naming inversion, the plate/dish/menu data model, and the
+invoice subsystem. No new deps, no build step.
 
 ---
 
@@ -74,9 +75,10 @@ At **380px and desktop, both themes**, then with **OS reduced-motion ON** (sprin
 - The insights trigger: on **desktop (≥640px)** it's the full **"EzPlate Insights" pill** at the RIGHT edge of the
   Menu card (rainbow outline + gradient-clipped text + sparkle) — **watch the gradient text contrast** in light mode
   (the orange stop is the lowest-contrast on a light surface; bump the text to a solid accent if it reads weak), and
-  confirm it isn't invisible on any browser lacking `background-clip:text`. On **phones (<640px)** it now takes its
-  **OWN full-width row** below the buttons (Max: the inline circle felt squished), strapline beneath — check the
-  spacing looks tidy and the drop-down still opens fully on-screen.
+  confirm it isn't invisible on any browser lacking `background-clip:text`. On **phones (<640px)** it FLOATS as a
+  small rainbow **AI circle bottom-right** (Max: inline overcrowded the header) — same rainbow outline + gradient
+  sparkle as desktop; the panel springs UP out of it (`msugPopUp`). Check it sits above the bottom nav, doesn't
+  overlap content, and the panel opens fully on-screen.
 - **The refined insights on your REAL menu** (the whole point of the quality pass): re-read them for — no tautologies
   ("X is 100% of…"), no "small tweak"/"worth a look" filler, specific figures present (points AND ¢/$-per-serve, the
   cost driver, "up N% this month" where history exists), 4–5 on the full menu spread across DIFFERENT types, each
@@ -105,19 +107,26 @@ numbers validated, offline→templates, point-don't-prescribe). Pure `js/app.js`
   1pt, `insCut` ≥12pts) now carry the gap in BOTH points AND $/serve (`overServeFmt`: cents under $1, dollars
   over) PLUS the cost driver (share + "up N% this month" where history exists). They only fire when a real driver
   exists (else the dish is just "over target" → left to the summary count). Filler gone ("worth a rework", "a
-  small tweak would bring it home", "biggest lever"). `insPortion` is now the COMPOSITION heads-up for a
-  healthy/near-target plate leaning on one input (skips over-target dishes, which reprice/cut already cover).
+  small tweak would bring it home", "biggest lever").
+- **CRITICAL-only (Max, follow-up):** two types that stated a fact without anything to act on were **REMOVED** —
+  `insPortion` (standalone "X ingredient is Y% of this plate's cost") and `insBest` ("X dish has your best margin").
+  Composition now survives ONLY as the driver clause on an over-target line, where it explains a real problem. What
+  remains are genuinely critical/actionable: over-target (reprice/cut/near-miss), cost volatility, price movers, and
+  shared-ingredient leverage (the benchmark). When nothing critical exists the menu is "practically perfect" → the
+  one all-healthy line is all that shows.
 - **Scaling curve (new):** 1→≤1, 2–5→≤2, 6–15→≤3, 16–29→≤4, 30+→≤5; still never padded (a healthy big menu shows
   fewer). Spread across DIFFERENT types (`selectInsights` keeps ≤1/kind).
 - **Phrasing — shorter, denser (`_insight.js` + client `gemPhrasingOk`):** one sentence, front-loaded; **hard word
   cap 24** (target 12–20) + a **single-sentence check** (a `.!?` followed by more text → reject; decimals like
   "$1.50" are safe); prompt tone shifted from "warm & conversational" to sharp/economical. A too-long/multi-sentence
   Gemini line → template stands. Numbers stay AI-untouchable (existing validation).
-- **Tests:** `insights.test.js` rewritten to 46 (non-obvious guard, driver-gated over-target with pts+$/serve+driver,
-  40–90% dominant, scaling bands 1/5/15/29/30+ incl. a "reaches 5 across types" + "never padded" pair, single-
-  ingredient → no composition); `api-insight.test.js` +3 (word-cap boundary 24/25, multi-sentence reject);
-  `_extract.js` exposes `nonObvious`/`dishDriver`/`driverClause`/`overServeFmt`. **Pinned-contract changes made
-  deliberately.** 287→**304** node green.
+- **Tests:** `insights.test.js` rewritten (non-obvious guard, driver-gated over-target with pts+$/serve+driver,
+  40–90% dominant, scaling bands 1/5/15/29/30+ incl. a "reaches 5 across critical types" + "never padded" pair,
+  single-ingredient → no composition, composition-only-as-driver-clause); `api-insight.test.js` +5 (word-cap
+  boundary 24/25, multi-sentence reject); `_extract.js` exposes `nonObvious`/`dishDriver`/`driverClause`/
+  `overServeFmt` and drops `insPortion`/`insBest`. **Pinned-contract changes made deliberately.** Suite ends at
+  **299** node green (287 baseline +17 for the quality pass, −5 net when the two neutral types + their tests were
+  removed in the follow-up).
 
 ## NOT built / deliberately left
 - **No hide/dismiss affordance** — a static inline pill doesn't need one (Max's call).

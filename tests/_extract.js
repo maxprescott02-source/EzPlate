@@ -73,9 +73,7 @@ function build() {
   const insVolatility = extractFn(src, 'insVolatility');
   const insShared = extractFn(src, 'insShared');
   const insMover = extractFn(src, 'insMover');
-  const insBest = extractFn(src, 'insBest');
   const insSummary = extractFn(src, 'insSummary');
-  const insPortion = extractFn(src, 'insPortion');   // v71: costly dominant ingredient (point, don't prescribe)
   const insCut = extractFn(src, 'insCut');           // v69: far-over-target → rework/drop
   const healthyLine = extractFn(src, 'healthyLine'); // v71: warm all-healthy line
   const selectInsights = extractFn(src, 'selectInsights');
@@ -105,15 +103,13 @@ function build() {
     ${insVolatility}
     ${insShared}
     ${insMover}
-    ${insBest}
     ${insSummary}
-    ${insPortion}
     ${insCut}
     ${healthyLine}
     ${selectInsights}
     ${deriveInsights}
     ${lightFilterPass}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, nonObvious, dishDriver, driverClause, overServeFmt, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, nonObvious, dishDriver, driverClause, overServeFmt, insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }

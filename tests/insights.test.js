@@ -15,8 +15,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   nonObvious, dishDriver, driverClause, overServeFmt,
-  insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary,
-  insPortion, insCut, healthyLine, selectInsights, deriveInsights,
+  insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary,
+  insCut, healthyLine, selectInsights, deriveInsights,
 } = require('./_extract.js');
 
 const dish = (name, cost, menuPrice, extra) => Object.assign({ name, cost, menuPrice }, extra || {});
@@ -160,19 +160,7 @@ test('insShared: an ingredient in only one dish is not leverage', () => {
   assert.deepEqual(insShared([]), []);
 });
 
-/* ================================================================ comparative types */
-
-test('insBest: the strongest margin on the menu (comparative dim, no restated variance)', () => {
-  const out = insBest([dish('Salad', 3, 15), dish('Barra', 6, 15)], 0.3);   // Salad 20% = 10 under
-  assert.equal(out[0].kind, 'best');
-  assert.equal(out[0].dim, 'comparative');
-  assert.equal(out[0].facts.name, 'Salad');
-  assert.match(out[0].text, /strongest margin/);
-});
-
-test('insBest: nothing meaningfully under target → nothing', () => {
-  assert.deepEqual(insBest([dish('Barra', 6, 15)], 0.3), []);
-});
+/* ================================================================ comparative type */
 
 test('insSummary: aggregate over-count carries the comparative dim', () => {
   const over = insSummary([dish('A', 6, 15), dish('B', 3, 15)], 0.3);
@@ -182,40 +170,18 @@ test('insSummary: aggregate over-count carries the comparative dim', () => {
   assert.equal(insSummary([dish('A', 3, 15)], 0.3)[0].kind, 'allgood');
 });
 
-/* ================================================================ dominant ingredient (portion): composition only, healthy plates */
+/* ================================================================ composition is a supporting clause, not its own line */
 
-test('insPortion: a HEALTHY plate leaning on one 40–90% ingredient → composition heads-up, no prescription', () => {
-  const out = insPortion([dish('Fish & Chips', 4, 15, { top: top('Fish', 0.6, 2) })], 0.3);   // ~27% → under target
-  assert.equal(out[0].kind, 'portion');
-  assert.equal(out[0].dim, 'composition');
-  assert.equal(out[0].facts.sharePct, 60);
-  assert.match(out[0].text, /Fish is 60% of Fish & Chips/);
-  assert.doesNotMatch(out[0].text, /biggest lever|smaller portion|% smaller|bring it down/i);
+test('v74 (Max): a healthy plate leaning on one ingredient produces NO standalone composition insight', () => {
+  // "Fish is 60% of Fish & Chips's cost" is a fact, not something to act on — the engine no longer emits it.
+  const out = deriveInsights([dish('Fish & Chips', 4, 15, { top: top('Fish', 0.6, 2) })], 0.3, 0);
+  out.forEach((x) => assert.notEqual(x.kind, 'portion'));
+  assert.equal(out[0].kind, 'allgood');   // an under-target menu with only a lopsided plate is "practically perfect"
 });
 
-test('insPortion: pairs the share with a ≥3% ingredient move where history exists', () => {
-  const out = insPortion([dish('Fish & Chips', 4, 15, { top: top('Fish', 0.6, 2, 8) })], 0.3);
-  assert.equal(out[0].facts.movePct, 8);
-  assert.match(out[0].text, /up 8% this month/);
-});
-
-test('insPortion: NEVER on a single-ingredient dish, nor when nothing dominates (40–90%)', () => {
-  assert.deepEqual(insPortion([dish('Solo', 4, 15, { top: top('Only', 1.0, 1) })], 0.3), []);
-  assert.deepEqual(insPortion([dish('Even', 4, 15, { top: top('A', 0.3, 3) })], 0.3), []);
-  assert.deepEqual(insPortion([dish('NoTop', 4, 15)], 0.3), []);
-});
-
-test('insPortion: skips OVER-target dishes (reprice/cut own those and already name the driver)', () => {
-  assert.deepEqual(insPortion([dish('Over', 6, 15, { top: top('Fish', 0.6, 2) })], 0.3), []);   // 40% over → reprice territory
-});
-
-test('insPortion: picks the MOST lopsided healthy plate', () => {
-  const out = insPortion([
-    dish('X', 4, 15, { top: top('A', 0.5, 2) }),
-    dish('Y', 4, 15, { top: top('B', 0.7, 2) }),
-  ], 0.3);
-  assert.equal(out[0].facts.name, 'Y');
-  assert.equal(out[0].facts.sharePct, 70);
+test('v74: composition survives ONLY as the driver clause on an over-target line', () => {
+  const out = insReprice([dish('Fish & Chips', 6, 15, { top: top('Fish', 0.6, 2) })], 0.3);
+  assert.match(out[0].text, /Fish is 60% of its cost/);   // attached to a real "10 pts over" problem
 });
 
 /* ================================================================ cut: far over → magnitude + $/serve */
@@ -340,13 +306,12 @@ test('scaling: 15 dishes → ≤3', () => { assert.ok(deriveInsights(bigMenu(15)
 test('scaling: 29 dishes → ≤4', () => { assert.ok(deriveInsights(bigMenu(29), 0.3, 0).length <= 4); });
 test('scaling: 30+ dishes → ≤5', () => { assert.ok(deriveInsights(bigMenu(40), 0.3, 0).length <= 5); });
 
-test('scaling: a big, VARIED menu can reach 5 across different types (curve raised the cap)', () => {
-  const dishes = bigMenu(32);
-  // enrich a few so distinct kinds exist: volatility, a healthy dominant plate (portion), a best performer
-  dishes[0] = dish('Volatile', 5, 15, { top: top('Fish', 0.6, 2), hasRange: true, costMin: 3.5, costMax: 6.5, volatileIng: 'Fish' });
-  dishes[1] = dish('Lean', 4, 15, { top: top('Beef', 0.7, 2) });        // under target + dominant → portion
-  dishes[2] = dish('Star', 2, 15);                                       // well under → best
+test('scaling: a big, VARIED menu can reach 5 across different CRITICAL types (curve raised the cap)', () => {
+  const dishes = bigMenu(32);                                            // reprice-eligible over-target dishes
+  dishes[0] = dish('Volatile', 5, 15, { top: top('Fish', 0.6, 2), hasRange: true, costMin: 3.5, costMax: 6.5, volatileIng: 'Fish' });  // volatility
+  dishes[1] = dish('Blowout', 7, 15, { top: top('Wagyu', 0.6, 2) });     // ~47% = 17 pts over → cut
   const out = deriveInsights({ dishes, shared: [{ name: 'Chips', dishCount: 6 }], mover: { name: 'Oil', pct: 12, dishes: ['a', 'b'] } }, 0.3, 0);
+  // available distinct kinds: reprice, cut, volatility, shared, mover → up to 5
   assert.ok(out.length >= 4 && out.length <= 5, 'expected 4–5, got ' + out.length);
   assert.ok(new Set(out.map((x) => x.kind)).size >= 4, 'expected varied types');
 });
