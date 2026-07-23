@@ -294,16 +294,41 @@ merge to `main` as a production deploy.
 
 ## State as of 23 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v73** — PR #18 (`feature/gemini-newitem-prefill`, v73) is now MERGED (`dfe28a2`).
-  One unmerged branch carries the next batch: **`feature/menu-insights-pill`** (**v74**), off `main`,
+- `origin/main` is at **v74** — PR #19 (`feature/menu-insights-pill`, v74) is now MERGED (`604f14e`).
+  One unmerged branch carries the next batch: **`fix/insight-depth-panel`** (**v75**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **299 green** (287 baseline + the v74 insight-quality pass), jsdom smoke green (the [16] Suggestions
-  section rewritten to the pill), `node -c` clean (app.js, sw.js + the four `api/*.js`), CodeRabbit clean, six spots
-  at **v74**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for
-  v72/v73/v74** (no browser) — timing/feel + the pill layout can only be judged on a device; reconcile on a browser env.
+  `npm test` = **318 green** (299 baseline + the v75 widened-insight pool), jsdom smoke green, `node -c` clean
+  (app.js, sw.js + the four `api/*.js`), six spots at **v75** (CodeRabbit NOT yet run — runs before push, after
+  Max's phone sign-off). Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for
+  v72–v75** (no browser) — timing/feel + the pill/panel layout can only be judged on a device; reconcile on a browser env.
+
+- **v75 (branch `fix/insight-depth-panel`) — Insight depth: WIDEN the pool, keep the guard · panel rainbow border ·
+  mobile panel dismissible (brief `~/Downloads/ezplate-opus-insight-depth-panel.md`). See `handovers/HANDOVER-v75.md`.**
+  CLIENT ONLY (insight ENGINE + CSS + one swipe handler + tests); zero contact with the protected region, money law
+  (app still computes every number), naming inversion, data model, invoice subsystem, or the `api/*.js` phrasing.
+  **(1) Root cause of "only 2 insights on a 30-item menu": the pool of TYPES was too narrow, not the guard.** v74's
+  `nonObvious` guard is CORRECT and unchanged — added eight genuinely non-obvious TYPES so a big menu clears it with 5
+  VARIED insights: `insCategory`/`insSpread`/`insAggregate`/`insComplexity`/`insBest` (dim `comparative`), `insSpend`
+  (`cross`), `insRecentChange` (`movement`), `insData` (**new `coverage` dim**, uncosted dishes). All pure/tested,
+  point-don't-prescribe, every shown number in `facts` (a new `numbersInFactsOnly` test pins the money law per type +
+  end-to-end; `per:100`/`minIng:6` added to facts because that test caught the literals). `computeInsights` now plumbs
+  per-dish `section`+`nIng` and menu-level `spend`/`recent`/`coverage`. Priority/graceful-fill documented at
+  `deriveInsights`; size-scaled cap + no-padding rule unchanged. **All-healthy path** still LEADS with the one warm
+  line but a large healthy menu now fills with neutral menu-level facts (a 3-dish menu still stays one line).
+  **Best performer (`insBest`) re-added at Max's call** (reverses v74's critical-only removal), low score so it never
+  crowds a real problem. **(2)** `.msug-panel` gains the SAME rainbow-gradient outline as the pill (padding/border-box,
+  surface fill kept — no tint, contrast unchanged, both themes). **(3) Mobile panel** (Max: "just needs to not block
+  the menu"): now `position:fixed` to the viewport, opens LEFTWARD + up fully on-screen at 380px (no h-scroll, clears
+  the nav), semi-transparent (`color-mix ... 78%` + `backdrop-filter:blur`), and **swipe-to-close** (right, or down
+  from top) alongside ×/outside-tap/Escape — **not** persisted, no button-hiding (v74's retirement of that stands).
+  299→**318** (`insights.test.js` 41→60). Six spots → **v75**. **Needs Max's phone:** the 5 varied non-obvious
+  insights on his real 30+ menu (confirm none restate the table); the panel rainbow border both themes; the mobile
+  panel opening leftward fully on-screen, legible-but-transparent, and dismissable four ways at 380px without blocking
+  the menu. **NOT built** (in brief but deferred): ingredient-price-spread + stale-dish types (need same-unit grouping
+  / menu-price history the app lacks) — flag if wanted.
 
 - **v74 (branch `feature/menu-insights-pill`) — Menu insights: floating FAB → static "EzPlate Insights" pill
   (Max, relaying a user). See `handovers/HANDOVER-v74.md`.** CLIENT ONLY (HTML+CSS+JS + one smoke section);

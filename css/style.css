@@ -2490,8 +2490,22 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .msug-pill{width:48px;height:48px;padding:0;gap:0;justify-content:center;border-radius:50%}
   .msug-pill-text{display:none}
   .msug-pill-spark{width:22px;height:22px}
-  /* it sits near the bottom of the screen, so the panel springs UP out of the button (not down) */
-  .msug-panel{top:auto;bottom:calc(100% + var(--sp-2));transform-origin:bottom right;animation-name:msugPopUp}
+  /* v75 (brief §3): the panel is a lightweight, get-out-of-the-way overlay on phones. Pin it to the VIEWPORT
+     (position:fixed, not absolute inside the tiny floating circle) so it can never run off the right edge —
+     it anchors at the button's right side and EXPANDS LEFT + UP, staying fully on-screen at 380px with no
+     horizontal scroll, and floats clear of the bottom nav. */
+  .msug-panel{
+    position:fixed;right:var(--sp-4);left:auto;
+    top:auto;bottom:calc(72px + 48px + var(--sp-3) + env(safe-area-inset-bottom));   /* above the floating pill, above the nav */
+    width:min(340px, calc(100vw - 2 * var(--sp-4)));max-height:min(60vh, 460px);
+    transform-origin:bottom right;animation-name:msugPopUp;
+    /* Semi-transparent so the menu behind shows through, but a backdrop blur keeps text legible in both
+       themes (78% surface tint is the minimum that holds contrast over busy café content — Max, verify). */
+    background:linear-gradient(color-mix(in srgb, var(--surface) 78%, transparent),
+                               color-mix(in srgb, var(--surface) 78%, transparent)) padding-box,
+              linear-gradient(90deg,#4285F4,#9B72CB 38%,#D96570 72%,#F2A65A) border-box;
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  }
 }
 @keyframes msugPopUp{ from{opacity:0;transform:scale(.6) translateY(20px)} to{opacity:1;transform:none} }
 
@@ -2500,7 +2514,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-panel{
   position:absolute;right:0;top:calc(100% + var(--sp-2));z-index:60;
   width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  /* v75 (brief §2): the panel carries the SAME rainbow-gradient OUTLINE as the pill (same colours + 90deg
+     angle) so button and panel read as one object — surface fill via padding-box keeps the background
+     untinted and text contrast unchanged in both themes. */
+  border:1.5px solid transparent;border-radius:var(--radius-card);
+  background:linear-gradient(var(--surface),var(--surface)) padding-box,
+            linear-gradient(90deg,#4285F4,#9B72CB 38%,#D96570 72%,#F2A65A) border-box;
   box-shadow:var(--shadow-lg);padding:var(--sp-2) var(--sp-4) var(--sp-4);
   /* v72 signature moment, v74: the AI panel springs DOWN OUT of the pill — grows from ~60% at the pill's
      top-left with a real overshoot bounce. menuSuggestOpen() force-restarts it every open. Reduced-motion

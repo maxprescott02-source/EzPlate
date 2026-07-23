@@ -75,6 +75,15 @@ function build() {
   const insMover = extractFn(src, 'insMover');
   const insSummary = extractFn(src, 'insSummary');
   const insCut = extractFn(src, 'insCut');           // v69: far-over-target → rework/drop
+  // v75: the widened menu-level / cross-cutting pool
+  const insCategory = extractFn(src, 'insCategory');
+  const insSpread = extractFn(src, 'insSpread');
+  const insAggregate = extractFn(src, 'insAggregate');
+  const insSpend = extractFn(src, 'insSpend');
+  const insComplexity = extractFn(src, 'insComplexity');
+  const insRecentChange = extractFn(src, 'insRecentChange');
+  const insData = extractFn(src, 'insData');
+  const insBest = extractFn(src, 'insBest');
   const healthyLine = extractFn(src, 'healthyLine'); // v71: warm all-healthy line
   const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
@@ -86,7 +95,7 @@ function build() {
     function invDbg(){}   /* stub: the app's debug logger is a no-op in tests */
     var GEM_BAND=0.5;     /* the app's default plausibility band, mirrored for the extracted merge fn */
     var CUT_PTS=12;       /* v69: insReprice/insCut share this over-target threshold (mirrored for extraction) */
-    var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1 };   /* v74: mirror for nonObvious */
+    var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1, coverage:1 };   /* v74/v75: mirror for nonObvious */
     ${parserBlock}
     ${pricingFn}
     ${gemCanon}
@@ -105,11 +114,19 @@ function build() {
     ${insMover}
     ${insSummary}
     ${insCut}
+    ${insCategory}
+    ${insSpread}
+    ${insAggregate}
+    ${insSpend}
+    ${insComplexity}
+    ${insRecentChange}
+    ${insData}
+    ${insBest}
     ${healthyLine}
     ${selectInsights}
     ${deriveInsights}
     ${lightFilterPass}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, nonObvious, dishDriver, driverClause, overServeFmt, insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, nonObvious, dishDriver, driverClause, overServeFmt, insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary, insCut, insCategory, insSpread, insAggregate, insSpend, insComplexity, insRecentChange, insData, insBest, healthyLine, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }

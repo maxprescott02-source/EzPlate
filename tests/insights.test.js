@@ -16,12 +16,20 @@ const assert = require('node:assert');
 const {
   nonObvious, dishDriver, driverClause, overServeFmt,
   insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary,
-  insCut, healthyLine, selectInsights, deriveInsights,
+  insCut, insCategory, insSpread, insAggregate, insSpend, insComplexity,
+  insRecentChange, insData, insBest, healthyLine, selectInsights, deriveInsights,
 } = require('./_extract.js');
 
 const dish = (name, cost, menuPrice, extra) => Object.assign({ name, cost, menuPrice }, extra || {});
 // a dominant-ingredient driver: ≥2 ingredients, `share` of cost, optional recent move %
 const top = (name, share, count, movePct) => ({ name, share, count: count == null ? 2 : count, movePct: movePct == null ? null : movePct });
+// MONEY LAW / non-restating proxy: every number shown in an insight's text must be present in its facts
+// (the client + server phrasing validators depend on exactly this). Pins that no type invents a figure.
+const numbersInFactsOnly = (c) => {
+  const allowed = Object.values(c.facts).filter((v) => typeof v === 'number');
+  return (c.text.match(/-?\d+(?:\.\d+)?/g) || []).map(Number)
+    .every((n) => allowed.some((a) => Math.abs(a - n) < 0.005));
+};
 
 /* ================================================================ shared helpers */
 
@@ -361,4 +369,178 @@ test('deriveInsights: pure — does not mutate its input', () => {
   const snap = JSON.stringify(data);
   deriveInsights(data, 0.3, 0);
   assert.equal(JSON.stringify(data), snap);
+});
+
+/* ================================================================ v75: the WIDENED pool (brief §1)
+   Each new type is non-obvious (invisible in the per-dish menu table), states a FACT + figures only
+   (point, don't prescribe), and puts every DISPLAYED number in facts (numbersInFactsOnly). */
+
+test('v75: the coverage dim also clears the non-obvious guard', () => {
+  assert.ok(nonObvious({ dim: 'coverage' }));
+});
+
+/* ---------------- category performance ---------------- */
+test('insCategory: compares section averages when a real gap exists', () => {
+  const out = insCategory([
+    dish('Eggs', 2.4, 10, { section: 'Breakfast' }), dish('Pancakes', 2.5, 10, { section: 'Breakfast' }),  // ~24-25%
+    dish('Burger', 5, 15, { section: 'Lunch' }), dish('Parma', 5.2, 15, { section: 'Lunch' }),             // ~33-35%
+  ], 0.3);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'comparative');
+  assert.equal(out[0].facts.loName, 'Breakfast');
+  assert.equal(out[0].facts.hiName, 'Lunch');
+  assert.ok(nonObvious(out[0]));
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insCategory: needs ≥2 sections (≥2 dishes each) and a ≥3-pt gap', () => {
+  assert.deepEqual(insCategory([dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.5, 10, { section: 'X' })], 0.3), []);   // one section
+  // a section with only ONE dish is ignored (needs ≥2), so this collapses to a single qualifying section → nothing
+  assert.deepEqual(insCategory([
+    dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.4, 10, { section: 'X' }), dish('C', 3.0, 10, { section: 'Y' }),
+  ], 0.3), []);
+  // exactly a 3-pt gap FIRES (guard is `< 3`): X = 24%, Y = 27%
+  const at3 = insCategory([
+    dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.4, 10, { section: 'X' }),
+    dish('C', 2.7, 10, { section: 'Y' }), dish('D', 2.7, 10, { section: 'Y' }),
+  ], 0.3);
+  assert.equal(at3.length, 1);
+  assert.deepEqual([at3[0].facts.loPct, at3[0].facts.hiPct], [24, 27]);
+  // just BELOW 3 pts (X = 24%, Y = 26%) → nothing
+  assert.deepEqual(insCategory([
+    dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.4, 10, { section: 'X' }),
+    dish('C', 2.6, 10, { section: 'Y' }), dish('D', 2.6, 10, { section: 'Y' }),
+  ], 0.3), []);
+});
+
+/* ---------------- spread / outliers ---------------- */
+test('insSpread: the menu-wide food-cost range (needs ≥4 dishes, ≥10-pt span)', () => {
+  const out = insSpread([dish('A', 3, 15), dish('B', 4.5, 15), dish('C', 5, 15), dish('D', 6, 15)]);   // 20,30,33,40
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'comparative');
+  assert.equal(out[0].facts.loPct, 20);
+  assert.equal(out[0].facts.hiPct, 40);
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insSpread: a tight menu (<10-pt span) or <4 dishes says nothing', () => {
+  assert.deepEqual(insSpread([dish('A', 4.5, 15), dish('B', 4.6, 15), dish('C', 4.7, 15), dish('D', 4.8, 15)]), []);
+  assert.deepEqual(insSpread([dish('A', 3, 15), dish('B', 6, 15)]), []);
+});
+
+/* ---------------- aggregate opportunity ---------------- */
+test('insAggregate: sums the over-target gap across dishes, per 100 serves', () => {
+  const out = insAggregate([dish('A', 6, 15), dish('B', 5, 14), dish('C', 3, 15)], 0.3);   // over: 1.5 + 0.8; C under
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'comparative');
+  assert.equal(out[0].facts.count, 2);
+  assert.equal(out[0].facts.per100, 230);   // (1.5 + 0.8) * 100
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insAggregate: fewer than 2 over-target dishes → nothing', () => {
+  assert.deepEqual(insAggregate([dish('A', 6, 15), dish('B', 3, 15)], 0.3), []);
+});
+
+/* ---------------- ingredient-spend concentration ---------------- */
+test('insSpend: the biggest-spend ingredient across the menu (cross), at ≥25% share', () => {
+  const out = insSpend([{ name: 'Cheese', total: 40, pct: 40 }, { name: 'Bread', total: 20, pct: 20 }]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'cross');
+  assert.equal(out[0].facts.name, 'Cheese');
+  assert.equal(out[0].facts.pct, 40);
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insSpend: a diffuse spend (<25%) is not a lever', () => {
+  assert.deepEqual(insSpend([{ name: 'A', total: 10, pct: 12 }, { name: 'B', total: 9, pct: 11 }]), []);
+  assert.deepEqual(insSpend([]), []);
+});
+
+/* ---------------- complexity pattern ---------------- */
+test('insComplexity: many-ingredient vs simpler dishes when the gap holds', () => {
+  const out = insComplexity([
+    dish('Big1', 6, 15, { nIng: 7 }), dish('Big2', 6.3, 15, { nIng: 6 }),   // ~40,42%
+    dish('Small1', 3, 15, { nIng: 2 }), dish('Small2', 3.3, 15, { nIng: 3 }),   // 20,22%
+  ]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'comparative');
+  assert.ok(out[0].facts.manyPct > out[0].facts.fewPct);
+  assert.equal(out[0].facts.minIng, 6);            // the "6+" figure is backed by facts
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insComplexity: needs ≥2 in each group and a ≥3-pt gap', () => {
+  assert.deepEqual(insComplexity([dish('A', 6, 15, { nIng: 7 }), dish('B', 3, 15, { nIng: 2 })]), []);   // one each
+  assert.deepEqual(insComplexity([   // no gap between the groups
+    dish('A', 5, 15, { nIng: 7 }), dish('B', 5, 15, { nIng: 6 }), dish('C', 5, 15, { nIng: 2 }), dish('D', 5, 15, { nIng: 3 }),
+  ]), []);
+});
+
+/* ---------------- recent change ---------------- */
+test('insRecentChange: counts dishes that cost more since the last update (movement)', () => {
+  const out = insRecentChange({ up: 4 });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'movement');
+  assert.equal(out[0].facts.up, 4);
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insRecentChange: fewer than 2 → nothing', () => {
+  assert.deepEqual(insRecentChange({ up: 1 }), []);
+  assert.deepEqual(insRecentChange(null), []);
+});
+
+/* ---------------- data completeness (coverage) ---------------- */
+test('insData: uncosted dishes are a gentle, non-obvious coverage note', () => {
+  const out = insData({ uncosted: 3 });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].dim, 'coverage');
+  assert.equal(out[0].facts.uncosted, 3);
+  assert.ok(nonObvious(out[0]));
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insData: singular grammar; nothing when everything is costed', () => {
+  assert.match(insData({ uncosted: 1 })[0].text, /1 dish isn't costed/);
+  assert.deepEqual(insData({ uncosted: 0 }), []);
+});
+
+/* ---------------- best performer (the one positive line, re-added v75) ---------------- */
+test('insBest: the standout dish comfortably under target (positive, low score)', () => {
+  const out = insBest([dish('Salad', 3, 15), dish('Burger', 6, 15)], 0.3);   // Salad 20% = 10 under; Burger over
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'best');
+  assert.equal(out[0].dim, 'comparative');
+  assert.equal(out[0].facts.name, 'Salad');
+  assert.equal(out[0].facts.pts, 10);
+  assert.ok(out[0].score <= 30);   // low priority — never crowds out a real problem
+  assert.ok(numbersInFactsOnly(out[0]));
+});
+test('insBest: only when COMFORTABLY under (≥5 pts)', () => {
+  assert.deepEqual(insBest([dish('A', 4.2, 15)], 0.3), []);   // 28% = 2 under, not comfortable
+});
+
+/* ---------------- the deliverable: a 30+ item menu yields 5 VARIED, non-obvious insights ---------------- */
+test('v75 (brief §1): a 30+ item menu yields 5 insights across ≥4 distinct types, none table-restating', () => {
+  const dishes = [];
+  for (let i = 0; i < 15; i++) dishes.push(dish('Bfast' + i, 2.4, 10, { section: 'Breakfast', nIng: 3, top: top('Egg', 0.5, 3) }));   // ~24%
+  for (let i = 0; i < 15; i++) dishes.push(dish('Lunch' + i, 5.1, 15, { section: 'Lunch', nIng: 7, top: top('Beef', 0.6, 7) }));       // 34% over
+  dishes.push(dish('Blowout', 7, 15, { section: 'Lunch', nIng: 8, top: top('Wagyu', 0.6, 8) }));   // 47% → cut
+  dishes.push(dish('Volatile', 5, 15, { section: 'Lunch', nIng: 4, top: top('Fish', 0.6, 4), hasRange: true, costMin: 3.5, costMax: 6.5, volatileIng: 'Fish' }));
+  dishes.push(dish('Star', 2, 15, { section: 'Breakfast', nIng: 2, top: top('Toast', 0.5, 2) }));   // 13% → best
+  const out = deriveInsights({
+    dishes,
+    shared: [{ name: 'Cheese', dishCount: 8 }],
+    mover: { name: 'Beef', pct: 12, dishes: ['Lunch0', 'Lunch1'] },
+    spend: [{ name: 'Beef', total: 60, pct: 45 }, { name: 'Egg', total: 20, pct: 15 }],
+    recent: { up: 5 },
+    coverage: { uncosted: 3 },
+  }, 0.3, 0);
+  assert.equal(out.length, 5, 'a 30+ item menu fills the cap');
+  assert.ok(new Set(out.map((x) => x.kind)).size >= 4, 'across ≥4 distinct types: ' + out.map((x) => x.kind).join(','));
+  out.forEach((x) => assert.ok(numbersInFactsOnly(x), 'every number shown is a computed fact: ' + x.text));   // money law across the whole pipeline
+});
+
+test('v75: a large HEALTHY menu still surfaces a few neutral facts, led by the warm line', () => {
+  const dishes = [];
+  for (let i = 0; i < 10; i++) dishes.push(dish('B' + i, 2, 10, { section: 'Breakfast', nIng: 2 }));    // 20%
+  for (let i = 0; i < 10; i++) dishes.push(dish('L' + i, 3.9, 15, { section: 'Lunch', nIng: 7 }));       // 26% (still under 30%)
+  const out = deriveInsights({ dishes, spend: [{ name: 'Cheese', total: 50, pct: 40 }] }, 0.3, 0);   // nothing over target
+  assert.ok(out.length >= 2 && out.length <= 4, 'warm line + a few neutral facts, got ' + out.length);
+  assert.equal(out[0].kind, 'allgood', 'leads with the warm all-healthy line');
+  assert.ok(out.slice(1).every((x) => x.kind !== 'reprice' && x.kind !== 'cut'), 'no manufactured concern on a healthy menu');
 });
