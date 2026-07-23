@@ -113,3 +113,44 @@ At **380px, both themes**:
 
 - Persisted dismiss/restore (see flag above) — out of scope; awaiting Max's call.
 - No change to the insight content, engine, ordering, or the desktop popover geometry.
+
+---
+
+# v78 follow-up (same branch/PR) — phone feedback on the floating trigger
+
+**Completed:** 23 Jul 2026 · same branch `fix/suggestions-inset-card`. Max, on his phone: *"the tab is great — just make
+the toast icon that you press slightly smaller, square not round, transparent, and swipe-to-the-side dismissable."*
+Client-only (mobile CSS + a small JS gesture handler); desktop pill untouched; zero contact with the engine, data
+model, invoice, money law, protected region, or `api/*.js`. Six spots → **v78**. Tests **318→318**, smoke green.
+
+**The "toast icon" = the mobile `.msug-pill` floating trigger** (the rainbow circle bottom-right). Changes:
+
+1. **Slightly smaller + square:** 48px circle → **44px square** (still ≥44px touch target). `border-radius:0`.
+2. **Transparent:** now a thin rainbow **outline with a fully see-through centre** (the menu shows through) + the
+   gradient sparkle. Implemented with **`border-image`**, not the padding-box/border-box trick — the two-layer trick's
+   bottom gradient layer fills the interior, so it can't be transparent to the menu behind; `border-image` gives a
+   true transparent centre (and renders **square** corners, matching the request). `background:none`.
+3. **Swipe-to-the-side dismiss (mobile, touch):** a horizontal, dominant-axis swipe on the trigger slides it off in
+   the swipe direction (`.msug.swipe-left/right`, transform+opacity, reduced-motion strips it) and hides it.
+   **NOT persisted** — `renderMenuInsights` re-offers it on the next **menu switch or reload** (`suggestFabSwiped` /
+   `suggestFabMenuId`, reset when `currentMenuId` changes). Mirrors the existing swipe-to-close on the panel and adds
+   **no stored state** — consistent with v74 deliberately removing the persisted `suggest_fab_hidden` machinery.
+   - **Named `suggestFabSwipeOff`, NOT `suggestFabDismiss`** — the smoke pin `[16]` asserts the retired persisted
+     `suggestFabDismiss`/`suggestFabHidden` API stays gone; this is a different, non-persisted feature, so it gets a
+     distinct name and the pinned contract still holds (verified: smoke green).
+   - A `fabSwipeGuard` (set on a swipe, consumed by the trailing synthetic click, cleared by the next `touchstart`)
+     stops the swipe's trailing click from reopening the panel.
+
+**CodeRabbit (v78 pass):** one minor, valid race caught + fixed — a menu switch within the 200ms hide-timeout could
+have hidden the *new* menu's trigger (now the timeout only completes the hide if `suggestFabSwiped` is still true), and
+a stale `fabSwipeGuard` could suppress a genuine tap after a fast menu switch (now cleared on every `touchstart`, so
+the 400ms fallback was dropped as redundant). Re-ran → 0 findings.
+
+**⚠️ Flag stands (now doubly relevant):** the swipe dismiss is **transient** — the trigger returns on any menu switch
+or reload; there is **no edge-tab restore and nothing persisted**. If Max wants "stays gone with a tab to bring it
+back" or "stays gone until re-enabled in Settings", that's the retired v71 persisted machinery and a separate,
+confirmed item — say the word.
+
+**Needs Max's phone (v78 additions):** the 44px square transparent trigger reads clearly over both light/dark menus at
+380px; swiping it left/right dismisses it (doesn't trigger a tap/open); it comes back after switching menus; and a tap
+still opens the panel normally.

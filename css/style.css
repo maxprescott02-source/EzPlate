@@ -2482,6 +2482,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-pill:active{transform:scale(.985)}
 .msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
+/* v78 (Max): swipe the floating trigger to the side to dismiss it — it slides off in the swipe direction and
+   fades, then hides (mobile, touch-only). NOT persisted: renderMenuInsights re-offers it on the next menu
+   switch / reload. Reduced-motion strips the transition; the button still hides. */
+.msug.swipe-left,.msug.swipe-right{transition:transform var(--t-fast) var(--ease),opacity var(--t-fast) var(--ease);opacity:0;pointer-events:none}
+.msug.swipe-left{transform:translateX(-140%)}
+.msug.swipe-right{transform:translateX(140%)}
+@media (prefers-reduced-motion:reduce){ .msug.swipe-left,.msug.swipe-right{transition:none} }
 /* Panel drops DOWN from the pill, anchored to the pill's RIGHT edge and extending LEFT so it stays on-screen
    (the pill lives at the right edge of the card — anchoring left would run the panel off the right, v74 fix). */
 .msug-panel{
@@ -2519,9 +2526,18 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    the off-screen bug.) It stays BEFORE the reduced-motion rule below so that still strips the animation. */
 @media (max-width:639px){
   .an-head .msug{position:fixed;right:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));margin:0;z-index:60}
-  .msug-pill{width:48px;height:48px;padding:0;gap:0;justify-content:center;border-radius:50%}
+  /* v78 (Max): the floating trigger is a slightly smaller, SQUARE, see-through tile — a thin rainbow OUTLINE
+     with a fully transparent centre (the menu shows through) and the gradient sparkle. border-image (not the
+     padding-box/border-box trick) is what makes the centre truly transparent: the two-layer trick's bottom
+     gradient fills the interior, so it can't show the menu behind. border-image renders square corners, which
+     is the requested look. */
+  .msug-pill{
+    width:44px;height:44px;padding:0;gap:0;justify-content:center;
+    background:none;border:1.5px solid transparent;border-radius:0;
+    border-image:linear-gradient(90deg,#4285F4,#9B72CB 38%,#D96570 72%,#F2A65A) 1;
+  }
   .msug-pill-text{display:none}
-  .msug-pill-spark{width:22px;height:22px}
+  .msug-pill-spark{width:20px;height:20px}
   /* v77: the FAB hides while the card is open — the inset card spans the full width where the circle sits, so
      leaving it visible would trap it under the card. It returns the instant the card closes. */
   .msug.open .msug-pill{display:none}
