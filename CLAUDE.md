@@ -294,17 +294,37 @@ merge to `main` as a production deploy.
 
 ## State as of 23 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v74** — PR #19 (`feature/menu-insights-pill`, v74) is now MERGED (`604f14e`).
-  One unmerged branch carries the next batch: **`fix/insight-depth-panel`** (**v75+v76**, PR #20), off `main`,
+- `origin/main` is at **v76** — PR #20 (`fix/insight-depth-panel`, v75+v76) is now MERGED (`a78723a`).
+  One unmerged branch carries the next batch: **`fix/suggestions-inset-card`** (**v77**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **318 green** (299 baseline + the v75 widened-insight pool), jsdom smoke green, `node -c` clean
-  (app.js, sw.js + the four `api/*.js`), six spots at **v76** (v75 reviewed + pushed via PR #20; **v76** is a same-PR
-  CSS follow-up — the insights bubble now sizes to its content so all text fits without a scrollbar). Per-batch detail
-  lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72–v76** (no browser) — timing/feel +
+  `npm test` = **318 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v77** (v77 is a CSS-only mobile-Suggestions reposition — no test delta). Per-batch detail lives in
+  `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72–v77** (no browser) — timing/feel +
   the pill/panel layout can only be judged on a device; reconcile on a browser env.
+
+- **v77 (branch `fix/suggestions-inset-card`) — Mobile Suggestions panel: button-anchored popover → INSET floating
+  card (brief `~/Downloads/ezplate-opus-suggestions-inset-card.md`). See `handovers/HANDOVER-v77.md`.** CSS-ONLY (+ six
+  version spots); zero JS logic change, zero contact with the protected region, money law, naming inversion, data
+  model, invoice subsystem, insight engine, or `api/*.js`. **Root cause of the repeated off-screen mobile panel: it was
+  anchored to the bottom-right FAB and derived its width from the button, so at 380px it fought both edges.** Fixed by
+  changing HOW it's positioned, not offsets: on `@media (max-width:639px)` `.msug-panel` is now a fixed **inset card** —
+  `left:12px;right:12px;bottom:calc(84px + safe-area);top:auto;width:auto` (reusing the app's `.install-banner`
+  floating-card convention), so width derives from the viewport and it **cannot land off-screen by construction**. It
+  floats above the nav over the menu (list visible behind, **no scrim**); `max-height:min(62vh, space-above-nav)` with
+  internal scroll (base rule's `overflow-y:auto`, now + `overscroll-behavior:contain` so it doesn't chain to the page —
+  the only line also touching the desktop popover). **Surface now SOLID** (dropped v75's 78% translucent tint +
+  backdrop-blur that fought contrast); the **four-side rainbow border** + opaque fill come from the base rule's
+  padding-box/border-box technique. Enter animation swapped from the `msugPopUp` corner-spring to **`msugRise`**
+  (`translateY(8px)→0` + fade, transform/opacity only, reduced-motion strips it). **FAB hides while the card is open**
+  (`.msug.open .msug-pill{display:none}`) and returns on close. Dismiss unchanged (×/outside-tap/swipe/Escape, all JS
+  untouched). **Desktop ≥640px unchanged** (except the shared `overscroll-behavior` line). Tests **318→318** (no
+  unit-testable surface). Six spots → **v77**. **FLAG:** the brief's "persisted dismissed/restore state" does not exist
+  (v74 retired `suggest_fab_hidden`) — NOT reintroduced; awaiting Max's call. **Needs Max's phone:** the inset card at
+  380px both themes (on-screen, inset both sides, menu behind, above nav), 5-insight internal scroll, 1-insight shrink,
+  three-way dismiss, FAB hide/return, the rise animation + reduced-motion, and desktop unchanged.
 
 - **v75 (branch `fix/insight-depth-panel`) — Insight depth: WIDEN the pool, keep the guard · panel rainbow border ·
   mobile panel dismissible (brief `~/Downloads/ezplate-opus-insight-depth-panel.md`). See `handovers/HANDOVER-v75.md`.**
