@@ -309,10 +309,12 @@ merge to `main` as a production deploy.
   (Max, relaying a user). See `handovers/HANDOVER-v74.md`.** CLIENT ONLY (HTML+CSS+JS + one smoke section);
   zero contact with the protected region, money law, naming inversion, data model, invoice subsystem, or the
   insight ENGINE (`computeInsights`/`deriveInsights`/phrasing all unchanged — only the surface moved). The
-  bottom-right rainbow FAB (v69) became a STATIC pill in the Menu `.panel-actions` row (inline with `+ New menu`
-  / `+ Existing dish`, above Delete): a **rainbow-gradient OUTLINE**, no logo, text "EzPlate Insights" + a small
-  `.msug-pill-dot`. Tapping it drops the SAME panel DOWN from the pill with the SAME spring (`msugPop` flipped to
-  `translateY(-20px)→0`, `transform-origin:top left`). `.msug` is now `position:relative;display:inline-flex`
+  bottom-right rainbow FAB (v69) became a STATIC pill at the RIGHT edge of the Menu `.panel-actions` card row (above
+  Delete; `margin-left:auto` + the strapline's flex-grow park it right): a **rainbow-gradient OUTLINE** with the TEXT
+  painted in that same rainbow (`.msug-pill-text`, `background-clip:text`) + a **generic four-point AI sparkle**
+  (`.msug-pill-spark` — NOT Google's Gemini logo: trademark, can't embed as decoration). Panel title is now "Menu
+  insights" (was "What stands out on this menu"). Tapping it drops the SAME panel DOWN from the pill with the SAME
+  spring (`msugPop` flipped to `translateY(-20px)→0`, `transform-origin:top left`). `.msug` is now `position:relative;display:inline-flex`
   (was `position:fixed`). **The v71 swipe-to-hide / rainbow edge-tab / persisted `suggest_fab_hidden` setting is
   RETIRED** (Max — a static inline pill is never "in the way"): removed `loadSuggestFabHidden`/`suggestFabHidden`/
   `applySuggestFabDismissed`/`setSuggestFabHidden`/`suggestFabDismiss`/`suggestFabRestore`, the pointer-swipe wiring,

@@ -90,15 +90,24 @@
       <div class="an-head panel-actions">
         <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
         <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing dish</button>
-        <!-- v74 (Max): the menu insights moved off the floating bottom-right rainbow FAB onto a STATIC pill
-             inline with the menu buttons — a rainbow-gradient outline, no logo, just "EzPlate Insights". It
-             opens the same panel with the same spring (now dropping DOWN from the pill). renderMenuInsights
+        <span class="an-sub panel-sub">Cost vs price for every dish — the lights show what needs a rework</span>
+        <!-- v74 (Max): the menu insights moved off the floating bottom-right rainbow FAB onto a STATIC pill.
+             It sits at the RIGHT edge of the card (the strapline before it flex-grows to push it there); the
+             text + icon share the rainbow-gradient border colour; the icon is a GENERIC four-point AI sparkle
+             (NOT Google's Gemini logo — that's their trademark and can't be embedded as decoration). Tapping
+             it opens the same panel with the same spring (dropping DOWN from the pill). renderMenuInsights
              shows/hides this whole wrapper by whether the menu has anything to say; it lives in the actions
-             row so it only appears on the Menu tab. The v71 swipe-to-hide/edge-tab dismiss is gone — a static
-             inline pill is never "in the way". -->
+             row so it only appears on the Menu tab. The v71 swipe-to-hide/edge-tab dismiss is gone. -->
         <div id="menuSuggestFab" class="msug" hidden>
           <button type="button" class="msug-pill" id="menuSuggestBtn" aria-label="EzPlate Insights" aria-expanded="false" aria-controls="menuSuggestPanel" aria-haspopup="dialog">
-            <span class="msug-pill-dot" aria-hidden="true"></span>EzPlate Insights
+            <svg class="msug-pill-spark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <defs><linearGradient id="msugSparkGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#4285F4"/><stop offset=".38" stop-color="#9B72CB"/>
+                <stop offset=".72" stop-color="#D96570"/><stop offset="1" stop-color="#F2A65A"/>
+              </linearGradient></defs>
+              <path d="M12 1 L14.2 9.8 L23 12 L14.2 14.2 L12 23 L9.8 14.2 L1 12 L9.8 9.8 Z" fill="url(#msugSparkGrad)"/>
+            </svg>
+            <span class="msug-pill-text">EzPlate Insights</span>
           </button>
           <div id="menuSuggestPanel" class="msug-panel" role="dialog" aria-label="Menu suggestions" tabindex="-1" hidden>
             <div class="msug-head">
@@ -107,7 +116,6 @@
             <div id="menuInsights"></div>
           </div>
         </div>
-        <span class="an-sub panel-sub">Cost vs price for every dish — the lights show what needs a rework</span>
       </div>
       <div class="an-controls">
         <div class="menu-picker-row">

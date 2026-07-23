@@ -457,7 +457,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const di = $('menuInsightsPanel');
   ok('the "Suggestions" note renders on the MENU tab when there are insights', !!di);
   ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.mi-line').length === 2 && !di.querySelector('input,textarea'));
-  ok('v68: the title reads "What stands out on {menu}", no eyebrow/mark chrome', di && /What stands out on/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
+  ok('v74: the panel title reads "Menu insights", no eyebrow/mark chrome', di && /Menu insights/.test(di.textContent) && !/What stands out/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
   ok('v68: the "Refined by Gemini" credit is present but HIDDEN while the template shows (honest attribution)', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === true);
   ok('the reprice template shows its computed numbers verbatim', di && /10 pts over/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
@@ -480,9 +480,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const fab = $('menuSuggestFab');
   ok('v74: the Insights pill is shown when the menu has insights', !!fab && fab.hidden === false);
   ok('v74: the pill lives inline in the Menu actions row (not a fixed floating FAB)', !!fab && !!fab.closest('.panel-actions'));
-  ok('v74: the pill reads "EzPlate Insights" with an accessible label + a rainbow dot (no logo)',
+  ok('v74: the pill reads "EzPlate Insights" (rainbow-clipped text) with a generic AI sparkle + accessible label',
     !!$('menuSuggestBtn') && /EzPlate Insights/.test($('menuSuggestBtn').textContent) && $('menuSuggestBtn').getAttribute('aria-label') === 'EzPlate Insights'
-    && !!$('menuSuggestBtn').querySelector('.msug-pill-dot') && !$('menuSuggestBtn').querySelector('svg'));
+    && !!$('menuSuggestBtn').querySelector('.msug-pill-text') && !!$('menuSuggestBtn').querySelector('svg.msug-pill-spark') && !$('menuSuggestBtn').querySelector('.msug-pill-dot'));
+  ok('v74: the pill is parked at the right edge (margin-left:auto in the actions row)', !!fab && !!fab.closest('.an-head'));
   ok('v74: the panel starts closed until the pill is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
   $('menuSuggestBtn').click();
   ok('v74: tapping the pill opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');

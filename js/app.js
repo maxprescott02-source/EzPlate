@@ -2153,11 +2153,11 @@ function renderMenuInsights(){
   if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole pill (v74)
   if(fab) fab.hidden=false;                                                                          // v74: the pill shows whenever the menu has something to say
   var sig=insightSig(insights);
-  // v69 (Max): the panel title always reads "What stands out on this menu" — the selected menu is already
-  // obvious from the picker, so naming it here is noise. The "Refined by Gemini" credit stays honest —
-  // hidden while the template shows, revealed by applyPhrasedInsights only when Gemini phrased a shown line.
+  // v74 (Max): the panel title is just "Menu insights" (was "What stands out on this menu"). The "Refined by
+  // Gemini" credit stays honest — hidden while the template shows, revealed by applyPhrasedInsights only when
+  // Gemini actually phrased a shown line.
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">What stands out on this menu</p>'
+    +'<p class="mi-intro">Menu insights</p>'
     +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
     +'<span class="mi-credit" hidden>Refined by Gemini</span>'
     +'</div>';
