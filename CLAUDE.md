@@ -295,27 +295,48 @@ merge to `main` as a production deploy.
 ## State as of 23 Jul 2026 (verify, don't trust)
 
 - `origin/main` is at **v76** — PR #20 (`fix/insight-depth-panel`, v75+v76) is now MERGED (`a78723a`).
-  One unmerged branch carries the next batch: **`fix/suggestions-inset-card`** (**v77+v78**, PR #21), off `main`,
+  One unmerged branch carries the next batch: **`fix/suggestions-inset-card`** (**v77+v78+v79**, PR #21), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
   `npm test` = **318 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v78** (v77 = CSS-only mobile-Suggestions reposition; v78 = same-PR phone-feedback follow-up on the mobile
-  trigger — no test delta). Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run
-  for v72–v78** (no browser) — timing/feel + the pill/panel layout can only be judged on a device; reconcile on a
-  browser env.
+  **v79** (v77 = mobile-Suggestions inset card; v78 = trigger tweaks; v79 = trigger re-treatment to a neutral elevated
+  circle — all CSS/HTML, no test delta). Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js
+  NOT re-run for v72–v79** (no browser) — timing/feel + the pill/panel layout can only be judged on a device;
+  reconcile on a browser env.
+
+- **v79 (same branch `fix/suggestions-inset-card`, PR #21) — Gemini Suggestions button re-treated (brief
+  `~/Downloads/ezplate-opus-gemini-fab.md`, mockup-approved). See `handovers/HANDOVER-v79.md`.** Presentation only
+  (CSS + one SVG icon); supersedes v78's square/transparent trigger. The mobile floating trigger (`.msug-pill`) is now
+  a **52px CIRCLE** with a **calm neutral raised surface** (`var(--surface)` = the card token) + a hairline
+  `var(--border)` + real elevation via a NEW theme-aware token **`--shadow-float`** (added to all three token blocks) —
+  **no gradient on the surface or border**; the Gemini gradient lives in the **SPARKLE ICON only** (new 4-point path +
+  stops `#4285f4→#9b72cb 35%→#d96570 70%→#f2a60c`, 24px). Repositioned to `right:12px; bottom:calc(84px + safe-area)`
+  (the app's nav-clearance convention) — fixes v78 sitting hard against the nav. Press `:active{scale(.96)}`; hover
+  lift / focus ring / `-webkit-tap-highlight-color:transparent` retained from base. Swipe-dismiss + show/hide from v78
+  unchanged. **Green-dot decision: NONE** — no dot element exists (a v74 smoke pin forbids `.msug-pill-dot`); the
+  "stray green dot" was a menu traffic-light `.dot` showing through v78's TRANSPARENT button, now covered by the solid
+  surface. **aria-label kept "EzPlate Insights"** (NOT the brief's "Menu suggestions"): the desktop pill visibly reads
+  that (WCAG label-in-name) + a smoke pin locks it — flagged for Max. 318→318. Six spots → **v79**. **Needs Max's
+  phone:** circular, elevated, gradient sparkle, no rainbow border/green dot, clear of the nav, no blue tap highlight,
+  both themes; panel + swipe-dismiss still work; desktop pill unchanged.
+
+- **v78 (same branch `fix/suggestions-inset-card`, PR #21, Max's phone feedback) — mobile Suggestions trigger tweaks
+  (folded into `handovers/HANDOVER-v77.md`).** Client-only. The mobile floating trigger became a slightly smaller
+  (48→44px) SQUARE, TRANSPARENT-centre tile (rainbow outline via `border-image` — the only way to keep the centre
+  see-through, as the padding-box/border-box trick's bottom gradient fills the interior) with a **SWIPE-to-the-side
+  dismiss** (`suggestFabSwipeOff` — deliberately NOT the retired `suggestFabDismiss`, so the v74 smoke pin holds; a
+  `fabSwipeGuard` stops the trailing click reopening the panel). Swipe dismiss is **NON-PERSISTED** — `renderMenuInsights`
+  re-offers it on the next menu switch/reload (no `suggest_fab_hidden`, no edge tab — v74's removal stands). CodeRabbit
+  caught + fixed a hide-timeout/menu-switch race and a stale-guard case. 318→318. Six spots → **v78**. *(Note: v79 below
+  then re-treated this trigger to a neutral elevated circle — v78's SQUARE/TRANSPARENT surface no longer ships; only
+  its swipe-dismiss + show/hide behaviour carries forward.)*
 
 - **v77 (branch `fix/suggestions-inset-card`) — Mobile Suggestions panel: button-anchored popover → INSET floating
   card (brief `~/Downloads/ezplate-opus-suggestions-inset-card.md`). See `handovers/HANDOVER-v77.md`.** CSS-ONLY (+ six
   version spots); zero JS logic change, zero contact with the protected region, money law, naming inversion, data
-  model, invoice subsystem, insight engine, or `api/*.js`. **v78 (same PR, Max's phone feedback) — the mobile floating trigger (`.msug-pill`)
-  became a slightly smaller (48→44px) SQUARE, TRANSPARENT-centre tile (rainbow outline via `border-image` — the only
-  way to keep the centre see-through, as the padding-box/border-box trick's bottom gradient fills the interior) with a
-  SWIPE-to-the-side dismiss (`suggestFabSwipeOff` — NOT the retired `suggestFabDismiss`; a `fabSwipeGuard` stops the
-  trailing click reopening the panel). Swipe dismiss is NON-PERSISTED — `renderMenuInsights` re-offers it on the next
-  menu switch/reload (no `suggest_fab_hidden`, no edge tab — v74's removal stands). CodeRabbit caught + fixed a
-  hide-timeout/menu-switch race and a stale-guard case.** **Root cause of the repeated off-screen mobile panel: it was
+  model, invoice subsystem, insight engine, or `api/*.js`. **Root cause of the repeated off-screen mobile panel: it was
   anchored to the bottom-right FAB and derived its width from the button, so at 380px it fought both edges.** Fixed by
   changing HOW it's positioned, not offsets: on `@media (max-width:639px)` `.msug-panel` is now a fixed **inset card** —
   `left:12px;right:12px;bottom:calc(84px + safe-area);top:auto;width:auto` (reusing the app's `.install-banner`
@@ -326,8 +347,8 @@ merge to `main` as a production deploy.
   backdrop-blur that fought contrast); the **four-side rainbow border** + opaque fill come from the base rule's
   padding-box/border-box technique. Enter animation swapped from the `msugPopUp` corner-spring to **`msugRise`**
   (`translateY(8px)→0` + fade, transform/opacity only, reduced-motion strips it). **FAB hides while the card is open**
-  (`.msug.open .msug-pill{display:none}`) and returns on close. Dismiss unchanged (×/outside-tap/swipe/Escape, all JS
-  untouched). **Desktop ≥640px byte-identical.** **CodeRabbit caught a real CSS source-order bug** (the mobile
+  (`.msug.open .msug-pill{display:none}`) and returns on close. Dismiss unchanged in v77 (×/outside-tap/swipe/Escape;
+  no JS logic change this batch). **Desktop ≥640px byte-identical.** **CodeRabbit caught a real CSS source-order bug** (the mobile
   `@media` block sat ABOVE the base `.msug-panel` rule, so — media queries adding no specificity — the base rule won
   and clobbered the mobile position/width/anim: almost certainly the long-standing "opens off-screen" cause; moved the
   mobile block below the base rule, above reduced-motion). Tests **318→318** (no
