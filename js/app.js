@@ -1845,9 +1845,9 @@ var CUT_PTS=12;   // v69: a dish this far over target is an insCut candidate (re
    cost, suggested price, current price, variance and traffic light. An insight that only restates one of
    those is worthless. So every candidate must declare the dimension it adds that is NOT in the table —
    one of: cross (an ingredient's reach across dishes), composition (which input dominates a plate),
-   movement (a logged price change), comparative (menu-wide standing / an outlier). deriveInsights drops
-   any candidate whose dim isn't one of these before selecting. */
-var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1 };
+   movement (a logged price change), comparative (menu-wide standing / an outlier), coverage (a gap in
+   the data itself — v75). deriveInsights drops any candidate whose dim isn't one of these before selecting. */
+var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1, coverage:1 };
 function nonObvious(c){ return !!(c && INSIGHT_DIMS[c.dim]); }
 /* v74 (brief §type-fix) — a dish's NON-OBVIOUS cost driver: the dominant ingredient, but ONLY when the dish
    has ≥2 ingredients AND that ingredient is 40–90% of cost. A single-ingredient dish (share ~100%) is a
@@ -1976,6 +1976,115 @@ function insCut(dishes, targetFrac){
   });
   return best?[best]:[];
 }
+
+/* ===== v75 (brief §1) — WIDEN the pool with menu-level & cross-cutting types so a 30-item menu clears
+   the non-obvious guard with 5 VARIED insights (the guard from v74 is CORRECT and unchanged; the problem
+   was too few TYPES to promote once the shallow ones are rejected). Every type below still declares its
+   dim, states a FACT + figures only (point, don't prescribe), and puts every displayed number in `facts`
+   so the phrasing validator still passes. All pure; tests pin each derivation. ===== */
+
+// TYPE: category performance — average food-cost % per menu SECTION. The table shows per-dish only; the
+// section-average comparison is invisible in it. Needs ≥2 sections (≥2 dishes each) and a real gap (≥3 pts).
+function insCategory(dishes, targetFrac){
+  var by={};
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)) return; var s=(d.section||'').trim(); if(!s) return;
+    (by[s]||(by[s]={sum:0,n:0})); by[s].sum+=d.cost/d.menuPrice; by[s].n++;
+  });
+  var cats=Object.keys(by).filter(function(s){ return by[s].n>=2; })
+    .map(function(s){ return {name:s, pct:Math.round(by[s].sum/by[s].n*100)}; });
+  if(cats.length<2) return [];
+  cats.sort(function(a,b){ return a.pct-b.pct; });
+  var lo=cats[0], hi=cats[cats.length-1]; if(hi.pct-lo.pct<3) return [];   // no real gap → nothing worth saying
+  return [{kind:'category', dim:'comparative', score:Math.min(66, 30+(hi.pct-lo.pct)),
+    facts:{loName:lo.name, loPct:lo.pct, hiName:hi.name, hiPct:hi.pct},
+    text:'Your '+lo.name+' dishes average '+lo.pct+'% food cost, '+hi.name+' sits at '+hi.pct+'%.'}];
+}
+// TYPE: spread / outliers — the food-cost % RANGE across the menu and its tightest-margin extreme. A
+// menu-wide fact (needs ≥4 dishes and a ≥10-pt span to read as one).
+function insSpread(dishes){
+  var arr=dishes.filter(function(d){ return d.cost>0 && d.menuPrice>0; })
+    .map(function(d){ return {name:d.name, pct:Math.round(d.cost/d.menuPrice*100)}; });
+  if(arr.length<4) return [];
+  arr.sort(function(a,b){ return a.pct-b.pct; });
+  var lo=arr[0], hi=arr[arr.length-1]; if(hi.pct-lo.pct<10) return [];
+  return [{kind:'spread', dim:'comparative', score:Math.min(58, 24+(hi.pct-lo.pct)/2),
+    facts:{loPct:lo.pct, hiPct:hi.pct},
+    text:'Food cost spans '+lo.pct+'% to '+hi.pct+'% across this menu — the widest gap on it.'}];
+}
+// TYPE: aggregate opportunity — what the over-target dishes are worth IN AGGREGATE, per 100 serves. The
+// table shows each dish's gap; the menu-wide sum is invisible. (Point, don't prescribe: states the size.)
+function insAggregate(dishes, targetFrac){
+  var sum=0, n=0;
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)) return;
+    var over=d.cost - d.menuPrice*targetFrac; if(over>0){ sum+=over; n++; }
+  });
+  if(n<2 || !(sum>0)) return [];
+  var per100=Math.round(sum*100);
+  return [{kind:'aggregate', dim:'comparative', score:Math.min(70, 34+n*2),
+    facts:{count:n, per100:per100, per:100},                         // `per:100` keeps the "per 100 serves" figure inside facts (number law)
+    text:'Your '+n+' over-target dishes are about $'+per100+' per 100 serves above target in total.'}];
+}
+// TYPE: ingredient-spend concentration — the single biggest-spend ingredient ACROSS the menu (its share of
+// total ingredient cost). Cross-cutting: invisible in a per-dish table. Only notable at ≥25% of spend.
+function insSpend(spend){
+  if(!spend || !spend.length) return [];
+  var s=spend.slice().sort(function(a,b){ return b.total-a.total; })[0];
+  if(!s || !(s.total>0) || !(s.pct>=25)) return [];
+  return [{kind:'spend', dim:'cross', score:Math.min(74, 34+s.pct),
+    facts:{name:s.name, pct:s.pct},
+    text:s.name+' is '+s.pct+'% of your ingredient spend across this menu — your biggest single lever.'}];
+}
+// TYPE: complexity pattern — do many-ingredient dishes cost a higher % than simpler ones? Only emits when
+// the pattern actually HOLDS (both groups ≥2 dishes, ≥3-pt gap). Non-obvious: the table shows neither the
+// ingredient count nor the split. `minIng` is in facts so the "6+" figure survives the number check.
+function insComplexity(dishes){
+  var many={sum:0,n:0}, few={sum:0,n:0};
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)||!(d.nIng>0)) return;
+    var fc=d.cost/d.menuPrice; if(d.nIng>=6){ many.sum+=fc; many.n++; } else { few.sum+=fc; few.n++; }
+  });
+  if(many.n<2 || few.n<2) return [];
+  var mp=Math.round(many.sum/many.n*100), fp=Math.round(few.sum/few.n*100), gap=mp-fp;
+  if(gap<3) return [];
+  return [{kind:'complexity', dim:'comparative', score:Math.min(62, 30+gap),
+    facts:{manyPct:mp, fewPct:fp, gap:gap, minIng:6},
+    text:'Dishes with 6+ ingredients average '+mp+'% food cost, simpler ones '+fp+'%.'}];
+}
+// TYPE: recent change — how many of this menu's dishes cost MORE now than at the last price update (from the
+// per-ingredient price log). Movement invisible in the table. Only worth a line at ≥2 dishes.
+function insRecentChange(recent){
+  if(!recent || !(recent.up>=2)) return [];
+  return [{kind:'recent', dim:'movement', score:Math.min(76, 38+recent.up*3),
+    facts:{up:recent.up},
+    text:recent.up+' dishes cost more now than at your last price update — worth a recheck.'}];
+}
+// TYPE: data completeness (gentle) — dishes on this menu not costed yet. Actionable and invisible in the
+// table (an uncosted dish has no margin row). NOT manufactured concern — just a gap to fill. dim: coverage.
+function insData(coverage){
+  if(!coverage) return [];
+  var u=coverage.uncosted||0;
+  if(u<1) return [];
+  return [{kind:'data', dim:'coverage', score:Math.min(34, 20+u),
+    facts:{uncosted:u},
+    text:u+' dish'+(u===1?" isn't":"es aren't")+' costed yet — no margin read on '+(u===1?'it':'them')+' yet.'}];
+}
+// TYPE: best performer (positive) — the standout dish comfortably UNDER target. v75 (Max, this brief): the
+// one positive line, re-added after v74's critical-only pass. Low score so it never crowds out a real
+// problem; only fires when a dish is genuinely strong (≥5 pts under). Non-obvious: menu-wide standing.
+function insBest(dishes, targetFrac){
+  var best=null, bestPts=0;
+  dishes.forEach(function(d){
+    if(!(d.cost>0)||!(d.menuPrice>0)) return;
+    var pts=Math.round((targetFrac - d.cost/d.menuPrice)*100);   // points UNDER target
+    if(pts>=5 && pts>bestPts){ bestPts=pts; best=d; }
+  });
+  if(!best) return [];
+  return [{kind:'best', dim:'comparative', score:24, facts:{name:best.name, pts:bestPts},
+    text:best.name+' is your strongest margin — '+bestPts+' points under target.'}];
+}
+
 // Rank by notability, keep type VARIETY (≤1 per kind first), and ROTATE the near-top group by seed
 // so equally-notable insights take turns leading across renders/menu-switches. Pure + tested.
 function selectInsights(cands, seed, max){
@@ -2017,25 +2126,47 @@ function deriveInsights(data, targetFrac, seed){
   if(!(targetFrac>0)) return [];
   var costed=dishes.filter(function(d){ return d && d.cost>0 && d.menuPrice>0; });   // published + costed only
   if(!costed.length) return [];                                     // nothing useful to say → the area hides
-  // v71 item 4: nothing over target → say ONE warm thing, don't stack positives or manufacture concern.
-  var over=costed.filter(function(d){ return Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
-  if(!over) return [healthyLine(costed.length, Math.round(targetFrac*100), seed||0)];
   // v74 (brief §scaling): cap scales with menu size — 1→1, 2–5→2, 6–15→3, 16–29→4, 30+→5. selectInsights
   // only ever returns REAL candidates, so a sparse or healthy menu shows fewer; nothing is padded to the cap.
   var n=costed.length;
   var max = n>=30?5 : n>=16?4 : n>=6?3 : n>=2?2 : 1;
-  // v74 (Max): insights must be CRITICAL — real margin/cost problems and genuine leverage — not neutral facts.
-  // The standalone composition line ("X ingredient is Y% of cost") and the best-performer line ("X is your best
-  // margin") were dropped: they state a fact without a problem to act on. Composition survives ONLY as the driver
-  // clause on an over-target line, where it explains a real problem. When nothing critical exists the menu is
-  // "practically perfect" → the all-healthy line (returned above) is all that shows.
+  var over=costed.filter(function(d){ return Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
+  // v75 (brief §1): menu-level & cross-cutting types — NEUTRAL facts that are non-obvious whether or not
+  // anything is over target (category spread, menu-wide range, biggest ingredient spend, complexity pattern,
+  // uncosted dishes, recent cost movement). These are what a big menu was short of once the shallow
+  // over-target lines were rejected. Each still passes the non-obvious guard.
+  var menuLevel=[]
+    .concat(insSpend(data.spend||[]))
+    .concat(insRecentChange(data.recent||null))
+    .concat(insCategory(costed, targetFrac))
+    .concat(insSpread(costed))
+    .concat(insComplexity(costed))
+    .concat(insData(data.coverage||null));
+  if(!over){
+    // v71 item 4: nothing over target → LEAD with ONE warm line and don't manufacture concern. v75: but a
+    // large healthy menu still has neutral menu-level facts worth surfacing, so fill toward the cap with those
+    // (never with over-target/concern types, which don't apply here). A small healthy menu has little to say
+    // and stays a single line — fewer is still correct.
+    var warm=healthyLine(costed.length, Math.round(targetFrac*100), seed||0);
+    var extra=selectInsights(menuLevel.filter(nonObvious), seed||0, Math.max(0, max-1));
+    return [warm].concat(extra.map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; }));
+  }
+  // Something IS over target. PRIORITY (encoded in each type's score, then selectInsights ranks + keeps
+  // ≤1 per kind + rotates the near-top band): severe over-target (cut) → margin problems (reprice, near-miss,
+  // aggregate) → risk & leverage (volatility, shared ingredient, biggest mover, biggest spend, recent change)
+  // → menu-wide comparison (category, spread, complexity) → floors (best performer, uncosted, roll-up).
+  // GRACEFUL FILL: selectInsights only ever returns REAL candidates and fills toward the cap from the widened
+  // pool — never padding with tautologies (the non-obvious guard already dropped those).
   var cands=[]
     .concat(insCut(costed, targetFrac))                              // far over target — severe
     .concat(insReprice(costed, targetFrac))                          // over target — a margin problem (carries its driver)
     .concat(insNearMiss(costed, targetFrac))                         // just over — a low-effort win
+    .concat(insAggregate(costed, targetFrac))                        // v75: what the over-target dishes are worth in aggregate
     .concat(insVolatility(costed))                                   // cost swinging with a volatile input — a real risk
-    .concat(insShared(data.shared||[]))                              // shared-ingredient leverage (the benchmark: reveals the invisible)
+    .concat(insShared(data.shared||[]))                              // shared-ingredient leverage (reveals the invisible)
     .concat(insMover(data.mover||null))                              // an ingredient's price moved, feeding N dishes — real money
+    .concat(menuLevel)                                               // v75: the widened menu-level / cross-cutting pool
+    .concat(insBest(costed, targetFrac))                             // v75 (Max): the one positive line — low priority
     .concat(insSummary(costed, targetFrac))                          // low-priority floor: the over-target roll-up
     .filter(nonObvious);                                             // v74 Rule 1: drop anything that only restates the table
   return selectInsights(cands, seed||0, max).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
@@ -2056,36 +2187,49 @@ function menuSeedHash(id){ var h=0, s=String(id||''); for(var i=0;i<s.length;i++
 function insightSeedFor(menuId){ return (insightPeriod()+menuSeedHash(menuId))|0; }   // stable within a period (so it caches), rotates across periods, varies per menu
 function computeInsights(seed){
   var dishes=[], usage={}, nameByPid={}, dishNamesByPid={};
+  var spendMap={}, uncosted=0, recentUp=0;                          // v75: menu-wide ingredient spend, uncosted-dish + cost-rose counts
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
       if((m.menuId||'MENU_ORIGINAL')!==currentMenuId) return;       // v67 5a: the SELECTED menu only
-      var sp=plateForMenuItem(m); if(!sp) return;
-      var cost=costFromLines(sp.lines); if(!(cost>0)) return;
+      var sp=plateForMenuItem(m);
+      var cost=sp?costFromLines(sp.lines):0;
+      if(!sp || !(cost>0)){ uncosted++; return; }                   // v75: a priced dish with no plate / no cost is "not costed yet"
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
       var topCost=0, topName=null, topPid=null;                      // v69: costliest ingredient line → costly-ingredient insight
+      var prevCost=0;                                                // v75: this dish's cost at each ingredient's PREVIOUS logged price (current if no history)
       (sp.lines||[]).forEach(function(l){
-        if(!l || l.misc) return;
+        if(!l) return;
+        if(l.misc){ prevCost+=Number(l.cost)||0; return; }           // misc rides along at its fixed cost (no price history)
         var p=lineProduct(l); if(!p) return;
         var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
         var nm=l.kid?((kById[l.kid]&&kById[l.kid].name)||p.description):p.description;
         if(nm && !seen[nm]){ seen[nm]=1; usage[nm]=(usage[nm]||0)+1; }   // distinct dishes per kitchen ingredient
-        var lc=lineCost(p, l.qty); if(lc!=null && lc>topCost){ topCost=lc; topName=nm; topPid=pid; }
+        var lc=lineCost(p, l.qty);
+        if(lc!=null && nm) spendMap[nm]=(spendMap[nm]||0)+lc;         // v75: menu-wide spend per ingredient
+        if(lc!=null && lc>topCost){ topCost=lc; topName=nm; topPid=pid; }
+        var prevLc=(lc!=null?lc:0);                                  // v75: same line at its previous logged price, if history exists
         if(pid){
           nameByPid[pid]=nm;
           (dishNamesByPid[pid]||(dishNamesByPid[pid]=[])).push(m.name);
           var band=ingPriceBand(pid); if(band){ var s=(band.max-band.min)*(l.qty||0); if(s>volSpread){ volSpread=s; volName=nm; } }
+          var pa=ingPriceLog[pid]; if(pa && pa.length>=2){ var pv=pa[pa.length-2].v; if(pv!=null && isFinite(pv)) prevLc=pv*(l.qty||0); }
         }
+        prevCost+=prevLc;
       });
+      if(prevCost>0 && cost>prevCost*1.005) recentUp++;              // v75: this dish costs more now than at the last price update
       var top=null;
       // v74: top carries the dish's ingredient COUNT (so single-ingredient tautologies can be excluded) and the
       // dominant ingredient's recent price MOVEMENT (so composition can pair with movement) — dishDriver reads both.
       if(topName && topCost>0){ top={name:topName, share:topCost/cost, count:Object.keys(seen).length, movePct:ingMovePct(topPid)}; }
-      dishes.push({name:m.name, cost:cost, menuPrice:m.price, costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName, top:top});
+      dishes.push({name:m.name, cost:cost, menuPrice:m.price, section:m.section||'', nIng:Object.keys(seen).length,
+        costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName, top:top});
     });
   }catch(e){ return []; }
   var shared=Object.keys(usage).filter(function(n){ return usage[n]>=2; }).map(function(n){ return {name:n, dishCount:usage[n]}; });
+  var totalSpend=0; Object.keys(spendMap).forEach(function(k){ totalSpend+=spendMap[k]; });   // v75: biggest-spend ingredient across the menu
+  var spend=Object.keys(spendMap).map(function(k){ return {name:k, total:spendMap[k], pct:totalSpend>0?Math.round(spendMap[k]/totalSpend*100):0}; });
   var mover=null;
   try{
     Object.keys(dishNamesByPid).forEach(function(pid){
@@ -2098,7 +2242,8 @@ function computeInsights(seed){
       }
     });
   }catch(e){}
-  return deriveInsights({dishes:dishes, shared:shared, mover:mover}, foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
+  return deriveInsights({dishes:dishes, shared:shared, mover:mover, spend:spend, recent:{up:recentUp}, coverage:{uncosted:uncosted}},
+    foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
@@ -2219,6 +2364,22 @@ function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel');
     var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose(false);
   });
   document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden) menuSuggestClose(true); } });
+  // v75 (brief §3): SWIPE-to-close the open panel so it never blocks the menu on mobile (alongside ×, outside-tap,
+  // Escape). Kept from fighting the panel's own vertical scroll: a DOWNWARD swipe only dismisses when the content
+  // is already at the top, and a RIGHTWARD (horizontal) swipe always does. Not a persisted hide — the pill returns.
+  var panel=document.getElementById('menuSuggestPanel');
+  if(panel){
+    var sx=0, sy=0, tracking=false;
+    panel.addEventListener('touchstart', function(e){ if(!e.touches||e.touches.length!==1){ tracking=false; return; } sx=e.touches[0].clientX; sy=e.touches[0].clientY; tracking=true; }, {passive:true});
+    panel.addEventListener('touchend', function(e){
+      if(!tracking) return; tracking=false;
+      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
+      var dx=t.clientX-sx, dy=t.clientY-sy;
+      var rightSwipe=dx>60 && dx>Math.abs(dy);
+      var downFromTop=dy>50 && dy>Math.abs(dx) && panel.scrollTop<=0;
+      if(rightSwipe || downFromTop) menuSuggestClose(true);
+    }, {passive:true});
+  }
 })();
 function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 function renderDashboard(){
@@ -2332,7 +2493,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v74';
+var APP_VERSION='v76';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
