@@ -45,6 +45,26 @@ test('empty / overlong phrasings are rejected', () => {
   assert.equal(I.validatePhrasing('x'.repeat(300), allowed), null);
 });
 
+test('v74: a waffly over-24-word phrasing is rejected (scannability cap), a tight one passes', () => {
+  const allowed = I.factNumbers(insight().facts);   // 10 is a fact
+  const waffle = 'Barra and Chips is sitting at a whisker over your target and honestly that is probably worth taking a really good careful look at whenever you next get a spare moment to review it.';
+  assert.ok(waffle.trim().split(/\s+/).length > 24);
+  assert.equal(I.validatePhrasing(waffle, allowed), null);           // too many words → rejected → caller keeps the template
+  assert.ok(I.validatePhrasing('Barra & Chips is 10 pts over target — worth a glance.', allowed));   // tight, same fact → accepted
+});
+
+test('v74: word-cap boundary — exactly 24 words accepted, 25 rejected', () => {
+  const allowed = I.factNumbers(insight().facts);
+  assert.ok(I.validatePhrasing(Array(24).fill('word').join(' '), allowed));
+  assert.equal(I.validatePhrasing(Array(25).fill('word').join(' '), allowed), null);
+});
+
+test('v74: a multi-sentence phrasing is rejected (one sentence only); em-dash + decimal is fine', () => {
+  const allowed = I.factNumbers(insight().facts);
+  assert.equal(I.validatePhrasing('Barra & Chips is 10 pts over. Worth a glance.', allowed), null);   // two sentences
+  assert.ok(I.validatePhrasing('Barra & Chips is 10 pts over — worth a glance at $15.00.', allowed));  // one sentence, decimal safe
+});
+
 test('validateInsightResponse: valid line kept, tampered line falls back to its template', () => {
   const insights = [
     insight(),

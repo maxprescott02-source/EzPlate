@@ -32,9 +32,17 @@ function factNumbers(facts) {
  * hallucinated or altered figure). It does NOT require every allowed number to reappear:
  * a warmer sentence may omit one, but it may never invent one.
  */
+// v74 (brief §phrasing): at 4–5 insights the panel must be scannable, so a rephrasing must stay tight —
+// one sentence, ~12–20 words. Hard-cap the word count; anything waffly (the old "…so that is worth a look
+// to see if a small tweak…") is rejected and the caller keeps the deterministic template.
+var PHRASE_WORD_CAP = 24;
+function wordCount(t) { var m = String(t).trim().match(/\S+/g); return m ? m.length : 0; }
 function validatePhrasing(text, allowedVals) {
   var t = (text == null ? '' : String(text)).trim();
-  if (!t || t.length > 240) return null;
+  if (!t || t.length > 240 || wordCount(t) > PHRASE_WORD_CAP) return null;
+  // v74 (brief §phrasing): ONE sentence. A terminator (.!?) FOLLOWED by whitespace + more text means a second
+  // sentence → reject (fall back to template). A decimal like "$1.50" has no space after the dot, so it's safe.
+  if (/[.!?]\s+\S/.test(t)) return null;
   allowedVals = allowedVals || [];
   var re = /-?\d+(?:\.\d+)?/g, m;
   while ((m = re.exec(t))) {
@@ -83,18 +91,18 @@ function buildInsightPrompt(insights) {
     return (i + 1) + '. ' + String((x && x.text) || '');
   }).join('\n');
   return [
-    // v71 tone steer (Max): read like a hospitality consultant who KNOWS this café — warm, observational,
-    // aware of its constraints — not a template with a name slotted in. Two hard constraints on the voice:
+    // v74 tone steer (Max): the panel now shows up to 5 insights, so it must be SCANNABLE — sharp and
+    // economical, not chatty. Warmth comes from word choice, not extra words. Hard constraints on the voice:
     // (1) POINT, don't prescribe — name the issue, never dictate the fix; (2) repricing is expensive for this
-    // venue (menu reprints, online updates), so NEVER lean on "charge more" as the answer — frame issues as
-    // "worth a look" / "keep an eye on", not instructions.
-    'You are a seasoned hospitality consultant who knows this café well, talking the owner through their',
-    'menu costing. Rephrase each numbered line below into ONE warm, natural sentence in that voice —',
-    'observational, not bossy. Two rules on tone:',
+    // venue, so NEVER lean on "charge more"; (3) ONE sentence, front-load the fact, ~12–20 words, no wind-up.
+    'You are a sharp hospitality consultant who knows this café, talking the owner through their menu',
+    'costing. Rephrase each numbered line below into ONE tight, natural sentence — human but economical.',
+    'Rules on tone:',
     '- POINT, do not prescribe: name the cost issue and its size, then stop. Never tell them to swap an',
     '  ingredient, change a portion, or set a specific price.',
-    '- Reprinting menus is expensive for this venue, so never make "charge more" the default answer. Frame',
-    '  things as "worth a look" or "keep an eye on it", not as an order.',
+    '- Reprinting menus is expensive here, so never make "charge more" the answer.',
+    '- FRONT-LOAD the fact and cut the wind-up. Aim for 12–20 words; hard limit ~24. No filler like',
+    '  "so that is worth a look to see if a small tweak would…". Every clause must carry information.',
     'Vary your sentence shapes — do not open every line the same way (never start them all with "X is N pts',
     'over"). You are GIVEN the numbers — you MUST keep every number (dollar amounts, percentages, point',
     'counts, product names) EXACTLY as written and MUST NOT introduce, change, round, or remove any number.',

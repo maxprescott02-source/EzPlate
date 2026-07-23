@@ -2483,12 +2483,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-pill:active{transform:scale(.985)}
 .msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
-/* v74 (Max): on phones the labelled pill wastes a whole row — collapse to a compact rainbow CIRCLE with
-   just the sparkle (the aria-label still names it). Full pill returns at ≥640px. */
+/* v74 (Max): on phones the pill got squished into the buttons row — give it its OWN full-width row below the
+   buttons (strapline drops beneath it). Full labelled pill, centred. Desktop keeps it inline at the right edge. */
 @media (max-width:639px){
-  .msug-pill{width:44px;height:44px;padding:0;gap:0;justify-content:center;border-radius:50%}
-  .msug-pill-text{display:none}
-  .msug-pill-spark{width:20px;height:20px}
+  .an-head .msug{flex-basis:100%;margin-left:0}
+  .msug-pill{width:100%;justify-content:center}
 }
 
 /* Panel drops DOWN from the pill, anchored to the pill's RIGHT edge and extending LEFT so it stays on-screen

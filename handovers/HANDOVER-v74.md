@@ -74,15 +74,50 @@ At **380px and desktop, both themes**, then with **OS reduced-motion ON** (sprin
 - The insights trigger: on **desktop (≥640px)** it's the full **"EzPlate Insights" pill** at the RIGHT edge of the
   Menu card (rainbow outline + gradient-clipped text + sparkle) — **watch the gradient text contrast** in light mode
   (the orange stop is the lowest-contrast on a light surface; bump the text to a solid accent if it reads weak), and
-  confirm it isn't invisible on any browser lacking `background-clip:text`. On **phones (<640px)** it collapses to a
-  compact **44px rainbow circle** with just the sparkle (right-aligned on the buttons row) — check the spacing looks
-  tidy and it doesn't wrap awkwardly.
+  confirm it isn't invisible on any browser lacking `background-clip:text`. On **phones (<640px)** it now takes its
+  **OWN full-width row** below the buttons (Max: the inline circle felt squished), strapline beneath — check the
+  spacing looks tidy and the drop-down still opens fully on-screen.
+- **The refined insights on your REAL menu** (the whole point of the quality pass): re-read them for — no tautologies
+  ("X is 100% of…"), no "small tweak"/"worth a look" filler, specific figures present (points AND ¢/$-per-serve, the
+  cost driver, "up N% this month" where history exists), 4–5 on the full menu spread across DIFFERENT types, each
+  scannable in one glance. Confirm a healthy menu still shows the one warm line, and a big healthy menu isn't padded.
 - **Tap → the panel springs DOWN from the pill** (the signature moment, now downward); the panel isn't clipped and
   doesn't run off the right edge at 380px (it anchors to the pill's left; if the pill ends up mid-row on some width,
   watch for right-edge overflow — flag if seen).
 - ×, outside-tap, Escape all close it; a re-tap toggles; keyboard focus lands in the panel on open and back on the
   pill on close.
 - Confirm the old floating bottom-right button is fully gone and nothing else shifted on the Menu tab.
+
+## Added same-branch — insight quality: depth without prescription (brief `~/Downloads/ezplate-opus-insight-quality.md`)
+Refines the menu-insights ENGINE (architecture unchanged: deterministic facts + optional Gemini phrasing,
+numbers validated, offline→templates, point-don't-prescribe). Pure `js/app.js` + `api/_insight.js` + tests.
+
+- **Rule 1 — the NON-OBVIOUS guard (`nonObvious`).** The menu table already shows name/cost/suggested/current/
+  variance/light. Every candidate now declares the dimension it ADDS — `cross` (an ingredient's reach across
+  dishes), `composition` (which input dominates a plate), `movement` (a logged price change), or `comparative`
+  (menu-wide standing / outlier). `deriveInsights` filters out anything without one before selecting. A line that
+  only restates "over target" is dropped.
+- **Kill the tautology (`dishDriver`).** A dish's dominant-ingredient "driver" only counts with **≥2 ingredients
+  AND a 40–90% top share** (thresholds chosen: >40% = genuinely dominant, <90% = not a single-ingredient
+  restatement). So "Chips is 100% of Medium Chips" never fires. `computeInsights` now puts `count` (distinct
+  ingredients) + the dominant ingredient's `movePct` (via new `ingMovePct`) on each dish's `top`.
+- **Rule 2 — depth = SPECIFIC NUMBERS, not prescriptions.** Over-target types (`insReprice` 2–11pts, `insNearMiss`
+  1pt, `insCut` ≥12pts) now carry the gap in BOTH points AND $/serve (`overServeFmt`: cents under $1, dollars
+  over) PLUS the cost driver (share + "up N% this month" where history exists). They only fire when a real driver
+  exists (else the dish is just "over target" → left to the summary count). Filler gone ("worth a rework", "a
+  small tweak would bring it home", "biggest lever"). `insPortion` is now the COMPOSITION heads-up for a
+  healthy/near-target plate leaning on one input (skips over-target dishes, which reprice/cut already cover).
+- **Scaling curve (new):** 1→≤1, 2–5→≤2, 6–15→≤3, 16–29→≤4, 30+→≤5; still never padded (a healthy big menu shows
+  fewer). Spread across DIFFERENT types (`selectInsights` keeps ≤1/kind).
+- **Phrasing — shorter, denser (`_insight.js` + client `gemPhrasingOk`):** one sentence, front-loaded; **hard word
+  cap 24** (target 12–20) + a **single-sentence check** (a `.!?` followed by more text → reject; decimals like
+  "$1.50" are safe); prompt tone shifted from "warm & conversational" to sharp/economical. A too-long/multi-sentence
+  Gemini line → template stands. Numbers stay AI-untouchable (existing validation).
+- **Tests:** `insights.test.js` rewritten to 46 (non-obvious guard, driver-gated over-target with pts+$/serve+driver,
+  40–90% dominant, scaling bands 1/5/15/29/30+ incl. a "reaches 5 across types" + "never padded" pair, single-
+  ingredient → no composition); `api-insight.test.js` +3 (word-cap boundary 24/25, multi-sentence reject);
+  `_extract.js` exposes `nonObvious`/`dishDriver`/`driverClause`/`overServeFmt`. **Pinned-contract changes made
+  deliberately.** 287→**304** node green.
 
 ## NOT built / deliberately left
 - **No hide/dismiss affordance** — a static inline pill doesn't need one (Max's call).
