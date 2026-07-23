@@ -2497,7 +2497,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .msug-panel{
     position:fixed;right:var(--sp-4);left:auto;
     top:auto;bottom:calc(72px + 48px + var(--sp-3) + env(safe-area-inset-bottom));   /* above the floating pill, above the nav */
-    width:min(340px, calc(100vw - 2 * var(--sp-4)));max-height:min(60vh, 460px);
+    width:min(340px, calc(100vw - 2 * var(--sp-4)));
+    /* v76 (Max): fit all the text without scrolling — cap only at the space between the pill and the top of
+       the viewport (leaving a small gap) so a full 5-insight bubble shows in one piece; content shorter than
+       that just shrinks the bubble. */
+    max-height:calc(100vh - 72px - 48px - var(--sp-3) - var(--sp-4) - env(safe-area-inset-bottom));
     transform-origin:bottom right;animation-name:msugPopUp;
     /* Semi-transparent so the menu behind shows through, but a backdrop blur keeps text legible in both
        themes (78% surface tint is the minimum that holds contrast over busy café content — Max, verify). */
@@ -2513,7 +2517,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    (the pill lives at the right edge of the card — anchoring left would run the panel off the right, v74 fix). */
 .msug-panel{
   position:absolute;right:0;top:calc(100% + var(--sp-2));z-index:60;
-  width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(62vh, 460px);overflow-y:auto;
+  /* v76 (Max): size the bubble to its CONTENT so all insights fit without a scrollbar — the height is auto
+     (grows with the text), and the cap is only a viewport safety valve for extreme cases, not a routine clip
+     (up to 5 wrapped insights fit comfortably under it). */
+  width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(88vh, 680px);overflow-y:auto;
   /* v75 (brief §2): the panel carries the SAME rainbow-gradient OUTLINE as the pill (same colours + 90deg
      angle) so button and panel read as one object — surface fill via padding-box keeps the background
      untinted and text contrast unchanged in both themes. */

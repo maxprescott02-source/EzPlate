@@ -295,15 +295,16 @@ merge to `main` as a production deploy.
 ## State as of 23 Jul 2026 (verify, don't trust)
 
 - `origin/main` is at **v74** — PR #19 (`feature/menu-insights-pill`, v74) is now MERGED (`604f14e`).
-  One unmerged branch carries the next batch: **`fix/insight-depth-panel`** (**v75**), off `main`,
+  One unmerged branch carries the next batch: **`fix/insight-depth-panel`** (**v75+v76**, PR #20), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
   `npm test` = **318 green** (299 baseline + the v75 widened-insight pool), jsdom smoke green, `node -c` clean
-  (app.js, sw.js + the four `api/*.js`), six spots at **v75** (CodeRabbit NOT yet run — runs before push, after
-  Max's phone sign-off). Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for
-  v72–v75** (no browser) — timing/feel + the pill/panel layout can only be judged on a device; reconcile on a browser env.
+  (app.js, sw.js + the four `api/*.js`), six spots at **v76** (v75 reviewed + pushed via PR #20; **v76** is a same-PR
+  CSS follow-up — the insights bubble now sizes to its content so all text fits without a scrollbar). Per-batch detail
+  lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72–v76** (no browser) — timing/feel +
+  the pill/panel layout can only be judged on a device; reconcile on a browser env.
 
 - **v75 (branch `fix/insight-depth-panel`) — Insight depth: WIDEN the pool, keep the guard · panel rainbow border ·
   mobile panel dismissible (brief `~/Downloads/ezplate-opus-insight-depth-panel.md`). See `handovers/HANDOVER-v75.md`.**
@@ -324,7 +325,9 @@ merge to `main` as a production deploy.
   the menu"): now `position:fixed` to the viewport, opens LEFTWARD + up fully on-screen at 380px (no h-scroll, clears
   the nav), semi-transparent (`color-mix ... 78%` + `backdrop-filter:blur`), and **swipe-to-close** (right, or down
   from top) alongside ×/outside-tap/Escape — **not** persisted, no button-hiding (v74's retirement of that stands).
-  299→**318** (`insights.test.js` 41→60). Six spots → **v75**. **Needs Max's phone:** the 5 varied non-obvious
+  299→**318** (`insights.test.js` 41→60). Six spots → **v75**; **v76 (same PR) — the insights bubble sizes to its
+  content so all text fits without a scrollbar** (desktop cap `min(88vh,680px)`; mobile fills the space between the
+  floating pill and the viewport top). **Needs Max's phone:** the 5 varied non-obvious
   insights on his real 30+ menu (confirm none restate the table); the panel rainbow border both themes; the mobile
   panel opening leftward fully on-screen, legible-but-transparent, and dismissable four ways at 380px without blocking
   the menu. **NOT built** (in brief but deferred): ingredient-price-spread + stale-dish types (need same-unit grouping

@@ -105,6 +105,18 @@ background untinted and text contrast unchanged in both themes. (Was a plain `1p
    semi-transparent-but-legible in both themes, and closes on ×, tap-outside, Escape, AND a swipe (right, or down from
    the top). Confirm it never blocks using the menu.
 
+## v76 follow-up (same branch/PR) — bubble sizes to its content
+Max: "make the text bubble big enough just to fit all text without scroll." With up to 5 wrapped insights the old
+`max-height:460px` cap was clipping and showing a scrollbar. The panel height is now driven by its CONTENT (it's
+`height:auto`), and the cap is only a viewport safety valve, not a routine clip:
+- **Desktop** `.msug-panel`: cap raised to `min(88vh, 680px)` — a full 5-insight bubble fits in one piece; `overflow-y`
+  stays as a last-resort valve for absurd cases.
+- **Mobile**: cap is now `calc(100vh - 72px - 48px - var(--sp-3) - var(--sp-4) - env(safe-area-inset-bottom))` — i.e.
+  the whole space between the floating pill and the top of the viewport (less a small gap), so the bubble grows
+  upward to fit all the text and only ever caps if it would hit the status bar.
+CSS-only; six spots bumped **v75 → v76** so the change reaches installed phones. Tests still **318 green**, `node -c`
+clean. Still **needs Max's phone**: confirm the full set of insights shows without a scrollbar in both themes at 380px.
+
 ## Not done / deliberately out of scope
 - **Ingredient-price spread** (same-category products at different prices) and **stale/never-reviewed** dishes were in
   the brief's candidate list but NOT built: price-spread needs same-unit/same-category grouping that's noisy across
