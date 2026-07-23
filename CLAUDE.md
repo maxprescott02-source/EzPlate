@@ -314,13 +314,16 @@ merge to `main` as a production deploy.
   `left:12px;right:12px;bottom:calc(84px + safe-area);top:auto;width:auto` (reusing the app's `.install-banner`
   floating-card convention), so width derives from the viewport and it **cannot land off-screen by construction**. It
   floats above the nav over the menu (list visible behind, **no scrim**); `max-height:min(62vh, space-above-nav)` with
-  internal scroll (base rule's `overflow-y:auto`, now + `overscroll-behavior:contain` so it doesn't chain to the page —
-  the only line also touching the desktop popover). **Surface now SOLID** (dropped v75's 78% translucent tint +
+  internal scroll (base rule's `overflow-y:auto` + a mobile-only `overscroll-behavior:contain` so it doesn't chain to
+  the page). **Surface now SOLID** (dropped v75's 78% translucent tint +
   backdrop-blur that fought contrast); the **four-side rainbow border** + opaque fill come from the base rule's
   padding-box/border-box technique. Enter animation swapped from the `msugPopUp` corner-spring to **`msugRise`**
   (`translateY(8px)→0` + fade, transform/opacity only, reduced-motion strips it). **FAB hides while the card is open**
   (`.msug.open .msug-pill{display:none}`) and returns on close. Dismiss unchanged (×/outside-tap/swipe/Escape, all JS
-  untouched). **Desktop ≥640px unchanged** (except the shared `overscroll-behavior` line). Tests **318→318** (no
+  untouched). **Desktop ≥640px byte-identical.** **CodeRabbit caught a real CSS source-order bug** (the mobile
+  `@media` block sat ABOVE the base `.msug-panel` rule, so — media queries adding no specificity — the base rule won
+  and clobbered the mobile position/width/anim: almost certainly the long-standing "opens off-screen" cause; moved the
+  mobile block below the base rule, above reduced-motion). Tests **318→318** (no
   unit-testable surface). Six spots → **v77**. **FLAG:** the brief's "persisted dismissed/restore state" does not exist
   (v74 retired `suggest_fab_hidden`) — NOT reintroduced; awaiting Max's call. **Needs Max's phone:** the inset card at
   380px both themes (on-screen, inset both sides, menu behind, above nav), 5-insight internal scroll, 1-insight shrink,

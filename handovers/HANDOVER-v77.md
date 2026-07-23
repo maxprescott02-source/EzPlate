@@ -73,6 +73,21 @@ suggestions button" again, say so and I'll scope it as its own item.**
 
 ---
 
+## CodeRabbit review — one real bug caught (and it was probably THE bug)
+
+CodeRabbit flagged a **CSS source-order / cascade** problem, and it was correct — likely the actual reason mobile
+positioning failed repeatedly before this. The mobile `@media (max-width:639px) .msug-panel` override was written
+**above** the base `.msug-panel` rule. Media queries add **no specificity**, so at ≤639px both rules match at equal
+specificity and **source order breaks the tie** — the later base rule won, clobbering the mobile `position`/`right`/
+`width`/`max-height`/`animation`. So the mobile card would have rendered with the base desktop popover's
+`position:absolute; right:0` inside the tiny fixed FAB container → off-screen / wrong place. **The v75/v76 mobile
+block had the same ordering, which fits the brief's "SEVERAL failed attempts… opens off-screen" exactly.**
+
+**Fix:** moved the whole mobile `@media` block to sit **after** the base `.msug-panel` rule (so its overrides win)
+but **before** the `@media (prefers-reduced-motion:reduce)` rule (so that still strips the animation last). Also
+scoped `overscroll-behavior:contain` to the mobile override only, so the desktop popover is now **byte-identical** to
+v76. Re-ran CodeRabbit → **0 findings**. (No other findings; nothing skipped.)
+
 ## Verification
 
 - `npm test` → **318 green** (unchanged — no unit-testable surface changed).

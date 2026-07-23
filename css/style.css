@@ -2482,38 +2482,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-pill:active{transform:scale(.985)}
 .msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
-/* v74 (Max): on phones the inline pill overcrowds the header — FLOAT it as a small AI circle bottom-right,
-   out of the actions row (styled exactly like the desktop pill: rainbow outline + gradient sparkle). Desktop
-   keeps the full labelled pill inline at the right edge. */
-@media (max-width:639px){
-  .an-head .msug{position:fixed;right:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));margin:0;z-index:60}
-  .msug-pill{width:48px;height:48px;padding:0;gap:0;justify-content:center;border-radius:50%}
-  .msug-pill-text{display:none}
-  .msug-pill-spark{width:22px;height:22px}
-  /* v77 (brief): the FAB hides while the card is open — the inset card spans the full width where the circle
-     sits, so leaving it visible would trap it under the card. It returns the instant the card closes. */
-  .msug.open .msug-pill{display:none}
-  /* v77 (brief): the mobile panel is an INSET FLOATING CARD — inset a fixed gutter from BOTH side edges
-     (reusing the app's .install-banner convention: 12px), so its width DERIVES FROM THE VIEWPORT, never from
-     the button, and it CANNOT land off-screen by construction. It floats ABOVE the bottom nav over the menu
-     content — the menu list stays visible behind it (no full-screen cover, no scrim). This replaces the
-     v75/v76 button-anchored popover that expanded left+up and fought both viewport edges at 380px.
-     Solid surface (dropped v75's 78% tint + blur, which fought contrast); the four-side rainbow border and
-     opaque fill both come from the base .msug-panel rule below. */
-  .msug-panel{
-    position:fixed;left:12px;right:12px;top:auto;
-    bottom:calc(84px + env(safe-area-inset-bottom));   /* clears the bottom nav + iOS home indicator */
-    width:auto;                                        /* derived from the two insets, not the button */
-    /* never taller than the space above the nav; internal scroll comes from the base rule's overflow-y:auto */
-    max-height:min(62vh, calc(100vh - 84px - env(safe-area-inset-bottom) - var(--sp-5)));
-    transform-origin:center bottom;
-    animation:msugRise var(--t-med) var(--ease);       /* short fade + slight rise; transform/opacity only */
-  }
-}
-/* v77: the mobile card enters with a gentle fade + rise (transform/opacity only; reduced-motion strips it
-   via the shared rule at the foot of this block). Desktop keeps the msugPop spring. */
-@keyframes msugRise{ from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
-
 /* Panel drops DOWN from the pill, anchored to the pill's RIGHT edge and extending LEFT so it stays on-screen
    (the pill lives at the right edge of the card — anchoring left would run the panel off the right, v74 fix). */
 .msug-panel{
@@ -2522,7 +2490,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
      (grows with the text), and the cap is only a viewport safety valve for extreme cases, not a routine clip
      (up to 5 wrapped insights fit comfortably under it). */
   width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(88vh, 680px);overflow-y:auto;
-  overscroll-behavior:contain;   /* v77: internal scroll (mobile inset card / desktop popover) never chains to the menu behind */
   /* v75 (brief §2): the panel carries the SAME rainbow-gradient OUTLINE as the pill (same colours + 90deg
      angle) so button and panel read as one object — surface fill via padding-box keeps the background
      untinted and text contrast unchanged in both themes. */
@@ -2544,4 +2511,38 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug-panel .menu-insights{margin:0;padding:0;background:none;border-radius:0}
 .msug-panel .mi-intro{font-style:normal;font-size:var(--fs-md);font-weight:800;color:var(--text);margin-bottom:var(--sp-3)}   /* the panel's title now (no eyebrow) */
 @keyframes msugPop{from{opacity:0;transform:scale(.6) translateY(-20px)}to{opacity:1;transform:none}}
+
+/* v74/v77 (Max): MOBILE (<=639px) — the pill floats as a small AI circle bottom-right and the panel is an
+   INSET FLOATING CARD. This block sits AFTER the base .msug-panel rule ON PURPOSE: media queries add no
+   specificity, so these mobile overrides must come LATER in source order to win over the desktop popover rule
+   above. (An earlier position — v75/v76 — let the base rule clobber the mobile panel's position/width/anim:
+   the off-screen bug.) It stays BEFORE the reduced-motion rule below so that still strips the animation. */
+@media (max-width:639px){
+  .an-head .msug{position:fixed;right:var(--sp-4);bottom:calc(72px + env(safe-area-inset-bottom));margin:0;z-index:60}
+  .msug-pill{width:48px;height:48px;padding:0;gap:0;justify-content:center;border-radius:50%}
+  .msug-pill-text{display:none}
+  .msug-pill-spark{width:22px;height:22px}
+  /* v77: the FAB hides while the card is open — the inset card spans the full width where the circle sits, so
+     leaving it visible would trap it under the card. It returns the instant the card closes. */
+  .msug.open .msug-pill{display:none}
+  /* v77 (brief): the mobile panel is an INSET FLOATING CARD — inset a fixed gutter from BOTH side edges
+     (reusing the app's .install-banner convention: 12px), so its width DERIVES FROM THE VIEWPORT, never from
+     the button, and it CANNOT land off-screen by construction. It floats ABOVE the bottom nav over the menu
+     content — the menu list stays visible behind it (no full-screen cover, no scrim). This replaces the
+     v75/v76 button-anchored popover that expanded left+up and fought both viewport edges at 380px.
+     Solid surface (dropped v75's 78% tint + blur, which fought contrast); the four-side rainbow border and
+     opaque fill both come from the base .msug-panel rule above. */
+  .msug-panel{
+    position:fixed;left:12px;right:12px;top:auto;
+    bottom:calc(84px + env(safe-area-inset-bottom));   /* clears the bottom nav + iOS home indicator */
+    width:auto;                                        /* derived from the two insets, not the button */
+    /* never taller than the space above the nav; internal scroll comes from the base rule's overflow-y:auto */
+    max-height:min(62vh, calc(100vh - 84px - env(safe-area-inset-bottom) - var(--sp-5)));
+    overscroll-behavior:contain;                       /* the card's own scroll never chains to the menu behind */
+    transform-origin:center bottom;
+    animation:msugRise var(--t-med) var(--ease);       /* short fade + slight rise; transform/opacity only */
+  }
+}
+/* v77: the mobile card enters with a gentle fade + rise (transform/opacity only; reduced-motion strips it below) */
+@keyframes msugRise{ from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
 @media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
