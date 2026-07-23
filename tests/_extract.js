@@ -61,14 +61,19 @@ function build() {
   // v63/v67: the deterministic insight engine. v67 broadened it into one pure function PER insight
   // TYPE + a pure selector; deriveInsights orchestrates them. All are dependency-free (dishes/shared/
   // mover are passed in as primitives), so each is testable with no DOM and no live API.
+  // v74: shared helpers the insight types depend on — the non-obvious guard, the dominant-ingredient
+  // driver (≥2 ingredients, 40–90% share), its phrase, and the $/serve formatter. Extracted so the
+  // types can run in isolation with no DOM.
+  const nonObvious = extractFn(src, 'nonObvious');
+  const dishDriver = extractFn(src, 'dishDriver');
+  const driverClause = extractFn(src, 'driverClause');
+  const overServeFmt = extractFn(src, 'overServeFmt');
   const insReprice = extractFn(src, 'insReprice');
   const insNearMiss = extractFn(src, 'insNearMiss');
   const insVolatility = extractFn(src, 'insVolatility');
   const insShared = extractFn(src, 'insShared');
   const insMover = extractFn(src, 'insMover');
-  const insBest = extractFn(src, 'insBest');
   const insSummary = extractFn(src, 'insSummary');
-  const insPortion = extractFn(src, 'insPortion');   // v71: costly dominant ingredient (point, don't prescribe)
   const insCut = extractFn(src, 'insCut');           // v69: far-over-target → rework/drop
   const healthyLine = extractFn(src, 'healthyLine'); // v71: warm all-healthy line
   const selectInsights = extractFn(src, 'selectInsights');
@@ -81,6 +86,7 @@ function build() {
     function invDbg(){}   /* stub: the app's debug logger is a no-op in tests */
     var GEM_BAND=0.5;     /* the app's default plausibility band, mirrored for the extracted merge fn */
     var CUT_PTS=12;       /* v69: insReprice/insCut share this over-target threshold (mirrored for extraction) */
+    var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1 };   /* v74: mirror for nonObvious */
     ${parserBlock}
     ${pricingFn}
     ${gemCanon}
@@ -88,20 +94,22 @@ function build() {
     ${gemMerge}
     ${gemMatchSuspect}
     ${gemCleanFields}
+    ${nonObvious}
+    ${dishDriver}
+    ${driverClause}
+    ${overServeFmt}
     ${insReprice}
     ${insNearMiss}
     ${insVolatility}
     ${insShared}
     ${insMover}
-    ${insBest}
     ${insSummary}
-    ${insPortion}
     ${insCut}
     ${healthyLine}
     ${selectInsights}
     ${deriveInsights}
     ${lightFilterPass}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insReprice, insNearMiss, insVolatility, insShared, insMover, insBest, insSummary, insPortion, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, nonObvious, dishDriver, driverClause, overServeFmt, insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary, insCut, healthyLine, selectInsights, deriveInsights, lightFilterPass };
   `);
   return factory();
 }

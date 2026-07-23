@@ -457,7 +457,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const di = $('menuInsightsPanel');
   ok('the "Suggestions" note renders on the MENU tab when there are insights', !!di);
   ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.mi-line').length === 2 && !di.querySelector('input,textarea'));
-  ok('v68: the title reads "What stands out on {menu}", no eyebrow/mark chrome', di && /What stands out on/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
+  ok('v74: the panel title reads "Menu insights", no eyebrow/mark chrome', di && /Menu insights/.test(di.textContent) && !/What stands out/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
   ok('v68: the "Refined by Gemini" credit is present but HIDDEN while the template shows (honest attribution)', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === true);
   ok('the reprice template shows its computed numbers verbatim', di && /10 pts over/.test(di.textContent) && /\$20\.00/.test(di.textContent));
   ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
@@ -475,30 +475,38 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const dj = $('menuInsightsPanel');
   ok('v69: a re-render within the period reuses the cache — no second Gemini call', pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
   ok('v69: the cached phrasing (and its credit) apply immediately on the cache hit', dj && /runs 10 pts hot/.test(dj.textContent) && dj.querySelector('.mi-credit') && dj.querySelector('.mi-credit').hidden === false);
-  // v69 item 1: the Suggestions content lives behind a floating rainbow button (bottom-RIGHT of the Menu).
+  // v74 (Max): the Suggestions content lives behind a STATIC "EzPlate Insights" pill inline with the menu
+  // buttons (was a floating bottom-right rainbow FAB); the v71 swipe-to-hide / edge-tab dismiss is GONE.
   const fab = $('menuSuggestFab');
-  ok('v69: the Suggestions FAB is shown when the menu has insights', !!fab && fab.hidden === false);
-  ok('v69: the rainbow button carries a gradient logo + an accessible label', !!$('menuSuggestBtn') && !!$('menuSuggestBtn').querySelector('svg linearGradient') && $('menuSuggestBtn').getAttribute('aria-label') === 'Menu suggestions');
-  ok('v69: the panel starts closed until the button is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
+  ok('v74: the Insights pill is shown when the menu has insights', !!fab && fab.hidden === false);
+  ok('v74: the pill lives inline in the Menu actions row (not a fixed floating FAB)', !!fab && !!fab.closest('.panel-actions'));
+  ok('v74: the pill reads "EzPlate Insights" (rainbow-clipped text) with a generic AI sparkle + accessible label',
+    !!$('menuSuggestBtn') && /EzPlate Insights/.test($('menuSuggestBtn').textContent) && $('menuSuggestBtn').getAttribute('aria-label') === 'EzPlate Insights'
+    && !!$('menuSuggestBtn').querySelector('.msug-pill-text') && !!$('menuSuggestBtn').querySelector('svg.msug-pill-spark') && !$('menuSuggestBtn').querySelector('.msug-pill-dot'));
+  ok('v74: the pill is parked at the right edge (margin-left:auto in the actions row)', !!fab && !!fab.closest('.an-head'));
+  ok('v74: the panel starts closed until the pill is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
   $('menuSuggestBtn').click();
-  ok('v69: tapping the button opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');
-  ok('v69: focus moves into the panel on open (a11y — never left on hidden content)', window.document.activeElement === $('menuSuggestPanel'));
-  ok('v69: the panel holds the same insight content (mi-lines) + the credit', $('menuSuggestPanel').querySelectorAll('.mi-line').length === 2 && !!$('menuSuggestPanel').querySelector('.mi-credit'));
+  ok('v74: tapping the pill opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');
+  ok('v74: focus moves into the panel on open (a11y — never left on hidden content)', window.document.activeElement === $('menuSuggestPanel'));
+  ok('v74: the panel holds the same insight content (mi-lines) + the credit', $('menuSuggestPanel').querySelectorAll('.mi-line').length === 2 && !!$('menuSuggestPanel').querySelector('.mi-credit'));
+  $('menuSuggestBtn').click();
+  ok('v74: a re-tap toggles the panel closed', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
+  $('menuSuggestBtn').click();
   $('menuSuggestClose').click();
-  ok('v69: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
-  ok('v69: focus returns to the trigger button on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
-  // v71 item 6: the button is dismissable (→ slim restore tab) and recallable; the state persists globally.
-  window.localStorage.removeItem('cafeDB_suggestFabHidden');
-  window.suggestFabDismiss();
-  ok('v71: dismissing swaps the button for the restore edge tab', fab.classList.contains('dismissed') && !!$('menuSuggestRestore'));
-  ok('v71: the dismissed state persists to localStorage (survives reload)', window.localStorage.getItem('cafeDB_suggestFabHidden') === '1');
-  window.renderMenuInsights();
-  ok('v71: a re-render keeps it dismissed (global, not reset per menu switch)', fab.hidden === false && fab.classList.contains('dismissed'));
-  $('menuSuggestRestore').click();
-  ok('v71: the restore tab brings the button straight back and clears the flag', !fab.classList.contains('dismissed') && window.localStorage.getItem('cafeDB_suggestFabHidden') === '0');
+  ok('v74: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
+  ok('v74: focus returns to the pill on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
+  // Escape closes it too — and, like the ×, resets aria-expanded + returns focus to the pill (a11y)
+  $('menuSuggestBtn').click();
+  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  ok('v74: Escape closes the panel, resets aria-expanded, and returns focus to the pill',
+    $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false' && window.document.activeElement === $('menuSuggestBtn'));
+  // the dismiss/restore machinery is gone entirely
+  ok('v74: the swipe-to-hide edge tab is removed', !$('menuSuggestRestore') && !$('menuSuggestDismiss'));
+  ok('v74: the suggest_fab_hidden dismiss API is gone', typeof window.suggestFabDismiss === 'undefined' && typeof window.suggestFabHidden === 'undefined');
   window.computeInsights = () => [];
-  try { window.renderMenuInsights(); } catch (e) {}
-  ok('v69: a menu with nothing to say hides the whole FAB', fab.hidden === true);
+  let emptyThrew = null; try { window.renderMenuInsights(); } catch (e) { emptyThrew = e; }
+  ok('v74: rendering with no insights does not throw', !emptyThrew, emptyThrew && emptyThrew.message);
+  ok('v74: a menu with nothing to say hides the whole pill', fab.hidden === true);
   window.computeInsights = stashCI;
 
   // ---- [17] v68 — Menu margin-light filter chips (multi-select) wire up + fold into Clear filters ----

@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=73">
+<link rel="stylesheet" href="css/style.css?v=74">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -91,6 +91,31 @@
         <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
         <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing dish</button>
         <span class="an-sub panel-sub">Cost vs price for every dish — the lights show what needs a rework</span>
+        <!-- v74 (Max): the menu insights moved off the floating bottom-right rainbow FAB onto a STATIC pill.
+             It sits at the RIGHT edge of the card (the strapline before it flex-grows to push it there); the
+             text + icon share the rainbow-gradient border colour; the icon is a GENERIC four-point AI sparkle
+             (NOT Google's Gemini logo — that's their trademark and can't be embedded as decoration). Tapping
+             it opens the same panel with the same spring (dropping DOWN from the pill). renderMenuInsights
+             shows/hides this whole wrapper by whether the menu has anything to say; it lives in the actions
+             row so it only appears on the Menu tab. The v71 swipe-to-hide/edge-tab dismiss is gone. -->
+        <div id="menuSuggestFab" class="msug" hidden>
+          <button type="button" class="msug-pill" id="menuSuggestBtn" aria-label="EzPlate Insights" aria-expanded="false" aria-controls="menuSuggestPanel" aria-haspopup="dialog">
+            <svg class="msug-pill-spark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <defs><linearGradient id="msugSparkGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#4285F4"/><stop offset=".38" stop-color="#9B72CB"/>
+                <stop offset=".72" stop-color="#D96570"/><stop offset="1" stop-color="#F2A65A"/>
+              </linearGradient></defs>
+              <path d="M12 1 L14.2 9.8 L23 12 L14.2 14.2 L12 23 L9.8 14.2 L1 12 L9.8 9.8 Z" fill="url(#msugSparkGrad)"/>
+            </svg>
+            <span class="msug-pill-text">EzPlate Insights</span>
+          </button>
+          <div id="menuSuggestPanel" class="msug-panel" role="dialog" aria-label="Menu suggestions" tabindex="-1" hidden>
+            <div class="msug-head">
+              <button type="button" class="msug-x" id="menuSuggestClose" aria-label="Close suggestions">&times;</button>
+            </div>
+            <div id="menuInsights"></div>
+          </div>
+        </div>
       </div>
       <div class="an-controls">
         <div class="menu-picker-row">
@@ -122,35 +147,6 @@
           <tbody id="aBody"></tbody>
         </table>
       </div>
-    </div>
-    <!-- v69 item 1: the menu Suggestions moved OFF the inline slot into an on-demand floating panel.
-         A persistent square button (the EzPlate logo in a Gemini rainbow gradient — signals the Gemini
-         pairing) sits bottom-RIGHT of the Menu view (Max); tapping it expands the panel with the menu's
-         suggestions. renderMenuInsights fills #menuInsights and shows/hides the whole FAB by whether
-         there's anything to say; it lives inside #tab-analysis so it only appears on the Menu tab.
-         The panel's own title ("What stands out on this menu") is the header, so no separate eyebrow. -->
-    <div id="menuSuggestFab" class="msug" hidden>
-      <div id="menuSuggestPanel" class="msug-panel" role="dialog" aria-label="Menu suggestions" tabindex="-1" hidden>
-        <div class="msug-head">
-          <button type="button" class="msug-x" id="menuSuggestClose" aria-label="Close suggestions">&times;</button>
-        </div>
-        <div id="menuInsights"></div>
-        <!-- v71 item 6: dismiss the whole button (persisted, global). Distinct from the × above, which just
-             collapses the panel. Restore is the slim edge tab below. -->
-        <div class="msug-foot"><button type="button" class="msug-hide" id="menuSuggestDismiss">Hide the suggestions button</button></div>
-      </div>
-      <!-- v71 item 6: once dismissed, this slim rainbow edge tab is the low-profile way back — never lost. -->
-      <button type="button" class="msug-restore" id="menuSuggestRestore" aria-label="Show menu suggestions"><span class="msug-restore-grip" aria-hidden="true"></span></button>
-      <button type="button" class="msug-btn" id="menuSuggestBtn" aria-label="Menu suggestions" aria-expanded="false" aria-controls="menuSuggestPanel" aria-haspopup="dialog">
-        <svg viewBox="0 0 64 64" role="img" aria-hidden="true" class="msug-logo" focusable="false">
-          <defs><linearGradient id="msugGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stop-color="#4285F4"/><stop offset=".38" stop-color="#9B72CB"/>
-            <stop offset=".72" stop-color="#D96570"/><stop offset="1" stop-color="#F2A65A"/>
-          </linearGradient></defs>
-          <circle cx="32" cy="32" r="26" fill="none" stroke="url(#msugGrad)" stroke-width="6"/>
-          <path d="M 32 17.5 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="url(#msugGrad)" stroke-width="6" stroke-linecap="round"/>
-        </svg>
-      </button>
     </div>
   </div><!-- /tab-analysis -->
 
@@ -684,7 +680,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=73"></script>
+<script src="js/app.js?v=74"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

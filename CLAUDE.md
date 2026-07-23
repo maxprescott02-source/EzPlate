@@ -294,16 +294,48 @@ merge to `main` as a production deploy.
 
 ## State as of 23 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v72** — PR #17 (`feature/animation-system`, v72) is now MERGED (`49636f7`).
-  One unmerged branch carries the next batch: **`feature/gemini-newitem-prefill`** (**v73**), off `main`,
+- `origin/main` is at **v73** — PR #18 (`feature/gemini-newitem-prefill`, v73) is now MERGED (`dfe28a2`).
+  One unmerged branch carries the next batch: **`feature/menu-insights-pill`** (**v74**), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **287 green** (272→287 in v73), jsdom smoke green (incl. a new [19] v73 AI-prefill section),
-  `node -c` clean (app.js, sw.js + the four `api/*.js`), CodeRabbit clean, six spots at **v73**. Per-batch
-  detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for v72/v73** (no browser) —
-  markup is essentially unchanged but timing/feel can only be judged on a device; reconcile on a browser env.
+  `npm test` = **299 green** (287 baseline + the v74 insight-quality pass), jsdom smoke green (the [16] Suggestions
+  section rewritten to the pill), `node -c` clean (app.js, sw.js + the four `api/*.js`), CodeRabbit clean, six spots
+  at **v74**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js NOT re-run for
+  v72/v73/v74** (no browser) — timing/feel + the pill layout can only be judged on a device; reconcile on a browser env.
+
+- **v74 (branch `feature/menu-insights-pill`) — Menu insights: floating FAB → static "EzPlate Insights" pill
+  (Max, relaying a user). See `handovers/HANDOVER-v74.md`.** CLIENT ONLY (HTML+CSS+JS + one smoke section);
+  zero contact with the protected region, money law, naming inversion, data model, invoice subsystem, or the
+  insight ENGINE (`computeInsights`/`deriveInsights`/phrasing all unchanged — only the surface moved). The
+  bottom-right rainbow FAB (v69) became a STATIC pill at the RIGHT edge of the Menu `.panel-actions` card row (above
+  Delete; `margin-left:auto` + the strapline's flex-grow park it right): a **rainbow-gradient OUTLINE** with the TEXT
+  painted in that same rainbow (`.msug-pill-text`, `background-clip:text`) + a **generic four-point AI sparkle**
+  (`.msug-pill-spark` — NOT Google's Gemini logo: trademark, can't embed as decoration). Panel title is now "Menu
+  insights" (was "What stands out on this menu"). Tapping it drops the SAME panel DOWN from the pill with the SAME
+  spring (`msugPop` flipped to `translateY(-20px)→0`, `transform-origin:top left`). `.msug` is now `position:relative;display:inline-flex`
+  (was `position:fixed`). **The v71 swipe-to-hide / rainbow edge-tab / persisted `suggest_fab_hidden` setting is
+  RETIRED** (Max — a static inline pill is never "in the way"): removed `loadSuggestFabHidden`/`suggestFabHidden`/
+  `applySuggestFabDismissed`/`setSuggestFabHidden`/`suggestFabDismiss`/`suggestFabRestore`, the pointer-swipe wiring,
+  the `bootstrapSync` read, and all `.msug-btn`/`.msug-logo`/`.msug-restore*`/`.msug-foot`/`.dismissed` CSS; an old
+  `suggest_fab_hidden` value is simply ignored (no reader remains). `renderMenuInsights` shows/hides the pill by
+  whether the menu has anything to say (unchanged). Open/close/outside-click/Escape/focus kept. Smoke [16] rewritten
+  (pinned-contract change: v71 dismiss/restore/persist assertions removed). **On phones (<640px) the pill FLOATS as a
+  small rainbow AI circle bottom-right** (Max: inline overcrowded the header — first a squished circle, then a
+  full-width row, settled on the floating circle) styled like the desktop pill; the panel springs UP (`msugPopUp`).
+  Desktop keeps the inline right-edge pill; its popup anchors to the pill's RIGHT edge (`right:0`) so it never runs
+  off-screen. **ALSO in v74 (same branch) — insight-quality pass (brief `~/Downloads/ezplate-opus-insight-quality.md`
+  + a Max follow-up):** the menu-insights ENGINE now enforces a **non-obvious guard** (`nonObvious` — each insight
+  must add cross/composition/movement/comparative, not restate the table), kills single-ingredient tautologies
+  (`dishDriver` needs ≥2 ingredients + 40–90% share), gives over-target insights **depth** (points AND $/serve via
+  `overServeFmt` + the cost driver + "up N% this month"), scales **1/2/3/4/5** with menu size, and tightens phrasing
+  (**24-word cap + one-sentence check**; sharp-not-chatty prompt). **Max follow-up — CRITICAL-only:** the two neutral
+  "states a fact" types were REMOVED — `insPortion` (standalone "X ingredient is Y% of cost") and `insBest` ("best
+  dish"); composition now survives only as the driver clause on an over-target line. Money law intact. Six spots →
+  **v74**. **Needs Max's phone:** the desktop pill (rainbow outline + light-mode text contrast); the mobile floating
+  circle + its upward spring; ×/outside/Escape/re-tap close; **AND the refined insights on his real menu** (critical
+  only, specific figures, no neutral facts, each scannable).
 
 - **v73 (branch `feature/gemini-newitem-prefill`) — Gemini clean-prefill for the invoice new-item form (brief:
   `~/Downloads/ezplate-opus-gemini-newitem-prefill.md`). See `handovers/HANDOVER-v73.md`.** Extends the EXISTING
