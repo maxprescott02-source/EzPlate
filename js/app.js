@@ -2317,18 +2317,26 @@ function applyPhrasedInsights(lines, insights, refined){
    FAB, bottom-left) rather than an always-visible inline block — this fn fills #menuInsights inside the
    panel and shows/hides the WHOLE FAB by whether there's anything worth saying. renderAnalysis calls it
    after painting the table; switching menus re-renders it (the panel reflects the selected menu). */
+// v78 (Max): the mobile floating trigger can be swiped to the side to dismiss it. Not persisted — a swipe hides it
+// only until the menu changes (or a reload): a new menu re-offers the button below.
+var suggestFabSwiped=false, suggestFabMenuId=null;
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var fab=document.getElementById('menuSuggestFab');
   var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
   if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole pill (v74)
-  if(fab) fab.hidden=false;                                                                          // v74: the pill shows whenever the menu has something to say
+  if(fab){
+    if(currentMenuId!==suggestFabMenuId){ suggestFabSwiped=false; suggestFabMenuId=currentMenuId; }  // v78: a new menu re-offers a swiped-away trigger
+    fab.classList.remove('swipe-left','swipe-right');                                                // clear any mid-swipe transform before re-showing
+    fab.hidden=suggestFabSwiped;                                                                     // v74: show whenever the menu has something to say — unless swiped away (v78)
+  }
   var sig=insightSig(insights);
-  // v74 (Max): the panel title is just "Menu insights" (was "What stands out on this menu"). The "Refined by
+  // v80 (Max): the panel title reads "EzPlate Insights" — matches the trigger button (was "Menu insights" v74,
+  // "What stands out on this menu" earlier). Same title on desktop + mobile (one render path). The "Refined by
   // Gemini" credit stays honest — hidden while the template shows, revealed by applyPhrasedInsights only when
   // Gemini actually phrased a shown line.
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">Menu insights</p>'
+    +'<p class="mi-intro">EzPlate Insights</p>'
     +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
     +'<span class="mi-credit" hidden>Refined by Gemini</span>'
     +'</div>';
@@ -2355,9 +2363,21 @@ function menuSuggestClose(restoreFocus){
   if(restoreFocus && wasOpen && b && f && !f.hidden){ try{ b.focus(); }catch(e){} }   // return focus to the trigger — never to now-hidden content
 }
 function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(true); }
+/* v78 (Max): swipe the floating trigger to the side to dismiss it — slide it off, then hide it. NOT persisted; the
+   trigger returns on the next menu switch / reload (renderMenuInsights re-offers it). */
+function suggestFabSwipeOff(dir){
+  var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
+  suggestFabSwiped=true; suggestFabMenuId=currentMenuId;
+  menuSuggestClose();                                          // in case the panel was open
+  f.classList.add(dir<0?'swipe-left':'swipe-right');           // slide off in the swipe direction
+  // a menu change within 200ms re-shows the trigger (renderMenuInsights clears suggestFabSwiped) — so only
+  // finish the hide if this swipe is still the active state, else this stale timeout would hide the new trigger
+  setTimeout(function(){ if(suggestFabSwiped) f.hidden=true; f.classList.remove('swipe-left','swipe-right'); }, 200);
+}
 (function wireMenuSuggestFab(){
   var b=document.getElementById('menuSuggestBtn');
-  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestToggle(); });
+  var fabSwipeGuard=false;   // v78: set by a swipe-dismiss so the trailing click doesn't reopen the panel
+  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); if(fabSwipeGuard){ fabSwipeGuard=false; return; } menuSuggestToggle(); });
   var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
   document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
     var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
@@ -2378,6 +2398,18 @@ function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel');
       var rightSwipe=dx>60 && dx>Math.abs(dy);
       var downFromTop=dy>50 && dy>Math.abs(dx) && panel.scrollTop<=0;
       if(rightSwipe || downFromTop) menuSuggestClose(true);
+    }, {passive:true});
+  }
+  // v78 (Max): swipe the floating trigger ITSELF to the side to dismiss it (mobile). Horizontal + dominant-axis so
+  // it can't be mistaken for a tap or a vertical scroll; the guard above stops the trailing click reopening it.
+  if(b){
+    var fx=0, fy=0, ftrack=false;
+    b.addEventListener('touchstart', function(e){ fabSwipeGuard=false; if(!e.touches||e.touches.length!==1){ ftrack=false; return; } fx=e.touches[0].clientX; fy=e.touches[0].clientY; ftrack=true; }, {passive:true});  // a fresh touch clears any stale guard so a later tap is never wrongly suppressed
+    b.addEventListener('touchend', function(e){
+      if(!ftrack) return; ftrack=false;
+      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
+      var dx=t.clientX-fx, dy=t.clientY-fy;
+      if(Math.abs(dx)>48 && Math.abs(dx)>Math.abs(dy)){ fabSwipeGuard=true; suggestFabSwipeOff(dx<0?-1:1); }   // guard is consumed by the trailing synthetic click, or cleared by the next touchstart
     }, {passive:true});
   }
 })();
@@ -2493,7 +2525,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v76';
+var APP_VERSION='v80';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
