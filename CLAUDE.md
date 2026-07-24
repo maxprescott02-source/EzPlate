@@ -292,11 +292,10 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 24 Jul 2026 (verify, don't trust)
+## State as of 25 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v80** — PR #21 (`fix/suggestions-inset-card`, v77–v80) is now MERGED (`3a49706`).
-  One unmerged branch carries the next batch: **`feature/settings-sections`** (**v81**, off `main` @ v80),
-  awaiting CodeRabbit + Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges
+- `origin/main` is at **v81** — PR #22 (`feature/settings-sections`, v81) is now MERGED (`f679f16`), deployed to
+  prod. No unmerged branch in flight. NOTE: local `main` goes stale between sessions (Max merges
   via GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
