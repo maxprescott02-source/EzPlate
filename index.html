@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=80">
+<link rel="stylesheet" href="css/style.css?v=81">
 </head>
 <body>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
@@ -536,62 +536,137 @@
 <!-- Settings (ITEM 6, v35): header gear, not a sixth nav tab — five is the max at readable label sizes -->
 <div class="modal-overlay" id="settingsPanel" aria-hidden="true">
   <div class="modal settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <div class="mhead"><h3 id="settingsTitle">Settings</h3><button class="x" id="settingsClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="mbody">
+    <div class="mhead">
+      <button class="set-back" id="settingsBack" type="button" aria-label="Back to sections"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h3 id="settingsTitle">Settings</h3>
+      <button class="x" id="settingsClose" type="button" aria-label="Close">&times;</button>
+    </div>
+    <!-- v81: sectioned Settings — sidebar (desktop ≥640) / list→detail drill-down (mobile ≤639). One nav, one
+         content column; #settingsBtn/openSettings/all control ids preserved so the smoke + settings tests hold. -->
+    <div class="mbody set-shell">
+      <nav class="set-nav" aria-label="Settings sections">
+        <button class="set-navitem" type="button" data-goto="general" aria-current="page">General<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="set-navitem" type="button" data-goto="invoices">Invoices<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="set-navitem" type="button" data-goto="lists">Lists<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="set-navitem" type="button" data-goto="data">Data<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="set-navitem" type="button" data-goto="account">Account<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="set-navitem" type="button" data-goto="team">Team<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="set-navitem" type="button" data-goto="about">About<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </nav>
 
-      <div class="set-group">
-        <h4>Target food cost</h4>
-        <div class="field">
-          <label for="setCogsInput">What percentage of the sell price goes to ingredients</label>
-          <div class="cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
-          <p class="hint">Lower = higher margin. Used by the Menu suggested prices and the Dashboard target line.</p>
-        </div>
+      <div class="set-content">
+
+        <section class="set-section" id="setSec-general" data-section="general">
+          <h4 class="set-sec-title">General</h4>
+          <div class="set-item">
+            <div class="set-item-text">
+              <label class="set-item-label" for="setCogsInput">Target food cost</label>
+              <p class="set-item-help">The share of the sell price that goes to ingredients. Lower means a higher margin. Drives the Menu suggested prices and the Dashboard target line.</p>
+            </div>
+            <div class="set-item-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
+          </div>
+          <div class="set-item">
+            <div class="set-item-text">
+              <span class="set-item-label" id="setThemeLbl">Theme</span>
+              <p class="set-item-help">System follows your phone’s setting. The header moon still flips between light and dark.</p>
+            </div>
+            <div class="seg set-item-ctl" role="radiogroup" aria-labelledby="setThemeLbl">
+              <button type="button" class="seg-btn" id="setThemeLight" data-theme-pref="light" role="radio" aria-checked="false">Light</button>
+              <button type="button" class="seg-btn" id="setThemeDark" data-theme-pref="dark" role="radio" aria-checked="false">Dark</button>
+              <button type="button" class="seg-btn" id="setThemeSystem" data-theme-pref="system" role="radio" aria-checked="true">System</button>
+            </div>
+          </div>
+          <div class="set-item">
+            <div class="set-item-text">
+              <label class="set-item-label" for="setAiSuggestChk">AI suggestions</label>
+              <p class="set-item-help">EzPlate Insights points out margin issues on your menus. Turn it off to hide the insights panel and its button — no AI calls are made.</p>
+            </div>
+            <label class="switch set-item-ctl"><input type="checkbox" id="setAiSuggestChk"><span class="switch-track" aria-hidden="true"></span></label>
+          </div>
+        </section>
+
+        <section class="set-section" id="setSec-invoices" data-section="invoices" hidden>
+          <h4 class="set-sec-title">Invoices</h4>
+          <div class="set-item">
+            <div class="set-item-text">
+              <label class="set-item-label" for="setGstDefault">GST default</label>
+              <p class="set-item-help">Used only when an invoice doesn’t say either way. If it does say, the invoice wins. EzPlate always stores costs ex-GST.</p>
+            </div>
+            <select id="setGstDefault" class="set-item-ctl">
+              <option value="ex">GST-exclusive</option>
+              <option value="inc">GST-inclusive</option>
+            </select>
+          </div>
+          <div class="set-item">
+            <div class="set-item-text">
+              <label class="set-item-label" for="setAiInvoiceChk">AI invoice check</label>
+              <p class="set-item-help">A second AI read-through double-checks invoice matches and prices. Turn it off to keep imports fully offline — the standard reader still parses everything, and no invoice data leaves your device.</p>
+            </div>
+            <label class="switch set-item-ctl"><input type="checkbox" id="setAiInvoiceChk"><span class="switch-track" aria-hidden="true"></span></label>
+          </div>
+          <div class="set-item">
+            <div class="set-item-text">
+              <span class="set-item-label">Remembered packs</span>
+              <p class="set-item-help">Pack sizes EzPlate learned from your invoices. View them, and remove any that are wrong — the next invoice re-teaches the right size.</p>
+            </div>
+            <button class="btn set-item-ctl" id="setSmemOpen" type="button">Open</button>
+          </div>
+        </section>
+
+        <section class="set-section" id="setSec-lists" data-section="lists" hidden>
+          <h4 class="set-sec-title">Lists</h4>
+          <div class="set-item">
+            <div class="set-item-text">
+              <span class="set-item-label">Tidy lists</span>
+              <p class="set-item-help">Rename, merge or clear your product categories, brands, suppliers and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
+            </div>
+            <button class="btn set-item-ctl" id="setTidyOpen" type="button">Open</button>
+          </div>
+        </section>
+
+        <section class="set-section" id="setSec-data" data-section="data" hidden>
+          <h4 class="set-sec-title">Data</h4>
+          <div class="set-item">
+            <div class="set-item-text">
+              <span class="set-item-label">Export backup</span>
+              <p class="set-item-help">Products, ingredients, plates, menu items and settings, as one dated JSON file.</p>
+            </div>
+            <button class="btn set-item-ctl" id="setExport" type="button">Export</button>
+          </div>
+          <div class="set-item">
+            <div class="set-item-text">
+              <span class="set-item-label">Clear cache &amp; refresh</span>
+              <p class="set-item-help">Forces the latest version to download. Your data is untouched — this only clears the app’s offline copy.</p>
+            </div>
+            <button class="btn set-item-ctl" id="setClearCache" type="button">Clear</button>
+          </div>
+        </section>
+
+        <section class="set-section" id="setSec-account" data-section="account" hidden>
+          <h4 class="set-sec-title">Account</h4>
+          <div class="set-empty">
+            <p class="set-empty-title">Sign-in and account settings arrive with EzPlate accounts.</p>
+            <p class="set-empty-sub">For now everything runs on this device, backed up to the cloud.</p>
+          </div>
+        </section>
+
+        <section class="set-section" id="setSec-team" data-section="team" hidden>
+          <h4 class="set-sec-title">Team</h4>
+          <div class="set-empty">
+            <p class="set-empty-title">Team roles arrive with EzPlate accounts.</p>
+            <p class="set-empty-sub">Owner and staff access is already planned — you’ll choose who can see and edit here.</p>
+          </div>
+        </section>
+
+        <section class="set-section set-about" id="setSec-about" data-section="about" hidden>
+          <h4 class="set-sec-title">About</h4>
+          <p><b>EzPlate</b> — Plate costing made easy</p>
+          <p class="hint">Version <span id="setVersion">—</span></p>
+          <p class="hint">Contact: <a class="linklike" href="tel:0423960797">0423 960 797</a></p>
+          <p class="hint">Privacy — TODO(Max)</p>
+        </section>
+
       </div>
-
-      <div class="set-group">
-        <h4>Invoice imports</h4>
-        <div class="field">
-          <label for="setGstDefault">GST default</label>
-          <select id="setGstDefault">
-            <option value="ex">Prices are GST-exclusive</option>
-            <option value="inc">Prices are GST-inclusive</option>
-          </select>
-          <p class="hint">Only used when an invoice doesn’t say either way. If it does say, the invoice wins. EzPlate always stores costs ex-GST.</p>
-        </div>
-      </div>
-
-      <div class="set-group">
-        <h4>Data</h4>
-        <div class="set-row">
-          <button class="btn" id="setExport" type="button">Export backup (JSON)</button>
-          <span class="hint">Products, ingredients, plates, menu items and settings, as one dated file.</span>
-        </div>
-        <div class="set-row">
-          <button class="btn" id="setClearCache" type="button">Clear cache &amp; refresh</button>
-          <span class="hint">Forces the latest version to download. Your data is untouched — this only clears the offline copy of the app itself.</span>
-        </div>
-      </div>
-
-      <div class="set-group">
-        <h4>Tidy lists</h4>
-        <div class="set-row">
-          <button class="btn" id="setTidyOpen" type="button">Tidy lists — categories, brands, suppliers →</button>
-          <span class="hint">Rename, merge or clear your product categories, brands, suppliers and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</span>
-        </div>
-        <div class="set-row">
-          <button class="btn" id="setSmemOpen" type="button">Remembered packs →</button>
-          <span class="hint">Pack sizes EzPlate learned from your invoices. View them, and remove any that are wrong (the next invoice re-teaches the right size).</span>
-        </div>
-      </div>
-
-      <div class="set-group set-about">
-        <h4>About</h4>
-        <p class="hint"><b>EzPlate</b> — Plate costing made easy</p>
-        <p class="hint">Version <span id="setVersion">—</span></p>
-        <p class="hint">Contact: <a class="linklike" href="tel:0423960797">0423 960 797</a></p>
-        <p class="hint">Privacy — TODO(Max)</p>
-      </div>
-
     </div>
     <div class="mfoot"><button class="btn primary" id="settingsDone" type="button">Done</button></div>
   </div>
@@ -680,7 +755,7 @@
 <div id="printDocket" aria-hidden="true"></div>
 <script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=80"></script>
+<script src="js/app.js?v=81"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

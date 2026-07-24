@@ -292,19 +292,39 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 23 Jul 2026 (verify, don't trust)
+## State as of 24 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v76** — PR #20 (`fix/insight-depth-panel`, v75+v76) is now MERGED (`a78723a`).
-  One unmerged branch carries the next batch: **`fix/suggestions-inset-card`** (**v77–v80**, PR #21), off `main`,
-  awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
-  GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+- `origin/main` is at **v80** — PR #21 (`fix/suggestions-inset-card`, v77–v80) is now MERGED (`3a49706`).
+  One unmerged branch carries the next batch: **`feature/settings-sections`** (**v81**, off `main` @ v80),
+  awaiting CodeRabbit + Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges
+  via GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **318 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v80** (v77 = mobile-Suggestions inset card; v78 = trigger tweaks; v79 = trigger re-treatment to a neutral elevated
-  circle; v80 = panel title → "EzPlate Insights"). Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v80** (no browser) — timing/feel + the pill/panel layout can only be judged
-  on a device; reconcile on a browser env.
+  `npm test` = **333 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v81**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v81** (no browser) — timing/feel can only be judged on a device; reconcile
+  on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+
+- **v81 (branch `feature/settings-sections`) — Settings: proper sectioned surface + two AI toggles + theme
+  preference (brief `~/Downloads/ezplate-opus-settings-sections.md`). See `handovers/HANDOVER-v81.md`.** Client only
+  (HTML+CSS+JS+tests); zero contact with the protected region, money law, naming inversion, data model, invoice
+  review/`invRowState`/auto-tick, the insight ENGINE, or `api/*.js`. The one-long-scroll Settings modal is now a
+  **sectioned surface**: a left **sidebar** on desktop (≥640px, modal widened 560→760px) / a **list→detail
+  drill-down** with a back arrow on mobile (≤639px), driven by a `.detail-open` class + `setSettingsSection`. Same
+  `#settingsPanel` modal, so every control id + the settings/smoke test pins survived. Sections: **General**
+  (food cost, theme, AI suggestions), **Invoices** (GST, AI invoice check, Remembered packs — moved here),
+  **Lists** (Tidy lists), **Data** (export, clear cache), **Account/Team** (future placeholders, shown as clean
+  empty-states — Max's call), **About**. One `.set-item` row pattern app-wide (label+help left, control right).
+  **Sub-surface back nav** (Max: "one tap to get back from Tidy"): the Settings doors record `reopenSettingsSection`,
+  and `closeTidyManage`/`closeSmem` reopen Settings at the parent section; the filter's "Manage list…" door leaves it
+  null and closes to the app as before. **Two new toggles** on the exact GST/COGS pattern (module var + localStorage
+  mirror + `dbSetSetting` + `bootstrapSync` round-trip, **default ON** so today's behaviour is unchanged): **AI
+  invoice check** gates the top of `gemFireSecondReader` (OFF ⇒ no `fetch`, no note, deterministic parser stands);
+  **AI suggestions** gates the top of `renderMenuInsights` (OFF ⇒ no panel/FAB, nothing computed). **Theme
+  preference** (Light/Dark/System) reuses the header moon toggle's `cafeCost_theme` + `data-theme` (System clears
+  both); device-local, NOT synced — the header toggle keeps working, this is the choice behind it. 318→**333**
+  (`tests/settings-toggles.test.js` +15; smoke `[3b]` added). Six spots → **v81**. **Follow-up flagged, NOT built:**
+  import/restore from backup (data-destructive — needs its own brief with a dry-run summary + confirms).
 
 - **v80 (same branch `fix/suggestions-inset-card`, PR #21, Max via remote-control) — the Suggestions bubble title now
   reads "EzPlate Insights"** (was "Menu insights" v74), matching the trigger button; one render path (`renderMenuInsights`
