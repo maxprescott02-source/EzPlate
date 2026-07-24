@@ -2331,11 +2331,12 @@ function renderMenuInsights(){
     fab.hidden=suggestFabSwiped;                                                                     // v74: show whenever the menu has something to say — unless swiped away (v78)
   }
   var sig=insightSig(insights);
-  // v74 (Max): the panel title is just "Menu insights" (was "What stands out on this menu"). The "Refined by
+  // v80 (Max): the panel title reads "EzPlate Insights" — matches the trigger button (was "Menu insights" v74,
+  // "What stands out on this menu" earlier). Same title on desktop + mobile (one render path). The "Refined by
   // Gemini" credit stays honest — hidden while the template shows, revealed by applyPhrasedInsights only when
   // Gemini actually phrased a shown line.
   host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">Menu insights</p>'
+    +'<p class="mi-intro">EzPlate Insights</p>'
     +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
     +'<span class="mi-credit" hidden>Refined by Gemini</span>'
     +'</div>';
@@ -2524,7 +2525,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v79';
+var APP_VERSION='v80';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

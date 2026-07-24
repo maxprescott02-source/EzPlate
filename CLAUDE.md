@@ -295,16 +295,21 @@ merge to `main` as a production deploy.
 ## State as of 23 Jul 2026 (verify, don't trust)
 
 - `origin/main` is at **v76** — PR #20 (`fix/insight-depth-panel`, v75+v76) is now MERGED (`a78723a`).
-  One unmerged branch carries the next batch: **`fix/suggestions-inset-card`** (**v77+v78+v79**, PR #21), off `main`,
+  One unmerged branch carries the next batch: **`fix/suggestions-inset-card`** (**v77–v80**, PR #21), off `main`,
   awaiting Max's phone sign-off then merge. NOTE: local `main` goes stale between sessions (Max merges via
   GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
   `npm test` = **318 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v79** (v77 = mobile-Suggestions inset card; v78 = trigger tweaks; v79 = trigger re-treatment to a neutral elevated
-  circle — all CSS/HTML, no test delta). Per-batch detail lives in `handovers/HANDOVER-vNN.md`. **fresh-states.spec.js
-  NOT re-run for v72–v79** (no browser) — timing/feel + the pill/panel layout can only be judged on a device;
-  reconcile on a browser env.
+  **v80** (v77 = mobile-Suggestions inset card; v78 = trigger tweaks; v79 = trigger re-treatment to a neutral elevated
+  circle; v80 = panel title → "EzPlate Insights"). Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v80** (no browser) — timing/feel + the pill/panel layout can only be judged
+  on a device; reconcile on a browser env.
+
+- **v80 (same branch `fix/suggestions-inset-card`, PR #21, Max via remote-control) — the Suggestions bubble title now
+  reads "EzPlate Insights"** (was "Menu insights" v74), matching the trigger button; one render path (`renderMenuInsights`
+  → `.mi-intro`) so desktop + mobile change together. **Deliberate pinned-contract change:** the jsdom smoke title
+  assertion was updated to match in the same commit. Panel dialog `aria-label` stays "Menu suggestions". Six spots → **v80**.
 
 - **v79 (same branch `fix/suggestions-inset-card`, PR #21) — Gemini Suggestions button re-treated (brief
   `~/Downloads/ezplate-opus-gemini-fab.md`, mockup-approved). See `handovers/HANDOVER-v79.md`.** Presentation only

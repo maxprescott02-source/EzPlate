@@ -75,3 +75,14 @@ change it and update the smoke pin in the same commit — say the word.**
 - No `.msug-pill-dot` indicator (see green-dot decision + smoke pin).
 - aria-label unchanged (see deviation flag).
 - Desktop inline pill surface/border/text unchanged — the brief's circle spec is the mobile floating trigger only.
+
+---
+
+# v80 follow-up (same branch/PR, Max via remote-control)
+
+**The Suggestions panel/bubble title now reads "EzPlate Insights"** (was "Menu insights" v74), so the bubble matches
+the trigger button. One render path (`renderMenuInsights` → `.mi-intro`), so **desktop + mobile change together**.
+**Pinned-contract change (deliberate):** the jsdom smoke assertion that pinned the title to "Menu insights" was
+updated in the same commit to "EzPlate Insights" (still asserts no eyebrow / no "What stands out" / no `.mi-mark`/svg
+chrome). The panel dialog's `aria-label` stays "Menu suggestions" (unchanged; not part of Max's request — could be
+aligned to "EzPlate Insights" later if wanted). 318 node green, smoke green, `node -c` clean. Six spots → **v80**.
