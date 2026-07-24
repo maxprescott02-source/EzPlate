@@ -101,6 +101,28 @@ speculative, per the brief).
   the Account empty state, and the Tidy-lists one-tap-back round-trip. (Screenshots taken during the batch; not
   committed.)
 
+## Follow-up fixes (same branch/PR, Max's phone feedback) — CSS only
+
+1. **Mobile Settings wouldn't scroll.** Root cause: two nested `overflow:auto` containers on mobile — the shell
+   (`.set-shell`, the real scroller) AND `.set-content`. Nested overflow scrollers are the classic iOS Safari trap:
+   momentum touch-scroll sticks on the inner, non-scrollable pane and the outer never moves. Fixed to ONE scroller
+   on mobile — `.set-content{overflow:visible}` (no inner scroller) and the shell gets
+   `-webkit-overflow-scrolling:touch;overscroll-behavior:contain`. Verified in-browser (forced mobile rules + a short
+   modal): the shell scrolls (`scrollTop` moves), content is `overflow:visible`, single scroller. Desktop unchanged
+   (still two independently-scrolling columns).
+2. **Desktop insights trigger now matches the mobile circle.** The v74 desktop trigger was a rainbow-outline PILL
+   with "EzPlate Insights" text; Max wanted it to look like the mobile v79 **neutral elevated circle** (calm surface
+   + hairline border + `--shadow-float`, Gemini gradient in the SPARKLE only). Moved the circle treatment into the
+   base `.msug-pill` rule (44px on desktop, 52px on mobile); dropped the rainbow border-box + rainbow text gradient;
+   `.msug-pill-text` is now `display:none` at all widths but **kept in the DOM** (accessible name + the v74 smoke pin
+   both still hold — the pin checks `textContent`/element existence, not the gradient). Desktop position unchanged
+   (still inline, right-parked in the actions row); the panel still drops from it with its rainbow border, so circle
+   + panel read as one object exactly like mobile. Verified in-browser (light + dark): 44px circle, `border-radius:50%`,
+   text hidden, gradient sparkle, panel opens.
+
+These are CSS-only and stay within the v81 batch (PR #22, not yet merged) — no version re-bump; six spots remain at
+**v81**, tests still **333 green**, smoke green (v74 pill pins intact).
+
 ## Recommended FOLLOW-UP — NOT built this pass (top priority)
 
 **Import / restore from backup.** Export exists (Data section); there is still no way to restore a backup JSON — a
