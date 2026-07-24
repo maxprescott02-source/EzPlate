@@ -143,6 +143,11 @@ async function bootstrapSync(){
     if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
+    // v81: AI feature toggles round-trip across devices (no row -> the load*() default of ON stands, unchanged behaviour)
+    var aiInvRow=setRows.filter(function(r){return r.key==='ai_invoice_check';})[0];
+    if(aiInvRow && typeof aiInvRow.value==='boolean'){ setAiInvoiceCheck(aiInvRow.value,false); var aic2=document.getElementById('setAiInvoiceChk'); if(aic2)aic2.checked=aiInvoiceCheck; }
+    var aiSugRow=setRows.filter(function(r){return r.key==='ai_suggestions';})[0];
+    if(aiSugRow && typeof aiSugRow.value==='boolean'){ setAiSuggestions(aiSugRow.value,false); var asg2=document.getElementById('setAiSuggestChk'); if(asg2)asg2.checked=aiSuggestions; }
     // v74: the v71 'suggest_fab_hidden' synced setting is retired — the insights are a static inline pill now,
     // nothing to hide. An old value left in the DB/localStorage is simply ignored (no reader remains).
     buildMenuOptions(); buildMenuSelector(); renderPlate(); renderPlatesTab(); renderAnalysis(); updateLastImport(); updateEditTag();
@@ -933,7 +938,7 @@ function renderSmemList(){
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
-function closeSmem(){ hide('smemModal'); }
+function closeSmem(){ hide('smemModal'); backToSettingsSection(); }   // v81: if opened from Settings, return to the Invoices section
 function invSupplierDetect(text){
   var lines=(text||'').split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean).slice(0,20);
   function clean(s){ return s.replace(/\s+/g,' ').replace(/\b(pty\.?\s*ltd\.?|p\/l|ltd\.?)\b\.?$/i,'').replace(/[|,;].*$/,'').trim(); }
@@ -2323,6 +2328,7 @@ var suggestFabSwiped=false, suggestFabMenuId=null;
 function renderMenuInsights(){
   var host=document.getElementById('menuInsights'); if(!host) return;
   var fab=document.getElementById('menuSuggestFab');
+  if(!aiSuggestions){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // v81: AI suggestions OFF — no panel, no trigger, nothing computed
   var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
   if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole pill (v74)
   if(fab){
@@ -2525,14 +2531,46 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v80';
+var APP_VERSION='v81';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
+  var ai=document.getElementById('setAiInvoiceChk'); if(ai) ai.checked=aiInvoiceCheck;   // v81
+  var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
+  syncThemeSeg();
+  setSettingsSection('general', false);   // v81: state isn't persisted between opens — always land on the first section / the mobile list
   show('settingsPanel');
 }
 function closeSettings(){ hide('settingsPanel'); }
+/* v81: sectioned Settings. One nav + one content column; on desktop (≥640) both are visible (sidebar),
+   on mobile (≤639) the list shows first and a nav tap drills to a detail view with a back arrow. `drill`
+   adds `.detail-open` (the mobile detail state); it's a no-op on desktop where CSS shows content always. */
+function setSettingsSection(id, drill){
+  var shell=document.querySelector('#settingsPanel .set-shell'); if(!shell) return;
+  var panel=document.querySelector('#settingsPanel .settings-panel');
+  var secs=shell.querySelectorAll('.set-section');
+  for(var i=0;i<secs.length;i++){ secs[i].hidden = (secs[i].getAttribute('data-section')!==id); }
+  var items=shell.querySelectorAll('.set-navitem');
+  for(var j=0;j<items.length;j++){ if(items[j].getAttribute('data-goto')===id) items[j].setAttribute('aria-current','page'); else items[j].removeAttribute('aria-current'); }
+  if(panel){ if(drill) panel.classList.add('detail-open'); else panel.classList.remove('detail-open'); }
+  var content=shell.querySelector('.set-content'); if(content) content.scrollTop=0;   // fresh section starts at the top
+}
+function settingsBack(){ var panel=document.querySelector('#settingsPanel .settings-panel'); if(panel) panel.classList.remove('detail-open'); }   // v81: mobile back arrow → return to the section list
+function syncThemeSeg(){
+  var pref=loadThemePref();
+  var btns=document.querySelectorAll('#settingsPanel .seg-btn');
+  for(var i=0;i<btns.length;i++){ btns[i].setAttribute('aria-checked', btns[i].getAttribute('data-theme-pref')===pref ? 'true':'false'); }
+}
+/* v81: a sub-surface (Tidy lists / Remembered packs) opened FROM Settings returns to its parent section in
+   one tap (Max: "opening Tidy by mistake must be one tap to get back"). The same doors reached from a filter's
+   "Manage list…" leave this null, so those close back to the app as before. */
+var reopenSettingsSection=null;
+function backToSettingsSection(){
+  if(!reopenSettingsSection) return;
+  var s=reopenSettingsSection; reopenSettingsSection=null;
+  openSettings(); setSettingsSection(s, true);
+}
 // v60 item 8: Tidy lists is a modal now (not an inline Settings section) so Settings stays short.
 // One modal, multiple doors: the Settings row opens it on Category; a filter's "Manage list…" door
 // opens it pre-scoped to that field. renderTidyValues reads the #tidyField select, so we set it first.
@@ -2541,7 +2579,7 @@ function openTidyManage(field){
   renderTidyValues();
   show('tidyManageModal');
 }
-function closeTidyManage(){ hide('tidyManageModal'); }
+function closeTidyManage(){ hide('tidyManageModal'); backToSettingsSection(); }   // v81: if opened from Settings, return to the Lists section
 
 /* ===== v59 item 6b: Tidy lists UI (Settings) — the Settings surface for the v40 pure core =====
    Category spans products + plate categories; Brand/Supplier are product-only. Every action goes
@@ -2699,10 +2737,20 @@ function clearCacheAndRefresh(){
   if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
+  // v81: section nav (sidebar / drill-down) + the mobile back arrow
+  var setNav=document.querySelector('#settingsPanel .set-nav');
+  if(setNav) setNav.addEventListener('click',function(ev){ var b=ev.target.closest('.set-navitem'); if(b) setSettingsSection(b.getAttribute('data-goto'), true); });
+  on('settingsBack', settingsBack);
+  // v81: AI feature toggles
+  var aic=document.getElementById('setAiInvoiceChk'); if(aic) aic.addEventListener('change',function(){ setAiInvoiceCheck(aic.checked,true); });
+  var asg=document.getElementById('setAiSuggestChk'); if(asg) asg.addEventListener('change',function(){ setAiSuggestions(asg.checked,true); });
+  // v81: theme preference segmented control (Light / Dark / System) — same mechanism as the header moon toggle
+  var seg=document.querySelector('#settingsPanel .seg');
+  if(seg) seg.addEventListener('click',function(ev){ var b=ev.target.closest('.seg-btn'); if(!b) return; applyThemePref(b.getAttribute('data-theme-pref')); syncThemeSeg(); });
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
-  on('setTidyOpen',function(){ closeSettings(); openTidyManage('category'); });   // Settings' single door
-  on('setSmemOpen',function(){ closeSettings(); openSmem(); });                    // v71 item 5: remembered packs now live in Settings, not the invoice modal
+  on('setTidyOpen',function(){ reopenSettingsSection='lists'; closeSettings(); openTidyManage('category'); });     // v81: return to Lists on close (one-tap back)
+  on('setSmemOpen',function(){ reopenSettingsSection='invoices'; closeSettings(); openSmem(); });                  // v81: return to Invoices on close; v71 item 5 moved remembered packs here
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
   var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
@@ -3313,6 +3361,38 @@ function setGstDefault(mode, persist){
   gstDefault=mode;
   try{ localStorage.setItem(GSTKEY, mode); }catch(e){}
   if(persist && typeof dbSetSetting==='function') dbSetSetting('gst_default', mode);
+}
+
+/* v81: AI feature toggles + theme preference — the same dbSetSetting + localStorage-mirror pattern as GST.
+   Defaults preserve today's behaviour: both AI readers ON (brand-new accounts unaffected). */
+var AI_INV_KEY='cafeDB_aiInvoiceCheck';
+function loadAiInvoiceCheck(){ try{ var v=localStorage.getItem(AI_INV_KEY); if(v==='0') return false; if(v==='1') return true; }catch(e){} return true; }   // default ON — keeps the v62 invoice second-reader
+var aiInvoiceCheck=loadAiInvoiceCheck();
+function setAiInvoiceCheck(on, persist){
+  aiInvoiceCheck=!!on;
+  try{ localStorage.setItem(AI_INV_KEY, aiInvoiceCheck?'1':'0'); }catch(e){}
+  if(persist && typeof dbSetSetting==='function') dbSetSetting('ai_invoice_check', aiInvoiceCheck);
+}
+var AI_SUG_KEY='cafeDB_aiSuggestions';
+function loadAiSuggestions(){ try{ var v=localStorage.getItem(AI_SUG_KEY); if(v==='0') return false; if(v==='1') return true; }catch(e){} return true; }   // default ON — EzPlate Insights shows unless turned off
+var aiSuggestions=loadAiSuggestions();
+function setAiSuggestions(on, persist){
+  aiSuggestions=!!on;
+  try{ localStorage.setItem(AI_SUG_KEY, aiSuggestions?'1':'0'); }catch(e){}
+  if(persist && typeof dbSetSetting==='function') dbSetSetting('ai_suggestions', aiSuggestions);
+  if(typeof renderMenuInsights==='function'){ try{ renderMenuInsights(); }catch(e){} }   // reflect immediately — hide/show the panel + its trigger
+}
+
+/* Theme preference surfaced in Settings. Reuses the header moon toggle's exact mechanism — localStorage
+   'cafeCost_theme' + <html data-theme>. 'system' clears the key so CSS follows prefers-color-scheme. Kept
+   device-local (like the header toggle); NOT synced via dbSetSetting — theme is per device, and staff share
+   devices. This is the persistent choice BEHIND the header toggle, not a second mechanism. */
+var THEME_KEY='cafeCost_theme';
+function loadThemePref(){ try{ var v=localStorage.getItem(THEME_KEY); if(v==='dark'||v==='light') return v; }catch(e){} return 'system'; }
+function applyThemePref(pref){
+  var root=document.documentElement;
+  if(pref==='dark'||pref==='light'){ root.setAttribute('data-theme',pref); try{ localStorage.setItem(THEME_KEY,pref); }catch(e){} }
+  else { root.removeAttribute('data-theme'); try{ localStorage.removeItem(THEME_KEY); }catch(e){} }   // 'system' → fall back to prefers-color-scheme
 }
 function invDbg(){ if(window.EZ_INV_DEBUG && window.console) try{console.log.apply(console, arguments);}catch(e){} }
 function invGstDetect(text){
@@ -4129,6 +4209,7 @@ function gemStatusHtml(){                                          // appended t
 /* Fire ONE background request. Offline / failed / slow / stale all degrade silently to
    today's app: no error modal, no retry — the summary note just reads "unavailable". */
 function gemFireSecondReader(text){
+  if(!aiInvoiceCheck){ gemStatus=null; if(typeof renderInvReview==='function') renderInvReview(); return; }   // v81: AI invoice check OFF — no API call at all; the deterministic parser stands and no "checking" note shows
   var token=(++gemToken);                                          // this request's identity; a newer parse/openInv invalidates it
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);   // client-side ~20s; late = discarded

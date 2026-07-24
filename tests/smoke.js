@@ -67,6 +67,33 @@ ok('and the Menu tab display follows', $('cogsTargetRead').textContent === '25',
 ok('"Change it in Settings" opens the panel', (() => { $('settingsDone').click(); $('cogsToSettings').click(); return $('settingsPanel').classList.contains('open'); })());
 $('settingsDone').click();
 
+console.log('\n[3b] v81 — Settings sectioned surface (sidebar / drill-down + AI toggles + theme)');
+const setPanel = window.document.querySelector('#settingsPanel .settings-panel');
+const navItem = g => window.document.querySelector(`.set-navitem[data-goto="${g}"]`);
+$('settingsBtn').click();
+ok('opens on the General section', $('setSec-general') && !$('setSec-general').hidden && $('setSec-invoices').hidden);
+ok('General nav item is current on open', navItem('general').getAttribute('aria-current') === 'page');
+ok('seven section nav items', window.document.querySelectorAll('#settingsPanel .set-navitem').length === 7);
+navItem('invoices').click();
+ok('tapping a section drills in (detail-open) and swaps the content', setPanel.classList.contains('detail-open') && !$('setSec-invoices').hidden && $('setSec-general').hidden);
+ok('the drilled-into section is marked current', navItem('invoices').getAttribute('aria-current') === 'page');
+$('settingsBack').click();
+ok('back arrow returns to the list (detail-open cleared)', !setPanel.classList.contains('detail-open'));
+ok('AI invoice check prefills from state (ON by default)', $('setAiInvoiceChk').checked === window.aiInvoiceCheck && window.aiInvoiceCheck === true);
+ok('AI suggestions prefills from state (ON by default)', $('setAiSuggestChk').checked === window.aiSuggestions && window.aiSuggestions === true);
+$('setAiInvoiceChk').checked = false; $('setAiInvoiceChk').dispatchEvent(new window.Event('change'));
+ok('turning AI invoice check off flips the flag + mirrors it', window.aiInvoiceCheck === false && window.localStorage.getItem('cafeDB_aiInvoiceCheck') === '0');
+$('setAiInvoiceChk').checked = true; $('setAiInvoiceChk').dispatchEvent(new window.Event('change'));   // restore ON
+$('setAiSuggestChk').checked = false; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));
+ok('turning AI suggestions off clears the insights host', $('menuInsights').innerHTML === '' && window.aiSuggestions === false);
+$('setAiSuggestChk').checked = true; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));   // restore ON
+window.document.querySelector('.seg-btn[data-theme-pref="dark"]').click();
+ok('choosing Dark forces data-theme + writes the header toggle key', window.document.documentElement.getAttribute('data-theme') === 'dark' && window.localStorage.getItem('cafeCost_theme') === 'dark');
+ok('the Dark segment reads selected', window.document.querySelector('.seg-btn[data-theme-pref="dark"]').getAttribute('aria-checked') === 'true');
+window.document.querySelector('.seg-btn[data-theme-pref="system"]').click();
+ok('choosing System clears the forced theme (falls back to the OS)', !window.document.documentElement.getAttribute('data-theme') && !window.localStorage.getItem('cafeCost_theme'));
+$('settingsDone').click();
+
 console.log('\n[4] item 6 — backup export');
 let exported = null;
 const origCreate = window.document.createElement.bind(window.document);

@@ -2077,8 +2077,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    ITEM 6 (v35) — SETTINGS PANEL
    Modal on desktop, full-screen on mobile. Structural only; v36 restyles.
    ========================================================================== */
-.settings-panel{max-width:560px}
-.set-group{padding:0 0 var(--sp-5);margin-bottom:var(--sp-5);border-bottom:1px solid var(--border)}
 /* v59 item 6b: Tidy lists */
 .tidy-values{margin-top:var(--sp-3);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .tidy-row{display:flex;align-items:center;gap:var(--sp-2);padding:10px 12px;border-top:1px solid var(--border)}
@@ -2091,18 +2089,73 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .tidy-empty{margin:var(--sp-3) 0 0}
 .tidy-warn{margin:var(--sp-2) 0 0;color:var(--text2);font-size:var(--fs-sm);line-height:1.5}
 @media (max-width:560px){ .tidy-row{flex-wrap:wrap} .tidy-acts{flex-basis:100%;justify-content:flex-end} }
-.set-group:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
-.set-group h4{margin:0 0 var(--sp-3);font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2)}
-.set-group .hint{font-weight:400;margin:var(--sp-2) 0 0}
-.set-group select{width:100%;max-width:320px;padding:10px;font:inherit;min-height:44px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
-.set-row{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
-.set-row:last-child{margin-bottom:0}
-.set-row .btn{min-height:44px;flex:0 0 auto}
-.set-row .hint{flex:1 1 220px;margin:0}
+
+/* ===== batch (v81) — Settings: sectioned surface (sidebar desktop / list→detail mobile) ===== */
+.settings-panel{max-width:760px;width:100%}
+#settingsPanel .settings-panel{max-height:86vh;max-height:86dvh}
+/* the mbody IS the shell: a two-column row on desktop, a single column on mobile */
+.set-shell{flex:1 1 auto;min-height:0;display:flex;align-items:stretch;padding:0;overflow:hidden}
+/* nav — sidebar on desktop */
+.set-nav{flex:0 0 184px;display:flex;flex-direction:column;gap:2px;padding:var(--sp-4) var(--sp-3);border-right:1px solid var(--border);overflow:auto;background:var(--surface2)}
+.set-navitem{display:flex;align-items:center;gap:var(--sp-2);width:100%;text-align:left;padding:10px 12px;min-height:44px;border:0;border-radius:var(--radius-ctl);background:transparent;color:var(--text2);font-size:var(--fs-base);font-weight:700;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.set-navitem:hover{background:var(--hover);color:var(--text)}
+.set-navitem[aria-current="page"]{background:var(--accent-weak);color:var(--accent-ink)}
+.set-chev{display:none;width:18px;height:18px;flex:0 0 auto;margin-left:auto;color:var(--muted2)}
+/* content pane */
+.set-content{flex:1 1 auto;min-width:0;padding:var(--sp-5) var(--sp-6);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.set-section[hidden]{display:none}
+.set-sec-title{margin:0 0 var(--sp-4);font-size:var(--fs-lg);font-weight:800;letter-spacing:-.01em;color:var(--text)}
+/* the ONE settings-row pattern app-wide: label + help on the left, control on the right */
+.set-item{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) 0;border-top:1px solid var(--border)}
+.set-item:first-of-type{border-top:0;padding-top:0}
+.set-item-text{flex:1 1 auto;min-width:0}
+.set-item-label{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.set-item-help{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:400;color:var(--muted2);line-height:1.5}
+.set-item-ctl{flex:0 0 auto}
+.set-content select.set-item-ctl{width:auto;min-width:150px;max-width:220px;padding:10px 34px 10px 12px;min-height:44px;border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
+.set-item-ctl.btn{min-height:44px}
+/* segmented control (theme) */
+.seg{display:inline-flex;border:1px solid var(--border2);border-radius:var(--radius-ctl);overflow:hidden;background:var(--surface)}
+.seg-btn{appearance:none;-webkit-appearance:none;border:0;border-left:1px solid var(--border);background:transparent;color:var(--text2);font-size:var(--fs-sm);font-weight:700;padding:9px 12px;min-height:44px;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.seg-btn:first-child{border-left:0}
+.seg-btn:hover{background:var(--hover);color:var(--text)}
+.seg-btn[aria-checked="true"]{background:var(--accent);color:var(--on-accent)}
+/* switch */
+.switch{position:relative;display:inline-flex;flex:0 0 auto;cursor:pointer}
+.switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.switch-track{position:relative;display:block;width:48px;height:28px;border-radius:var(--radius-pill);background:var(--border2);transition:background var(--t-med) var(--ease)}
+.switch-track::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform var(--t-med) var(--ease)}
+.switch input:checked + .switch-track{background:var(--accent)}
+.switch input:checked + .switch-track::after{transform:translateX(20px)}
+.switch input:focus-visible + .switch-track{outline:2px solid var(--accent);outline-offset:2px}
+/* placeholder empty state (Account / Team — a coming feature, not a disabled control) */
+.set-empty{padding:var(--sp-6) var(--sp-4);text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-card);background:var(--surface2)}
+.set-empty-title{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.set-empty-sub{margin:var(--sp-2) 0 0;font-size:var(--fs-sm);color:var(--muted2)}
 .set-about p{margin:0 0 4px}
-/* v37 (Max): Settings is a card like every other popup — not an edge-to-edge sheet */
-#settingsPanel .settings-panel{max-height:86vh;max-height:86dvh;overflow:auto}
+.set-about .hint{font-weight:400}
+/* back arrow — visible only in mobile detail view */
+.set-back{display:none;align-items:center;justify-content:center;width:40px;height:40px;margin-right:var(--sp-1);padding:0;border:0;background:transparent;color:var(--text2);cursor:pointer;border-radius:var(--radius-ctl)}
+.set-back svg{width:22px;height:22px}
+.set-back:hover{background:var(--hover);color:var(--text)}
+
 @media (max-width:639px){
+  .settings-panel{max-width:none}
+  /* ONE scroller on mobile: the shell (=mbody) scrolls; the content pane does NOT (nested overflow:auto
+     containers are the iOS Safari "can't scroll inside settings" trap — momentum scroll sticks on the inner
+     non-scrollable pane). v81 fix. */
+  .set-shell{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .set-nav{flex:none;width:auto;border-right:0;background:transparent;gap:var(--sp-1);padding:var(--sp-3)}
+  .set-navitem{border:1px solid var(--border);background:var(--surface)}
+  .set-navitem[aria-current="page"]{background:var(--surface);color:var(--text)}   /* the list view has no persistent selection */
+  .set-chev{display:inline-flex}
+  .set-content{padding:var(--sp-4);overflow:visible}   /* not a second scroller — the shell scrolls */
+  .settings-panel:not(.detail-open) .set-content{display:none}
+  .settings-panel.detail-open .set-nav{display:none}
+  .settings-panel.detail-open .set-back{display:inline-flex}
+  .set-item{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
+  .set-item-ctl{align-self:flex-start}
+  .set-content select.set-item-ctl{width:100%;max-width:none}
   #settingsPanel .mfoot .btn{width:100%;min-height:48px}
 }
 
@@ -2463,26 +2516,24 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .msug{position:relative;display:inline-flex}
 .msug[hidden]{display:none}
 .an-head .msug{margin-left:auto}                     /* park the pill at the right edge of the actions row */
-/* The pill — a rainbow-gradient OUTLINE (surface fill via padding-box, gradient via border-box); the icon
-   and text share that same rainbow (gradient-clipped). The icon is a GENERIC four-point AI sparkle, not
-   Google's Gemini logo. Sized to sit on the .panel-actions row; fully present (not translucent). */
+/* v81 (Max): the trigger is a NEUTRAL ELEVATED CIRCLE at all widths (matching the mobile v79 treatment) — a
+   calm surface + hairline border + soft elevation, with the Gemini gradient ONLY in the four-point AI sparkle
+   (a GENERIC sparkle, not Google's logo). Was a rainbow-outline text pill on desktop (v74); Max asked desktop to
+   match mobile. Desktop stays INLINE at the right of the actions row (position unchanged) — only the look changed. */
 .msug-pill{
-  display:inline-flex;align-items:center;gap:var(--sp-2);padding:9px 14px;cursor:pointer;
-  font:inherit;font-weight:700;font-size:var(--fs-sm);white-space:nowrap;
-  border:1.5px solid transparent;border-radius:var(--radius-pill);
-  background:linear-gradient(var(--surface),var(--surface)) padding-box,
-            linear-gradient(90deg,#4285F4,#9B72CB 38%,#D96570 72%,#F2A65A) border-box;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:44px;height:44px;padding:0;cursor:pointer;
+  border:1px solid var(--border);border-radius:50%;
+  background:var(--surface);box-shadow:var(--shadow-float);
   transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
   -webkit-tap-highlight-color:transparent;
 }
-.msug-pill-spark{width:15px;height:15px;flex:0 0 auto;display:block}
-/* text painted with the SAME rainbow as the border (Max) — gradient-clipped to the glyphs */
-.msug-pill-text{
-  background:linear-gradient(90deg,#4285F4,#9B72CB 38%,#D96570 72%,#F2A65A);
-  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
-}
-.msug-pill:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-.msug-pill:active{transform:scale(.985)}
+.msug-pill-spark{width:22px;height:22px;flex:0 0 auto;display:block}
+/* the label is KEPT in the DOM (accessible name + the v74 smoke pin) but not shown — the visual is the sparkle
+   only, exactly like mobile. aria-label="EzPlate Insights" still names the button for screen readers. */
+.msug-pill-text{display:none}
+.msug-pill:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.msug-pill:active{transform:scale(.96)}
 .msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
 /* v78 (Max): swipe the floating trigger to the side to dismiss it — it slides off in the swipe direction and
@@ -2532,16 +2583,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
      app's nav-clearance convention calc(84px + safe-area) (nav ≈72px + a 12px gap, same value install-banner /
      corner-toasts use) so it never touches the nav or the iOS home indicator. */
   .an-head .msug{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));margin:0;z-index:60}
-  /* v79 (Max, mockup-approved): the floating trigger is a CIRCLE with a calm, raised NEUTRAL surface and real
-     elevation — the Gemini gradient lives in the SPARKLE ICON ONLY. No gradient on the surface or the border
-     (supersedes v74's rainbow border-box and v78's square rainbow outline). Surface = the card token; a hairline
-     border defines the edge; one soft elevation shadow token lifts it. */
-  .msug-pill{
-    width:52px;height:52px;padding:0;gap:0;justify-content:center;border-radius:50%;
-    background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-float);
-  }
-  .msug-pill:active{transform:scale(.96)}   /* brief press state — motion comes from the base rule's transition */
-  .msug-pill-text{display:none}
+  /* v79/v81 (Max): the same neutral elevated circle as desktop (the circle treatment now lives in the base
+     .msug-pill rule), just a larger touch target with a bigger sparkle for the floating mobile trigger. */
+  .msug-pill{width:52px;height:52px}
   .msug-pill-spark{width:24px;height:24px}
   /* v77: the FAB hides while the card is open — the inset card spans the full width where the circle sits, so
      leaving it visible would trap it under the card. It returns the instant the card closes. */
