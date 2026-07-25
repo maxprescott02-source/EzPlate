@@ -294,12 +294,12 @@ ok('the category filter is populated (§J)', /Breakfast/.test(($('plateCatFilter
 ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
 ok('the card shows a plate-cost cell', !!libCard && /plate cost/.test(libCard.textContent) && /\$/.test(libCard.textContent), libCard && libCard.textContent);
 
-// tapping the card opens the action chooser -> Manage menus (v55 many-to-many)
+// tapping the card opens the action chooser -> Add to a menu (v82 wording; opens the v55 many-to-many manager)
 libCard.click();
 ok('tapping a card opens the action popup', $('plateActionsModal').classList.contains('open'));
-ok('the card offers "Manage menus"', $('paPublish').textContent === 'Manage menus', $('paPublish').textContent);
+ok('the card offers "Add to a menu"', $('paPublish').textContent === 'Add to a menu', $('paPublish').textContent);
 $('paPublish').click();
-ok('Manage menus opens its modal', $('manageMenusModal').classList.contains('open'));
+ok('Add to a menu opens the manage-menus modal', $('manageMenusModal').classList.contains('open'));
 let addBtn = window.document.querySelector('#mmList .mm-add');
 ok('the plate is not yet on any menu (an Add row is offered)', !!addBtn);
 
@@ -617,6 +617,38 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   window.gemApplyReadings({ status: 'ok', supplier: 'Bidfood', lines: [niAiLine()] });   // the AI response lands
   ok('v73 late: a user-EDITED field is NEVER overwritten by the late AI value', $('ni_name0').value === 'My Muffins', $('ni_name0').value);
   ok('v73 late: an UNtouched field upgrades to the AI value', $('ni_brand0').value === 'Tip Top', $('ni_brand0').value);
+
+  console.log('\n[20] v82 — new-user friction (bridge · margin preview · draft · sticky Save)');
+  window.showTab('ingredients');
+  $('ingSearch').value = ''; if ($('ingCatFilter')) $('ingCatFilter').value = ''; if ($('ingSupFilter')) $('ingSupFilter').value = '';
+  window.renderIngredients();
+  ok('[20] a product card wraps in .prod-card with a bridge strip', !!window.document.querySelector('#ingList .prod-card .prod-bridge'));
+  const useBtn = window.document.querySelector('#ingList .prod-userecipes');
+  ok('[20] an unlinked product offers "Use in recipes"', !!useBtn && /Use in recipes/.test(useBtn.textContent));
+  const bpid = useBtn.getAttribute('data-bridge');
+  ok('[20] that product has no kitchen word yet', !window.kingForProduct(bpid));
+  useBtn.click();                                                   // THE bridge: one tap creates the linked kitchen word
+  ok('[20] one tap links the product (idempotent create)', !!window.kingForProduct(bpid));
+  const linkedName = window.kingForProduct(bpid).name;
+  window.useProductInRecipes(bpid);                                 // use it again
+  ok('[20] repeat use makes NO duplicate (one word for the product)',
+     window.kitchenIngredients.filter(k => k.pid === bpid).length === 1 && window.kingForProduct(bpid).name === linkedName);
+  window.renderIngredients();
+  const stillBtn = !!window.document.querySelector('#ingList .prod-userecipes[data-bridge="' + bpid + '"]');
+  const anyChip = !!window.document.querySelector('#ingList .prod-inrecipes');
+  ok('[20] the card now shows the linked-state chip, not the action', !stillBtn && anyChip,
+     'stillBtn=' + stillBtn + ' anyChip=' + anyChip + ' pid=' + bpid);
+
+  ok('[20] the Add-to-menu dialog has a live margin preview slot', !!$('mi_preview'));
+  ok('[20] menuMarginPreview reuses analyze (same light — cannot disagree with the Menu row)',
+     window.menuMarginPreview(0.15, 5).light === window.analyze(0.15, 5).light);
+
+  window.clearPlateDraft();
+  ok('[20] draft helpers exist and clear cleanly',
+     typeof window.savePlateDraft === 'function' && typeof window.offerPlateDraftResume === 'function' && !window.localStorage.getItem('cafeDB_plateDraft'));
+
+  ok('[20] Save is pinned in a builder footer (reachable without scrolling)',
+     !!window.document.querySelector('#builderModal .builder-foot #saveBtn'));
 
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);

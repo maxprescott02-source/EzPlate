@@ -373,9 +373,10 @@ function addMiscCost(){                                               // Builder
   renderPlate();
   var rows=document.querySelectorAll('.misc-line .misc-name'); var last=rows[rows.length-1]; if(last) last.focus();   // v69: name field restored (reverses v60) — focus it so the line can be labelled
 }
-function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; }
+function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; scheduleDraftSave(); }
 function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
 function renderPlate(){
+  scheduleDraftSave();                                        // v82 D1: persist the in-progress builder (debounced) on every structural change
   var nIng=plate.filter(function(l){return !l.misc;}).length;
   document.getElementById('dCount').textContent=nIng+(nIng===1?' item':' items');
   if(!plate.length){linesEl.innerHTML='<div class="empty">No ingredients yet.<br>Search above to add the first one.</div>';updateTotals();return;}
@@ -446,9 +447,10 @@ function updateTotals(){
   document.getElementById('total').textContent=money(tot);
   const flag=document.getElementById('flag');
   if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+' have no cost data and are not in the total.';}else flag.style.display='none';
+  scheduleDraftSave();                                        // v82 D1: qty / misc / price edits funnel through here
 }
 
-document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();renderPlate();});
+document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();clearPlateDraft();renderPlate();});   // v82: explicit discard clears the draft
 // v60 item 3: ONE docket renderer, shared by the builder's Print button and the plate card's Print
 // docket action (load-then-print not needed \u2014 it prints straight from the passed lines). "lines" are
 // the working/saved shape: {misc,label,cost} | {kid,qty} | {pid,qty}. Do not fork a second template.
@@ -517,14 +519,48 @@ function submitNew(){
   if(!brR.ok){ fe.textContent='\u201c'+brR.value+'\u201d is a new brand \u2014 pick \u201cCreate new\u201d from the list to confirm.'; fe.style.display='block'; return; }
   if(!supR.ok){ fe.textContent='\u201c'+supR.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d from the list to confirm.'; fe.style.display='block'; return; }
   const id='U'+Date.now().toString(36);
-  var szNum=parseFloat(document.getElementById('f_packsize').value), szUnit=document.getElementById('f_packunit').value;
-  const prod={id,description:desc,brand:brR.value||null,supplier:supR.value||null,category:catR.value,sub_category:'',
-    item_type:null,search_aliases:[],base_unit:calc.base_unit,
-    cost_per_base_unit:calc.cost_per_base_unit,cost_basis:calc.cost_basis,
-    is_food:document.getElementById('f_food').checked,pack_size_raw:(szNum+' '+szUnit),sold_by:'',
-    current_price_exgst:parseFloat(document.getElementById('f_price').value)};
+  var szUnit=document.getElementById('f_packunit').value;
+  const prod=newProductRecord({id:id, desc:desc, brand:brR.value, supplier:supR.value, category:catR.value,
+    base_unit:calc.base_unit, cost_per_base_unit:calc.cost_per_base_unit, cost_basis:calc.cost_basis,
+    isFood:document.getElementById('f_food').checked,
+    packSize:document.getElementById('f_packsize').value, packUnit:szUnit,
+    packPrice:document.getElementById('f_price').value});
   setOverride(id,prod);
-  closeModal();clearForm();toast(desc+' added');qEl.focus();
+  closeModal();clearForm();
+  if(typeof renderIngredients==='function') renderIngredients();       // v82: show the new product (and its bridge) immediately
+  // v82 bridge: catch the user at the create moment with a one-tap path into recipes, without
+  // interrupting bulk entry (an action snackbar, not a confirm dialog).
+  toastAction(desc+' saved', 'Use in recipes', function(){ useProductInRecipes(id); });
+  qEl.focus();
+}
+/* v82 — an action snackbar: a message with ONE tappable action, held longer than a plain toast and
+   dismissed on tap or timeout. Separate from toast() (which is a text-only role=status live region —
+   an actionable control doesn't belong in it). */
+var snackT=null;
+function toastAction(msg, label, fn){
+  var el=document.getElementById('snackbar');
+  if(!el){ el=document.createElement('div'); el.id='snackbar'; el.className='snackbar'; el.setAttribute('role','status'); document.body.appendChild(el); }
+  el.innerHTML='';
+  var m=document.createElement('span'); m.className='snackbar-msg'; m.textContent=msg; el.appendChild(m);
+  var b=document.createElement('button'); b.type='button'; b.className='snackbar-action'; b.textContent=label;
+  b.onclick=function(){ clearTimeout(snackT); el.classList.remove('show'); if(typeof fn==='function') fn(); };
+  el.appendChild(b);
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  clearTimeout(snackT); snackT=setTimeout(function(){ el.classList.remove('show'); }, 6000);
+}
+/* v82 D2: the create form stored pack_size_raw (a display string) but NEVER the structured
+   pack_qty/pack_unit that the edit form reads back (openIngEdit/saveIngEdit) — so the pack-size
+   field reopened BLANK, while the per-unit price (from calc) was correct. Root cause: this record
+   was built inline and simply omitted those two fields. Build it through one pure helper so create
+   and edit agree on the pack shape, and so pack-round-trip is lockable in a test. The pack also
+   legitimately feeds invoice pricing (product pack > memory > parser), which the form copy promises. */
+function newProductRecord(f){
+  var q=parseFloat(f.packSize);
+  return {id:f.id, description:f.desc, brand:f.brand||null, supplier:f.supplier||null, category:f.category, sub_category:'',
+    item_type:null, search_aliases:[], base_unit:f.base_unit,
+    cost_per_base_unit:f.cost_per_base_unit, cost_basis:f.cost_basis,
+    is_food:!!f.isFood, pack_qty:(isNaN(q)?null:q), pack_unit:(f.packUnit||null),
+    pack_size_raw:(isNaN(q)?'':q+' '+f.packUnit), sold_by:'', current_price_exgst:parseFloat(f.packPrice)};   // no "NaN …" string when the pack size is blank
 }
 document.getElementById('newBtn').addEventListener('click',openModal);
 document.getElementById('mClose').addEventListener('click',closeModal);
@@ -643,12 +679,48 @@ menuLinkEl.addEventListener('change',()=>{menuTouched=true;updatePricing();});
 document.getElementById('plateName').addEventListener('input',function(e){
   renderPlateSuggest(e.target.value);   // live suggestions, every keystroke
   if(e.target.value.trim()){ var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none'; }
+  scheduleDraftSave();                  // v82 D1: persist the name into the draft too
 });
+(function(){ var pc=document.getElementById('plateCat'); if(pc) pc.addEventListener('input', scheduleDraftSave); })();   // v82 D1: category into the draft
 /* saved plates */
 const PLATEKEY='cafeDB_plates';
 function loadPlates(){try{return JSON.parse(localStorage.getItem(PLATEKEY))||[];}catch(e){return [];}}
 function savePlatesLS(){try{localStorage.setItem(PLATEKEY,JSON.stringify(savedPlates));}catch(e){}}
 let savedPlates=loadPlates();
+/* v82 D1 — in-progress plate DRAFT (offline-first). Building a plate then reloading used to lose
+   everything. Persist the live builder to ONE localStorage slot (not a draft library), restore it on the
+   next open. Snapshot the boot value BEFORE any render can clear it, so an empty-builder render at startup
+   can't wipe the stored draft. A draft referencing a since-deleted ingredient degrades gracefully —
+   renderPlate/costFromLines already show such a line as "product missing" and leave it out of the total. */
+const DRAFTKEY='cafeDB_plateDraft';
+var _bootPlateDraft=(function(){ try{ return JSON.parse(localStorage.getItem(DRAFTKEY)); }catch(e){ return null; } })();
+function draftHasContent(d){ return !!(d && ((Array.isArray(d.lines)&&d.lines.length) || (d.name&&String(d.name).trim()))); }
+function savePlateDraft(){
+  try{
+    var pn=document.getElementById('plateName'), pc=document.getElementById('plateCat');
+    var d={lines:plate, name:(pn?pn.value:''), cat:(pc?pc.value:''), loadedPlateId:loadedPlateId, ts:Date.now()};
+    if(!draftHasContent(d)){ localStorage.removeItem(DRAFTKEY); return; }   // nothing worth resuming ⇒ no stale draft
+    localStorage.setItem(DRAFTKEY, JSON.stringify(d));
+  }catch(e){}
+}
+var _draftT=null;
+function scheduleDraftSave(){ clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }   // debounced: builder mutations funnel through renderPlate/updateTotals
+function clearPlateDraft(){ clearTimeout(_draftT); try{ localStorage.removeItem(DRAFTKEY); }catch(e){} }
+function resumePlateDraft(d){
+  plate=(Array.isArray(d.lines)?d.lines:[]).map(function(l){ return Object.assign({}, l, {uid:uidc++}); });   // fresh uids, never trust stored ones
+  loadedPlateId=d.loadedPlateId||null;
+  var pn=document.getElementById('plateName'); if(pn) pn.value=d.name||'';
+  var pc=document.getElementById('plateCat'); if(pc) pc.value=d.cat||'';
+  menuTouched=false; if(typeof updateEditTag==='function') updateEditTag();
+  renderPlate(); openBuilder();
+}
+function offerPlateDraftResume(){
+  var d=_bootPlateDraft; if(!draftHasContent(d)) return;
+  var n=(Array.isArray(d.lines)?d.lines.filter(function(l){return l&&!l.misc;}).length:0);
+  var what=(d.name&&d.name.trim())?('“'+d.name.trim()+'”'):(n+' ingredient'+(n===1?'':'s'));
+  askConfirm('Unfinished plate', 'You were building '+what+'. Resume it, or discard?', 'Resume',
+    function(){ resumePlateDraft(d); }, 'Discard', clearPlateDraft);
+}
 function plateNameVal(){return (document.getElementById('plateName').value.trim())||'Unnamed plate';}
 // v55: the builder edits a PLATE only (name + lines + category). It carries NO menu link — publishing to
 // menus is a separate action (Manage menus, from the card). Editing a plate's recipe automatically re-costs
@@ -673,7 +745,7 @@ function saveCurrentPlate(asNew){
   var sp;
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
-  savePlatesLS(); dbPushPlate(sp); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  savePlatesLS(); dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   return true;
 }
@@ -1046,7 +1118,12 @@ function renderIngredients(){
   if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
   if(!items.length){ wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(p){
-    return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
+    // v82 bridge: the card is now a .prod-card wrapper (a container) holding the UNCHANGED .ing-card
+    // button (opens edit — same look as the plate-library card) PLUS a bridge strip showing the
+    // product's recipe state. Unlinked → a one-tap "Use in recipes"; linked → an "In recipes · {word}"
+    // chip, so the next move is visible right where a new user stalls.
+    return '<div class="prod-card">'
+      +'<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</div>'
       +'<div class="ing-meta">'
@@ -1054,9 +1131,12 @@ function renderIngredients(){
       +(p.supplier?'<span class="ing-tag sup">'+esc(p.supplier)+'</span>':'')
       +'</div>'
       +'<div class="ing-price"><b>'+dispPrice(p)+'</b><span class="ing-per">'+ingUnitLabel(p)+'</span></div>'
-      +'</button>';
+      +'</button>'
+      +'<div class="prod-bridge">'+bridgeHtml(p.id)+'</div>'
+      +'</div>';
   }).join('');
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openIngEdit(b.getAttribute('data-id')); }; });
+  wrap.querySelectorAll('.prod-userecipes').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); useProductInRecipes(b.getAttribute('data-bridge')); }; });
 }
 var ingEditId=null;
 function openIngEdit(id){
@@ -1072,6 +1152,7 @@ function openIngEdit(id){
   document.getElementById('ig_packQty').value=(p.pack_qty==null?'':p.pack_qty);
   document.getElementById('ig_packUnit').value=(p.pack_unit||'');
   var e=document.getElementById('ig_err'); if(e)e.style.display='none';
+  fillIngBridge(id);                                                   // v82: show this product's recipe state + one-tap bridge in the edit modal
   ['ig_brand','ig_cat','ig_sup'].forEach(function(x){ var d=document.getElementById(x+'Drop'); if(d)d.style.display='none'; });
   makeInlineCombo('ig_brand','ig_brandDrop',prodBrands);
   makeInlineCombo('ig_cat','ig_catDrop',prodCategories);
@@ -1229,6 +1310,46 @@ function proposeKingName(p){                                          // supplie
   return out.slice(0,3).map(function(t){ return t.charAt(0).toUpperCase()+t.slice(1); }).join(' ');
 }
 function kingNameExists(nm){ nm=(nm||'').trim().toLowerCase(); return (kitchenIngredients||[]).some(function(k){ return k && (k.name||'').trim().toLowerCase()===nm; }); }
+/* v82 — the product→recipe BRIDGE. The #1 new-user stall: a product can't go on a plate until a
+   "kitchen word" (ingredient) links to it, and NOTHING on the Products side said so. These three are
+   the missing path: a pure lookup, a clash-safe namer, and one IDEMPOTENT create routed through the
+   SAME write path the Ingredients tab uses (nextKid → push → saveKitchenIngredients). No new data
+   model, no touch to the naming inversion — an ingredient is still {id,name,pid}. */
+function kingForProduct(pid){                                          // the kitchen word linked to this product, or null
+  if(pid==null) return null;
+  return (kitchenIngredients||[]).find(function(k){ return k && k.pid===pid; }) || null;
+}
+function bridgeKingName(p){                                            // a clash-safe kitchen word: proposeKingName, then disambiguate so a one-tap create can never collide
+  var base=proposeKingName(p), nm=base;
+  if(!kingNameExists(nm)) return nm;
+  if(p && p.brand){ nm=base+' '+p.brand; if(!kingNameExists(nm)) return nm; }   // "Bacon" taken → "Bacon Primo"
+  for(var i=2;i<999;i++){ nm=base+' '+i; if(!kingNameExists(nm)) return nm; }   // last resort: "Bacon 2", "Bacon 3", …
+  return base+' '+Date.now();
+}
+function bridgeCreateKing(pid){                                        // idempotent: return the word already linking this product, else create one and return it (never a duplicate)
+  var existing=kingForProduct(pid); if(existing) return existing;
+  var p=byId[pid]; if(!p) return null;
+  var k={id:nextKid(), name:bridgeKingName(p), pid:pid};
+  kitchenIngredients.push(k); saveKitchenIngredients();
+  return k;
+}
+function useProductInRecipes(pid){                                     // the bridge action: create-or-reuse, reflect the new state everywhere it shows
+  var k=bridgeCreateKing(pid); if(!k) return;
+  if(typeof renderIngredients==='function') renderIngredients();      // product card flips action → linked chip
+  if(ingEditId===pid) fillIngBridge(pid);                             // and the edit modal, if it's open on this product
+  toast('“'+k.name+'” is now in recipes');
+}
+function bridgeHtml(pid){                                              // the shared bridge fragment: linked → state chip; unlinked → the one-tap action
+  var k=kingForProduct(pid);
+  return k
+    ? '<span class="prod-inrecipes">✓ In recipes · '+esc(k.name)+'</span>'
+    : '<button class="prod-userecipes" type="button" data-bridge="'+esc(pid)+'">Use in recipes</button>';
+}
+function fillIngBridge(pid){                                           // populate the edit-modal bridge row and (re)wire its action
+  var box=document.getElementById('ig_bridge'); if(!box) return;
+  box.innerHTML=bridgeHtml(pid);
+  var b=box.querySelector('.prod-userecipes'); if(b) b.onclick=function(){ useProductInRecipes(pid); };
+}
 /* ITEM 2 (v35): the rename decision, kept pure (no DOM) so it can be tested directly.
    Excludes the word being edited by id, so re-saving a word under its OWN current name
    is fine while landing on someone else's name is refused. A rename is never a copy:
@@ -2515,6 +2636,7 @@ function renderDashboard(){
 })();
 
 restoreLastTab();                                          // safe now: all module data (priceHistory, savedPlates, MENU) is initialised
+offerPlateDraftResume();                                   // v82 D1: an unfinished plate from a previous session — resume or discard
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -2531,7 +2653,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v81';
+var APP_VERSION='v82';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3170,9 +3292,37 @@ function openPublishModal(plateId, presetMenuId){
   document.getElementById('mi_err').style.display='none';
   var titleEl=document.getElementById('menuModalTitle'), saveEl=document.getElementById('menuSave');
   if(titleEl) titleEl.textContent='Add to menu'; if(saveEl) saveEl.textContent='Add to menu';
+  renderMenuMarginPreview();                                        // v82 item 3: show cost + suggested price up front
   show('menuModal');
 }
+(function(){ var mp=document.getElementById('mi_price'); if(mp) mp.addEventListener('input', renderMenuMarginPreview); })();   // v82 item 3: live margin as the price is typed
 function closeMenuModal(){hide('menuModal');}
+/* v82 item 3 — live margin at the point of pricing. The Add-to-menu dialog used to demand a sell price
+   while showing NO resulting cost %, margin or light until the dish was committed AND the Menu tab opened —
+   the user priced blind, though margin-at-the-decision is EzPlate's whole reason to exist. menuMarginPreview
+   REUSES analyze() (the exact cost/target/light logic the Menu table uses — not a reimplementation), so the
+   preview and the resulting Menu row can never disagree. Pure, so it's testable against analyze directly. */
+function menuMarginPreview(cost, price){
+  var a=analyze(cost, price);
+  return {cost:cost, price:(price>0?price:null), suggested:a.suggested, light:a.light,
+          pct:(cost>0&&price>0)?Math.round(cost/price*100):null};
+}
+function marginLightWord(light){ return light==='green'?'Healthy margin':light==='amber'?'Slightly under':light==='red'?'Underpriced':''; }
+function renderMenuMarginPreview(){
+  var box=document.getElementById('mi_preview'); if(!box) return;
+  var sp=savedPlates.find(function(s){return s.id===pubPlateId;});
+  var cost=sp?costFromLines(sp.lines):0;
+  if(!(cost>0)){ box.className='margin-preview'; box.textContent=''; return; }   // uncosted plate → nothing to preview yet
+  var priceV=parseFloat((document.getElementById('mi_price')||{}).value);
+  var mp=menuMarginPreview(cost, priceV);
+  if(mp.pct==null){                                                             // no price yet: show the cost + the target-based suggestion
+    box.className='margin-preview';
+    box.innerHTML='Ingredient cost <b>'+fmt2(cost)+'</b> · suggested <b>'+fmt2(mp.suggested)+'</b> at a '+cogsPct+'% food cost';
+    return;
+  }
+  box.className='margin-preview mp-'+mp.light;
+  box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+mp.pct+'% food cost</b> · '+marginLightWord(mp.light);
+}
 function submitMenuItem(){
   var sp=savedPlates.find(function(s){return s.id===pubPlateId;});
   var err=document.getElementById('mi_err');
@@ -4797,15 +4947,18 @@ function removeMenuItem(id){
   }
 }
 /* two-tap confirm dialog */
-var __confirmFn=null;
-function askConfirm(title,msg,okLabel,fn){
-  __confirmFn=fn;
+var __confirmFn=null, __confirmCancelFn=null;
+// v82: optional cancelLabel + cancelFn so a dialog can offer a real second choice (e.g. "Discard").
+// Existing 4-arg callers are unaffected — cancel stays a plain close with no callback.
+function askConfirm(title,msg,okLabel,fn,cancelLabel,cancelFn){
+  __confirmFn=fn; __confirmCancelFn=cancelFn||null;
   var t=document.getElementById('confirmTitle'); if(t)t.textContent=title;
   var mm=document.getElementById('confirmMsg'); if(mm)mm.textContent=msg;
   var ok=document.getElementById('confirmOk'); if(ok)ok.textContent=okLabel||'Confirm';
+  var ca=document.getElementById('confirmCancel'); if(ca)ca.textContent=cancelLabel||'Cancel';
   show('confirmModal');
 }
-function closeConfirm(){ hide('confirmModal'); __confirmFn=null; }
+function closeConfirm(){ hide('confirmModal'); __confirmFn=null; __confirmCancelFn=null; }
 /* safe delete (used by the edit modal) */
 function doDeleteMenuItem(id){
   var m=menuById[id]; if(!m) return; var nm=m.name, touched=false;
@@ -5042,7 +5195,10 @@ document.getElementById('delChoiceAll').addEventListener('click',doDeleteEveryth
 edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 (function(){var ok=document.getElementById('confirmOk'),ca=document.getElementById('confirmCancel'),cx=document.getElementById('confirmClose');
  if(ok)ok.addEventListener('click',function(){ var fn=__confirmFn; closeConfirm(); if(fn)fn(); });
- if(ca)ca.addEventListener('click',closeConfirm); if(cx)cx.addEventListener('click',closeConfirm);})();
+ // v82: the Cancel button runs an optional cancel callback (× / backdrop / Escape stay a plain close — a
+ // stray dismiss should not, e.g., discard a draft; only the explicit labelled button acts).
+ if(ca)ca.addEventListener('click',function(){ var fn=__confirmCancelFn; closeConfirm(); if(fn)fn(); });
+ if(cx)cx.addEventListener('click',closeConfirm);})();
 
 // backdrop tap closes small dialogs; the builder popup is deliberately NOT backdrop-dismissable (an accidental
 // tap must not throw away a plate in progress) — only its × / Escape close it.

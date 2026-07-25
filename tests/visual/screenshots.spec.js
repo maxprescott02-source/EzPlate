@@ -42,9 +42,10 @@ for (const size of SIZES) {
   }
 }
 
-// v55: the builder is now a POPUP opened from the Plates tab, and publishing is many-to-many
-// via a "Manage menus" modal. Capture both, plus the Plates card grid at desktop width (proves
-// §C — the grid is full-width, not a narrow mobile column).
+// v55: the builder is now a POPUP opened from the Plates tab (publishing is a separate many-to-many
+// flow via the "Add to a menu" modal — v82 rename of "Manage menus" — NOT captured by this test).
+// This captures the Plates card grid + the builder popup at each width (proves §C — the grid is
+// full-width, not a narrow mobile column).
 for (const size of SIZES) {
   test(`plates + builder popup @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });

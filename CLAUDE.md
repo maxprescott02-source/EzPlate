@@ -294,15 +294,41 @@ merge to `main` as a production deploy.
 
 ## State as of 25 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v81** — PR #22 (`feature/settings-sections`, v81) is now MERGED (`f679f16`), deployed to
-  prod. No unmerged branch in flight. NOTE: local `main` goes stale between sessions (Max merges
-  via GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+- `origin/main` is at **v81** (PR #22 merged, `f679f16`). **Branch `feature/newuser-flow` (v82) is DONE and
+  green, NOT yet pushed/merged** — new-user friction batch (brief `~/Downloads/ezplate-opus-newuser-friction.md`).
+  NOTE: local `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
+  first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **333 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v81**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v81** (no browser) — timing/feel can only be judged on a device; reconcile
+  `npm test` = **354 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v82**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v82** (no browser) — timing/feel can only be judged on a device; reconcile
   on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+
+- **v82 (branch `feature/newuser-flow`) — new-user friction (brief `~/Downloads/ezplate-opus-newuser-friction.md`).
+  See `handovers/HANDOVER-v82.md`.** Client only (HTML+CSS+JS+tests); zero contact with the protected region,
+  money law, naming inversion (ingredient is still `{id,name,pid}`), data model, invoice review/`invRowState`/
+  auto-tick, the insight engine, or `api/*.js`. (1) **The product→recipe BRIDGE** — the #1 stall: products
+  couldn't reach a plate and nothing pointed to "make a kitchen word". Three pure helpers (`kingForProduct` /
+  clash-safe `bridgeKingName` / **idempotent** `bridgeCreateKing`, all through `nextKid`→push→
+  `saveKitchenIngredients`) + surfaces: the product card is now a **`.prod-card`** wrapper around the UNCHANGED
+  `.ing-card` button plus a `.prod-bridge` strip (unlinked → one-tap "Use in recipes"; linked → "✓ In recipes ·
+  {word}" chip), a create-moment **action snackbar** (`toastAction`, separate from the text-only `toast`), and a
+  matching `#ig_bridge` row in the edit modal. `.ing-card` base CSS untouched (plate cards share it). (2) **D1 plate
+  DRAFT** — the live builder persists to one localStorage slot `cafeDB_plateDraft` (debounced via
+  `scheduleDraftSave` off `renderPlate`/`updateTotals`/name/cat), boot snapshot `_bootPlateDraft` +
+  `offerPlateDraftResume` offers Resume/Discard (`askConfirm` gained optional `cancelLabel`/`cancelFn`), cleared on
+  save/Clear, tolerates a missing-ingredient ref. (3) **Live margin preview** in the Add-to-menu dialog (`#mi_preview`
+  / `menuMarginPreview` **reuses `analyze()`** so it can't disagree with the Menu row). (4) **Sticky Save** — moved
+  into a pinned `.mfoot .builder-foot` (id `#saveBtn` unchanged). (5) **D2 pack size on create ROOT CAUSE:**
+  `submitNew` stored `pack_size_raw` but not the structured `pack_qty`/`pack_unit` the edit form reads — now built by
+  pure `newProductRecord()`. **D3:** the "Food item" checkbox is ALREADY correctly wrapped in its `<label>`
+  (jsdom-verified: `labels.length===1`) — reported "on" does not reproduce, no change; regression test added.
+  **Wording:** plate-card "Manage menus" → **"Add to a menu"**. 333→**354** (bridge/plate-draft/menu-margin/
+  create-pack/a11y-fooditem tests; smoke `[20]`). CodeRabbit: 2 minor, both fixed (`pack_size_raw` NaN string; a
+  visual-spec comment). Six spots → **v82**. **Needs Max's phone:** the whole flow (product → bridge → plate without
+  visiting Ingredients; build → reload → resume draft; price watching live margin; pack round-trip; both themes,
+  380px) + visual-spec baselines regenerated on a browser (new bridge strip / sticky Save / margin line).
 
 - **v81 (branch `feature/settings-sections`) — Settings: proper sectioned surface + two AI toggles + theme
   preference (brief `~/Downloads/ezplate-opus-settings-sections.md`). See `handovers/HANDOVER-v81.md`.** Client only
