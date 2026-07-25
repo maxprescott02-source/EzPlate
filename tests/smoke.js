@@ -749,6 +749,68 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   w2 = bootWithDraft(null);
   ok('[21] a clean boot offers nothing', !w2.document.getElementById('confirmModal').classList.contains('open'));
 
+  // ---------------------------------------------------------------------------
+  // [22] v85 — re-entering the builder must not bin unfinished work (Max's flow 3:
+  // build, press ×, go make an ingredient, come back and tap "+ New plate").
+  // ---------------------------------------------------------------------------
+  console.log('\n[22] v85 — "+ New plate" / "Edit plate" no longer discard an in-progress plate');
+  const buildThenClose = async (w, name) => {
+    w.openBuilderNew();
+    w.addMiscCost();                                    // a misc line needs no ingredient library
+    w.document.getElementById('plateName').value = name;
+    w.document.getElementById('plateName').dispatchEvent(new w.Event('input'));
+    await settle();
+    w.closeBuilder();                                   // the ×
+  };
+
+  let w3 = bootWithDraft(null);
+  const $3 = id => w3.document.getElementById(id);
+  await buildThenClose(w3, 'Half-built Plate');
+  w3.showTab('pantry');                                 // "go make an ingredient"
+  await new Promise(r => setTimeout(r, 30));
+  w3.showTab('builder');
+  w3.openBuilderNew();                                  // tap "+ New plate"
+  ok('[22] "+ New plate" offers to resume the unfinished plate', $3('confirmModal').classList.contains('open'));
+  ok('[22] the offer names it', /Half-built Plate/.test($3('confirmMsg').textContent), $3('confirmMsg').textContent);
+  $3('confirmOk').click();
+  ok('[22] Resume brings the work back',
+     $3('builderModal').classList.contains('open') && $3('plateName').value === 'Half-built Plate' &&
+     w3.document.querySelectorAll('#lines .line').length === 1);
+
+  w3 = bootWithDraft(null);
+  await buildThenClose(w3, 'Half-built Plate');
+  w3.openBuilderNew();
+  w3.document.getElementById('confirmCancel').click();  // Discard -> a genuinely new plate
+  await settle();
+  ok('[22] Discard gives a clean builder and clears the draft',
+     w3.document.getElementById('builderModal').classList.contains('open') &&
+     w3.document.getElementById('plateName').value === '' &&
+     w3.document.querySelectorAll('#lines .line').length === 0 &&
+     !w3.localStorage.getItem('cafeDB_plateDraft'));
+
+  w3 = bootWithDraft(null);
+  await buildThenClose(w3, 'Half-built Plate');
+  w3.openBuilderNew();
+  w3.document.getElementById('confirmClose').click();   // a stray dismiss decides nothing
+  await settle();
+  ok('[22] a stray dismiss keeps the unfinished plate', !!w3.localStorage.getItem('cafeDB_plateDraft'));
+
+  // and it must NOT nag when there is nothing to protect
+  w3 = bootWithDraft(null);
+  w3.openBuilderNew();
+  ok('[22] a clean builder opens straight away (no nag)',
+     !w3.document.getElementById('confirmModal').classList.contains('open') &&
+     w3.document.getElementById('builderModal').classList.contains('open'));
+  w3.addMiscCost();
+  w3.document.getElementById('plateName').value = 'Done Plate';
+  w3.saveCurrentPlate(false);
+  w3.closeBuilder();
+  await settle();
+  w3.openBuilderNew();
+  ok('[22] after SAVING, "+ New plate" opens straight away (a saved plate is not unfinished)',
+     !w3.document.getElementById('confirmModal').classList.contains('open') &&
+     w3.document.getElementById('builderModal').classList.contains('open'));
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();

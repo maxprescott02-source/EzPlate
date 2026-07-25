@@ -301,10 +301,25 @@ merge to `main` as a production deploy.
   first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **360 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v84**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v84** (no browser) — timing/feel can only be judged on a device; reconcile
+  `npm test` = **365 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v85**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v85** (no browser) — timing/feel can only be judged on a device; reconcile
   on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+
+- **v85 (same branch `feature/newuser-flow`) — re-entering the builder no longer bins an unfinished plate (Max
+  reviewed the draft flows). See `handovers/HANDOVER-v85.md`.** Reload flows were correct and left alone. The broken
+  one: press ×, go make an ingredient, tap **+ New plate** — no resume offer, AND `openBuilderNew`'s `plate=[]` +
+  `renderPlate()` let the (armed) `scheduleDraftSave` remove the slot 250ms later, so the plate was **unrecoverable
+  even by reloading**. `editPlateFromCard` → `loadPlate` → `loadPlateState` had the IDENTICAL defect (unreported,
+  fixed in the same pass). **Fix reuses the guard the app already had** — `requestLoadPlate`/`requestLoadMenuItem`
+  have always checked `isBuilderDirty()`; these two entries just never got it. New: `unfinishedPlateWaiting()`
+  (`isBuilderDirty()` OR a stored draft — the latter covers a dismissed boot offer), `guardUnfinishedPlate(proceed)`
+  (clean builder ⇒ proceed with **no dialog**; else the SAME Resume/Discard offer as boot — Discard clears then
+  proceeds, a stray × decides nothing), `resumeUnfinishedPlate()` (reopen in place if the work is still loaded, else
+  `resumePlateDraft`), and `readPlateDraft()` as the one shared reader. `openBuilderNew()` is now
+  `guardUnfinishedPlate(startNewPlate)` (old body → `startNewPlate`). 360→**365** (five source pins) + smoke **`[22]`**,
+  which drives Max's flow end to end AND pins the two no-nag cases (clean builder, and after a normal save — a guard
+  that nagged post-save would be worse than the bug). Six spots → **v85**.
 
 - **v84 (same branch `feature/newuser-flow`) — BUGFIX: "resuming a plate doesn't work" (Max, after v83 pushed).
   See `handovers/HANDOVER-v84.md`.** Reproduced in jsdom, **two independent load-order causes**, both fixed.

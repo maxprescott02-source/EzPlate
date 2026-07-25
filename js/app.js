@@ -703,7 +703,8 @@ let savedPlates=loadPlates();
    can't wipe the stored draft. A draft referencing a since-deleted ingredient degrades gracefully —
    renderPlate/costFromLines already show such a line as "product missing" and leave it out of the total. */
 const DRAFTKEY='cafeDB_plateDraft';
-var _bootPlateDraft=(function(){ try{ return JSON.parse(localStorage.getItem(DRAFTKEY)); }catch(e){ return null; } })();
+function readPlateDraft(){ try{ return JSON.parse(localStorage.getItem(DRAFTKEY)); }catch(e){ return null; } }   // v85: one reader, shared by the boot snapshot and the entry guard
+var _bootPlateDraft=readPlateDraft();
 function draftHasContent(d){ return !!(d && ((Array.isArray(d.lines)&&d.lines.length) || (d.name&&String(d.name).trim()))); }
 function savePlateDraft(){
   try{
@@ -2627,7 +2628,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v84';
+var APP_VERSION='v85';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3158,7 +3159,30 @@ function openBuilder(){ armDraftSaves();                              // v84: th
   var bm=document.getElementById('builderModal'); if(bm){ bm.scrollTop=0; var mb=bm.querySelector('.mbody'); if(mb) mb.scrollTop=0; }
 }
 function closeBuilder(){ hide('builderModal'); }
-function openBuilderNew(){                                           // + New plate: open the popup on an empty, unlinked plate
+/* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
+   used to bin unfinished work in silence: press ×, go to the Ingredients tab, come back and tap
+   "+ New plate", and the in-progress plate was gone — along with its stored draft (the empty render
+   removed the slot 250ms later), so even reloading couldn't get it back. The app ALREADY guards its
+   other two builder entries this way (requestLoadPlate / requestLoadMenuItem, via isBuilderDirty);
+   these two simply never got it. Same Resume/Discard choice as the boot offer, so the question reads
+   the same wherever it's asked, and a stray dismiss does nothing. */
+function unfinishedPlateWaiting(){ return isBuilderDirty() || draftHasContent(readPlateDraft()); }   // this session, or a draft whose boot offer was dismissed
+function unfinishedPlateLabel(){
+  var el=document.getElementById('plateName'), nm=(el?el.value:'')||'';
+  if(!nm.trim()){ var d=readPlateDraft(); nm=(d&&d.name)||''; }
+  return nm.trim()?('“'+nm.trim()+'”'):'a plate';
+}
+function resumeUnfinishedPlate(){
+  if(isBuilderDirty()){ openBuilder(); return; }                     // same session: × only hid the popup, the work is still loaded
+  var d=readPlateDraft(); if(draftHasContent(d)) resumePlateDraft(d);
+}
+function guardUnfinishedPlate(proceed){
+  if(!unfinishedPlateWaiting()){ proceed(); return; }
+  askConfirm('Unfinished plate', 'You were building '+unfinishedPlateLabel()+'. Resume it, or discard it and carry on?',
+    'Resume', resumeUnfinishedPlate, 'Discard', function(){ clearPlateDraft(); proceed(); });
+}
+function openBuilderNew(){ guardUnfinishedPlate(startNewPlate); }    // + New plate, guarded
+function startNewPlate(){                                            // open the popup on an empty, unlinked plate
   plate=[]; loadedPlateId=null; menuTouched=false;
   var pn=document.getElementById('plateName'); if(pn) pn.value='';
   var pc=document.getElementById('plateCat'); if(pc) pc.value='';   // §J
@@ -3180,7 +3204,7 @@ function openPlateActions(pid){
   show('plateActionsModal');
 }
 function closePlateActions(){ hide('plateActionsModal'); }
-function editPlateFromCard(pid){ loadPlate(pid); }                   // opens the builder popup pre-filled (existing clear-then-load path)
+function editPlateFromCard(pid){ guardUnfinishedPlate(function(){ loadPlate(pid); }); }   // v85: guarded — same silent-loss path as "+ New plate"
 // v55: delete a plate AND every menu entry backed by it. Products/ingredients are untouched (§D1 copy).
 function deletePlate(id){
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;

@@ -146,3 +146,45 @@ test('v83 regression 2b: only clearPlateDraft removes the slot on an explicit us
   assert.strictEqual(removals, 2,
     'exactly two removal sites: savePlateDraft (empty builder, now only reachable while armed) and clearPlateDraft');
 });
+
+/* ---------------------------------------------------------------------------
+ * v85 (Max, reviewing the flows): pressing × then re-entering the builder via
+ * "+ New plate" (or "Edit plate" on a card) silently binned the unfinished plate
+ * AND its stored draft — the empty render removed the slot, so even reloading
+ * couldn't recover it. The app already guarded its OTHER two builder entries
+ * (requestLoadPlate / requestLoadMenuItem) with isBuilderDirty; these two never
+ * got it. Both now route through guardUnfinishedPlate.
+ * ------------------------------------------------------------------------- */
+test('v85: "+ New plate" is guarded — it can never wipe unfinished work silently', () => {
+  const fn = extractFn(SRC, 'openBuilderNew');
+  assert.match(fn, /guardUnfinishedPlate\(startNewPlate\)/,
+    '+ New plate must ask before replacing an in-progress plate');
+  assert.ok(!/plate=\[\]/.test(fn), 'the wipe itself moved into startNewPlate, behind the guard');
+});
+
+test('v85: "Edit plate" from a card is guarded by the same path', () => {
+  assert.match(extractFn(SRC, 'editPlateFromCard'), /guardUnfinishedPlate\(/,
+    'loading another plate over unfinished work must ask first');
+});
+
+test('v85: the guard offers Resume/Discard and only the explicit Discard clears', () => {
+  const g = extractFn(SRC, 'guardUnfinishedPlate');
+  assert.match(g, /if\(!unfinishedPlateWaiting\(\)\)\{ proceed\(\); return; \}/,
+    'a clean builder proceeds straight through — no nagging');
+  assert.match(g, /'Resume', resumeUnfinishedPlate, 'Discard'/, 'both choices are offered');
+  assert.match(g, /clearPlateDraft\(\); proceed\(\);/, 'only the Discard callback clears the draft');
+  // a stray × / backdrop dismiss runs neither callback (v82 rule) -> nothing is lost
+});
+
+test('v85: the guard fires for this session OR a draft whose boot offer was dismissed', () => {
+  assert.match(extractFn(SRC, 'unfinishedPlateWaiting'),
+    /isBuilderDirty\(\) \|\| draftHasContent\(readPlateDraft\(\)\)/,
+    'in-memory dirt and a stored draft both count as work worth protecting');
+});
+
+test('v85: resume prefers the still-loaded session state over re-reading storage', () => {
+  const r = extractFn(SRC, 'resumeUnfinishedPlate');
+  assert.match(r, /if\(isBuilderDirty\(\)\)\{ openBuilder\(\); return; \}/,
+    '× only hid the popup — the work is still in memory, so just reopen it');
+  assert.match(r, /resumePlateDraft\(d\)/, 'otherwise fall back to the stored draft');
+});
