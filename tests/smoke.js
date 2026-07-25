@@ -219,8 +219,8 @@ window.invRows = [{ name: 'CALAMARI RINGS 1KG', raw: 'CALAMARI RINGS 1KG', bestI
 window.renderInvReview();
 window.expandNewItem(0);
 ok('the add-new row is .is-new (Old/Conf are genuinely meaningless there)', window.document.querySelector('#invReview tr.inv-data').classList.contains('is-new'));
-ok('the Kitchen name field is a combobox, not free text', !!$('ni_kingDrop0'));
-ok('v55 §F2: the Kitchen name field starts BLANK (no silent repoint prefill)', ($('ni_king0').value || '') === '', $('ni_king0').value);
+ok('the Ingredient name field is a combobox, not free text', !!$('ni_kingDrop0'));
+ok('v55 §F2: the Ingredient name field starts BLANK (no silent repoint prefill)', ($('ni_king0').value || '') === '', $('ni_king0').value);
 // v55 §F1: parser-filled fields carry the "af" (auto-filled) mark; empty ones do not
 ok('§F1: a parser-filled field is marked auto-filled', $('ni_name0').classList.contains('af'));
 ok('§F1: the (blank) Kitchen field is NOT marked auto-filled', !$('ni_king0').classList.contains('af'));

@@ -812,6 +812,13 @@ input[type=checkbox]{
 .ni-add-alt{width:100%;white-space:nowrap;font-size:13px;padding:8px 12px;min-height:40px}
 .invAppr{width:26px;height:26px;min-height:26px}
 .muted-row td{opacity:.92}
+/* v86 ROOT CAUSE (the Apply tick box painting OVER an open combobox list): opacity below 1
+   makes EVERY cell its own stacking context, so .cat-drop's z-index:60 could only stack
+   within its own <td> — the Apply cell, a LATER sibling, then painted on top of the list.
+   The cell hosting an add-new form is the active editing surface, not muted background, so
+   exempt it: the dropdown's z-index can then win at row level. Keeps the v35 contract that
+   .muted-row carries its opacity treatment and nothing else. */
+.muted-row td:has(.ni-slot){opacity:1}
 
 /* invoice review — mobile card labels (same card system as the analysis table) */
 .invtable td:nth-child(1)::before{content:none}
@@ -850,10 +857,10 @@ input[type=checkbox]{
   background-repeat:no-repeat;background-position:right 12px center;
 }
 .ni-grid .cat-wrap{position:relative}
-/* on desktop, float the combobox list over the form instead of pushing sibling fields around */
-@media (min-width:640px){
-  .ni-grid .cat-drop{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;margin-top:0}
-}
+/* v86: this desktop override only restated the base .cat-drop rule (anchorDrop's inline
+   position/left/top win over both) EXCEPT for z-index:40, which silently gave the same
+   dropdown a different stacking weight on desktop than on mobile. Removed so one value
+   (the base z-index:60) governs at every width. */
 @media (max-width:520px){ .ni-grid{grid-template-columns:1fr} }
 
 /* desktop invoice table refinements */

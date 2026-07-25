@@ -462,7 +462,7 @@ function renderPlate(){
   updateTotals();
   var bh=document.getElementById('builderHint');
   if(bh){
-    if(!kitchenIngredients.length){ bh.innerHTML='No ingredients yet \u2014 <a href="#" id="bhGo">create your kitchen words</a> first, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
+    if(!kitchenIngredients.length){ bh.innerHTML='No ingredients yet \u2014 <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
     else bh.textContent='Build plates from your ingredients. New ones are added on the Ingredients tab.';   // v59: no create-on-the-spot
   }
 }
@@ -494,8 +494,8 @@ function printDocketFor(name, lines){
   }).filter(Boolean).join('');
   pd.innerHTML='<div class="pd-card">'
     +'<div class="pd-logo">Ez<span>Plate</span></div>'
-    +'<div class="pd-title">'+esc((name||'').trim()||'Recipe card')+'</div>'
-    +'<div class="pd-meta">Recipe card \u00b7 '+lines.length+' item'+(lines.length===1?'':'s')+'</div>'
+    +'<div class="pd-title">'+esc((name||'').trim()||'Untitled plate')+'</div>'
+    +'<div class="pd-meta">Plate docket \u00b7 '+lines.length+' ingredient'+(lines.length===1?'':'s')+'</div>'
     +'<table class="pd-table"><tbody>'+rows+'</tbody></table>'
     +'</div>';
   window.print();
@@ -1359,7 +1359,7 @@ function renderKingProgress(){
   var todo=kingWizOutstanding(), skipped=kingWizSkipIds().length;
   // hide only when there is nothing left to propose AND nothing skipped to recover — otherwise skipping everything would strand the Unskip list behind a hidden button
   if(!total || (!todo && !skipped && !kingWizOpen)){ pr.style.display='none'; wb.style.display='none'; return; }
-  pr.textContent=done+' of '+total+' products have a kitchen word';   // stays literal: a skipped product genuinely has no kitchen word, so it still counts as not-done here
+  pr.textContent=done+' of '+total+' products have an ingredient';   // stays literal: a skipped product genuinely has no ingredient, so it still counts as not-done here
   pr.style.display=un?'block':'none';
   wb.style.display='';                                              // stays visible while open so "Close setup" is always reachable
   wb.innerHTML=kingWizOpen?'Close<span class="btn-noun"> setup</span>':'Set up<span class="btn-noun"> from products</span>';   // v44 item 5: the noun span hides on phones so the pantry pair fits one line
@@ -1381,7 +1381,7 @@ function kingWizRowHtml(g,gi){
     ? '<span class="kw-prod">'+esc(p0.description)+(p0.brand?' \u00b7 '+esc(p0.brand):'')+'</span>'
     : '<select class="kw-pick" aria-label="Which product">'+g.products.map(function(p,pi){ return '<option value="'+esc(p.id)+'"'+(pi?'':' selected')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'</option>'; }).join('')+'</select>';
   return '<div class="kw-row" data-gi="'+gi+'">'
-    +'<input class="kw-name" type="text" value="'+esc(g.name)+'" aria-label="Kitchen name">'
+    +'<input class="kw-name" type="text" value="'+esc(g.name)+'" aria-label="Ingredient name">'
     +prodBit
     +'<button class="btn kw-add" type="button">Add</button>'
     +'<button class="linklike kw-skip" type="button">Skip</button>'
@@ -1418,8 +1418,8 @@ function renderKingWizard(){
   var skipIds=kingWizSkipIds(), skipHtml=kingWizSkippedHtml(skipIds);
   if(!groups.length){
     box.innerHTML='<div class="kw-done">'+(skipIds.length
-        ? '\u2713 Nothing left to set up \u2014 everything else is skipped.'   // "every product has a kitchen word" would be a lie here
-        : '\u2713 Every product has a kitchen word \u2014 recipes can use all of them.')
+        ? '\u2713 Nothing left to set up \u2014 everything else is skipped.'   // "every product has an ingredient" would be a lie here
+        : '\u2713 Every product has an ingredient \u2014 you can use all of them in plates.')
       +'</div>'+skipHtml;
     box.style.display='block'; wireKingWizSkipped(box); renderKingProgress(); return;
   }
@@ -1446,7 +1446,7 @@ function renderKingWizard(){
   var all=box.querySelector('.kw-all');
   if(all) all.onclick=function(){
     var gs=kingWizGroups().filter(function(g){return g.products.length===1;});
-    askConfirm('Add '+gs.length+' ingredients?', 'One kitchen word per product, using the suggested names. You can rename or remove any of them later.', 'Add all', function(){
+    askConfirm('Add '+gs.length+' ingredients?', 'One ingredient per product, using the suggested names. You can rename or remove any of them later.', 'Add all', function(){
       var made=0, skipped=0, taken={};
       gs.forEach(function(g){
         var nm=g.name;
@@ -1608,7 +1608,7 @@ function saveKingModal(){
     if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
       closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
       askConfirm('Different unit type',
-        '\u201c'+chk.name+'\u201d is measured per '+unitCatWord(g.oldCat)+' but the new product is per '+unitCatWord(g.newCat)+'. Recipe amounts keep their numbers but change meaning \u2014 check any recipe that uses it.',
+        '\u201c'+chk.name+'\u201d is measured per '+unitCatWord(g.oldCat)+' but the new product is per '+unitCatWord(g.newCat)+'. Plate amounts keep their numbers but change meaning \u2014 check any plate that uses it.',
         'Change anyway', commit);
       return;
     }
@@ -1818,7 +1818,7 @@ function trendChart(){
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
       ? 'No points in this range yet \u2014 try a longer range.'
-      : 'The trend needs at least two logged points. A point is recorded only when a menu item is linked to a costed plate (so an average food cost exists) and a price then changes. Link a plate to a menu item, then update a price, to start the line.';
+      : 'The trend needs at least two logged points. A point is recorded only when a plate on a menu has been costed (so an average food cost exists) and a price then changes. Put a costed plate on a menu, then update a price, to start the line.';
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
       +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
   }
@@ -2026,7 +2026,7 @@ function insShared(shared){
   if(!s || s.dishCount<2) return [];
   return [{kind:'shared', dim:'cross', score:Math.min(80, 30+s.dishCount*5),
     facts:{name:s.name, dishCount:s.dishCount},
-    text:s.name+' feeds '+s.dishCount+' dishes here — a better price on it beats any single reprice.'}];
+    text:s.name+' feeds '+s.dishCount+' plates here — a better price on it beats any single reprice.'}];
 }
 // TYPE: biggest mover — the ingredient whose logged price changed most, and how many of this menu's dishes it feeds.
 function insMover(mover){
@@ -2034,7 +2034,7 @@ function insMover(mover){
   var up=mover.pct>0, n=(mover.dishes&&mover.dishes.length)||0, pct=Math.abs(Math.round(mover.pct));
   return [{kind:'mover', dim:'movement', score:Math.min(88, 40+Math.abs(mover.pct)),
     facts:{name:mover.name, pct:pct, dishCount:n},
-    text:mover.name+' '+(up?'rose':'fell')+' '+pct+'% — it feeds '+n+' dish'+(n===1?'':'es')+' here'+(up?', so recheck their margins.':', a chance to bank the saving.')}];
+    text:mover.name+' '+(up?'rose':'fell')+' '+pct+'% — it feeds '+n+' plate'+(n===1?'':'s')+' here'+(up?', so recheck their margins.':', a chance to bank the saving.')}];
 }
 // v74 (Max): insBest was REMOVED — "X dish has your best margin" states a fact without anything to act on.
 // Insights are for critical problems + real leverage; a healthy menu says so with the one all-healthy line.
@@ -2043,9 +2043,9 @@ function insSummary(dishes, targetFrac){
   var tp=Math.round(targetFrac*100), total=dishes.length;
   var over=dishes.filter(function(d){ return d.cost>0 && d.menuPrice>0 && Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
   if(over) return [{kind:'count', dim:'comparative', score:22, facts:{over:over, total:total, targetPct:tp},
-    text:over+' of '+total+' costed dish'+(total===1?'':'es')+' sit over your '+tp+'% target.'}];
+    text:over+' of '+total+' costed plate'+(total===1?'':'s')+' sit over your '+tp+'% target.'}];
   return [{kind:'allgood', dim:'comparative', score:26, facts:{total:total, targetPct:tp},
-    text:'All '+total+' costed dish'+(total===1?'':'es')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
+    text:'All '+total+' costed plate'+(total===1?'':'s')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
 }
 // v74 (Max): insPortion (the standalone "X ingredient is Y% of this plate's cost") was REMOVED — on its own
 // it states a fact, not an insight; it gives the owner nothing to act on. Composition now appears ONLY as the
@@ -2094,7 +2094,7 @@ function insCategory(dishes, targetFrac){
   var lo=cats[0], hi=cats[cats.length-1]; if(hi.pct-lo.pct<3) return [];   // no real gap → nothing worth saying
   return [{kind:'category', dim:'comparative', score:Math.min(66, 30+(hi.pct-lo.pct)),
     facts:{loName:lo.name, loPct:lo.pct, hiName:hi.name, hiPct:hi.pct},
-    text:'Your '+lo.name+' dishes average '+lo.pct+'% food cost, '+hi.name+' sits at '+hi.pct+'%.'}];
+    text:'Your '+lo.name+' plates average '+lo.pct+'% food cost, '+hi.name+' sits at '+hi.pct+'%.'}];
 }
 // TYPE: spread / outliers — the food-cost % RANGE across the menu and its tightest-margin extreme. A
 // menu-wide fact (needs ≥4 dishes and a ≥10-pt span to read as one).
@@ -2120,7 +2120,7 @@ function insAggregate(dishes, targetFrac){
   var per100=Math.round(sum*100);
   return [{kind:'aggregate', dim:'comparative', score:Math.min(70, 34+n*2),
     facts:{count:n, per100:per100, per:100},                         // `per:100` keeps the "per 100 serves" figure inside facts (number law)
-    text:'Your '+n+' over-target dishes are about $'+per100+' per 100 serves above target in total.'}];
+    text:'Your '+n+' over-target plates are about $'+per100+' per 100 serves above target in total.'}];
 }
 // TYPE: ingredient-spend concentration — the single biggest-spend ingredient ACROSS the menu (its share of
 // total ingredient cost). Cross-cutting: invisible in a per-dish table. Only notable at ≥25% of spend.
@@ -2146,7 +2146,7 @@ function insComplexity(dishes){
   if(gap<3) return [];
   return [{kind:'complexity', dim:'comparative', score:Math.min(62, 30+gap),
     facts:{manyPct:mp, fewPct:fp, gap:gap, minIng:6},
-    text:'Dishes with 6+ ingredients average '+mp+'% food cost, simpler ones '+fp+'%.'}];
+    text:'Plates with 6+ ingredients average '+mp+'% food cost, simpler ones '+fp+'%.'}];
 }
 // TYPE: recent change — how many of this menu's dishes cost MORE now than at the last price update (from the
 // per-ingredient price log). Movement invisible in the table. Only worth a line at ≥2 dishes.
@@ -2154,7 +2154,7 @@ function insRecentChange(recent){
   if(!recent || !(recent.up>=2)) return [];
   return [{kind:'recent', dim:'movement', score:Math.min(76, 38+recent.up*3),
     facts:{up:recent.up},
-    text:recent.up+' dishes cost more now than at your last price update — worth a recheck.'}];
+    text:recent.up+' plates cost more now than at your last price update — worth a recheck.'}];
 }
 // TYPE: data completeness (gentle) — dishes on this menu not costed yet. Actionable and invisible in the
 // table (an uncosted dish has no margin row). NOT manufactured concern — just a gap to fill. dim: coverage.
@@ -2164,7 +2164,7 @@ function insData(coverage){
   if(u<1) return [];
   return [{kind:'data', dim:'coverage', score:Math.min(34, 20+u),
     facts:{uncosted:u},
-    text:u+' dish'+(u===1?" isn't":"es aren't")+' costed yet — no margin read on '+(u===1?'it':'them')+' yet.'}];
+    text:u+' plate'+(u===1?" isn't":"s aren't")+' costed yet — no margin read on '+(u===1?'it':'them')+' yet.'}];
 }
 // TYPE: best performer (positive) — the standout dish comfortably UNDER target. v75 (Max, this brief): the
 // one positive line, re-added after v74's critical-only pass. Low score so it never crowds out a real
@@ -2203,10 +2203,10 @@ function selectInsights(cands, seed, max){
    dish count, the target %) is in facts, so the Gemini phrasing layer's number check still passes. */
 function healthyLine(total, tp, seed){
   var pool=[
-    'Nothing needs attention on this menu right now — all '+total+' costed dish'+(total===1?'':'es')+' sit at or under your '+tp+'% target.',
-    'This menu’s in good shape — every one of its '+total+' costed dish'+(total===1?'':'es')+' is holding at or under '+tp+'%.',
-    'All clear here — your '+total+' costed dish'+(total===1?'':'es')+' are at or under the '+tp+'% target, so nothing’s calling for a look.',
-    'A healthy menu — nothing sits over your '+tp+'% target across '+total+' costed dish'+(total===1?'':'es')+'.'
+    'Nothing needs attention on this menu right now — all '+total+' costed plate'+(total===1?'':'s')+' sit at or under your '+tp+'% target.',
+    'This menu’s in good shape — every one of its '+total+' costed plate'+(total===1?'':'s')+' is holding at or under '+tp+'%.',
+    'All clear here — your '+total+' costed plate'+(total===1?'':'s')+' are at or under the '+tp+'% target, so nothing’s calling for a look.',
+    'A healthy menu — nothing sits over your '+tp+'% target across '+total+' costed plate'+(total===1?'':'s')+'.'
   ];
   var i=((seed%pool.length)+pool.length)%pool.length;
   return {kind:'allgood', facts:{total:total, targetPct:tp}, text:pool[i]};
@@ -2628,7 +2628,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v85';
+var APP_VERSION='v86';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3128,7 +3128,7 @@ function plateCostCell(sp){ return plateIsCosted(sp)
 function renderPlatesTab(){
   var wrap=document.getElementById('plateList'); if(!wrap) return;
   if(!savedPlates.length){
-    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'No plates yet.',"Tap '+ New plate' to cost your first dish.",
+    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'No plates yet.',"Tap '+ New plate' to cost your first plate.",
       '<button class="btn primary" type="button" onclick="openBuilderNew()">+ New plate</button>');
     return;
   }
@@ -3910,6 +3910,43 @@ var niCombos={};
    open animation, long finished by interaction time, so fixed is viewport-relative). The
    `.cat-drop`'s own max-height/overflow give the internal scroll for long lists; opens upward when
    the input sits low. Reposition on scroll/resize while open; clear the inline geometry on close. */
+/* v86 ROOT CAUSE (invoice add-new form, Ingredient name field): the space calculation above
+   measured the raw VIEWPORT, so a dropdown on the LAST field of a form still saw ~340px of
+   "room below" and drew its full 300px panel — straight through the Apply row and 144px past
+   the bottom of the line's card (measured at 380px). Fixed by giving anchorDrop a BOX to stay
+   inside instead of the whole window:
+     - HARD bound  = the modal (never spill outside the surface the user is working in),
+     - SOFT bound  = the form panel the input belongs to (a dropdown may float over its OWN
+                     fields, but not over the controls that FOLLOW the form, e.g. Apply).
+   The soft bound is a preference: if neither side of the input has a usable list height
+   within it, we fall back to the hard bound rather than render a 20px sliver. */
+var DROP_MIN=140, DROP_MAX=300;
+/* The placement decision itself is PURE (no DOM) so the bug's real numbers can be pinned in a
+   unit test: r = the input's rect, soft = modal ∩ form panel, hard = modal only. Returns which
+   side to open on and how tall the list may be. */
+function dropPlace(r, soft, hard){
+  var pick=function(box){
+    var below=box.bottom-r.bottom-8, above=r.top-box.top-8;
+    var useBelow=(below>=above);
+    return {below:useBelow, room:Math.max(0, useBelow?below:above)};
+  };
+  var p=pick(soft);
+  if(p.room<DROP_MIN) p=pick(hard);                                       // form too tight both ways -> fall back to the modal bound
+  // p.room is already the best space available on the chosen side, so cap to it and nothing else:
+  // flooring at DROP_MIN here would push the list back OUTSIDE the hard bound whenever even the
+  // modal has less than DROP_MIN either way (a very short window). Staying inside wins.
+  return {below:p.below, maxHeight:Math.min(DROP_MAX, p.room)};
+}
+function dropBox(inp, soft){
+  var box={top:0, bottom:window.innerHeight};
+  var modal=inp.closest?inp.closest('.modal'):null;
+  if(modal){ var mr=modal.getBoundingClientRect(); box.top=Math.max(box.top,mr.top); box.bottom=Math.min(box.bottom,mr.bottom); }
+  if(soft){
+    var panel=inp.closest?inp.closest('.ni-panel'):null;                 // the invoice add-new form
+    if(panel){ var pr=panel.getBoundingClientRect(); box.bottom=Math.min(box.bottom,pr.bottom); }
+  }
+  return box;
+}
 function anchorDrop(drop){
   if(!drop) return;
   var wrap=drop.closest('.cat-wrap'); var inp=wrap?wrap.querySelector('input'):null;
@@ -3917,9 +3954,10 @@ function anchorDrop(drop){
   if(!inp) return;
   var r=inp.getBoundingClientRect();
   drop.style.position='fixed'; drop.style.left=r.left+'px'; drop.style.width=r.width+'px'; drop.style.right='auto';
-  var below=window.innerHeight-r.bottom-8, above=r.top-8;
-  if(below>=160 || below>=above){ drop.style.top=(r.bottom+4)+'px'; drop.style.bottom='auto'; drop.style.maxHeight=Math.min(300,Math.max(140,below))+'px'; }
-  else { drop.style.top='auto'; drop.style.bottom=(window.innerHeight-r.top+4)+'px'; drop.style.maxHeight=Math.min(300,Math.max(140,above))+'px'; }   // input low on screen -> open upward
+  var p=dropPlace(r, dropBox(inp,true), dropBox(inp,false));
+  if(p.below){ drop.style.top=(r.bottom+4)+'px'; drop.style.bottom='auto'; }
+  else { drop.style.top='auto'; drop.style.bottom=(window.innerHeight-r.top+4)+'px'; }
+  drop.style.maxHeight=p.maxHeight+'px';                                  // .cat-drop's overflow:auto scrolls a long list inside this
 }
 function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); }
 (function(){ var reflow=function(){ document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); }); };
@@ -4038,7 +4076,7 @@ function expandNewItem(i){
      +'<label class="ni-f">'+niLab('Unit type',src)+'<select id="ni_unit'+i+'"'+afA('unit',!!r.unit)+'><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
      +'<label class="ni-f">'+niLab('Price per unit ($)',src)+'<input id="ni_price'+i+'" type="number" min="0" step="0.01"'+afA('price',pv!=='')+' value="'+pv+'"></label>'
      +'<label class="ni-f">'+niLab('Pack size (optional)',src)+'<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
-     +'<label class="ni-f ni-full">'+niLab('Kitchen name (optional)',src)+'<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="what the kitchen calls it"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f ni-full">'+niLab('Ingredient name (optional)',src)+'<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="the name you\u2019ll use when building plates"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
     panel.dataset.built='1';
     var _nc=panel.querySelector('.ni-close'); if(_nc){ _nc.onclick=function(ev){ ev.preventDefault(); closeNewItem(i); }; }
@@ -4680,7 +4718,7 @@ function confirmGuardedRepoints(list){
     return '\u2022 '+rp.name+': per '+unitCatWord(g.oldCat)+' \u2192 per '+unitCatWord(g.newCat);
   }).join('\n');
   askConfirm(list.length===1?'Different unit type':(list.length+' ingredients change unit type'),
-    lines+'\n\nRecipe amounts keep their numbers but change meaning \u2014 check any recipe that uses '
+    lines+'\n\nPlate amounts keep their numbers but change meaning \u2014 check any plate that uses '
       +(list.length===1?'it':'them')+'.\n\nThe new products were still added either way.',
     'Re-link anyway',
     function(){
@@ -4699,10 +4737,10 @@ function showImportSummary(changes, added, overBefore, overAfter, kings){   // c
   if(added) bits.push(added+' new');
   // ITEM 5 (v35): kitchen-word outcomes are visible here. v34 built this string into a
   // local `parts` array that was never read — the summary has never actually shown them.
-  if(kings && kings.made) bits.push(kings.made+' kitchen word'+(kings.made===1?'':'s')+' created');
+  if(kings && kings.made) bits.push(kings.made+' ingredient'+(kings.made===1?'':'s')+' created');
   if(kings && kings.relinked) bits.push(kings.relinked+' re-linked');
   var newlyOver=overAfter-overBefore;
-  var margin = newlyOver>0 ? '<div class="ct-margin is-warn">\u26a0 '+newlyOver+' dish'+(newlyOver===1?'':'es')+' now over '+cogsPct+'% target</div>'
+  var margin = newlyOver>0 ? '<div class="ct-margin is-warn">\u26a0 '+newlyOver+' plate'+(newlyOver===1?'':'s')+' now over '+cogsPct+'% target</div>'
              : (overAfter>0 ? '<div class="ct-margin is-muted">'+overAfter+' still over '+cogsPct+'% target</div>' : '');
   var top=changes.slice().sort(function(a,b){return b.pctAbs-a.pctAbs;})[0];   // ONE biggest mover, not three
   var mover='';
@@ -4786,7 +4824,7 @@ function renderAnalysis(){
   if(!shown){                                                       // v58: routed through the shared empty-state system, wrapped in a table row
     var dishesOnMenu=MENU.filter(inMenu).length;                    // variant A only when the menu HAS dishes but the search matched none; else variant B (truly empty menu)
     var es=dishesOnMenu
-      ? emptySearchState(ICON_MENU_BIG,'menu items','clearMenuFilters')
+      ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
       : emptyStateHtml(ICON_MENU_BIG,'Nothing on this menu yet.','Publish a plate from the Plates tab to see it here.');
     html='<tr class="es-row"><td colspan="6">'+es+'</td></tr>';
   }
@@ -4836,7 +4874,7 @@ function doDeleteMenu(id, name){
   menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
   setCurrentMenuId(fallbackMenuId());
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
-  toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' dish'+(affected.length===1?'':'es')+' removed; plates kept'):''));
+  toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
 }
 // v55: single confirm. Deleting a menu removes only that menu's dishes; every plate stays in the Plates
 // library (and on any other menus it was published to). Any menu may be deleted (incl. the last).
@@ -4847,8 +4885,8 @@ function deleteCurrentMenu(){
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
   var nm=m.name;
   var msg=affected.length
-    ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' dish'+(affected.length===1?'':'es')+' come off this menu \u2014 the plates stay in your library (and on any other menus).')
-    : ('Delete \u201c'+m.name+'\u201d? It has no dishes.');
+    ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' plate'+(affected.length===1?'':'s')+' come off this menu \u2014 the plates stay in your library (and on any other menus).')
+    : ('Delete \u201c'+m.name+'\u201d? It has no plates on it.');
   askConfirm('Delete menu?', msg, 'Delete menu', function(){ doDeleteMenu(id, nm); });
 }
 function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=canDeleteMenu(currentMenuId)?'':'none'; }
@@ -4863,7 +4901,7 @@ function renderDishPicker(filter){
   var q=(filter||'').trim().toLowerCase();
   var list=eligibleDishes().filter(function(sp){ var nm=(menuNameForPlate(sp)+' '+(sp.name||'')).toLowerCase(); return !q||nm.indexOf(q)>=0; });
   list.sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
-  if(!list.length){ box.innerHTML='<div class="ad-empty">No costed dishes found. Build and save a plate first.</div>'; return; }
+  if(!list.length){ box.innerHTML='<div class="ad-empty">No costed plates found. Build and save a plate first.</div>'; return; }
   box.innerHTML=list.map(function(sp){
     var c=costFromLines(sp.lines); var on=plateMenuSummary(sp);
     var sel=(sp.id===adSelectedPlateId)?' sel':'';
@@ -4884,12 +4922,12 @@ function closeAddDishModal(){ hide('addDishModal'); }
 function submitAddDish(){
   var err=document.getElementById('ad_err');
   var sp=savedPlates.find(function(s){return s.id===adSelectedPlateId;});
-  if(!sp){ if(err){err.textContent='Pick a dish from the list first.';err.style.display='block';} return; }
+  if(!sp){ if(err){err.textContent='Pick a plate from the list first.';err.style.display='block';} return; }
   var pv=document.getElementById('ad_price').value;
   if(pv===''||isNaN(parseFloat(pv))||parseFloat(pv)<0){ if(err){err.textContent='Enter a sell price for this menu.';err.style.display='block';} return; }
   if(dishesOfPlate(sp).some(function(d){return (d.menuId||'MENU_ORIGINAL')===currentMenuId;})){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
   var id='um'+Date.now().toString(36);
-  var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Dish', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
+  var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Plate', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
   customMenu.push(item); saveCustomMenu(); dbPushMenuAfterPlate(item, sp);
   rebuildMenu(); buildMenuOptions(); renderAnalysis(); renderPlatesTab(); closeAddDishModal();
   toast('\u201c'+item.name+'\u201d added to '+menuNameById(currentMenuId));
@@ -4933,7 +4971,7 @@ function openMenuInBuilder(mid){                                      // jump fr
   var pn=document.getElementById('plateName'); if(pn) pn.value=m.name||'';
   if(typeof menuLinkEl!=='undefined' && menuLinkEl){ menuTouched=true; menuLinkEl.value=m.id; }
   hidePlateSuggest(); updateEditTag(); renderPlate(); openBuilder();
-  toast('Start costing \u201c'+(m.name||'this dish')+'\u201d \u2014 add ingredients');
+  toast('Start costing \u201c'+(m.name||'this plate')+'\u201d \u2014 add ingredients');
 }
 function removeMenuItem(id){
   var before=customMenu.length;
