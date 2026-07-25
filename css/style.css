@@ -1129,6 +1129,21 @@ input[type=checkbox]{
 .ing-price .ing-per{display:block;font-size:11px;color:var(--muted2)}
 .ing-empty{padding:24px 12px;text-align:center;color:var(--muted2)}
 
+/* v82 item 3 — live margin preview in the Add-to-menu dialog. Reuses the .dot colour key; tints per light. */
+.margin-preview{font-size:13px;color:var(--muted2);display:flex;align-items:center;flex-wrap:wrap;gap:2px 5px;
+  padding:8px 10px;border-radius:8px;background:var(--surface2);line-height:1.4}
+.margin-preview:empty{display:none}
+.margin-preview b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:700}
+.margin-preview .dot{margin-right:5px}
+.margin-preview.mp-green{background:color-mix(in srgb,var(--good) 12%,var(--surface2))}
+.margin-preview.mp-amber{background:color-mix(in srgb,var(--warn) 14%,var(--surface2))}
+.margin-preview.mp-red{background:color-mix(in srgb,var(--bad) 14%,var(--surface2))}
+
+/* v82 item 4 — builder Save pinned to a footer bar so it never hides below the fold. The modal is a flex
+   column with a scrolling .mbody and a flex:0 0 auto .mfoot, so this bar stays visible while the docket +
+   name/category scroll. One full-width primary CTA — the builder's single primary action. */
+.builder-foot .btn.primary{width:100%;min-height:52px}
+
 /* ============ Invoice intro ============ */
 .inv-intro{position:relative;background:var(--accent-weak);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px 34px 12px 14px;margin-bottom:12px}
 .inv-intro p{margin:0;font-size:13px;line-height:1.45}
@@ -1974,6 +1989,15 @@ body{overflow-x:clip}
 .opt-msg{color:var(--muted2);font-size:var(--fs-sm)}
 .opt-create{color:var(--accent-ink);font-weight:600;cursor:pointer}
 .opt-create:hover,.opt-create.hi{background:var(--hover)}
+
+/* ===== v83 item 7: builder search — the informative no-match dead end (NOT a creation path) ===== */
+/* .opt is a baseline flex ROW built for result lines; the message stacks, so it overrides to a column
+   and drops the row hover (nothing here is a result to pick — only the button is interactive). */
+.nomatch{flex-direction:column;align-items:stretch;gap:var(--sp-2);padding:14px}
+.nomatch:hover{background:transparent}
+.nomatch-lead{font-size:var(--fs-base);font-weight:600;color:var(--text)}
+.nomatch-hint{font-size:var(--fs-sm);color:var(--muted2);line-height:1.45}
+.nomatch-go{align-self:flex-start;margin-top:var(--sp-1);min-height:44px;cursor:pointer}
 
 
 /* ===== v31: pull-to-refresh indicator (Item 5, mobile only; reworked v32 Items 13-15) ===== */

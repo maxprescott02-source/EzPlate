@@ -91,6 +91,7 @@ function makeSaveHarness(opts) {
     function renderAnalysis(){}
     function renderPlatesTab(){}
     function dbPushPlate(sp){ S.calls.push('push:'+sp.id); }
+    function clearPlateDraft(){ S.calls.push('cleardraft'); }   // v82 D1: a saved plate is no longer a draft
     function logHistory(){}   // v60 item 1a: saveCurrentPlate now refreshes the dashboard on re-cost
     ${extractFn(SRC, 'saveCurrentPlate')}
     return function(){ var ok=saveCurrentPlate(false); return { ok:ok, savedPlates: savedPlates, calls:S.calls }; };

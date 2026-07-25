@@ -294,15 +294,98 @@ merge to `main` as a production deploy.
 
 ## State as of 25 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v81** — PR #22 (`feature/settings-sections`, v81) is now MERGED (`f679f16`), deployed to
-  prod. No unmerged branch in flight. NOTE: local `main` goes stale between sessions (Max merges
-  via GitHub PR) — `git fetch` and check `origin/main` first ([[verify-origin-main-before-trusting-local]]).
+- `origin/main` is at **v81** (PR #22 merged, `f679f16`). **Branch `feature/newuser-flow` (v82 + v83) is DONE and
+  green, NOT yet pushed/merged** — the new-user batch, now the SAFE subset (brief
+  `~/Downloads/ezplate-opus-newuser-safe-fixes.md`; v82's own brief `~/Downloads/ezplate-opus-newuser-friction.md`).
+  NOTE: local `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
+  first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **333 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v81**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v81** (no browser) — timing/feel can only be judged on a device; reconcile
+  `npm test` = **365 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v85**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v85** (no browser) — timing/feel can only be judged on a device; reconcile
   on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+
+- **v85 (same branch `feature/newuser-flow`) — re-entering the builder no longer bins an unfinished plate (Max
+  reviewed the draft flows). See `handovers/HANDOVER-v85.md`.** Reload flows were correct and left alone. The broken
+  one: press ×, go make an ingredient, tap **+ New plate** — no resume offer, AND `openBuilderNew`'s `plate=[]` +
+  `renderPlate()` let the (armed) `scheduleDraftSave` remove the slot 250ms later, so the plate was **unrecoverable
+  even by reloading**. `editPlateFromCard` → `loadPlate` → `loadPlateState` had the IDENTICAL defect (unreported,
+  fixed in the same pass). **Fix reuses the guard the app already had** — `requestLoadPlate`/`requestLoadMenuItem`
+  have always checked `isBuilderDirty()`; these two entries just never got it. New: `unfinishedPlateWaiting()`
+  (`isBuilderDirty()` OR a stored draft — the latter covers a dismissed boot offer), `guardUnfinishedPlate(proceed)`
+  (clean builder ⇒ proceed with **no dialog**; else the SAME Resume/Discard offer as boot — Discard clears then
+  proceeds, a stray × decides nothing), `resumeUnfinishedPlate()` (reopen in place if the work is still loaded, else
+  `resumePlateDraft`), and `readPlateDraft()` as the one shared reader. `openBuilderNew()` is now
+  `guardUnfinishedPlate(startNewPlate)` (old body → `startNewPlate`). 360→**365** (five source pins) + smoke **`[22]`**,
+  which drives Max's flow end to end AND pins the two no-nag cases (clean builder, and after a normal save — a guard
+  that nagged post-save would be worse than the bug). Six spots → **v85**.
+
+- **v84 (same branch `feature/newuser-flow`) — BUGFIX: "resuming a plate doesn't work" (Max, after v83 pushed).
+  See `handovers/HANDOVER-v84.md`.** Reproduced in jsdom, **two independent load-order causes**, both fixed.
+  **(1) The Resume callback was nulled before it could run:** `offerPlateDraftResume()` was called mid-file
+  (`js/app.js:2600`), but `var __confirmFn=null, __confirmCancelFn=null;` sits ~2300 lines lower and its
+  **initialiser executes later in the same top-level pass**, wiping what `askConfirm` had just stored — so
+  Resume (and Discard) closed the dialog and did nothing. **`offerPlateDraftResume()` is now the LAST statement
+  in `js/app.js`. RULE: anything calling `askConfirm` at load time must run after those initialisers.**
+  **(2) The boot render deleted the stored draft:** the startup empty-builder render scheduled a save that fired
+  ~250ms later, found nothing worth keeping and `removeItem(DRAFTKEY)` — while the user was reading the dialog, so
+  a SECOND reload offered nothing. v82's `_bootPlateDraft` snapshot only ever protected that one offer, not
+  localStorage. Fixed with `_draftArmed` / `armDraftSaves()`: `scheduleDraftSave` is a no-op until **`openBuilder`**
+  arms it, so only someone actually IN the builder can write a draft. A stray × keeps the draft; only Discard/save/
+  Clear remove it. 356→**360** (four source-order pins in `plate-draft.test.js` — the pure-data tests could never
+  have caught either bug; **three verified to FAIL against the pre-fix app.js**) + smoke **`[21]`**, which boots a
+  SECOND jsdom window with a draft already in localStorage (a real reload) and drives all six paths. Six spots → **v84**.
+
+- **v83 (same branch `feature/newuser-flow`) — the v82 BRIDGE removed + the safe new-user subset (brief
+  `~/Downloads/ezplate-opus-newuser-safe-fixes.md`). See `handovers/HANDOVER-v83.md`.** Client only; same zero-contact
+  list as v82. **(1) v82's product→recipe bridge is GONE and never shipped** — mis-specified. Deleted:
+  `kingForProduct`/`bridgeKingName`/`bridgeCreateKing`/`useProductInRecipes`/`bridgeHtml`/`fillIngBridge`, the
+  `toastAction` snackbar (bridge was its only caller), the `.prod-card`/`.prod-bridge`/`.prod-userecipes`/
+  `.prod-inrecipes`/`.ig-bridge-row` + `.snackbar` CSS, the `#ig_bridge` row, and `tests/bridge.test.js`.
+  `renderIngredients` is back to a plain `.ing-card` per product. **Rule going forward: NO create-kitchen-word
+  affordance on product cards, and "recipes" is NOT a UI noun** (the nouns are Products, Ingredients, Plates, Menu);
+  smoke `[20]` holds negative pins so it can't return by accident. `proposeKingName`/`kingNameExists` survive (older
+  callers). KEPT from v82: `submitNew` still calls `renderIngredients()` (`rebuild()` updates data, not the DOM);
+  create toast back to "… added". **(2) Items 1–6 of the brief were already correctly implemented in v82** —
+  re-verified against their locking tests, not re-done (draft, live margin via `analyze()`, sticky Save,
+  `newProductRecord` pack fix, the checkbox label that never reproduced, the "Add to a menu" wording).
+  **(3) Item 7 — the builder search dead end** (the only new build): pure `builderNoMatchHtml(term,hasLines)` names the
+  searched term + reassures, and — **only when the plate has lines** — offers ONE action, `saveAndAddIngredients()`,
+  routed through `saveCurrentPlate(false)` so a nameless plate / missing qty is **refused and stays put** rather than
+  navigating away from unsaved work; on success it closes the builder and lands on `showTab('pantry')`. **No creation
+  path was added — v59's removal stands** (the fuzzy matcher can't match abbreviations, so "no match" can't safely
+  gate creation; it produced duplicates). 348→**356** (`builder-nomatch.test.js` +8; smoke `[20]` rewritten).
+  Six spots → **v83**. **FLAGGED, NOT BUILT — the one real data-loss gap left:** `+ New plate` (`openBuilderNew`)
+  silently wipes an unsaved in-progress plate AND its draft (via `renderPlate`→`scheduleDraftSave` on an empty plate),
+  and a closed builder's plate is otherwise unreachable — so the v82 draft only covers the RELOAD path. Needs its own
+  brief. Also flagged: three pre-existing "recipes" strings on `main` (`index.html:161`, `index.html:524`, the
+  ingredient-wizard done-state) left unchanged as out of scope.
+
+- **v82 (branch `feature/newuser-flow`) — new-user friction (brief `~/Downloads/ezplate-opus-newuser-friction.md`).
+  See `handovers/HANDOVER-v82.md`.** Client only (HTML+CSS+JS+tests); zero contact with the protected region,
+  money law, naming inversion (ingredient is still `{id,name,pid}`), data model, invoice review/`invRowState`/
+  auto-tick, the insight engine, or `api/*.js`. (1) **The product→recipe BRIDGE** — the #1 stall: products
+  couldn't reach a plate and nothing pointed to "make a kitchen word". Three pure helpers (`kingForProduct` /
+  clash-safe `bridgeKingName` / **idempotent** `bridgeCreateKing`, all through `nextKid`→push→
+  `saveKitchenIngredients`) + surfaces: the product card is now a **`.prod-card`** wrapper around the UNCHANGED
+  `.ing-card` button plus a `.prod-bridge` strip (unlinked → one-tap "Use in recipes"; linked → "✓ In recipes ·
+  {word}" chip), a create-moment **action snackbar** (`toastAction`, separate from the text-only `toast`), and a
+  matching `#ig_bridge` row in the edit modal. `.ing-card` base CSS untouched (plate cards share it). (2) **D1 plate
+  DRAFT** — the live builder persists to one localStorage slot `cafeDB_plateDraft` (debounced via
+  `scheduleDraftSave` off `renderPlate`/`updateTotals`/name/cat), boot snapshot `_bootPlateDraft` +
+  `offerPlateDraftResume` offers Resume/Discard (`askConfirm` gained optional `cancelLabel`/`cancelFn`), cleared on
+  save/Clear, tolerates a missing-ingredient ref. (3) **Live margin preview** in the Add-to-menu dialog (`#mi_preview`
+  / `menuMarginPreview` **reuses `analyze()`** so it can't disagree with the Menu row). (4) **Sticky Save** — moved
+  into a pinned `.mfoot .builder-foot` (id `#saveBtn` unchanged). (5) **D2 pack size on create ROOT CAUSE:**
+  `submitNew` stored `pack_size_raw` but not the structured `pack_qty`/`pack_unit` the edit form reads — now built by
+  pure `newProductRecord()`. **D3:** the "Food item" checkbox is ALREADY correctly wrapped in its `<label>`
+  (jsdom-verified: `labels.length===1`) — reported "on" does not reproduce, no change; regression test added.
+  **Wording:** plate-card "Manage menus" → **"Add to a menu"**. 333→**354** (bridge/plate-draft/menu-margin/
+  create-pack/a11y-fooditem tests; smoke `[20]`). CodeRabbit: 2 minor, both fixed (`pack_size_raw` NaN string; a
+  visual-spec comment). Six spots → **v82**. **Needs Max's phone:** the whole flow (product → bridge → plate without
+  visiting Ingredients; build → reload → resume draft; price watching live margin; pack round-trip; both themes,
+  380px) + visual-spec baselines regenerated on a browser (new bridge strip / sticky Save / margin line).
 
 - **v81 (branch `feature/settings-sections`) — Settings: proper sectioned surface + two AI toggles + theme
   preference (brief `~/Downloads/ezplate-opus-settings-sections.md`). See `handovers/HANDOVER-v81.md`.** Client only
