@@ -301,10 +301,26 @@ merge to `main` as a production deploy.
   first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **356 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v83**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v83** (no browser) — timing/feel can only be judged on a device; reconcile
+  `npm test` = **360 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v84**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v84** (no browser) — timing/feel can only be judged on a device; reconcile
   on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+
+- **v84 (same branch `feature/newuser-flow`) — BUGFIX: "resuming a plate doesn't work" (Max, after v83 pushed).
+  See `handovers/HANDOVER-v84.md`.** Reproduced in jsdom, **two independent load-order causes**, both fixed.
+  **(1) The Resume callback was nulled before it could run:** `offerPlateDraftResume()` was called mid-file
+  (`js/app.js:2600`), but `var __confirmFn=null, __confirmCancelFn=null;` sits ~2300 lines lower and its
+  **initialiser executes later in the same top-level pass**, wiping what `askConfirm` had just stored — so
+  Resume (and Discard) closed the dialog and did nothing. **`offerPlateDraftResume()` is now the LAST statement
+  in `js/app.js`. RULE: anything calling `askConfirm` at load time must run after those initialisers.**
+  **(2) The boot render deleted the stored draft:** the startup empty-builder render scheduled a save that fired
+  ~250ms later, found nothing worth keeping and `removeItem(DRAFTKEY)` — while the user was reading the dialog, so
+  a SECOND reload offered nothing. v82's `_bootPlateDraft` snapshot only ever protected that one offer, not
+  localStorage. Fixed with `_draftArmed` / `armDraftSaves()`: `scheduleDraftSave` is a no-op until **`openBuilder`**
+  arms it, so only someone actually IN the builder can write a draft. A stray × keeps the draft; only Discard/save/
+  Clear remove it. 356→**360** (four source-order pins in `plate-draft.test.js` — the pure-data tests could never
+  have caught either bug; **three verified to FAIL against the pre-fix app.js**) + smoke **`[21]`**, which boots a
+  SECOND jsdom window with a draft already in localStorage (a real reload) and drives all six paths. Six spots → **v84**.
 
 - **v83 (same branch `feature/newuser-flow`) — the v82 BRIDGE removed + the safe new-user subset (brief
   `~/Downloads/ezplate-opus-newuser-safe-fixes.md`). See `handovers/HANDOVER-v83.md`.** Client only; same zero-contact

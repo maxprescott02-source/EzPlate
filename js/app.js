@@ -714,7 +714,15 @@ function savePlateDraft(){
   }catch(e){}
 }
 var _draftT=null;
-function scheduleDraftSave(){ clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }   // debounced: builder mutations funnel through renderPlate/updateTotals
+/* v84 BUGFIX — the second half of "resuming doesn't work". The boot pass renders an EMPTY builder
+   (restoreLastTab → renderPlate), which scheduled a save that fired ~250ms later, found nothing worth
+   keeping and REMOVED the stored draft — while the user was still reading the resume dialog. The v82
+   boot snapshot only protected that one offer; a second reload found localStorage already empty.
+   A draft may only be written by someone actually IN the builder, so saves stay disarmed until the
+   builder is opened (openBuilder). Boot renders happen with the modal closed and now touch nothing. */
+var _draftArmed=false;
+function armDraftSaves(){ _draftArmed=true; }
+function scheduleDraftSave(){ if(!_draftArmed) return; clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }   // debounced: builder mutations funnel through renderPlate/updateTotals
 function clearPlateDraft(){ clearTimeout(_draftT); try{ localStorage.removeItem(DRAFTKEY); }catch(e){} }
 function resumePlateDraft(d){
   plate=(Array.isArray(d.lines)?d.lines:[]).map(function(l){ return Object.assign({}, l, {uid:uidc++}); });   // fresh uids, never trust stored ones
@@ -2597,7 +2605,12 @@ function renderDashboard(){
 })();
 
 restoreLastTab();                                          // safe now: all module data (priceHistory, savedPlates, MENU) is initialised
-offerPlateDraftResume();                                   // v82 D1: an unfinished plate from a previous session — resume or discard
+// v84 BUGFIX: offerPlateDraftResume() used to be called HERE and the Resume button did nothing.
+// askConfirm stores its callbacks in __confirmFn/__confirmCancelFn — but `var __confirmFn=null,
+// __confirmCancelFn=null;` lives ~2300 lines further down and its INITIALISER runs later in this same
+// top-level pass, so it overwrote what askConfirm had just stored. By the time the user could tap
+// Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
+// of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -2614,7 +2627,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v83';
+var APP_VERSION='v84';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3139,7 +3152,8 @@ function renderPlatesTab(){
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
 }
 /* ---- builder popup ---- */
-function openBuilder(){ var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal');
+function openBuilder(){ armDraftSaves();                              // v84: the user is now IN the builder — draft saves are live from here (see armDraftSaves)
+  var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal');
   // v61 item 2: every open (New AND Edit) starts at the top — the scroller (and the full-screen overlay at mobile widths) can otherwise retain the previous session's position
   var bm=document.getElementById('builderModal'); if(bm){ bm.scrollTop=0; var mb=bm.querySelector('.mbody'); if(mb) mb.scrollTop=0; }
 }
@@ -5318,3 +5332,8 @@ function chooseCat(name,isNew){
     t.blur();
   });
 })();
+
+/* v84 — LAST statement in this file, deliberately. See the BUGFIX note at restoreLastTab():
+   askConfirm stores its callbacks in module vars whose `= null` initialisers run near the end of
+   this top-level pass, so a load-time askConfirm caller must run after ALL of them. */
+offerPlateDraftResume();                                   // v82 D1: an unfinished plate from a previous session — resume or discard

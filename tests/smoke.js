@@ -683,6 +683,72 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[20] …and the plate was SAVED to the library, not lost', !!savedCard,
      [...window.document.querySelectorAll('#plateList .ing-card')].map(c => c.textContent).join(' | '));
 
+  // ---------------------------------------------------------------------------
+  // [21] v83 — "resuming a plate doesn't work" (Max). This needs a FRESH boot with a
+  // draft already in localStorage, i.e. a reload, so it gets its own window. Both
+  // causes were load-order bugs that only appear when app.js runs top to bottom.
+  // ---------------------------------------------------------------------------
+  console.log('\n[21] v83 — an unfinished plate survives a reload and actually resumes');
+  const bootWithDraft = (draft) => {
+    const d2 = new JSDOM(html, { url: 'https://example.com/', pretendToBeVisual: true, runScripts: 'outside-only' });
+    const w = d2.window;
+    w.matchMedia = w.matchMedia || (() => ({ matches: false, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){} }));
+    w.scrollTo = () => {};
+    w.requestAnimationFrame = cb => setTimeout(cb, 0);
+    Object.defineProperty(w.navigator, 'onLine', { value: true, configurable: true });
+    w.URL.createObjectURL = () => 'blob:stub';
+    w.URL.revokeObjectURL = () => {};
+    if (draft) w.localStorage.setItem('cafeDB_plateDraft', JSON.stringify(draft));
+    w.eval(appJs);
+    return w;
+  };
+  const DRAFT = { lines: [{ uid: 1, kid: 'K1', qty: 3 }], name: 'Half-built Plate', cat: 'Breakfast', loadedPlateId: null, ts: Date.now() };
+  const settle = () => new Promise(r => setTimeout(r, 400));   // longer than the 250ms draft debounce
+
+  let w2 = bootWithDraft(DRAFT);
+  ok('[21] a stored draft is offered on boot', w2.document.getElementById('confirmModal').classList.contains('open'));
+  ok('[21] the offer names the plate and both choices',
+     /Half-built Plate/.test(w2.document.getElementById('confirmMsg').textContent) &&
+     w2.document.getElementById('confirmOk').textContent === 'Resume' &&
+     w2.document.getElementById('confirmCancel').textContent === 'Discard');
+  w2.document.getElementById('confirmOk').click();             // THE reported bug: this used to do nothing
+  ok('[21] Resume opens the builder', w2.document.getElementById('builderModal').classList.contains('open'));
+  ok('[21] Resume restores name, category and lines',
+     w2.document.getElementById('plateName').value === 'Half-built Plate' &&
+     w2.document.getElementById('plateCat').value === 'Breakfast' &&
+     w2.document.querySelectorAll('#lines .line').length === 1,
+     w2.document.getElementById('plateName').value + ' / ' + w2.document.getElementById('plateCat').value);
+  w2.document.getElementById('plateName').value = 'Renamed After Resume';
+  w2.document.getElementById('plateName').dispatchEvent(new w2.Event('input'));
+  await settle();
+  const reSaved = JSON.parse(w2.localStorage.getItem('cafeDB_plateDraft') || 'null');
+  ok('[21] edits made after resuming persist again', !!reSaved && reSaved.name === 'Renamed After Resume',
+     reSaved && reSaved.name);
+
+  w2 = bootWithDraft(DRAFT);                                   // second cause: the boot render used to wipe the slot
+  await settle();
+  ok('[21] an untouched boot does NOT wipe the stored draft (a 2nd reload still offers it)',
+     !!w2.localStorage.getItem('cafeDB_plateDraft'));
+
+  w2 = bootWithDraft(DRAFT);
+  w2.document.getElementById('confirmCancel').click();
+  await settle();
+  ok('[21] Discard really discards', !w2.localStorage.getItem('cafeDB_plateDraft'));
+
+  w2 = bootWithDraft(DRAFT);
+  w2.document.getElementById('confirmClose').click();          // a stray × must not throw the plate away
+  await settle();
+  ok('[21] dismissing the dialog KEEPS the draft', !!w2.localStorage.getItem('cafeDB_plateDraft'));
+
+  w2 = bootWithDraft({ lines: [{ uid: 1, kid: 'K_GONE', qty: 2 }], name: 'Ghost Plate', cat: '', loadedPlateId: null, ts: Date.now() });
+  w2.document.getElementById('confirmOk').click();
+  ok('[21] a draft naming a deleted ingredient still resumes (degrades, never crashes)',
+     w2.document.getElementById('builderModal').classList.contains('open') &&
+     w2.document.getElementById('plateName').value === 'Ghost Plate');
+
+  w2 = bootWithDraft(null);
+  ok('[21] a clean boot offers nothing', !w2.document.getElementById('confirmModal').classList.contains('open'));
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();

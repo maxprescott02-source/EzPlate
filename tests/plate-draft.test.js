@@ -97,3 +97,52 @@ test('a draft referencing a since-deleted ingredient still round-trips (graceful
   assert.equal(saved.lines[0].kid, 'K_GONE', 'the orphaned line survives serialization — restore never crashes on it');
   assert.equal(saved.name, 'Ghost plate');
 });
+
+/* ---------------------------------------------------------------------------
+ * v83: "resuming a plate doesn't work" (Max, reported after v82 shipped the draft).
+ * REPRODUCED in jsdom, TWO independent causes — both invisible to the pure tests
+ * above, because both are load-order/wiring bugs rather than data bugs:
+ *
+ *   1. offerPlateDraftResume() ran mid-file, so askConfirm stored its callbacks in
+ *      __confirmFn/__confirmCancelFn — and then `var __confirmFn=null,
+ *      __confirmCancelFn=null;`, ~2300 lines further down, executed later in the
+ *      SAME top-level pass and nulled them. Tapping Resume closed the dialog and
+ *      did nothing. Fix: the call is now the last statement in app.js.
+ *   2. The boot pass renders an EMPTY builder, which scheduled a draft save that
+ *      fired ~250ms later, found nothing worth keeping and REMOVED the stored
+ *      draft — while the user was still reading the dialog. So a second reload
+ *      offered nothing at all. Fix: draft saves stay disarmed until openBuilder.
+ *
+ * These pin the ORDER and the GATE at the source, which is where the bugs lived.
+ * ------------------------------------------------------------------------- */
+test('v83 regression 1: the load-time resume offer runs AFTER the confirm-callback initialiser', () => {
+  const initialiser = SRC.indexOf('var __confirmFn=null');
+  assert.ok(initialiser > 0, 'the confirm-callback module vars still exist');
+  const calls = [...SRC.matchAll(/^offerPlateDraftResume\(\);/gm)].map(m => m.index);
+  assert.strictEqual(calls.length, 1, 'exactly one load-time call to offerPlateDraftResume');
+  assert.ok(calls[0] > initialiser,
+    'offerPlateDraftResume() must run after `var __confirmFn=null` executes, or the Resume callback is nulled before the user can tap it');
+});
+
+test('v83 regression 1b: nothing re-initialises the confirm callbacks after that call', () => {
+  const call = SRC.indexOf('\nofferPlateDraftResume();');
+  assert.ok(!/var __confirmFn\s*=/.test(SRC.slice(call)),
+    'a later `var __confirmFn=…` would resurrect the exact bug — keep the offer last');
+});
+
+test('v83 regression 2: draft saves are disarmed until the builder is actually open', () => {
+  const sched = extractFn(SRC, 'scheduleDraftSave');
+  assert.match(sched, /if\(!_draftArmed\) return;/,
+    'a boot-time render must not be able to schedule a save that wipes the stored draft');
+  const open = extractFn(SRC, 'openBuilder');
+  assert.match(open, /armDraftSaves\(\)/,
+    'opening the builder is what arms draft saves — that is the only time a draft should be written');
+  assert.match(extractFn(SRC, 'armDraftSaves'), /_draftArmed=true/);
+});
+
+test('v83 regression 2b: only clearPlateDraft removes the slot on an explicit user decision', () => {
+  // save/Clear/Discard clear it deliberately; nothing else may.
+  const removals = [...SRC.matchAll(/removeItem\(DRAFTKEY\)/g)].length;
+  assert.strictEqual(removals, 2,
+    'exactly two removal sites: savePlateDraft (empty builder, now only reachable while armed) and clearPlateDraft');
+});
