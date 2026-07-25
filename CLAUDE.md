@@ -294,9 +294,11 @@ merge to `main` as a production deploy.
 
 ## State as of 25 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v81** (PR #22 merged, `f679f16`). **Branch `feature/newuser-flow` (v82 + v83) is DONE and
-  green, NOT yet pushed/merged** — the new-user batch, now the SAFE subset (brief
-  `~/Downloads/ezplate-opus-newuser-safe-fixes.md`; v82's own brief `~/Downloads/ezplate-opus-newuser-friction.md`).
+- `origin/main` is at **v85** — **PR #23 merged 25 Jul 2026 (`877afd3`)**, carrying v82→v85 (the new-user batch as
+  the SAFE subset; briefs `~/Downloads/ezplate-opus-newuser-safe-fixes.md` and, for v82,
+  `~/Downloads/ezplate-opus-newuser-friction.md`). **v82's product→recipe bridge was removed in v83 and never
+  shipped.** **NOT yet verified on a device** — every `handovers/HANDOVER-v82..v85.md` "needs Max's phone" list is
+  still outstanding, and the visual-spec baselines still need regenerating.
   NOTE: local `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
   first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
