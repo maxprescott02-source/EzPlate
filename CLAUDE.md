@@ -294,16 +294,42 @@ merge to `main` as a production deploy.
 
 ## State as of 25 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v81** (PR #22 merged, `f679f16`). **Branch `feature/newuser-flow` (v82) is DONE and
-  green, NOT yet pushed/merged** — new-user friction batch (brief `~/Downloads/ezplate-opus-newuser-friction.md`).
+- `origin/main` is at **v81** (PR #22 merged, `f679f16`). **Branch `feature/newuser-flow` (v82 + v83) is DONE and
+  green, NOT yet pushed/merged** — the new-user batch, now the SAFE subset (brief
+  `~/Downloads/ezplate-opus-newuser-safe-fixes.md`; v82's own brief `~/Downloads/ezplate-opus-newuser-friction.md`).
   NOTE: local `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
   first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **354 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v82**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v82** (no browser) — timing/feel can only be judged on a device; reconcile
+  `npm test` = **356 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v83**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  **fresh-states.spec.js NOT re-run for v72–v83** (no browser) — timing/feel can only be judged on a device; reconcile
   on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+
+- **v83 (same branch `feature/newuser-flow`) — the v82 BRIDGE removed + the safe new-user subset (brief
+  `~/Downloads/ezplate-opus-newuser-safe-fixes.md`). See `handovers/HANDOVER-v83.md`.** Client only; same zero-contact
+  list as v82. **(1) v82's product→recipe bridge is GONE and never shipped** — mis-specified. Deleted:
+  `kingForProduct`/`bridgeKingName`/`bridgeCreateKing`/`useProductInRecipes`/`bridgeHtml`/`fillIngBridge`, the
+  `toastAction` snackbar (bridge was its only caller), the `.prod-card`/`.prod-bridge`/`.prod-userecipes`/
+  `.prod-inrecipes`/`.ig-bridge-row` + `.snackbar` CSS, the `#ig_bridge` row, and `tests/bridge.test.js`.
+  `renderIngredients` is back to a plain `.ing-card` per product. **Rule going forward: NO create-kitchen-word
+  affordance on product cards, and "recipes" is NOT a UI noun** (the nouns are Products, Ingredients, Plates, Menu);
+  smoke `[20]` holds negative pins so it can't return by accident. `proposeKingName`/`kingNameExists` survive (older
+  callers). KEPT from v82: `submitNew` still calls `renderIngredients()` (`rebuild()` updates data, not the DOM);
+  create toast back to "… added". **(2) Items 1–6 of the brief were already correctly implemented in v82** —
+  re-verified against their locking tests, not re-done (draft, live margin via `analyze()`, sticky Save,
+  `newProductRecord` pack fix, the checkbox label that never reproduced, the "Add to a menu" wording).
+  **(3) Item 7 — the builder search dead end** (the only new build): pure `builderNoMatchHtml(term,hasLines)` names the
+  searched term + reassures, and — **only when the plate has lines** — offers ONE action, `saveAndAddIngredients()`,
+  routed through `saveCurrentPlate(false)` so a nameless plate / missing qty is **refused and stays put** rather than
+  navigating away from unsaved work; on success it closes the builder and lands on `showTab('pantry')`. **No creation
+  path was added — v59's removal stands** (the fuzzy matcher can't match abbreviations, so "no match" can't safely
+  gate creation; it produced duplicates). 348→**356** (`builder-nomatch.test.js` +8; smoke `[20]` rewritten).
+  Six spots → **v83**. **FLAGGED, NOT BUILT — the one real data-loss gap left:** `+ New plate` (`openBuilderNew`)
+  silently wipes an unsaved in-progress plate AND its draft (via `renderPlate`→`scheduleDraftSave` on an empty plate),
+  and a closed builder's plate is otherwise unreachable — so the v82 draft only covers the RELOAD path. Needs its own
+  brief. Also flagged: three pre-existing "recipes" strings on `main` (`index.html:161`, `index.html:524`, the
+  ingredient-wizard done-state) left unchanged as out of scope.
 
 - **v82 (branch `feature/newuser-flow`) — new-user friction (brief `~/Downloads/ezplate-opus-newuser-friction.md`).
   See `handovers/HANDOVER-v82.md`.** Client only (HTML+CSS+JS+tests); zero contact with the protected region,

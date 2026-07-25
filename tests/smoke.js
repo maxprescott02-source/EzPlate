@@ -618,26 +618,19 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v73 late: a user-EDITED field is NEVER overwritten by the late AI value', $('ni_name0').value === 'My Muffins', $('ni_name0').value);
   ok('v73 late: an UNtouched field upgrades to the AI value', $('ni_brand0').value === 'Tip Top', $('ni_brand0').value);
 
-  console.log('\n[20] v82 — new-user friction (bridge · margin preview · draft · sticky Save)');
+  console.log('\n[20] v83 — new-user friction (margin preview · draft · sticky Save · no product-card creation path)');
   window.showTab('ingredients');
   $('ingSearch').value = ''; if ($('ingCatFilter')) $('ingCatFilter').value = ''; if ($('ingSupFilter')) $('ingSupFilter').value = '';
   window.renderIngredients();
-  ok('[20] a product card wraps in .prod-card with a bridge strip', !!window.document.querySelector('#ingList .prod-card .prod-bridge'));
-  const useBtn = window.document.querySelector('#ingList .prod-userecipes');
-  ok('[20] an unlinked product offers "Use in recipes"', !!useBtn && /Use in recipes/.test(useBtn.textContent));
-  const bpid = useBtn.getAttribute('data-bridge');
-  ok('[20] that product has no kitchen word yet', !window.kingForProduct(bpid));
-  useBtn.click();                                                   // THE bridge: one tap creates the linked kitchen word
-  ok('[20] one tap links the product (idempotent create)', !!window.kingForProduct(bpid));
-  const linkedName = window.kingForProduct(bpid).name;
-  window.useProductInRecipes(bpid);                                 // use it again
-  ok('[20] repeat use makes NO duplicate (one word for the product)',
-     window.kitchenIngredients.filter(k => k.pid === bpid).length === 1 && window.kingForProduct(bpid).name === linkedName);
-  window.renderIngredients();
-  const stillBtn = !!window.document.querySelector('#ingList .prod-userecipes[data-bridge="' + bpid + '"]');
-  const anyChip = !!window.document.querySelector('#ingList .prod-inrecipes');
-  ok('[20] the card now shows the linked-state chip, not the action', !stillBtn && anyChip,
-     'stillBtn=' + stillBtn + ' anyChip=' + anyChip + ' pid=' + bpid);
+  // v83: the v82 product-card "bridge" was REMOVED (mis-specified — a create-kitchen-word affordance does
+  // not belong on the product card, and "recipes" is not one of the app's nouns). Pinned so it can't return
+  // by accident: a product card is the plain .ing-card button, nothing else.
+  const pcard = window.document.querySelector('#ingList .ing-card');
+  ok('[20] a product card is a plain .ing-card button (no wrapper, no strip)',
+     !!pcard && pcard.parentElement.id === 'ingList');
+  ok('[20] NO create-ingredient affordance on any product card',
+     !window.document.querySelector('#ingList .prod-card, #ingList .prod-bridge, #ingList .prod-userecipes, #ingList .prod-inrecipes'));
+  ok('[20] no "recipes" wording in the product list', !/recipes/i.test($('ingList').textContent), $('ingList').textContent.slice(0, 120));
 
   ok('[20] the Add-to-menu dialog has a live margin preview slot', !!$('mi_preview'));
   ok('[20] menuMarginPreview reuses analyze (same light — cannot disagree with the Menu row)',
@@ -649,6 +642,46 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 
   ok('[20] Save is pinned in a builder footer (reachable without scrolling)',
      !!window.document.querySelector('#builderModal .builder-foot #saveBtn'));
+
+  // v83 item 7 — the builder search dead end, wired end to end.
+  window.openBuilderNew();
+  $('q').value = 'dressing';
+  $('q').dispatchEvent(new window.Event('input'));
+  ok('[20] a no-match search opens an informative message naming the term',
+     $('drop').classList.contains('open') && /No ingredient called .dressing. yet/.test($('drop').textContent),
+     $('drop').textContent);
+  ok('[20] no creation affordance in the builder search (v59 removal holds)',
+     !window.document.querySelector('#drop .opt-create, #drop [data-create]'));
+  ok('[20] an EMPTY plate offers no action (nothing to lose)', !window.document.querySelector('#drop .nomatch-go'));
+
+  // now there IS work worth preserving. (addKitchenLine clears the search box, so re-type the term —
+  // in the real flow the user has lines first and types the missing ingredient second.)
+  window.addKitchenLine(window.kitchenIngredients[0].id);
+  const retype = () => { $('q').value = 'dressing'; $('q').dispatchEvent(new window.Event('input')); };
+  retype();
+  const goBtn = window.document.querySelector('#drop .nomatch-go');
+  ok('[20] with lines on the plate, ONE action appears', !!goBtn && /Save plate/.test(goBtn.textContent));
+  ok('[20] the message reassures the plate is kept', /waiting in Plates/.test($('drop').textContent));
+  ok('[20] still exactly ONE action (no forms, no inline creation)',
+     window.document.querySelectorAll('#drop button').length === 1);
+
+  goBtn.click();                                                 // unnamed plate: the save must be REFUSED, not navigated past
+  ok('[20] a nameless plate is refused and the builder stays open (work not abandoned)',
+     $('builderModal').classList.contains('open') && $('plateNameErr').style.display === 'block');
+
+  $('plateName').value = 'Chef Salad';
+  // v60: save needs a real quantity on every line. jsdom runs 'outside-only', so the qty box's inline
+  // oninput never fires — call the wired handler with the line's own (numeric) uid, as the markup does.
+  window.setQty(Number(window.document.querySelector('#lines .line').getAttribute('data-uid')), 2);
+  retype();
+  window.document.querySelector('#drop .nomatch-go').click();
+  ok('[20] …the builder closes and lands on the Ingredients tab',
+     !$('builderModal').classList.contains('open') && $('tab-pantry').style.display !== 'none');
+  window.showTab('builder');
+  const savedCard = [...window.document.querySelectorAll('#plateList .ing-card')]
+    .find(c => /Chef Salad/.test(c.textContent));
+  ok('[20] …and the plate was SAVED to the library, not lost', !!savedCard,
+     [...window.document.querySelectorAll('#plateList .ing-card')].map(c => c.textContent).join(' | '));
 
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);

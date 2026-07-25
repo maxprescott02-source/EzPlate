@@ -87,14 +87,19 @@ function makeDropHarness() {
   // eslint-disable-next-line no-new-func
   const factory = new Function(`
     "use strict";
-    function fakeEl(){ var cls=new Set(); return { classList:{add:function(c){cls.add(c);},remove:function(c){cls.delete(c);},contains:function(c){return cls.has(c);}}, style:{}, innerHTML:'' }; }
+    // v83: renderDrop now also sets a role on #drop (listbox for results, group for the message that
+    // carries the no-match action) and wires that action, so the stub grew setAttribute/querySelector.
+    function fakeEl(){ var cls=new Set(), attrs={}; return { classList:{add:function(c){cls.add(c);},remove:function(c){cls.delete(c);},contains:function(c){return cls.has(c);}}, style:{}, innerHTML:'', setAttribute:function(k,v){attrs[k]=v;}, getAttribute:function(k){return attrs[k];}, querySelector:function(){return null;} }; }
     var dropEl=fakeEl();
     var qEl={ value:'', setAttribute:function(){} };
     var curList=[], hiIdx=-1;
+    var plate=[];
     var byId={P1:{description:'Chips'}};
     function esc(s){return s;}
     function hl(s){return s;}
     function unitCostStr(){return '$1';}
+    function builderNoMatchHtml(){ return '<div class="opt opt-msg"></div>'; }
+    function saveAndAddIngredients(){}
     function kitchenSearchMatches(q){ return q ? [{__kid:true,id:'K1',name:'Chips',pid:'P1'}] : []; }
     ${extractFn(SRC, 'renderDrop')}
     ${extractFn(SRC, 'closeDrop')}

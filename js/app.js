@@ -275,13 +275,14 @@ function renderDrop(){
   if(dropEl.style.display) dropEl.style.display='';                   // v61 item 7: never let an inline display override .drop.open — visibility is class-driven only
   curList=kitchenSearchMatches(q); hiIdx=-1;                          // BUILDER IS INGREDIENTS-ONLY: recipes are built from kitchen words, never raw supplier products
   if(!curList.length){
-    const qt=(q||'').trim();
-    // v59: the builder never creates ingredients \u2014 they're made on the Ingredients tab only.
-    dropEl.innerHTML=qt
-      ? '<div class="opt opt-msg" style="cursor:default">No ingredient called \u201c'+esc(qt)+'\u201d \u2014 add it on the Ingredients tab first.</div>'
-      : '<div class="opt opt-msg" style="cursor:default">Type to find an ingredient, or add one on the Ingredients tab.</div>';
-    dropEl.classList.add('open');return;
+    // v83 item 7: the message holds a real BUTTON, and a listbox may only contain options — swap the
+    // role while there are no results (restored below), so the action is exposed as an action.
+    dropEl.setAttribute('role','group');
+    dropEl.innerHTML=builderNoMatchHtml(q, plate.length>0);
+    var go=dropEl.querySelector('.nomatch-go'); if(go) go.onclick=saveAndAddIngredients;
+    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); return;
   }
+  dropEl.setAttribute('role','listbox');
   dropEl.innerHTML=curList.map((it,i)=>{
     const p=byId[it.pid];
     return `<div class="opt king-opt" role="option" data-i="${i}" data-kid="${esc(it.id)}">
@@ -289,6 +290,32 @@ function renderDrop(){
        <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
   }).join('');
   dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true');
+}
+/* v83 item 7 — the builder's no-match state is an informative DEAD END, never a creation path.
+   Creating an ingredient from here was deliberately removed in v59 and STAYS removed: the fuzzy matcher
+   can't match abbreviations ("bread gf" does not find "Gluten Free Bread"), so "no match" is not a
+   reliable enough signal to safely offer creation — it produced duplicate ingredients. What was missing
+   was not a creation path but a way OUT that doesn't cost the user their plate: name what they searched,
+   say where the ingredient is made, and — only when there are lines worth losing — offer ONE action that
+   SAVES the plate and goes there. Pure, so both the copy and the ABSENCE of a creation affordance are
+   testable. */
+function builderNoMatchHtml(term, hasLines){
+  var qt=(term||'').trim();
+  if(!qt) return '<div class="opt opt-msg" style="cursor:default">Type to find an ingredient, or add one on the Ingredients tab.</div>';
+  return '<div class="opt opt-msg nomatch" style="cursor:default">'
+    +'<span class="nomatch-lead">No ingredient called “'+esc(qt)+'” yet.</span>'
+    +(hasLines
+      ? '<span class="nomatch-hint">Add it on the Ingredients tab — save your plate first and it’ll be waiting in Plates.</span>'
+        +'<button class="btn nomatch-go" type="button">Save plate &amp; add ingredients</button>'
+      : '<span class="nomatch-hint">Add it on the Ingredients tab, then come back.</span>')
+    +'</div>';
+}
+/* The one action: save, then land on Ingredients. Routed through saveCurrentPlate so it obeys the SAME
+   rules as the Save button — if the plate has no name or a line has no quantity the save is refused and
+   we stay put with that error shown and focused, rather than navigating away from an unsaved plate. */
+function saveAndAddIngredients(){
+  if(!saveCurrentPlate(false)) return;
+  closeDrop(); closeBuilder(); showTab('pantry');
 }
 function closeDrop(){dropEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');hiIdx=-1;}
 qEl.addEventListener('input',renderDrop);
@@ -527,26 +554,9 @@ function submitNew(){
     packPrice:document.getElementById('f_price').value});
   setOverride(id,prod);
   closeModal();clearForm();
-  if(typeof renderIngredients==='function') renderIngredients();       // v82: show the new product (and its bridge) immediately
-  // v82 bridge: catch the user at the create moment with a one-tap path into recipes, without
-  // interrupting bulk entry (an action snackbar, not a confirm dialog).
-  toastAction(desc+' saved', 'Use in recipes', function(){ useProductInRecipes(id); });
+  if(typeof renderIngredients==='function') renderIngredients();       // v83: the list repaints so the product you just made is visible (rebuild() updates data only, not the DOM)
+  toast(desc+' added');
   qEl.focus();
-}
-/* v82 — an action snackbar: a message with ONE tappable action, held longer than a plain toast and
-   dismissed on tap or timeout. Separate from toast() (which is a text-only role=status live region —
-   an actionable control doesn't belong in it). */
-var snackT=null;
-function toastAction(msg, label, fn){
-  var el=document.getElementById('snackbar');
-  if(!el){ el=document.createElement('div'); el.id='snackbar'; el.className='snackbar'; el.setAttribute('role','status'); document.body.appendChild(el); }
-  el.innerHTML='';
-  var m=document.createElement('span'); m.className='snackbar-msg'; m.textContent=msg; el.appendChild(m);
-  var b=document.createElement('button'); b.type='button'; b.className='snackbar-action'; b.textContent=label;
-  b.onclick=function(){ clearTimeout(snackT); el.classList.remove('show'); if(typeof fn==='function') fn(); };
-  el.appendChild(b);
-  requestAnimationFrame(function(){ el.classList.add('show'); });
-  clearTimeout(snackT); snackT=setTimeout(function(){ el.classList.remove('show'); }, 6000);
 }
 /* v82 D2: the create form stored pack_size_raw (a display string) but NEVER the structured
    pack_qty/pack_unit that the edit form reads back (openIngEdit/saveIngEdit) — so the pack-size
@@ -1118,12 +1128,7 @@ function renderIngredients(){
   if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
   if(!items.length){ wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(p){
-    // v82 bridge: the card is now a .prod-card wrapper (a container) holding the UNCHANGED .ing-card
-    // button (opens edit — same look as the plate-library card) PLUS a bridge strip showing the
-    // product's recipe state. Unlinked → a one-tap "Use in recipes"; linked → an "In recipes · {word}"
-    // chip, so the next move is visible right where a new user stalls.
-    return '<div class="prod-card">'
-      +'<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
+    return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</div>'
       +'<div class="ing-meta">'
@@ -1131,12 +1136,9 @@ function renderIngredients(){
       +(p.supplier?'<span class="ing-tag sup">'+esc(p.supplier)+'</span>':'')
       +'</div>'
       +'<div class="ing-price"><b>'+dispPrice(p)+'</b><span class="ing-per">'+ingUnitLabel(p)+'</span></div>'
-      +'</button>'
-      +'<div class="prod-bridge">'+bridgeHtml(p.id)+'</div>'
-      +'</div>';
+      +'</button>';
   }).join('');
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openIngEdit(b.getAttribute('data-id')); }; });
-  wrap.querySelectorAll('.prod-userecipes').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); useProductInRecipes(b.getAttribute('data-bridge')); }; });
 }
 var ingEditId=null;
 function openIngEdit(id){
@@ -1152,7 +1154,6 @@ function openIngEdit(id){
   document.getElementById('ig_packQty').value=(p.pack_qty==null?'':p.pack_qty);
   document.getElementById('ig_packUnit').value=(p.pack_unit||'');
   var e=document.getElementById('ig_err'); if(e)e.style.display='none';
-  fillIngBridge(id);                                                   // v82: show this product's recipe state + one-tap bridge in the edit modal
   ['ig_brand','ig_cat','ig_sup'].forEach(function(x){ var d=document.getElementById(x+'Drop'); if(d)d.style.display='none'; });
   makeInlineCombo('ig_brand','ig_brandDrop',prodBrands);
   makeInlineCombo('ig_cat','ig_catDrop',prodCategories);
@@ -1310,46 +1311,6 @@ function proposeKingName(p){                                          // supplie
   return out.slice(0,3).map(function(t){ return t.charAt(0).toUpperCase()+t.slice(1); }).join(' ');
 }
 function kingNameExists(nm){ nm=(nm||'').trim().toLowerCase(); return (kitchenIngredients||[]).some(function(k){ return k && (k.name||'').trim().toLowerCase()===nm; }); }
-/* v82 — the product→recipe BRIDGE. The #1 new-user stall: a product can't go on a plate until a
-   "kitchen word" (ingredient) links to it, and NOTHING on the Products side said so. These three are
-   the missing path: a pure lookup, a clash-safe namer, and one IDEMPOTENT create routed through the
-   SAME write path the Ingredients tab uses (nextKid → push → saveKitchenIngredients). No new data
-   model, no touch to the naming inversion — an ingredient is still {id,name,pid}. */
-function kingForProduct(pid){                                          // the kitchen word linked to this product, or null
-  if(pid==null) return null;
-  return (kitchenIngredients||[]).find(function(k){ return k && k.pid===pid; }) || null;
-}
-function bridgeKingName(p){                                            // a clash-safe kitchen word: proposeKingName, then disambiguate so a one-tap create can never collide
-  var base=proposeKingName(p), nm=base;
-  if(!kingNameExists(nm)) return nm;
-  if(p && p.brand){ nm=base+' '+p.brand; if(!kingNameExists(nm)) return nm; }   // "Bacon" taken → "Bacon Primo"
-  for(var i=2;i<999;i++){ nm=base+' '+i; if(!kingNameExists(nm)) return nm; }   // last resort: "Bacon 2", "Bacon 3", …
-  return base+' '+Date.now();
-}
-function bridgeCreateKing(pid){                                        // idempotent: return the word already linking this product, else create one and return it (never a duplicate)
-  var existing=kingForProduct(pid); if(existing) return existing;
-  var p=byId[pid]; if(!p) return null;
-  var k={id:nextKid(), name:bridgeKingName(p), pid:pid};
-  kitchenIngredients.push(k); saveKitchenIngredients();
-  return k;
-}
-function useProductInRecipes(pid){                                     // the bridge action: create-or-reuse, reflect the new state everywhere it shows
-  var k=bridgeCreateKing(pid); if(!k) return;
-  if(typeof renderIngredients==='function') renderIngredients();      // product card flips action → linked chip
-  if(ingEditId===pid) fillIngBridge(pid);                             // and the edit modal, if it's open on this product
-  toast('“'+k.name+'” is now in recipes');
-}
-function bridgeHtml(pid){                                              // the shared bridge fragment: linked → state chip; unlinked → the one-tap action
-  var k=kingForProduct(pid);
-  return k
-    ? '<span class="prod-inrecipes">✓ In recipes · '+esc(k.name)+'</span>'
-    : '<button class="prod-userecipes" type="button" data-bridge="'+esc(pid)+'">Use in recipes</button>';
-}
-function fillIngBridge(pid){                                           // populate the edit-modal bridge row and (re)wire its action
-  var box=document.getElementById('ig_bridge'); if(!box) return;
-  box.innerHTML=bridgeHtml(pid);
-  var b=box.querySelector('.prod-userecipes'); if(b) b.onclick=function(){ useProductInRecipes(pid); };
-}
 /* ITEM 2 (v35): the rename decision, kept pure (no DOM) so it can be tested directly.
    Excludes the word being edited by id, so re-saving a word under its OWN current name
    is fine while landing on someone else's name is refused. A rename is never a copy:
@@ -2653,7 +2614,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v82';
+var APP_VERSION='v83';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
