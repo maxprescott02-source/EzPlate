@@ -37,6 +37,30 @@ data drives real menu decisions. Broken deploys cost money. Work accordingly.
 Data: **localStorage (offline-first) + Supabase sync**. No analytics, no
 tracking, no external libraries, no build step — hard product constraints.
 
+## The four object nouns — UI copy may not invent a fifth
+
+The app has exactly FOUR objects. These are the only nouns that may name a thing
+in user-facing copy:
+
+- **Product** — something you buy from a supplier (price, unit, pack, brand,
+  category, supplier).
+- **Ingredient** — the name you cook with; links to exactly ONE product.
+- **Plate** — a costed dish built from ingredients. **"Dish" is not a separate
+  noun** (Max, 25 Jul 2026): a plate on a menu is still a plate.
+- **Menu** — a set of plates with sell prices.
+
+**Forbidden as object nouns:** "recipe" (names nothing in this app), "kitchen
+word" / "kitchen name" (internal vocabulary — the object is an **Ingredient**),
+and "dish". Describing without naming is fine — "the name you'll use when
+building plates" is good copy; "your kitchen name" is not.
+
+This has leaked three times (v83 removed one batch, v86 the rest), so
+`tests/terminology.test.js` pins it — including two **inversion guards**, because
+a terminology pass is exactly when someone is tempted to rename
+`kitchenIngredients` to match the label. Don't (see the next section).
+**"Menu item" is still in use** in the Edit-menu-item modal — a known fifth noun
+awaiting its own brief.
+
 ## ⚠️ The naming inversion — never "fix" it
 
 UI labels and internal identifiers are deliberately CROSSED:
@@ -294,19 +318,59 @@ merge to `main` as a production deploy.
 
 ## State as of 25 Jul 2026 (verify, don't trust)
 
-- `origin/main` is at **v85** — **PR #23 merged 25 Jul 2026 (`877afd3`)**, carrying v82→v85 (the new-user batch as
-  the SAFE subset; briefs `~/Downloads/ezplate-opus-newuser-safe-fixes.md` and, for v82,
-  `~/Downloads/ezplate-opus-newuser-friction.md`). **v82's product→recipe bridge was removed in v83 and never
-  shipped.** **NOT yet verified on a device** — every `handovers/HANDOVER-v82..v85.md` "needs Max's phone" list is
-  still outstanding, and the visual-spec baselines still need regenerating.
+- Working branch **`fix/terminology-pass` is at v86** (unmerged); `origin/main` is at **v85** — **PR #23 merged
+  25 Jul 2026 (`877afd3`)**, carrying v82→v85 (the new-user batch as the SAFE subset; briefs
+  `~/Downloads/ezplate-opus-newuser-safe-fixes.md` and, for v82, `~/Downloads/ezplate-opus-newuser-friction.md`).
+  **v82's product→recipe bridge was removed in v83 and never shipped.** v82–v85 are **NOT yet verified on a
+  device** — those `handovers/HANDOVER-v82..v85.md` "needs Max's phone" lists are still outstanding, and the
+  visual-spec baselines still need regenerating.
   NOTE: local `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
   first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **365 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v85**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
-  **fresh-states.spec.js NOT re-run for v72–v85** (no browser) — timing/feel can only be judged on a device; reconcile
-  on a browser env. (v81's sectioned Settings WAS eyeballed in a real Chrome at 390px + 1100px, both themes.)
+  `npm test` = **383 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v86**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **⚠ A BROWSER IS AVAILABLE in the Claude Code environment now** (Playwright + Chromium launch and drive the
+  app from `file://`). The long-standing "There is no browser here" line above is **out of date** — v86
+  reproduced, measured and verified a layout bug at 380px and desktop in both themes rather than deferring it
+  to Max's phone. Use it for visual work, and for finally reconciling **`fresh-states.spec.js`, still NOT
+  re-run for v72–v86**. Feel/touch/iOS-keyboard still need a real device.
+
+- **v86 (branch `fix/terminology-pass`) — terminology consistency + the invoice dropdown, root-caused (brief
+  `~/Downloads/ezplate-opus-terminology-pass.md`). See `handovers/HANDOVER-v86.md`.** Client only; zero contact
+  with the protected region, money law, naming inversion, data model, invoice row-build/`invRowState`/auto-tick/
+  state persistence, or `api/*.js`. **(1) The invoice add-new dropdown was TWO bugs, not one.** Measured at
+  380×820: the list ran 476→776 while the card ended at 632 and the Apply tick box sat at 586→610.
+  **Cause A:** `anchorDrop` measured its space against `window.innerHeight`, so on the LAST field it still saw
+  ~340px "below" and drew its full 300px list through the Apply row and past the card. Fixed with a new pure
+  **`dropPlace(r, soft, hard)`** — **soft** = modal ∩ `.ni-panel` (a list may float over its OWN fields, never
+  over the controls that FOLLOW the form), **hard** = the modal (absolute bound, used only when the form is too
+  tight both ways); the last field now flips upward, long lists still scroll internally.
+  **Cause B:** `.muted-row td{opacity:.92}` made **every `<td>` its own stacking context**, trapping
+  `.cat-drop`'s `z-index:60` inside its cell so the LATER Apply cell painted on top — fixed with
+  `.muted-row td:has(.ni-slot){opacity:1}` (`:has()` already in use at `style.css:2249`; the v35 "muted-row
+  carries its opacity treatment and nothing else" contract otherwise intact). Also removed the desktop
+  `.ni-grid .cat-drop` override, which only restated the base rule EXCEPT `z-index:40` — one value (60) now
+  governs at every width. **This is NOT the v59 bug**: the `backdrop-filter`-containing-block hypothesis was
+  tested and DISPROVED (a fixed probe lands at 0,0 inside the open overlay); v59's fix is intact and
+  browser-verified as still working. **(2) Terminology:** 16 user-facing violations of `recipe` /
+  `kitchen word` / `kitchen name` replaced with the real nouns (Product · Ingredient · Plate · Menu); the
+  invoice field is now **"Ingredient name (optional)"** with its placeholder carrying the explanation ("the name
+  you'll use when building plates") rather than a new helper element in that fragile form. **Max's two calls:**
+  **"dish" → standardise on "plate" EVERYWHERE** (all 27 user-facing strings, including the 13 Insights
+  templates, pluralisation adjusted); **"menu item" → fix only the DIRECT collisions** (the "Plate / menu item"
+  header, the Menu-tab search + empty state, the new-menu hint, the Dashboard trend explainer, the Settings
+  export noun list). **Still carrying a fifth noun, flagged NOT built:** the standalone Edit-menu-item modal
+  (`index.html:446/450/467/474`, `app.js:5028/5066/5111`) and `index.html:329` — internally consistent, so not
+  collisions, but worth their own brief. 365→**383**: `combo-drop.test.js` (+8, pinned with the REAL measured
+  numbers so it fails against pre-v86 code, incl. a transcription of the old rule proving it covered Apply) and
+  `terminology.test.js` (+10, incl. two **INVERSION GUARDS** pinning `kitchenIngredients`/`renderKitchenPanel`/
+  `KINGKEY`/`cafeDB_kitchenIngredients`/`'kitchen_ingredients'` and the crossed `data-tab` values, so a future
+  "tidy-up" fails loudly). Four `insights.test.js` copy assertions moved deliberately with the copy. CodeRabbit:
+  2 findings, both real, both fixed (a `maxHeight` floor that could push the list back outside the hard bound;
+  a whole-line exemption in the "dish" detector that could hide copy sharing a line with an identifier).
+  Six spots → **v86**.
 
 - **v85 (same branch `feature/newuser-flow`) — re-entering the builder no longer bins an unfinished plate (Max
   reviewed the draft flows). See `handovers/HANDOVER-v85.md`.** Reload flows were correct and left alone. The broken

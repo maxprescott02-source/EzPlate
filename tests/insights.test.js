@@ -144,7 +144,7 @@ test('insMover: move %, direction, dish count (movement dim)', () => {
   assert.equal(out[0].facts.pct, 18);
   assert.equal(out[0].facts.dishCount, 2);
   assert.match(out[0].text, /rose 18%/);
-  assert.match(out[0].text, /2 dishes/);
+  assert.match(out[0].text, /2 plates/);
 });
 
 test('insMover: a move under 3% is noise → nothing', () => {
@@ -159,7 +159,7 @@ test('insShared: leads with the most-shared ingredient (cross dim)', () => {
   assert.equal(out[0].kind, 'shared');
   assert.equal(out[0].dim, 'cross');
   assert.equal(out[0].facts.dishCount, 8);
-  assert.match(out[0].text, /Cheese feeds 8 dishes/);
+  assert.match(out[0].text, /Cheese feeds 8 plates/);
   assert.match(out[0].text, /beats any single reprice/);
 });
 
@@ -174,7 +174,7 @@ test('insSummary: aggregate over-count carries the comparative dim', () => {
   const over = insSummary([dish('A', 6, 15), dish('B', 3, 15)], 0.3);
   assert.equal(over[0].kind, 'count');
   assert.equal(over[0].dim, 'comparative');
-  assert.match(over[0].text, /1 of 2 costed dishes sit over your 30% target/);
+  assert.match(over[0].text, /1 of 2 costed plates sit over your 30% target/);
   assert.equal(insSummary([dish('A', 3, 15)], 0.3)[0].kind, 'allgood');
 });
 
@@ -495,7 +495,7 @@ test('insData: uncosted dishes are a gentle, non-obvious coverage note', () => {
   assert.ok(numbersInFactsOnly(out[0]));
 });
 test('insData: singular grammar; nothing when everything is costed', () => {
-  assert.match(insData({ uncosted: 1 })[0].text, /1 dish isn't costed/);
+  assert.match(insData({ uncosted: 1 })[0].text, /1 plate isn't costed/);
   assert.deepEqual(insData({ uncosted: 0 }), []);
 });
 
