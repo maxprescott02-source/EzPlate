@@ -611,7 +611,12 @@ input[type=checkbox]{
   align-items:flex-start;justify-content:center;
   padding:calc(env(safe-area-inset-top) + 20px) var(--sp-4) calc(env(safe-area-inset-bottom) + 20px);
   z-index:80;overflow:auto;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  overscroll-behavior:contain;   /* v87: second layer — a wheel/drag on the BACKDROP can't chain to the page */
 }
+/* v87: the scroll lock itself — see syncBodyScrollLock() in app.js. position:fixed rather than
+   overflow:hidden because iOS Safari ignores overflow:hidden on <body>; the held scroll offset is
+   written to `top` inline, and padding-right absorbs the desktop scrollbar so nothing jolts. */
+body.scroll-locked{position:fixed;left:0;right:0}
 .modal-overlay.open{display:flex;animation:fadeIn var(--t-slow) var(--ease)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 /* v72 motion: reverse-out. JS drops .open synchronously (so every .open check stays

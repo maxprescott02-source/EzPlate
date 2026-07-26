@@ -811,6 +811,49 @@ const tick = () => new Promise(r => setTimeout(r, 0));
      !w3.document.getElementById('confirmModal').classList.contains('open') &&
      w3.document.getElementById('builderModal').classList.contains('open'));
 
+  // ---------------------------------------------------------------------------
+  // [23] v87 — the page behind a modal must not scroll (Max: "scrolling whilst having
+  // modal open still scrolls the main page behind modal"). jsdom has no layout, so this
+  // pins the STATE MACHINE: does the lock go on, survive a stacked confirm, come off, and
+  // clean up after itself? The geometry itself was verified in a real browser.
+  // ---------------------------------------------------------------------------
+  console.log('\n[23] v87 — body scroll lock while an overlay is open');
+  const wl = bootWithDraft(null);
+  const body = wl.document.body;
+  // jsdom reports pageYOffset as 0 and has no real scrollTo, so seed a scroll position and
+  // capture the restore call — otherwise the offset/restore assertions pass trivially.
+  Object.defineProperty(wl, 'pageYOffset', { value: 150, configurable: true });
+  let restoredScroll = null;
+  wl.scrollTo = (x, y) => { restoredScroll = [x, y]; };
+
+  ok('[23] the page is not locked with nothing open', !body.classList.contains('scroll-locked'));
+
+  wl.show('modal');
+  ok('[23] opening a modal locks the page', body.classList.contains('scroll-locked'));
+  ok('[23] the scroll offset is held on <body>', body.style.top === '-150px', body.style.top);
+
+  // opening a SECOND overlay on top must not disturb the lock
+  wl.show('confirmModal');
+  ok('[23] a stacked confirm keeps the lock', body.classList.contains('scroll-locked'));
+
+  // ...and closing only the confirm must NOT free the page underneath it
+  wl.hide('confirmModal');
+  ok('[23] closing the stacked confirm does NOT unlock (the modal is still open)',
+     body.classList.contains('scroll-locked'));
+
+  wl.hide('modal');
+  ok('[23] closing the last overlay unlocks the page', !body.classList.contains('scroll-locked'));
+  ok('[23] the original scroll position is restored (no jump on close)',
+     !!restoredScroll && restoredScroll[0] === 0 && restoredScroll[1] === 150, restoredScroll);
+  ok('[23] the inline top is cleaned up', body.style.top === '');
+  ok('[23] the inline padding-right is cleaned up', body.style.paddingRight === '');
+
+  // the lock is derived from the DOM, so a re-open after a full close still works
+  wl.show('modal');
+  ok('[23] re-opening locks again', body.classList.contains('scroll-locked'));
+  wl.hide('modal');
+  ok('[23] and releases again', !body.classList.contains('scroll-locked'));
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();

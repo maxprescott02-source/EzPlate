@@ -316,20 +316,41 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 25 Jul 2026 (verify, don't trust)
+## State as of 26 Jul 2026 (verify, don't trust)
 
-- Working branch **`fix/terminology-pass` is at v86** (unmerged); `origin/main` is at **v85** — **PR #23 merged
-  25 Jul 2026 (`877afd3`)**, carrying v82→v85 (the new-user batch as the SAFE subset; briefs
-  `~/Downloads/ezplate-opus-newuser-safe-fixes.md` and, for v82, `~/Downloads/ezplate-opus-newuser-friction.md`).
-  **v82's product→recipe bridge was removed in v83 and never shipped.** v82–v85 are **NOT yet verified on a
-  device** — those `handovers/HANDOVER-v82..v85.md` "needs Max's phone" lists are still outstanding, and the
-  visual-spec baselines still need regenerating.
+- Working branch **`fix/modal-scroll-lock` is at v87** (unmerged); `origin/main` is at **v86** — **PR #24
+  merged 26 Jul 2026 (`0637a35`)**, carrying the v86 terminology + invoice-dropdown batch. Before it, **PR #23
+  merged 25 Jul 2026 (`877afd3`)** carried v82→v85. **v82–v86 are NOT yet verified on a device** — those
+  `handovers/HANDOVER-v82..v86.md` "needs Max's phone" lists are still outstanding, and the visual-spec
+  baselines still need regenerating.
   NOTE: local `main` goes stale between sessions (Max merges via GitHub PR) — `git fetch` and check `origin/main`
   first ([[verify-origin-main-before-trusting-local]]).
   **The three v55 Supabase migrations are APPLIED to prod (Max, confirmed 22 Jul 2026)** — the v54+ line is
   live; the schema-can-lag lesson still stands for FUTURE migrations ([[supabase-schema-can-lag-app-code]]).
-  `npm test` = **383 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
-  **v86**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+  `npm test` = **392 green**, jsdom smoke green, `node -c` clean (app.js, sw.js + the four `api/*.js`), six spots at
+  **v87**. Per-batch detail lives in `handovers/HANDOVER-vNN.md`.
+
+- **v87 (branch `fix/modal-scroll-lock`) — the page behind a modal no longer scrolls (Max, direct report). See
+  `handovers/HANDOVER-v87.md`.** Client only (CSS + JS + tests); zero contact with the protected region, money
+  law, naming inversion, data model, invoice subsystem, insight engine, or `api/*.js`. **ROOT CAUSE: there was
+  no scroll lock at ALL** — `openOverlay` only added `.open`, and nothing stopped the DOCUMENT scrolling.
+  `.mbody`/`.modal` carry `overscroll-behavior:contain`, but that only bites when THAT element is itself
+  scrollable and hits its end: with the pointer on the BACKDROP, or a modal too short for `.mbody` to scroll
+  (the desktop case, which was WORSE than mobile), the gesture chained straight to `<body>`. Measured at
+  scrollY 150: backdrop → 550 at both widths, card → 1150 on desktop. Fixed with **`syncBodyScrollLock()`**
+  called from `openOverlay` + `closeOverlay` (the v72 choke points — one place, not nineteen overlays):
+  **`position:fixed` on `<body>` with the offset held in `top`, NOT `overflow:hidden`** (iOS Safari ignores the
+  latter on body), restored via `scrollTo` on unlock so closing never jumps; **state DERIVED from the DOM**
+  (`querySelector('.modal-overlay.open')`) rather than refcounted, because the app deliberately stacks a
+  confirm on a modal and a counter drifts; called **BEFORE `closeOverlay`'s reduced-motion early return** (a
+  release after it would strand the page locked forever with reduced motion on — pinned positionally);
+  desktop scrollbar compensated with `padding-right` so nothing jolts. Plus `overscroll-behavior:contain` on
+  `.modal-overlay` as an independent second layer. 383→**392** (`scroll-lock.test.js` +9 source pins) + smoke
+  **`[23]`** (+11, the state machine incl. the stacked-confirm case). Browser-verified at 380px and desktop
+  plus a reduced-motion pass; a TALL modal still scrolls its own content — note the scroller is `.modal` /
+  `.mbody`, **not** `.modal-overlay`. CodeRabbit: 1 real finding, fixed (jsdom reports `pageYOffset` as 0, so
+  the smoke's offset/restore assertions passed trivially until the window was seeded and `scrollTo` captured).
+  Six spots → **v87**.
 
 - **⚠ A BROWSER IS AVAILABLE in the Claude Code environment now** (Playwright + Chromium launch and drive the
   app from `file://`). The long-standing "There is no browser here" line above is **out of date** — v86

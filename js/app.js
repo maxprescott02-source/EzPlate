@@ -2628,7 +2628,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v86';
+var APP_VERSION='v87';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -2926,13 +2926,50 @@ if ('serviceWorker' in navigator) {
 function prefersReducedMotion(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches); }catch(e){ return false; } }
 // v72 motion: modal open/close go through ONE pair so every overlay shares the same entrance AND the reverse-out.
 // Open cancels any pending close so a fast reopen can't be swallowed by the close timer.
-function openOverlay(el){ if(!el) return; clearTimeout(el.__closeT); el.classList.remove('closing'); el.classList.add('open'); el.setAttribute('aria-hidden','false'); }
+/* v87 ROOT CAUSE (Max: "scrolling whilst having modal open still scrolls the main page behind
+   modal"): nothing ever stopped the DOCUMENT scrolling while an overlay was up. `.mbody` and
+   `.modal` do carry overscroll-behavior:contain, but that only bites when THAT element is itself
+   scrollable and hits its end — with the pointer on the backdrop, or a modal short enough that
+   `.mbody` never scrolls at all (the desktop case), the gesture chained straight through to
+   <body>. Measured before the fix: scrollY 150 -> 550 on the backdrop at BOTH widths, and a
+   further 550 -> 1150 over the card on desktop.
+
+   The lock is position:fixed on <body> with the scroll offset held in `top` — NOT
+   overflow:hidden, which iOS Safari silently ignores on <body>, and iOS is the device this app
+   lives on. On unlock we scroll back to the held offset, so closing a modal never jumps the page.
+
+   State is DERIVED from the DOM (is any `.modal-overlay` still `.open`?) rather than counted: the
+   app deliberately stacks a confirm on top of a modal (the v44 used-in-N confirm, the unit guard),
+   and a plain toggle would free the page while the modal underneath is still up. A derived check
+   also cannot drift out of sync the way a counter can. */
+var _scrollLockY=0, _scrollLockPad='';
+function syncBodyScrollLock(){
+  var body=document.body; if(!body||!body.classList) return;
+  var want=!!document.querySelector('.modal-overlay.open');
+  var have=body.classList.contains('scroll-locked');
+  if(want===have) return;                                         // idempotent: reopening while open changes nothing
+  if(want){
+    _scrollLockY=window.pageYOffset||document.documentElement.scrollTop||0;
+    var sbw=window.innerWidth-document.documentElement.clientWidth;   // desktop scrollbar: 0 on phones
+    _scrollLockPad=body.style.paddingRight;
+    if(sbw>0) body.style.paddingRight=((parseFloat(getComputedStyle(body).paddingRight)||0)+sbw)+'px';   // no content jolt when the bar disappears
+    body.style.top=(-_scrollLockY)+'px';
+    body.classList.add('scroll-locked');
+  } else {
+    body.classList.remove('scroll-locked');
+    body.style.top='';
+    body.style.paddingRight=_scrollLockPad;
+    window.scrollTo(0,_scrollLockY);                              // exactly where they were — no jump on close
+  }
+}
+function openOverlay(el){ if(!el) return; clearTimeout(el.__closeT); el.classList.remove('closing'); el.classList.add('open'); el.setAttribute('aria-hidden','false'); syncBodyScrollLock(); }
 function closeOverlay(el){
   if(!el) return;
   var wasOpen=el.classList.contains('open');
   el.setAttribute('aria-hidden','true');                          // a11y + logic: closed at once, whatever the visual does
   clearTimeout(el.__closeT);
   el.classList.remove('open');                                    // .open drops synchronously so every `.open` check + CSS layout sees it closed now
+  syncBodyScrollLock();                                           // v87: BEFORE the reduced-motion early return, so both close paths release the page
   if(!wasOpen || prefersReducedMotion()){ el.classList.remove('closing'); return; }
   el.classList.add('closing');                                    // .modal-overlay.closing re-asserts display + runs the fade-out (CSS §14)
   el.__closeT=setTimeout(function(){ el.classList.remove('closing'); }, 320);
