@@ -2628,7 +2628,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v87';
+var APP_VERSION='v88';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3398,6 +3398,13 @@ function ensurePdfjs(){
   __pdfjsPromise=new Promise(function(res,rej){
     var s=document.createElement('script');
     s.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js';
+    /* v88: pinned version + SRI. integrity/crossOrigin must be set BEFORE the
+       element is inserted, or the check never runs. A failed hash fires onerror,
+       which the caller already turns into the "could not load the PDF reader"
+       toast. The WORKER below cannot take SRI — pdf.js loads it via new Worker(),
+       which has no integrity mechanism; it is pinned only. */
+    s.integrity='sha384-OemFRmhjDZwhIKuUld0HJozkF2YErsgDaCL41trxGQZt4/WgnopJQqQl2DvDZ07Z';
+    s.crossOrigin='anonymous';
     s.onload=function(){ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js'; }catch(e){} res(); };
     s.onerror=function(){ rej(new Error('pdfjs-load')); };
     document.head.appendChild(s);
@@ -3407,7 +3414,12 @@ function ensurePdfjs(){
 async function extractPdfText(file){
   await ensurePdfjs();
   var buf=await file.arrayBuffer();
-  var pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+  /* v88: isEvalSupported:false closes CVE-2024-4367 (pdf.js < 4.2.67) — a malicious
+     PDF can reach arbitrary JS execution through the eval-based font path, and the
+     PDFs here come from SUPPLIERS, on the origin holding the pricing data and the
+     Supabase key. Only font rendering uses eval; we extract text, so nothing we
+     need is lost. The real fix is pdf.js 4.x — its own brief (see HANDOVER-v88). */
+  var pdf=await window.pdfjsLib.getDocument({data:buf, isEvalSupported:false}).promise;
   var out='';
   for(var p=1;p<=pdf.numPages;p++){
     var page=await pdf.getPage(p);
