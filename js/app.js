@@ -135,7 +135,27 @@ async function bootstrapSync(){
       if(!pp){ dbPushMenu(c); return; }                                       // its plate is already on the server -> push the dish now
       Promise.resolve(pp).then(function(res){ if(res && !res.error) dbPushMenu(c); });   // wait for the plate to land first
     });
-    try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){ priceHistory=_h.data.map(function(r){return {t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};}); saveHistory(); } }catch(e){}
+    // v89: probe for price_history.menu_id ONCE. An empty table returns no rows, so the column's
+    // presence can't be inferred from the data read below — it needs its own select. Failure here
+    // means the migration hasn't been applied: keep per-menu history local and never attempt a write.
+    try{ var _mp=await SUPA.from('price_history').select('menu_id').limit(1); if(_mp && _mp.error) menuHistSupported=false; }catch(e){ menuHistSupported=false; }
+    try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){
+      // v89: NULL menu_id = the all-menus aggregate (every pre-v89 row). Rows carrying a menu_id are
+      // the per-menu series and are kept apart, so priceHistory means exactly what it always meant.
+      var _all=[], _bym={};
+      _h.data.forEach(function(r){
+        var pt={t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};
+        if(r.menu_id) (_bym[r.menu_id]||(_bym[r.menu_id]=[])).push(pt); else _all.push(pt);
+      });
+      priceHistory=_all; saveHistory();
+      // v89: MERGE, don't replace. pushWrite still drops writes silently when fully offline (a known gap,
+      // CLAUDE.md Data-write rules), so a point logged on a café phone with no signal exists only in
+      // localStorage. Replacing wholesale would delete it on the next sync — cost history Max can never
+      // get back. Server points win on identical timestamps; local-only points survive. (CodeRabbit, v89.)
+      // NOTE: the all-menus priceHistory above still replaces wholesale and has the same gap — untouched
+      // here deliberately, it predates this batch and everything reads it. Flagged in the handover.
+      if(menuHistSupported){ menuHistory=mergeMenuHistory(_bym, menuHistory); saveMenuHistory(); }
+    } }catch(e){}
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
@@ -893,6 +913,42 @@ var HISTKEY='cafeDB_priceHistory';
 function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HISTKEY))||[]; }catch(e){ return []; } }
 function saveHistory(){ try{ localStorage.setItem(HISTKEY, JSON.stringify(priceHistory)); }catch(e){} }
 var priceHistory = loadHistory();
+
+/* ---------- v89: per-menu price history (price_history.menu_id) ----------
+   priceHistory holds ONLY the all-menus aggregate — the series every existing figure on this
+   Dashboard has always been computed from. Per-menu points live HERE, in a separate map, and
+   nothing above reads them. That separation is deliberate: mixing per-menu rows into
+   priceHistory would have silently skewed dashComparisons, histInRange, the 500-point cap and
+   the dedup guard, all of which assume one point = one moment across the whole business.
+   Shape: { menuId: [{t, v}, …] }, same point shape as priceHistory. */
+/* A point's `t` is an ISO string when this device logged it and a number when it came back from
+   Supabase — the same duality dashRangePts already guards against. One normaliser for both. */
+function ptMs(p){ var t=p&&p.t; return (typeof t==='string')?new Date(t).getTime():(t||0); }
+var MHISTKEY='cafeDB_menuHistory';
+function loadMenuHistory(){ try{ var o=JSON.parse(localStorage.getItem(MHISTKEY)); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
+function saveMenuHistory(){ try{ localStorage.setItem(MHISTKEY, JSON.stringify(menuHistory)); }catch(e){} }
+var menuHistory = loadMenuHistory();
+/* Fold local per-menu points into what the server returned. Pure, so bootstrapSync stays a one-liner
+   and tests can run the real thing. Server points win on an identical timestamp; a local point the
+   server has never seen is KEPT, because pushWrite drops writes silently when fully offline (CLAUDE.md,
+   Data-write rules) and replacing wholesale would delete cost history Max cannot get back. */
+function mergeMenuHistory(server, local){
+  var out={};
+  Object.keys(server||{}).forEach(function(id){ out[id]=(server[id]||[]).slice(); });
+  Object.keys(local||{}).forEach(function(id){
+    var arr=out[id]||(out[id]=[]), seen={};
+    arr.forEach(function(p){ seen[ptMs(p)]=1; });
+    (local[id]||[]).forEach(function(p){ if(!seen[ptMs(p)]) arr.push(p); });
+  });
+  Object.keys(out).forEach(function(id){ out[id].sort(function(a,b){ return ptMs(a)-ptMs(b); }); });
+  return out;
+}
+/* Schema-can-lag guard (CLAUDE.md): the migration adding price_history.menu_id is applied by Max
+   in the SQL editor and may not have landed yet. bootstrapSync probes for the column once and
+   clears this if it's absent, so we never fire a write that can only fail — an unapplied
+   migration degrades to local-only history, not a toast on every price change. */
+var menuHistSupported=true;
+
 var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')||'3m'; }catch(e){ return '3m'; } })();
 function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
 function dashRangePts(){                                           // the points inside the chosen window (capped for sanity)
@@ -949,10 +1005,17 @@ function dishesOverTarget(){                                         // dishes w
   return over;
 }
 function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v}); }, 'price history'); }
-function computeAvgFoodCost(){
+function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v, menu_id:menuId}); }, 'menu price history'); }
+/* v89: one aggregator, two callers. scope===DASH_ALL (or falsy) reproduces the all-menus figure
+   EXACTLY as computeAvgFoodCost always has; any other scope is a menu id and narrows to that menu's
+   dishes. The unfiltered path is byte-for-byte the old maths — the trend line, the stat cards and the
+   logged history all still mean what they meant before this batch. */
+var DASH_ALL='all';
+function avgFoodCostForScope(scope){
   var vals=[];
   MENU.forEach(function(m){
     if(!(m.price>0)) return;
+    if(scope && scope!==DASH_ALL && (m.menuId||'MENU_ORIGINAL')!==scope) return;
     var sp=plateForMenuItem(m);
     if(!sp) return;
     var c=costFromLines(sp.lines);
@@ -960,6 +1023,36 @@ function computeAvgFoodCost(){
   });
   if(!vals.length) return null;
   return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
+}
+function computeAvgFoodCost(){ return avgFoodCostForScope(DASH_ALL); }
+/* v89: which menu the DASHBOARD is looking at. Deliberately NOT currentMenuId — that is the Menu tab's
+   own selection, it persists across reloads, and it seeds the menu insights (insightSeedFor). Re-scoping
+   a read-only dashboard must not silently re-point the tab where Max edits prices. Session-only, as briefed:
+   a module var, never written to localStorage, so a reload lands back on "All menus". */
+var dashScope=DASH_ALL;
+function dashScopeValid(){
+  if(dashScope===DASH_ALL) return DASH_ALL;
+  var list=(typeof menusList!=='undefined'?menusList:[]);
+  // A scope whose menu was deleted falls back to all-menus. So does ANY scope once fewer than two
+  // menus remain — because that is exactly when dashScopeSelectorHtml stops rendering the control,
+  // and a narrowed scope with no visible way back to "All menus" is a trap. Deleting one of two menus
+  // while the dashboard was scoped to the survivor reached it. One invariant now: narrowed scope
+  // exists if and only if the selector is on screen (CodeRabbit, v89).
+  if(list.length<2) return DASH_ALL;
+  return list.some(function(m){return m.id===dashScope;})?dashScope:DASH_ALL;
+}
+function dashScopeLabel(scope){ return (scope===DASH_ALL)?'across all menus':('on '+menuNameById(scope)); }
+function setDashScope(scope){ dashScope=scope||DASH_ALL; renderDashboard(); }   // session-only: never persisted, so a reload lands back on "All menus"
+/* v89: the By-menu list. Ranked by average food cost %, LOWEST first — lower food cost is the better
+   result. Menus with nothing costed on them are excluded rather than shown as 0% or "—": a menu with no
+   costed plates has no cost efficiency to rank, and an empty row invites a comparison that isn't there.
+   NOTE (honesty rule): this ranks COST EFFICIENCY only. EzPlate has no sales-volume data, so it can never
+   say which menu earns more — only which one costs less per dollar of menu price. */
+function menuComparisonRows(){
+  var list=(typeof menusList!=='undefined'?menusList:[]);
+  return list.map(function(m){ return {id:m.id, name:m.name, season:m.season||'', pct:avgFoodCostForScope(m.id)}; })
+             .filter(function(r){ return r.pct!=null; })
+             .sort(function(a,b){ return a.pct-b.pct || String(a.name).localeCompare(String(b.name)); });
 }
 function logHistory(){
   // v60 item 1a (LIVENESS): a data-changing event (price edit, invoice apply, plate save) must ALWAYS
@@ -980,8 +1073,29 @@ function logHistory(){
       saveHistory(); dbPushHistory(iso, v);
     }
   }
+  logMenuHistory();
   var dash=document.getElementById('tab-dashboard');
   if(dash && dash.style.display!=='none') renderDashboard();
+}
+/* v89: the same point-logging contract as logHistory, once per menu that has costed, priced plates.
+   Deduped per series (a menu whose figure hasn't moved doesn't stipple its own line), capped per series,
+   and a menu with nothing costed on it logs nothing at all rather than a misleading zero. */
+function logMenuHistory(){
+  var list=(typeof menusList!=='undefined'?menusList:[]);
+  if(!list.length) return;
+  var iso=new Date().toISOString(), now=Date.now();
+  list.forEach(function(mn){
+    var v=avgFoodCostForScope(mn.id);
+    if(v==null) return;                                              // nothing costed on this menu — no point, no zero
+    v=Math.round(v*10)/10;
+    var arr=menuHistory[mn.id]||(menuHistory[mn.id]=[]);
+    var last=arr[arr.length-1];
+    if(last && Math.abs(last.v-v)<0.05 && (now-ptMs(last))<3600000) return;   // near-duplicate within the hour
+    arr.push({t:iso, v:v});
+    if(arr.length>500) menuHistory[mn.id]=arr.slice(-500);
+    if(menuHistSupported) dbPushMenuHistory(iso, v, mn.id);
+  });
+  saveMenuHistory();
 }
 
 /* ---------- shared COGS editor (used by Menu Analysis + Dashboard) ---------- */
@@ -1888,7 +2002,10 @@ function trendChart(){
   TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB};
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<p class="hint chart-hint">Average food cost across the menu \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
+    // v89 COPY ONLY (no geometry touched): "across the menu" said the singular when the app has always
+    // allowed several, and now that a scope selector sits above this line the ambiguity actively misleads
+    // \u2014 it reads as though it describes the selected menu. The series is, and always was, every menu.
+    +'<p class="hint chart-hint">Average food cost across all menus \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
 }
 function highlightData(kind){
   if(kind==='foodcost'){
@@ -2511,23 +2628,113 @@ function suggestFabSwipeOff(dir){
   }
 })();
 function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
+/* ===== v89: the verdict header, the menu selector and the By-menu list =====
+   The Dashboard is the manager's surface — "am I OK?" — where every other tab serves the chef
+   building things. These three pieces answer it for a chosen scope. */
+function fmtTargetPct(){ return (cogsPct%1?cogsPct.toFixed(1):cogsPct.toFixed(0))+'%'; }
+function scopeHistory(scope){ return (scope===DASH_ALL)?priceHistory:((menuHistory&&menuHistory[scope])||[]); }
+/* Trend direction for the verdict line. Deliberately the SAME comparison the stat cards below it use
+   (today vs the last 7 days' average of the same series) so the header and the cards can never disagree.
+   Returns null when that scope has no history to compare against — the clause is then omitted rather
+   than shown flat, because "→ steady" against no data is a claim we can't make. */
+function scopeTrend(scope, current){
+  if(current==null) return null;
+  var from=Date.now()-7*86400000;
+  var vals=scopeHistory(scope).filter(function(h){ return ptMs(h)>=from; }).map(function(h){return h.v;});
+  var base=avgOf(vals);
+  if(base==null) return null;
+  var d=current-base;                                                // food cost down = good
+  if(Math.abs(d)<0.05) return {cls:'flat', arrow:'→', word:'holding steady'};
+  return (d<0)?{cls:'good', arrow:'↓', word:'improving'}:{cls:'bad', arrow:'↑', word:'creeping up'};
+}
+function verdictHtml(scope, cmp){
+  // all-menus keeps cmp.current (which falls back to the last logged point when nothing is costed
+  // right now) so the headline figure is exactly the one this dashboard has always shown.
+  var pct=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
+  var cap='<span class="verdict-cap">'+esc(dashScopeLabel(scope))+'</span>';
+  if(pct==null){
+    return '<div class="verdict"><span class="verdict-num">—</span>'+cap+'</div>'
+      +'<p class="verdict-line">Nothing costed and priced '+(scope===DASH_ALL?'yet':'on this menu yet')
+      +' — put a costed plate on a menu with a sell price to start.</p>';
+  }
+  var d=pct-cogsPct, cls=(d<=0.05)?'good':'bad';
+  var vs=(Math.abs(d)<0.05)
+    ? ('bang on your '+fmtTargetPct()+' target')
+    : (Math.abs(d).toFixed(1)+' pts '+(d<0?'under':'over')+' your '+fmtTargetPct()+' target');
+  var tr=scopeTrend(scope, pct);
+  return '<div class="verdict"><span class="verdict-num '+cls+'">'+pct.toFixed(1)+'%</span>'+cap+'</div>'
+    +'<p class="verdict-line">'+esc(vs)
+    +(tr?(' · <b class="verdict-trend '+tr.cls+'">'+tr.arrow+' '+esc(tr.word)+'</b>'):'')+'</p>';
+}
+/* The selector reuses the Menu tab's control EXACTLY — a native <select> in a .menu-picker-row
+   (index.html:122, css/style.css:1034). No floating layer, no placement logic, no sixth owner of
+   dropdown geometry: the 26 Jul audit's warning is answered by there being nothing new to place. */
+function dashScopeSelectorHtml(scope){
+  var list=(typeof menusList!=='undefined'?menusList:[]);
+  if(list.length<2) return '';                                       // one menu, or none: a dead control — don't render it
+  return '<div class="menu-picker-row dash-scope"><select id="dashScopeSelect" aria-label="Menu to show">'
+    +'<option value="'+DASH_ALL+'"'+(scope===DASH_ALL?' selected':'')+'>All menus</option>'
+    +list.map(function(m){
+        return '<option value="'+esc(m.id)+'"'+(m.id===scope?' selected':'')+'>'
+          +esc(m.name)+(m.season?(' — '+esc(m.season)):'')+'</option>';
+      }).join('')
+    +'</select></div>';
+}
+function menuCompareHtml(scope){
+  var rows=menuComparisonRows();
+  if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare
+  return '<div class="panel dash-compare"><h2>By menu</h2><div class="pad">'
+    +'<ul class="mcmp-list">'+rows.map(function(r){
+        var on=(r.id===scope);
+        return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(r.id)+'"'
+          +(on?' aria-current="true"':'')+'>'
+          +'<span class="mcmp-name">'+esc(r.name)+'</span>'
+          +'<span class="mcmp-pct">'+r.pct.toFixed(1)+'%</span></button></li>';
+      }).join('')+'</ul>'
+    +'<p class="hint mcmp-note">Ranked by average food cost % — lower is better. EzPlate has no sales figures, '
+    +'so this compares cost efficiency, not what each menu earns.</p>'
+    +'</div></div>';
+}
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
   if(typeof priceHistory==='undefined' || typeof savedPlates==='undefined'){ return; }  // data not initialised yet; boot-ready will re-render
   var cmp;
   try{ cmp=dashComparisons(); }catch(e){ console.error('[dashboard] not ready:', e); return; }
-  var html='<div class="panel dash-panel"><h2>Average food cost'+(cmp.current!=null?' <span class="h2-val">'+cmp.current.toFixed(1)+'% today</span>':'')+'</h2><div class="pad">'
-    +'<div class="chart-controls"><span class="chart-title">Food cost trend</span>'+rangeBarHtml()+'</div>'
+  var scope=dashScopeValid();
+  // v89: the verdict header ABSORBS the old "Average food cost \u2014 X% today" h2 rather than adding a second
+  // header. The h2 is now the plain label; the figure, the scope it covers and how it sits against the
+  // target are one block below it. The caption states the SCOPE, not "avg food cost" again \u2014 that is the
+  // new information on a menu-aware dashboard, and it confirms what the selector just did.
+  /* v89 SCOPE HONESTY: the trend chart and the stat cards still draw the ALL-MENUS series, because a
+     per-menu series didn't exist before this batch \u2014 price_history held one number per moment for the
+     whole business. v89 starts recording per menu; until a menu has its own points there is nothing to
+     draw, and drawing the aggregate under a menu's name would be a figure this app can't stand behind.
+     So when a menu is selected the block says plainly that it is showing all menus. Stage 2 gives it the
+     two-line chart once the history exists. */
+  var narrowed=(scope!==DASH_ALL);
+  var chartTitle='Food cost trend'+(narrowed?' \u2014 all menus':'');
+  var statLead='How today\u2019s '+(narrowed?'all-menus ':'')+'average compares';
+  var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'
+    +verdictHtml(scope, cmp)
+    +dashScopeSelectorHtml(scope)
+    +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
-    +'<div class="stat-attach"><div class="stat-lead">How today\u2019s average compares</div>'
+    +(narrowed?'<p class="hint scope-note">A trend for one menu needs its own history \u2014 EzPlate started recording that from today, so this line still covers every menu.</p>':'')
+    +'<div class="stat-attach"><div class="stat-lead">'+esc(statLead)+'</div>'
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
+  html+=menuCompareHtml(scope);
   html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
   // v67 item 5a: the grounded "Suggestions" panel MOVED off the Dashboard onto the Menu tab
   // (suggestions are menu-specific — one menu's dishes at a time — where the Dashboard averages all
   // menus). See renderMenuInsights / renderAnalysis.
   root.innerHTML=html;
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
+  // v89: scope changes are session-only and touch nothing else — setDashScope re-renders this tab and
+  // leaves currentMenuId (the Menu tab's own selection) exactly where it was.
+  var scopeSel=root.querySelector('#dashScopeSelect');
+  if(scopeSel) scopeSel.onchange=function(){ setDashScope(scopeSel.value); };
+  root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ setDashScope(b.getAttribute('data-scope')); }; });
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
@@ -2628,7 +2835,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v88';
+var APP_VERSION='v89';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
