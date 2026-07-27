@@ -5,7 +5,7 @@
  * settings-persistence pattern (dbSetSetting + a localStorage mirror), and the
  * two behavioural GATES those toggles drive:
  *   - AI invoice check OFF  => gemFireSecondReader makes NO API call.
- *   - AI suggestions OFF     => renderMenuInsights renders nothing.
+ *   - AI suggestions OFF     => dashInsightsHtml renders nothing (v90: the Dashboard, not the Menu tab).
  * Defaults must preserve today's behaviour (both readers ON) so brand-new
  * accounts are unaffected — that's asserted first for each.
  */
@@ -53,7 +53,7 @@ function togglesHarness() {
     };
     var document = { documentElement: ROOT, getElementById:function(){ return null; } };
     function dbSetSetting(k,v){ WRITES.push({key:k, value:v}); }
-    function renderMenuInsights(){ RENDERS.insights++; }
+    function renderDashboard(){ RENDERS.insights++; }   /* v90: insights render on the Dashboard now */
     var AI_INV_KEY='cafeDB_aiInvoiceCheck', AI_SUG_KEY='cafeDB_aiSuggestions', THEME_KEY='cafeCost_theme';
     var aiInvoiceCheck, aiSuggestions;
     ${extractFn(APP, 'loadAiInvoiceCheck')}
@@ -175,10 +175,13 @@ test('v81 GATE: AI invoice check ON => gemFireSecondReader still fires the reque
 
 /* ---------- source pins: the wiring the harness can't reach ---------- */
 
-test('v81: renderMenuInsights is gated on aiSuggestions (OFF => nothing renders)', () => {
-  const fn = extractFn(APP, 'renderMenuInsights');
-  assert.ok(/if\(!aiSuggestions\)\{[^}]*host\.innerHTML=''/.test(fn),
-    'renderMenuInsights must clear the host and bail when suggestions are off');
+test('v90: dashInsightsHtml is gated on aiSuggestions (OFF => the panel is not built at all)', () => {
+  const fn = extractFn(APP, 'dashInsightsHtml');
+  assert.ok(/if\(!aiSuggestions\) return '';/.test(fn),
+    'dashInsightsHtml must return an empty string before computing anything when suggestions are off');
+  // and nothing is computed on that path — the bail precedes the computeInsights call
+  assert.ok(fn.indexOf("if(!aiSuggestions) return '';") < fn.indexOf('computeInsights('),
+    'the gate must come BEFORE computeInsights, so an off toggle costs no work');
 });
 
 test('v81: bootstrapSync round-trips both AI toggles across devices', () => {

@@ -156,6 +156,18 @@ async function bootstrapSync(){
       // here deliberately, it predates this batch and everything reads it. Flagged in the handover.
       if(menuHistSupported){ menuHistory=mergeMenuHistory(_bym, menuHistory); saveMenuHistory(); }
     } }catch(e){}
+    // v90: the sell-price log. Same schema-can-lag probe as menu_id above — the table may not exist yet,
+    // in which case points stay local and no write is ever attempted. Same MERGE rather than replace, for
+    // the same reason: pushWrite drops writes silently offline, and a price point is unrecoverable.
+    // menuPriceLog has the identical {key: [{t,v}]} shape as menuHistory, so mergeMenuHistory serves both.
+    try{ var _mpp=await SUPA.from('menu_price_history').select('menu_item_id').limit(1); if(_mpp && _mpp.error) menuPriceHistSupported=false; }catch(e){ menuPriceHistSupported=false; }
+    if(menuPriceHistSupported){
+      try{ var _mp2=await SUPA.from('menu_price_history').select('*').order('recorded_at',{ascending:true}); if(_mp2 && _mp2.data){
+        var _byItem={};
+        _mp2.data.forEach(function(r){ (_byItem[r.menu_item_id]||(_byItem[r.menu_item_id]=[])).push({t:new Date(r.recorded_at).getTime(), v:Number(r.price)}); });
+        menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog); saveMenuPriceLog();
+      } }catch(e){}
+    }
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
@@ -982,11 +994,65 @@ function ingPriceBand(pid){                                          // {min,max
   vals=vals.filter(function(v){return v!=null&&isFinite(v);}); if(!vals.length) return null;
   return {min:Math.min.apply(null,vals), max:Math.max.apply(null,vals)};
 }
-function ingMovePct(pid){                                            // v74: last logged % move for one ingredient (or null) — feeds dishDriver's movement clause
-  var a=pid?ingPriceLog[pid]:null; if(!a || a.length<2) return null;
-  var prev=a[a.length-2].v, last=a[a.length-1].v;
-  if(!(prev>0) || last==null || !isFinite(last)) return null;
-  return (last-prev)/prev*100;
+// v90: ingMovePct (v74) was removed with dishDriver, its only caller. The movement families now read
+// ingPriceAt against a fixed reference moment instead of "the last logged step", which is what lets
+// them name a month honestly. Nothing else referenced it.
+/* ---- v90: per-plate SELL-PRICE log (Supabase table menu_price_history + a localStorage mirror) ----
+   Ingredient prices have been logged since early on; sell prices never were. Without them the app can
+   say a plate's COST rose but not whether the PRICE moved with it — so "its cost rose, its price
+   didn't" and "over target N months running" were claims it could not stand behind. This starts that
+   clock. Same {menuItemId: [{t,v}]} shape as menuHistory, so mergeMenuHistory (v89) merges it too. */
+var MPLKEY='cafeDB_menuPriceLog';
+function loadMenuPriceLog(){ try{ var o=JSON.parse(localStorage.getItem(MPLKEY)); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
+function saveMenuPriceLog(){ try{ localStorage.setItem(MPLKEY, JSON.stringify(menuPriceLog)); }catch(e){} }
+var menuPriceLog = loadMenuPriceLog();
+/* Schema-can-lag guard, exactly as menuHistSupported (v89): bootstrapSync probes for the table once
+   and clears this if it isn't there, so an unapplied migration degrades to local-only history rather
+   than a failing write on every price edit. */
+var menuPriceHistSupported=true;
+function dbPushMenuPrice(id, iso, v){ pushWrite(function(){ return SUPA.from('menu_price_history').insert({menu_item_id:id, recorded_at:iso, price:v}); }, 'menu price history'); }
+/* Record one dish's sell price. Deduped on VALUE, not on time: a price is a discrete decision, so every
+   change deserves a point and an unchanged price deserves none — unlike the food-cost series, which
+   moves continuously and needs the hourly guard. Returns true when a point was actually added. */
+function logMenuPrice(id, price){
+  if(id==null || !(price>0) || !isFinite(price)) return false;
+  var a=menuPriceLog[id]||(menuPriceLog[id]=[]);
+  var last=a.length?a[a.length-1].v:null;
+  if(last!=null && Math.abs(last-price) < 0.005) return false;       // same price to the cent — nothing changed
+  a.push({t:new Date().toISOString(), v:price});
+  if(a.length>60) menuPriceLog[id]=a.slice(-60);
+  return true;
+}
+/* ONE funnel, called from logHistory — which already fires on every data-changing event — rather than
+   sprinkled across the five places a menu_items row gets written. A write path added later is covered
+   automatically, and the value dedup makes running it often free. On the very first run it seeds a
+   baseline point for every dish that already has a price, so the history is useful from v90 onward
+   instead of only from the next time somebody edits something. */
+function logAllMenuPrices(){
+  var changed=false, iso=new Date().toISOString();
+  (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
+    if(!m || !(m.price>0)) return;
+    if(logMenuPrice(m.id, m.price)){ changed=true; if(menuPriceHistSupported) dbPushMenuPrice(m.id, iso, m.price); }
+  });
+  if(changed) saveMenuPriceLog();
+}
+/* The sell price in force at a moment: the last point at or before it. null when the log doesn't reach
+   back that far — the caller must then stay silent rather than substitute today's price. */
+function priceAtOrBefore(id, ms){
+  var a=menuPriceLog[id]; if(!a || !a.length) return null;
+  var out=null;
+  for(var i=0;i<a.length;i++){ if(ptMs(a[i])<=ms) out=a[i].v; else break; }
+  return out;
+}
+/* True only when the log PROVES the price has not moved since `ms`: it must reach back that far, and
+   every point from there on must carry the same value. An empty or too-short log returns false, so the
+   "its price didn't move" clause is omitted rather than guessed. */
+function priceHeldSince(id, ms){
+  var a=menuPriceLog[id]; if(!a || !a.length) return false;
+  if(ptMs(a[0])>ms) return false;                                    // the log starts after the moment asked about — it cannot know
+  var base=priceAtOrBefore(id, ms); if(base==null) return false;
+  for(var i=0;i<a.length;i++){ if(ptMs(a[i])>ms && Math.abs(a[i].v-base)>=0.005) return false; }
+  return true;
 }
 function costRangeForLines(lines){                                   // dish cost at each ingredient's lowest and highest logged price
   var lo=0, hi=0, any=false;
@@ -1074,6 +1140,7 @@ function logHistory(){
     }
   }
   logMenuHistory();
+  logAllMenuPrices();                                                 // v90: capture any sell price that moved (value-deduped, so this is free when none did)
   var dash=document.getElementById('tab-dashboard');
   if(dash && dash.style.display!=='none') renderDashboard();
 }
@@ -2007,197 +2074,204 @@ function trendChart(){
     // \u2014 it reads as though it describes the selected menu. The series is, and always was, every menu.
     +'<p class="hint chart-hint">Average food cost across all menus \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
 }
-function highlightData(kind){
+/* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
+   Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
+   the same one Settings uses on mobile (a `.detail-open` class swap, no modal): tapping a card
+   replaces the grid in place and a back arrow returns. A modal for a sorted list is a heavier
+   surface than the content needs, and it stacked another dismissable layer on a screen the 26 Jul
+   audit already wanted fewer of.
+
+   SCOPE is per-card and stated in the card's own label, because two of these are NOT about a menu:
+   - foodcost / plate  → scoped to the Dashboard's selector (they rank plates ON a menu)
+   - movers / stock    → GLOBAL, always. They rank PRODUCTS, which belong to no menu, so narrowing
+                         them to a menu would produce a number that answers a different question
+                         than the one the selector implies. Their labels say so.
+
+   RULE C: every label states the basis of its ranking — "food cost %", "cost per plate", "per
+   unit". None of these is a ranking by money made or lost; EzPlate has no sales volume.
+
+   The lists show EVERY item, not a top-N (Max's call), and plate rows carry their margin light so
+   a long list stays scannable. `.dig-list` is a plain block of rows — no virtualisation — which is
+   right at café scale (a big menu here is ~80 plates); revisit if a list ever runs to thousands. */
+var DIG_CARDS=[
+  {kind:'foodcost', label:'Highest food cost %',   scoped:true},
+  {kind:'plate',    label:'Highest cost per plate', scoped:true},
+  {kind:'movers',   label:'Biggest movers',        scoped:false},
+  {kind:'stock',    label:'Dearest per unit',      scoped:false}
+];
+var digOpen=null;                                                    // the kind currently drilled into, or null for the grid
+function setDigOpen(kind){ digOpen=kind||null; renderDashboard(); }
+/* One data source per card: {title, sub, rows:[{name, disp, light}]}. `light` is the margin light
+   where the row is a plate on a menu, and null where it isn't (a product has no margin). */
+function digData(kind, scope){
+  var isAll=(scope==null||scope===DASH_ALL), rows=[];
   if(kind==='foodcost'){
-    var rows=[];
-    MENU.forEach(function(m){ if(!(m.price>0))return; var sp=plateForMenuItem(m); if(!sp)return; var c=costFromLines(sp.lines); if(c>0) rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%'}); });
-    rows.sort(function(a,b){return b.val-a.val;}); return {title:'Highest food cost %', rows:rows};
+    MENU.forEach(function(m){
+      if(!(m.price>0)) return;
+      if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+      var sp=plateForMenuItem(m); if(!sp) return;
+      var c=costFromLines(sp.lines); if(!(c>0)) return;
+      rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%', light:analyze(c, m.price).light});
+    });
+    rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
+    return {title:'Highest food cost %', sub:dashScopeLabel(isAll?DASH_ALL:scope), rows:rows};
   }
-  if(kind==='portion'){
-    var pr=[];
-    savedPlates.forEach(function(sp){ var c=costFromLines(sp.lines); if(c>0){ pr.push({name:sp.name||'Plate', val:c, disp:fmt2(c)}); } });
-    pr.sort(function(a,b){return b.val-a.val;}); return {title:'Highest portion cost', rows:pr};
+  if(kind==='plate'){
+    // cost per plate is a property of the PLATE, but which plates count depends on the scope — a menu
+    // narrows it to the plates published there. Deduped by plate: one plate on two menus is one row.
+    var seen={};
+    MENU.forEach(function(m){
+      if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+      var sp=plateForMenuItem(m); if(!sp || seen[sp.id]) return;
+      var c=costFromLines(sp.lines); if(!(c>0)) return;
+      seen[sp.id]=1;
+      rows.push({name:sp.name||m.name||'Plate', val:c, disp:fmt2(c), light:(m.price>0?analyze(c, m.price).light:null)});
+    });
+    rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
+    return {title:'Highest cost per plate', sub:dashScopeLabel(isAll?DASH_ALL:scope), rows:rows};
   }
-  var usedPids={};                                                  // only stock actually used in a saved plate/recipe
-  (savedPlates||[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){ if(!l||l.misc) return; if(l.kid){ var k=kById[l.kid]; if(k&&k.pid!=null) usedPids[k.pid]=true; } else if(l.pid!=null) usedPids[l.pid]=true; }); });
-  var st=PRODUCTS.filter(function(p){ return usedPids[p.id]; }).map(function(p){ var v=perDisplayValue(p); return v==null?null:{name:p.description+(p.brand?' \u2014 '+p.brand:''), val:v, disp:dispPrice(p)}; }).filter(Boolean);
-  st.sort(function(a,b){return b.val-a.val;}); return {title:'Most expensive stock per unit', rows:st};
+  if(kind==='movers'){
+    // Largest logged price change per product, most recent step. GLOBAL: products belong to no menu.
+    var since=null;
+    Object.keys(ingPriceLog||{}).forEach(function(pid){
+      var a=ingPriceLog[pid]; if(!a || a.length<2) return;
+      var p=byId[pid]; if(!p) return;
+      var prev=a[a.length-2].v, last=a[a.length-1].v;
+      if(!(prev>0) || last==null || !isFinite(last)) return;
+      var pct=(last-prev)/prev*100;
+      if(Math.abs(pct)<1) return;                                    // sub-1% is rounding noise, not a move
+      var t=ptMs(a[a.length-1]); if(since==null || t<since) since=t;
+      rows.push({name:p.description+(p.brand?' — '+p.brand:''), val:Math.abs(pct),
+        disp:(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%', dir:(pct>0?'up':'down'), light:null});
+    });
+    rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
+    return {title:'Biggest movers', sub:(since!=null?('price changes since '+monthLabel(since)):'across all products'), rows:rows};
+  }
+  // stock — dearest per unit, across every product actually used in a plate. GLOBAL.
+  var usedPids={};
+  (savedPlates||[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){
+    if(!l||l.misc) return; if(l.kid){ var k=kById[l.kid]; if(k&&k.pid!=null) usedPids[k.pid]=true; } else if(l.pid!=null) usedPids[l.pid]=true; }); });
+  rows=PRODUCTS.filter(function(p){ return usedPids[p.id]; })
+    .map(function(p){ var v=perDisplayValue(p); return v==null?null:{name:p.description+(p.brand?' — '+p.brand:''), val:v, disp:dispPrice(p), light:null}; })
+    .filter(Boolean);
+  rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
+  return {title:'Dearest per unit', sub:'across all products', rows:rows};
 }
-function highlightCard(kind, heading){
-  var d=highlightData(kind), top=d.rows.slice(0,3);
-  var body=top.length? top.map(function(r){return '<li><span class="hl-n">'+esc(r.name)+'</span><span class="hl-v">'+esc(r.disp)+'</span></li>';}).join('') : '<li class="muted">No costed items yet</li>';
-  return '<button class="hl-card" type="button" data-kind="'+kind+'"><div class="hl-head">'+esc(heading)+'</div><ul class="hl-list">'+body+'</ul>'
-    +(d.rows.length>3?'<div class="hl-more">Tap to see all '+d.rows.length+'</div>':'')+'</button>';
+function digCardHtml(card, scope){
+  var d=digData(card.kind, scope), top=d.rows[0];
+  var val=top? '<span class="dig-v'+(top.dir?(' '+top.dir):'')+'">'+esc(top.disp)+'</span>' : '<span class="dig-v muted">—</span>';
+  return '<button class="dig-card" type="button" data-kind="'+esc(card.kind)+'">'
+    +'<span class="dig-k">'+esc(card.label)+'</span>'
+    +'<span class="dig-n">'+(top?esc(top.name):'Nothing yet')+'</span>'
+    +val+'</button>';
 }
-function openHighlight(kind){
-  var d=highlightData(kind);
-  document.getElementById('hlTitle').textContent=d.title;
-  var body=document.getElementById('hlBody');
-  body.innerHTML = d.rows.length? '<ol class="hl-full">'+d.rows.map(function(r){return '<li><span class="hl-n">'+esc(r.name)+'</span><span class="hl-v">'+esc(r.disp)+'</span></li>';}).join('')+'</ol>' : '<p class="muted" style="padding:12px">No costed items yet.</p>';
-  show('hlModal');
+function digInHtml(scope){
+  if(digOpen){
+    var d=digData(digOpen, scope);
+    var body=d.rows.length
+      ? '<ul class="dig-list">'+d.rows.map(function(r){
+          return '<li class="dig-row">'
+            +(r.light?'<span class="dot '+esc(r.light)+'" aria-hidden="true"></span>':'')
+            +'<span class="dig-rn">'+esc(r.name)+'</span>'
+            +'<span class="dig-rv'+(r.dir?(' '+r.dir):'')+'">'+esc(r.disp)+'</span></li>';
+        }).join('')+'</ul>'
+      // v58 empty-state system: the ONE place an empty state is built. No bespoke markup, no one-off rule.
+      : emptyStateHtml(ICON_MENU_BIG, 'Nothing to rank yet.', 'Cost a plate and put it on a menu to fill this list.');
+    return '<div class="panel dash-dig detail-open"><h2>'
+      +'<button class="dig-back" type="button" id="digBack" aria-label="Back to Dig in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>'
+      +esc(d.title)+'</h2>'
+      +'<div class="pad"><p class="hint dig-sub">'+esc(d.sub)+'</p>'+body+'</div></div>';
+  }
+  return '<div class="panel dash-dig"><h2>Dig in</h2><div class="pad">'
+    +'<div class="dig-grid">'+DIG_CARDS.map(function(c){ return digCardHtml(c, scope); }).join('')+'</div>'
+    +'</div></div>';
 }
 /* =====================================================================================
    AI-assisted helper, built as GROUNDED INSIGHTS (not a chatbot). v63 shipped the first,
-   single-shape version (over-target → reprice); v67 (item 5) BROADENS it into several
-   insight TYPES so the list reads varied and smart, and MOVES it from the Dashboard onto
-   the Menu tab (menu-specific — one menu's dishes at a time).
+   single-shape version (over-target → reprice); v67 broadened it into several TYPES and moved
+   it onto the Menu tab; v90 moves it to the DASHBOARD (one home, not two) and rewrites what
+   counts as an insight at all.
    Hard law unchanged: the app computes EVERY number deterministically here; the AI (optional
    layer below) may only rephrase the SAME sentence and is forbidden to produce a figure.
    The whole engine ships and is useful with NO API call.
 
-   Each insight TYPE is a pure function (tests pin them) returning zero+ candidates of the
-   shape {kind, facts, text, score}: `facts` holds every number, `text` is the ready template,
-   `score` is how notable it is. selectInsights ranks by score, enforces type VARIETY (≤1 per
-   kind in the diverse pass) and ROTATES the near-top group by a per-render seed so the list
-   stops always leading with the same over-target dish. deriveInsights orchestrates; the impure
-   computeInsights builds the data bundle from the CURRENT menu's live dishes.
+   v90 — THE BAR (Max): "Eggs are in 8 plates" is useless; the owner already knows what is in
+   their own plates. The previous bar ("not visible in the menu table") was too weak. The real
+   bar is something the owner could not compute in their head, so:
+
+   RULE A — every candidate declares the DIMENSIONS it combines, and must carry at least TWO,
+     or be a single aggregate across the whole dataset. One dimension on its own is either
+     obvious or already on screen. See INSIGHT_DIMS / ruleA.
+   RULE B — it must point at a decision, and it POINTS WITHOUT PRESCRIBING: state the fact and
+     its size, never the fix. The app cannot judge culinary substitutability (v71), so no
+     suggested swaps, portions or prices.
+   RULE C — EzPlate has NO sales volume (deliberate: no POS integration, manual entry rejected
+     as unreliable). Every ranking is by COST EFFICIENCY and says so. Nothing may imply profit
+     impact or money earned/lost, because that needs volume the app does not have.
+
+   Each TYPE is a pure function (tests pin them) returning zero+ candidates of the shape
+   {kind, dims, scope, facts, text, score}: `facts` holds every number that appears in `text`
+   (the phrasing validators depend on exactly that), `scope` is 'menu' | 'global' | undefined
+   for both. selectInsights ranks by score, keeps type VARIETY (≤1 per kind) and rotates the
+   near-top group by a per-render seed. deriveInsights orchestrates; the impure computeInsights
+   builds the data bundle for the CURRENT DASHBOARD SCOPE.
    ===================================================================================== */
-var CUT_PTS=12;   // v69: a dish this far over target is an insCut candidate (rework/drop), not a routine reprice
 
-/* v74 (brief Rule 1) — the NON-OBVIOUS guard. The menu table already shows each dish's name, ingredient
-   cost, suggested price, current price, variance and traffic light. An insight that only restates one of
-   those is worthless. So every candidate must declare the dimension it adds that is NOT in the table —
-   one of: cross (an ingredient's reach across dishes), composition (which input dominates a plate),
-   movement (a logged price change), comparative (menu-wide standing / an outlier), coverage (a gap in
-   the data itself — v75). deriveInsights drops any candidate whose dim isn't one of these before selecting. */
-var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1, coverage:1 };
-function nonObvious(c){ return !!(c && INSIGHT_DIMS[c.dim]); }
-/* v74 (brief §type-fix) — a dish's NON-OBVIOUS cost driver: the dominant ingredient, but ONLY when the dish
-   has ≥2 ingredients AND that ingredient is 40–90% of cost. A single-ingredient dish (share ~100%) is a
-   tautology ("Chips is 100% of Medium Chips"), and a near-total share says nothing either — both are
-   excluded. movePct rides along when price history shows a ≥3% move on that ingredient (so composition can
-   pair with movement). Returns null when there's no genuinely non-obvious driver. */
-function dishDriver(d){
-  var t=d&&d.top; if(!t || !(t.count>=2)) return null;
-  if(!(t.share>0.40 && t.share<0.90)) return null;
-  return { name:t.name, sharePct:Math.round(t.share*100),
-           movePct:(t.movePct!=null && Math.abs(t.movePct)>=3) ? Math.round(t.movePct) : null };
+/* Rule A's dimension vocabulary — the six kinds of thing an insight can add. `aggregation` is
+   the one that stands alone (an average or count across the whole dataset is by definition not
+   something you hold in your head); every other dimension needs a partner. */
+var INSIGHT_DIMS={ time:1, composition:1, breadth:1, aggregation:1, distribution:1, comparison:1 };
+function ruleA(c){
+  if(!c || !Array.isArray(c.dims)) return false;
+  var seen={}, n=0;
+  c.dims.forEach(function(d){ if(INSIGHT_DIMS[d] && !seen[d]){ seen[d]=1; n++; } });
+  if(n>=2) return true;
+  return n===1 && !!seen.aggregation;                                // a whole-dataset aggregate is allowed to stand alone
 }
-/* the driver phrase, shared by the over-target + portion templates so they read consistently */
-function driverClause(drv){
-  return drv.name+' is '+drv.sharePct+'% of its cost'+
-    (drv.movePct!=null ? (', '+(drv.movePct>0?'up':'down')+' '+Math.abs(drv.movePct)+'% this month') : '');
+/* Scope gate. Some types only make sense at one scope — category imbalance is a within-menu
+   comparison, supplier reach and the product price gap are facts about the product list, not
+   about any one menu. Suppress what doesn't apply rather than forcing it. */
+function scopeAllows(c, isAll){
+  if(!c || !c.scope) return true;                                    // 'any' — meaningful at both
+  return isAll ? (c.scope!=='menu') : (c.scope!=='global');
 }
-/* $/serve over target, formatted: cents under $1 ("15¢"), dollars otherwise ("$1.20"). Returns {str,num}
-   so the DISPLAYED number goes into facts (the phrasing validator checks every number is a fact). */
-function overServeFmt(over){
-  var cents=Math.round(over*100);                                   // decide the branch on the ROUNDED value so 0.999 → "$1.00", not "100¢"
-  return cents<100 ? { str:cents+'¢', num:cents }
-                   : { str:'$'+(cents/100).toFixed(2), num:cents/100 };
-}
+function pts1(x){ return Math.round(x*10)/10; }                      // one decimal, for "points" figures
 
-// TYPE: over target — a dish costing more than target. v71 (Max): POINT, DON’T PRESCRIBE. The app knows cost,
-// not the fix — it must never dictate a new price (menu reprints are expensive here). So the copy names the
-// problem and its size ("N pts over") and stops; whether that’s a rework, a portion trim or a price change is
-// the cook’s call. The old $-target directive is gone. Near-misses (1 pt) are insNearMiss; extreme dishes
-// (>= CUT_PTS over) are insCut; this covers the 2..11-pt middle.
-function insReprice(dishes, targetFrac){
-  var out=[];
-  dishes.forEach(function(d){
-    if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
-    if(pts<2 || pts>=CUT_PTS) return;                               // v71: 1 pt → insNearMiss owns it (no double-flagging)
-    var drv=dishDriver(d); if(!drv) return;                         // v74 Rule 1: "over target" is already in the table — only worth a line if we can add the driver (composition)
-    var o=overServeFmt(d.cost - d.menuPrice*targetFrac);           // v74 Rule 2: the concrete gap in $/serve, not just points
-    var f={name:d.name, pts:pts, overServe:o.num, sharePct:drv.sharePct}; if(drv.movePct!=null) f.movePct=Math.abs(drv.movePct);
-    out.push({kind:'reprice', dim:'composition', score:Math.min(60, 22+pts*2), facts:f,
-      text:d.name+' is '+pts+' pts over target — '+o.str+' a plate — '+driverClause(drv)+'.'});
-  });
-  return out.sort(function(a,b){ return b.facts.pts-a.facts.pts; });
-}
-// TYPE: near-miss — a dish only ~1 pt over: a low-effort win. v74: point, don't prescribe, but SPECIFIC —
-// the ¢-per-serve gap + the cost driver (needs a real driver to clear the non-obvious guard).
-function insNearMiss(dishes, targetFrac){
-  var best=null;
-  dishes.forEach(function(d){
-    if(best || !(d.cost>0)||!(d.menuPrice>0)) return;
-    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
-    if(pts!==1) return;
-    var drv=dishDriver(d); if(!drv) return;
-    var o=overServeFmt(d.cost - d.menuPrice*targetFrac);
-    var f={name:d.name, pts:pts, overServe:o.num, sharePct:drv.sharePct}; if(drv.movePct!=null) f.movePct=Math.abs(drv.movePct);
-    best={kind:'nearmiss', dim:'composition', score:48, facts:f,
-      text:d.name+' is just '+pts+' pt over — '+o.str+' a plate — '+driverClause(drv)+'.'};
-  });
-  return best?[best]:[];
-}
-// TYPE: volatility — a dish whose cost swings with a volatile ingredient (uses the logged price ranges).
-function insVolatility(dishes){
-  var best=null, bestSpread=0;
-  dishes.forEach(function(d){
-    if(!d.hasRange || !(d.cost>0)) return;
-    var lo=d.costMin, hi=d.costMax; if(!(hi>lo)) return;
-    var spreadPct=(hi-lo)/d.cost*100;
-    if(spreadPct>bestSpread){ bestSpread=spreadPct;
-      best={kind:'volatility', dim:'movement', score:Math.min(92, 35+spreadPct),
-        facts:{name:d.name, costMin:Math.round(lo*100)/100, costMax:Math.round(hi*100)/100},
-        text:d.name+' has swung $'+lo.toFixed(2)+'–$'+hi.toFixed(2)+' with '+(d.volatileIng||'ingredient')+' prices — worth watching.'};
-    }
-  });
-  return best?[best]:[];
-}
-// TYPE: shared-ingredient leverage — an ingredient across many of this menu's dishes; a better price moves more than one reprice.
-function insShared(shared){
-  if(!shared || !shared.length) return [];
-  var s=shared.slice().sort(function(a,b){ return b.dishCount-a.dishCount; })[0];
-  if(!s || s.dishCount<2) return [];
-  return [{kind:'shared', dim:'cross', score:Math.min(80, 30+s.dishCount*5),
-    facts:{name:s.name, dishCount:s.dishCount},
-    text:s.name+' feeds '+s.dishCount+' plates here — a better price on it beats any single reprice.'}];
-}
-// TYPE: biggest mover — the ingredient whose logged price changed most, and how many of this menu's dishes it feeds.
-function insMover(mover){
-  if(!mover || !(Math.abs(mover.pct)>=3)) return [];
-  var up=mover.pct>0, n=(mover.dishes&&mover.dishes.length)||0, pct=Math.abs(Math.round(mover.pct));
-  return [{kind:'mover', dim:'movement', score:Math.min(88, 40+Math.abs(mover.pct)),
-    facts:{name:mover.name, pct:pct, dishCount:n},
-    text:mover.name+' '+(up?'rose':'fell')+' '+pct+'% — it feeds '+n+' plate'+(n===1?'':'s')+' here'+(up?', so recheck their margins.':', a chance to bank the saving.')}];
-}
-// v74 (Max): insBest was REMOVED — "X dish has your best margin" states a fact without anything to act on.
-// Insights are for critical problems + real leverage; a healthy menu says so with the one all-healthy line.
-// TYPE: summary — always-available filler so the panel never renders empty when there IS data: the over/under count.
-function insSummary(dishes, targetFrac){
-  var tp=Math.round(targetFrac*100), total=dishes.length;
-  var over=dishes.filter(function(d){ return d.cost>0 && d.menuPrice>0 && Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
-  if(over) return [{kind:'count', dim:'comparative', score:22, facts:{over:over, total:total, targetPct:tp},
-    text:over+' of '+total+' costed plate'+(total===1?'':'s')+' sit over your '+tp+'% target.'}];
-  return [{kind:'allgood', dim:'comparative', score:26, facts:{total:total, targetPct:tp},
-    text:'All '+total+' costed plate'+(total===1?'':'s')+' are at or under your '+tp+'% target — the menu’s healthy.'}];
-}
-// v74 (Max): insPortion (the standalone "X ingredient is Y% of this plate's cost") was REMOVED — on its own
-// it states a fact, not an insight; it gives the owner nothing to act on. Composition now appears ONLY as the
-// driver clause on an OVER-TARGET line (see insReprice/insNearMiss via dishDriver), where it explains a real
-// margin problem. dishDriver/driverClause stay for exactly that use.
-// v71 (Max): the SUBSTITUTION insight ("swap X for cheaper Y") was REMOVED. The cost engine can't know two
-// products are culinarily interchangeable (a burger patty vs a sausage patty are just two meat products to it),
-// and the alternative a cook would actually reach for may not be in the supplier data at all. Suggesting a
-// specific swap is a class of error no data fixes — so the app points at shared/volatile/moving ingredients
-// (insShared, insMover, insVolatility) and leaves the choice of substitute to the cook. subCandidate went too.
-// TYPE: cut — a dish so far over target that repricing alone is a hard ask (would need a big, menu-reprinting
-// jump). Flag it to rework the spec or drop it, rather than pretend a price nudge fixes it.
-function insCut(dishes, targetFrac){
-  var best=null;
-  dishes.forEach(function(d){
-    if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    var pts=Math.round((d.cost/d.menuPrice - targetFrac)*100);
-    if(pts<CUT_PTS) return;
-    if(!best || pts>best.facts.pts){
-      var o=overServeFmt(d.cost - d.menuPrice*targetFrac);
-      best={kind:'cut', dim:'comparative', score:Math.min(96, 58+pts), facts:{name:d.name, pts:pts, overServe:o.num},
-        text:d.name+' is '+pts+' pts over target — '+o.str+' a plate — too far for a price tweak to close.'};
-    }
-  });
-  return best?[best]:[];
+/* ============================ FAMILY 1 — cost-base movement, culprit named ============================
+   The average moved, and here is which ingredient did it and how far its reach goes.
+   time × aggregation × breadth. Needs ≥2 logged price points on at least one ingredient in scope.
+   Both figures are computed at TODAY'S sell prices, so the comparison isolates COST movement —
+   it is not a claim about what the percentage read at the time. */
+function insCostBase(mv){
+  if(!mv || !(Math.abs(mv.pts)>=0.3) || !mv.name || !mv.sinceLabel) return [];
+  if(!(Math.abs(mv.ingPct)>=3) || !(mv.plates>=1)) return [];
+  var up=mv.pts>0, p=pts1(Math.abs(mv.pts)), ip=Math.round(Math.abs(mv.ingPct)), n=mv.plates;
+  return [{kind:'costbase', dims:['time','aggregation','breadth'], score:Math.min(96, 60+Math.abs(mv.pts)*8),
+    facts:{pts:p, ingPct:ip, plates:n},
+    text:'Your average food cost is '+p+' pts '+(up?'higher':'lower')+' than at '+mv.sinceLabel+' prices — '
+      +mv.name+', '+(mv.ingPct>0?'up':'down')+' '+ip+'% across '+n+' plate'+(n===1?'':'s')+', is most of it.'}];
 }
 
-/* ===== v75 (brief §1) — WIDEN the pool with menu-level & cross-cutting types so a 30-item menu clears
-   the non-obvious guard with 5 VARIED insights (the guard from v74 is CORRECT and unchanged; the problem
-   was too few TYPES to promote once the shallow ones are rejected). Every type below still declares its
-   dim, states a FACT + figures only (point, don't prescribe), and puts every displayed number in `facts`
-   so the phrasing validator still passes. All pure; tests pin each derivation. ===== */
+/* ============================ FAMILY 2 — plate drift ============================
+   One plate's ingredients cost more than they did, and what that does to its food cost % at
+   today's price. time × composition. The "its price hasn't moved" clause is added ONLY when the
+   sell-price log proves it (priceHeldSince) — never assumed, because a plate whose price also
+   rose has not drifted at all. */
+function insDrift(d){
+  if(!d || !d.name || !d.sinceLabel) return [];
+  if(!(d.up>=0.20) || !(d.toPct-d.fromPct>=2)) return [];            // needs a real move in both money and points
+  var up=Math.round(d.up*100)/100, f=Math.round(d.fromPct), t=Math.round(d.toPct);
+  return [{kind:'drift', dims:['time','composition'], score:Math.min(90, 46+(t-f)*3),
+    facts:{name:d.name, up:up, fromPct:f, toPct:t},
+    text:d.priceHeld
+      ? (d.name+'’s ingredients cost $'+up.toFixed(2)+' more than in '+d.sinceLabel+' and its price hasn’t moved — '+f+'% to '+t+'%.')
+      : (d.name+'’s ingredients cost $'+up.toFixed(2)+' more than in '+d.sinceLabel+' — at today’s price that lifts it from '+f+'% to '+t+'%.')}];
+}
 
-// TYPE: category performance — average food-cost % per menu SECTION. The table shows per-dish only; the
-// section-average comparison is invisible in it. Needs ≥2 sections (≥2 dishes each) and a real gap (≥3 pts).
+/* ============================ FAMILY 3 — category imbalance ============================
+   Section averages. aggregation × comparison. MENU-SCOPED: comparing sections across every menu
+   at once averages away the thing that makes it useful. Needs ≥2 sections of ≥2 plates and a
+   ≥3-pt gap — below that there is no imbalance to report. */
 function insCategory(dishes, targetFrac){
   var by={};
   dishes.forEach(function(d){
@@ -2208,50 +2282,88 @@ function insCategory(dishes, targetFrac){
     .map(function(s){ return {name:s, pct:Math.round(by[s].sum/by[s].n*100)}; });
   if(cats.length<2) return [];
   cats.sort(function(a,b){ return a.pct-b.pct; });
-  var lo=cats[0], hi=cats[cats.length-1]; if(hi.pct-lo.pct<3) return [];   // no real gap → nothing worth saying
-  return [{kind:'category', dim:'comparative', score:Math.min(66, 30+(hi.pct-lo.pct)),
+  var lo=cats[0], hi=cats[cats.length-1]; if(hi.pct-lo.pct<3) return [];
+  return [{kind:'category', dims:['aggregation','comparison'], scope:'menu', score:Math.min(70, 32+(hi.pct-lo.pct)),
     facts:{loName:lo.name, loPct:lo.pct, hiName:hi.name, hiPct:hi.pct},
     text:'Your '+lo.name+' plates average '+lo.pct+'% food cost, '+hi.name+' sits at '+hi.pct+'%.'}];
 }
-// TYPE: spread / outliers — the food-cost % RANGE across the menu and its tightest-margin extreme. A
-// menu-wide fact (needs ≥4 dishes and a ≥10-pt span to read as one).
-function insSpread(dishes){
-  var arr=dishes.filter(function(d){ return d.cost>0 && d.menuPrice>0; })
-    .map(function(d){ return {name:d.name, pct:Math.round(d.cost/d.menuPrice*100)}; });
-  if(arr.length<4) return [];
-  arr.sort(function(a,b){ return a.pct-b.pct; });
-  var lo=arr[0], hi=arr[arr.length-1]; if(hi.pct-lo.pct<10) return [];
-  return [{kind:'spread', dim:'comparative', score:Math.min(58, 24+(hi.pct-lo.pct)/2),
-    facts:{loPct:lo.pct, hiPct:hi.pct},
-    text:'Food cost spans '+lo.pct+'% to '+hi.pct+'% across this menu — the widest gap on it.'}];
+
+/* ============================ FAMILY 4 — volatility ============================
+   The widest-swinging plate, as a food-cost % band at today's price, and its standing.
+   distribution × comparison. Needs a real logged range and a ≥4-pt swing. */
+function insVolatility(dishes){
+  var best=null, bestSwing=0;
+  dishes.forEach(function(d){
+    if(!d.hasRange || !(d.cost>0) || !(d.menuPrice>0)) return;
+    var lo=Math.round(d.costMin/d.menuPrice*100), hi=Math.round(d.costMax/d.menuPrice*100);
+    var swing=hi-lo; if(swing<4 || swing<=bestSwing) return;
+    bestSwing=swing;
+    best={kind:'volatility', dims:['distribution','comparison'], score:Math.min(88, 40+swing*2),
+      facts:{name:d.name, loPct:lo, hiPct:hi},
+      text:d.name+' swings '+lo+'–'+hi+'% with '+(d.volatileIng||'ingredient')+' prices — your least predictable plate.'};
+  });
+  return best?[best]:[];
 }
-// TYPE: aggregate opportunity — what the over-target dishes are worth IN AGGREGATE, per 100 serves. The
-// table shows each dish's gap; the menu-wide sum is invisible. (Point, don't prescribe: states the size.)
-function insAggregate(dishes, targetFrac){
-  var sum=0, n=0;
+
+/* ============================ FAMILY 5 — long-standing problem ============================
+   Not a blip: over target through every cost change we have recorded. time × comparison.
+   Needs ≥3 distinct months of cost points for that plate (see HISTORY DEPTH below) — under that
+   "always" means "twice", which is not a run. The price-log clause is added only when proved. */
+function insLongStanding(ls){
+  if(!ls || !ls.name || !ls.sinceLabel || !(ls.months>=3)) return [];
+  return [{kind:'longstanding', dims:['time','comparison'], score:Math.min(94, 56+ls.months*3),
+    facts:{name:ls.name, months:ls.months},
+    text:ls.priceHeld
+      ? (ls.name+' has been over target through every cost change since '+ls.sinceLabel+', with no price move — '+ls.months+' months.')
+      : (ls.name+' has been over target through every cost change since '+ls.sinceLabel+' — '+ls.months+' months, not a one-off.')}];
+}
+
+/* ============================ FAMILY 6 — near-miss cluster ============================
+   How many plates sit within half a point of target: a whole-dataset aggregate, so it clears
+   Rule A on its own. Points at where the smallest movements matter, without prescribing one. */
+function insNearCluster(dishes, targetFrac){
+  var n=0;
   dishes.forEach(function(d){
     if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    var over=d.cost - d.menuPrice*targetFrac; if(over>0){ sum+=over; n++; }
+    if(Math.abs(d.cost/d.menuPrice - targetFrac)*100 <= 0.5) n++;
   });
-  if(n<2 || !(sum>0)) return [];
-  var per100=Math.round(sum*100);
-  return [{kind:'aggregate', dim:'comparative', score:Math.min(70, 34+n*2),
-    facts:{count:n, per100:per100, per:100},                         // `per:100` keeps the "per 100 serves" figure inside facts (number law)
-    text:'Your '+n+' over-target plates are about $'+per100+' per 100 serves above target in total.'}];
+  if(n<2) return [];
+  var tp=Math.round(targetFrac*100);
+  return [{kind:'nearcluster', dims:['aggregation','distribution'], score:Math.min(64, 34+n*4),
+    facts:{count:n, targetPct:tp},
+    text:n+' plates sit within half a point of your '+tp+'% target.'}];
 }
-// TYPE: ingredient-spend concentration — the single biggest-spend ingredient ACROSS the menu (its share of
-// total ingredient cost). Cross-cutting: invisible in a per-dish table. Only notable at ≥25% of spend.
-function insSpend(spend){
-  if(!spend || !spend.length) return [];
-  var s=spend.slice().sort(function(a,b){ return b.total-a.total; })[0];
-  if(!s || !(s.total>0) || !(s.pct>=25)) return [];
-  return [{kind:'spend', dim:'cross', score:Math.min(74, 34+s.pct),
-    facts:{name:s.name, pct:s.pct},
-    text:s.name+' is '+s.pct+'% of your ingredient spend across this menu — your biggest single lever.'}];
+
+/* ============================ FAMILY 7 — supplier concentration ============================
+   How far ONE supplier reaches across the plate library. breadth × aggregation. GLOBAL: this is
+   a fact about the product list, not about any one menu. BREADTH-based, never spend-based —
+   "spend" would imply purchase volume the app does not have (Rule C). Needs ≥2 suppliers (with
+   one, the answer is trivially "all of them") and a ≥40% reach over ≥3 plates. */
+function insSupplierReach(sup){
+  if(!sup || !sup.name || !(sup.suppliers>=2)) return [];
+  if(!(sup.plates>=3) || !(sup.total>0) || sup.plates/sup.total < 0.40) return [];
+  return [{kind:'supplier', dims:['breadth','aggregation'], scope:'global', score:Math.min(78, 30+sup.plates/sup.total*50),
+    facts:{plates:sup.plates, total:sup.total},
+    text:sup.name+' supplies at least one ingredient in '+sup.plates+' of your '+sup.total+' costed plates.'}];
 }
-// TYPE: complexity pattern — do many-ingredient dishes cost a higher % than simpler ones? Only emits when
-// the pattern actually HOLDS (both groups ≥2 dishes, ≥3-pt gap). Non-obvious: the table shows neither the
-// ingredient count nor the split. `minIng` is in facts so the "6+" figure survives the number check.
+
+/* ============================ FAMILY 8 — price gap ============================
+   Same category, same base unit, very different unit prices. distribution × comparison. GLOBAL.
+   A FACT, NOT a swap suggestion (v71): the cost engine cannot know two products are culinarily
+   interchangeable, so this states the spread and stops. Needs ≥3 products and a ≥2.5x ratio. */
+function insPriceGap(gap){
+  if(!gap || !gap.category || !gap.unit) return [];
+  if(!(gap.count>=3) || !(gap.lo>0) || !(gap.hi>0) || gap.hi/gap.lo < 2.5) return [];
+  var mult=Math.round(gap.hi/gap.lo*10)/10;
+  return [{kind:'pricegap', dims:['distribution','comparison'], scope:'global', score:Math.min(72, 30+mult*6),
+    facts:{lo:Math.round(gap.lo*100)/100, hi:Math.round(gap.hi*100)/100, mult:mult, count:gap.count},
+    text:'Your '+gap.count+' '+gap.category+' products run $'+gap.lo.toFixed(2)+'–$'+gap.hi.toFixed(2)+' per '+gap.unit+' — a '+mult+'x spread.'}];
+}
+
+/* ===== KEPT from v75, re-declared against Rule A (each already combined two dimensions) ===== */
+
+// Do many-ingredient plates cost a higher % than simpler ones? aggregation × comparison. Only when
+// the pattern actually holds (both groups ≥2 plates, ≥3-pt gap). `minIng` is in facts so "6+" survives.
 function insComplexity(dishes){
   var many={sum:0,n:0}, few={sum:0,n:0};
   dishes.forEach(function(d){
@@ -2261,45 +2373,56 @@ function insComplexity(dishes){
   if(many.n<2 || few.n<2) return [];
   var mp=Math.round(many.sum/many.n*100), fp=Math.round(few.sum/few.n*100), gap=mp-fp;
   if(gap<3) return [];
-  return [{kind:'complexity', dim:'comparative', score:Math.min(62, 30+gap),
+  return [{kind:'complexity', dims:['aggregation','comparison'], score:Math.min(62, 30+gap),
     facts:{manyPct:mp, fewPct:fp, gap:gap, minIng:6},
     text:'Plates with 6+ ingredients average '+mp+'% food cost, simpler ones '+fp+'%.'}];
 }
-// TYPE: recent change — how many of this menu's dishes cost MORE now than at the last price update (from the
-// per-ingredient price log). Movement invisible in the table. Only worth a line at ≥2 dishes.
+// How many plates cost more now than at the last price update. time × aggregation. ≥2 to be a pattern.
 function insRecentChange(recent){
   if(!recent || !(recent.up>=2)) return [];
-  return [{kind:'recent', dim:'movement', score:Math.min(76, 38+recent.up*3),
+  return [{kind:'recent', dims:['time','aggregation'], score:Math.min(70, 34+recent.up*3),
     facts:{up:recent.up},
-    text:recent.up+' plates cost more now than at your last price update — worth a recheck.'}];
+    text:recent.up+' plates cost more now than at your last price update.'}];
 }
-// TYPE: data completeness (gentle) — dishes on this menu not costed yet. Actionable and invisible in the
-// table (an uncosted dish has no margin row). NOT manufactured concern — just a gap to fill. dim: coverage.
+// Plates not costed yet — a count across the dataset, so it stands alone under Rule A. A gap to fill,
+// not manufactured concern: an uncosted plate has no margin row at all.
 function insData(coverage){
   if(!coverage) return [];
   var u=coverage.uncosted||0;
   if(u<1) return [];
-  return [{kind:'data', dim:'coverage', score:Math.min(34, 20+u),
+  return [{kind:'data', dims:['aggregation'], score:Math.min(34, 20+u),
     facts:{uncosted:u},
     text:u+' plate'+(u===1?" isn't":"s aren't")+' costed yet — no margin read on '+(u===1?'it':'them')+' yet.'}];
 }
-// TYPE: best performer (positive) — the standout dish comfortably UNDER target. v75 (Max, this brief): the
-// one positive line, re-added after v74's critical-only pass. Low score so it never crowds out a real
-// problem; only fires when a dish is genuinely strong (≥5 pts under). Non-obvious: menu-wide standing.
+// The one positive line: the standout plate comfortably under target. comparison × aggregation (a
+// menu-wide standing). Low score so it never crowds out a real problem.
 function insBest(dishes, targetFrac){
   var best=null, bestPts=0;
   dishes.forEach(function(d){
     if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    var pts=Math.round((targetFrac - d.cost/d.menuPrice)*100);   // points UNDER target
+    var pts=Math.round((targetFrac - d.cost/d.menuPrice)*100);       // points UNDER target
     if(pts>=5 && pts>bestPts){ bestPts=pts; best=d; }
   });
   if(!best) return [];
-  return [{kind:'best', dim:'comparative', score:24, facts:{name:best.name, pts:bestPts},
+  return [{kind:'best', dims:['comparison','aggregation'], score:24, facts:{name:best.name, pts:bestPts},
     text:best.name+' is your strongest margin — '+bestPts+' points under target.'}];
 }
 
+/* v90 REMOVED for failing Rule A or Rule C — recorded here so nobody re-adds them by accident:
+   - insReprice / insCut / insSummary: status roll-ups. "X is over target" is what the red light and
+     the Variance column already say; adding points or $/serve does not add a DIMENSION.
+   - insSpread: the food-cost range across the menu — the light column shows it at a glance.
+   - insSpend: "N% of your ingredient spend" implies purchase volume the app has never had (Rule C).
+     Concentration is now breadth-based (insSupplierReach), exactly as the brief requires.
+   - insAggregate: "$X per 100 serves above target" reads as money lost, which needs volume (Rule C).
+   - insShared: bare breadth — literally the rejected "Eggs are in 8 plates". Replaced by
+     insSupplierReach, which pairs breadth with an aggregate share.
+   - insNearMiss: one plate 1 pt over. Replaced by insNearCluster, an aggregate.
+   - insMover: folded into insCostBase, which adds the aggregate impact the bare move was missing.
+   Their only helpers (CUT_PTS, dishDriver, driverClause, overServeFmt) went with them — no orphans. */
+
 // Rank by notability, keep type VARIETY (≤1 per kind first), and ROTATE the near-top group by seed
-// so equally-notable insights take turns leading across renders/menu-switches. Pure + tested.
+// so equally-notable insights take turns leading across renders/scope-switches. Pure + tested.
 function selectInsights(cands, seed, max){
   max=max||3; seed=seed||0;
   var sorted=cands.map(function(c,i){ return {c:c,i:i}; })
@@ -2315,148 +2438,278 @@ function selectInsights(cands, seed, max){
   for(var j=0;j<sorted.length && out.length<max;j++){ if(out.indexOf(sorted[j])<0) out.push(sorted[j]); }                                // fill pass: only if still short
   return out;
 }
-/* v71 item 4: ONE warm, genuine line for an all-healthy menu — varied by seed so it doesn't read as a fixed
-   template. Only reached when nothing is over target, so "in good shape" is always true. Every number (the
-   dish count, the target %) is in facts, so the Gemini phrasing layer's number check still passes. */
+/* ONE warm, genuine line for an all-healthy scope — varied by seed so it doesn't read as a fixed
+   template. Only reached when nothing is over target, so "in good shape" is always true. Every number
+   (the plate count, the target %) is in facts, so the phrasing layer's number check still passes. */
 function healthyLine(total, tp, seed){
   var pool=[
-    'Nothing needs attention on this menu right now — all '+total+' costed plate'+(total===1?'':'s')+' sit at or under your '+tp+'% target.',
-    'This menu’s in good shape — every one of its '+total+' costed plate'+(total===1?'':'s')+' is holding at or under '+tp+'%.',
-    'All clear here — your '+total+' costed plate'+(total===1?'':'s')+' are at or under the '+tp+'% target, so nothing’s calling for a look.',
-    'A healthy menu — nothing sits over your '+tp+'% target across '+total+' costed plate'+(total===1?'':'s')+'.'
+    'Nothing needs attention right now — all '+total+' costed plate'+(total===1?'':'s')+' sit at or under your '+tp+'% target.',
+    'Everything’s in good shape — every one of your '+total+' costed plate'+(total===1?'':'s')+' is holding at or under '+tp+'%.',
+    'All clear — your '+total+' costed plate'+(total===1?'':'s')+' are at or under the '+tp+'% target, so nothing’s calling for a look.',
+    'A healthy read — nothing sits over your '+tp+'% target across '+total+' costed plate'+(total===1?'':'s')+'.'
   ];
   var i=((seed%pool.length)+pool.length)%pool.length;
   return {kind:'allgood', facts:{total:total, targetPct:tp}, text:pool[i]};
 }
-/* PURE orchestrator (tests pin it). data = {dishes, shared, mover}; a bare array is treated as {dishes}.
-   Returns the chosen insights as {kind, facts, text} (internal score stripped). v71: point-not-prescribe
-   types only (substitution removed); the COUNT scales with menu size (§item 3) and an all-healthy menu gets
-   a single warm line (§item 4). */
+/* PURE orchestrator (tests pin it). data = {dishes, isAll, movement, drift, longStanding, supplier,
+   priceGap, recent, coverage}; a bare array is treated as {dishes}. Returns the chosen insights as
+   {kind, facts, text} (score, dims and scope stripped). The COUNT scales with menu size and NOTHING is
+   ever padded to the cap — selectInsights only returns real candidates, so fewer is correct when there
+   is genuinely less to say. */
 function deriveInsights(data, targetFrac, seed){
   if(Array.isArray(data)) data={dishes:data};
   data=data||{};
   var dishes=Array.isArray(data.dishes)?data.dishes:[];
+  var isAll=!!data.isAll;
   if(!(targetFrac>0)) return [];
   var costed=dishes.filter(function(d){ return d && d.cost>0 && d.menuPrice>0; });   // published + costed only
-  if(!costed.length) return [];                                     // nothing useful to say → the area hides
-  // v74 (brief §scaling): cap scales with menu size — 1→1, 2–5→2, 6–15→3, 16–29→4, 30+→5. selectInsights
-  // only ever returns REAL candidates, so a sparse or healthy menu shows fewer; nothing is padded to the cap.
+  if(!costed.length) return [];                                     // nothing useful to say → the block hides
   var n=costed.length;
-  var max = n>=30?5 : n>=16?4 : n>=6?3 : n>=2?2 : 1;
+  var max = n>=30?5 : n>=16?4 : n>=6?3 : n>=2?2 : 1;                // 1→1, 2–5→2, 6–15→3, 16–29→4, 30+→5
   var over=costed.filter(function(d){ return Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
-  // v75 (brief §1): menu-level & cross-cutting types — NEUTRAL facts that are non-obvious whether or not
-  // anything is over target (category spread, menu-wide range, biggest ingredient spend, complexity pattern,
-  // uncosted dishes, recent cost movement). These are what a big menu was short of once the shallow
-  // over-target lines were rejected. Each still passes the non-obvious guard.
-  var menuLevel=[]
-    .concat(insSpend(data.spend||[]))
-    .concat(insRecentChange(data.recent||null))
+  var pass=function(c){ return c && ruleA(c) && scopeAllows(c, isAll); };
+  // Neutral, non-concern types: true and useful whether or not anything is over target.
+  var neutral=[]
+    .concat(insCostBase(data.movement||null))
     .concat(insCategory(costed, targetFrac))
-    .concat(insSpread(costed))
+    .concat(insVolatility(costed))
+    .concat(insNearCluster(costed, targetFrac))
+    .concat(insSupplierReach(data.supplier||null))
+    .concat(insPriceGap(data.priceGap||null))
     .concat(insComplexity(costed))
-    .concat(insData(data.coverage||null));
+    .concat(insRecentChange(data.recent||null))
+    .concat(insData(data.coverage||null))
+    .filter(pass);
   if(!over){
-    // v71 item 4: nothing over target → LEAD with ONE warm line and don't manufacture concern. v75: but a
-    // large healthy menu still has neutral menu-level facts worth surfacing, so fill toward the cap with those
-    // (never with over-target/concern types, which don't apply here). A small healthy menu has little to say
-    // and stays a single line — fewer is still correct.
+    // Nothing over target → LEAD with ONE warm line and don't manufacture concern, then fill toward the
+    // cap with neutral facts only (drift and long-standing are concern types and don't apply here). A
+    // small healthy menu has little to say and stays a single line — fewer is still correct.
     var warm=healthyLine(costed.length, Math.round(targetFrac*100), seed||0);
-    var extra=selectInsights(menuLevel.filter(nonObvious), seed||0, Math.max(0, max-1));
+    var extra=selectInsights(neutral, seed||0, Math.max(0, max-1));
     return [warm].concat(extra.map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; }));
   }
-  // Something IS over target. PRIORITY (encoded in each type's score, then selectInsights ranks + keeps
-  // ≤1 per kind + rotates the near-top band): severe over-target (cut) → margin problems (reprice, near-miss,
-  // aggregate) → risk & leverage (volatility, shared ingredient, biggest mover, biggest spend, recent change)
-  // → menu-wide comparison (category, spread, complexity) → floors (best performer, uncosted, roll-up).
-  // GRACEFUL FILL: selectInsights only ever returns REAL candidates and fills toward the cap from the widened
-  // pool — never padding with tautologies (the non-obvious guard already dropped those).
   var cands=[]
-    .concat(insCut(costed, targetFrac))                              // far over target — severe
-    .concat(insReprice(costed, targetFrac))                          // over target — a margin problem (carries its driver)
-    .concat(insNearMiss(costed, targetFrac))                         // just over — a low-effort win
-    .concat(insAggregate(costed, targetFrac))                        // v75: what the over-target dishes are worth in aggregate
-    .concat(insVolatility(costed))                                   // cost swinging with a volatile input — a real risk
-    .concat(insShared(data.shared||[]))                              // shared-ingredient leverage (reveals the invisible)
-    .concat(insMover(data.mover||null))                              // an ingredient's price moved, feeding N dishes — real money
-    .concat(menuLevel)                                               // v75: the widened menu-level / cross-cutting pool
-    .concat(insBest(costed, targetFrac))                             // v75 (Max): the one positive line — low priority
-    .concat(insSummary(costed, targetFrac))                          // low-priority floor: the over-target roll-up
-    .filter(nonObvious);                                             // v74 Rule 1: drop anything that only restates the table
+    .concat(insLongStanding(data.longStanding||null))               // a standing problem outranks a new one
+    .concat(insDrift(data.drift||null))                             // this plate moved, and by how much
+    .concat(neutral)
+    .concat(insBest(costed, targetFrac))                            // the one positive line — low priority
+    .filter(pass);
   return selectInsights(cands, seed||0, max).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
 }
-/* Impure wrapper: build the data bundle from the CURRENTLY SELECTED menu's live dishes and derive.
-   v67 item 5a: menu-scoped (was all-menus on the Dashboard). Draws cost ranges from costRangeForLines,
-   shared-ingredient counts from kitchen-word usage, and the biggest mover from the per-ingredient price
-   log (ingPriceLog) — all numbers the app already computes. */
-var gemInsightPhrased=null;                                         // in-render guard: {key, lines:[text], refined} (key = menuId|sig)
-/* v69 (Max): insights + their Gemini phrasing are CACHED per menu for a PERIOD, then rotate. This (a) saves
+/* Impure wrapper: build the data bundle for the DASHBOARD's current scope and derive. Every number comes
+   from something the app already computes — live plate costs, the per-ingredient price log (ingPriceLog),
+   the v90 sell-price log (menuPriceLog), the product list. Nothing here is estimated or extrapolated. */
+var gemInsightPhrased=null;                                         // in-render guard: {key, lines:[text], refined} (key = scope|sig)
+/* v69 (Max): insights + their Gemini phrasing are CACHED per scope for a PERIOD, then rotate. This (a) saves
    the limited Gemini quota — no re-call on every reload/session within the period — and (b) refreshes what the
-   user sees afterwards. The period index also seeds the selection (varied per menu), so each new period leads
+   user sees afterwards. The period index also seeds the selection (varied per scope), so each new period leads
    with a different insight. A price change mid-period changes the sig → a fresh call (the insight genuinely
-   changed); otherwise one call per menu per period. */
+   changed); otherwise one call per scope per period. */
 var INSIGHT_PERIOD_MS=24*60*60*1000;                               // one day
 function insightPeriod(){ return Math.floor(Date.now()/INSIGHT_PERIOD_MS); }
 function menuSeedHash(id){ var h=0, s=String(id||''); for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return h; }
-function insightSeedFor(menuId){ return (insightPeriod()+menuSeedHash(menuId))|0; }   // stable within a period (so it caches), rotates across periods, varies per menu
-function computeInsights(seed){
-  var dishes=[], usage={}, nameByPid={}, dishNamesByPid={};
-  var spendMap={}, uncosted=0, recentUp=0;                          // v75: menu-wide ingredient spend, uncosted-dish + cost-rose counts
+function insightSeedFor(scopeKey){ return (insightPeriod()+menuSeedHash(scopeKey))|0; }   // stable within a period (so it caches), rotates across periods, varies per scope
+/* ---- v90: reading the past honestly ----
+   Every "since June" figure below is computed against ONE reference moment, not against a basket of
+   each ingredient's own last change. `ingPriceAt` returns the price actually in force at that moment;
+   a plate takes part only when EVERY one of its priced lines has a logged price reaching back that far
+   (`costAtLines(...).complete`). A partial reconstruction would be a number the app can't stand behind,
+   so the plate is skipped instead. This is what lets the copy name a month at all. */
+function ingPriceAt(pid, ms){
+  var a=(pid!=null)?ingPriceLog[pid]:null; if(!a || !a.length) return null;
+  var out=null;
+  for(var i=0;i<a.length;i++){ if(ptMs(a[i])<=ms) out=a[i].v; else break; }
+  return out;
+}
+/* A plate's cost at the prices in force at `ms`. complete=false when any priced line's log doesn't
+   reach back that far — the caller must then skip this plate rather than mix eras.
+   `priced` counts the lines that came from the LOG. It is not the same question as completeness: a
+   plate built entirely from misc cost lines reconstructs perfectly at every moment (its cost is a
+   fixed number) and would otherwise look like a plate whose cost had been observed and never moved.
+   Reading a run out of that is inventing history — "over target through every cost change" when
+   there were no recorded cost changes at all. So callers require priced > 0 as well. */
+function costAtLines(lines, ms){
+  var sum=0, complete=true, priced=0;
+  (lines||[]).forEach(function(l){
+    if(!l) return;
+    if(l.misc){ sum+=Number(l.cost)||0; return; }                    // misc rides along at its fixed cost (no price history)
+    var p=lineProduct(l); if(!p){ complete=false; return; }
+    var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
+    var v=ingPriceAt(pid, ms);
+    if(v==null){ complete=false; return; }
+    sum+=v*(l.qty||0); priced++;
+  });
+  return {cost:sum, complete:complete, priced:priced};
+}
+/* the unit word that matches perDisplayValue's scaling — g is shown per kg, ml per L, ea per unit.
+   Anything else has no comparable display unit, so the price-gap family skips it. */
+function unitWordFor(base){ return base==='g'?'kg':base==='ml'?'L':base==='ea'?'unit':''; }
+function monthLabel(ms){
+  var d=new Date(ms), now=new Date();
+  var opts=(now.getFullYear()===d.getFullYear())?{month:'long'}:{month:'long', year:'numeric'};
+  try{ return new Intl.DateTimeFormat(undefined, opts).format(d); }catch(e){ return d.toDateString(); }
+}
+/* Which ingredient moved the average furthest over this window, and how far its reach goes.
+   `ok` is [{d:{m,sp,cost,price}, then}] — the plates that reconstruct completely at `ms`. Split out of
+   computeInsights so it can be tested directly: it produces two numbers that go straight into
+   user-facing copy ("Beef, up 18% across 5 plates"), and the money law makes both worth pinning. */
+function movementCulprit(ok, ms){
+  var byPid={}, n=(ok&&ok.length)||0;
+  if(!n) return null;
+  ok.forEach(function(x){
+    (x.d.sp.lines||[]).forEach(function(l){
+      if(!l || l.misc) return;
+      var p=lineProduct(l); if(!p) return;
+      var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid; if(pid==null) return;
+      var was=ingPriceAt(pid, ms), isNow=cpbu(p);
+      if(was==null || isNow==null || !(was>0)) return;
+      var e=byPid[pid]||(byPid[pid]={pts:0, plates:0, seen:{}, was:was, now:isNow,
+        name:(l.kid?((kById[l.kid]&&kById[l.kid].name)||p.description):p.description)});
+      e.pts+=(isNow-was)*(l.qty||0)/x.d.price/n*100;                // EVERY line contributes cost…
+      if(!e.seen[x.d.m.id]){ e.seen[x.d.m.id]=1; e.plates++; }      // …but "across N plates" counts PLATES, not
+    });                                                            //    lines: one ingredient twice on one plate
+  });                                                              //    is still one plate.
+  var top=null;
+  Object.keys(byPid).forEach(function(pid){ var e=byPid[pid]; if(!top || Math.abs(e.pts)>Math.abs(top.pts)) top=e; });
+  return top;
+}
+var INSIGHT_WINDOWS=[30,60,90,180];                                  // days back to try for a comparable reference moment
+/* Build the data bundle for ONE dashboard scope and derive. scope===DASH_ALL covers every menu;
+   any other value is a menu id. v90: this is the DASHBOARD's scope (dashScope), NOT currentMenuId —
+   the Menu tab's own persisted selection is untouched by anything on this screen. */
+function computeInsights(scope, seed){
+  scope=(scope==null)?DASH_ALL:scope;
+  var isAll=(scope===DASH_ALL);
+  var dishes=[], uncosted=0, recentUp=0, now=Date.now();
+  var inScope=[];                                                    // {m, sp, cost, price} for the reconstruction passes
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
-      if((m.menuId||'MENU_ORIGINAL')!==currentMenuId) return;       // v67 5a: the SELECTED menu only
+      if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
       var sp=plateForMenuItem(m);
       var cost=sp?costFromLines(sp.lines):0;
-      if(!sp || !(cost>0)){ uncosted++; return; }                   // v75: a priced dish with no plate / no cost is "not costed yet"
+      if(!sp || !(cost>0)){ uncosted++; return; }                    // a priced dish with no plate / no cost is "not costed yet"
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
-      var topCost=0, topName=null, topPid=null;                      // v69: costliest ingredient line → costly-ingredient insight
-      var prevCost=0;                                                // v75: this dish's cost at each ingredient's PREVIOUS logged price (current if no history)
+      var prevCost=0;                                                // cost at each ingredient's PREVIOUS logged price (current where there is no history)
       (sp.lines||[]).forEach(function(l){
         if(!l) return;
-        if(l.misc){ prevCost+=Number(l.cost)||0; return; }           // misc rides along at its fixed cost (no price history)
+        if(l.misc){ prevCost+=Number(l.cost)||0; return; }
         var p=lineProduct(l); if(!p) return;
         var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
         var nm=l.kid?((kById[l.kid]&&kById[l.kid].name)||p.description):p.description;
-        if(nm && !seen[nm]){ seen[nm]=1; usage[nm]=(usage[nm]||0)+1; }   // distinct dishes per kitchen ingredient
+        if(nm && !seen[nm]) seen[nm]=1;
         var lc=lineCost(p, l.qty);
-        if(lc!=null && nm) spendMap[nm]=(spendMap[nm]||0)+lc;         // v75: menu-wide spend per ingredient
-        if(lc!=null && lc>topCost){ topCost=lc; topName=nm; topPid=pid; }
-        var prevLc=(lc!=null?lc:0);                                  // v75: same line at its previous logged price, if history exists
+        var prevLc=(lc!=null?lc:0);
         if(pid){
-          nameByPid[pid]=nm;
-          (dishNamesByPid[pid]||(dishNamesByPid[pid]=[])).push(m.name);
           var band=ingPriceBand(pid); if(band){ var s=(band.max-band.min)*(l.qty||0); if(s>volSpread){ volSpread=s; volName=nm; } }
           var pa=ingPriceLog[pid]; if(pa && pa.length>=2){ var pv=pa[pa.length-2].v; if(pv!=null && isFinite(pv)) prevLc=pv*(l.qty||0); }
         }
         prevCost+=prevLc;
       });
-      if(prevCost>0 && cost>prevCost*1.005) recentUp++;              // v75: this dish costs more now than at the last price update
-      var top=null;
-      // v74: top carries the dish's ingredient COUNT (so single-ingredient tautologies can be excluded) and the
-      // dominant ingredient's recent price MOVEMENT (so composition can pair with movement) — dishDriver reads both.
-      if(topName && topCost>0){ top={name:topName, share:topCost/cost, count:Object.keys(seen).length, movePct:ingMovePct(topPid)}; }
+      if(prevCost>0 && cost>prevCost*1.005) recentUp++;              // this plate costs more now than at the last price update
       dishes.push({name:m.name, cost:cost, menuPrice:m.price, section:m.section||'', nIng:Object.keys(seen).length,
-        costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName, top:top});
+        costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName});
+      inScope.push({m:m, sp:sp, cost:cost, price:m.price});
     });
   }catch(e){ return []; }
-  var shared=Object.keys(usage).filter(function(n){ return usage[n]>=2; }).map(function(n){ return {name:n, dishCount:usage[n]}; });
-  var totalSpend=0; Object.keys(spendMap).forEach(function(k){ totalSpend+=spendMap[k]; });   // v75: biggest-spend ingredient across the menu
-  var spend=Object.keys(spendMap).map(function(k){ return {name:k, total:spendMap[k], pct:totalSpend>0?Math.round(spendMap[k]/totalSpend*100):0}; });
-  var mover=null;
+
+  var movement=null, drift=null, longStanding=null;
   try{
-    Object.keys(dishNamesByPid).forEach(function(pid){
-      var a=ingPriceLog[pid]; if(!a || a.length<2) return;
-      var prev=a[a.length-2].v, last=a[a.length-1].v; if(!(prev>0)) return;
-      var pct=(last-prev)/prev*100;
-      if(!mover || Math.abs(pct)>Math.abs(mover.pct)){
-        var uniq=[], s2={}; dishNamesByPid[pid].forEach(function(dn){ if(!s2[dn]){ s2[dn]=1; uniq.push(dn); } });
-        mover={name:nameByPid[pid]||pid, pct:pct, dishes:uniq};
+    // FAMILY 1 + 2 — pick the most RECENT window that enough plates can be reconstructed at, so the
+    // comparison is as current as the data honestly allows.
+    for(var w=0; w<INSIGHT_WINDOWS.length && !movement; w++){
+      var ms=now-INSIGHT_WINDOWS[w]*86400000, ok=[];
+      inScope.forEach(function(d){
+        var then=costAtLines(d.sp.lines, ms);
+        if(then.complete && then.priced>0 && then.cost>0) ok.push({d:d, then:then.cost});
+      });
+      if(ok.length<2) continue;
+      var sumNow=0, sumThen=0;
+      ok.forEach(function(x){ sumNow+=x.d.cost/x.d.price; sumThen+=x.then/x.d.price; });
+      var pts=(sumNow-sumThen)/ok.length*100;
+      var top=movementCulprit(ok, ms);
+      if(top && Math.abs(pts)>=0.3){
+        movement={pts:pts, name:top.name, ingPct:(top.now-top.was)/top.was*100, plates:top.plates, sinceLabel:monthLabel(ms)};
+      }
+      // FAMILY 2 — the single plate whose food cost % moved furthest over the same window
+      var worst=null;
+      ok.forEach(function(x){
+        var fromPct=x.then/x.d.price*100, toPct=x.d.cost/x.d.price*100;
+        if(!worst || (toPct-fromPct)>(worst.toPct-worst.fromPct)) worst={name:x.d.m.name, id:x.d.m.id, up:x.d.cost-x.then, fromPct:fromPct, toPct:toPct};
+      });
+      // Keep the FIRST (most recent) window's drift. The loop only continues while `movement` is still
+      // unset, so without this guard a scope that produced drift at 30 days but no movement would have
+      // that drift silently replaced by the 60- then 90-day version — the sentence would name a
+      // different era depending on whether an unrelated family happened to fire. (CodeRabbit, v90.)
+      if(worst && !drift) drift={name:worst.name, up:worst.up, fromPct:worst.fromPct, toPct:worst.toPct,
+        sinceLabel:monthLabel(ms), priceHeld:priceHeldSince(worst.id, ms)};
+    }
+    // FAMILY 5 — over target through EVERY reconstructable month, walking back until the log runs out.
+    // Requires ≥3 months (insLongStanding enforces it): under that, "always" means "twice".
+    var tf=foodTarget(), bestRun=null;
+    inScope.forEach(function(d){
+      if(!(d.cost/d.price > tf)) return;                             // must be over target NOW to have a run at all
+      var months=0, oldest=null;
+      for(var k=1; k<=12; k++){
+        var mms=now-k*30*86400000, c=costAtLines(d.sp.lines, mms);
+        if(!c.complete || !(c.priced>0) || !(c.cost>0)) break;   // no LOGGED cost behind it → no run to report
+        if(!(c.cost/d.price > tf)) break;                            // a month under target ends the run
+        months=k; oldest=mms;
+      }
+      if(months>=3 && (!bestRun || months>bestRun.months)){
+        bestRun={name:d.m.name, months:months, sinceLabel:monthLabel(oldest), priceHeld:priceHeldSince(d.m.id, oldest)};
       }
     });
+    longStanding=bestRun;
   }catch(e){}
-  return deriveInsights({dishes:dishes, shared:shared, mover:mover, spend:spend, recent:{up:recentUp}, coverage:{uncosted:uncosted}},
-    foodTarget(), (seed==null?insightSeedFor(currentMenuId):seed));
+
+  // FAMILY 7 + 8 — GLOBAL facts about the product list, computed over the whole plate library rather
+  // than one menu. deriveInsights suppresses them at menu scope, so they cost nothing there.
+  var supplier=null, priceGap=null;
+  try{
+    var platesBySup={}, sups={}, totalPlates=0;
+    (typeof savedPlates!=='undefined'?savedPlates:[]).forEach(function(sp){
+      var mine={}, any=false;
+      (sp.lines||[]).forEach(function(l){
+        if(!l || l.misc) return;
+        var p=lineProduct(l); if(!p) return; any=true;
+        var s=(p.supplier||'').trim(); if(!s) return;
+        sups[s]=1; mine[s]=1;
+      });
+      if(!any) return;
+      totalPlates++;
+      Object.keys(mine).forEach(function(s){ platesBySup[s]=(platesBySup[s]||0)+1; });
+    });
+    var topSup=null;
+    Object.keys(platesBySup).forEach(function(s){ if(!topSup || platesBySup[s]>platesBySup[topSup]) topSup=s; });
+    if(topSup) supplier={name:topSup, plates:platesBySup[topSup], total:totalPlates, suppliers:Object.keys(sups).length};
+
+    // same category AND same base unit — comparing $/kg against $/unit would be a meaningless spread
+    var usedPids={};
+    (typeof savedPlates!=='undefined'?savedPlates:[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){
+      if(!l||l.misc) return; if(l.kid){ var k=kById[l.kid]; if(k&&k.pid!=null) usedPids[k.pid]=true; } else if(l.pid!=null) usedPids[l.pid]=true; }); });
+    var groups={};
+    (typeof PRODUCTS!=='undefined'?PRODUCTS:[]).forEach(function(p){
+      if(!usedPids[p.id]) return;
+      var cat=(p.category||'').trim(); if(!cat) return;
+      var v=perDisplayValue(p); if(v==null || !(v>0)) return;
+      var key=cat+'|'+(p.base_unit||'');
+      (groups[key]||(groups[key]={cat:cat, unit:unitWordFor(p.base_unit), vals:[]})).vals.push(v);
+    });
+    var bestGap=null;
+    Object.keys(groups).forEach(function(k){
+      var g=groups[k]; if(g.vals.length<3 || !g.unit) return;
+      var lo=Math.min.apply(null,g.vals), hi=Math.max.apply(null,g.vals);
+      if(!(lo>0)) return;
+      var ratio=hi/lo; if(!bestGap || ratio>bestGap.ratio) bestGap={category:g.cat, unit:g.unit, lo:lo, hi:hi, count:g.vals.length, ratio:ratio};
+    });
+    priceGap=bestGap;
+  }catch(e){}
+
+  return deriveInsights({dishes:dishes, isAll:isAll, movement:movement, drift:drift, longStanding:longStanding,
+    supplier:supplier, priceGap:priceGap, recent:{up:recentUp}, coverage:{uncosted:uncosted}},
+    foodTarget(), (seed==null?insightSeedFor(scope):seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
@@ -2475,33 +2728,44 @@ function gemPhrasingOk(text, facts){
   }
   return true;
 }
-/* v69: the per-menu, per-period phrasing cache (localStorage). Only SUCCESSFUL phrasings are stored, so
+/* v69: the per-scope, per-period phrasing cache (localStorage). Only SUCCESSFUL phrasings are stored, so
    offline/unavailable never poisons it; stale periods are pruned on write. */
 function insightCacheRead(){ try{ return JSON.parse(localStorage.getItem('cafeDB_insightCache')||'{}')||{}; }catch(e){ return {}; } }
 function insightCacheWrite(c){ try{ localStorage.setItem('cafeDB_insightCache', JSON.stringify(c)); }catch(e){} }
-/* Optional warmer phrasing (degrades to templates). ONE background POST per menu per PERIOD (v69) — a
-   cached phrasing for this menu+period+sig is reused with NO new call (saving the limited Gemini quota);
+/* Optional warmer phrasing (degrades to templates). ONE background POST per scope per PERIOD (v69) — a
+   cached phrasing for this scope+period+sig is reused with NO new call (saving the limited Gemini quota);
    offline / unavailable / invalid → the deterministic templates stand. Never blocks the render — it swaps
-   text in place only if the Menu tab is still showing this set. */
-function gemPhraseInsights(insights, menuId){
+   text in place only if the Dashboard is still showing this set (applyPhrasedInsights checks the sig). */
+function gemPhraseInsights(insights, scopeKey){
   if(!insights || !insights.length) return;
-  var sig=insightSig(insights), period=insightPeriod(), mk=menuId||'', key=mk+'|'+sig;
-  // 1) persistent cache hit: same menu + period + sig → reuse the stored phrasing, no API call
+  var sig=insightSig(insights), period=insightPeriod(), mk=scopeKey||'', key=mk+'|'+sig;
+  // 1) persistent cache hit: same scope + period + sig → reuse the stored phrasing, no API call
   var cache=insightCacheRead(), ce=cache[mk];
   if(ce && ce.period===period && ce.sig===sig && Array.isArray(ce.lines)){
     gemInsightPhrased={key:key, lines:ce.lines, refined:!!ce.refined};
     applyPhrasedInsights(ce.lines, insights, !!ce.refined); return;
   }
-  // 2) in-render guard: don't fire a duplicate fetch before the cache write lands this session
-  if(gemInsightPhrased && gemInsightPhrased.key===key){ applyPhrasedInsights(gemInsightPhrased.lines, insights, gemInsightPhrased.refined); return; }
+  // 2) in-session guard: don't fire a duplicate fetch before the cache write lands. v90 makes this
+  //    guard IN-FLIGHT as well as post-hoc. On the Menu tab this fn ran about once per menu switch, so
+  //    claiming the key only on success was enough. The Dashboard re-renders far more often — every
+  //    scope change, and every drill-down open or back — and each of those re-renders fired a SECOND
+  //    identical POST while the first was still in the air, burning the limited free-tier quota for a
+  //    phrasing already on its way. Claim the key BEFORE the fetch; release it if the call fails so a
+  //    later render can genuinely retry.
+  if(gemInsightPhrased && gemInsightPhrased.key===key){
+    if(gemInsightPhrased.inflight) return;                          // a call for this exact set is already out
+    applyPhrasedInsights(gemInsightPhrased.lines, insights, gemInsightPhrased.refined); return;
+  }
   if(typeof fetch!=='function') return;
+  gemInsightPhrased={key:key, lines:null, refined:false, inflight:true};
+  var release=function(){ if(gemInsightPhrased && gemInsightPhrased.key===key && gemInsightPhrased.inflight) gemInsightPhrased=null; };
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
   fetch('/api/insight',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({insights:insights.map(function(x){return {facts:x.facts, text:x.text};})}),signal:ctrl?ctrl.signal:undefined})
     .then(function(res){ return res.ok?res.json():null; })
     .then(function(payload){
       clearTimeout(timer);
-      if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)) return;   // invalid → don't cache, retry next render
+      if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)){ release(); return; }   // invalid → don't cache, retry next render
       var refined=false;                                             // v68: true only if ≥1 shown line is actually Gemini's phrasing (drives the honest credit)
       var lines=insights.map(function(ins,ix){                       // per line: accept the phrasing only if it passes the number check, else keep the template
         var cand=payload.lines[ix] && payload.lines[ix].text;
@@ -2515,118 +2779,57 @@ function gemPhraseInsights(insights, menuId){
       insightCacheWrite(c2);
       applyPhrasedInsights(lines, insights, refined);
     })
-    .catch(function(){ clearTimeout(timer); });                     // any failure → templates already shown, nothing to do
+    .catch(function(){ clearTimeout(timer); release(); });          // any failure → templates already shown; free the key so a later render may retry
 }
 function applyPhrasedInsights(lines, insights, refined){
   try{
-    var host=document.getElementById('menuInsightsPanel'); if(!host) return;
-    if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // menu moved on → don't overwrite
-    lines.forEach(function(t,ix){ var el=host.querySelector('.mi-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
-    if(refined){ var c=host.querySelector('.mi-credit'); if(c) c.hidden=false; }   // v68: reveal the credit only when Gemini truly phrased a shown line
+    var host=document.getElementById('dashInsBody'); if(!host) return;
+    if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // the scope moved on → don't overwrite
+    lines.forEach(function(t,ix){ var el=host.querySelector('.ins-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
+    if(refined){ var c=host.querySelector('.ins-credit'); if(c) c.hidden=false; }   // v68: reveal the credit ONLY when Gemini truly phrased a shown line
   }catch(e){}
 }
-/* v67 item 5a (redesign 2): quiet prose lines that read as a note jotted on the menu, not a dashboard
-   widget. v69 item 1: the SAME content system now lives inside an on-demand floating panel (the rainbow
-   FAB, bottom-left) rather than an always-visible inline block — this fn fills #menuInsights inside the
-   panel and shows/hides the WHOLE FAB by whether there's anything worth saying. renderAnalysis calls it
-   after painting the table; switching menus re-renders it (the panel reflects the selected menu). */
-// v78 (Max): the mobile floating trigger can be swiped to the side to dismiss it. Not persisted — a swipe hides it
-// only until the menu changes (or a reload): a new menu re-offers the button below.
-var suggestFabSwiped=false, suggestFabMenuId=null;
-function renderMenuInsights(){
-  var host=document.getElementById('menuInsights'); if(!host) return;
-  var fab=document.getElementById('menuSuggestFab');
-  if(!aiSuggestions){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // v81: AI suggestions OFF — no panel, no trigger, nothing computed
-  var insights=[]; try{ insights=computeInsights(insightSeedFor(currentMenuId)); }catch(e){ insights=[]; }
-  if(!insights.length){ host.innerHTML=''; if(fab) fab.hidden=true; menuSuggestClose(); return; }   // nothing to say → hide the whole pill (v74)
-  if(fab){
-    if(currentMenuId!==suggestFabMenuId){ suggestFabSwiped=false; suggestFabMenuId=currentMenuId; }  // v78: a new menu re-offers a swiped-away trigger
-    fab.classList.remove('swipe-left','swipe-right');                                                // clear any mid-swipe transform before re-showing
-    fab.hidden=suggestFabSwiped;                                                                     // v74: show whenever the menu has something to say — unless swiped away (v78)
-  }
+/* ===== v90: insights live on the DASHBOARD, inline ==========================================
+   They moved OFF the Menu tab entirely: the rainbow FAB, its panel, the swipe-dismiss and the
+   show/hide logic are all deleted (26 Jul audit — ten versions on one control, and .msug-panel was
+   one of the five independent owners of floating-layer placement). This is deliberately NOT a new
+   floating layer: it is an ordinary .panel in the dashboard grid, so there is nothing to place.
+
+   SCOPE: the block follows dashScope, the Dashboard's own selector — with a menu chosen the lines
+   are about that menu; on "All menus" they are cross-menu. Types that only make sense at one scope
+   are suppressed by deriveInsights rather than forced (see scopeAllows).
+
+   THE AI MARKER, in two parts, and they mean different things:
+   - The gradient SPARKLE always shows. The feature is AI-assisted whether or not the API answered,
+     and this is now the app's only Gemini identity marker. Its gradient is defined once in
+     index.html (#ezSparkGrad), not here — this markup is re-rendered on every scope change.
+   - The "Refined by Gemini" CREDIT shows only when Gemini actually phrased a line that is on
+     screen. Templates rendering (API off, unavailable, or the toggle disabled) → no credit,
+     because nothing was refined. applyPhrasedInsights is the only thing that reveals it.
+
+   No empty state here, by design: when there is nothing to say the panel is absent, exactly as the
+   By-menu panel is absent below two costed menus. The verdict header directly above already
+   explains a scope with nothing costed, and a second empty state saying the same thing is noise on
+   a phone. The drill-downs below DO need one, and use the shared helper. */
+var DASH_INS_SPARK='<svg class="ins-spark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="url(#ezSparkGrad)" d="M12 2.2l2.3 6.4 6.4 2.3-6.4 2.3L12 19.6l-2.3-6.4L3.3 10.9l6.4-2.3z"/></svg>';
+var dashInsPending=null;                                             // {insights, scope} handed to gemPhraseInsights once the markup is in the DOM
+function dashInsightsHtml(scope){
+  dashInsPending=null;
+  if(!aiSuggestions) return '';                                      // v81: AI suggestions OFF — nothing computed, nothing rendered
+  var insights=[]; try{ insights=computeInsights(scope); }catch(e){ insights=[]; }
+  if(!insights.length) return '';
+  dashInsPending={insights:insights, scope:scope};
   var sig=insightSig(insights);
-  // v80 (Max): the panel title reads "EzPlate Insights" — matches the trigger button (was "Menu insights" v74,
-  // "What stands out on this menu" earlier). Same title on desktop + mobile (one render path). The "Refined by
-  // Gemini" credit stays honest — hidden while the template shows, revealed by applyPhrasedInsights only when
-  // Gemini actually phrased a shown line.
-  host.innerHTML='<div class="menu-insights" id="menuInsightsPanel" data-sig="'+esc(sig)+'">'
-    +'<p class="mi-intro">EzPlate Insights</p>'
-    +insights.map(function(ins,ix){ return '<p class="mi-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
-    +'<span class="mi-credit" hidden>Refined by Gemini</span>'
-    +'</div>';
-  try{ gemPhraseInsights(insights, currentMenuId||''); }catch(e){}
+  return '<div class="panel dash-ins"><h2>'+DASH_INS_SPARK+'What needs attention</h2>'
+    // aria-live: the templates render first and the Gemini phrasing swaps in afterwards, so the text
+    // under a screen-reader user's cursor genuinely changes after load. Polite, because none of it is
+    // urgent. A full re-render replaces the region rather than mutating it, so scope changes don't
+    // announce — only the phrasing swap does, which is the change worth hearing about.
+    +'<div class="pad ins-body" id="dashInsBody" aria-live="polite" data-sig="'+esc(sig)+'">'
+    +insights.map(function(ins,ix){ return '<p class="ins-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
+    +'<p class="ins-credit" hidden translate="no">Refined by Gemini</p>'
+    +'</div></div>';
 }
-/* v74 (Max): the Suggestions panel now drops DOWN from a static "EzPlate Insights" pill in the Menu actions
-   row (was a floating bottom-right rainbow FAB, v69). Closes on the ×, a re-tap, an outside click or Escape.
-   Content is filled by renderMenuInsights; the pill (and panel) only exist while this menu has something to
-   say. Focus moves INTO the panel on open and is RESTORED to the pill on an explicit close (× / Escape /
-   re-tap) so keyboard focus never lands on the now-hidden panel. Outside-click leaves focus wherever the
-   click sent it (don't yank it back). The v71 swipe-to-hide / edge-tab dismiss is GONE — a static inline
-   pill is never "in the way", so there is nothing to hide. */
-function menuSuggestOpen(){
-  var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
-  var p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
-  if(p){ p.hidden=false; p.style.animation='none'; void p.offsetWidth; p.style.animation=''; }   // v72: force the signature spring to restart on EVERY open (a re-open otherwise skips it)
-  f.classList.add('open'); if(b) b.setAttribute('aria-expanded','true');
-  if(p){ try{ p.focus(); }catch(e){} }                               // move focus into the now-visible dialog (announces it, reads from the top)
-}
-function menuSuggestClose(restoreFocus){
-  var f=document.getElementById('menuSuggestFab'), p=document.getElementById('menuSuggestPanel'), b=document.getElementById('menuSuggestBtn');
-  var wasOpen=p && !p.hidden;
-  if(p) p.hidden=true; if(f) f.classList.remove('open'); if(b) b.setAttribute('aria-expanded','false');
-  if(restoreFocus && wasOpen && b && f && !f.hidden){ try{ b.focus(); }catch(e){} }   // return focus to the trigger — never to now-hidden content
-}
-function menuSuggestToggle(){ var p=document.getElementById('menuSuggestPanel'); if(p&&p.hidden) menuSuggestOpen(); else menuSuggestClose(true); }
-/* v78 (Max): swipe the floating trigger to the side to dismiss it — slide it off, then hide it. NOT persisted; the
-   trigger returns on the next menu switch / reload (renderMenuInsights re-offers it). */
-function suggestFabSwipeOff(dir){
-  var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
-  suggestFabSwiped=true; suggestFabMenuId=currentMenuId;
-  menuSuggestClose();                                          // in case the panel was open
-  f.classList.add(dir<0?'swipe-left':'swipe-right');           // slide off in the swipe direction
-  // a menu change within 200ms re-shows the trigger (renderMenuInsights clears suggestFabSwiped) — so only
-  // finish the hide if this swipe is still the active state, else this stale timeout would hide the new trigger
-  setTimeout(function(){ if(suggestFabSwiped) f.hidden=true; f.classList.remove('swipe-left','swipe-right'); }, 200);
-}
-(function wireMenuSuggestFab(){
-  var b=document.getElementById('menuSuggestBtn');
-  var fabSwipeGuard=false;   // v78: set by a swipe-dismiss so the trailing click doesn't reopen the panel
-  if(b) b.addEventListener('click', function(e){ e.stopPropagation(); if(fabSwipeGuard){ fabSwipeGuard=false; return; } menuSuggestToggle(); });
-  var x=document.getElementById('menuSuggestClose'); if(x) x.addEventListener('click', function(e){ e.stopPropagation(); menuSuggestClose(true); });
-  document.addEventListener('click', function(e){                       // outside-click closes it (focus follows the click)
-    var f=document.getElementById('menuSuggestFab'); if(!f||f.hidden) return;
-    var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden && !f.contains(e.target)) menuSuggestClose(false);
-  });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var p=document.getElementById('menuSuggestPanel'); if(p&&!p.hidden) menuSuggestClose(true); } });
-  // v75 (brief §3): SWIPE-to-close the open panel so it never blocks the menu on mobile (alongside ×, outside-tap,
-  // Escape). Kept from fighting the panel's own vertical scroll: a DOWNWARD swipe only dismisses when the content
-  // is already at the top, and a RIGHTWARD (horizontal) swipe always does. Not a persisted hide — the pill returns.
-  var panel=document.getElementById('menuSuggestPanel');
-  if(panel){
-    var sx=0, sy=0, tracking=false;
-    panel.addEventListener('touchstart', function(e){ if(!e.touches||e.touches.length!==1){ tracking=false; return; } sx=e.touches[0].clientX; sy=e.touches[0].clientY; tracking=true; }, {passive:true});
-    panel.addEventListener('touchend', function(e){
-      if(!tracking) return; tracking=false;
-      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
-      var dx=t.clientX-sx, dy=t.clientY-sy;
-      var rightSwipe=dx>60 && dx>Math.abs(dy);
-      var downFromTop=dy>50 && dy>Math.abs(dx) && panel.scrollTop<=0;
-      if(rightSwipe || downFromTop) menuSuggestClose(true);
-    }, {passive:true});
-  }
-  // v78 (Max): swipe the floating trigger ITSELF to the side to dismiss it (mobile). Horizontal + dominant-axis so
-  // it can't be mistaken for a tap or a vertical scroll; the guard above stops the trailing click reopening it.
-  if(b){
-    var fx=0, fy=0, ftrack=false;
-    b.addEventListener('touchstart', function(e){ fabSwipeGuard=false; if(!e.touches||e.touches.length!==1){ ftrack=false; return; } fx=e.touches[0].clientX; fy=e.touches[0].clientY; ftrack=true; }, {passive:true});  // a fresh touch clears any stale guard so a later tap is never wrongly suppressed
-    b.addEventListener('touchend', function(e){
-      if(!ftrack) return; ftrack=false;
-      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
-      var dx=t.clientX-fx, dy=t.clientY-fy;
-      if(Math.abs(dx)>48 && Math.abs(dx)>Math.abs(dy)){ fabSwipeGuard=true; suggestFabSwipeOff(dx<0?-1:1); }   // guard is consumed by the trailing synthetic click, or cleared by the next touchstart
-    }, {passive:true});
-  }
-})();
 function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 /* ===== v89: the verdict header, the menu selector and the By-menu list =====
    The Dashboard is the manager's surface — "am I OK?" — where every other tab serves the chef
@@ -2723,13 +2926,21 @@ function renderDashboard(){
     +'<div class="stat-attach"><div class="stat-lead">'+esc(statLead)+'</div>'
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
+  // v90 ORDER (per the approved mockup): status → insights → by menu → dig in. On mobile that is the
+  // reading order; on desktop CSS lifts the insights panel beside the chart, which sidesteps the
+  // above-or-below question entirely. The grid rows stay EXPLICIT (v89's lesson — auto-placement pushed
+  // a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle these.
+  html+=dashInsightsHtml(scope);
   html+=menuCompareHtml(scope);
-  html+='<div class="hl-row">'+highlightCard('foodcost','Highest food cost %')+highlightCard('portion','Highest portion cost')+highlightCard('stock','Most expensive stock per unit')+'</div>';
-  // v67 item 5a: the grounded "Suggestions" panel MOVED off the Dashboard onto the Menu tab
-  // (suggestions are menu-specific — one menu's dishes at a time — where the Dashboard averages all
-  // menus). See renderMenuInsights / renderAnalysis.
+  html+=digInHtml(scope);
   root.innerHTML=html;
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
+  // v90: the drill-down is a re-render, not a modal — one state variable, no dismissable layer.
+  root.querySelectorAll('.dig-card').forEach(function(b){ b.onclick=function(){ setDigOpen(b.getAttribute('data-kind')); }; });
+  var digBack=root.querySelector('#digBack'); if(digBack) digBack.onclick=function(){ setDigOpen(null); };
+  // v90: the optional Gemini phrasing fires only once the templates are in the DOM, so a slow or failed
+  // call leaves a fully-rendered block behind rather than an empty one.
+  if(dashInsPending){ try{ gemPhraseInsights(dashInsPending.insights, dashInsPending.scope||''); }catch(e){} }
   // v89: scope changes are session-only and touch nothing else — setDashScope re-renders this tab and
   // leaves currentMenuId (the Menu tab's own selection) exactly where it was.
   var scopeSel=root.querySelector('#dashScopeSelect');
@@ -2794,7 +3005,6 @@ function renderDashboard(){
     });
     svg.addEventListener('blur', rest);
   })();
-  root.querySelectorAll('.hl-card').forEach(function(b){ b.onclick=function(){ openHighlight(b.getAttribute('data-kind')); }; });
 }
 
 /* ---------- wiring for new pages/modals ---------- */
@@ -2806,10 +3016,9 @@ function renderDashboard(){
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
-  on('hlClose',function(){hide('hlModal');}); on('hlDone',function(){hide('hlModal');});
   on('invIntroX',function(){ try{localStorage.setItem('ezInvIntroDismissed','1');}catch(e){} var el=document.getElementById('invIntro'); if(el)el.style.display='none'; });
   on('invManualToggle',toggleInvManual);   // v67 item 4: reveal/hide the collapsed raw-text paste box
-  ['ingModal','hlModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });
+  ['ingModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });   // v90: hlModal removed with the highlight cards
 })();
 
 restoreLastTab();                                          // safe now: all module data (priceHistory, savedPlates, MENU) is initialised
@@ -2835,7 +3044,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v89';
+var APP_VERSION='v90';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3591,6 +3800,7 @@ function submitMenuItem(){
   if(existing){ upsertCustomMenu(item); }
   else { customMenu.push(item); saveCustomMenu(); dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
   rebuildMenu(); buildMenuOptions(); setCurrentMenuId(chosenMenu); buildMenuSelector();
+  logHistory();   // v90: publishing a plate at a sell price changes the menu average and seeds that dish's price log
   renderAnalysis(); renderPlatesTab(); closeMenuModal();
   var mm=document.getElementById('manageMenusModal'); if(mm && mm.classList.contains('open')) renderManageMenus();
   toast('“'+name+'” '+(existing?'updated on':'added to')+' the menu');
@@ -3785,7 +3995,9 @@ function setAiSuggestions(on, persist){
   aiSuggestions=!!on;
   try{ localStorage.setItem(AI_SUG_KEY, aiSuggestions?'1':'0'); }catch(e){}
   if(persist && typeof dbSetSetting==='function') dbSetSetting('ai_suggestions', aiSuggestions);
-  if(typeof renderMenuInsights==='function'){ try{ renderMenuInsights(); }catch(e){} }   // reflect immediately — hide/show the panel + its trigger
+  // v90: insights render on the Dashboard now, so the toggle refreshes THAT tab (dashInsightsHtml
+  // returns '' when suggestions are off, so the whole panel appears/disappears with the switch).
+  if(typeof renderDashboard==='function'){ try{ renderDashboard(); }catch(e){} }
 }
 
 /* Theme preference surfaced in Settings. Reuses the header moon toggle's exact mechanism — localStorage
@@ -5092,7 +5304,7 @@ function renderAnalysis(){
   tb.querySelectorAll('tr.mi-row').forEach(function(tr){
     tr.onclick=function(){ var pid=tr.getAttribute('data-pid'); if(pid){ openPlateEdit(pid); } else { var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); } };
   });
-  try{ renderMenuInsights(); }catch(e){}   // v67 item 5a: menu-scoped Suggestions panel below the table
+  // v90: nothing insight-related runs here any more — the Menu tab has no suggestions UI at all.
 }
 
 /* ===== multiple menus: selector, pickers, create modal ===== */
@@ -5185,7 +5397,9 @@ function submitAddDish(){
   var id='um'+Date.now().toString(36);
   var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Plate', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
   customMenu.push(item); saveCustomMenu(); dbPushMenuAfterPlate(item, sp);
-  rebuildMenu(); buildMenuOptions(); renderAnalysis(); renderPlatesTab(); closeAddDishModal();
+  rebuildMenu(); buildMenuOptions();
+  logHistory();   // v90: as above — a new priced dish moves the menu average and seeds its price log
+  renderAnalysis(); renderPlatesTab(); closeAddDishModal();
   toast('\u201c'+item.name+'\u201d added to '+menuNameById(currentMenuId));
 }
 function openNewMenuModal(){
@@ -5328,6 +5542,7 @@ function saveMenuEdit(){
   // v55: a dish keeps its own name/price/category per menu \u2014 editing it never renames the shared plate.
   upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, plateId:(m.plateId||m.sourcePlateId||null)});   // saves all edits at once
   rebuildMenu(); buildMenuOptions();
+  logHistory();   // v90: a sell-price edit moves the menu average AND is the event the sell-price log exists to catch. This path never logged either (the v60 item 1a liveness rule, missed here).
   if(chosenMenu!==currentMenuId){ setCurrentMenuId(chosenMenu); buildMenuSelector(); }   // follow the dish if it was moved to another menu
   renderPlate(); renderAnalysis(); renderPlatesTab(); closeEdit();
   toast('\u201c'+name+'\u201d updated');

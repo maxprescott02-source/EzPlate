@@ -1128,7 +1128,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
   background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
   transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
 .ing-card:hover{border-color:var(--accent)}
-.ing-card:active{transform:scale(.985)}   /* v72: shared tap press — see .hl-card */
+.ing-card:active{transform:scale(.985)}   /* v72: shared tap press — see .dig-card */
 .ing-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ing-name{font-weight:700;line-height:1.2}
 .ing-brand{font-size:12px;color:var(--muted2)}
@@ -1183,35 +1183,11 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .stat-arrow.bad,.stat-sub.bad{color:var(--bad)}
 .stat-sub{font-size:12px;margin-top:2px;color:var(--muted2)}
 .stat-sub.flat{color:var(--muted2)}
-.hl-row{display:flex;flex-direction:column;gap:var(--sp-3);padding:10px 16px 4px}
-.hl-card{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
-  transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
-.hl-card:hover{border-color:var(--accent)}
-.hl-card:active{transform:scale(.985)}    /* v72: same press treatment as .ing-card, app-wide */
-.hl-head{font-weight:700;margin-bottom:8px}
-.hl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--sp-2)}
-.hl-list li,.hl-full li{display:flex;justify-content:space-between;gap:var(--sp-2);font-size:13px}
-.hl-list .hl-n,.hl-full .hl-n{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hl-list .hl-v,.hl-full .hl-v{font-weight:700;white-space:nowrap}
-.hl-more{margin-top:8px;font-size:12px;font-weight:700;color:var(--accent)}
-.hl-full{list-style:decimal;margin:0;padding:0 0 0 22px;display:flex;flex-direction:column;gap:8px}
-@media(min-width:640px){ .hl-row{flex-direction:row} .hl-card{flex:1} }
-/* v63 item 3: grounded "Suggestions" — a muted card built from existing panel tokens, theme-aware.
-   No input box, no chat: a short list of 1–3 insight lines. */
-/* v67 (redesign 3 — a mix of the two) — the Menu-tab suggestions above the dish table. Brings back a
-   soft, borderless warm container (the gentle presence of pass 1) but NO icon/logo and no uppercase
-   eyebrow (the clutter pass 2 stripped). A warm italic lead names the menu; the observations are clean
-   full-text prose lines. Personal through the copy + the italic aside; quiet through the soft, chrome-light
-   card. Aligned with the .panel-meta inset. */
-.menu-insights{margin:var(--sp-4) var(--sp-5) var(--sp-5);padding:var(--sp-4);background:var(--surface2);border-radius:var(--radius-card)}
-.mi-intro{margin:0 0 var(--sp-2);font-size:var(--fs-sm);color:var(--muted2);font-style:italic}
-.mi-intro b{font-weight:800;color:var(--text2);font-style:normal}
-.mi-line{margin:0;font-size:var(--fs-base);line-height:1.6;color:var(--text)}
-.mi-line+.mi-line{margin-top:var(--sp-2)}
-/* v68: honest AI credit — shown only when Gemini actually phrased a line (JS reveals it); quiet corner text */
-.mi-credit{display:block;margin-top:var(--sp-3);text-align:right;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:.02em}
-.mi-credit[hidden]{display:none}
-@media (max-width:700px){ .menu-insights{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
+/* v90: .hl-row/.hl-card/.hl-head/.hl-list/.hl-full/.hl-more and the .menu-insights/.mi-intro/
+   .mi-line/.mi-credit block were DELETED. The three highlight cards became the Dig in grid and the
+   insights became a Dashboard panel — both styled in the v90 section at the end of this file.
+   (.mi-row/.mi-act/.mi-btn/.mi-name are the MENU TABLE's classes: same prefix, different feature,
+   untouched.) */
 
   /* invoice review: streamlined no-match "Add as New Item" button */
   .ni-add-btn{width:100%;font-size:13px;padding:8px 10px;border-style:dashed}
@@ -1346,7 +1322,6 @@ body.scroll-locked{position:fixed;left:0;right:0}
   /* -- dashboard: chart + stats + highlights use the width -- */
   #dashBody{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--sp-5);align-items:start}
   #dashBody .dash-panel{grid-column:1;margin:var(--sp-5) 0 0}   /* v49: same top offset as every other tab's .panel */
-  #dashBody .hl-row{grid-column:2;flex-direction:column;padding:0;margin:0}
   .dash-chart svg{height:auto}
   .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
 
@@ -1393,19 +1368,6 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
 .modal{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
 .mhead,.mfoot,.edit-delete-row{flex:0 0 auto}
 .mbody{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-#hlBody{padding-top:var(--sp-3)}
-.hl-full{list-style:none;padding:0;margin:0;counter-reset:hl;gap:var(--sp-3)}
-.hl-full li{align-items:center;gap:12px;font-size:var(--fs-base)}
-.hl-full li::before{
-  counter-increment:hl;content:counter(hl);
-  flex:0 0 auto;width:26px;height:26px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--surface2);color:var(--muted2);font-weight:800;font-size:12px;
-  font-variant-numeric:tabular-nums;
-}
-.hl-full li:nth-child(-n+3)::before{background:var(--accent-weak);color:var(--accent-ink)}
-.hl-full .hl-n{flex:1;min-width:0}
-.hl-full .hl-v{font-family:var(--mono)}
 
 .ing-price .ing-per{display:none}
 .ing-price b{font-size:16px;font-family:var(--mono);font-variant-numeric:tabular-nums}
@@ -1480,7 +1442,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   .ms-clear:hover{background:var(--border2)}
   .ing-filter:hover,.menu-search input:hover{border-color:var(--border2)}
   .invAppr,.ing-filter,select{cursor:pointer}
-  .hl-card:active,.ing-card:active{transform:scale(.985)}   /* v72: matches the base press */
+  .ing-card:active{transform:scale(.985)}   /* v72: matches the base press */
 }
 @media (hover:hover) and (pointer:fine) and (min-width:1024px){
   .btn{min-height:40px}
@@ -1584,16 +1546,15 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 /* v49: no bespoke top offsets — the dash panel starts where every other tab's panel starts
    (.panel's own margin-top; the old 2px pad + sp-4 margin put it 18px down vs 16 elsewhere) */
 #dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:0 0 var(--sp-3)}
-#dashBody .stat-row,#dashBody .hl-row{padding:0;margin:0;gap:var(--sp-3)}
+#dashBody .stat-row{padding:0;margin:0;gap:var(--sp-3)}
 .stat-card{padding:var(--sp-3) var(--sp-4)}
 .stat-v{font-size:24px}
 .stat-sub{font-size:11px}
-.hl-card{padding:var(--sp-3) var(--sp-4)}
-.hl-list{gap:8px}
 @media (min-width:1024px){
   #dashBody{display:grid;gap:0 var(--sp-5);padding:0}
-  #dashBody .stat-row,#dashBody .hl-row{margin-top:var(--sp-5)}
-  .stat-v{font-size:24px}
+  #dashBody .stat-row{margin-top:var(--sp-5)}
+  /* v90 (CodeRabbit): the desktop .stat-v{font-size:24px} restated the base rule two lines above,
+     so it never changed anything. Dead since v49; removed while the surrounding rules were open. */
 }
 
 
@@ -2541,112 +2502,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .menu-search.ad-search-wrap .ad-search{margin-bottom:0}
 
 /* ===== batch (v69) — floating Menu Suggestions button + panel (item 1) ===== */
-/* The Suggestions content (renderMenuInsights) moved off the inline slot into an on-demand panel behind a
-   persistent bottom-left button. The button carries the ONE bold flourish of this screen: the EzPlate logo
-   in a Gemini rainbow gradient, signalling the AI pairing. Everything around it stays quiet. The FAB lives
-   inside #tab-analysis so it only shows on the Menu tab; renderMenuInsights toggles [hidden] by whether the
-   menu has anything to say. Positioned clear of the bottom nav (mobile) and the sidebar (desktop). */
-/* v74 (Max): the menu insights are a STATIC pill at the RIGHT edge of the Menu card (was a floating
-   bottom-right rainbow FAB, v69). .msug is an inline positioning context for the pill + its drop-down
-   popover; margin-left:auto (plus the strapline's flex-grow on desktop) parks it at the right edge. */
-.msug{position:relative;display:inline-flex}
-.msug[hidden]{display:none}
-.an-head .msug{margin-left:auto}                     /* park the pill at the right edge of the actions row */
-/* v81 (Max): the trigger is a NEUTRAL ELEVATED CIRCLE at all widths (matching the mobile v79 treatment) — a
-   calm surface + hairline border + soft elevation, with the Gemini gradient ONLY in the four-point AI sparkle
-   (a GENERIC sparkle, not Google's logo). Was a rainbow-outline text pill on desktop (v74); Max asked desktop to
-   match mobile. Desktop stays INLINE at the right of the actions row (position unchanged) — only the look changed. */
-.msug-pill{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:44px;height:44px;padding:0;cursor:pointer;
-  border:1px solid var(--border);border-radius:50%;
-  background:var(--surface);box-shadow:var(--shadow-float);
-  transition:transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
-  -webkit-tap-highlight-color:transparent;
-}
-.msug-pill-spark{width:22px;height:22px;flex:0 0 auto;display:block}
-/* the label is KEPT in the DOM (accessible name + the v74 smoke pin) but not shown — the visual is the sparkle
-   only, exactly like mobile. aria-label="EzPlate Insights" still names the button for screen readers. */
-.msug-pill-text{display:none}
-.msug-pill:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg)}
-.msug-pill:active{transform:scale(.96)}
-.msug-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.msug.open .msug-pill{box-shadow:0 0 0 2px rgba(155,114,203,.4)}
-/* v78 (Max): swipe the floating trigger to the side to dismiss it — it slides off in the swipe direction and
-   fades, then hides (mobile, touch-only). NOT persisted: renderMenuInsights re-offers it on the next menu
-   switch / reload. Reduced-motion strips the transition; the button still hides. */
-.msug.swipe-left,.msug.swipe-right{transition:transform var(--t-fast) var(--ease),opacity var(--t-fast) var(--ease);opacity:0;pointer-events:none}
-.msug.swipe-left{transform:translateX(-140%)}
-.msug.swipe-right{transform:translateX(140%)}
-@media (prefers-reduced-motion:reduce){ .msug.swipe-left,.msug.swipe-right{transition:none} }
-/* Panel drops DOWN from the pill, anchored to the pill's RIGHT edge and extending LEFT so it stays on-screen
-   (the pill lives at the right edge of the card — anchoring left would run the panel off the right, v74 fix). */
-.msug-panel{
-  position:absolute;right:0;top:calc(100% + var(--sp-2));z-index:60;
-  /* v76 (Max): size the bubble to its CONTENT so all insights fit without a scrollbar — the height is auto
-     (grows with the text), and the cap is only a viewport safety valve for extreme cases, not a routine clip
-     (up to 5 wrapped insights fit comfortably under it). */
-  width:min(320px, calc(100vw - 2 * var(--sp-4)));max-height:min(88vh, 680px);overflow-y:auto;
-  /* v75 (brief §2): the panel carries the SAME rainbow-gradient OUTLINE as the pill (same colours + 90deg
-     angle) so button and panel read as one object — surface fill via padding-box keeps the background
-     untinted and text contrast unchanged in both themes. */
-  border:1.5px solid transparent;border-radius:var(--radius-card);
-  background:linear-gradient(var(--surface),var(--surface)) padding-box,
-            linear-gradient(90deg,#4285F4,#9B72CB 38%,#D96570 72%,#F2A65A) border-box;
-  box-shadow:var(--shadow-lg);padding:var(--sp-2) var(--sp-4) var(--sp-4);
-  /* v72 signature moment, v74: the AI panel springs DOWN OUT of the pill — grows from ~60% at the pill's
-     top-left with a real overshoot bounce. menuSuggestOpen() force-restarts it every open. Reduced-motion
-     strips the animation just below. */
-  transform-origin:top right;animation:msugPop var(--t-slow) var(--ease-spring);
-}
-.msug-panel[hidden]{display:none}
-.msug-head{display:flex;align-items:center;justify-content:flex-end;margin-bottom:var(--sp-1)}   /* just the close × — the title lives in .mi-intro below */
-.msug-x{background:none;border:0;color:var(--muted2);font-size:22px;line-height:1;cursor:pointer;padding:2px 4px;min-height:32px;min-width:32px;border-radius:8px}
-.msug-x:hover{color:var(--text);background:var(--hover)}
-.msug-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-/* the insight block is flush inside the panel — the panel supplies the chrome the inline card used to */
-.msug-panel .menu-insights{margin:0;padding:0;background:none;border-radius:0}
-.msug-panel .mi-intro{font-style:normal;font-size:var(--fs-md);font-weight:800;color:var(--text);margin-bottom:var(--sp-3)}   /* the panel's title now (no eyebrow) */
-@keyframes msugPop{from{opacity:0;transform:scale(.6) translateY(-20px)}to{opacity:1;transform:none}}
-
-/* v74/v77 (Max): MOBILE (<=639px) — the pill floats as a small AI circle bottom-right and the panel is an
-   INSET FLOATING CARD. This block sits AFTER the base .msug-panel rule ON PURPOSE: media queries add no
-   specificity, so these mobile overrides must come LATER in source order to win over the desktop popover rule
-   above. (An earlier position — v75/v76 — let the base rule clobber the mobile panel's position/width/anim:
-   the off-screen bug.) It stays BEFORE the reduced-motion rule below so that still strips the animation. */
-@media (max-width:639px){
-  /* v79 (Max, mockup-approved): bottom-right, clear of the bottom nav. 12px from the right edge; bottom = the
-     app's nav-clearance convention calc(84px + safe-area) (nav ≈72px + a 12px gap, same value install-banner /
-     corner-toasts use) so it never touches the nav or the iOS home indicator. */
-  .an-head .msug{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));margin:0;z-index:60}
-  /* v79/v81 (Max): the same neutral elevated circle as desktop (the circle treatment now lives in the base
-     .msug-pill rule), just a larger touch target with a bigger sparkle for the floating mobile trigger. */
-  .msug-pill{width:52px;height:52px}
-  .msug-pill-spark{width:24px;height:24px}
-  /* v77: the FAB hides while the card is open — the inset card spans the full width where the circle sits, so
-     leaving it visible would trap it under the card. It returns the instant the card closes. */
-  .msug.open .msug-pill{display:none}
-  /* v77 (brief): the mobile panel is an INSET FLOATING CARD — inset a fixed gutter from BOTH side edges
-     (reusing the app's .install-banner convention: 12px), so its width DERIVES FROM THE VIEWPORT, never from
-     the button, and it CANNOT land off-screen by construction. It floats ABOVE the bottom nav over the menu
-     content — the menu list stays visible behind it (no full-screen cover, no scrim). This replaces the
-     v75/v76 button-anchored popover that expanded left+up and fought both viewport edges at 380px.
-     Solid surface (dropped v75's 78% tint + blur, which fought contrast); the four-side rainbow border and
-     opaque fill both come from the base .msug-panel rule above. */
-  .msug-panel{
-    position:fixed;left:12px;right:12px;top:auto;
-    bottom:calc(84px + env(safe-area-inset-bottom));   /* clears the bottom nav + iOS home indicator */
-    width:auto;                                        /* derived from the two insets, not the button */
-    /* never taller than the space above the nav; internal scroll comes from the base rule's overflow-y:auto */
-    max-height:min(62vh, calc(100vh - 84px - env(safe-area-inset-bottom) - var(--sp-5)));
-    overscroll-behavior:contain;                       /* the card's own scroll never chains to the menu behind */
-    transform-origin:center bottom;
-    animation:msugRise var(--t-med) var(--ease);       /* short fade + slight rise; transform/opacity only */
-  }
-}
-/* v77: the mobile card enters with a gentle fade + rise (transform/opacity only; reduced-motion strips it below) */
-@keyframes msugRise{ from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
-@media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
+/* v90: the whole .msug block — the Menu tab's EzPlate Insights pill, its drop-down panel, the mobile
+   inset-card overrides, msugPop/msugRise and their reduced-motion rules — was DELETED with the
+   feature. That retires one of the five independent owners of floating-layer placement the 26 Jul
+   audit blamed for the recurring dropdown-position bug. The insights are an ordinary panel on the
+   Dashboard now (see the v90 section at the end of this file). Do not give them a floating layer. */
 
 /* ===== v89 — Dashboard rework stage 1: verdict header, menu scope selector, By-menu list =====
    The Dashboard is the manager's surface. These three pieces answer "am I OK?" for a chosen scope.
@@ -2677,20 +2537,80 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mcmp-row{display:flex;align-items:center;gap:var(--sp-3);width:100%;min-height:44px;   /* 44px: the app's touch-target floor */
   padding:var(--sp-3) var(--sp-1);background:none;border:0;border-radius:8px;font:inherit;color:var(--text);text-align:left;cursor:pointer}
 .mcmp-row:hover{color:var(--accent-ink)}
-.mcmp-row:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .hl-card */
+.mcmp-row:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .dig-card */
 .mcmp-row.act{font-weight:700}
 .mcmp-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm)}
 .mcmp-pct{flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
 .mcmp-note{margin:var(--sp-3) 0 0;color:var(--muted2)}
 @media (prefers-reduced-motion:reduce){ .mcmp-row:active{transform:none} }
 
-/* Desktop: the dashboard is a two-column grid (.dash-panel | .hl-row). By menu joins column 1 under the
-   chart panel — it reads as a continuation of the same question, not a third unrelated column. */
+/* Desktop: the dashboard is a two-column grid (.dash-panel | .dash-ins). By menu and Dig in join
+   column 1 under the chart panel — they read as continuations of the same question, not as three
+   unrelated columns. EXPLICIT rows, never auto-flow: #dashBody relied on auto-placement once and a
+   new panel pushed the cards below the fold (v89). Pinning every child stops a fifth repeating it. */
 @media(min-width:1024px){                      /* the breakpoint #dashBody's grid itself is declared at */
-  /* EXPLICIT rows, not auto-flow. #dashBody had two children and relied on auto-placement to put the
-     highlight cards top-right; adding a third child made auto-flow push them into row 2, below the fold.
-     Pinning all three means a fourth panel later can't silently move them again. */
-  #dashBody .dash-panel{grid-row:1}
-  #dashBody .hl-row{grid-row:1}
+  #dashBody .dash-panel{grid-column:1;grid-row:1}
+  #dashBody .dash-ins{grid-column:2;grid-row:1;margin:var(--sp-5) 0 0}
   #dashBody .dash-compare{grid-column:1;grid-row:2;margin:var(--sp-5) 0 0}
+  #dashBody .dash-dig{grid-column:1/-1;grid-row:3;margin:var(--sp-5) 0 0}
 }
+
+/* ===== batch (v90) — insights on the Dashboard + the "Dig in" drill-downs =====================
+   Two new panels, both built from the existing .panel/.pad skeleton and existing tokens. No new
+   layout system, no new elevation language, and — deliberately — no floating layer: the 26 Jul
+   audit counted five independent owners of floating placement, and v90 retires one of them
+   (.msug-panel) rather than adding a sixth. */
+
+/* ----- insights ----- */
+/* The sparkle is the app's ONE Gemini identity marker now, so it keeps its full-strength gradient
+   instead of the .panel h2 svg dimming that quiet glyphs get. Its gradient (#ezSparkGrad) is
+   defined once in index.html — never inside this panel's markup, which is re-rendered constantly. */
+.dash-ins h2{display:flex;align-items:center;gap:var(--sp-2)}
+.ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
+.ins-line{margin:0;padding:var(--sp-3) 0;font-size:var(--fs-base);line-height:1.55;color:var(--text2)}
+.ins-line:first-child{padding-top:0}
+.ins-line:last-of-type{padding-bottom:0}
+.ins-line + .ins-line{border-top:1px solid var(--border)}
+/* Honest AI credit: hidden until applyPhrasedInsights proves Gemini phrased a line that is on
+   screen. Template fallback keeps the sparkle (the feature IS AI-assisted) but never this. */
+.ins-credit{display:block;margin:var(--sp-3) 0 0;text-align:right;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:.02em}
+.ins-credit[hidden]{display:none}
+
+/* ----- Dig in ----- */
+.dig-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
+.dig-card{display:flex;flex-direction:column;gap:2px;min-height:44px;   /* 44px: the app's touch-target floor */
+  padding:var(--sp-3) var(--sp-4);text-align:left;font:inherit;color:var(--text);cursor:pointer;
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-ctl);
+  transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
+.dig-card:hover{border-color:var(--accent)}
+.dig-card:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .mcmp-row */
+.dig-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dig-k{font-size:var(--fs-xs);color:var(--muted2);line-height:1.3}
+/* min-width:0 so a long plate name can actually ellipsis inside the flex column */
+.dig-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm);font-weight:700}
+.dig-v{font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.dig-v.up{color:var(--bad)}                   /* a cost going UP is bad news, not "positive" */
+.dig-v.down{color:var(--good)}
+.dig-v.muted{color:var(--muted2)}
+
+/* detail view: the back arrow rides in the panel heading, mirroring Settings' .set-back */
+.dash-dig h2{display:flex;align-items:center;gap:var(--sp-1)}
+/* 44px, the app's own touch-target floor — not the 32px a glyph this size suggests. Negative block
+   margins keep it from inflating the panel heading, so it reads the same and taps bigger. (Settings'
+   .set-back is 40px and predates the floor; this is new code, so it meets it.) */
+.dig-back{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;
+  margin:-6px 0 -6px calc(var(--sp-3) * -1);padding:0;border:0;background:transparent;color:var(--text2);
+  cursor:pointer;border-radius:var(--radius-ctl)}
+.dig-back svg{width:20px;height:20px}
+.dig-back:hover{background:var(--hover);color:var(--text)}
+.dig-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dig-sub{margin:0 0 var(--sp-2)}
+.dig-list{list-style:none;margin:0;padding:0}
+.dig-row{display:flex;align-items:center;gap:var(--sp-3);min-height:44px;padding:var(--sp-2) 0;font-size:var(--fs-sm)}
+.dig-row + .dig-row{border-top:1px solid var(--border)}
+.dig-rn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dig-rv{flex:0 0 auto;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.dig-rv.up{color:var(--bad)}
+.dig-rv.down{color:var(--good)}
+@media (prefers-reduced-motion:reduce){ .dig-card:active{transform:none} }
+@media (min-width:640px){ .dig-grid{grid-template-columns:repeat(4,1fr)} }

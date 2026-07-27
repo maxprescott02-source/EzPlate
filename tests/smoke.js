@@ -85,7 +85,7 @@ $('setAiInvoiceChk').checked = false; $('setAiInvoiceChk').dispatchEvent(new win
 ok('turning AI invoice check off flips the flag + mirrors it', window.aiInvoiceCheck === false && window.localStorage.getItem('cafeDB_aiInvoiceCheck') === '0');
 $('setAiInvoiceChk').checked = true; $('setAiInvoiceChk').dispatchEvent(new window.Event('change'));   // restore ON
 $('setAiSuggestChk').checked = false; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));
-ok('turning AI suggestions off clears the insights host', $('menuInsights').innerHTML === '' && window.aiSuggestions === false);
+ok('turning AI suggestions off removes the Dashboard insights panel', !window.document.querySelector('#dashBody .dash-ins') && window.aiSuggestions === false);
 $('setAiSuggestChk').checked = true; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));   // restore ON
 window.document.querySelector('.seg-btn[data-theme-pref="dark"]').click();
 ok('choosing Dark forces data-theme + writes the header toggle key', window.document.documentElement.getAttribute('data-theme') === 'dark' && window.localStorage.getItem('cafeCost_theme') === 'dark');
@@ -471,70 +471,93 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('check-match: the AI-suggested product is the FIRST candidate chip and carries the AI marker',
     !!cm.querySelector('.cand-chip') && cm.querySelector('.cand-chip').classList.contains('ai') && /AI/.test((cm.querySelector('.cc-ai') || {}).textContent || ''));
 
-  // (c) item 5 (v67) — the "Suggestions" card now lives on the MENU tab (moved off the Dashboard),
-  // scoped to the current menu. Templates render immediately; a valid rephrasing swaps in place.
+  // (c) v90 — insights live INLINE on the DASHBOARD, scoped by its selector. The Menu tab has no
+  // suggestions UI at all any more: no pill, no panel, no host element. Templates render immediately;
+  // a valid rephrasing swaps in place and only THEN is the "Refined by Gemini" credit revealed.
   const stashCI = window.computeInsights;
   window.computeInsights = () => ([
-    { kind: 'reprice', facts: { name: 'Barra & Chips', pts: 10, menuPrice: 15, targetPrice: 20, targetPct: 30 }, text: 'Barra & Chips runs 10 pts over at $15.00 — lift it to $20.00 to land near 30%.' },
-    { kind: 'count', facts: { over: 1, total: 3, targetPct: 30 }, text: '1 of 3 costed dishes sit over your 30% target.' }
+    { kind: 'costbase', facts: { pts: 1.2, ingPct: 18, plates: 5 },
+      text: 'Your average food cost is 1.2 pts higher than at April prices — Beef, up 18% across 5 plates, is most of it.' },
+    { kind: 'nearcluster', facts: { count: 3, targetPct: 30 },
+      text: '3 plates sit within half a point of your 30% target.' }
   ]);
   pending = [];
-  let menuThrew = null; try { window.renderMenuInsights(); } catch (e) { menuThrew = e; }
-  ok('menu Suggestions renders without throwing', !menuThrew, menuThrew && menuThrew.message);
-  const di = $('menuInsightsPanel');
-  ok('the "Suggestions" note renders on the MENU tab when there are insights', !!di);
-  ok('it renders the deterministic templates immediately (1–3 lines, no input box)', di && di.querySelectorAll('.mi-line').length === 2 && !di.querySelector('input,textarea'));
-  ok('v80: the panel title reads "EzPlate Insights", no eyebrow/mark chrome', di && /EzPlate Insights/.test(di.textContent) && !/What stands out/.test(di.textContent) && !/SUGGESTIONS/i.test(di.textContent) && !di.querySelector('.mi-mark,svg'));
-  ok('v68: the "Refined by Gemini" credit is present but HIDDEN while the template shows (honest attribution)', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === true);
-  ok('the reprice template shows its computed numbers verbatim', di && /10 pts over/.test(di.textContent) && /\$20\.00/.test(di.textContent));
-  ok('a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
+  window.showTab('dashboard');
+  let dashThrew = null; try { window.renderDashboard(); } catch (e) { dashThrew = e; }
+  ok('v90: the Dashboard renders with the insights panel without throwing', !dashThrew, dashThrew && dashThrew.message);
+  const di = $('dashInsBody');
+  ok('v90: the insights block renders on the DASHBOARD', !!di);
+  ok('v90: it is INLINE in the dashboard flow, not a floating layer', !!di && !!di.closest('#dashBody') && !di.closest('[role="dialog"]'));
+  ok('v90: the deterministic templates render immediately (no input box, no chat)',
+    di && di.querySelectorAll('.ins-line').length === 2 && !di.querySelector('input,textarea'));
+  ok('v90: the heading reads "What needs attention"',
+    !!window.document.querySelector('#dashBody .dash-ins h2') && /What needs attention/.test(window.document.querySelector('#dashBody .dash-ins h2').textContent));
+  // both halves of the AI marker: the sparkle always, the credit only when earned
+  const spark = window.document.querySelector('#dashBody .dash-ins h2 svg.ins-spark');
+  ok('v90: the gradient sparkle sits beside the heading (the app\'s only Gemini identity marker)', !!spark);
+  ok('v90: the sparkle references the shared gradient def, it does not redeclare one in re-rendered markup',
+    !!spark && /url\(#ezSparkGrad\)/.test(spark.innerHTML) && !spark.querySelector('linearGradient'));
+  ok('v90: the sparkle gradient is defined EXACTLY once in the document (no duplicate ids from re-renders)',
+    window.document.querySelectorAll('#ezSparkGrad').length === 1);
+  ok('v90: the "Refined by Gemini" credit is present but HIDDEN while the template shows (honest attribution)',
+    di && di.querySelector('.ins-credit') && di.querySelector('.ins-credit').hidden === true);
+  ok('v90: the template numbers show verbatim', di && /1\.2 pts higher/.test(di.textContent) && /18%/.test(di.textContent));
+  ok('v90: a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
+  // v90 quota guard: the Dashboard re-renders on every scope change and every drill-down open, and each
+  // of those used to fire a SECOND identical POST while the first was still in flight.
+  window.renderDashboard();
+  ok('v90: a re-render while the call is still IN FLIGHT does not fire a duplicate (quota guard)',
+    pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));
   if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
-    { text: 'Heads up — Barra & Chips runs 10 pts hot; nudging $15.00 to $20.00 lands you at ~30%.' },
-    { text: '1 of 3 costed dishes sit over your 30% target.' } ] }) });
+    { text: 'Beef is up 18% across 5 plates — that is 1.2 pts on your average.' },
+    { text: '3 plates sit within half a point of your 30% target.' } ] }) });
   await tick(); await tick();
-  ok('a valid rephrasing (numbers intact) swaps into the card in place', di && /runs 10 pts hot/.test(di.textContent) && /\$20\.00/.test(di.textContent));
-  ok('v68: once Gemini actually phrased a shown line, the "Refined by Gemini" credit is revealed', di && di.querySelector('.mi-credit') && di.querySelector('.mi-credit').hidden === false);
-  // v69 (Max): insights + their phrasing are cached per menu per period — a re-render within the period must
-  // NOT hit Gemini again (saves the limited quota); the cached phrasing + its credit show straight away.
+  // re-query: the quota-guard re-render above replaced the panel, and applyPhrasedInsights resolves
+  // #dashInsBody fresh at apply time precisely so it lands on the LIVE node, not a detached one.
+  const dl = $('dashInsBody');
+  ok('v90: a valid rephrasing (numbers intact) swaps into the block in place', dl && /Beef is up 18% across 5 plates/.test(dl.textContent));
+  ok('v90: once Gemini actually phrased a shown line, the credit is revealed',
+    dl && dl.querySelector('.ins-credit') && dl.querySelector('.ins-credit').hidden === false);
+  // v69 cache: a re-render within the period must not hit Gemini again (the quota is limited)
   const fetchesBefore = pending.filter((p) => /\/api\/insight/.test(p.url)).length;
-  window.renderMenuInsights();
-  const dj = $('menuInsightsPanel');
-  ok('v69: a re-render within the period reuses the cache — no second Gemini call', pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
-  ok('v69: the cached phrasing (and its credit) apply immediately on the cache hit', dj && /runs 10 pts hot/.test(dj.textContent) && dj.querySelector('.mi-credit') && dj.querySelector('.mi-credit').hidden === false);
-  // v74 (Max): the Suggestions content lives behind a STATIC "EzPlate Insights" pill inline with the menu
-  // buttons (was a floating bottom-right rainbow FAB); the v71 swipe-to-hide / edge-tab dismiss is GONE.
-  const fab = $('menuSuggestFab');
-  ok('v74: the Insights pill is shown when the menu has insights', !!fab && fab.hidden === false);
-  ok('v74: the pill lives inline in the Menu actions row (not a fixed floating FAB)', !!fab && !!fab.closest('.panel-actions'));
-  ok('v74: the pill reads "EzPlate Insights" (rainbow-clipped text) with a generic AI sparkle + accessible label',
-    !!$('menuSuggestBtn') && /EzPlate Insights/.test($('menuSuggestBtn').textContent) && $('menuSuggestBtn').getAttribute('aria-label') === 'EzPlate Insights'
-    && !!$('menuSuggestBtn').querySelector('.msug-pill-text') && !!$('menuSuggestBtn').querySelector('svg.msug-pill-spark') && !$('menuSuggestBtn').querySelector('.msug-pill-dot'));
-  ok('v74: the pill is parked at the right edge (margin-left:auto in the actions row)', !!fab && !!fab.closest('.an-head'));
-  ok('v74: the panel starts closed until the pill is tapped', $('menuSuggestPanel') && $('menuSuggestPanel').hidden === true);
-  $('menuSuggestBtn').click();
-  ok('v74: tapping the pill opens the panel (aria-expanded flips)', $('menuSuggestPanel').hidden === false && fab.classList.contains('open') && $('menuSuggestBtn').getAttribute('aria-expanded') === 'true');
-  ok('v74: focus moves into the panel on open (a11y — never left on hidden content)', window.document.activeElement === $('menuSuggestPanel'));
-  ok('v74: the panel holds the same insight content (mi-lines) + the credit', $('menuSuggestPanel').querySelectorAll('.mi-line').length === 2 && !!$('menuSuggestPanel').querySelector('.mi-credit'));
-  $('menuSuggestBtn').click();
-  ok('v74: a re-tap toggles the panel closed', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
-  $('menuSuggestBtn').click();
-  $('menuSuggestClose').click();
-  ok('v74: the × closes the panel', $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false');
-  ok('v74: focus returns to the pill on close (a11y)', window.document.activeElement === $('menuSuggestBtn'));
-  // Escape closes it too — and, like the ×, resets aria-expanded + returns focus to the pill (a11y)
-  $('menuSuggestBtn').click();
-  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
-  ok('v74: Escape closes the panel, resets aria-expanded, and returns focus to the pill',
-    $('menuSuggestPanel').hidden === true && $('menuSuggestBtn').getAttribute('aria-expanded') === 'false' && window.document.activeElement === $('menuSuggestBtn'));
-  // the dismiss/restore machinery is gone entirely
-  ok('v74: the swipe-to-hide edge tab is removed', !$('menuSuggestRestore') && !$('menuSuggestDismiss'));
-  ok('v74: the suggest_fab_hidden dismiss API is gone', typeof window.suggestFabDismiss === 'undefined' && typeof window.suggestFabHidden === 'undefined');
+  window.renderDashboard();
+  const dj = $('dashInsBody');
+  ok('v90: a re-render within the period reuses the cache — no second Gemini call',
+    pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
+  ok('v90: the cached phrasing (and its credit) apply immediately on the cache hit',
+    dj && /Beef is up 18%/.test(dj.textContent) && dj.querySelector('.ins-credit') && dj.querySelector('.ins-credit').hidden === false);
+
+  // the Menu tab is CLEAN — the whole v69–v81 suggestions surface is gone, not merely hidden
+  ok('v90: the Menu tab has NO suggestions pill, panel or host left behind',
+    !$('menuSuggestFab') && !$('menuSuggestBtn') && !$('menuSuggestPanel') && !$('menuSuggestClose') && !$('menuInsights'));
+  ok('v90: no .msug markup survives anywhere in the document', !window.document.querySelector('.msug,.msug-pill,.msug-panel'));
+  ok('v90: the open/close/toggle/swipe API is gone from the global scope',
+    ['renderMenuInsights','menuSuggestOpen','menuSuggestClose','menuSuggestToggle','suggestFabSwipeOff','suggestFabDismiss','suggestFabHidden']
+      .every((k) => typeof window[k] === 'undefined'));
+  ok('v90: the old .mi-line/.mi-credit insight markup is not rendered anywhere',
+    !window.document.querySelector('.mi-line,.mi-credit,.mi-intro,.menu-insights'));
+
+  // (d) v90 — the "Dig in" drill-downs replace the three highlight cards and #hlModal
+  ok('v90: the Dig in grid renders four cards', window.document.querySelectorAll('#dashBody .dig-card').length === 4);
+  ok('v90: the old highlight cards and their modal are gone entirely',
+    !window.document.querySelector('.hl-row,.hl-card') && !$('hlModal') && !$('hlTitle') && !$('hlBody') && typeof window.openHighlight === 'undefined');
+  const firstCard = window.document.querySelector('#dashBody .dig-card');
+  firstCard.click();
+  ok('v90: tapping a card replaces the grid with its full list (no modal opens)',
+    !window.document.querySelector('#dashBody .dig-card') && !!window.document.querySelector('#dashBody .dig-list, #dashBody .empty-state')
+    && !window.document.querySelector('.modal-overlay.open'));
+  ok('v90: the detail view offers a back arrow', !!$('digBack'));
+  $('digBack').click();
+  ok('v90: back returns to the grid', window.document.querySelectorAll('#dashBody .dig-card').length === 4 && !window.document.querySelector('#dashBody .dig-list'));
+
   window.computeInsights = () => [];
-  let emptyThrew = null; try { window.renderMenuInsights(); } catch (e) { emptyThrew = e; }
-  ok('v74: rendering with no insights does not throw', !emptyThrew, emptyThrew && emptyThrew.message);
-  ok('v74: a menu with nothing to say hides the whole pill', fab.hidden === true);
+  let emptyThrew = null; try { window.renderDashboard(); } catch (e) { emptyThrew = e; }
+  ok('v90: rendering with no insights does not throw', !emptyThrew, emptyThrew && emptyThrew.message);
+  ok('v90: a scope with nothing to say drops the insights panel (the verdict header already explains it)',
+    !window.document.querySelector('#dashBody .dash-ins'));
   window.computeInsights = stashCI;
+  window.showTab('analysis');
 
   // ---- [17] v68 — Menu margin-light filter chips (multi-select) wire up + fold into Clear filters ----
   console.log('\n[17] v68 — Menu margin-light filter chips');
