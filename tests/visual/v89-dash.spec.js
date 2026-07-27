@@ -41,6 +41,11 @@ const SEED = () => {
 async function boot(page, width, theme) {
   await page.setViewportSize({ width, height: 900 });
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
+  // 501s on POST. There are no serverless functions behind `playwright test` — block them so the
+  // insight phrasing takes its offline path (deterministic templates) instead of logging an error
+  // that would mask a real one. Templates + no credit line is exactly the state v90-dash asserts.
+  await page.route('**/api/**', r => r.abort());
   await page.addInitScript(SEED);
   await page.goto('/');
   await page.waitForTimeout(1600);
@@ -98,13 +103,18 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       const cur = await page.evaluate(() => window.currentMenuId);
       expect(cur).toBe('MENU_ORIGINAL');
 
-      // desktop: adding a third panel must not push the highlight cards out of the top row
+      // desktop: a new panel must not push the top-right column out of row 1. v90 replaced the
+      // highlight cards with the insights panel in that slot — same invariant, new occupant.
       if (width >= 1024) {
+        // asserted unconditionally: a null-guard here would let the whole placement check pass
+        // vacuously the day the panel stops rendering, which is exactly the regression it exists
+        // to catch. This seed always produces insights. (CodeRabbit, v90.)
+        await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
         const tops = await page.evaluate(() => ({
           panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect().top,
-          hl: document.querySelector('#dashBody .hl-row').getBoundingClientRect().top
+          ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect().top
         }));
-        expect(Math.abs(tops.hl - tops.panel), 'highlight cards stay beside the chart, not below it')
+        expect(Math.abs(tops.ins - tops.panel), 'insights stay beside the chart, not below it')
           .toBeLessThanOrEqual(24);
       }
 
@@ -135,6 +145,11 @@ test('every chart range still renders with the selector present @ 380px', async 
 test('the selector is hidden when only one menu exists', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 900 });
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
+  // 501s on POST. There are no serverless functions behind `playwright test` — block them so the
+  // insight phrasing takes its offline path (deterministic templates) instead of logging an error
+  // that would mask a real one. Templates + no credit line is exactly the state v90-dash asserts.
+  await page.route('**/api/**', r => r.abort());
   await page.addInitScript(SEED);
   await page.addInitScript(() => {
     localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MENU_ORIGINAL', name: 'Original' }]));
@@ -156,6 +171,11 @@ test('the selector is hidden when only one menu exists', async ({ page }) => {
 async function bootWith(page, menus, dishes, plates) {
   await page.setViewportSize({ width: 380, height: 900 });
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
+  // 501s on POST. There are no serverless functions behind `playwright test` — block them so the
+  // insight phrasing takes its offline path (deterministic templates) instead of logging an error
+  // that would mask a real one. Templates + no credit line is exactly the state v90-dash asserts.
+  await page.route('**/api/**', r => r.abort());
   await page.addInitScript(([m, d, p]) => {
     localStorage.clear();
     localStorage.setItem('cafeDB_menus', JSON.stringify(m));

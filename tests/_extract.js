@@ -58,28 +58,22 @@ function build() {
   // v73: the PURE distiller of a Gemini line + header supplier into the add-new form's clean
   // descriptive candidates. Dependency-free, no DOM — testable against canned readings.
   const gemCleanFields = extractFn(src, 'gemCleanFields');
-  // v63/v67: the deterministic insight engine. v67 broadened it into one pure function PER insight
-  // TYPE + a pure selector; deriveInsights orchestrates them. All are dependency-free (dishes/shared/
-  // mover are passed in as primitives), so each is testable with no DOM and no live API.
-  // v74: shared helpers the insight types depend on — the non-obvious guard, the dominant-ingredient
-  // driver (≥2 ingredients, 40–90% share), its phrase, and the $/serve formatter. Extracted so the
-  // types can run in isolation with no DOM.
-  const nonObvious = extractFn(src, 'nonObvious');
-  const dishDriver = extractFn(src, 'dishDriver');
-  const driverClause = extractFn(src, 'driverClause');
-  const overServeFmt = extractFn(src, 'overServeFmt');
-  const insReprice = extractFn(src, 'insReprice');
-  const insNearMiss = extractFn(src, 'insNearMiss');
-  const insVolatility = extractFn(src, 'insVolatility');
-  const insShared = extractFn(src, 'insShared');
-  const insMover = extractFn(src, 'insMover');
-  const insSummary = extractFn(src, 'insSummary');
-  const insCut = extractFn(src, 'insCut');           // v69: far-over-target → rework/drop
-  // v75: the widened menu-level / cross-cutting pool
-  const insCategory = extractFn(src, 'insCategory');
-  const insSpread = extractFn(src, 'insSpread');
-  const insAggregate = extractFn(src, 'insAggregate');
-  const insSpend = extractFn(src, 'insSpend');
+  // v63/v67/v90: the deterministic insight engine — one pure function PER insight FAMILY plus a pure
+  // selector, with deriveInsights orchestrating. Every family takes primitives (the impure
+  // computeInsights builds them from live data), so each is testable with no DOM and no live API.
+  // v90 rewrote what qualifies: ruleA replaces the v74 nonObvious guard, and six families that only
+  // restated the menu table or implied sales volume were deleted (see the note in js/app.js).
+  const ruleA = extractFn(src, 'ruleA');
+  const scopeAllows = extractFn(src, 'scopeAllows');
+  const pts1 = extractFn(src, 'pts1');
+  const insCostBase = extractFn(src, 'insCostBase');           // F1: cost-base movement, culprit named
+  const insDrift = extractFn(src, 'insDrift');                 // F2: one plate's cost drift
+  const insCategory = extractFn(src, 'insCategory');           // F3: category imbalance (menu-scoped)
+  const insVolatility = extractFn(src, 'insVolatility');       // F4: the widest-swinging plate
+  const insLongStanding = extractFn(src, 'insLongStanding');   // F5: over target through every cost change
+  const insNearCluster = extractFn(src, 'insNearCluster');     // F6: the near-miss cluster
+  const insSupplierReach = extractFn(src, 'insSupplierReach'); // F7: supplier concentration (global)
+  const insPriceGap = extractFn(src, 'insPriceGap');           // F8: same-category unit-price spread (global)
   const insComplexity = extractFn(src, 'insComplexity');
   const insRecentChange = extractFn(src, 'insRecentChange');
   const insData = extractFn(src, 'insData');
@@ -98,8 +92,7 @@ function build() {
     "use strict";
     function invDbg(){}   /* stub: the app's debug logger is a no-op in tests */
     var GEM_BAND=0.5;     /* the app's default plausibility band, mirrored for the extracted merge fn */
-    var CUT_PTS=12;       /* v69: insReprice/insCut share this over-target threshold (mirrored for extraction) */
-    var INSIGHT_DIMS={ cross:1, composition:1, movement:1, comparative:1, coverage:1 };   /* v74/v75: mirror for nonObvious */
+    var INSIGHT_DIMS={ time:1, composition:1, breadth:1, aggregation:1, distribution:1, comparison:1 };   /* v90: mirror for ruleA */
     var DROP_MIN=140, DROP_MAX=300;   /* v86: mirror of the app's combobox list bounds for the extracted dropPlace */
     ${parserBlock}
     ${pricingFn}
@@ -108,21 +101,17 @@ function build() {
     ${gemMerge}
     ${gemMatchSuspect}
     ${gemCleanFields}
-    ${nonObvious}
-    ${dishDriver}
-    ${driverClause}
-    ${overServeFmt}
-    ${insReprice}
-    ${insNearMiss}
-    ${insVolatility}
-    ${insShared}
-    ${insMover}
-    ${insSummary}
-    ${insCut}
+    ${ruleA}
+    ${scopeAllows}
+    ${pts1}
+    ${insCostBase}
+    ${insDrift}
     ${insCategory}
-    ${insSpread}
-    ${insAggregate}
-    ${insSpend}
+    ${insVolatility}
+    ${insLongStanding}
+    ${insNearCluster}
+    ${insSupplierReach}
+    ${insPriceGap}
     ${insComplexity}
     ${insRecentChange}
     ${insData}
@@ -135,7 +124,7 @@ function build() {
     ${esc}
     ${builderNoMatchHtml}
     ${dropPlace}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, nonObvious, dishDriver, driverClause, overServeFmt, insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary, insCut, insCategory, insSpread, insAggregate, insSpend, insComplexity, insRecentChange, insData, insBest, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insSupplierReach, insPriceGap, insComplexity, insRecentChange, insData, insBest, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
   `);
   return factory();
 }

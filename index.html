@@ -29,9 +29,20 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=89">
+<link rel="stylesheet" href="css/style.css?v=90">
 </head>
 <body>
+<!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
+     renderDashboard rewrites on every scope change and every price edit. A <linearGradient id> living in
+     re-rendered innerHTML is a duplicate-id bug waiting to happen; a single hidden defs block referenced
+     by url() is stable for the life of the document. This is now the app's ONLY Gemini identity marker
+     (the Menu tab's pill carried it until v90), so the id is app-scoped and the colours are Gemini's own. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute"><defs>
+  <linearGradient id="ezSparkGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#4285f4"/><stop offset=".35" stop-color="#9b72cb"/>
+    <stop offset=".70" stop-color="#d96570"/><stop offset="1" stop-color="#f2a60c"/>
+  </linearGradient>
+</defs></svg>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
 <div id="splash" aria-hidden="true">
   <svg class="sp-mark" viewBox="0 0 64 64" role="img" aria-label="EzPlate is loading">
@@ -91,31 +102,11 @@
         <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
         <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing plate</button>
         <span class="an-sub panel-sub">Cost vs price for every plate — the lights show what needs a rework</span>
-        <!-- v74 (Max): the menu insights moved off the floating bottom-right rainbow FAB onto a STATIC pill.
-             It sits at the RIGHT edge of the card (the strapline before it flex-grows to push it there); the
-             text + icon share the rainbow-gradient border colour; the icon is a GENERIC four-point AI sparkle
-             (NOT Google's Gemini logo — that's their trademark and can't be embedded as decoration). Tapping
-             it opens the same panel with the same spring (dropping DOWN from the pill). renderMenuInsights
-             shows/hides this whole wrapper by whether the menu has anything to say; it lives in the actions
-             row so it only appears on the Menu tab. The v71 swipe-to-hide/edge-tab dismiss is gone. -->
-        <div id="menuSuggestFab" class="msug" hidden>
-          <button type="button" class="msug-pill" id="menuSuggestBtn" aria-label="EzPlate Insights" aria-expanded="false" aria-controls="menuSuggestPanel" aria-haspopup="dialog">
-            <svg class="msug-pill-spark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <defs><linearGradient id="msugSparkGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop offset="0" stop-color="#4285f4"/><stop offset=".35" stop-color="#9b72cb"/>
-                <stop offset=".70" stop-color="#d96570"/><stop offset="1" stop-color="#f2a60c"/>
-              </linearGradient></defs>
-              <path d="M12 2.2l2.3 6.4 6.4 2.3-6.4 2.3L12 19.6l-2.3-6.4L3.3 10.9l6.4-2.3z" fill="url(#msugSparkGrad)"/>
-            </svg>
-            <span class="msug-pill-text">EzPlate Insights</span>
-          </button>
-          <div id="menuSuggestPanel" class="msug-panel" role="dialog" aria-label="Menu suggestions" tabindex="-1" hidden>
-            <div class="msug-head">
-              <button type="button" class="msug-x" id="menuSuggestClose" aria-label="Close suggestions">&times;</button>
-            </div>
-            <div id="menuInsights"></div>
-          </div>
-        </div>
+        <!-- v90 (Max): the "EzPlate Insights" pill and its panel are GONE from this tab. Insights now live
+             inline on the Dashboard, scoped by its menu selector — one home, not two. This was the tenth
+             version of this one control (26 Jul audit) and removing it also retires .msug-panel, one of the
+             five independent owners of floating-layer placement the audit blames for the recurring
+             dropdown-position bug. Nothing replaces it here; do not add a floating layer back. -->
       </div>
       <div class="an-controls">
         <div class="menu-picker-row">
@@ -717,13 +708,9 @@
 </div>
 
 <!-- Highlight detail modal -->
-<div class="modal-overlay" id="hlModal" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="hlTitle">
-    <div class="mhead"><h3 id="hlTitle">Details</h3><button class="x" id="hlClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="mbody" id="hlBody"></div>
-    <div class="mfoot"><button class="btn primary" id="hlDone" type="button">Done</button></div>
-  </div>
-</div>
+<!-- v90: #hlModal is gone. The three highlight cards it belonged to are replaced by the Dashboard's
+     "Dig in" grid, which drills down INLINE (grid → full list → back arrow, the same pattern Settings
+     uses) instead of opening a modal. Nothing else referenced hlTitle/hlBody/hlDone. -->
 
 <!-- Install banner -->
 <div id="installBanner" class="install-banner" style="display:none" role="dialog" aria-label="Install app">
@@ -763,7 +750,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=89"></script>
+<script src="js/app.js?v=90"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

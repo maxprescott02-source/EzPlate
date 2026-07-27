@@ -1,334 +1,433 @@
 /*
- * insights.test.js — the PURE deterministic insight engine (v63 item 3a; broadened v67; refined v71; DEPTH
- * pass v74).
+ * insights.test.js — the PURE deterministic insight engine (v63 item 3a; broadened v67; refined v71;
+ * depth pass v74; REWRITTEN v90).
  *
- * v74 (brief): two root fixes. (Rule 1) the NON-OBVIOUS guard — an insight must add something not already in
- * the menu table (cross-plate reach, cost composition, price movement, or menu-wide standing); a line that
- * only restates "over target" is dropped. (Rule 2) DEPTH = specific numbers, not prescriptions — over-target
- * insights carry the gap in BOTH points and $/serve PLUS the cost driver (dominant input + share, + movement
- * where history exists). Single-ingredient dishes never produce a composition insight (no "Chips is 100%…"
- * tautology). The count scales 1/2/3/4/5 with menu size. The app still computes EVERY number; the optional
- * Gemini layer only rephrases and is now word-capped (see api-insight.test.js). Extracted from js/app.js.
+ * v90's bar (Max): "Eggs are in 8 plates" is useless — the owner already knows what is in their own
+ * plates. The previous bar ("not visible in the menu table") was too weak. So:
+ *   RULE A — an insight combines at least TWO dimensions, or is a single aggregate across the whole
+ *            dataset. Pinned directly by ruleA, and again through deriveInsights.
+ *   RULE B — it points at a decision and never prescribes the fix (no swaps, portions or prices).
+ *   RULE C — EzPlate has NO sales volume, so every ranking is by COST EFFICIENCY and nothing may
+ *            imply profit impact or money earned/lost.
+ * Six v75 families were deleted for failing A or C; the tests that pinned them went with them, which
+ * is deliberate (see the "REMOVED" note in js/app.js). Extracted from js/app.js — the real shipped
+ * code, no second copy to drift.
  */
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  nonObvious, dishDriver, driverClause, overServeFmt,
-  insReprice, insNearMiss, insVolatility, insShared, insMover, insSummary,
-  insCut, insCategory, insSpread, insAggregate, insSpend, insComplexity,
-  insRecentChange, insData, insBest, healthyLine, selectInsights, deriveInsights,
+  ruleA, scopeAllows, pts1,
+  insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster,
+  insSupplierReach, insPriceGap, insComplexity, insRecentChange, insData, insBest,
+  healthyLine, selectInsights, deriveInsights,
 } = require('./_extract.js');
 
 const dish = (name, cost, menuPrice, extra) => Object.assign({ name, cost, menuPrice }, extra || {});
-// a dominant-ingredient driver: ≥2 ingredients, `share` of cost, optional recent move %
-const top = (name, share, count, movePct) => ({ name, share, count: count == null ? 2 : count, movePct: movePct == null ? null : movePct });
-// MONEY LAW / non-restating proxy: every number shown in an insight's text must be present in its facts
-// (the client + server phrasing validators depend on exactly this). Pins that no type invents a figure.
+
+// MONEY LAW: every number shown in an insight's text must be present in its facts (the client + server
+// phrasing validators depend on exactly this). Pins that no family invents a figure.
 const numbersInFactsOnly = (c) => {
   const allowed = Object.values(c.facts).filter((v) => typeof v === 'number');
   return (c.text.match(/-?\d+(?:\.\d+)?/g) || []).map(Number)
     .every((n) => allowed.some((a) => Math.abs(a - n) < 0.005));
 };
+// RULE C: the forbidden register. Cost efficiency is fine; money made or lost is not.
+const VOLUME_CLAIMS = /profit|revenue|sales|earn|earns|earned|makes you|costing you|lost|losing|per 100 serves|money/i;
 
-/* ================================================================ shared helpers */
+/* ================================================================ Rule A itself */
 
-test('overServeFmt: cents under $1, dollars at/over $1 — the DISPLAYED number is what lands in facts', () => {
-  assert.deepEqual(overServeFmt(0.15), { str: '15¢', num: 15 });
-  assert.deepEqual(overServeFmt(0.30), { str: '30¢', num: 30 });
-  assert.deepEqual(overServeFmt(1.5), { str: '$1.50', num: 1.5 });
+test('Rule A: one dimension is rejected — the "in N plates" shape never emits on its own', () => {
+  assert.equal(ruleA({ dims: ['breadth'] }), false);
+  assert.equal(ruleA({ dims: ['time'] }), false);
+  assert.equal(ruleA({ dims: ['comparison'] }), false);
+  assert.equal(ruleA({ dims: ['composition'] }), false);
+  assert.equal(ruleA({ dims: ['distribution'] }), false);
 });
 
-test('dishDriver: fires only for ≥2 ingredients with a 40–90% dominant share', () => {
-  assert.deepEqual(dishDriver({ top: top('Fish', 0.6, 2) }), { name: 'Fish', sharePct: 60, movePct: null });
-  assert.equal(dishDriver({ top: top('Chips', 1.0, 1) }), null);   // single ingredient → tautology, excluded
-  assert.equal(dishDriver({ top: top('Chips', 0.95, 2) }), null);  // ~total share says nothing
-  assert.equal(dishDriver({ top: top('A', 0.40, 2) }), null);      // 40% is not dominant (strict >40)
-  assert.equal(dishDriver({ top: top('A', 0.35, 2) }), null);
-  assert.equal(dishDriver({}), null);
+test('Rule A: two dimensions pass — the same fact paired with a second one does emit', () => {
+  assert.ok(ruleA({ dims: ['breadth', 'time'] }));
+  assert.ok(ruleA({ dims: ['breadth', 'aggregation'] }));
+  assert.ok(ruleA({ dims: ['distribution', 'comparison'] }));
 });
 
-test('dishDriver: attaches a ≥3% ingredient move, ignores noise', () => {
-  assert.equal(dishDriver({ top: top('Fish', 0.6, 2, 8) }).movePct, 8);
-  assert.equal(dishDriver({ top: top('Fish', 0.6, 2, -8) }).movePct, -8);
-  assert.equal(dishDriver({ top: top('Fish', 0.6, 2, 1) }).movePct, null);   // <3% is noise
+test('Rule A: a whole-dataset AGGREGATE is the one dimension allowed to stand alone', () => {
+  assert.ok(ruleA({ dims: ['aggregation'] }));
 });
 
-test('nonObvious: only cross/composition/movement/comparative pass the guard', () => {
-  ['cross', 'composition', 'movement', 'comparative'].forEach((d) => assert.ok(nonObvious({ dim: d })));
-  assert.equal(nonObvious({ dim: 'obvious' }), false);
-  assert.equal(nonObvious({}), false);
-  assert.equal(nonObvious(null), false);
+test('Rule A: duplicates do not count twice, and unknown dimensions do not count at all', () => {
+  assert.equal(ruleA({ dims: ['time', 'time'] }), false);
+  assert.equal(ruleA({ dims: ['time', 'vibes'] }), false);
+  assert.equal(ruleA({ dims: [] }), false);
+  assert.equal(ruleA({}), false);
+  assert.equal(ruleA(null), false);
 });
 
-/* ================================================================ over-target (reprice): pts + $/serve + driver */
+test('scopeAllows: menu-only types are suppressed at all-menus, global-only at menu scope', () => {
+  assert.equal(scopeAllows({ scope: 'menu' }, true), false);
+  assert.ok(scopeAllows({ scope: 'menu' }, false));
+  assert.equal(scopeAllows({ scope: 'global' }, false), false);
+  assert.ok(scopeAllows({ scope: 'global' }, true));
+  assert.ok(scopeAllows({}, true));                                  // no scope declared = meaningful at both
+  assert.ok(scopeAllows({}, false));
+});
 
-test('insReprice: worst first, carries points AND $/serve AND the cost driver — no prescription', () => {
-  const out = insReprice([
-    dish('Barra & Chips', 6, 15, { top: top('Fish', 0.6, 2) }),   // 40% → 10 pts, over = $1.50
-    dish('Roll', 5, 14, { top: top('Beef', 0.55, 2) }),           // ~36% → 6 pts
-    dish('Salad', 3, 12, { top: top('Leaf', 0.5, 2) }),           // 25% under → excluded
+test('pts1: points are reported to one decimal', () => {
+  assert.equal(pts1(1.24), 1.2);
+  assert.equal(pts1(1.26), 1.3);
+});
+
+/* ================================================================ F1 — cost-base movement */
+
+const MV = { pts: 1.2, name: 'Beef', ingPct: 18, plates: 5, sinceLabel: 'April' };
+
+test('F1: the average moved, the culprit is named, and its reach is stated (time × aggregation × breadth)', () => {
+  const [c] = insCostBase(MV);
+  assert.equal(c.kind, 'costbase');
+  assert.ok(ruleA(c));
+  assert.match(c.text, /1\.2 pts higher/);
+  assert.match(c.text, /Beef, up 18% across 5 plates/);
+  assert.deepEqual(c.facts, { pts: 1.2, ingPct: 18, plates: 5 });
+  assert.ok(numbersInFactsOnly(c));
+  assert.doesNotMatch(c.text, VOLUME_CLAIMS);
+});
+
+test('F1: a falling cost base reads as lower/down, not as a problem', () => {
+  const [c] = insCostBase(Object.assign({}, MV, { pts: -0.9, ingPct: -12 }));
+  assert.match(c.text, /0\.9 pts lower/);
+  assert.match(c.text, /down 12%/);
+  assert.ok(numbersInFactsOnly(c));
+});
+
+test('F1: silent when the move is noise, the ingredient barely moved, or there is no reference month', () => {
+  assert.deepEqual(insCostBase(Object.assign({}, MV, { pts: 0.2 })), []);      // <0.3 pts
+  assert.deepEqual(insCostBase(Object.assign({}, MV, { ingPct: 1 })), []);     // <3% ingredient move
+  assert.deepEqual(insCostBase(Object.assign({}, MV, { sinceLabel: null })), []);
+  assert.deepEqual(insCostBase(Object.assign({}, MV, { name: null })), []);
+  assert.deepEqual(insCostBase(null), []);
+});
+
+/* ================================================================ F2 — plate drift */
+
+const DR = { name: 'Breakky Burger', up: 1.2, fromPct: 28, toPct: 34, sinceLabel: 'June', priceHeld: false };
+
+test('F2: without price history it states COST drift only, and says the comparison uses today’s price', () => {
+  const [c] = insDrift(DR);
+  assert.equal(c.kind, 'drift');
+  assert.ok(ruleA(c));
+  assert.match(c.text, /cost \$1\.20 more than in June/);
+  assert.match(c.text, /at today’s price/);
+  assert.doesNotMatch(c.text, /price (hasn|did)/i, 'must not claim the price held without proof');
+  assert.ok(numbersInFactsOnly(c));
+  assert.doesNotMatch(c.text, VOLUME_CLAIMS);
+});
+
+test('F2: the "its price hasn’t moved" clause appears ONLY when the sell-price log proves it', () => {
+  const [c] = insDrift(Object.assign({}, DR, { priceHeld: true }));
+  assert.match(c.text, /its price hasn’t moved/);
+  assert.ok(numbersInFactsOnly(c));
+});
+
+test('F2: silent below a real move in both money and points', () => {
+  assert.deepEqual(insDrift(Object.assign({}, DR, { up: 0.05 })), []);          // pennies
+  assert.deepEqual(insDrift(Object.assign({}, DR, { toPct: 29 })), []);         // <2 pts
+  assert.deepEqual(insDrift(Object.assign({}, DR, { sinceLabel: null })), []);  // no reference month
+  assert.deepEqual(insDrift(null), []);
+});
+
+/* ================================================================ F3 — category imbalance */
+
+test('F3: section averages, and it is MENU-scoped (suppressed on all-menus)', () => {
+  const [c] = insCategory([
+    dish('A', 3, 15, { section: 'Breakfast' }), dish('B', 3.3, 15, { section: 'Breakfast' }),
+    dish('C', 5, 15, { section: 'Lunch' }), dish('D', 5.2, 15, { section: 'Lunch' }),
   ], 0.3);
-  assert.equal(out.length, 2);
-  assert.equal(out[0].facts.name, 'Barra & Chips');
-  assert.equal(out[0].kind, 'reprice');
-  assert.equal(out[0].dim, 'composition');
-  assert.equal(out[0].facts.pts, 10);
-  assert.equal(out[0].facts.overServe, 1.5);       // $/serve over target
-  assert.equal(out[0].facts.sharePct, 60);         // the driver's share
-  assert.ok(out[0].score > out[1].score);
-  assert.match(out[0].text, /10 pts over/);
-  assert.match(out[0].text, /\$1\.50 a plate/);
-  assert.match(out[0].text, /Fish is 60% of its cost/);
-  assert.doesNotMatch(out[0].text, /rework|worth a look|small tweak/i);   // no filler / no prescription
+  assert.equal(c.kind, 'category');
+  assert.equal(c.scope, 'menu');
+  assert.ok(ruleA(c));
+  assert.equal(scopeAllows(c, true), false, 'category imbalance must not run at all-menus scope');
+  assert.match(c.text, /Breakfast plates average \d+% food cost, Lunch sits at \d+%/);
+  assert.ok(numbersInFactsOnly(c));
 });
 
-test('insReprice: an over-target dish with NO non-obvious driver is NOT emitted (Rule 1)', () => {
-  assert.deepEqual(insReprice([dish('Plain', 6, 15)], 0.3), []);                       // no top at all
-  assert.deepEqual(insReprice([dish('Solo', 6, 15, { top: top('Only', 1.0, 1) })], 0.3), []);   // single ingredient → tautology
+test('F3: needs ≥2 sections of ≥2 plates and a ≥3-pt gap', () => {
+  assert.deepEqual(insCategory([dish('A', 3, 15, { section: 'Breakfast' }), dish('B', 3, 15, { section: 'Breakfast' })], 0.3), []);
+  assert.deepEqual(insCategory([
+    dish('A', 4.5, 15, { section: 'Breakfast' }), dish('B', 4.5, 15, { section: 'Breakfast' }),
+    dish('C', 4.6, 15, { section: 'Lunch' }), dish('D', 4.6, 15, { section: 'Lunch' }),
+  ], 0.3), [], 'a sub-3-pt gap is not an imbalance');
 });
 
-test('insReprice: cents shown for a sub-$1 gap', () => {
-  const out = insReprice([dish('Wrap', 3.3, 10, { top: top('Chx', 0.6, 2) })], 0.3);   // 33% → 3 pts, over = 30¢
-  assert.equal(out[0].facts.overServe, 30);
-  assert.match(out[0].text, /30¢ a plate/);
-});
+/* ================================================================ F4 — volatility */
 
-test('insReprice: 1-pt → near-miss owns it; <1 pt not flagged', () => {
-  assert.deepEqual(insReprice([dish('Edge', 3.1, 10, { top: top('X', 0.6, 2) })], 0.3), []);
-  assert.deepEqual(insReprice([dish('Flat', 3.02, 10, { top: top('X', 0.6, 2) })], 0.3), []);
-});
-
-/* ================================================================ near-miss: 1 pt, specific, driver-gated */
-
-test('insNearMiss: ~1 pt over with $/serve + driver, no prescription', () => {
-  const out = insNearMiss([dish('Edge', 3.1, 10, { top: top('Chx', 0.6, 2) })], 0.3);   // 31% → 1 pt, over = 10¢
-  assert.equal(out.length, 1);
-  assert.equal(out[0].kind, 'nearmiss');
-  assert.equal(out[0].facts.pts, 1);
-  assert.equal(out[0].facts.overServe, 10);
-  assert.equal(out[0].facts.sharePct, 60);
-  assert.match(out[0].text, /just 1 pt over/);
-  assert.match(out[0].text, /10¢ a plate/);
-  assert.match(out[0].text, /Chx is 60% of its cost/);
-  assert.doesNotMatch(out[0].text, /small tweak|bring it home|whisker/i);
-});
-
-test('insNearMiss: no driver → nothing (a bare "1 pt over" is already in the table)', () => {
-  assert.deepEqual(insNearMiss([dish('Edge', 3.1, 10)], 0.3), []);
-  assert.equal(insNearMiss([dish('Way', 6, 15, { top: top('X', 0.6, 2) })], 0.3).length, 0);   // 10 pts, not a near-miss
-});
-
-/* ================================================================ movement types */
-
-test('insVolatility: widest cost range, names the ingredient (movement dim)', () => {
-  const out = insVolatility([
-    dish('Barra & Chips', 5, 15, { hasRange: true, costMin: 4.1, costMax: 5.6, volatileIng: 'Barramundi' }),
-    dish('Toastie', 3, 9, { hasRange: true, costMin: 2.9, costMax: 3.1, volatileIng: 'Cheese' }),
+test('F4: the widest swing as a food-cost % band, plus its standing (distribution × comparison)', () => {
+  const [c] = insVolatility([
+    dish('Barra & Chips', 5, 15, { hasRange: true, costMin: 3.9, costMax: 5.7, volatileIng: 'fish' }),
+    dish('Toastie', 4, 15, { hasRange: true, costMin: 3.9, costMax: 4.1, volatileIng: 'cheese' }),
   ]);
-  assert.equal(out[0].kind, 'volatility');
-  assert.equal(out[0].dim, 'movement');
-  assert.equal(out[0].facts.name, 'Barra & Chips');
-  assert.match(out[0].text, /Barramundi/);
-  assert.match(out[0].text, /\$4\.10–\$5\.60/);
+  assert.equal(c.kind, 'volatility');
+  assert.ok(ruleA(c));
+  assert.match(c.text, /Barra & Chips swings 26–38% with fish prices/);
+  assert.match(c.text, /least predictable plate/);
+  assert.ok(numbersInFactsOnly(c));
+  assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
 
-test('insVolatility: no range → nothing', () => {
-  assert.deepEqual(insVolatility([dish('Flat', 5, 15, { hasRange: false, costMin: 5, costMax: 5 })]), []);
+test('F4: no logged range, or a swing under 4 pts, says nothing', () => {
+  assert.deepEqual(insVolatility([dish('A', 5, 15)]), []);
+  assert.deepEqual(insVolatility([dish('A', 5, 15, { hasRange: true, costMin: 4.9, costMax: 5.1 })]), []);
 });
 
-test('insMover: move %, direction, dish count (movement dim)', () => {
-  const out = insMover({ name: 'Barramundi', pct: 18.4, dishes: ['Barra & Chips', 'Fish Burger'] });
-  assert.equal(out[0].kind, 'mover');
-  assert.equal(out[0].dim, 'movement');
-  assert.equal(out[0].facts.pct, 18);
-  assert.equal(out[0].facts.dishCount, 2);
-  assert.match(out[0].text, /rose 18%/);
-  assert.match(out[0].text, /2 plates/);
+/* ================================================================ F5 — long-standing problem */
+
+const LS = { name: 'Barra & Chips', months: 4, sinceLabel: 'April', priceHeld: false };
+
+test('F5: a run through every recorded cost change, not a one-off (time × comparison)', () => {
+  const [c] = insLongStanding(LS);
+  assert.equal(c.kind, 'longstanding');
+  assert.ok(ruleA(c));
+  assert.match(c.text, /over target through every cost change since April/);
+  assert.match(c.text, /4 months/);
+  assert.ok(numbersInFactsOnly(c));
+  assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
 
-test('insMover: a move under 3% is noise → nothing', () => {
-  assert.deepEqual(insMover({ name: 'Salt', pct: 1.2, dishes: ['X'] }), []);
-  assert.deepEqual(insMover(null), []);
+test('F5: the no-price-move clause appears only when the sell-price log proves it', () => {
+  assert.doesNotMatch(insLongStanding(LS)[0].text, /price/i);
+  assert.match(insLongStanding(Object.assign({}, LS, { priceHeld: true }))[0].text, /no price move/);
 });
 
-/* ================================================================ cross-plate leverage (the benchmark) */
-
-test('insShared: leads with the most-shared ingredient (cross dim)', () => {
-  const out = insShared([{ name: 'Cheese', dishCount: 8 }, { name: 'Onion', dishCount: 3 }]);
-  assert.equal(out[0].kind, 'shared');
-  assert.equal(out[0].dim, 'cross');
-  assert.equal(out[0].facts.dishCount, 8);
-  assert.match(out[0].text, /Cheese feeds 8 plates/);
-  assert.match(out[0].text, /beats any single reprice/);
+test('F5: HISTORY DEPTH — under 3 months it stays silent rather than call two points a run', () => {
+  assert.deepEqual(insLongStanding(Object.assign({}, LS, { months: 2 })), []);
+  assert.deepEqual(insLongStanding(Object.assign({}, LS, { sinceLabel: null })), []);
+  assert.deepEqual(insLongStanding(null), []);
 });
 
-test('insShared: an ingredient in only one dish is not leverage', () => {
-  assert.deepEqual(insShared([{ name: 'Truffle', dishCount: 1 }]), []);
-  assert.deepEqual(insShared([]), []);
+/* ================================================================ F6 — near-miss cluster */
+
+test('F6: the cluster is an AGGREGATE, so it clears Rule A on its own', () => {
+  const [c] = insNearCluster([
+    dish('A', 4.5, 15), dish('B', 4.52, 15), dish('C', 4.48, 15), dish('D', 7, 15),
+  ], 0.3);
+  assert.equal(c.kind, 'nearcluster');
+  assert.ok(ruleA(c));
+  assert.equal(c.facts.count, 3);
+  assert.match(c.text, /3 plates sit within half a point of your 30% target/);
+  assert.ok(numbersInFactsOnly(c));
 });
 
-/* ================================================================ comparative type */
-
-test('insSummary: aggregate over-count carries the comparative dim', () => {
-  const over = insSummary([dish('A', 6, 15), dish('B', 3, 15)], 0.3);
-  assert.equal(over[0].kind, 'count');
-  assert.equal(over[0].dim, 'comparative');
-  assert.match(over[0].text, /1 of 2 costed plates sit over your 30% target/);
-  assert.equal(insSummary([dish('A', 3, 15)], 0.3)[0].kind, 'allgood');
+test('F6: one plate near target is not a cluster', () => {
+  assert.deepEqual(insNearCluster([dish('A', 4.5, 15), dish('B', 7, 15)], 0.3), []);
 });
 
-/* ================================================================ composition is a supporting clause, not its own line */
+/* ================================================================ F7 — supplier concentration */
 
-test('v74 (Max): a healthy plate leaning on one ingredient produces NO standalone composition insight', () => {
-  // "Fish is 60% of Fish & Chips's cost" is a fact, not something to act on — the engine no longer emits it.
-  const out = deriveInsights([dish('Fish & Chips', 4, 15, { top: top('Fish', 0.6, 2) })], 0.3, 0);
-  out.forEach((x) => assert.notEqual(x.kind, 'portion'));
-  assert.equal(out[0].kind, 'allgood');   // an under-target menu with only a lopsided plate is "practically perfect"
+const SUP = { name: 'Barker’s', plates: 11, total: 14, suppliers: 3 };
+
+test('F7: BREADTH paired with an aggregate share — never spend, and GLOBAL only', () => {
+  const [c] = insSupplierReach(SUP);
+  assert.equal(c.kind, 'supplier');
+  assert.equal(c.scope, 'global');
+  assert.ok(ruleA(c));
+  assert.equal(scopeAllows(c, false), false, 'supplier reach must not run at menu scope');
+  assert.match(c.text, /supplies at least one ingredient in 11 of your 14 costed plates/);
+  assert.doesNotMatch(c.text, /spend/i, 'Rule C: concentration is breadth-based, never spend-based');
+  assert.ok(numbersInFactsOnly(c));
+  assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
 
-test('v74: composition survives ONLY as the driver clause on an over-target line', () => {
-  const out = insReprice([dish('Fish & Chips', 6, 15, { top: top('Fish', 0.6, 2) })], 0.3);
-  assert.match(out[0].text, /Fish is 60% of its cost/);   // attached to a real "10 pts over" problem
+test('F7: silent with one supplier (trivially "all of them"), thin reach, or too few plates', () => {
+  assert.deepEqual(insSupplierReach(Object.assign({}, SUP, { suppliers: 1 })), []);
+  assert.deepEqual(insSupplierReach(Object.assign({}, SUP, { plates: 4, total: 14 })), []);   // 29% reach
+  assert.deepEqual(insSupplierReach(Object.assign({}, SUP, { plates: 2, total: 3 })), []);    // under 3 plates
+  assert.deepEqual(insSupplierReach(null), []);
 });
 
-/* ================================================================ cut: far over → magnitude + $/serve */
+/* ================================================================ F8 — price gap */
 
-test('insCut: ≥12 pts over → magnitude + $/serve, and insReprice leaves it alone', () => {
-  const cut = insCut([dish('Steak Works', 6.3, 15)], 0.3);   // 42% = 12 pts, over = $1.80
-  assert.equal(cut[0].kind, 'cut');
-  assert.equal(cut[0].dim, 'comparative');
-  assert.equal(cut[0].facts.pts, 12);
-  assert.equal(cut[0].facts.overServe, 1.8);
-  assert.match(cut[0].text, /12 pts over/);
-  assert.match(cut[0].text, /\$1\.80 a plate/);
-  assert.match(cut[0].text, /too far for a price tweak/);
-  assert.deepEqual(insReprice([dish('Steak Works', 6.3, 15, { top: top('Steak', 0.7, 2) })], 0.3), []);   // handed to insCut
+const GAP = { category: 'Cheese', unit: 'kg', lo: 9.5, hi: 28, count: 6 };
+
+test('F8: states the spread as a FACT and never suggests a swap', () => {
+  const [c] = insPriceGap(GAP);
+  assert.equal(c.kind, 'pricegap');
+  assert.equal(c.scope, 'global');
+  assert.ok(ruleA(c));
+  assert.match(c.text, /6 Cheese products run \$9\.50–\$28\.00 per kg/);
+  assert.match(c.text, /2\.9x spread/);
+  assert.doesNotMatch(c.text, /swap|switch|instead|cheaper option|use the/i);
+  assert.ok(numbersInFactsOnly(c));
 });
 
-test('insCut: a merely-over dish (< 12 pts) is not a cut candidate', () => {
-  assert.deepEqual(insCut([dish('Roll', 5, 14)], 0.3), []);
+test('F8: needs ≥3 products and a ≥2.5x ratio', () => {
+  assert.deepEqual(insPriceGap(Object.assign({}, GAP, { count: 2 })), []);
+  assert.deepEqual(insPriceGap(Object.assign({}, GAP, { hi: 20, lo: 10 })), []);   // 2.0x
+  assert.deepEqual(insPriceGap(Object.assign({}, GAP, { unit: '' })), []);
+  assert.deepEqual(insPriceGap(null), []);
 });
 
-/* ================================================================ warm all-healthy line */
+/* ================================================================ kept families */
+
+test('insComplexity: many-ingredient vs simpler plates, when the pattern holds', () => {
+  const [c] = insComplexity([
+    dish('A', 6, 15, { nIng: 8 }), dish('B', 6.2, 15, { nIng: 7 }),
+    dish('C', 4, 15, { nIng: 3 }), dish('D', 4.1, 15, { nIng: 2 }),
+  ]);
+  assert.ok(ruleA(c));
+  assert.match(c.text, /Plates with 6\+ ingredients average \d+% food cost, simpler ones \d+%/);
+  assert.ok(numbersInFactsOnly(c));
+});
+
+test('insRecentChange: an aggregate over time, ≥2 plates to be a pattern', () => {
+  const [c] = insRecentChange({ up: 4 });
+  assert.ok(ruleA(c));
+  assert.match(c.text, /4 plates cost more now than at your last price update/);
+  assert.deepEqual(insRecentChange({ up: 1 }), []);
+  assert.ok(numbersInFactsOnly(c));
+});
+
+test('insData: uncosted plates are a dataset-wide count, with singular grammar', () => {
+  const [c] = insData({ uncosted: 3 });
+  assert.ok(ruleA(c));
+  assert.match(c.text, /3 plates aren't costed yet/);
+  assert.match(insData({ uncosted: 1 })[0].text, /1 plate isn't costed yet/);
+  assert.deepEqual(insData({ uncosted: 0 }), []);
+});
+
+test('insBest: the one positive line, only when comfortably under target', () => {
+  const [c] = insBest([dish('Toastie', 3, 15), dish('Barra', 6, 15)], 0.3);
+  assert.ok(ruleA(c));
+  assert.match(c.text, /Toastie is your strongest margin — 10 points under target/);
+  assert.deepEqual(insBest([dish('A', 4.2, 15)], 0.3), [], 'only when ≥5 pts under');
+  assert.ok(numbersInFactsOnly(c));
+});
 
 test('healthyLine: one warm line carrying only the count + target %, varied by seed', () => {
-  const a = healthyLine(5, 30, 0);
+  const a = healthyLine(6, 30, 0), b = healthyLine(6, 30, 1);
   assert.equal(a.kind, 'allgood');
-  assert.equal(a.facts.total, 5);
-  assert.match(a.text, /5/);
-  assert.match(a.text, /30%/);
-  assert.notEqual(healthyLine(5, 30, 0).text, healthyLine(5, 30, 1).text);
+  assert.deepEqual(a.facts, { total: 6, targetPct: 30 });
+  assert.notEqual(a.text, b.text);
+  [a, b].forEach((x) => assert.ok(numbersInFactsOnly(x)));
 });
 
-/* ================================================================ selector: variety + rotation */
+/* ================================================================ selection */
 
 test('selectInsights: caps to max and keeps type variety (≤1 per kind)', () => {
-  const cands = [
-    { kind: 'reprice', score: 80, facts: {}, text: 'r1' },
-    { kind: 'reprice', score: 78, facts: {}, text: 'r2' },
-    { kind: 'volatility', score: 70, facts: {}, text: 'v1' },
-    { kind: 'shared', score: 60, facts: {}, text: 's1' },
-  ];
-  const out = selectInsights(cands, 0, 3);
+  const c = (kind, score) => ({ kind, score, facts: {}, text: kind + score });
+  const out = selectInsights([c('drift', 90), c('drift', 85), c('volatility', 80), c('data', 20)], 0, 3);
   assert.equal(out.length, 3);
   assert.equal(new Set(out.map((x) => x.kind)).size, 3);
 });
 
 test('selectInsights: rotates the near-top group by seed so the lead varies', () => {
-  const cands = [
-    { kind: 'reprice', score: 80, facts: {}, text: 'r' },
-    { kind: 'volatility', score: 78, facts: {}, text: 'v' },
-    { kind: 'shared', score: 76, facts: {}, text: 's' },
-  ];
-  const lead0 = selectInsights(cands, 0, 3)[0].kind;
-  const lead1 = selectInsights(cands, 1, 3)[0].kind;
-  const lead2 = selectInsights(cands, 2, 3)[0].kind;
-  assert.notEqual(lead0, lead1);
-  assert.equal(new Set([lead0, lead1, lead2]).size, 3);
+  const c = (kind, score) => ({ kind, score, facts: {}, text: kind });
+  const pool = [c('a', 90), c('b', 88), c('c', 86)];
+  assert.notEqual(selectInsights(pool, 0, 1)[0].kind, selectInsights(pool, 1, 1)[0].kind);
 });
 
 test('selectInsights: a far-below candidate never rotates above the top group', () => {
-  const cands = [
-    { kind: 'reprice', score: 90, facts: {}, text: 'r' },
-    { kind: 'count', score: 22, facts: {}, text: 'c' },
-  ];
-  for (let s = 0; s < 5; s++) assert.equal(selectInsights(cands, s, 3)[0].kind, 'reprice');
+  const c = (kind, score) => ({ kind, score, facts: {}, text: kind });
+  const pool = [c('a', 90), c('b', 88), c('low', 20)];
+  for (let s = 0; s < 6; s++) assert.notEqual(selectInsights(pool, s, 1)[0].kind, 'low');
 });
 
-/* ================================================================ deriveInsights orchestration */
+/* ================================================================ deriveInsights */
 
-test('deriveInsights: no costed+priced dishes → empty (the panel hides)', () => {
-  assert.deepEqual(deriveInsights({ dishes: [] }, 0.3), []);
-  assert.deepEqual(deriveInsights([dish('X', 0, 10), dish('Y', 5, 0)], 0.3), []);
+// Names are deliberately DIGIT-FREE. The money-law scanner (and the shipped phrasing validators it
+// mirrors) treat any digit in the text as a figure that must appear in facts, so a plate named
+// "Pizza 4 Cheese" makes a Gemini rephrasing fail validation and the deterministic template stand.
+// That is safe degradation, not a wrong number — but it would make these fixtures assert the wrong thing.
+const NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const plateName = (i) => 'Plate ' + NAMES[i % 26] + NAMES[Math.floor(i / 26) % 26];
+const over = (n, extra) => { const a = []; for (let i = 0; i < n; i++) a.push(dish(plateName(i), 6, 15, extra)); return a; };
+
+test('deriveInsights: no costed+priced plates → empty (the panel is absent)', () => {
+  assert.deepEqual(deriveInsights([], 0.3, 0), []);
+  assert.deepEqual(deriveInsights([dish('A', 0, 15), dish('B', 5, 0)], 0.3, 0), []);
 });
 
-test('deriveInsights: invalid target fraction → empty', () => {
-  assert.deepEqual(deriveInsights([dish('A', 6, 15)], 0), []);
-  assert.deepEqual(deriveInsights([dish('A', 6, 15)], -1), []);
+test('deriveInsights: an invalid target fraction → empty', () => {
+  assert.deepEqual(deriveInsights([dish('A', 5, 15)], 0, 0), []);
 });
 
-test('deriveInsights: returns {kind,facts,text} with score+dim stripped', () => {
-  const out = deriveInsights([
-    dish('A', 6, 15, { top: top('Fish', 0.6, 2) }), dish('B', 5, 15, { top: top('Beef', 0.6, 2) }), dish('C', 3, 15),
-  ], 0.3, 0);
-  assert.ok(out.length >= 1);
-  out.forEach((x) => { assert.ok(x.kind && x.facts && typeof x.text === 'string'); assert.equal(x.score, undefined); assert.equal(x.dim, undefined); });
+test('deriveInsights: returns {kind,facts,text} only — score, dims and scope are stripped', () => {
+  const out = deriveInsights({ dishes: over(6), recent: { up: 3 } }, 0.3, 0);
+  assert.ok(out.length);
+  out.forEach((o) => {
+    assert.deepEqual(Object.keys(o).sort(), ['facts', 'kind', 'text']);
+  });
 });
 
-test('Rule 1 non-obvious guard: a single-ingredient over-target dish yields NO composition insight', () => {
-  const out = deriveInsights([dish('Medium Chips', 4, 9, { top: top('Chips', 1.0, 1) })], 0.3, 0);   // 44% over, one ingredient
-  out.forEach((x) => assert.notEqual(x.kind, 'reprice'));
-  out.forEach((x) => assert.notEqual(x.kind, 'portion'));
-  // the only thing worth saying is the aggregate standing (a count), never "Chips is 100% of Medium Chips"
-  out.forEach((x) => assert.doesNotMatch(x.text, /100%/));
-});
-
-test('Rule 1: a 2-ingredient 60/40 over-target dish DOES get a driver-bearing reprice', () => {
-  const out = deriveInsights([dish('Fish & Chips', 6, 15, { top: top('Fish', 0.6, 2) })], 0.3, 0);
-  assert.equal(out[0].kind, 'reprice');
-  assert.match(out[0].text, /Fish is 60% of its cost/);
-});
-
-test('deriveInsights: mixes TYPES, not repeated repricing', () => {
+test('deriveInsights: every emitted line clears Rule A — no single-dimension fact survives', () => {
   const out = deriveInsights({
-    dishes: [
-      dish('Barra & Chips', 6, 15, { top: top('Barramundi', 0.6, 2), hasRange: true, costMin: 4.1, costMax: 5.6, volatileIng: 'Barramundi' }),
-      dish('Fish Burger', 5.5, 15, { top: top('Fish', 0.55, 2) }),
-      dish('Toastie', 5.2, 15, { top: top('Cheese', 0.5, 2) }),
-    ],
-    shared: [{ name: 'Cheese', dishCount: 3 }],
-    mover: { name: 'Barramundi', pct: 18, dishes: ['Barra & Chips'] },
+    dishes: over(20, { hasRange: true, costMin: 4, costMax: 7, volatileIng: 'beef', nIng: 8 }),
+    movement: MV, drift: DR, longStanding: LS, recent: { up: 5 }, coverage: { uncosted: 2 },
+    supplier: SUP, priceGap: GAP, isAll: true,
   }, 0.3, 0);
-  assert.ok(new Set(out.map((x) => x.kind)).size >= 2);
+  assert.ok(out.length);
+  // every kind emitted must be one the engine declares with ≥2 dims (or a lone aggregate) — proven by
+  // the family tests above; here we assert none of the DELETED single-dimension kinds can appear.
+  const gone = ['reprice', 'cut', 'count', 'spread', 'spend', 'aggregate', 'shared', 'nearmiss', 'mover'];
+  out.forEach((o) => assert.ok(gone.indexOf(o.kind) < 0, 'deleted family resurfaced: ' + o.kind));
+});
+
+/* ---------------- scope suppression, both directions ---------------- */
+
+const SCOPED = {
+  dishes: [
+    dish('A', 6, 15, { section: 'Breakfast' }), dish('B', 6.1, 15, { section: 'Breakfast' }),
+    dish('C', 7, 15, { section: 'Lunch' }), dish('D', 7.2, 15, { section: 'Lunch' }),
+  ],
+  supplier: SUP, priceGap: GAP,
+};
+
+test('scope: global-only families are suppressed at MENU scope', () => {
+  const kinds = deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, 0).map((x) => x.kind);
+  assert.equal(kinds.indexOf('supplier'), -1);
+  assert.equal(kinds.indexOf('pricegap'), -1);
+});
+
+test('scope: menu-only families are suppressed at ALL-MENUS scope', () => {
+  const kinds = deriveInsights(Object.assign({}, SCOPED, { isAll: true }), 0.3, 0).map((x) => x.kind);
+  assert.equal(kinds.indexOf('category'), -1);
+});
+
+test('scope: switching scope changes the insight SET for the same plates', () => {
+  const menu = deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, 0).map((x) => x.kind).sort();
+  const all = deriveInsights(Object.assign({}, SCOPED, { isAll: true }), 0.3, 0).map((x) => x.kind).sort();
+  assert.notDeepEqual(menu, all, 'the two scopes must not produce an identical set');
 });
 
 /* ---------------- scaling curve: 1/2/3/4/5 by menu size, never padded ---------------- */
 
-// build a costed menu of N dishes, each over target with its own driver → many reprice-eligible dishes
-const bigMenu = (n) => { const a = []; for (let i = 0; i < n; i++) a.push(dish('D' + i, 6, 15, { top: top('Ing' + i, 0.6, 2) })); return a; };
-
-test('scaling: 1 dish → ≤1', () => { assert.ok(deriveInsights(bigMenu(1), 0.3, 0).length <= 1); });
-test('scaling: 5 dishes → ≤2', () => { assert.ok(deriveInsights(bigMenu(5), 0.3, 0).length <= 2); });
-test('scaling: 15 dishes → ≤3', () => { assert.ok(deriveInsights(bigMenu(15), 0.3, 0).length <= 3); });
-test('scaling: 29 dishes → ≤4', () => { assert.ok(deriveInsights(bigMenu(29), 0.3, 0).length <= 4); });
-test('scaling: 30+ dishes → ≤5', () => { assert.ok(deriveInsights(bigMenu(40), 0.3, 0).length <= 5); });
-
-test('scaling: a big, VARIED menu can reach 5 across different CRITICAL types (curve raised the cap)', () => {
-  const dishes = bigMenu(32);                                            // reprice-eligible over-target dishes
-  dishes[0] = dish('Volatile', 5, 15, { top: top('Fish', 0.6, 2), hasRange: true, costMin: 3.5, costMax: 6.5, volatileIng: 'Fish' });  // volatility
-  dishes[1] = dish('Blowout', 7, 15, { top: top('Wagyu', 0.6, 2) });     // ~47% = 17 pts over → cut
-  const out = deriveInsights({ dishes, shared: [{ name: 'Chips', dishCount: 6 }], mover: { name: 'Oil', pct: 12, dishes: ['a', 'b'] } }, 0.3, 0);
-  // available distinct kinds: reprice, cut, volatility, shared, mover → up to 5
-  assert.ok(out.length >= 4 && out.length <= 5, 'expected 4–5, got ' + out.length);
-  assert.ok(new Set(out.map((x) => x.kind)).size >= 4, 'expected varied types');
+const rich = (n) => ({
+  dishes: over(n, { hasRange: true, costMin: 4, costMax: 7, volatileIng: 'beef', nIng: 8 }),
+  movement: MV, drift: DR, longStanding: LS, recent: { up: 5 }, coverage: { uncosted: 2 },
+  supplier: SUP, priceGap: GAP, isAll: true,
 });
 
-test('scaling: never padded — a mostly-healthy big menu shows fewer than the cap', () => {
+test('scaling: 1 plate → ≤1', () => { assert.ok(deriveInsights(rich(1), 0.3, 0).length <= 1); });
+test('scaling: 5 plates → ≤2', () => { assert.ok(deriveInsights(rich(5), 0.3, 0).length <= 2); });
+test('scaling: 15 plates → ≤3', () => { assert.ok(deriveInsights(rich(15), 0.3, 0).length <= 3); });
+test('scaling: 29 plates → ≤4', () => { assert.ok(deriveInsights(rich(29), 0.3, 0).length <= 4); });
+test('scaling: 30+ plates → ≤5', () => { assert.ok(deriveInsights(rich(40), 0.3, 0).length <= 5); });
+
+test('scaling: a big, data-rich menu reaches the cap across DIFFERENT families', () => {
+  const out = deriveInsights(rich(32), 0.3, 0);
+  assert.equal(out.length, 5, 'expected the 30+ cap, got ' + out.length);
+  assert.equal(new Set(out.map((x) => x.kind)).size, 5, 'all five must be different families');
+});
+
+test('scaling: NEVER padded — a big menu with little history says less than its cap allows', () => {
   const dishes = [];
-  for (let i = 0; i < 20; i++) dishes.push(dish('Healthy' + i, 3, 15));   // all under target, no drivers, no history
-  const out = deriveInsights(dishes, 0.3, 0);
-  assert.ok(out.length <= 2, 'a healthy menu is not padded to its size cap, got ' + out.length);
+  for (let i = 0; i < 32; i++) dishes.push(dish(plateName(i), 6, 15));     // over target, but no history, no sections
+  const out = deriveInsights({ dishes, isAll: true }, 0.3, 0);
+  assert.ok(out.length < 5, 'nothing may be invented to reach the cap, got ' + out.length);
+});
+
+test('scaling: a mostly-healthy big menu shows fewer than the cap', () => {
+  const dishes = [];
+  for (let i = 0; i < 20; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));
+  assert.ok(deriveInsights({ dishes, isAll: true }, 0.3, 0).length <= 2);
 });
 
 /* ---------------- all-healthy → one warm line ---------------- */
@@ -340,207 +439,70 @@ test('deriveInsights: all-healthy menu → exactly ONE warm line', () => {
   assert.match(out[0].text, /good shape|healthy|clear|nothing/i);
 });
 
-/* ---------------- point, don't prescribe (whole engine) ---------------- */
+test('deriveInsights: a healthy menu never emits a CONCERN family, however much history exists', () => {
+  const dishes = [];
+  for (let i = 0; i < 20; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));
+  const kinds = deriveInsights({ dishes, drift: DR, longStanding: LS, isAll: true }, 0.3, 0).map((x) => x.kind);
+  assert.equal(kinds.indexOf('drift'), -1);
+  assert.equal(kinds.indexOf('longstanding'), -1);
+  assert.equal(kinds[0], 'allgood', 'the warm line leads');
+});
 
-test('point-not-prescribe: nothing swaps a product, sets a portion, or dictates a price; every number is a fact', () => {
-  const out = deriveInsights({
-    dishes: [
-      dish('Barra & Chips', 6, 15, { top: top('Fish', 0.6, 2, 8), hasRange: true, costMin: 4.1, costMax: 5.6, volatileIng: 'Barramundi' }),
-      dish('Roll', 5, 14, { top: top('Beef', 0.55, 2) }),
-      dish('Steak Works', 6.3, 15),
-      dish('Toastie', 5.4, 15, { top: top('Cheese', 0.5, 2) }),
-      dish('Wrap', 5.2, 15, { top: top('Chx', 0.5, 2) }),
-      dish('Bowl', 5.1, 15, { top: top('Rice', 0.5, 2) }),
-    ],
-    shared: [{ name: 'Cheese', dishCount: 2 }],
-    mover: { name: 'Barramundi', pct: 12, dishes: ['Barra & Chips'] },
-  }, 0.3, 0);
-  out.forEach((x) => {
-    assert.doesNotMatch(x.text, /\bswap\b|\breplace\b/i);
-    assert.doesNotMatch(x.text, /smaller portion|% smaller/i);
-    assert.doesNotMatch(x.text, /\braise (it|the price)? ?to \$|nudge from \$.*to \$/i);
-    assert.doesNotMatch(x.text, /worth a look to see if|a small tweak would/i);   // v74: no wind-up filler
-    assert.equal(x.facts.targetPrice, undefined);
+/* ---------------- Rules B and C across the whole engine ---------------- */
+
+test('Rule B: no emitted line prescribes a fix — no swap, portion or price directive', () => {
+  const seen = [];
+  [0, 1, 2, 3].forEach((seed) => {
+    seen.push(...deriveInsights(rich(32), 0.3, seed));
+    seen.push(...deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, seed));
+    seen.push(...deriveInsights([dish('Salad', 3, 15), dish('Soup', 2, 9)], 0.3, seed));
+  });
+  assert.ok(seen.length);
+  seen.forEach((o) => {
+    assert.doesNotMatch(o.text, /\b(swap|substitute|replace|raise the price|lift the price|reprice|charge|set the price|reduce the portion|cut the portion|use less|should)\b/i,
+      'prescriptive directive in: ' + o.text);
   });
 });
 
-test('deriveInsights: pure — does not mutate its input', () => {
-  const data = { dishes: [dish('A', 6, 15, { top: top('Fish', 0.6, 2) }), dish('B', 3, 15)], shared: [{ name: 'X', dishCount: 2 }] };
-  const snap = JSON.stringify(data);
+test('Rule C: no emitted line implies sales volume, profit or money lost', () => {
+  const seen = [];
+  [0, 1, 2, 3].forEach((seed) => {
+    seen.push(...deriveInsights(rich(32), 0.3, seed));
+    seen.push(...deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, seed));
+  });
+  assert.ok(seen.length);
+  seen.forEach((o) => assert.doesNotMatch(o.text, VOLUME_CLAIMS, 'volume/profit claim in: ' + o.text));
+});
+
+test('MONEY LAW: every number shown by every emitted line is present in its facts', () => {
+  const seen = [];
+  [0, 1, 2, 3].forEach((seed) => {
+    seen.push(...deriveInsights(rich(32), 0.3, seed));
+    seen.push(...deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, seed));
+    seen.push(...deriveInsights([dish('Salad', 3, 15)], 0.3, seed));
+  });
+  assert.ok(seen.length);
+  seen.forEach((o) => assert.ok(numbersInFactsOnly(o), 'number not in facts: ' + o.text));
+});
+
+test('phrasing: one sentence, front-loaded, inside the ~24-word scannability cap', () => {
+  const seen = deriveInsights(rich(32), 0.3, 0).concat(deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, 0));
+  seen.forEach((o) => {
+    assert.ok(o.text.trim().split(/\s+/).length <= 24, 'over the word cap: ' + o.text);
+    assert.doesNotMatch(o.text, /[.!?]\s+\S/, 'more than one sentence: ' + o.text);
+  });
+});
+
+test('terminology: the engine says "plate", never "dish" (CLAUDE.md’s four object nouns)', () => {
+  const seen = deriveInsights(rich(32), 0.3, 0)
+    .concat(deriveInsights(Object.assign({}, SCOPED, { isAll: false }), 0.3, 0))
+    .concat(deriveInsights([dish('Salad', 3, 15)], 0.3, 0));
+  seen.forEach((o) => assert.doesNotMatch(o.text, /\bdish(es)?\b/i, '"dish" is not one of the four nouns: ' + o.text));
+});
+
+test('deriveInsights: pure — it does not mutate its input', () => {
+  const data = rich(8);
+  const snapshot = JSON.stringify(data);
   deriveInsights(data, 0.3, 0);
-  assert.equal(JSON.stringify(data), snap);
-});
-
-/* ================================================================ v75: the WIDENED pool (brief §1)
-   Each new type is non-obvious (invisible in the per-dish menu table), states a FACT + figures only
-   (point, don't prescribe), and puts every DISPLAYED number in facts (numbersInFactsOnly). */
-
-test('v75: the coverage dim also clears the non-obvious guard', () => {
-  assert.ok(nonObvious({ dim: 'coverage' }));
-});
-
-/* ---------------- category performance ---------------- */
-test('insCategory: compares section averages when a real gap exists', () => {
-  const out = insCategory([
-    dish('Eggs', 2.4, 10, { section: 'Breakfast' }), dish('Pancakes', 2.5, 10, { section: 'Breakfast' }),  // ~24-25%
-    dish('Burger', 5, 15, { section: 'Lunch' }), dish('Parma', 5.2, 15, { section: 'Lunch' }),             // ~33-35%
-  ], 0.3);
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'comparative');
-  assert.equal(out[0].facts.loName, 'Breakfast');
-  assert.equal(out[0].facts.hiName, 'Lunch');
-  assert.ok(nonObvious(out[0]));
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insCategory: needs ≥2 sections (≥2 dishes each) and a ≥3-pt gap', () => {
-  assert.deepEqual(insCategory([dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.5, 10, { section: 'X' })], 0.3), []);   // one section
-  // a section with only ONE dish is ignored (needs ≥2), so this collapses to a single qualifying section → nothing
-  assert.deepEqual(insCategory([
-    dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.4, 10, { section: 'X' }), dish('C', 3.0, 10, { section: 'Y' }),
-  ], 0.3), []);
-  // exactly a 3-pt gap FIRES (guard is `< 3`): X = 24%, Y = 27%
-  const at3 = insCategory([
-    dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.4, 10, { section: 'X' }),
-    dish('C', 2.7, 10, { section: 'Y' }), dish('D', 2.7, 10, { section: 'Y' }),
-  ], 0.3);
-  assert.equal(at3.length, 1);
-  assert.deepEqual([at3[0].facts.loPct, at3[0].facts.hiPct], [24, 27]);
-  // just BELOW 3 pts (X = 24%, Y = 26%) → nothing
-  assert.deepEqual(insCategory([
-    dish('A', 2.4, 10, { section: 'X' }), dish('B', 2.4, 10, { section: 'X' }),
-    dish('C', 2.6, 10, { section: 'Y' }), dish('D', 2.6, 10, { section: 'Y' }),
-  ], 0.3), []);
-});
-
-/* ---------------- spread / outliers ---------------- */
-test('insSpread: the menu-wide food-cost range (needs ≥4 dishes, ≥10-pt span)', () => {
-  const out = insSpread([dish('A', 3, 15), dish('B', 4.5, 15), dish('C', 5, 15), dish('D', 6, 15)]);   // 20,30,33,40
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'comparative');
-  assert.equal(out[0].facts.loPct, 20);
-  assert.equal(out[0].facts.hiPct, 40);
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insSpread: a tight menu (<10-pt span) or <4 dishes says nothing', () => {
-  assert.deepEqual(insSpread([dish('A', 4.5, 15), dish('B', 4.6, 15), dish('C', 4.7, 15), dish('D', 4.8, 15)]), []);
-  assert.deepEqual(insSpread([dish('A', 3, 15), dish('B', 6, 15)]), []);
-});
-
-/* ---------------- aggregate opportunity ---------------- */
-test('insAggregate: sums the over-target gap across dishes, per 100 serves', () => {
-  const out = insAggregate([dish('A', 6, 15), dish('B', 5, 14), dish('C', 3, 15)], 0.3);   // over: 1.5 + 0.8; C under
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'comparative');
-  assert.equal(out[0].facts.count, 2);
-  assert.equal(out[0].facts.per100, 230);   // (1.5 + 0.8) * 100
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insAggregate: fewer than 2 over-target dishes → nothing', () => {
-  assert.deepEqual(insAggregate([dish('A', 6, 15), dish('B', 3, 15)], 0.3), []);
-});
-
-/* ---------------- ingredient-spend concentration ---------------- */
-test('insSpend: the biggest-spend ingredient across the menu (cross), at ≥25% share', () => {
-  const out = insSpend([{ name: 'Cheese', total: 40, pct: 40 }, { name: 'Bread', total: 20, pct: 20 }]);
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'cross');
-  assert.equal(out[0].facts.name, 'Cheese');
-  assert.equal(out[0].facts.pct, 40);
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insSpend: a diffuse spend (<25%) is not a lever', () => {
-  assert.deepEqual(insSpend([{ name: 'A', total: 10, pct: 12 }, { name: 'B', total: 9, pct: 11 }]), []);
-  assert.deepEqual(insSpend([]), []);
-});
-
-/* ---------------- complexity pattern ---------------- */
-test('insComplexity: many-ingredient vs simpler dishes when the gap holds', () => {
-  const out = insComplexity([
-    dish('Big1', 6, 15, { nIng: 7 }), dish('Big2', 6.3, 15, { nIng: 6 }),   // ~40,42%
-    dish('Small1', 3, 15, { nIng: 2 }), dish('Small2', 3.3, 15, { nIng: 3 }),   // 20,22%
-  ]);
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'comparative');
-  assert.ok(out[0].facts.manyPct > out[0].facts.fewPct);
-  assert.equal(out[0].facts.minIng, 6);            // the "6+" figure is backed by facts
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insComplexity: needs ≥2 in each group and a ≥3-pt gap', () => {
-  assert.deepEqual(insComplexity([dish('A', 6, 15, { nIng: 7 }), dish('B', 3, 15, { nIng: 2 })]), []);   // one each
-  assert.deepEqual(insComplexity([   // no gap between the groups
-    dish('A', 5, 15, { nIng: 7 }), dish('B', 5, 15, { nIng: 6 }), dish('C', 5, 15, { nIng: 2 }), dish('D', 5, 15, { nIng: 3 }),
-  ]), []);
-});
-
-/* ---------------- recent change ---------------- */
-test('insRecentChange: counts dishes that cost more since the last update (movement)', () => {
-  const out = insRecentChange({ up: 4 });
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'movement');
-  assert.equal(out[0].facts.up, 4);
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insRecentChange: fewer than 2 → nothing', () => {
-  assert.deepEqual(insRecentChange({ up: 1 }), []);
-  assert.deepEqual(insRecentChange(null), []);
-});
-
-/* ---------------- data completeness (coverage) ---------------- */
-test('insData: uncosted dishes are a gentle, non-obvious coverage note', () => {
-  const out = insData({ uncosted: 3 });
-  assert.equal(out.length, 1);
-  assert.equal(out[0].dim, 'coverage');
-  assert.equal(out[0].facts.uncosted, 3);
-  assert.ok(nonObvious(out[0]));
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insData: singular grammar; nothing when everything is costed', () => {
-  assert.match(insData({ uncosted: 1 })[0].text, /1 plate isn't costed/);
-  assert.deepEqual(insData({ uncosted: 0 }), []);
-});
-
-/* ---------------- best performer (the one positive line, re-added v75) ---------------- */
-test('insBest: the standout dish comfortably under target (positive, low score)', () => {
-  const out = insBest([dish('Salad', 3, 15), dish('Burger', 6, 15)], 0.3);   // Salad 20% = 10 under; Burger over
-  assert.equal(out.length, 1);
-  assert.equal(out[0].kind, 'best');
-  assert.equal(out[0].dim, 'comparative');
-  assert.equal(out[0].facts.name, 'Salad');
-  assert.equal(out[0].facts.pts, 10);
-  assert.ok(out[0].score <= 30);   // low priority — never crowds out a real problem
-  assert.ok(numbersInFactsOnly(out[0]));
-});
-test('insBest: only when COMFORTABLY under (≥5 pts)', () => {
-  assert.deepEqual(insBest([dish('A', 4.2, 15)], 0.3), []);   // 28% = 2 under, not comfortable
-});
-
-/* ---------------- the deliverable: a 30+ item menu yields 5 VARIED, non-obvious insights ---------------- */
-test('v75 (brief §1): a 30+ item menu yields 5 insights across ≥4 distinct types, none table-restating', () => {
-  const dishes = [];
-  for (let i = 0; i < 15; i++) dishes.push(dish('Bfast' + i, 2.4, 10, { section: 'Breakfast', nIng: 3, top: top('Egg', 0.5, 3) }));   // ~24%
-  for (let i = 0; i < 15; i++) dishes.push(dish('Lunch' + i, 5.1, 15, { section: 'Lunch', nIng: 7, top: top('Beef', 0.6, 7) }));       // 34% over
-  dishes.push(dish('Blowout', 7, 15, { section: 'Lunch', nIng: 8, top: top('Wagyu', 0.6, 8) }));   // 47% → cut
-  dishes.push(dish('Volatile', 5, 15, { section: 'Lunch', nIng: 4, top: top('Fish', 0.6, 4), hasRange: true, costMin: 3.5, costMax: 6.5, volatileIng: 'Fish' }));
-  dishes.push(dish('Star', 2, 15, { section: 'Breakfast', nIng: 2, top: top('Toast', 0.5, 2) }));   // 13% → best
-  const out = deriveInsights({
-    dishes,
-    shared: [{ name: 'Cheese', dishCount: 8 }],
-    mover: { name: 'Beef', pct: 12, dishes: ['Lunch0', 'Lunch1'] },
-    spend: [{ name: 'Beef', total: 60, pct: 45 }, { name: 'Egg', total: 20, pct: 15 }],
-    recent: { up: 5 },
-    coverage: { uncosted: 3 },
-  }, 0.3, 0);
-  assert.equal(out.length, 5, 'a 30+ item menu fills the cap');
-  assert.ok(new Set(out.map((x) => x.kind)).size >= 4, 'across ≥4 distinct types: ' + out.map((x) => x.kind).join(','));
-  out.forEach((x) => assert.ok(numbersInFactsOnly(x), 'every number shown is a computed fact: ' + x.text));   // money law across the whole pipeline
-});
-
-test('v75: a large HEALTHY menu still surfaces a few neutral facts, led by the warm line', () => {
-  const dishes = [];
-  for (let i = 0; i < 10; i++) dishes.push(dish('B' + i, 2, 10, { section: 'Breakfast', nIng: 2 }));    // 20%
-  for (let i = 0; i < 10; i++) dishes.push(dish('L' + i, 3.9, 15, { section: 'Lunch', nIng: 7 }));       // 26% (still under 30%)
-  const out = deriveInsights({ dishes, spend: [{ name: 'Cheese', total: 50, pct: 40 }] }, 0.3, 0);   // nothing over target
-  assert.ok(out.length >= 2 && out.length <= 4, 'warm line + a few neutral facts, got ' + out.length);
-  assert.equal(out[0].kind, 'allgood', 'leads with the warm all-healthy line');
-  assert.ok(out.slice(1).every((x) => x.kind !== 'reprice' && x.kind !== 'cut'), 'no manufactured concern on a healthy menu');
+  assert.equal(JSON.stringify(data), snapshot);
 });
