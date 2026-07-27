@@ -2647,3 +2647,50 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v77: the mobile card enters with a gentle fade + rise (transform/opacity only; reduced-motion strips it below) */
 @keyframes msugRise{ from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
 @media (prefers-reduced-motion:reduce){ .msug-panel{animation:none} }
+
+/* ===== v89 — Dashboard rework stage 1: verdict header, menu scope selector, By-menu list =====
+   The Dashboard is the manager's surface. These three pieces answer "am I OK?" for a chosen scope.
+   Everything here reuses existing tokens and the existing .panel/.menu-picker-row skeletons — no new
+   layout system, no new elevation language, and nothing that touches the chart's settled geometry. */
+.verdict{display:flex;align-items:baseline;gap:var(--sp-2);flex-wrap:wrap}
+.verdict-num{font-family:var(--mono);font-size:var(--fs-xl);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--text)}
+.verdict-num.good{color:var(--good)}
+.verdict-num.bad{color:var(--bad)}
+.verdict-cap{font-size:var(--fs-xs);color:var(--muted2)}
+.verdict-line{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);line-height:1.45;color:var(--text2)}
+.verdict-trend{font-weight:700}
+.verdict-trend.good{color:var(--good)}
+.verdict-trend.bad{color:var(--bad)}
+.verdict-trend.flat{color:var(--muted2)}
+
+/* The scope selector IS the Menu tab's control — .menu-picker-row supplies the box, the border and the
+   type. This rule only spaces it into the dashboard panel; it owns no placement of its own. */
+.dash-scope{margin:var(--sp-3) 0 var(--sp-4)}
+
+/* Sits under the chart when a single menu is selected: says, in words, that the line above still covers
+   every menu. Constrained to the chart's own 540px column so it can't run wider than what it explains. */
+.scope-note{max-width:540px;margin:var(--sp-2) auto 0;color:var(--text2)}
+
+/* ----- By menu ----- */
+.mcmp-list{list-style:none;margin:0;padding:0}
+.mcmp-li + .mcmp-li{border-top:1px solid var(--border)}
+.mcmp-row{display:flex;align-items:center;gap:var(--sp-3);width:100%;min-height:44px;   /* 44px: the app's touch-target floor */
+  padding:var(--sp-3) var(--sp-1);background:none;border:0;border-radius:8px;font:inherit;color:var(--text);text-align:left;cursor:pointer}
+.mcmp-row:hover{color:var(--accent-ink)}
+.mcmp-row:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .hl-card */
+.mcmp-row.act{font-weight:700}
+.mcmp-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm)}
+.mcmp-pct{flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.mcmp-note{margin:var(--sp-3) 0 0;color:var(--muted2)}
+@media (prefers-reduced-motion:reduce){ .mcmp-row:active{transform:none} }
+
+/* Desktop: the dashboard is a two-column grid (.dash-panel | .hl-row). By menu joins column 1 under the
+   chart panel — it reads as a continuation of the same question, not a third unrelated column. */
+@media(min-width:1024px){                      /* the breakpoint #dashBody's grid itself is declared at */
+  /* EXPLICIT rows, not auto-flow. #dashBody had two children and relied on auto-placement to put the
+     highlight cards top-right; adding a third child made auto-flow push them into row 2, below the fold.
+     Pinning all three means a fourth panel later can't silently move them again. */
+  #dashBody .dash-panel{grid-row:1}
+  #dashBody .hl-row{grid-row:1}
+  #dashBody .dash-compare{grid-column:1;grid-row:2;margin:var(--sp-5) 0 0}
+}

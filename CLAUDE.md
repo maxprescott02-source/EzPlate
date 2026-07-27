@@ -346,25 +346,37 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `chore/doc-hygiene` is at **v88** (unmerged); `origin/main`
-  is at **v87** (`eaf1229`, PR #25 merged 26 Jul 2026). Six spots agree. Local
-  `main` goes stale between sessions (Max merges via GitHub PR) — **`git fetch`
-  and check `origin/main` first** ([[verify-origin-main-before-trusting-local]]).
-- **Suite:** `npm test` = **392 green**, jsdom smoke green, `node -c` clean
+- **Version:** branch `feature/dashboard-stage1` is at **v89** (unmerged);
+  `origin/main` is at **v88** (`be88567`, PR #27 merged 27 Jul 2026). Six spots
+  agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
+  **`git fetch` and check `origin/main` first**
+  ([[verify-origin-main-before-trusting-local]]).
+- **Suite:** `npm test` = **413 green**, jsdom smoke green, `node -c` clean
   (`js/app.js`, `sw.js`, the four `api/*.js`).
-- **Playwright:** 45 tests in `tests/visual/`, **not reconciled since v72** —
-  `fresh-states.spec.js` has known-stale pins, baselines need regenerating.
+- **Playwright:** 57 tests in `tests/visual/`. The 45 pre-v89 ones are **not
+  reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
+  "v45 item 4: button copy", fails on unmodified `main`). The 12 in
+  `v89-dash.spec.js` are green and pin behaviour, not screenshots.
 - **Supabase:** the three v55 migrations are **applied to prod** (Max confirmed
-  22 Jul 2026). Schema-can-lag still governs FUTURE migrations — apply before
-  the deploy that reads them ([[supabase-schema-can-lag-app-code]]).
+  22 Jul 2026). **v89 adds `20260727_price_history_menu_id.sql` (nullable
+  `menu_id` on `price_history`) — apply it before deploying v89.** Unapplied, the
+  app detects the missing column and keeps per-menu history local, silently.
+  Schema-can-lag governs FUTURE migrations too — apply before the deploy that
+  reads them ([[supabase-schema-can-lag-app-code]]).
+- **Dashboard scope (v89):** `priceHistory` is the all-menus aggregate ONLY;
+  per-menu points live in the separate `menuHistory` map. Don't merge them —
+  `dashComparisons`/`histInRange`/the 500-cap all assume one point per moment
+  across the whole business. `dashScope` is session-only and is NOT
+  `currentMenuId` (the Menu tab's own, persisted, insight-seeding selection).
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
   pinned, SRI-checked except the pdf.js worker (hard rule 4).
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v87** — six merged batches, none device-verified;
+1. **Phone sign-off on v82–v89** — eight merged batches, none device-verified;
    their "needs Max's phone" lists are the backlog. v87's iOS Safari scroll-lock
    check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
+   v89 adds the native `<select>` scope picker as a real touch control.
 2. **Upgrade pdf.js to 4.2.67+.** 3.11.174 carries **CVE-2024-4367** (malicious
    PDF → arbitrary JS); mitigated v88 via `isEvalSupported:false`, NOT fixed.
    Supplier PDFs are untrusted input. A 3→4 jump needs its own brief.
@@ -374,6 +386,13 @@ history belongs in `handovers/`, nowhere else.
 4. **Reconcile the Playwright/visual suite** on the browser that now exists.
 5. Optional: purchased-quantity capture for v55 §I — protected-region edit, so
    Max's explicit yes first.
+6. **Dashboard Stage 2** — the menu-aware chart and the By-menu sparklines are
+   blocked on per-menu history, which only started accumulating at v89. Don't
+   schedule the chart work until there are points to draw. Two smaller items
+   v89 surfaced: `priceHistory` still drops offline-logged points on sync (the
+   gap `menuHistory` fixed), and `js/app.js:1774` carries a stale v60 comment
+   claiming a far-off target line becomes an "edge annotation" — v61 and
+   `tests/trend-domain.test.js` say nothing is drawn. See `HANDOVER-v89.md`.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be
