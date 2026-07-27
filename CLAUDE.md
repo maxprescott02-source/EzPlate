@@ -339,20 +339,20 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 27 Jul 2026 (verify, don't trust)
+## State as of 28 Jul 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `feature/dashboard-stage2` is at **v90** (unmerged);
-  `origin/main` is at **v89** (`60b4d16`, PR #28 merged 27 Jul 2026). Six spots
+- **Version:** branch `fix/insight-families` is at **v91** (unmerged);
+  `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026). Six spots
   agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
-- **Suite:** `npm test` = **432 green**, jsdom smoke green, `node -c` clean
-  (`js/app.js`, `sw.js`, the four `api/*.js`).
+- **Suite:** `npm test` = **436 green**, jsdom smoke green (24 sections),
+  `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not
   reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
   "v45 item 4: button copy", fails on unmodified `main`). The 26 in
@@ -364,10 +364,11 @@ history belongs in `handovers/`, nowhere else.
   written — which matters while there is still no staging environment.
 - **Supabase:** the three v55 migrations are **applied to prod** (Max confirmed
   22 Jul 2026), as is v89's `20260727_price_history_menu_id.sql` (Max, 27 Jul).
-  **v90 adds `20260727_menu_price_history.sql` (a new `menu_price_history`
-  table) — apply it before deploying v90.** Unapplied, the app detects the
-  missing table and keeps sell-price points local, silently. Schema-can-lag
-  governs FUTURE migrations too — apply before the deploy that reads them
+  **v90's `20260727_menu_price_history.sql` (the `menu_price_history` table)
+  is still awaiting Max's confirmation — check before deploying.** Unapplied,
+  the app detects the missing table and keeps sell-price points local,
+  silently. **v91 adds no migration.** Schema-can-lag governs FUTURE migrations
+  too — apply before the deploy that reads them
   ([[supabase-schema-can-lag-app-code]]).
 - **THREE history series, deliberately separate — don't merge them:**
   `priceHistory` is the all-menus average food cost ONLY (`dashComparisons`/
@@ -386,16 +387,34 @@ history belongs in `handovers/`, nowhere else.
   Reconstructed history goes through `ingPriceAt`/`costAtLines` against ONE
   reference moment, and requires `priced > 0` — a plate of fixed misc lines
   reconstructs perfectly and must never be read as observed history.
+  **RULE D (v91): every family runs on every render.** No family may be gated on
+  another's result or on the state of the menu; one with nothing to say returns
+  `[]` and blocks nothing. The all-healthy line is not a family — it is what the
+  panel says when the whole engine came back empty, and it may only claim "all
+  clear" when nothing is over target as well. v90 gated the engine on the
+  over-target count and shipped a panel saying "nothing needs attention" above a
+  bar reporting costs creeping up. See `HANDOVER-v91.md`.
+- **THREE price-ish logs are written by DIFFERENT events — check the writer, not
+  just the reader.** `priceHistory` is written by `logHistory()` on every
+  data-changing event (including adding or repricing a plate, with no ingredient
+  price change at all); `ingPriceLog` is written by `logIngPrice()` on an invoice
+  apply **and** (v91) a hand-edited price in the builder; `menuPriceLog` by
+  `logAllMenuPrices()`. Until v91 `logIngPrice` had ONE caller, so hand-edited
+  prices moved the average and left no per-product point — which is why "Biggest
+  movers" read empty while the comparison bar reported movement, and why insight
+  family 1 had nothing to reconstruct. Any new "the app should notice X changed"
+  feature: confirm every path that changes X actually writes the log it reads.
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
   pinned, SRI-checked except the pdf.js worker (hard rule 4).
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v90** — nine merged batches, none device-verified;
-   their "needs Max's phone" lists are the backlog. v87's iOS Safari scroll-lock
+1. **Phone sign-off on v82–v91** — ten batches, none device-verified; their
+   "needs Max's phone" lists are the backlog. v87's iOS Safari scroll-lock
    check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
-   v90's sharpest question isn't visual: **do the insights pass the "so what"
-   test on Max's real menu?** Only he can answer that.
+   v90/v91's sharpest question isn't visual: **do the insights pass the "so what"
+   test on Max's real menu?** Only he can answer that — and v91 makes the warm
+   all-healthy line exclusive, which is a tone call worth his eyes.
 2. **Upgrade pdf.js to 4.2.67+.** 3.11.174 carries **CVE-2024-4367** (malicious
    PDF → arbitrary JS); mitigated v88 via `isEvalSupported:false`, NOT fixed.
    Supplier PDFs are untrusted input. A 3→4 jump needs its own brief.
@@ -412,6 +431,9 @@ history belongs in `handovers/`, nowhere else.
    (the offline-drop gap the other two logs avoid); `.range-btn` is 32px, not
    44px (since v46); the stale v60 target-line comment in `trendChart`. See
    `HANDOVER-v90.md`.
+8. **Rule D probably belongs ABOVE the "State as of" line** (it is a durable
+   engine law, not a snapshot fact) — it is recorded in the snapshot for now
+   because moving it needs Max's yes. Same question for the three-logs rule.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be
