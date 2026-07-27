@@ -6,8 +6,10 @@ Baseline v87, **392 node green**, `node -c` clean. Ended **392 node green** (unc
 changes no behaviour), jsdom smoke green, `node -c` clean, six spots → **v88**.
 
 Zero contact with the protected parser region, the money law, the naming inversion, the data model, the
-invoice row-build / `invRowState` / auto-tick, the insight engine, or `api/*.js`. The only `js/app.js`
-edit is the five-line pdf.js pin the brief authorised; nothing else in that file was touched.
+invoice row-build / `invRowState` / auto-tick, the insight engine, or `api/*.js`. `js/app.js` is touched in
+exactly two adjacent places, both inside the pdf.js loader: the SRI attributes, which the brief authorised,
+and one `isEvalSupported:false` option closing a live CVE that CodeRabbit surfaced (see below).
+Nothing else in that file was touched.
 
 The audit's verdict was *"Code is healthy; documentation is not… CLAUDE.md has stopped functioning as a
 control surface — and that is the mechanism by which everything below gets lost."* This batch fixes that
@@ -23,9 +25,10 @@ nine days. "Next up" was frozen at v72, still asking for sign-off on a batch tha
 earlier.
 
 **CLAUDE.md is now 381 lines.** The section is a true snapshot: current version and what's on main, suite
-counts, Playwright state, Supabase state, the two pinned CDN scripts, and a four-item prioritised
-"Outstanding" list that reflects what is actually next (phone sign-off on v82–v87; the audit's remaining
-findings; the visual-suite reconciliation; the optional v55 §I work). It opens by restating the
+counts, Playwright state, Supabase state, the two pinned CDN scripts, and a five-item prioritised
+"Outstanding" list that reflects what is actually next (phone sign-off on v82–v87; the pdf.js 4.x upgrade
+that properly fixes CVE-2024-4367; the audit's remaining findings; the visual-suite reconciliation; the
+optional v55 §I work). It opens by restating the
 overwrite-don't-append rule *and why*, so the next reader knows the growth was the failure mode.
 
 **Nothing was copied anywhere.** The deleted per-version history already exists in `handovers/` — that is
@@ -196,3 +199,21 @@ Chrome logs "Failed to find a valid digest in the 'integrity' attribute"; Safari
 also logs. No such message means the hashes are fine and the cause is elsewhere. Nothing in this batch
 changes app behaviour and the suite is unchanged at 392, so app logic is the least likely explanation —
 not an excluded one.
+
+---
+
+## Erratum — 27 Jul 2026, same day, PR #27 (Max's call)
+
+Handovers are **write-once**, so this edit is recorded rather than made silently. Two sentences in this
+file were corrected because they were **factually wrong about the diff they describe** — not because the
+account changed. Both were late edits that missed the commit: they were written after `git add` and before
+`git commit`, so the staged version shipped without them.
+
+1. **Intro** — said "the only `js/app.js` edit is the five-line pdf.js pin". Untrue once the
+   `isEvalSupported:false` CVE mitigation went in, and it contradicted this file's own CodeRabbit section.
+2. **§1** — described a "four-item" Outstanding list. It became five when the pdf.js 4.x upgrade was added
+   as item 2.
+
+Nothing else was touched: no claim was softened, no judgement call rewritten, no verification result
+altered. The lesson for next time is mechanical — **re-stage after any post-`git add` edit**, or commit
+with `-a`. `git status` showed `AM` on this file and I read past it.
