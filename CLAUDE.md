@@ -346,13 +346,14 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `fix/insight-value-ranking` is at **v92** (unmerged), and
-  is **STACKED on `fix/insight-families` (v91, also unmerged)** — v91 must merge
-  first. `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026).
+- **Version:** branch `test/insight-family-coverage` is at **v93** (unmerged),
+  **stacked on `fix/insight-value-ranking` (v92), which is stacked on
+  `fix/insight-families` (v91)**. Merge order: **v91 → v92 → v93**.
+  `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026).
   Six spots agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
-- **Suite:** `npm test` = **447 green**, jsdom smoke green (24 sections),
+- **Suite:** `npm test` = **485 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not
   reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
@@ -407,6 +408,14 @@ history belongs in `handovers/`, nowhere else.
   `insPriceAnomaly` (category is a supplier catalogue heading, NOT a
   substitutability class — it compared onions with spinach). See
   `HANDOVER-v92.md`.
+- **`tests/insight-coverage.test.js` (v93) drives the REAL pipeline** —
+  `computeInsights()` over seeded app state, one TRIGGER + one SILENCE fixture
+  per family. It exists because `insights.test.js` hands each family its
+  primitives ready-made, so the impure BUILDER was untested and a broken builder
+  was indistinguishable from a quiet family. **Add a fixture pair here whenever
+  you add or change a family**, and mutation-test it: deliberately break the
+  builder and confirm the suite goes red. That check found a silence fixture
+  passing on the wrong gate (see `HANDOVER-v93.md` §3).
 - **THREE price-ish logs are written by DIFFERENT events — check the writer, not
   just the reader.** `priceHistory` is written by `logHistory()` on every
   data-changing event (including adding or repricing a plate, with no ingredient
@@ -422,7 +431,7 @@ history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v92** — eleven batches, none device-verified; their
+1. **Phone sign-off on v82–v93** — twelve batches, none device-verified; their
    "needs Max's phone" lists are the backlog. v87's iOS Safari scroll-lock
    check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
    v90/v91's sharpest question isn't visual: **do the insights pass the "so what"
