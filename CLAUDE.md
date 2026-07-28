@@ -346,13 +346,17 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `test/insight-family-coverage` is at **v93** (unmerged),
-  **stacked on `fix/insight-value-ranking` (v92), which is stacked on
-  `fix/insight-families` (v91)**. Merge order: **v91 → v92 → v93**.
-  `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026).
-  Six spots agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
-  **`git fetch` and check `origin/main` first**
-  ([[verify-origin-main-before-trusting-local]]).
+- **Version:** branch `fix/dashboard-density` is at **v94** (unmerged, off
+  `main` `f58a5e5`). `origin/main` is at **v93 + the RLS migration** (`f58a5e5`;
+  PRs #32 and #33 merged 28 Jul 2026 — the v91→v92→v93 insight stack is IN).
+  Six spots agree at v94 on the branch. Local `main` goes stale between
+  sessions (Max merges via GitHub PR) — **`git fetch` and check `origin/main`
+  first** ([[verify-origin-main-before-trusting-local]]).
+- **v94 is presentation-only** (the density brief): one scoped CSS section
+  under `#dashBody`, chart viewBox H 210→104 + fill opacity in `trendChart`,
+  three dashboard hints compressed (their pinned phrases kept). One pinned
+  contract changed deliberately: v90-flows' dig-row floor 44→32px (display
+  rows, not controls). See `HANDOVER-v94.md`.
 - **Suite:** `npm test` = **485 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not
@@ -364,6 +368,9 @@ history belongs in `handovers/`, nowhere else.
   the static dev server 501s on POST. **They are also the safe way to drive
   real flows here** — throwaway profile, Supabase never contacted, nothing
   written — which matters while there is still no staging environment.
+  **Run the suite alone**: a concurrent browser session (another Playwright
+  run, a flow-tester agent) starves it into 15-min phantom timeouts that read
+  as failures.
 - **Supabase (verified against prod 28 Jul 2026, not assumed):** every table
   the app queries exists — `menu_items`, `price_history`, `ingredients`,
   `supplier_phrases`, `plates`, `menus`, `menu_price_history`, `app_settings` —
@@ -373,8 +380,10 @@ history belongs in `handovers/`, nowhere else.
   **⚠️ ONE REAL FAULT: `menu_price_history` has RLS enabled and NO policies, so
   every insert is rejected (42501) and the table holds 0 rows.** v90's migration
   created the table and index and never granted anything.
-  `supabase/migrations/20260728_menu_price_history_rls.sql` fixes it — **Max
-  must run it in the SQL editor.**
+  `supabase/migrations/20260728_menu_price_history_rls.sql` fixes it and is
+  now merged (PR #33) — but a merged FILE grants nothing: **whether Max has
+  actually run it in the SQL editor was NOT verified in the v94 batch.** Check
+  before relying on `menu_price_history` writes.
   **The support probe cannot see this**: `bootstrapSync` decides the feature is
   usable by checking `.error` on a `select`, and RLS-with-no-policy returns 200
   with zero rows and no error. So `menuPriceHistSupported` stays true and every

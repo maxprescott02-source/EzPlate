@@ -2008,7 +2008,10 @@ function trendChart(){
      same glyph count for any 2-digit percent, so the measured gutter can't vary between
      ranges), labels vertically CENTRED on their value so the target tick sits exactly on the
      dashed rule (pinned by fresh-states.spec.js). */
-  var W=320,H=210,padR=10,padT=14,padB=20;
+  /* v94 density: H 210→104 — the approved mockup's chart is compact, with the line using most of
+     the vertical space. Only the viewBox HEIGHT changes: the x-gutter (padL/axGap), axis fonts,
+     tick/domain generation, target-line rule and scrub wiring are all untouched. */
+  var W=320,H=104,padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -2069,7 +2072,7 @@ function trendChart(){
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
-    +'<pattern id="tcdots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.6" cy="1.6" r="1.1" fill="'+stroke+'" opacity="0.28"/></pattern>'   // dotted fill inherits the semantic colour + both themes via the CSS var
+    +'<pattern id="tcdots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1.6" cy="1.6" r="1" fill="'+stroke+'" opacity="0.15"/></pattern>'   // dotted fill inherits the semantic colour + both themes via the CSS var; v94: opacity .28→.15, grid 6→7 — a subtle texture, not a solid block (density brief)
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'
@@ -2086,7 +2089,7 @@ function trendChart(){
     // v89 COPY ONLY (no geometry touched): "across the menu" said the singular when the app has always
     // allowed several, and now that a scope selector sits above this line the ambiguity actively misleads
     // \u2014 it reads as though it describes the selected menu. The series is, and always was, every menu.
-    +'<p class="hint chart-hint">Average food cost across all menus \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
+    +'<p class="hint chart-hint">All menus \u00b7 '+trendWord+'.</p></div>';   // v94: one compact hint line (density brief), same meaning kept \u2014 the series covers every menu (v89 scope honesty) + the direction. v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
    Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
@@ -3034,8 +3037,9 @@ function menuCompareHtml(scope){
           +'<span class="mcmp-name">'+esc(r.name)+'</span>'
           +'<span class="mcmp-pct">'+r.pct.toFixed(1)+'%</span></button></li>';
       }).join('')+'</ul>'
-    +'<p class="hint mcmp-note">Ranked by average food cost % — lower is better. EzPlate has no sales figures, '
-    +'so this compares cost efficiency, not what each menu earns.</p>'
+    // v94: one compact hint line (density brief). The standing honesty rule survives compression:
+    // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
+    +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
     +'</div></div>';
 }
 function renderDashboard(){
@@ -3062,7 +3066,7 @@ function renderDashboard(){
     +dashScopeSelectorHtml(scope)
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
-    +(narrowed?'<p class="hint scope-note">A trend for one menu needs its own history \u2014 EzPlate started recording that from today, so this line still covers every menu.</p>':'')
+    +(narrowed?'<p class="hint scope-note">Per-menu history is still building \u2014 this line covers all menus.</p>':'')   // v94: compressed to one hint line (density brief); the honesty is unchanged \u2014 a menu's own trend can't be drawn yet
     +'<div class="stat-attach"><div class="stat-lead">'+esc(statLead)+'</div>'
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div>';
@@ -3184,7 +3188,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v93';
+var APP_VERSION='v94';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

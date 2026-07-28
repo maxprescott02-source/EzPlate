@@ -2614,3 +2614,52 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dig-rv.down{color:var(--good)}
 @media (prefers-reduced-motion:reduce){ .dig-card:active{transform:none} }
 @media (min-width:640px){ .dig-grid{grid-template-columns:repeat(4,1fr)} }
+
+/* ===== batch (v94) — Dashboard density: match the approved mockup ============================
+   Presentation only. Stages 1/2 (v89/v90) shipped the right structure at roughly 3–4× the
+   mockup's density; a manager's surface should be scannable in one glance. Every rule here is
+   scoped under #dashBody so no other tab moves, and everything is existing tokens — no new
+   spacing, sizes or elevation. The chart's own shrink (viewBox H 210→104, fill opacity) lives
+   in trendChart in app.js; its x-gutter geometry, axis fonts, domain/tick logic, target-line
+   rule and scrubbing are all deliberately untouched. */
+/* zones sit close (mockup: 7px seams), not 16px+20px apart: the flex gap IS the seam, and the
+   container's top padding keeps the FIRST panel exactly where every other tab's first panel sits
+   (sp-5 — layout-consistency.spec.js pins the one panel skeleton across all five tabs, so the h2
+   geometry below is deliberately NOT overridden; only its colour goes quiet, which isn't skeleton) */
+#dashBody{gap:var(--sp-2);padding-top:var(--sp-4)}   /* sp-4: other tabs' first panel lands 16px down on mobile (collapsed margin — measured, and pinned by layout-consistency) */
+#dashBody .panel{margin-top:0}
+#dashBody .panel h2{color:var(--muted2)}
+#dashBody .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}   /* left/right stay sp-5: one text edge with the h2 title (pinned) */
+/* the scope selector: same .menu-picker-row control, but a compact INLINE chip — not a
+   full-width bar dominating the header (the app's compact-header-pills rule, and the mockup) */
+#dashBody .dash-scope{margin:var(--sp-2) 0 var(--sp-3)}
+#dashBody .dash-scope select{flex:0 1 auto;width:auto;max-width:100%;font-size:var(--fs-sm);padding:8px 12px}
+#dashBody .chart-controls{margin-bottom:var(--sp-1)}
+#dashBody .chart-hint{margin-top:var(--sp-1);font-size:var(--fs-xs)}
+#dashBody .scope-note{font-size:var(--fs-xs)}
+/* the comparison block attaches tight under the chart */
+#dashBody .stat-attach{margin-top:var(--sp-2);padding-top:var(--sp-2)}
+#dashBody .stat-lead{margin-bottom:var(--sp-1)}
+#dashBody .stat-line{gap:2px;padding:0;font-size:var(--fs-xs)}
+/* insights: the mockup's 12.5px lines with tight rhythm */
+#dashBody .ins-line{padding:var(--sp-2) 0;font-size:var(--fs-sm);line-height:1.5}
+#dashBody .ins-credit{margin-top:var(--sp-2)}
+/* By-menu rows: slim visually, 44px touch floor kept (the row is a button) */
+#dashBody .mcmp-row{padding:var(--sp-2) var(--sp-1)}
+#dashBody .mcmp-note{margin-top:var(--sp-2);font-size:var(--fs-xs)}
+/* Dig in: cards were close but over-padded; rows are display-only, so they may sit slimmer */
+#dashBody .dig-grid{gap:var(--sp-2)}
+#dashBody .dig-card{padding:var(--sp-2) var(--sp-3)}
+#dashBody .dig-row{min-height:36px;padding:var(--sp-1) 0}
+@media(min-width:1024px){
+  /* desktop rows close up the same way. Row 1's sp-5 top offset is restored here because the
+     mobile margin-top:0 above would otherwise beat the v89 rules (same specificity, earlier in
+     the file) and drop the first panel out of line with every other tab (pinned). */
+  #dashBody{padding-top:0}
+  #dashBody .dash-panel{margin-top:var(--sp-5)}
+  #dashBody .dash-ins{margin-top:var(--sp-5)}
+  #dashBody .dash-compare{margin-top:var(--sp-2)}
+  #dashBody .dash-dig{margin-top:var(--sp-2)}
+  #dashBody .dash-panel .pad{padding:var(--sp-3) var(--sp-5) var(--sp-4)}
+  #dashBody .dash-ins .pad{padding:var(--sp-3) var(--sp-5) var(--sp-4)}
+}
