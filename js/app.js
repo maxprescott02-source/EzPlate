@@ -2061,7 +2061,7 @@ function trendChart(){
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
   // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
-  var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
+  var drawing='<path d="'+area+'" fill="url(#tcdots)" mask="url(#tcfadem)"/>'   // v94 desktop pass: the fill fades out toward the plot floor (see #tcfadem) instead of tinting everything under the line
     +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
     +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
   // v52: labels live INSIDE the gutter, right-aligned to plotLeft-8 so the digits sit flush as a
@@ -2073,6 +2073,12 @@ function trendChart(){
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
     +'<pattern id="tcdots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1.6" cy="1.6" r="1" fill="'+stroke+'" opacity="0.15"/></pattern>'   // dotted fill inherits the semantic colour + both themes via the CSS var; v94: opacity .28→.15, grid 6→7 — a subtle texture, not a solid block (density brief)
+    // v94 desktop pass: luminance mask fading the area fill to nothing at the plot floor — the dotted
+    // texture hugs the line instead of dominating the space under it. Anchored to plot Y extents
+    // (userSpaceOnUse) so its reach scales with the domain, never the data.
+    +'<linearGradient id="tcfadeg" x1="0" y1="'+padT+'" x2="0" y2="'+(H-padB)+'" gradientUnits="userSpaceOnUse">'
+    +'<stop offset="0" stop-color="#fff"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>'
+    +'<mask id="tcfadem"><rect x="0" y="0" width="'+W+'" height="'+H+'" fill="url(#tcfadeg)"/></mask>'
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'

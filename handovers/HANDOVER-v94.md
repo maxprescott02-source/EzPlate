@@ -108,6 +108,39 @@ preserved — is repeatable if any other read-only surface needs the same treatm
 - Review screenshots (`tests/visual/__shots__/density-*.png`, gitignored) taken on a
   near-target seed and an insights-firing seed, light+dark, 380/1280.
 
+---
+
+## Second pass (same batch, 29 Jul): desktop bento grid
+
+Max's follow-up brief: at desktop the dashboard was one tall left column beside a 2–3 line
+insights card — half the right side dead. Layout and spacing only, mobile untouched.
+
+**What changed (all inside the v94 CSS section + one svg mask in `trendChart`):**
+- `#dashBody` at ≥1024px is now a **12-column grid**, rows `auto 1fr`: chart card cols 1–7
+  spanning both rows; WHAT NEEDS ATTENTION cols 8–12 row 1; BY MENU cols 8–12 row 2;
+  DIG IN full-width row 3, four cards across. The explicit `1fr` row matters: without it the
+  spanning panel's height distributes across both tracks and opens a hole between the two
+  right-hand cards.
+- **The scope selector rides beside the verdict** (a 2-col grid inside `.dash-panel .pad`) —
+  the card no longer spends a full row on it. Gotcha for the next person: grid items with
+  `margin:0 auto` (`.dash-chart`, `.chart-controls`) don't stretch — they collapsed to the
+  svg's 300px default intrinsic width until given `width:100%`.
+- **COMPARES is a slim 3-up strip** under the chart (label over verdict per cell) instead of
+  three stacked full-width lines — the brief's "own compact region", done without moving
+  markup.
+- **BY MENU stretches to the chart card's floor** with `.mcmp-note` anchored at the card
+  bottom (`margin-top:auto`), so residual height reads as air inside one card, not a hole in
+  the grid; it shrinks as real data grows the insights and menu lists. Columns end flush
+  (measured `panel.bottom − compare.bottom = 0` at 1024/1280/1440/1680).
+- **Dotted fill vertical extent**: a `userSpaceOnUse` luminance mask (`#tcfadem`) fades the
+  area fill to nothing at the plot floor (both themes, both breakpoints — it's the same svg).
+  `pattern#tcdots` still exists; fresh-states' pin passes.
+- Chart card height 518 → ~452 at 1280; left/right columns balance at every checked width.
+
+**Verified:** 485 node green, jsdom smoke green, `node -c` clean, full Playwright 70/71 alone
+(same single stale v45 pin), measured no overflow and flush columns at 1024/1280/1440/1680,
+screenshots both themes. Version stays **v94** — same unmerged PR, one deploy, one bump.
+
 ## Needs Max's phone
 
 - The whole point of the batch is *feel* — is the dashboard now scannable in one glance on the
@@ -121,3 +154,5 @@ preserved — is repeatable if any other read-only surface needs the same treatm
 - Open question for a future brief: mockup's ~36px verdict number (needs a type-scale
   decision), and the untracked `ezplate-dashboard-mockup_1.html` at the repo root — commit as
   the design reference or keep out of the tree?
+- (Desktop pass) A laptop/desktop eyeball of the bento: does the COMPARES 3-up strip read
+  clearly, and is the faded dotted fill still legible on a real screen in dark theme?

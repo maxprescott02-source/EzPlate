@@ -2663,3 +2663,48 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   #dashBody .dash-panel .pad{padding:var(--sp-3) var(--sp-5) var(--sp-4)}
   #dashBody .dash-ins .pad{padding:var(--sp-3) var(--sp-5) var(--sp-4)}
 }
+
+/* ----- v94 desktop pass: bento grid — every region earns its place ---------------------------
+   At ≥1024px the dashboard was one tall left column beside a 2-3 line insights card: half the
+   right side was dead space. Rebalanced on a 12-column grid: the chart card (7 cols) spans two
+   rows on the left; the right column stacks WHAT NEEDS ATTENTION over BY MENU so the short
+   insights card no longer owns a full-height track; DIG IN closes the grid full-width, its four
+   cards in one row. Markup untouched — placement only. Mobile (<1024px) keeps the single stack.
+   v90-dash.spec pins survive: insights top-aligned beside the panel, right of it, Dig in below. */
+@media(min-width:1024px){
+  /* rows: [insights' own height | the chart card's remainder | dig]. Without the explicit 1fr,
+     the panel's span distributes across both tracks and opens a hole between the two right-hand
+     cards; with it, BY MENU packs directly under WHAT NEEDS ATTENTION and any slack pools once,
+     at the bottom right — which shrinks as real data grows the insights and menu lists. */
+  #dashBody{grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto 1fr}
+  #dashBody .dash-panel{grid-column:1/8;grid-row:1/3}
+  #dashBody .dash-ins{grid-column:8/13;grid-row:1}
+  #dashBody .dash-compare{grid-column:8/13;grid-row:2;margin-top:var(--sp-2)}
+  #dashBody .dash-dig{grid-column:1/13;grid-row:3;margin-top:var(--sp-2)}
+  /* the COMPARES stack becomes a slim three-up strip: three short lines never needed a column's
+     worth of vertical space. Label above, verdict below — reads as one compact stat band. */
+  #dashBody .stat-line{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-2) var(--sp-4);align-items:start}
+  #dashBody .stat-line .stat-bit{display:block;white-space:normal}
+  #dashBody .stat-line .stat-h{display:block;min-width:0;margin-bottom:1px}
+  /* tighten the generous seams inside the chart card: chart → trend sentence → compares */
+  #dashBody .chart-hint{margin-top:2px}
+  #dashBody .stat-attach{margin-top:var(--sp-1);padding-top:var(--sp-2)}
+  /* the scope selector rides beside the verdict figure instead of costing the card a full row —
+     a two-column header inside the card: verdict text left, the compact control right. Grid, not
+     absolute positioning, so a missing selector (<2 menus) just leaves the column empty. */
+  #dashBody .dash-panel .pad{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;padding-bottom:var(--sp-3)}
+  #dashBody .dash-panel .pad > *{grid-column:1/-1}
+  #dashBody .dash-panel .pad > .verdict,
+  #dashBody .dash-panel .pad > .verdict-line{grid-column:1}
+  #dashBody .dash-panel .pad > .dash-scope{grid-column:2;grid-row:1/3;align-self:center;justify-self:end;margin:0 0 0 var(--sp-3)}
+  /* grid items with auto side margins don't stretch — they'd fall back to the svg's 300px
+     default intrinsic width. Full width here; their own max-width still caps and centres. */
+  #dashBody .dash-panel .pad > .chart-controls,
+  #dashBody .dash-panel .pad > .dash-chart,
+  #dashBody .dash-panel .pad > .scope-note{width:100%}
+  /* BY MENU stretches to the chart card's floor; its hint anchors at the card bottom so any
+     spare height reads as air inside one card, not a hole in the grid. */
+  #dashBody .dash-compare{align-self:stretch;display:flex;flex-direction:column}
+  #dashBody .dash-compare .pad{display:flex;flex-direction:column;flex:1 1 auto}
+  #dashBody .dash-compare .mcmp-note{margin-top:auto;padding-top:var(--sp-3)}
+}
