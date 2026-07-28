@@ -430,22 +430,65 @@ test('scaling: a mostly-healthy big menu shows fewer than the cap', () => {
   assert.ok(deriveInsights({ dishes, isAll: true }, 0.3, 0).length <= 2);
 });
 
-/* ---------------- all-healthy → one warm line ---------------- */
+/* ---------------- RULE D (v91): every family runs on every render ----------------
+   The v90 contract pinned here was the INVERSE of these: "a healthy menu never emits a CONCERN
+   family, however much history exists". It was written to stop the panel manufacturing worry, but it
+   made the over-target count a GATE on the whole engine, and that shipped the 28 Jul bug — the panel
+   said "nothing needs attention" while the comparison bar under it reported costs creeping up, because
+   the movement families were either dropped (drift) or squeezed out of the one slot the warm line left.
+   Being under target is not the same as not having moved, so the gate is gone and these pin its absence.
+   Deliberate contract change, replacing the v90 test in the same commit. */
 
-test('deriveInsights: all-healthy menu → exactly ONE warm line', () => {
+test('Rule D: no plate over target BUT a measurable cost-base movement → the movement is reported and the all-healthy line does NOT fire', () => {
+  const dishes = [];
+  for (let i = 0; i < 4; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));   // every plate at 20% against a 30% target
+  const out = deriveInsights({ dishes, movement: MV, isAll: true }, 0.3, 0);
+  const kinds = out.map((x) => x.kind);
+  assert.ok(kinds.indexOf('costbase') >= 0, 'family 1 must report: ' + kinds.join(','));
+  assert.equal(kinds.indexOf('allgood'), -1, 'the all-healthy line may not fire alongside an insight');
+});
+
+test('Rule D: drift under target is still drift — a plate whose cost moved is reported even though nothing is over target', () => {
+  const dishes = [];
+  for (let i = 0; i < 20; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));
+  const kinds = deriveInsights({ dishes, drift: DR, isAll: true }, 0.3, 0).map((x) => x.kind);
+  assert.ok(kinds.indexOf('drift') >= 0);
+  assert.equal(kinds.indexOf('allgood'), -1);
+});
+
+test('Rule D: the all-healthy line fires ONLY when every family returns nothing', () => {
   const out = deriveInsights([dish('Salad', 3, 15), dish('Soup', 2, 9), dish('Toast', 1.5, 8)], 0.3, 0);
   assert.equal(out.length, 1);
   assert.equal(out[0].kind, 'allgood');
   assert.match(out[0].text, /good shape|healthy|clear|nothing/i);
+  // and it says so — the claim covers both halves, not target compliance alone
+  assert.match(out[0].text, /nothing else|no other|out of line/i);
 });
 
-test('deriveInsights: a healthy menu never emits a CONCERN family, however much history exists', () => {
+test('Rule D: a family with insufficient history returns nothing WITHOUT suppressing the others', () => {
   const dishes = [];
-  for (let i = 0; i < 20; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));
-  const kinds = deriveInsights({ dishes, drift: DR, longStanding: LS, isAll: true }, 0.3, 0).map((x) => x.kind);
-  assert.equal(kinds.indexOf('drift'), -1);
-  assert.equal(kinds.indexOf('longstanding'), -1);
-  assert.equal(kinds[0], 'allgood', 'the warm line leads');
+  for (let i = 0; i < 8; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));
+  // movement is below every threshold (0.2 pts, 1% ingredient move) so family 1 is silent; the rest must still run
+  const thin = { pts: 0.2, name: 'Beef', ingPct: 1, plates: 5, sinceLabel: 'April' };
+  const kinds = deriveInsights({ dishes, movement: thin, drift: DR, coverage: { uncosted: 3 }, isAll: true }, 0.3, 0)
+    .map((x) => x.kind);
+  assert.equal(kinds.indexOf('costbase'), -1, 'the thin family stays silent');
+  assert.ok(kinds.indexOf('drift') >= 0, 'and does not take the others down with it');
+  assert.ok(kinds.indexOf('data') >= 0);
+});
+
+test('Rule D: over target with NO family able to speak stays silent — it does not reassure wrongly', () => {
+  const dishes = [];
+  for (let i = 0; i < 4; i++) dishes.push(dish(plateName(i), 6, 15));            // 40% against a 30% target, no history
+  const out = deriveInsights({ dishes, isAll: true }, 0.3, 0);
+  assert.deepEqual(out.map((x) => x.kind), [], 'no family has the data to speak — the panel is absent');
+});
+
+test('Rule D: the positive line never displaces the all-healthy line on a quiet healthy menu', () => {
+  // one plate 10 pts under target would make insBest fire; on its own that is not "something to report"
+  const out = deriveInsights([dish('Toastie', 3, 15), dish('Soup', 2.4, 9)], 0.3, 0);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'allgood');
 });
 
 /* ---------------- Rules B and C across the whole engine ---------------- */

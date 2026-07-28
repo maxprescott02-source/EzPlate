@@ -403,6 +403,12 @@ function commitPrice(uid,raw){
   if(!isNaN(v)&&v>=0){
     const base=(p.base_unit==='g'||p.base_unit==='ml')?v/1000:v;
     setOverride(p.id,{cost_per_base_unit:base});
+    // v91 ROOT CAUSE (the movers card + insight family 1): until now logIngPrice was called from ONE
+    // place — the invoice-confirm path. A price edited by hand here moved the all-menus average (via
+    // logHistory below, which feeds priceHistory) but left NO per-product point, so the two logs
+    // disagreed about whether a price had changed at all. "Biggest movers" read empty and the
+    // cost-base family had nothing to reconstruct, while the comparison bar reported the same change.
+    if(logIngPrice(p.id, base)) saveIngLog();
     logHistory();
   }
   renderPlate();
@@ -981,12 +987,20 @@ var IPLKEY='cafeDB_ingPriceLog';
 function loadIngLog(){ try{ return JSON.parse(localStorage.getItem(IPLKEY))||{}; }catch(e){ return {}; } }
 function saveIngLog(){ try{ localStorage.setItem(IPLKEY, JSON.stringify(ingPriceLog)); }catch(e){} }
 var ingPriceLog = loadIngLog();
-function logIngPrice(pid, cpbuVal){                                  // record a per-base-unit price point for this product
-  if(pid==null || cpbuVal==null || !isFinite(cpbuVal)) return;
+/* Record a per-base-unit price point for this product. Returns true when a point was actually added,
+   so callers know whether saveIngLog() is needed (v91 — the invoice path used to key that off
+   `priceChanges`, which is only populated when there WAS an old price, so the first price ever logged
+   for a product lived in memory until something else happened to save the log). */
+function logIngPrice(pid, cpbuVal){
+  if(pid==null || cpbuVal==null || !isFinite(cpbuVal)) return false;
   var a=ingPriceLog[pid]||(ingPriceLog[pid]=[]);
   var last=a.length?a[a.length-1].v:null;
-  if(last!=null && Math.abs(last-cpbuVal) < Math.abs(cpbuVal)*1e-6) return;   // skip no-op repeats
+  // skip no-op repeats. The exact-equality arm carries $0.00: the relative tolerance is scaled BY the
+  // value, so at zero it collapses to `0 < 0` and every repeat logged a fresh point. (CodeRabbit, v91 —
+  // newly reachable now that a hand-edited price feeds this log, and commitPrice accepts 0.)
+  if(last!=null && (last===cpbuVal || Math.abs(last-cpbuVal) < Math.abs(cpbuVal)*1e-6)) return false;
   a.push({t:Date.now(), v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60);
+  return true;
 }
 function ingPriceBand(pid){                                          // {min,max} $/base-unit from logged history, or null
   var a=ingPriceLog[pid]; var p=byId[pid]; var cur=p?cpbu(p):null;
@@ -2215,6 +2229,14 @@ function digInHtml(scope){
    for both. selectInsights ranks by score, keeps type VARIETY (≤1 per kind) and rotates the
    near-top group by a per-render seed. deriveInsights orchestrates; the impure computeInsights
    builds the data bundle for the CURRENT DASHBOARD SCOPE.
+
+   RULE D (v91) — EVERY FAMILY RUNS ON EVERY RENDER. No family is gated on another family's
+     result, and no state of the menu (over target, under target, no history) may stop a family
+     being asked. A family with nothing to say returns [] and blocks nothing. The all-healthy line
+     is not a family: it is what the panel says when the whole engine came back empty, and it may
+     only claim "all clear" when nothing is over target as well. v90 broke this by branching on the
+     over-target count and it shipped a panel that said "nothing needs attention" while the
+     comparison bar directly beneath it reported costs creeping up.
    ===================================================================================== */
 
 /* Rule A's dimension vocabulary — the six kinds of thing an insight can add. `aggregation` is
@@ -2439,14 +2461,17 @@ function selectInsights(cands, seed, max){
   return out;
 }
 /* ONE warm, genuine line for an all-healthy scope — varied by seed so it doesn't read as a fixed
-   template. Only reached when nothing is over target, so "in good shape" is always true. Every number
-   (the plate count, the target %) is in facts, so the phrasing layer's number check still passes. */
+   template. v91: reached ONLY when nothing is over target AND no family observed anything, so the
+   copy now states BOTH halves. Until v91 it fired on target compliance alone while other families
+   were still reporting movement underneath it — "nothing needs attention" printed directly above an
+   insight saying costs were creeping up. Every number (the plate count, the target %) is in facts,
+   so the phrasing layer's number check still passes. */
 function healthyLine(total, tp, seed){
   var pool=[
-    'Nothing needs attention right now — all '+total+' costed plate'+(total===1?'':'s')+' sit at or under your '+tp+'% target.',
-    'Everything’s in good shape — every one of your '+total+' costed plate'+(total===1?'':'s')+' is holding at or under '+tp+'%.',
-    'All clear — your '+total+' costed plate'+(total===1?'':'s')+' are at or under the '+tp+'% target, so nothing’s calling for a look.',
-    'A healthy read — nothing sits over your '+tp+'% target across '+total+' costed plate'+(total===1?'':'s')+'.'
+    'Nothing needs attention right now — all '+total+' costed plate'+(total===1?'':'s')+' sit at or under your '+tp+'% target, and nothing else stands out.',
+    'Everything’s in good shape — all '+total+' costed plate'+(total===1?'':'s')+' are holding at or under '+tp+'%, with nothing else worth flagging.',
+    'All clear — your '+total+' costed plate'+(total===1?'':'s')+' are at or under the '+tp+'% target and nothing else is out of line.',
+    'A healthy read — nothing sits over your '+tp+'% target across '+total+' costed plate'+(total===1?'':'s')+', and no other pattern stands out.'
   ];
   var i=((seed%pool.length)+pool.length)%pool.length;
   return {kind:'allgood', facts:{total:total, targetPct:tp}, text:pool[i]};
@@ -2455,7 +2480,17 @@ function healthyLine(total, tp, seed){
    priceGap, recent, coverage}; a bare array is treated as {dishes}. Returns the chosen insights as
    {kind, facts, text} (score, dims and scope stripped). The COUNT scales with menu size and NOTHING is
    ever padded to the cap — selectInsights only returns real candidates, so fewer is correct when there
-   is genuinely less to say. */
+   is genuinely less to say.
+
+   v91 ROOT CAUSE — the over-target check was a GATE, not a ranking input. v90 split the families into
+   two lists and picked the list by `over`: with nothing over target it dropped drift entirely and
+   prepended the all-healthy line unconditionally, spending one of the (already small) slots on it. So a
+   scope with real movement to report could print "nothing needs attention" above the movement itself,
+   and a plate that drifted 20%→27% under a 30% target was never reportable at all — being under target
+   is not the same as not having moved. Now EVERY family is evaluated on EVERY render and `over` is used
+   for exactly one thing: deciding whether the all-healthy line may fire when nothing was observed.
+   A family that can't compute returns [] and blocks nothing — that has always been true per family and
+   is now true of the orchestrator too. */
 function deriveInsights(data, targetFrac, seed){
   if(Array.isArray(data)) data={dishes:data};
   data=data||{};
@@ -2468,9 +2503,13 @@ function deriveInsights(data, targetFrac, seed){
   var max = n>=30?5 : n>=16?4 : n>=6?3 : n>=2?2 : 1;                // 1→1, 2–5→2, 6–15→3, 16–29→4, 30+→5
   var over=costed.filter(function(d){ return Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
   var pass=function(c){ return c && ruleA(c) && scopeAllows(c, isAll); };
-  // Neutral, non-concern types: true and useful whether or not anything is over target.
-  var neutral=[]
-    .concat(insCostBase(data.movement||null))
+  // EVERY family, EVERY render. Ordered by how much a tie should favour them (selectInsights breaks
+  // equal scores by position), not by whether they are "concern" types — that distinction is what
+  // caused the bug. Anything without the history to compute returns [] on its own terms.
+  var observed=[]
+    .concat(insLongStanding(data.longStanding||null))               // a standing problem outranks a new one
+    .concat(insDrift(data.drift||null))                             // this plate moved, and by how much
+    .concat(insCostBase(data.movement||null))                       // the cost base moved, culprit named
     .concat(insCategory(costed, targetFrac))
     .concat(insVolatility(costed))
     .concat(insNearCluster(costed, targetFrac))
@@ -2480,21 +2519,17 @@ function deriveInsights(data, targetFrac, seed){
     .concat(insRecentChange(data.recent||null))
     .concat(insData(data.coverage||null))
     .filter(pass);
-  if(!over){
-    // Nothing over target → LEAD with ONE warm line and don't manufacture concern, then fill toward the
-    // cap with neutral facts only (drift and long-standing are concern types and don't apply here). A
-    // small healthy menu has little to say and stays a single line — fewer is still correct.
-    var warm=healthyLine(costed.length, Math.round(targetFrac*100), seed||0);
-    var extra=selectInsights(neutral, seed||0, Math.max(0, max-1));
-    return [warm].concat(extra.map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; }));
+  // The one positive line is the COUNTERPART of the all-healthy line, not an observation that something
+  // moved — so it fills a spare slot but never counts as "the engine has something to say", or a menu
+  // with one standout plate would lose its warm line to a compliment.
+  var positive=insBest(costed, targetFrac).filter(pass);
+  if(!observed.length){
+    // Genuinely nothing observed. The warm line may claim "all clear" only when nothing is over target
+    // either; over target with no family able to speak stays silent rather than reassuring wrongly.
+    return over ? [] : [healthyLine(costed.length, Math.round(targetFrac*100), seed||0)];
   }
-  var cands=[]
-    .concat(insLongStanding(data.longStanding||null))               // a standing problem outranks a new one
-    .concat(insDrift(data.drift||null))                             // this plate moved, and by how much
-    .concat(neutral)
-    .concat(insBest(costed, targetFrac))                            // the one positive line — low priority
-    .filter(pass);
-  return selectInsights(cands, seed||0, max).map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
+  return selectInsights(observed.concat(positive), seed||0, max)
+    .map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
 }
 /* Impure wrapper: build the data bundle for the DASHBOARD's current scope and derive. Every number comes
    from something the app already computes — live plate costs, the per-ingredient price log (ingPriceLog),
@@ -3044,7 +3079,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v90';
+var APP_VERSION='v91';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -5100,7 +5135,7 @@ function applyInvoice(){
     if(r.addNew){ var s=collectNewItem(i); if(!s){ ok=false; } else specs[i]=s; }
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
-  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[];
+  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[]; var ingLogged=false;
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
@@ -5126,7 +5161,7 @@ function applyInvoice(){
       var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
       var oldC=cpbu(p); var newC=up/ub2.div;
       setOverride(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
-      logIngPrice(pid, newC);                                       // record the new price point (builds cost-range history)
+      if(logIngPrice(pid, newC)) ingLogged=true;                    // record the new price point (builds cost-range history)
       if(oldC!=null && Math.abs(newC-oldC)>Math.abs(oldC)*0.005){ priceChanges.push({name:p.description||r.name, oldC:oldC, newC:newC, unit:ub2.base_unit, dir:(newC>oldC?1:-1), pctAbs:Math.abs((newC-oldC)/oldC)*100}); }
     }
     // ITEM 1 (v38) ROOT CAUSE: the product-pack write lived INSIDE this supplier-memory block, so it was gated on normSupplier(invSupplier). A pack belongs to the PRODUCT — 105 slices in a bag is 105 slices whoever invoiced it — but invSupplierDetect returns '' by design when it can't read the letterhead ("no guess"), which made the whole block skip and silently dropped the teach, while the price write above (ungated) still saved. That is why the old price survived as $0.200/unit but the pack vanished. The pack write is now unconditional; supplier memory keeps its own gate, which it genuinely needs because it is keyed supplier+phrase.
@@ -5152,7 +5187,7 @@ function applyInvoice(){
       }
     }
   });
-  if(priceChanges.length) saveIngLog();
+  if(ingLogged) saveIngLog();                                        // v91: was gated on priceChanges, which misses a product's FIRST logged price
   // ITEM 5 (v35): settle the deferred re-links. Clean ones commit now; ones where the
   // ingredient's unit category disagrees with the new product go through the SAME guard
   // saveKingModal uses. The ask is batched into one confirm rather than chained per-item:

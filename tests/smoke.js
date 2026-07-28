@@ -877,6 +877,54 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   wl.hide('modal');
   ok('[23] and releases again', !body.classList.contains('scroll-locked'));
 
+  // ---------------------------------------------------------------------------
+  // [24] v91 — the two price logs must not disagree. `logHistory` (priceHistory, the all-menus
+  // average) fired on every data change, but `logIngPrice` (ingPriceLog, per product) was called
+  // from ONE place: the invoice-confirm path. So a price edited by hand moved the comparison bar
+  // and left the per-product log empty — which is why "Biggest movers" read "Nothing yet" while
+  // the bar reported movement, and why insight family 1 had no history to reconstruct. Pinned
+  // here because the fix is a WIRING fix: the pure engine cannot see it.
+  // ---------------------------------------------------------------------------
+  console.log('\n[24] v91 — a hand-edited price feeds BOTH logs, not just the average');
+  // the MAIN window, because it is the one with kitchen ingredients seeded by the earlier sections
+  const w4 = window;
+  w4.openBuilderNew();
+  if ($('confirmModal').classList.contains('open')) $('confirmCancel').click();   // discard any leftover draft
+  const kw = w4.kitchenIngredients[0];
+  const pid4 = w4.kById[kw.id].pid;
+  w4.addKitchenLine(kw.id);
+  const uid4 = Number(w4.document.querySelector('#lines .line').getAttribute('data-uid'));
+  const logBefore = (w4.ingPriceLog[pid4] || []).length;
+  // The expected value is derived, not guessed: the price chip renders the product's DISPLAY unit
+  // (unitCostStr), and a per-kg/per-L product stores 1/1000 of what the box takes. `byId` is a
+  // top-level `let` — a global lexical binding jsdom's per-call eval cannot reach — so the DOM is the
+  // available source, and it is the same value the user is looking at. (CodeRabbit, v91.)
+  const chipTxt = w4.document.getElementById(`pc-${uid4}`).textContent;
+  const per1000 = /\/(kg|L)\b/.test(chipTxt);
+  const expected4 = per1000 ? 7.77 / 1000 : 7.77;
+
+  w4.commitPrice(uid4, '7.77');
+  const logAfter = (w4.ingPriceLog[pid4] || []);
+  ok('[24] editing a price in the builder logs a per-product price point',
+     logAfter.length === logBefore + 1, `${logBefore} -> ${logAfter.length}`);
+  const v4 = logAfter.length ? logAfter[logAfter.length - 1].v : null;
+  ok(`[24] …at the committed price in base units (chip reads ${chipTxt.trim()})`,
+     v4 != null && Math.abs(v4 - expected4) < 1e-9, `${v4} vs ${expected4}`);
+  ok('[24] …and persists it, so a reload can still see the change',
+     ((JSON.parse(w4.localStorage.getItem('cafeDB_ingPriceLog') || '{}')[pid4] || []).length) === logAfter.length,
+     w4.localStorage.getItem('cafeDB_ingPriceLog'));
+
+  // Re-committing the SAME price is a no-op — the log records changes, not keystrokes. Snapshot the
+  // STORED log as well as the in-memory one: a guard that skips the push but still writes would leave
+  // the array right and the write budget wrong, and only the stored copy shows it. (CodeRabbit, v91.)
+  const steadyMem = JSON.stringify(w4.ingPriceLog[pid4] || []);
+  const steadyLS = w4.localStorage.getItem('cafeDB_ingPriceLog');
+  w4.commitPrice(uid4, '7.77');
+  ok('[24] re-committing an unchanged price adds no point',
+     JSON.stringify(w4.ingPriceLog[pid4] || []) === steadyMem, JSON.stringify(w4.ingPriceLog[pid4] || []));
+  ok('[24] …and does not rewrite the stored log either',
+     w4.localStorage.getItem('cafeDB_ingPriceLog') === steadyLS);
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();
