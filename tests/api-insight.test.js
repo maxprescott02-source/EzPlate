@@ -94,3 +94,12 @@ test('buildInsightPrompt fences the lines as DATA and forbids changing numbers',
   assert.match(p, /MUST NOT introduce, change, round, or remove any number/i);
   assert.match(p, /"""/);   // the lines are fenced
 });
+
+// v92 (Max): the near-miss line came back reading as a shortfall. The engine controls the framing of
+// its own copy; the rephrasing layer must not be free to invert it, especially under a panel headed
+// "What needs attention", which pulls a model towards a concerned register.
+test('buildInsightPrompt forbids re-framing a neutral or good line as a problem', () => {
+  const p = I.buildInsightPrompt([insight()]);
+  assert.match(p, /KEEP THE FRAMING YOU ARE GIVEN/i);
+  assert.match(p, /never add "only"/i);
+});

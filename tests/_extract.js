@@ -27,6 +27,26 @@ function sliceBetween(src, startMarker, endMarker) {
   return src.slice(i, j);
 }
 
+// grab a single top-level `var NAME = ...;` declaration verbatim, so a tuning table lives in exactly
+// ONE place. v92: the alternative is a hand-copied mirror in the sandbox below, which is the "second
+// copy to drift" this file exists to avoid — INSIGHT_VALUE in particular is pure tuning and would
+// silently diverge the moment anyone retunes it in app.js.
+function extractVar(src, name) {
+  const m = new RegExp(`^var ${name}\\s*=`, 'm').exec(src);
+  if (!m) throw new Error(`_extract: var not found -> ${name}. app.js changed; update tests/_extract.js`);
+  // scan to the terminating semicolon at nesting depth 0 — a trailing `// comment` after the `;`, or a
+  // `;` inside a nested object/array, must not end it. (A regex got this wrong: `var INSIGHT_FLOOR=45;`
+  // has a trailing comment, so a lazy `;\s*$` ran on and swallowed the next function whole.)
+  let depth = 0;
+  for (let n = m.index + m[0].length; n < src.length; n++) {
+    const ch = src[n];
+    if (ch === '{' || ch === '[' || ch === '(') depth++;
+    else if (ch === '}' || ch === ']' || ch === ')') depth--;
+    else if (ch === ';' && depth === 0) return src.slice(m.index, n + 1);
+  }
+  throw new Error(`_extract: unterminated var -> ${name}`);
+}
+
 // grab a single named function by brace-matching (robust to line moves)
 function extractFn(src, name) {
   const sig = `function ${name}(`;
@@ -63,21 +83,29 @@ function build() {
   // computeInsights builds them from live data), so each is testable with no DOM and no live API.
   // v90 rewrote what qualifies: ruleA replaces the v74 nonObvious guard, and six families that only
   // restated the menu table or implied sales volume were deleted (see the note in js/app.js).
+  // v92 adds the VALUE layer — every family scores itself through insightScore against the one
+  // INSIGHT_VALUE table, and INSIGHT_FLOOR drops anything not worth the owner's attention. Three
+  // more families went (insRecentChange/insData/insBest: bare counts and padding, all unreachable
+  // above the floor), and insPriceGap became insPriceAnomaly.
+  const insightConsts = [                                      // sliced, never mirrored — see extractVar
+    extractVar(src, 'INSIGHT_DIMS'), extractVar(src, 'INSIGHT_VALUE'), extractVar(src, 'INSIGHT_FLOOR'),
+    extractVar(src, 'CONC_MIN_PTS'), extractVar(src, 'ANOM_MIN_RATIO'),
+    extractVar(src, 'COMPLEX_MIN_GAP'),
+  ].join('\n    ');
+  const clamp01 = extractFn(src, 'clamp01');
+  const insightScore = extractFn(src, 'insightScore');
   const ruleA = extractFn(src, 'ruleA');
   const scopeAllows = extractFn(src, 'scopeAllows');
   const pts1 = extractFn(src, 'pts1');
   const insCostBase = extractFn(src, 'insCostBase');           // F1: cost-base movement, culprit named
   const insDrift = extractFn(src, 'insDrift');                 // F2: one plate's cost drift
-  const insCategory = extractFn(src, 'insCategory');           // F3: category imbalance (menu-scoped)
+  const insCategory = extractFn(src, 'insCategory');           // F3: category imbalance (any scope, v92)
   const insVolatility = extractFn(src, 'insVolatility');       // F4: the widest-swinging plate
   const insLongStanding = extractFn(src, 'insLongStanding');   // F5: over target through every cost change
   const insNearCluster = extractFn(src, 'insNearCluster');     // F6: the near-miss cluster
-  const insSupplierReach = extractFn(src, 'insSupplierReach'); // F7: supplier concentration (global)
-  const insPriceGap = extractFn(src, 'insPriceGap');           // F8: same-category unit-price spread (global)
+  const insConcentration = extractFn(src, 'insConcentration'); // F7: supplier reach + its consequence (global)
+  const insPriceAnomaly = extractFn(src, 'insPriceAnomaly');   // F8: one product priced unlike anything else (global)
   const insComplexity = extractFn(src, 'insComplexity');
-  const insRecentChange = extractFn(src, 'insRecentChange');
-  const insData = extractFn(src, 'insData');
-  const insBest = extractFn(src, 'insBest');
   const healthyLine = extractFn(src, 'healthyLine'); // v71: warm all-healthy line
   const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
@@ -92,8 +120,8 @@ function build() {
     "use strict";
     function invDbg(){}   /* stub: the app's debug logger is a no-op in tests */
     var GEM_BAND=0.5;     /* the app's default plausibility band, mirrored for the extracted merge fn */
-    var INSIGHT_DIMS={ time:1, composition:1, breadth:1, aggregation:1, distribution:1, comparison:1 };   /* v90: mirror for ruleA */
     var DROP_MIN=140, DROP_MAX=300;   /* v86: mirror of the app's combobox list bounds for the extracted dropPlace */
+    ${insightConsts}
     ${parserBlock}
     ${pricingFn}
     ${gemCanon}
@@ -101,6 +129,8 @@ function build() {
     ${gemMerge}
     ${gemMatchSuspect}
     ${gemCleanFields}
+    ${clamp01}
+    ${insightScore}
     ${ruleA}
     ${scopeAllows}
     ${pts1}
@@ -110,12 +140,9 @@ function build() {
     ${insVolatility}
     ${insLongStanding}
     ${insNearCluster}
-    ${insSupplierReach}
-    ${insPriceGap}
+    ${insConcentration}
+    ${insPriceAnomaly}
     ${insComplexity}
-    ${insRecentChange}
-    ${insData}
-    ${insBest}
     ${healthyLine}
     ${selectInsights}
     ${deriveInsights}
@@ -124,7 +151,7 @@ function build() {
     ${esc}
     ${builderNoMatchHtml}
     ${dropPlace}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insSupplierReach, insPriceGap, insComplexity, insRecentChange, insData, insBest, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
+    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
   `);
   return factory();
 }

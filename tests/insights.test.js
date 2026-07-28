@@ -19,8 +19,8 @@ const assert = require('node:assert');
 const {
   ruleA, scopeAllows, pts1,
   insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster,
-  insSupplierReach, insPriceGap, insComplexity, insRecentChange, insData, insBest,
-  healthyLine, selectInsights, deriveInsights,
+  insConcentration, insPriceAnomaly, insComplexity,
+  healthyLine, selectInsights, deriveInsights, insightScore, INSIGHT_FLOOR,
 } = require('./_extract.js');
 
 const dish = (name, cost, menuPrice, extra) => Object.assign({ name, cost, menuPrice }, extra || {});
@@ -137,15 +137,19 @@ test('F2: silent below a real move in both money and points', () => {
 
 /* ================================================================ F3 — category imbalance */
 
-test('F3: section averages, and it is MENU-scoped (suppressed on all-menus)', () => {
+// v92: category is no longer menu-only. It was the strongest family needing NO price history, and
+// suppressing it at all-menus meant the DEFAULT scope could only ever show snapshot-only families —
+// which is exactly how the panel filled up with weak lines. A section average across every menu is
+// still an aggregate over a real group of plates.
+test('F3: section averages, available at BOTH scopes (v92)', () => {
   const [c] = insCategory([
     dish('A', 3, 15, { section: 'Breakfast' }), dish('B', 3.3, 15, { section: 'Breakfast' }),
     dish('C', 5, 15, { section: 'Lunch' }), dish('D', 5.2, 15, { section: 'Lunch' }),
   ], 0.3);
   assert.equal(c.kind, 'category');
-  assert.equal(c.scope, 'menu');
   assert.ok(ruleA(c));
-  assert.equal(scopeAllows(c, true), false, 'category imbalance must not run at all-menus scope');
+  assert.ok(scopeAllows(c, true), 'v92: category must now run at all-menus scope too');
+  assert.ok(scopeAllows(c, false));
   assert.match(c.text, /Breakfast plates average \d+% food cost, Lunch sits at \d+%/);
   assert.ok(numbersInFactsOnly(c));
 });
@@ -212,57 +216,93 @@ test('F6: the cluster is an AGGREGATE, so it clears Rule A on its own', () => {
   assert.equal(c.kind, 'nearcluster');
   assert.ok(ruleA(c));
   assert.equal(c.facts.count, 3);
-  assert.match(c.text, /3 plates sit within half a point of your 30% target/);
+  assert.match(c.text, /3 plates are sitting within half a point of your 30% target/);
   assert.ok(numbersInFactsOnly(c));
+});
+
+// v92 (Max): near-miss is an OPPORTUNITY — these plates are the closest on the menu to the target,
+// which is a good place to be. The copy must not read as a shortfall, and must never say "only N".
+test('F6: framed as an opportunity, never as a deficit', () => {
+  const [c] = insNearCluster([dish('A', 4.5, 15), dish('B', 4.52, 15)], 0.3);
+  assert.match(c.text, /closest/i, 'the standing must be stated positively');
+  assert.doesNotMatch(c.text, /\bonly\b|just \d|fall(s|ing)? short|miss(es|ing)?\b|fail/i);
 });
 
 test('F6: one plate near target is not a cluster', () => {
   assert.deepEqual(insNearCluster([dish('A', 4.5, 15), dish('B', 7, 15)], 0.3), []);
 });
 
-/* ================================================================ F7 — supplier concentration */
+/* ================================================================ F7 — supplier concentration
+   v92 (Max): "supplies 20 of 42 plates" is a bare count and must not emit. Reach only means
+   something with its CONSEQUENCE attached, and only when the supplier field is filled in enough
+   for the reach figure to be about procurement rather than about data entry. */
 
-const SUP = { name: 'Barker’s', plates: 11, total: 14, suppliers: 3 };
+const SUP = { name: 'Barker’s', plates: 11, total: 14, suppliers: 3, coverage: 0.8, ptsPer10: 1.4 };
 
-test('F7: BREADTH paired with an aggregate share — never spend, and GLOBAL only', () => {
-  const [c] = insSupplierReach(SUP);
-  assert.equal(c.kind, 'supplier');
+test('F7: reach is emitted ONLY with its consequence — breadth × aggregate × comparison, GLOBAL', () => {
+  const [c] = insConcentration(SUP);
+  assert.equal(c.kind, 'concentration');
   assert.equal(c.scope, 'global');
   assert.ok(ruleA(c));
-  assert.equal(scopeAllows(c, false), false, 'supplier reach must not run at menu scope');
-  assert.match(c.text, /supplies at least one ingredient in 11 of your 14 costed plates/);
+  assert.equal(scopeAllows(c, false), false, 'concentration must not run at menu scope');
+  assert.match(c.text, /is in 11 of your 14 costed plates/);
+  assert.match(c.text, /10% rise there would add 1\.4 pts to their average food cost/);
   assert.doesNotMatch(c.text, /spend/i, 'Rule C: concentration is breadth-based, never spend-based');
   assert.ok(numbersInFactsOnly(c));
   assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
 
-test('F7: silent with one supplier (trivially "all of them"), thin reach, or too few plates', () => {
-  assert.deepEqual(insSupplierReach(Object.assign({}, SUP, { suppliers: 1 })), []);
-  assert.deepEqual(insSupplierReach(Object.assign({}, SUP, { plates: 4, total: 14 })), []);   // 29% reach
-  assert.deepEqual(insSupplierReach(Object.assign({}, SUP, { plates: 2, total: 3 })), []);    // under 3 plates
-  assert.deepEqual(insSupplierReach(null), []);
+test('F7: a BARE COUNT never emits — no consequence, no line', () => {
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { ptsPer10: 0 })), []);
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { ptsPer10: 0.2 })), [], 'below CONC_MIN_PTS');
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { ptsPer10: undefined })), []);
 });
 
-/* ================================================================ F8 — price gap */
+test('F7: too little of the supplier field filled in → it would be measuring data entry, so silence', () => {
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { coverage: 0.18 })), [],
+    'Max’s real data: 8 of 44 used products carry a supplier');
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { coverage: 0 })), []);
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { coverage: undefined })), []);
+});
 
-const GAP = { category: 'Cheese', unit: 'kg', lo: 9.5, hi: 28, count: 6 };
+test('F7: silent with one supplier (trivially "all of them"), thin reach, or too few plates', () => {
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { suppliers: 1 })), []);
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { plates: 4, total: 14 })), []);   // 29% reach
+  assert.deepEqual(insConcentration(Object.assign({}, SUP, { plates: 2, total: 3 })), []);    // under 3 plates
+  assert.deepEqual(insConcentration(null), []);
+});
 
-test('F8: states the spread as a FACT and never suggests a swap', () => {
-  const [c] = insPriceGap(GAP);
-  assert.equal(c.kind, 'pricegap');
+/* ================================================================ F8 — price ANOMALY
+   v92 (Max): the SPREAD version was invalid. It grouped by CATEGORY, which here is a supplier
+   catalogue heading and not a substitutability class — on Max's real data it fired "your 6
+   VEGETABLES products run $2.10–$13.33 per kg", i.e. brown onions against spinach. An anomaly test
+   needs no substitutability claim: it says one number looks out of place next to every other number
+   of the same KIND. Grouped by base unit only, compared against the NEXT DEAREST. */
+
+const ANOM = { name: 'Saffron', unit: 'kg', top: 55.2, next: 13.1, count: 9 };
+
+test('F8: names ONE product and asks the owner to check it, rather than claiming a swap', () => {
+  const [c] = insPriceAnomaly(ANOM);
+  assert.equal(c.kind, 'anomaly');
   assert.equal(c.scope, 'global');
   assert.ok(ruleA(c));
-  assert.match(c.text, /6 Cheese products run \$9\.50–\$28\.00 per kg/);
-  assert.match(c.text, /2\.9x spread/);
+  assert.match(c.text, /Saffron at \$55\.20\/kg is 4\.2x your next dearest ingredient/);
+  assert.match(c.text, /worth checking/);
   assert.doesNotMatch(c.text, /swap|switch|instead|cheaper option|use the/i);
   assert.ok(numbersInFactsOnly(c));
+  assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
 
-test('F8: needs ≥3 products and a ≥2.5x ratio', () => {
-  assert.deepEqual(insPriceGap(Object.assign({}, GAP, { count: 2 })), []);
-  assert.deepEqual(insPriceGap(Object.assign({}, GAP, { hi: 20, lo: 10 })), []);   // 2.0x
-  assert.deepEqual(insPriceGap(Object.assign({}, GAP, { unit: '' })), []);
-  assert.deepEqual(insPriceGap(null), []);
+test('F8: compares against the NEXT dearest, not the cheapest — being dearest is not an anomaly', () => {
+  // a group that spans 4x from top to BOTTOM but only 1.2x from top to runner-up is not an anomaly
+  assert.deepEqual(insPriceAnomaly({ name: 'Beef', unit: 'kg', top: 28, next: 23, count: 9 }), []);
+});
+
+test('F8: needs a big enough group and a ≥3x ratio', () => {
+  assert.deepEqual(insPriceAnomaly(Object.assign({}, ANOM, { count: 3 })), [], 'under ANOM_MIN_GROUP');
+  assert.deepEqual(insPriceAnomaly(Object.assign({}, ANOM, { next: 20 })), []);   // 2.8x
+  assert.deepEqual(insPriceAnomaly(Object.assign({}, ANOM, { unit: '' })), []);
+  assert.deepEqual(insPriceAnomaly(null), []);
 });
 
 /* ================================================================ kept families */
@@ -277,28 +317,68 @@ test('insComplexity: many-ingredient vs simpler plates, when the pattern holds',
   assert.ok(numbersInFactsOnly(c));
 });
 
-test('insRecentChange: an aggregate over time, ≥2 plates to be a pattern', () => {
-  const [c] = insRecentChange({ up: 4 });
-  assert.ok(ruleA(c));
-  assert.match(c.text, /4 plates cost more now than at your last price update/);
-  assert.deepEqual(insRecentChange({ up: 1 }), []);
-  assert.ok(numbersInFactsOnly(c));
+// v92: the gap gate is 5 pts, not 3. At 3 the candidate scored under INSIGHT_FLOOR and was dropped
+// after passing its own gate — see the minimum-gate test above.
+test('insComplexity: a gap inside café noise (under 5 pts) is not a pattern', () => {
+  assert.deepEqual(insComplexity([
+    dish('A', 5.1, 15, { nIng: 8 }), dish('B', 5.1, 15, { nIng: 7 }),
+    dish('C', 4.5, 15, { nIng: 3 }), dish('D', 4.5, 15, { nIng: 2 }),
+  ]), [], 'a 4-pt gap says nothing');
 });
 
-test('insData: uncosted plates are a dataset-wide count, with singular grammar', () => {
-  const [c] = insData({ uncosted: 3 });
-  assert.ok(ruleA(c));
-  assert.match(c.text, /3 plates aren't costed yet/);
-  assert.match(insData({ uncosted: 1 })[0].text, /1 plate isn't costed yet/);
-  assert.deepEqual(insData({ uncosted: 0 }), []);
+/* ================================================================ the VALUE layer (v92)
+   Families used to emit and the panel displayed, capped only by menu size — so five weak lines could
+   fill it whenever the strong families were starved of price history. Value is now declared on two
+   axes and a hard FLOOR drops anything not worth the owner's attention, however empty the panel. */
+
+test('value: score rises with non-obviousness, actionability and the size of THIS instance', () => {
+  assert.ok(insightScore('drift', 1) > insightScore('nearcluster', 1), 'a named plate beats a count');
+  assert.ok(insightScore('costbase', 1) > insightScore('complexity', 1));
+  assert.ok(insightScore('drift', 1) > insightScore('drift', 0.5), 'a bigger move is worth more');
 });
 
-test('insBest: the one positive line, only when comfortably under target', () => {
-  const [c] = insBest([dish('Toastie', 3, 15), dish('Barra', 6, 15)], 0.3);
-  assert.ok(ruleA(c));
-  assert.match(c.text, /Toastie is your strongest margin — 10 points under target/);
-  assert.deepEqual(insBest([dish('A', 4.2, 15)], 0.3), [], 'only when ≥5 pts under');
-  assert.ok(numbersInFactsOnly(c));
+test('value: magnitude is clamped, so no instance can be scored out of its family’s band', () => {
+  assert.equal(insightScore('drift', 5), insightScore('drift', 1));
+  assert.equal(insightScore('drift', -3), insightScore('drift', 0.5));
+  assert.equal(insightScore('nosuchfamily', 1), 0, 'an unrated kind is worth nothing, not a default');
+});
+
+test('value: every emitting family can clear the floor at full magnitude — no dead families', () => {
+  ['drift', 'costbase', 'longstanding', 'volatility', 'anomaly', 'category', 'complexity',
+    'concentration', 'nearcluster'].forEach((k) => {
+    assert.ok(insightScore(k, 1) >= INSIGHT_FLOOR, `${k} can never display: ${insightScore(k, 1)}`);
+  });
+});
+
+/* A family's own emit gate and INSIGHT_FLOOR must AGREE. If a family admits an instance the floor
+   then refuses, the gate means nothing and the instance vanishes silently between the two — which is
+   worse than either bar alone, because the thresholds documented on the family are no longer the
+   thresholds in force. This caught anomaly (42.3 at its 3x gate) and complexity (42.6 at its old
+   3-pt gap) against a floor of 45. (CodeRabbit, v92.) Every family, at the WEAKEST input it accepts. */
+test('value: a family that emits at its minimum gate always clears the floor — no silent dead zone', () => {
+  const atMinimum = {
+    costbase: () => insCostBase(Object.assign({}, MV, { pts: 0.3, ingPct: 3, plates: 1 })),
+    drift: () => insDrift(Object.assign({}, DR, { up: 0.2, fromPct: 28, toPct: 30 })),
+    longstanding: () => insLongStanding(Object.assign({}, LS, { months: 3 })),
+    volatility: () => insVolatility([dish('A', 5, 15, { hasRange: true, costMin: 4.85, costMax: 5.45 })]),
+    anomaly: () => insPriceAnomaly({ name: 'X', unit: 'kg', top: 30, next: 10, count: 4 }),
+    category: () => insCategory([
+      dish('A', 4.5, 15, { section: 'S1' }), dish('B', 4.5, 15, { section: 'S1' }),
+      dish('C', 4.95, 15, { section: 'S2' }), dish('D', 4.95, 15, { section: 'S2' }),
+    ], 0.3),
+    complexity: () => insComplexity([
+      dish('A', 5.25, 15, { nIng: 8 }), dish('B', 5.25, 15, { nIng: 7 }),
+      dish('C', 4.5, 15, { nIng: 3 }), dish('D', 4.5, 15, { nIng: 2 }),
+    ]),
+    concentration: () => insConcentration(Object.assign({}, SUP, { ptsPer10: 0.5 })),
+    nearcluster: () => insNearCluster([dish('A', 4.5, 15), dish('B', 4.5, 15)], 0.3),
+  };
+  Object.keys(atMinimum).forEach((k) => {
+    const [c] = atMinimum[k]();
+    assert.ok(c, `${k}: fixture no longer emits — retune the fixture, not the assertion`);
+    assert.ok(c.score >= INSIGHT_FLOOR,
+      `${k} emits at its own gate but scores ${c.score.toFixed(1)}, under the floor of ${INSIGHT_FLOOR}`);
+  });
 });
 
 test('healthyLine: one warm line carrying only the count + target %, varied by seed', () => {
@@ -313,9 +393,26 @@ test('healthyLine: one warm line carrying only the count + target %, varied by s
 
 test('selectInsights: caps to max and keeps type variety (≤1 per kind)', () => {
   const c = (kind, score) => ({ kind, score, facts: {}, text: kind + score });
-  const out = selectInsights([c('drift', 90), c('drift', 85), c('volatility', 80), c('data', 20)], 0, 3);
+  const out = selectInsights([c('drift', 90), c('drift', 85), c('volatility', 80), c('category', 60)], 0, 3);
   assert.equal(out.length, 3);
   assert.equal(new Set(out.map((x) => x.kind)).size, 3);
+});
+
+// v92: the floor is applied HERE, before ranking, so a weak candidate cannot reach the panel by
+// being the only thing left. This is the difference between ranking and a quality bar.
+test('selectInsights: a sub-floor candidate is dropped, not merely out-ranked', () => {
+  const c = (kind, score) => ({ kind, score, facts: {}, text: kind + score });
+  assert.deepEqual(selectInsights([c('weak', INSIGHT_FLOOR - 1)], 0, 3), [],
+    'nothing better fired, and it still must not display');
+  const out = selectInsights([c('drift', 90), c('weak', INSIGHT_FLOOR - 1)], 0, 5);
+  assert.deepEqual(out.map((x) => x.kind), ['drift'], 'a free slot is no reason to pad');
+});
+
+test('ranking: the higher-scoring candidate wins when both are available', () => {
+  const c = (kind, score) => ({ kind, score, facts: {}, text: kind + score });
+  assert.equal(selectInsights([c('nearcluster', 47), c('drift', 95)], 0, 1)[0].kind, 'drift');
+  assert.equal(selectInsights([c('drift', 95), c('nearcluster', 47)], 0, 1)[0].kind, 'drift',
+    'input order must not decide it');
 });
 
 test('selectInsights: rotates the near-top group by seed so the lead varies', () => {
@@ -350,7 +447,7 @@ test('deriveInsights: an invalid target fraction → empty', () => {
 });
 
 test('deriveInsights: returns {kind,facts,text} only — score, dims and scope are stripped', () => {
-  const out = deriveInsights({ dishes: over(6), recent: { up: 3 } }, 0.3, 0);
+  const out = deriveInsights({ dishes: over(6), drift: DR }, 0.3, 0);
   assert.ok(out.length);
   out.forEach((o) => {
     assert.deepEqual(Object.keys(o).sort(), ['facts', 'kind', 'text']);
@@ -360,8 +457,8 @@ test('deriveInsights: returns {kind,facts,text} only — score, dims and scope a
 test('deriveInsights: every emitted line clears Rule A — no single-dimension fact survives', () => {
   const out = deriveInsights({
     dishes: over(20, { hasRange: true, costMin: 4, costMax: 7, volatileIng: 'beef', nIng: 8 }),
-    movement: MV, drift: DR, longStanding: LS, recent: { up: 5 }, coverage: { uncosted: 2 },
-    supplier: SUP, priceGap: GAP, isAll: true,
+    movement: MV, drift: DR, longStanding: LS,
+    supplier: SUP, anomaly: ANOM, isAll: true,
   }, 0.3, 0);
   assert.ok(out.length);
   // every kind emitted must be one the engine declares with ≥2 dims (or a lone aggregate) — proven by
@@ -377,7 +474,7 @@ const SCOPED = {
     dish('A', 6, 15, { section: 'Breakfast' }), dish('B', 6.1, 15, { section: 'Breakfast' }),
     dish('C', 7, 15, { section: 'Lunch' }), dish('D', 7.2, 15, { section: 'Lunch' }),
   ],
-  supplier: SUP, priceGap: GAP,
+  supplier: SUP, anomaly: ANOM,
 };
 
 test('scope: global-only families are suppressed at MENU scope', () => {
@@ -386,9 +483,9 @@ test('scope: global-only families are suppressed at MENU scope', () => {
   assert.equal(kinds.indexOf('pricegap'), -1);
 });
 
-test('scope: menu-only families are suppressed at ALL-MENUS scope', () => {
+test('scope: global-only families are the ONLY ones suppressed by scope now (v92)', () => {
   const kinds = deriveInsights(Object.assign({}, SCOPED, { isAll: true }), 0.3, 0).map((x) => x.kind);
-  assert.equal(kinds.indexOf('category'), -1);
+  assert.ok(kinds.indexOf('category') >= 0, 'v92: category is available at all-menus, where the owner looks');
 });
 
 test('scope: switching scope changes the insight SET for the same plates', () => {
@@ -401,8 +498,8 @@ test('scope: switching scope changes the insight SET for the same plates', () =>
 
 const rich = (n) => ({
   dishes: over(n, { hasRange: true, costMin: 4, costMax: 7, volatileIng: 'beef', nIng: 8 }),
-  movement: MV, drift: DR, longStanding: LS, recent: { up: 5 }, coverage: { uncosted: 2 },
-  supplier: SUP, priceGap: GAP, isAll: true,
+  movement: MV, drift: DR, longStanding: LS,
+  supplier: SUP, anomaly: ANOM, isAll: true,
 });
 
 test('scaling: 1 plate → ≤1', () => { assert.ok(deriveInsights(rich(1), 0.3, 0).length <= 1); });
@@ -470,11 +567,11 @@ test('Rule D: a family with insufficient history returns nothing WITHOUT suppres
   for (let i = 0; i < 8; i++) dishes.push(dish('Healthy ' + NAMES[i], 3, 15));
   // movement is below every threshold (0.2 pts, 1% ingredient move) so family 1 is silent; the rest must still run
   const thin = { pts: 0.2, name: 'Beef', ingPct: 1, plates: 5, sinceLabel: 'April' };
-  const kinds = deriveInsights({ dishes, movement: thin, drift: DR, coverage: { uncosted: 3 }, isAll: true }, 0.3, 0)
+  const kinds = deriveInsights({ dishes, movement: thin, drift: DR, supplier: SUP, isAll: true }, 0.3, 0)
     .map((x) => x.kind);
   assert.equal(kinds.indexOf('costbase'), -1, 'the thin family stays silent');
   assert.ok(kinds.indexOf('drift') >= 0, 'and does not take the others down with it');
-  assert.ok(kinds.indexOf('data') >= 0);
+  assert.ok(kinds.indexOf('concentration') >= 0);
 });
 
 test('Rule D: over target with NO family able to speak stays silent — it does not reassure wrongly', () => {
@@ -484,11 +581,39 @@ test('Rule D: over target with NO family able to speak stays silent — it does 
   assert.deepEqual(out.map((x) => x.kind), [], 'no family has the data to speak — the panel is absent');
 });
 
-test('Rule D: the positive line never displaces the all-healthy line on a quiet healthy menu', () => {
-  // one plate 10 pts under target would make insBest fire; on its own that is not "something to report"
+test('Rule D: a healthy menu with nothing above the floor still gets its warm line, not a compliment', () => {
+  // v92: insBest ("X is your strongest margin") was the padding line and is gone, so a quiet healthy
+  // menu resolves to the all-healthy line rather than a low-value positive.
   const out = deriveInsights([dish('Toastie', 3, 15), dish('Soup', 2.4, 9)], 0.3, 0);
   assert.equal(out.length, 1);
   assert.equal(out[0].kind, 'allgood');
+});
+
+/* ---------------- the FLOOR, end to end (v92) ---------------- */
+
+test('FLOOR: a bare count never emits, whatever the data — no family, no fallback, no padding', () => {
+  // The three v92-removed families were all bare counts or padding. Feed the engine everything they
+  // used to consume and assert none of them can come back through any path.
+  const dishes = [];
+  for (let i = 0; i < 32; i++) dishes.push(dish(plateName(i), 6, 15));
+  const out = deriveInsights({
+    dishes, isAll: true, recent: { up: 12 }, coverage: { uncosted: 9 },
+    supplier: { name: 'S', plates: 30, total: 32, suppliers: 4 },   // reach with NO consequence attached
+  }, 0.3, 0).map((x) => x.kind);
+  ['recent', 'data', 'best', 'supplier', 'pricegap'].forEach((k) => {
+    assert.equal(out.indexOf(k), -1, `bare-count family resurfaced: ${k}`);
+  });
+  assert.equal(out.indexOf('concentration'), -1, 'reach without its consequence is still a bare count');
+});
+
+test('FLOOR: fewer real insights beat more padded ones — the cap is a ceiling, never a quota', () => {
+  // 32 plates allows 5. Only two families have anything above the floor, so exactly two must show.
+  const dishes = [];
+  for (let i = 0; i < 32; i++) dishes.push(dish(plateName(i), 6, 15, { section: i % 2 ? 'Lunch' : 'Breakfast', nIng: i % 2 ? 2 : 8 }));
+  dishes.forEach((d, i) => { if (i % 2) { d.cost = 4.5; } });          // give the two sections a real gap
+  const out = deriveInsights({ dishes, isAll: true, recent: { up: 12 }, coverage: { uncosted: 9 } }, 0.3, 0);
+  assert.deepEqual(out.map((x) => x.kind).sort(), ['category', 'complexity', 'nearcluster'],
+    'exactly the families with something above the floor — the cap of 5 is not a quota to fill');
 });
 
 /* ---------------- Rules B and C across the whole engine ---------------- */
