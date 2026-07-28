@@ -364,14 +364,28 @@ history belongs in `handovers/`, nowhere else.
   the static dev server 501s on POST. **They are also the safe way to drive
   real flows here** — throwaway profile, Supabase never contacted, nothing
   written — which matters while there is still no staging environment.
-- **Supabase:** the three v55 migrations are **applied to prod** (Max confirmed
-  22 Jul 2026), as is v89's `20260727_price_history_menu_id.sql` (Max, 27 Jul).
-  **v90's `20260727_menu_price_history.sql` (the `menu_price_history` table)
-  is still awaiting Max's confirmation — check before deploying.** Unapplied,
-  the app detects the missing table and keeps sell-price points local,
-  silently. **v91 adds no migration.** Schema-can-lag governs FUTURE migrations
-  too — apply before the deploy that reads them
+- **Supabase (verified against prod 28 Jul 2026, not assumed):** every table
+  the app queries exists — `menu_items`, `price_history`, `ingredients`,
+  `supplier_phrases`, `plates`, `menus`, `menu_price_history`, `app_settings` —
+  and every migrated column is present (`plates.menu_id` nullable + `.category`,
+  `menu_items.plate_id`, `price_history.menu_id`,
+  `menu_price_history.{menu_item_id,recorded_at,price}`).
+  **⚠️ ONE REAL FAULT: `menu_price_history` has RLS enabled and NO policies, so
+  every insert is rejected (42501) and the table holds 0 rows.** v90's migration
+  created the table and index and never granted anything.
+  `supabase/migrations/20260728_menu_price_history_rls.sql` fixes it — **Max
+  must run it in the SQL editor.**
+  **The support probe cannot see this**: `bootstrapSync` decides the feature is
+  usable by checking `.error` on a `select`, and RLS-with-no-policy returns 200
+  with zero rows and no error. So `menuPriceHistSupported` stays true and every
+  write fails behind a toast. A probe that tests EXISTENCE does not test
+  USABILITY — remember this for any future schema-can-lag guard
   ([[supabase-schema-can-lag-app-code]]).
+  Also verified: `price_history` accepts inserts, and its newest point is
+  **25 Jul** — i.e. no data-changing event has been logged since before v89/v90
+  shipped, which is why the per-menu series (`price_history.menu_id`) is also
+  empty. That one is NOT broken, just unexercised.
+  **v91–v93 add no migrations.**
 - **THREE history series, deliberately separate — don't merge them:**
   `priceHistory` is the all-menus average food cost ONLY (`dashComparisons`/
   `histInRange`/the 500-cap all assume one point per moment across the whole
