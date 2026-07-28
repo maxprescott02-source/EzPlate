@@ -2389,15 +2389,29 @@ function insLongStanding(ls){
    says so, and the phrasing prompt is told not to invert it. Never "only N". */
 function insNearCluster(dishes, targetFrac){
   var n=0;
+  var named=[];
   dishes.forEach(function(d){
     if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    if(Math.abs(d.cost/d.menuPrice - targetFrac)*100 <= 0.5) n++;
+    if(Math.abs(d.cost/d.menuPrice - targetFrac)*100 <= 0.5){ n++; if(d.name) named.push(d.name); }
   });
   if(n<2) return [];
   var tp=Math.round(targetFrac*100);
+  // v93 (Max): NAME them. "2 plates" sends you hunting; "Barra & Chips and Cheeseburger" is the
+  // insight. Beyond two the names stop being scannable, so the rest become a counted remainder —
+  // `others` is in facts because it is a figure and the money law applies to every figure.
+  // The old trailing "— the closest on your menu" was cut: it restated the first half in more words.
+  // The remainder counts off `n`, NOT off the names we happen to have: a qualifying plate with a
+  // blank name still sits in the cluster, and counting from named.length would print "A and B" over
+  // a facts.count of 4. (CodeRabbit, v93.)
+  var lead, extra=null, show=named.slice(0,2), rest=n-show.length;
+  if(!named.length){ lead=n+' plates'; }                             // no names at all: fall back to the count
+  else if(rest>0){ extra=rest; lead=show.join(', ')+' and '+rest+' other'+(rest===1?'':'s'); }
+  else { lead=show.join(' and '); }
+  var facts={count:n, targetPct:tp};
+  if(extra!=null) facts.others=extra;
   return [{kind:'nearcluster', dims:['aggregation','distribution'], score:insightScore('nearcluster', 0.7+n*0.1),
-    facts:{count:n, targetPct:tp},
-    text:n+' plates are sitting within half a point of your '+tp+'% target — the closest on your menu.'}];
+    facts:facts,
+    text:lead+' sit within half a point of your '+tp+'% target.'}];
 }
 
 /* ============================ FAMILY 7 — supplier concentration ============================
@@ -3170,7 +3184,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v92';
+var APP_VERSION='v93';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

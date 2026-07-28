@@ -109,6 +109,23 @@ function build() {
   const healthyLine = extractFn(src, 'healthyLine'); // v71: warm all-healthy line
   const selectInsights = extractFn(src, 'selectInsights');
   const deriveInsights = extractFn(src, 'deriveInsights');
+  /* v93: computeInsights and its whole dependency closure — the IMPURE builder that turns live app
+     state (MENU / savedPlates / PRODUCTS / ingPriceLog / menuPriceLog) into the primitives each
+     family consumes. Until now only the families were tested, with primitives handed to them
+     ready-made, so a family could be perfectly correct while the code that FEEDS it was broken —
+     and on real data the two are indistinguishable: both look like "this family had nothing to
+     say". That is the gap this closure closes. The sandbox declares the app globals below; a test
+     assigns them per fixture and calls computeInsights exactly as the Dashboard does. */
+  const insightPipeline = [
+    'cpbu', 'perDisplayValue', 'lineCost', 'lineProduct', 'foodTarget', 'costFromLines',
+    'plateIdOf', 'plateForMenuItem', 'ptMs', 'ingPriceBand', 'priceAtOrBefore', 'priceHeldSince',
+    'costRangeForLines', 'insightPeriod', 'menuSeedHash', 'insightSeedFor', 'ingPriceAt',
+    'costAtLines', 'unitWordFor', 'monthLabel', 'movementCulprit', 'computeInsights',
+  ].map((n) => extractFn(src, n)).join('\n    ');
+  const pipelineConsts = [
+    extractVar(src, 'DASH_ALL'), extractVar(src, 'INSIGHT_WINDOWS'), extractVar(src, 'INSIGHT_PERIOD_MS'),
+  ].join('\n    ');
+
   const lightFilterPass = extractFn(src, 'lightFilterPass');   // v68: Menu margin-light filter (pure)
   const newProductRecord = extractFn(src, 'newProductRecord'); // v82 D2: pure create-form → product record (locks pack_qty/pack_unit)
   const esc = extractFn(src, 'esc');                           // v83: the app's own escaper, so extracted HTML builders escape exactly as they ship
@@ -122,6 +139,19 @@ function build() {
     var GEM_BAND=0.5;     /* the app's default plausibility band, mirrored for the extracted merge fn */
     var DROP_MIN=140, DROP_MAX=300;   /* v86: mirror of the app's combobox list bounds for the extracted dropPlace */
     ${insightConsts}
+    ${pipelineConsts}
+    /* v93: the app globals computeInsights reads. A test assigns them through setAppState() and then
+       calls computeInsights exactly as the Dashboard does — same code, same order, no stubs in the
+       path under test. cogsPct is the app's own name for the target %, read via foodTarget(). */
+    var MENU=[], savedPlates=[], PRODUCTS=[], byId={}, kById={}, ingPriceLog={}, menuPriceLog={}, cogsPct=30;
+    function setAppState(s){
+      s=s||{};
+      MENU=s.MENU||[]; savedPlates=s.savedPlates||[]; PRODUCTS=s.PRODUCTS||[];
+      ingPriceLog=s.ingPriceLog||{}; menuPriceLog=s.menuPriceLog||{};
+      cogsPct=(s.cogsPct==null?30:s.cogsPct);
+      byId={}; PRODUCTS.forEach(function(p){ byId[p.id]=p; });
+      kById={}; (s.kitchenIngredients||[]).forEach(function(k){ kById[k.id]=k; });
+    }
     ${parserBlock}
     ${pricingFn}
     ${gemCanon}
@@ -151,7 +181,8 @@ function build() {
     ${esc}
     ${builderNoMatchHtml}
     ${dropPlace}
-    return { parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
+    ${insightPipeline}
+    return { setAppState, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
   `);
   return factory();
 }

@@ -209,23 +209,52 @@ test('F5: HISTORY DEPTH — under 3 months it stays silent rather than call two 
 
 /* ================================================================ F6 — near-miss cluster */
 
-test('F6: the cluster is an AGGREGATE, so it clears Rule A on its own', () => {
+// v93 (Max): NAME the plates. "3 plates" sends you hunting for which three; the names are the
+// insight. Beyond two the names stop being scannable, so the rest become a counted remainder —
+// which is a figure, so the money law puts it in facts.
+test('F6: the plates are NAMED, and the remainder beyond two is counted', () => {
   const [c] = insNearCluster([
-    dish('A', 4.5, 15), dish('B', 4.52, 15), dish('C', 4.48, 15), dish('D', 7, 15),
+    dish('Barra & Chips', 4.5, 15), dish('Cheeseburger', 4.52, 15), dish('Toastie', 4.48, 15), dish('D', 7, 15),
   ], 0.3);
   assert.equal(c.kind, 'nearcluster');
   assert.ok(ruleA(c));
   assert.equal(c.facts.count, 3);
-  assert.match(c.text, /3 plates are sitting within half a point of your 30% target/);
+  assert.equal(c.facts.others, 1);
+  assert.match(c.text, /^Barra & Chips, Cheeseburger and 1 other sit within half a point of your 30% target\.$/);
   assert.ok(numbersInFactsOnly(c));
 });
 
-// v92 (Max): near-miss is an OPPORTUNITY — these plates are the closest on the menu to the target,
-// which is a good place to be. The copy must not read as a shortfall, and must never say "only N".
-test('F6: framed as an opportunity, never as a deficit', () => {
-  const [c] = insNearCluster([dish('A', 4.5, 15), dish('B', 4.52, 15)], 0.3);
-  assert.match(c.text, /closest/i, 'the standing must be stated positively');
-  assert.doesNotMatch(c.text, /\bonly\b|just \d|fall(s|ing)? short|miss(es|ing)?\b|fail/i);
+// The remainder is counted off the CLUSTER, not off the names we happen to have: a qualifying plate
+// with a blank name still sits in it, and counting from the names would print "A and B" over a
+// facts.count of 4. (CodeRabbit, v93.)
+test('F6: an unnamed plate in the cluster still counts toward the remainder', () => {
+  const [c] = insNearCluster([
+    dish('Barra & Chips', 4.5, 15), dish('Cheeseburger', 4.52, 15),
+    dish('', 4.48, 15), dish(undefined, 4.51, 15),
+  ], 0.3);
+  assert.equal(c.facts.count, 4);
+  assert.equal(c.facts.others, 2, 'the two nameless plates are not silently dropped from the sentence');
+  assert.match(c.text, /^Barra & Chips, Cheeseburger and 2 others sit within/);
+});
+
+test('F6: exactly two are named outright, with no remainder clause and no leftover count', () => {
+  const [c] = insNearCluster([dish('Barra & Chips', 4.5, 15), dish('Cheeseburger', 4.52, 15)], 0.3);
+  assert.equal(c.text, 'Barra & Chips and Cheeseburger sit within half a point of your 30% target.');
+  assert.equal(c.facts.others, undefined, 'no remainder, so no remainder figure');
+  assert.ok(numbersInFactsOnly(c));
+});
+
+// v92 (Max): near-miss is an OPPORTUNITY, not a shortfall. v93 also dropped the trailing
+// "— the closest on your menu": it restated the first half in more words.
+test('F6: framed as an opportunity, never as a deficit, and with no trailing filler', () => {
+  const [c] = insNearCluster([dish('Barra & Chips', 4.5, 15), dish('Cheeseburger', 4.52, 15)], 0.3);
+  // Unambiguous deficit register only. "under"/"below" are deliberately NOT banned: in this app
+  // sitting UNDER the food-cost target is the good outcome, so forbidding the words would rule out
+  // correct copy rather than wrong framing. (CodeRabbit suggested the wider list, v93.)
+  assert.doesNotMatch(c.text,
+    /\bonly\b|\bjust\b|fall(s|ing)? short|short of|shortfall|deficit|miss(es|ing)?\b|fail|less than your/i);
+  assert.doesNotMatch(c.text, /closest|marking|on your menu/i, 'the restating clause is gone');
+  assert.ok(c.text.split(/\s+/).length <= 24, 'still inside the scannability cap');
 });
 
 test('F6: one plate near target is not a cluster', () => {
