@@ -576,7 +576,10 @@ for (const size of SIZES) {
           padL: window.TREND_GEO.padL,
           bezier: svg.querySelector('g[clip-path] path[stroke]').getAttribute('d').includes('C'),
           dots: svg.querySelector('g[clip-path]').querySelectorAll('.tc-pt').length,
-          pattern: !!svg.querySelector('pattern#tcdots'),
+          // v94 polish: the dotted pattern is replaced by a translucent area gradient (#tcarea) —
+          // assert the def AND that the area path actually fills with it (CodeRabbit, accepted)
+          grad: !!svg.querySelector('linearGradient#tcarea')
+             && !!svg.querySelector('g[clip-path] path[fill="url(#tcarea)"]'),
           clipGroups: svg.querySelectorAll('g[clip-path]').length,
           caption: document.querySelector('.chart-hint').textContent,
           focusable: svg.getAttribute('tabindex') === '0',
@@ -599,12 +602,13 @@ for (const size of SIZES) {
       expect(st.plotLeftPx - st.maxLblRight, `${rg}: the plot begins right of the label column (gutter gap)`).toBeGreaterThanOrEqual(3);
       expect(st.drawnLeft - st.maxLblRight, `${rg}: no rendered plot pixel left of the label column`).toBeGreaterThanOrEqual(0);
       expect(st.bezier, `${rg}: smooth curve (cubic segments)`).toBe(true);
-      expect(st.pattern, `${rg}: dotted area fill`).toBe(true);
+      expect(st.grad, `${rg}: translucent gradient area fill (v94 — replaced the dotted pattern)`).toBe(true);
       expect(st.clipGroups, `${rg}: bright + dim groups`).toBe(2);
       expect(st.caption.includes('Tap a point'), `${rg}: tap hint dropped`).toBe(false);
       expect(st.focusable, `${rg}: plot is focusable`).toBe(true);
-      if (st.pts <= 32) expect(st.dots, `${rg}: sparse range shows reading dots`).toBe(st.pts);
-      else expect(st.dots, `${rg}: dense range drops reading dots`).toBe(0);
+      // v94 polish (Max): per-point reading dots removed on every range — the scrub dot is the
+      // way to read a value. This deliberately supersedes v47's sparse-range dots.
+      expect(st.dots, `${rg}: no per-point dots (v94)`).toBe(0);
       perRange.push({ rg, lblH: st.lblH, lblLeft: st.lblLeft, padL: st.padL });
       await page.locator('.dash-chart').screenshot({ path: `tests/visual/__shots__/v47-${rg}-${size.name}.png` });
     }

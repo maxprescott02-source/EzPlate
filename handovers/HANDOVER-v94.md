@@ -141,6 +141,45 @@ insights card — half the right side dead. Layout and spacing only, mobile unto
 (same single stale v45 pin), measured no overflow and flush columns at 1024/1280/1440/1680,
 screenshots both themes. Version stays **v94** — same unmerged PR, one deploy, one bump.
 
+---
+
+## Third pass (same batch, 29 Jul): dashboard polish
+
+Max's follow-up: grid lock, selector sizing, COMPARES wrapping, chart rendering.
+
+1. **GRID LOCK.** Scope switching moved BY MENU / DIG IN because rows were content-derived
+   (the per-menu caption line, 2-vs-3 insights). Now: row 1 is `minmax(224px, auto)` whenever
+   an insights panel renders (`#dashBody:has(.dash-ins)` — the lock must live on the ROW; a
+   min-height on the card alone still let a wrapped line move everything below), the insights
+   card stretches to fill it, and `.dash-panel` gets a min-height that already includes the
+   scope-note line (440px at 1024–1279, 488px at ≥1280). Verified: panel height, BY MENU top
+   and DIG IN top are pixel-identical across All-menus/Winter/Original at 1024 and 1280.
+   **Known limit:** a scope with NO insights at all removes the panel itself (v90's deliberate
+   no-empty-state rule) and BY MENU rises — CSS cannot reserve an absent card. Max's real data
+   fires insights at every scope, so this is theoretical until it isn't. The mobile stack still
+   reflows by nature; the brief scoped the lock to the grid.
+2. **Selector**: one size down (fs-xs, 6×10 padding, weight 500 — a selector, not a primary
+   action) and the range-pill row gains a 12px gap so they stop reading as one cluster.
+3. **COMPARES wrap**: non-breaking spaces inside each qualifier phrase (`costs creeping up`
+   etc.) — a narrow column now breaks as "7.4 pts higher —" / "costs creeping up", never an
+   orphaned "up". Copy unchanged, characters only. Gap to the caption above tightened.
+4. **Chart** (⚠️ REVERSAL — do not restore the dotted texture):
+   - the dotted-pattern fill (v47, tweaked earlier in this batch, then fade-masked) is **gone**,
+     replaced by a plain translucent gradient of the semantic line colour — 18% under the
+     curve fading to transparent at the plot floor. Works in both themes and both line colours
+     because the gradient stops use the same CSS var as the stroke.
+   - the per-point reading dots are **gone on every range** (supersedes v47's sparse-range
+     dots); the scrub dot remains the way to read a value.
+   - the line was ALREADY a clamped monotone cubic (v47 Fritsch–Carlson, pinned by the
+     `bezier` check) — no change needed, verified rather than assumed.
+   - `fresh-states.spec.js` pins updated in the same commit: dots always 0; gradient def AND
+     the area path referencing it (the reference check was CodeRabbit's one finding this pass —
+     accepted; its other review rounds this batch found nothing).
+   - gutter geometry, axis fonts, tick/domain logic, target-line rule, scrub wiring untouched.
+
+**Verified:** 485 node green, jsdom smoke green, `node -c` clean, Playwright 70/71 alone (same
+stale v45 pin), grid-lock measurements at 1024/1280, screenshots 380/1280 both themes.
+
 ## Needs Max's phone
 
 - The whole point of the batch is *feel* — is the dashboard now scannable in one glance on the
@@ -155,4 +194,6 @@ screenshots both themes. Version stays **v94** — same unmerged PR, one deploy,
   decision), and the untracked `ezplate-dashboard-mockup_1.html` at the repo root — commit as
   the design reference or keep out of the tree?
 - (Desktop pass) A laptop/desktop eyeball of the bento: does the COMPARES 3-up strip read
-  clearly, and is the faded dotted fill still legible on a real screen in dark theme?
+  clearly on a real screen?
+- (Polish pass) The gradient area fill in dark theme on a real screen — 18% was tuned in
+  emulation. And the dot-free line: happy reading values by scrub alone on touch?

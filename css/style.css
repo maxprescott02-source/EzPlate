@@ -2633,7 +2633,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* the scope selector: same .menu-picker-row control, but a compact INLINE chip — not a
    full-width bar dominating the header (the app's compact-header-pills rule, and the mockup) */
 #dashBody .dash-scope{margin:var(--sp-2) 0 var(--sp-3)}
-#dashBody .dash-scope select{flex:0 1 auto;width:auto;max-width:100%;font-size:var(--fs-sm);padding:8px 12px}
+/* v94 polish: a selector, not a primary action — one size down from the Menu tab's control */
+#dashBody .dash-scope select{flex:0 1 auto;width:auto;max-width:100%;font-size:var(--fs-xs);font-weight:500;padding:6px 10px}
 #dashBody .chart-controls{margin-bottom:var(--sp-1)}
 #dashBody .chart-hint{margin-top:var(--sp-1);font-size:var(--fs-xs)}
 #dashBody .scope-note{font-size:var(--fs-xs)}
@@ -2688,7 +2689,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   #dashBody .stat-line .stat-h{display:block;min-width:0;margin-bottom:1px}
   /* tighten the generous seams inside the chart card: chart → trend sentence → compares */
   #dashBody .chart-hint{margin-top:2px}
-  #dashBody .stat-attach{margin-top:var(--sp-1);padding-top:var(--sp-2)}
+  #dashBody .stat-attach{margin-top:2px;padding-top:var(--sp-1)}
+  /* v94 polish: air between the selector row and the range pills — they read as one cluster
+     when the controls row sits flush under the compact select */
+  #dashBody .dash-panel .pad > .chart-controls{margin-top:var(--sp-3)}
   /* the scope selector rides beside the verdict figure instead of costing the card a full row —
      a two-column header inside the card: verdict text left, the compact control right. Grid, not
      absolute positioning, so a missing selector (<2 menus) just leaves the column empty. */
@@ -2702,9 +2706,29 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   #dashBody .dash-panel .pad > .chart-controls,
   #dashBody .dash-panel .pad > .dash-chart,
   #dashBody .dash-panel .pad > .scope-note{width:100%}
+  /* v94 polish — GRID LOCK. Scope switching changes content (the per-menu caption line under
+     the chart, 2 vs 3 insight lines), and content-derived rows made BY MENU and DIG IN jump.
+     Min-heights sized to the tallest realistic content pin the rows instead:
+     - .dash-ins: three single-line insights (the v92 panel cap) — a taller wrap still grows it,
+       but 2-vs-3 line swings no longer move anything;
+     - .dash-panel: its height WITH the scope-note line, so the note appearing costs nothing.
+     Content stays top-aligned; slack is air at a card's floor. Known limit, documented in the
+     handover: a scope with NO insights at all removes the panel itself (v90's deliberate
+     no-empty-state rule), and BY MENU rises then — min-heights can't reserve an absent card. */
+  /* The lock lives on ROW 1, not the card: min-height on the card alone still let a wrapped
+     line move everything below it. 224px seats three insights with one wrapping (the v92 cap);
+     the card stretches to fill the row so the region reads as one block. :has() scopes the
+     reservation to dashboards that actually render an insights panel. */
+  #dashBody:has(.dash-ins){grid-template-rows:minmax(224px,auto) 1fr}
+  #dashBody .dash-ins{align-self:stretch;min-height:176px}
+  #dashBody .dash-panel{min-height:440px}
   /* BY MENU stretches to the chart card's floor; its hint anchors at the card bottom so any
      spare height reads as air inside one card, not a hole in the grid. */
   #dashBody .dash-compare{align-self:stretch;display:flex;flex-direction:column}
   #dashBody .dash-compare .pad{display:flex;flex-direction:column;flex:1 1 auto}
   #dashBody .dash-compare .mcmp-note{margin-top:auto;padding-top:var(--sp-3)}
+}
+@media(min-width:1280px){
+  /* the chart column is wider here, the card taller — same grid-lock rule, bigger floor */
+  #dashBody .dash-panel{min-height:488px}
 }
