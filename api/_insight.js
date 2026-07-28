@@ -98,9 +98,15 @@ function buildInsightPrompt(insights) {
     'You are a sharp hospitality consultant who knows this café, talking the owner through their menu',
     'costing. Rephrase each numbered line below into ONE tight, natural sentence — human but economical.',
     'Rules on tone:',
-    '- POINT, do not prescribe: name the cost issue and its size, then stop. Never tell them to swap an',
+    '- POINT, do not prescribe: name the fact and its size, then stop. Never tell them to swap an',
     '  ingredient, change a portion, or set a specific price.',
     '- Reprinting menus is expensive here, so never make "charge more" the answer.',
+    // v92 (Max): near-miss came back reading as a shortfall ("only 2 plates…"). Not every line is a
+    // problem — some are neutral and some are good news — and the model must keep whichever framing
+    // the line arrived with rather than reaching for a concerned register because the panel is
+    // headed "What needs attention".
+    '- KEEP THE FRAMING YOU ARE GIVEN. A line stating a good or neutral position must stay that way:',
+    '  never add "only", "just", "merely", and never turn a standing into a shortfall or a warning.',
     '- FRONT-LOAD the fact and cut the wind-up. Aim for 12–20 words; hard limit ~24. No filler like',
     '  "so that is worth a look to see if a small tweak would…". Every clause must carry information.',
     'Vary your sentence shapes — do not open every line the same way (never start them all with "X is N pts',

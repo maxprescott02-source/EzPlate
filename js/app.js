@@ -2250,14 +2250,54 @@ function ruleA(c){
   if(n>=2) return true;
   return n===1 && !!seen.aggregation;                                // a whole-dataset aggregate is allowed to stand alone
 }
-/* Scope gate. Some types only make sense at one scope — category imbalance is a within-menu
-   comparison, supplier reach and the product price gap are facts about the product list, not
-   about any one menu. Suppress what doesn't apply rather than forcing it. */
+/* Scope gate. Some types are facts about the PRODUCT LIST rather than about any one menu —
+   concentration and the price anomaly — so they only speak at all-menus scope. Suppress what
+   doesn't apply rather than forcing it.
+   v92: `category` is no longer menu-only. v90 reasoned that averaging sections across every menu
+   "averages away the thing that makes it useful", but the effect of that was that the strongest
+   family needing NO price history was silent at the DEFAULT scope, which is where the owner
+   actually looks — leaving only the snapshot-only families, which are the weak ones. A section
+   average across all menus is still a legitimate aggregate over a real group of plates. */
 function scopeAllows(c, isAll){
   if(!c || !c.scope) return true;                                    // 'any' — meaningful at both
   return isAll ? (c.scope!=='menu') : (c.scope!=='global');
 }
 function pts1(x){ return Math.round(x*10)/10; }                      // one decimal, for "points" figures
+function clamp01(x, lo, hi){ return x<lo?lo:(x>hi?hi:x); }
+
+/* ===================== v92: VALUE RANKING — score, then a hard FLOOR =====================
+   Until v92 a family emitted and the panel displayed, capped only by menu size. That is why five
+   weak lines could fill the panel: the strong families were starved of price history (they all read
+   ingPriceLog, which had one writer until v91) and the survivors were exactly the families
+   computable from a static snapshot of today's numbers — which can only count, spread or aggregate.
+   Ranking alone would not have helped, because the strong candidates were never in the pool. So
+   value is now declared, not implied, on the two axes the owner would recognise:
+
+   NON-OBVIOUSNESS — could they have worked this out looking at the menu table? A movement over time
+     could not (they'd need last month's prices). A count of rows could.
+   ACTIONABILITY — does it name the thing to look at? A named plate, ingredient, section or supplier
+     points somewhere. A menu-wide average does not.
+
+   score = 100 · (0.55·novel + 0.45·act) · magnitude, magnitude ∈ [0.5, 1] for how big THIS instance
+   is. INSIGHT_FLOOR is absolute: a candidate below it never displays, however empty the panel —
+   three real insights beat five padded ones. Tuning lives HERE, in one table, not scattered across
+   twelve families as hand-picked constants. */
+var INSIGHT_VALUE={
+  drift:        {novel:0.95, act:1.00},   // one named plate, one named era — the sharpest shape there is
+  costbase:     {novel:1.00, act:0.90},   // needs prices they no longer have, and names the culprit
+  longstanding: {novel:0.90, act:1.00},
+  volatility:   {novel:0.85, act:0.85},
+  anomaly:      {novel:0.80, act:0.90},   // names ONE product that may simply be entered wrong
+  category:     {novel:0.70, act:0.75},
+  complexity:   {novel:0.70, act:0.60},   // a real cross-cutting pattern, but no single target
+  concentration:{novel:0.60, act:0.70},   // only ever emitted WITH its consequence (see the family)
+  nearcluster:  {novel:0.45, act:0.60}    // a count — but of something not visible anywhere on screen
+};
+var INSIGHT_FLOOR=45;                                                // below this, silence is the better answer
+function insightScore(kind, magnitude){
+  var v=INSIGHT_VALUE[kind]; if(!v) return 0;
+  return 100*(0.55*v.novel + 0.45*v.act)*clamp01(magnitude==null?1:magnitude, 0.5, 1);
+}
 
 /* ============================ FAMILY 1 — cost-base movement, culprit named ============================
    The average moved, and here is which ingredient did it and how far its reach goes.
@@ -2268,7 +2308,7 @@ function insCostBase(mv){
   if(!mv || !(Math.abs(mv.pts)>=0.3) || !mv.name || !mv.sinceLabel) return [];
   if(!(Math.abs(mv.ingPct)>=3) || !(mv.plates>=1)) return [];
   var up=mv.pts>0, p=pts1(Math.abs(mv.pts)), ip=Math.round(Math.abs(mv.ingPct)), n=mv.plates;
-  return [{kind:'costbase', dims:['time','aggregation','breadth'], score:Math.min(96, 60+Math.abs(mv.pts)*8),
+  return [{kind:'costbase', dims:['time','aggregation','breadth'], score:insightScore('costbase', 0.5+Math.abs(mv.pts)/4),
     facts:{pts:p, ingPct:ip, plates:n},
     text:'Your average food cost is '+p+' pts '+(up?'higher':'lower')+' than at '+mv.sinceLabel+' prices — '
       +mv.name+', '+(mv.ingPct>0?'up':'down')+' '+ip+'% across '+n+' plate'+(n===1?'':'s')+', is most of it.'}];
@@ -2283,7 +2323,7 @@ function insDrift(d){
   if(!d || !d.name || !d.sinceLabel) return [];
   if(!(d.up>=0.20) || !(d.toPct-d.fromPct>=2)) return [];            // needs a real move in both money and points
   var up=Math.round(d.up*100)/100, f=Math.round(d.fromPct), t=Math.round(d.toPct);
-  return [{kind:'drift', dims:['time','composition'], score:Math.min(90, 46+(t-f)*3),
+  return [{kind:'drift', dims:['time','composition'], score:insightScore('drift', 0.5+(t-f)/16),
     facts:{name:d.name, up:up, fromPct:f, toPct:t},
     text:d.priceHeld
       ? (d.name+'’s ingredients cost $'+up.toFixed(2)+' more than in '+d.sinceLabel+' and its price hasn’t moved — '+f+'% to '+t+'%.')
@@ -2291,9 +2331,10 @@ function insDrift(d){
 }
 
 /* ============================ FAMILY 3 — category imbalance ============================
-   Section averages. aggregation × comparison. MENU-SCOPED: comparing sections across every menu
-   at once averages away the thing that makes it useful. Needs ≥2 sections of ≥2 plates and a
-   ≥3-pt gap — below that there is no imbalance to report. */
+   Section averages. aggregation × comparison. Needs ≥2 sections of ≥2 plates and a ≥3-pt gap —
+   below that there is no imbalance to report. v92: the `scope:'menu'` restriction is GONE (see
+   scopeAllows) — it was the reason the strongest history-free family never showed at the default
+   scope, which is exactly where the weak lines were filling the panel. */
 function insCategory(dishes, targetFrac){
   var by={};
   dishes.forEach(function(d){
@@ -2305,7 +2346,7 @@ function insCategory(dishes, targetFrac){
   if(cats.length<2) return [];
   cats.sort(function(a,b){ return a.pct-b.pct; });
   var lo=cats[0], hi=cats[cats.length-1]; if(hi.pct-lo.pct<3) return [];
-  return [{kind:'category', dims:['aggregation','comparison'], scope:'menu', score:Math.min(70, 32+(hi.pct-lo.pct)),
+  return [{kind:'category', dims:['aggregation','comparison'], score:insightScore('category', 0.5+(hi.pct-lo.pct)/20),
     facts:{loName:lo.name, loPct:lo.pct, hiName:hi.name, hiPct:hi.pct},
     text:'Your '+lo.name+' plates average '+lo.pct+'% food cost, '+hi.name+' sits at '+hi.pct+'%.'}];
 }
@@ -2320,7 +2361,7 @@ function insVolatility(dishes){
     var lo=Math.round(d.costMin/d.menuPrice*100), hi=Math.round(d.costMax/d.menuPrice*100);
     var swing=hi-lo; if(swing<4 || swing<=bestSwing) return;
     bestSwing=swing;
-    best={kind:'volatility', dims:['distribution','comparison'], score:Math.min(88, 40+swing*2),
+    best={kind:'volatility', dims:['distribution','comparison'], score:insightScore('volatility', 0.5+swing/24),
       facts:{name:d.name, loPct:lo, hiPct:hi},
       text:d.name+' swings '+lo+'–'+hi+'% with '+(d.volatileIng||'ingredient')+' prices — your least predictable plate.'};
   });
@@ -2333,7 +2374,7 @@ function insVolatility(dishes){
    "always" means "twice", which is not a run. The price-log clause is added only when proved. */
 function insLongStanding(ls){
   if(!ls || !ls.name || !ls.sinceLabel || !(ls.months>=3)) return [];
-  return [{kind:'longstanding', dims:['time','comparison'], score:Math.min(94, 56+ls.months*3),
+  return [{kind:'longstanding', dims:['time','comparison'], score:insightScore('longstanding', 0.5+ls.months/16),
     facts:{name:ls.name, months:ls.months},
     text:ls.priceHeld
       ? (ls.name+' has been over target through every cost change since '+ls.sinceLabel+', with no price move — '+ls.months+' months.')
@@ -2342,7 +2383,10 @@ function insLongStanding(ls){
 
 /* ============================ FAMILY 6 — near-miss cluster ============================
    How many plates sit within half a point of target: a whole-dataset aggregate, so it clears
-   Rule A on its own. Points at where the smallest movements matter, without prescribing one. */
+   Rule A on its own. Points at where the smallest movements matter, without prescribing one.
+   v92 FRAMING (Max): this is an OPPORTUNITY, not a shortfall — these are the plates closest to
+   the target of anything on the menu, which is a good position to be in, not a deficit. The copy
+   says so, and the phrasing prompt is told not to invert it. Never "only N". */
 function insNearCluster(dishes, targetFrac){
   var n=0;
   dishes.forEach(function(d){
@@ -2351,41 +2395,83 @@ function insNearCluster(dishes, targetFrac){
   });
   if(n<2) return [];
   var tp=Math.round(targetFrac*100);
-  return [{kind:'nearcluster', dims:['aggregation','distribution'], score:Math.min(64, 34+n*4),
+  return [{kind:'nearcluster', dims:['aggregation','distribution'], score:insightScore('nearcluster', 0.7+n*0.1),
     facts:{count:n, targetPct:tp},
-    text:n+' plates sit within half a point of your '+tp+'% target.'}];
+    text:n+' plates are sitting within half a point of your '+tp+'% target — the closest on your menu.'}];
 }
 
 /* ============================ FAMILY 7 — supplier concentration ============================
-   How far ONE supplier reaches across the plate library. breadth × aggregation. GLOBAL: this is
-   a fact about the product list, not about any one menu. BREADTH-based, never spend-based —
-   "spend" would imply purchase volume the app does not have (Rule C). Needs ≥2 suppliers (with
-   one, the answer is trivially "all of them") and a ≥40% reach over ≥3 plates. */
-function insSupplierReach(sup){
-  if(!sup || !sup.name || !(sup.suppliers>=2)) return [];
+   How far ONE supplier reaches across the plate library, AND WHAT THAT EXPOSES YOU TO.
+   breadth × aggregation × comparison. GLOBAL: a fact about the product list, not any one menu.
+   BREADTH-based, never spend-based — "spend" would imply purchase volume the app does not have
+   (Rule C).
+
+   v92 (Max): "supplies 20 of 42 plates" is a BARE COUNT and must not emit. The reach only means
+   something with its consequence attached, so the family now computes one deterministically: if
+   that supplier's prices rose 10%, how many points would it add to the average food cost across
+   the plates they touch? A conditional, clearly marked as one, in points — not money, which would
+   need volume. Below CONC_MIN_PTS the answer is "not much", and the line stays silent.
+
+   COVERAGE GATE, and it matters more than the thresholds: the supplier field is optional and
+   mostly empty in real use (Max's own data: 8 of 44 used products carry one). Reach computed over
+   a mostly-unlabelled product list measures WHICH SUPPLIER GOT TYPED IN, not procurement. Under
+   CONC_MIN_COVERAGE the family cannot know what it would be claiming, so it says nothing. */
+var CONC_MIN_PTS=0.5, CONC_MIN_COVERAGE=0.5;
+function insConcentration(sup){
+  if(!sup || !sup.name || !(sup.suppliers>=2)) return [];            // with one supplier the answer is trivially "all of them"
+  if(!(sup.coverage>=CONC_MIN_COVERAGE)) return [];                  // the field is too empty for the number to mean anything
   if(!(sup.plates>=3) || !(sup.total>0) || sup.plates/sup.total < 0.40) return [];
-  return [{kind:'supplier', dims:['breadth','aggregation'], scope:'global', score:Math.min(78, 30+sup.plates/sup.total*50),
-    facts:{plates:sup.plates, total:sup.total},
-    text:sup.name+' supplies at least one ingredient in '+sup.plates+' of your '+sup.total+' costed plates.'}];
+  var pts=pts1(sup.ptsPer10||0); if(!(pts>=CONC_MIN_PTS)) return []; // reach without consequence is the bare count Max rejected
+  return [{kind:'concentration', dims:['breadth','aggregation','comparison'], scope:'global',
+    score:insightScore('concentration', 0.5+pts/2),
+    facts:{plates:sup.plates, total:sup.total, rise:10, pts:pts},
+    text:sup.name+' is in '+sup.plates+' of your '+sup.total+' costed plates — a 10% rise there would add '
+      +pts+' pts to their average food cost.'}];
 }
 
-/* ============================ FAMILY 8 — price gap ============================
-   Same category, same base unit, very different unit prices. distribution × comparison. GLOBAL.
-   A FACT, NOT a swap suggestion (v71): the cost engine cannot know two products are culinarily
-   interchangeable, so this states the spread and stops. Needs ≥3 products and a ≥2.5x ratio. */
-function insPriceGap(gap){
-  if(!gap || !gap.category || !gap.unit) return [];
-  if(!(gap.count>=3) || !(gap.lo>0) || !(gap.hi>0) || gap.hi/gap.lo < 2.5) return [];
-  var mult=Math.round(gap.hi/gap.lo*10)/10;
-  return [{kind:'pricegap', dims:['distribution','comparison'], scope:'global', score:Math.min(72, 30+mult*6),
-    facts:{lo:Math.round(gap.lo*100)/100, hi:Math.round(gap.hi*100)/100, mult:mult, count:gap.count},
-    text:'Your '+gap.count+' '+gap.category+' products run $'+gap.lo.toFixed(2)+'–$'+gap.hi.toFixed(2)+' per '+gap.unit+' — a '+mult+'x spread.'}];
+/* ============================ FAMILY 8 — price ANOMALY (was: price gap) ============================
+   ONE product priced far above the next dearest thing you buy in the same unit. Reads as "check
+   that's right", because most of the time it is a data-entry error — a pack price typed as a unit
+   price, or a per-kg figure entered per-100g. distribution × comparison. GLOBAL.
+
+   v92 (Max) — THE SPREAD VERSION WAS INVALID AND IS GONE. It compared products by CATEGORY, and a
+   category here is a supplier catalogue heading, not a substitutability class: on Max's real data
+   it fired "your 6 VEGETABLES products run $2.10–$13.33 per kg — a 6.3x spread", which is brown
+   onions against spinach. Those are not alternatives and the spread between them means nothing.
+   SMALLGOODS (bacon next to $0.30/kg items) is the same failure. No threshold fixes it, because
+   the grouping itself was wrong.
+
+   An anomaly test needs no substitutability claim: it says one number looks out of place next to
+   every other number of the same kind, which is true regardless of what the products are. So the
+   grouping is now BASE UNIT ONLY (never compare $/kg against $/unit) and the comparison is against
+   the NEXT DEAREST, not the cheapest — being the dearest is unremarkable; being a multiple of the
+   runner-up is not. Needs ≥4 in the unit group so "next dearest" means something, and ≥3x.
+   Known limit: two similarly-priced outliers mask each other. Deliberate — a conservative test
+   that stays quiet is the right trade for a line that says "this may be wrong". */
+var ANOM_MIN_RATIO=3, ANOM_MIN_GROUP=4;
+function insPriceAnomaly(an){
+  if(!an || !an.name || !an.unit) return [];
+  if(!(an.count>=ANOM_MIN_GROUP) || !(an.top>0) || !(an.next>0)) return [];
+  var mult=Math.round(an.top/an.next*10)/10; if(!(mult>=ANOM_MIN_RATIO)) return [];
+  return [{kind:'anomaly', dims:['distribution','comparison'], scope:'global',
+    // the magnitude base is 0.6, not 0.5, so an anomaly at exactly ANOM_MIN_RATIO still clears
+    // INSIGHT_FLOOR — a family's own gate and the floor must agree, or the gate quietly means
+    // nothing and instances vanish between the two. (CodeRabbit, v92; pinned by the minimum-input
+    // test in insights.test.js.)
+    score:insightScore('anomaly', 0.6+(mult-ANOM_MIN_RATIO)/10),
+    facts:{top:Math.round(an.top*100)/100, mult:mult},
+    text:an.name+' at $'+an.top.toFixed(2)+'/'+an.unit+' is '+mult+'x your next dearest ingredient — worth checking that’s right.'}];
 }
 
 /* ===== KEPT from v75, re-declared against Rule A (each already combined two dimensions) ===== */
 
 // Do many-ingredient plates cost a higher % than simpler ones? aggregation × comparison. Only when
-// the pattern actually holds (both groups ≥2 plates, ≥3-pt gap). `minIng` is in facts so "6+" survives.
+// the pattern actually holds (both groups ≥2 plates, ≥COMPLEX_MIN_GAP). `minIng` is in facts so "6+"
+// survives. v92: the gap gate went 3 → 5 pts. At 3 the candidate scored 42.6 against a floor of 45,
+// so it passed its own gate and was then silently dropped — a family gate that admits instances the
+// floor refuses is a gate that means nothing. 5 pts is also the honest bar: a 3-point difference
+// between complex and simple plates is inside the noise of a café menu. (CodeRabbit, v92.)
+var COMPLEX_MIN_GAP=5;
 function insComplexity(dishes){
   var many={sum:0,n:0}, few={sum:0,n:0};
   dishes.forEach(function(d){
@@ -2394,60 +2480,46 @@ function insComplexity(dishes){
   });
   if(many.n<2 || few.n<2) return [];
   var mp=Math.round(many.sum/many.n*100), fp=Math.round(few.sum/few.n*100), gap=mp-fp;
-  if(gap<3) return [];
-  return [{kind:'complexity', dims:['aggregation','comparison'], score:Math.min(62, 30+gap),
+  if(gap<COMPLEX_MIN_GAP) return [];
+  return [{kind:'complexity', dims:['aggregation','comparison'], score:insightScore('complexity', 0.5+gap/20),
     facts:{manyPct:mp, fewPct:fp, gap:gap, minIng:6},
     text:'Plates with 6+ ingredients average '+mp+'% food cost, simpler ones '+fp+'%.'}];
 }
-// How many plates cost more now than at the last price update. time × aggregation. ≥2 to be a pattern.
-function insRecentChange(recent){
-  if(!recent || !(recent.up>=2)) return [];
-  return [{kind:'recent', dims:['time','aggregation'], score:Math.min(70, 34+recent.up*3),
-    facts:{up:recent.up},
-    text:recent.up+' plates cost more now than at your last price update.'}];
-}
-// Plates not costed yet — a count across the dataset, so it stands alone under Rule A. A gap to fill,
-// not manufactured concern: an uncosted plate has no margin row at all.
-function insData(coverage){
-  if(!coverage) return [];
-  var u=coverage.uncosted||0;
-  if(u<1) return [];
-  return [{kind:'data', dims:['aggregation'], score:Math.min(34, 20+u),
-    facts:{uncosted:u},
-    text:u+' plate'+(u===1?" isn't":"s aren't")+' costed yet — no margin read on '+(u===1?'it':'them')+' yet.'}];
-}
-// The one positive line: the standout plate comfortably under target. comparison × aggregation (a
-// menu-wide standing). Low score so it never crowds out a real problem.
-function insBest(dishes, targetFrac){
-  var best=null, bestPts=0;
-  dishes.forEach(function(d){
-    if(!(d.cost>0)||!(d.menuPrice>0)) return;
-    var pts=Math.round((targetFrac - d.cost/d.menuPrice)*100);       // points UNDER target
-    if(pts>=5 && pts>bestPts){ bestPts=pts; best=d; }
-  });
-  if(!best) return [];
-  return [{kind:'best', dims:['comparison','aggregation'], score:24, facts:{name:best.name, pts:bestPts},
-    text:best.name+' is your strongest margin — '+bestPts+' points under target.'}];
-}
 
-/* v90 REMOVED for failing Rule A or Rule C — recorded here so nobody re-adds them by accident:
+/* v92 REMOVED — three families that could not clear INSIGHT_FLOOR at ANY magnitude, i.e. they could
+   only ever have displayed because nothing better fired. That is precisely what the floor exists to
+   stop, so keeping them scored-but-unreachable would have been dead code pretending to be a feature:
+   - insRecentChange: "N plates cost more now than at your last price update" — a bare count. It
+     names nothing, so there is no thing to go and look at. Peak score 38 against a floor of 45.
+   - insData: "N plates aren't costed yet" — a to-do, not an insight, and the Plates tab already
+     shows it. Fails the so-what bar outright. Peak 31.
+   - insBest: "X is your strongest margin" — the padding line by construction (its own v90 comment
+     said "low score so it never crowds out a real problem"). Under a heading that reads "What needs
+     attention" it is noise; the all-healthy line already carries the positive framing for a menu
+     with nothing wrong. Peak 25.
+   Their data plumbing (`recent`, `coverage`, `recentUp`, `uncosted`) went with them — no orphans.
+
+   v90 REMOVED for failing Rule A or Rule C — recorded here so nobody re-adds them by accident:
    - insReprice / insCut / insSummary: status roll-ups. "X is over target" is what the red light and
      the Variance column already say; adding points or $/serve does not add a DIMENSION.
    - insSpread: the food-cost range across the menu — the light column shows it at a glance.
    - insSpend: "N% of your ingredient spend" implies purchase volume the app has never had (Rule C).
-     Concentration is now breadth-based (insSupplierReach), exactly as the brief requires.
+     Concentration is now breadth-based (insConcentration), exactly as the brief requires.
    - insAggregate: "$X per 100 serves above target" reads as money lost, which needs volume (Rule C).
    - insShared: bare breadth — literally the rejected "Eggs are in 8 plates". Replaced by
-     insSupplierReach, which pairs breadth with an aggregate share.
+     insConcentration, which pairs breadth with a consequence.
    - insNearMiss: one plate 1 pt over. Replaced by insNearCluster, an aggregate.
    - insMover: folded into insCostBase, which adds the aggregate impact the bare move was missing.
    Their only helpers (CUT_PTS, dishDriver, driverClause, overServeFmt) went with them — no orphans. */
 
-// Rank by notability, keep type VARIETY (≤1 per kind first), and ROTATE the near-top group by seed
-// so equally-notable insights take turns leading across renders/scope-switches. Pure + tested.
+// Rank by VALUE, keep type VARIETY (≤1 per kind first), and ROTATE the near-top group by seed
+// so equally-valuable insights take turns leading across renders/scope-switches. Pure + tested.
+// v92: the FLOOR is applied here, before ranking — a candidate worth less than INSIGHT_FLOOR is
+// dropped outright, not merely out-ranked, so it can never reach the panel on a quiet day.
 function selectInsights(cands, seed, max){
   max=max||3; seed=seed||0;
-  var sorted=cands.map(function(c,i){ return {c:c,i:i}; })
+  var sorted=(cands||[]).filter(function(c){ return c && c.score>=INSIGHT_FLOOR; })
+    .map(function(c,i){ return {c:c,i:i}; })
     .sort(function(a,b){ return (b.c.score-a.c.score) || (a.i-b.i); })
     .map(function(x){ return x.c; });
   if(sorted.length>1){                                              // rotate only the near-top (similarly notable) group
@@ -2502,10 +2574,12 @@ function deriveInsights(data, targetFrac, seed){
   var n=costed.length;
   var max = n>=30?5 : n>=16?4 : n>=6?3 : n>=2?2 : 1;                // 1→1, 2–5→2, 6–15→3, 16–29→4, 30+→5
   var over=costed.filter(function(d){ return Math.round((d.cost/d.menuPrice-targetFrac)*100)>=1; }).length;
-  var pass=function(c){ return c && ruleA(c) && scopeAllows(c, isAll); };
-  // EVERY family, EVERY render. Ordered by how much a tie should favour them (selectInsights breaks
-  // equal scores by position), not by whether they are "concern" types — that distinction is what
-  // caused the bug. Anything without the history to compute returns [] on its own terms.
+  // v92: the FLOOR joins Rule A and the scope gate as a per-candidate admission test. Rule A asks
+  // "is this the right SHAPE"; the floor asks "is this worth the owner's attention at all".
+  var pass=function(c){ return c && ruleA(c) && scopeAllows(c, isAll) && c.score>=INSIGHT_FLOOR; };
+  // EVERY family, EVERY render (Rule D). Ordered by how much a tie should favour them (selectInsights
+  // breaks equal scores by position). Anything without the history to compute returns [] on its own
+  // terms; anything not worth saying is dropped by the floor rather than ranked and shown anyway.
   var observed=[]
     .concat(insLongStanding(data.longStanding||null))               // a standing problem outranks a new one
     .concat(insDrift(data.drift||null))                             // this plate moved, and by how much
@@ -2513,22 +2587,17 @@ function deriveInsights(data, targetFrac, seed){
     .concat(insCategory(costed, targetFrac))
     .concat(insVolatility(costed))
     .concat(insNearCluster(costed, targetFrac))
-    .concat(insSupplierReach(data.supplier||null))
-    .concat(insPriceGap(data.priceGap||null))
+    .concat(insConcentration(data.supplier||null))
+    .concat(insPriceAnomaly(data.anomaly||null))
     .concat(insComplexity(costed))
-    .concat(insRecentChange(data.recent||null))
-    .concat(insData(data.coverage||null))
     .filter(pass);
-  // The one positive line is the COUNTERPART of the all-healthy line, not an observation that something
-  // moved — so it fills a spare slot but never counts as "the engine has something to say", or a menu
-  // with one standout plate would lose its warm line to a compliment.
-  var positive=insBest(costed, targetFrac).filter(pass);
   if(!observed.length){
-    // Genuinely nothing observed. The warm line may claim "all clear" only when nothing is over target
-    // either; over target with no family able to speak stays silent rather than reassuring wrongly.
+    // Genuinely nothing worth saying. The warm line may claim "all clear" only when nothing is over
+    // target either; over target with no family able to speak stays silent rather than reassuring
+    // wrongly. v92: "nothing cleared the floor" counts as nothing to say — that is the point of it.
     return over ? [] : [healthyLine(costed.length, Math.round(targetFrac*100), seed||0)];
   }
-  return selectInsights(observed.concat(positive), seed||0, max)
+  return selectInsights(observed, seed||0, max)
     .map(function(c){ return {kind:c.kind, facts:c.facts, text:c.text}; });
 }
 /* Impure wrapper: build the data bundle for the DASHBOARD's current scope and derive. Every number comes
@@ -2615,7 +2684,7 @@ var INSIGHT_WINDOWS=[30,60,90,180];                                  // days bac
 function computeInsights(scope, seed){
   scope=(scope==null)?DASH_ALL:scope;
   var isAll=(scope===DASH_ALL);
-  var dishes=[], uncosted=0, recentUp=0, now=Date.now();
+  var dishes=[], now=Date.now();
   var inScope=[];                                                    // {m, sp, cost, price} for the reconstruction passes
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
@@ -2623,26 +2692,19 @@ function computeInsights(scope, seed){
       if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
       var sp=plateForMenuItem(m);
       var cost=sp?costFromLines(sp.lines):0;
-      if(!sp || !(cost>0)){ uncosted++; return; }                    // a priced dish with no plate / no cost is "not costed yet"
+      if(!sp || !(cost>0)) return;                                   // a priced dish with no plate / no cost has no margin read
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
-      var prevCost=0;                                                // cost at each ingredient's PREVIOUS logged price (current where there is no history)
       (sp.lines||[]).forEach(function(l){
-        if(!l) return;
-        if(l.misc){ prevCost+=Number(l.cost)||0; return; }
+        if(!l || l.misc) return;
         var p=lineProduct(l); if(!p) return;
         var pid=l.kid?(kById[l.kid]&&kById[l.kid].pid):l.pid;
         var nm=l.kid?((kById[l.kid]&&kById[l.kid].name)||p.description):p.description;
         if(nm && !seen[nm]) seen[nm]=1;
-        var lc=lineCost(p, l.qty);
-        var prevLc=(lc!=null?lc:0);
         if(pid){
           var band=ingPriceBand(pid); if(band){ var s=(band.max-band.min)*(l.qty||0); if(s>volSpread){ volSpread=s; volName=nm; } }
-          var pa=ingPriceLog[pid]; if(pa && pa.length>=2){ var pv=pa[pa.length-2].v; if(pv!=null && isFinite(pv)) prevLc=pv*(l.qty||0); }
         }
-        prevCost+=prevLc;
       });
-      if(prevCost>0 && cost>prevCost*1.005) recentUp++;              // this plate costs more now than at the last price update
       dishes.push({name:m.name, cost:cost, menuPrice:m.price, section:m.section||'', nIng:Object.keys(seen).length,
         costMin:range.min, costMax:range.max, hasRange:range.hasRange, volatileIng:volName});
       inScope.push({m:m, sp:sp, cost:cost, price:m.price});
@@ -2701,49 +2763,78 @@ function computeInsights(scope, seed){
 
   // FAMILY 7 + 8 — GLOBAL facts about the product list, computed over the whole plate library rather
   // than one menu. deriveInsights suppresses them at menu scope, so they cost nothing there.
-  var supplier=null, priceGap=null;
+  var supplier=null, anomaly=null;
   try{
-    var platesBySup={}, sups={}, totalPlates=0;
+    // ---- FAMILY 7: reach, its CONSEQUENCE, and how much of the supplier field is even filled in ----
+    // The consequence is a plain arithmetic what-if on data the app already holds: raise this
+    // supplier's lines by CONC_RISE and see what it does to the average food cost across the plates
+    // they touch. Averaged over ALL costed plates in the library, so it reads as an effect on the
+    // business, not on a hand-picked subset.
+    var CONC_RISE=0.10;
+    var platesBySup={}, sups={}, totalPlates=0, ptsBySup={};   // one population: priced plates only
+    var priceByPlate={};                                             // plate id → a sell price, resolved ONCE
+    (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
+      if(!m || !(m.price>0)) return;
+      var id=plateIdOf(m); if(id!=null && priceByPlate[id]==null) priceByPlate[id]=m.price;
+    });
     (typeof savedPlates!=='undefined'?savedPlates:[]).forEach(function(sp){
-      var mine={}, any=false;
+      var mine={}, any=false, exposure={};
       (sp.lines||[]).forEach(function(l){
         if(!l || l.misc) return;
         var p=lineProduct(l); if(!p) return; any=true;
         var s=(p.supplier||'').trim(); if(!s) return;
         sups[s]=1; mine[s]=1;
+        var lc=lineCost(p, l.qty); if(lc!=null) exposure[s]=(exposure[s]||0)+lc;
       });
       if(!any) return;
+      // ONE population for all three figures. The what-if needs a sell price to express its effect in
+      // POINTS, so unpriced plates can't take part — and if they can't take part in the consequence
+      // they must not swell the reach denominator either, or "11 of 14" and the points figure would
+      // describe different sets of plates while sitting in the same sentence. (CodeRabbit, v92.)
+      // A plate on two menus contributes once, at the first price found: the figure is about the
+      // plate's cost exposure, and counting it twice would weight it by how often it was published.
+      var price=priceByPlate[sp.id];
+      if(!(price>0)) return;
       totalPlates++;
       Object.keys(mine).forEach(function(s){ platesBySup[s]=(platesBySup[s]||0)+1; });
+      Object.keys(exposure).forEach(function(s){ ptsBySup[s]=(ptsBySup[s]||0)+(exposure[s]*CONC_RISE)/price*100; });
     });
     var topSup=null;
     Object.keys(platesBySup).forEach(function(s){ if(!topSup || platesBySup[s]>platesBySup[topSup]) topSup=s; });
-    if(topSup) supplier={name:topSup, plates:platesBySup[topSup], total:totalPlates, suppliers:Object.keys(sups).length};
-
-    // same category AND same base unit — comparing $/kg against $/unit would be a meaningless spread
+    // COVERAGE: what share of the products actually used in plates carry a supplier at all. Without
+    // this the reach figure silently measures data entry (see insConcentration).
     var usedPids={};
     (typeof savedPlates!=='undefined'?savedPlates:[]).forEach(function(sp){ (sp.lines||[]).forEach(function(l){
       if(!l||l.misc) return; if(l.kid){ var k=kById[l.kid]; if(k&&k.pid!=null) usedPids[k.pid]=true; } else if(l.pid!=null) usedPids[l.pid]=true; }); });
-    var groups={};
+    var usedIds=Object.keys(usedPids), withSup=0;
+    usedIds.forEach(function(id){ var p=byId[id]; if(p && (p.supplier||'').trim()) withSup++; });
+    if(topSup) supplier={name:topSup, plates:platesBySup[topSup], total:totalPlates,
+      suppliers:Object.keys(sups).length, coverage:(usedIds.length?withSup/usedIds.length:0),
+      ptsPer10:(totalPlates?(ptsBySup[topSup]||0)/totalPlates:0)};
+
+    // ---- FAMILY 8: the price ANOMALY. Grouped by BASE UNIT ONLY — never by category, which is a
+    // supplier catalogue heading and not a substitutability class (v92; see insPriceAnomaly).
+    var byUnit={};
     (typeof PRODUCTS!=='undefined'?PRODUCTS:[]).forEach(function(p){
       if(!usedPids[p.id]) return;
-      var cat=(p.category||'').trim(); if(!cat) return;
+      var w=unitWordFor(p.base_unit); if(!w) return;
       var v=perDisplayValue(p); if(v==null || !(v>0)) return;
-      var key=cat+'|'+(p.base_unit||'');
-      (groups[key]||(groups[key]={cat:cat, unit:unitWordFor(p.base_unit), vals:[]})).vals.push(v);
+      (byUnit[p.base_unit]||(byUnit[p.base_unit]={unit:w, rows:[]})).rows.push({v:v, name:p.description});
     });
-    var bestGap=null;
-    Object.keys(groups).forEach(function(k){
-      var g=groups[k]; if(g.vals.length<3 || !g.unit) return;
-      var lo=Math.min.apply(null,g.vals), hi=Math.max.apply(null,g.vals);
-      if(!(lo>0)) return;
-      var ratio=hi/lo; if(!bestGap || ratio>bestGap.ratio) bestGap={category:g.cat, unit:g.unit, lo:lo, hi:hi, count:g.vals.length, ratio:ratio};
+    var bestAnom=null;
+    Object.keys(byUnit).forEach(function(k){
+      var g=byUnit[k]; if(g.rows.length<ANOM_MIN_GROUP) return;
+      g.rows.sort(function(a,b){ return b.v-a.v; });
+      var top=g.rows[0], next=g.rows[1];
+      if(!(next.v>0)) return;
+      var ratio=top.v/next.v;
+      if(!bestAnom || ratio>bestAnom.ratio) bestAnom={name:top.name, unit:g.unit, top:top.v, next:next.v, count:g.rows.length, ratio:ratio};
     });
-    priceGap=bestGap;
+    anomaly=bestAnom;
   }catch(e){}
 
   return deriveInsights({dishes:dishes, isAll:isAll, movement:movement, drift:drift, longStanding:longStanding,
-    supplier:supplier, priceGap:priceGap, recent:{up:recentUp}, coverage:{uncosted:uncosted}},
+    supplier:supplier, anomaly:anomaly},
     foodTarget(), (seed==null?insightSeedFor(scope):seed));
 }
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
@@ -3079,7 +3170,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v91';
+var APP_VERSION='v92';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

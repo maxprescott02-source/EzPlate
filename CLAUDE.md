@@ -346,12 +346,13 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `fix/insight-families` is at **v91** (unmerged);
-  `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026). Six spots
-  agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
+- **Version:** branch `fix/insight-value-ranking` is at **v92** (unmerged), and
+  is **STACKED on `fix/insight-families` (v91, also unmerged)** — v91 must merge
+  first. `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026).
+  Six spots agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
-- **Suite:** `npm test` = **436 green**, jsdom smoke green (24 sections),
+- **Suite:** `npm test` = **447 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not
   reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
@@ -394,6 +395,18 @@ history belongs in `handovers/`, nowhere else.
   clear" when nothing is over target as well. v90 gated the engine on the
   over-target count and shipped a panel saying "nothing needs attention" above a
   bar reporting costs creeping up. See `HANDOVER-v91.md`.
+  **RULE E (v92): value is declared, and the floor is absolute.** Every family
+  scores itself via `insightScore` against the ONE `INSIGHT_VALUE` table
+  (non-obviousness × actionability × magnitude); `selectInsights` drops anything
+  under `INSIGHT_FLOOR` **before** ranking, so a weak candidate never displays
+  merely because nothing better fired. Three insights beat five padded ones. A
+  family's own emit gate MUST clear the floor at the weakest input it accepts —
+  a gate that admits what the floor refuses means nothing, and a test pins every
+  family at its minimum. Nine families remain; `insRecentChange`/`insData`/
+  `insBest` were deleted as unreachable bare counts, and `insPriceGap` became
+  `insPriceAnomaly` (category is a supplier catalogue heading, NOT a
+  substitutability class — it compared onions with spinach). See
+  `HANDOVER-v92.md`.
 - **THREE price-ish logs are written by DIFFERENT events — check the writer, not
   just the reader.** `priceHistory` is written by `logHistory()` on every
   data-changing event (including adding or repricing a plate, with no ingredient
@@ -409,12 +422,14 @@ history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v91** — ten batches, none device-verified; their
+1. **Phone sign-off on v82–v92** — eleven batches, none device-verified; their
    "needs Max's phone" lists are the backlog. v87's iOS Safari scroll-lock
    check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
    v90/v91's sharpest question isn't visual: **do the insights pass the "so what"
-   test on Max's real menu?** Only he can answer that — and v91 makes the warm
-   all-healthy line exclusive, which is a tone call worth his eyes.
+   test on Max's real menu?** Only he can answer that — and v91/v92 change what
+   the panel shows: the warm all-healthy line is exclusive (v91), and v92 drops
+   the panel from five lines to three real ones on his own data. Both are tone
+   calls worth his eyes.
 2. **Upgrade pdf.js to 4.2.67+.** 3.11.174 carries **CVE-2024-4367** (malicious
    PDF → arbitrary JS); mitigated v88 via `isEvalSupported:false`, NOT fixed.
    Supplier PDFs are untrusted input. A 3→4 jump needs its own brief.
@@ -431,9 +446,12 @@ history belongs in `handovers/`, nowhere else.
    (the offline-drop gap the other two logs avoid); `.range-btn` is 32px, not
    44px (since v46); the stale v60 target-line comment in `trendChart`. See
    `HANDOVER-v90.md`.
-8. **Rule D probably belongs ABOVE the "State as of" line** (it is a durable
-   engine law, not a snapshot fact) — it is recorded in the snapshot for now
-   because moving it needs Max's yes. Same question for the three-logs rule.
+8. **Rules D and E probably belong ABOVE the "State as of" line** (they are
+   durable engine laws, not snapshot facts) — recorded in the snapshot for now
+   because moving them needs Max's yes. Same question for the three-logs rule.
+9. **Supplier coverage is 18% of used products** (8 of 44 in the 16 Jul backup),
+   so the concentration family stays silent by design. Not a bug — but if Max
+   wants that insight, the supplier field needs filling in past 50%.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be

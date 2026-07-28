@@ -11,7 +11,12 @@
  */
 const { test, expect } = require('@playwright/test');
 
-// Two menus, three costed+priced dishes: Original at 20%/40% (avg 30), Winter at 60%.
+// Two menus, three costed+priced dishes: Original at 30%/30% (avg 30), Winter at 60%.
+// v92: Original's two dishes were 20%/40%. Same average, same every asserted figure — but they now
+// sit ON the 30% target, which makes the near-miss cluster a REAL insight for this seed. Until v92
+// the only thing rendering an insights panel here was insBest ("Toastie is your strongest margin"),
+// the padding line, which v92 deleted; the placement check below would then have had nothing to
+// measure. The seed has to earn its panel rather than be handed one.
 const SEED = () => {
   localStorage.clear();
   localStorage.setItem('cafeDB_menus', JSON.stringify([
@@ -20,8 +25,8 @@ const SEED = () => {
   ]));
   localStorage.setItem('cafeDB_cogsPct', '30');
   const plates = [
-    { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 2 }] },
-    { id: 'PL2', name: 'Burger', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 4 }] },
+    { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 3 }] },
+    { id: 'PL2', name: 'Burger', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 3 }] },
     { id: 'PL3', name: 'Roast', category: 'Dinner', lines: [{ misc: true, name: 'x', cost: 6 }] }
   ];
   localStorage.setItem('cafeDB_plates', JSON.stringify(plates));
@@ -190,8 +195,8 @@ async function bootWith(page, menus, dishes, plates) {
 }
 
 const PLATES3 = [
-  { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 2 }] },
-  { id: 'PL2', name: 'Burger', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 4 }] },
+  { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 3 }] },
+  { id: 'PL2', name: 'Burger', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 3 }] },
   { id: 'PL3', name: 'Roast', category: 'Dinner', lines: [{ misc: true, name: 'x', cost: 6 }] }
 ];
 
