@@ -210,7 +210,10 @@ test('touch targets on the new controls clear the 44px floor', async ({ page }) 
   const back = await page.locator('#digBack').evaluate(e => e.getBoundingClientRect());
   expect(back.height, 'back arrow clears the 44px floor').toBeGreaterThanOrEqual(44);
   expect(back.width, 'back arrow clears the 44px floor').toBeGreaterThanOrEqual(44);
+  // v94 (density brief): dig rows are DISPLAY rows, not controls — no handler, nothing to tap —
+  // so the 44px touch floor doesn't apply to them and the approved mockup draws them slim.
+  // 32px is a readability floor, not a touch one. The card and the back arrow above keep 44.
   const rows = await page.locator('#dashBody .dig-row').evaluateAll(
     els => els.map(e => e.getBoundingClientRect().height));
-  rows.forEach((h, i) => expect(h, `dig-row ${i} height`).toBeGreaterThanOrEqual(44));
+  rows.forEach((h, i) => expect(h, `dig-row ${i} height`).toBeGreaterThanOrEqual(32));
 });

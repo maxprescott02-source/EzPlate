@@ -107,16 +107,26 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
         await expect(page.locator('#dashBody .dig-card'), `card ${i} returns`).toHaveCount(4);
       }
 
-      // ---- desktop: insights sit beside the chart; Dig in spans the width below ----
+      // ---- desktop: v95 bento (SUPERSEDES v90's insights-beside-chart pin, Max-approved) ----
+      // Fixed tiles compose the upper rows (verdict/compares/chart in the top card, the four
+      // dig tiles under it); BOTH variable-height tiles (insights, By menu) share the terminal
+      // row so no insight/menu count can open a gap or move anything above.
       if (width >= 1024) {
         const geo = await page.evaluate(() => ({
           panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect(),
+          verd: document.querySelector('#dashBody .dp-verdict').getBoundingClientRect(),
+          chart: document.querySelector('#dashBody .dp-chart').getBoundingClientRect(),
           ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
           dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
         }));
-        expect(Math.abs(geo.ins.top - geo.panel.top), 'insights beside the chart, not below').toBeLessThanOrEqual(24);
-        expect(geo.ins.left, 'insights are the right-hand column').toBeGreaterThan(geo.panel.left);
-        expect(geo.dig.top, 'Dig in sits below both').toBeGreaterThan(geo.panel.top);
+        expect(geo.dig.top, 'Dig in sits below the chart section').toBeGreaterThan(geo.panel.bottom - 1);
+        expect(geo.ins.top, 'insights are in the terminal row, below the whole Dig-in region').toBeGreaterThanOrEqual(geo.dig.bottom - 1);   // vs dig.BOTTOM — CodeRabbit, accepted
+        if (width >= 1280) {
+          expect(Math.abs(geo.chart.top - geo.verd.top), 'verdict and chart tiles top-aligned').toBeLessThanOrEqual(8);
+          expect(geo.chart.left, 'chart is the right-hand tile').toBeGreaterThan(geo.verd.left);
+        } else {
+          expect(geo.chart.top, '1024 band: chart full-width under the verdict row').toBeGreaterThan(geo.verd.bottom - 1);
+        }
       }
 
       // ---- nothing overflows, nothing errored ----

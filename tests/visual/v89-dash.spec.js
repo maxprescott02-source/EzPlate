@@ -108,19 +108,21 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       const cur = await page.evaluate(() => window.currentMenuId);
       expect(cur).toBe('MENU_ORIGINAL');
 
-      // desktop: a new panel must not push the top-right column out of row 1. v90 replaced the
-      // highlight cards with the insights panel in that slot — same invariant, new occupant.
+      // desktop: v95 bento (SUPERSEDES the v90 "insights in row 1" pin, Max-approved) — the
+      // insights panel lives in the TERMINAL row beside By menu, where its 1–5 line variance
+      // can't open gaps or move other cards. Asserted unconditionally so the placement check
+      // can't pass vacuously if the panel stops rendering (CodeRabbit, v90 — still applies).
       if (width >= 1024) {
-        // asserted unconditionally: a null-guard here would let the whole placement check pass
-        // vacuously the day the panel stops rendering, which is exactly the regression it exists
-        // to catch. This seed always produces insights. (CodeRabbit, v90.)
         await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
         const tops = await page.evaluate(() => ({
-          panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect().top,
-          ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect().top
+          dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect(),
+          ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
+          cmp: document.querySelector('#dashBody .dash-compare').getBoundingClientRect()
         }));
-        expect(Math.abs(tops.ins - tops.panel), 'insights stay beside the chart, not below it')
-          .toBeLessThanOrEqual(24);
+        expect(tops.ins.top, 'insights sit below the whole Dig-in region').toBeGreaterThanOrEqual(tops.dig.bottom - 1);   // vs dig.BOTTOM — CodeRabbit, accepted
+        expect(Math.abs(tops.ins.top - tops.cmp.top), 'insights and By menu share the terminal row')
+          .toBeLessThanOrEqual(8);
+        expect(tops.cmp.left, 'By menu is the right-hand terminal tile').toBeGreaterThan(tops.ins.left);
       }
 
       // nothing overflows horizontally

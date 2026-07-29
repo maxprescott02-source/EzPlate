@@ -1891,12 +1891,14 @@ function dashComparisons(){
 function statCard(label, current, base){
   var cur=(current==null)?'\u2014':current.toFixed(1)+'%';
   var sub, nums='', cls='flat', arrow='\u2192';
-  if(current==null||base==null){ sub='not enough history yet'; }
+  // v94 polish: \u00a0 keeps each qualifier phrase in one piece, so a narrow column wraps to
+  // "N pts higher \u2014" / "costs creeping up" instead of orphaning the last word. Copy unchanged.
+  if(current==null||base==null){ sub='not enough history\u00a0yet'; }
   else { var d=current-base;                                   // food cost down = good
     nums='Today '+current.toFixed(1)+'% \u00b7 '+label+' avg '+base.toFixed(1)+'%';
-    if(Math.abs(d)<0.05){ sub='same \u2014 costs holding steady'; }
-    else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts lower \u2014 costs improving'; }
-    else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts higher \u2014 costs creeping up'; }
+    if(Math.abs(d)<0.05){ sub='same \u2014 costs\u00a0holding\u00a0steady'; }
+    else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts\u00a0lower \u2014 costs\u00a0improving'; }
+    else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts\u00a0higher \u2014 costs\u00a0creeping\u00a0up'; }
   }
   return '<span class="stat-bit"><span class="stat-h">vs '+esc(label.toLowerCase())+'</span> <b class="stat-arrow '+cls+'">'+arrow+'</b> <span class="stat-sub '+cls+'">'+esc(sub)+'</span></span>';
 }
@@ -2008,7 +2010,10 @@ function trendChart(){
      same glyph count for any 2-digit percent, so the measured gutter can't vary between
      ranges), labels vertically CENTRED on their value so the target tick sits exactly on the
      dashed rule (pinned by fresh-states.spec.js). */
-  var W=320,H=210,padR=10,padT=14,padB=20;
+  /* v94 density: H 210→104 — the approved mockup's chart is compact, with the line using most of
+     the vertical space. Only the viewBox HEIGHT changes: the x-gutter (padL/axGap), axis fonts,
+     tick/domain generation, target-line rule and scrub wiring are all untouched. */
+  var W=320,H=104,padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -2056,11 +2061,13 @@ function trendChart(){
     refLine='<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
   }
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
-  var showPts=pts.length<=32;                                    // v47: reading dots on sparse data only — a real reading must be tellable from interpolation, but 60 dots is noise
-  // the static drawing, duplicated into a bright and a dim group; scrubbing only moves the clip split
-  var drawing='<path d="'+area+'" fill="url(#tcdots)"/>'
-    +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    +(showPts?pts.map(function(p,i){ return '<circle class="tc-pt" cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="2.6" fill="'+stroke+'"/>'; }).join(''):'');
+  /* v94 polish (SUPERSEDES the v47 dotted texture, its v94 opacity tweak and the fade mask — do
+     not restore them): the area under the curve is a smooth translucent gradient of the semantic
+     line colour, and the per-point reading dots are GONE (Max's call — the scrub dot #tcDot is
+     the way to read a value). The static drawing is duplicated into a bright and a dim group;
+     scrubbing only moves the clip split. */
+  var drawing='<path d="'+area+'" fill="url(#tcarea)"/>'
+    +'<path d="'+d+'" fill="none" stroke="'+stroke+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   // v52: labels live INSIDE the gutter, right-aligned to plotLeft-8 so the digits sit flush as a
   // column whatever each label's width; the gutter is sized to the widest label (see padL above)
   // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
@@ -2069,7 +2076,11 @@ function trendChart(){
   var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
   var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
-    +'<pattern id="tcdots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.6" cy="1.6" r="1.1" fill="'+stroke+'" opacity="0.28"/></pattern>'   // dotted fill inherits the semantic colour + both themes via the CSS var
+    // v94 polish: the area gradient — semantic line colour at 18% under the curve, transparent at
+    // the plot floor. Anchored to the plot's Y extents (userSpaceOnUse) so it reads identically on
+    // every range and both themes; the colour is the same CSS var the stroke uses.
+    +'<linearGradient id="tcarea" x1="0" y1="'+padT+'" x2="0" y2="'+(H-padB)+'" gradientUnits="userSpaceOnUse">'
+    +'<stop offset="0" stop-color="'+stroke+'" stop-opacity="0.18"/><stop offset="1" stop-color="'+stroke+'" stop-opacity="0"/></linearGradient>'
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'
@@ -2086,7 +2097,7 @@ function trendChart(){
     // v89 COPY ONLY (no geometry touched): "across the menu" said the singular when the app has always
     // allowed several, and now that a scope selector sits above this line the ambiguity actively misleads
     // \u2014 it reads as though it describes the selected menu. The series is, and always was, every menu.
-    +'<p class="hint chart-hint">Average food cost across all menus \u2014 '+trendWord+'.</p></div>';   // v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
+    +'<p class="hint chart-hint">All menus \u00b7 '+trendWord+'.</p></div>';   // v94: one compact hint line (density brief), same meaning kept \u2014 the series covers every menu (v89 scope honesty) + the direction. v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
    Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
@@ -3023,6 +3034,26 @@ function dashScopeSelectorHtml(scope){
       }).join('')
     +'</select></div>';
 }
+/* v95: the By-menu sparkline from the approved mockup, drawn from that menu's OWN history
+   (menuHistory, recording since v89). Display-only: nothing is computed that isn't already in
+   the log, and a menu with fewer than two points gets NO sparkline rather than a fabricated
+   shape (the v89 scope-honesty rule applied to a 54px line). Colour is the semantic pair the
+   chart uses: cost falling = good. */
+function mcmpSparkHtml(id){
+  var h=(typeof menuHistory!=='undefined'&&menuHistory&&menuHistory[id])||[];
+  if(h.length<2) return '';
+  var pts=h.slice(-12), vs=pts.map(function(p){return p.v;});
+  var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
+  if(mx-mn<0.2){ var mid=(mn+mx)/2; mn=mid-0.1; mx=mid+0.1; }        // a flat series draws centred, not glued to an edge
+  var W=54,H=16,P=2;
+  var xy=pts.map(function(p,i){
+    return (P+(W-2*P)*(i/(pts.length-1))).toFixed(1)+','+(P+(H-2*P)*(1-(p.v-mn)/(mx-mn))).toFixed(1);
+  }).join(' ');
+  var d=vs[vs.length-1]-vs[0];
+  var cls=(d<-0.05)?'good':(d>0.05)?'bad':'flat';
+  return '<svg class="mcmp-spark '+cls+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" focusable="false">'
+    +'<polyline points="'+xy+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
 function menuCompareHtml(scope){
   var rows=menuComparisonRows();
   if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare
@@ -3032,10 +3063,12 @@ function menuCompareHtml(scope){
         return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(r.id)+'"'
           +(on?' aria-current="true"':'')+'>'
           +'<span class="mcmp-name">'+esc(r.name)+'</span>'
+          +mcmpSparkHtml(r.id)
           +'<span class="mcmp-pct">'+r.pct.toFixed(1)+'%</span></button></li>';
       }).join('')+'</ul>'
-    +'<p class="hint mcmp-note">Ranked by average food cost % — lower is better. EzPlate has no sales figures, '
-    +'so this compares cost efficiency, not what each menu earns.</p>'
+    // v94: one compact hint line (density brief). The standing honesty rule survives compression:
+    // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
+    +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
     +'</div></div>';
 }
 function renderDashboard(){
@@ -3057,15 +3090,23 @@ function renderDashboard(){
   var narrowed=(scope!==DASH_ALL);
   var chartTitle='Food cost trend'+(narrowed?' \u2014 all menus':'');
   var statLead='How today\u2019s '+(narrowed?'all-menus ':'')+'average compares';
+  /* v95 bento: the three fixed pieces of this card are wrapped in .dp-tile divs so desktop CSS
+     can place them as tiles on an inner grid (verdict | chart, compares under the verdict). The
+     DOM ORDER is the mobile reading order (verdict \u2192 chart \u2192 compares) and mobile styles give
+     the wrappers no chrome, so the phone stack is byte-identical in what it shows. TILE
+     COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
   var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'
+    +'<div class="dp-tile dp-verdict">'
     +verdictHtml(scope, cmp)
     +dashScopeSelectorHtml(scope)
+    +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
-    +(narrowed?'<p class="hint scope-note">A trend for one menu needs its own history \u2014 EzPlate started recording that from today, so this line still covers every menu.</p>':'')
+    +(narrowed?'<p class="hint scope-note">Per-menu history is still building \u2014 this line covers all menus.</p>':'')   // v94: compressed to one hint line (density brief); the honesty is unchanged \u2014 a menu's own trend can't be drawn yet
+    +'</div><div class="dp-tile dp-stats">'
     +'<div class="stat-attach"><div class="stat-lead">'+esc(statLead)+'</div>'
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
-    +'</div></div>';
+    +'</div></div></div>';
   // v90 ORDER (per the approved mockup): status → insights → by menu → dig in. On mobile that is the
   // reading order; on desktop CSS lifts the insights panel beside the chart, which sidesteps the
   // above-or-below question entirely. The grid rows stay EXPLICIT (v89's lesson — auto-placement pushed
@@ -3184,7 +3225,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v93';
+var APP_VERSION='v95';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

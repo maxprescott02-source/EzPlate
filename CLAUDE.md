@@ -346,13 +346,30 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `test/insight-family-coverage` is at **v93** (unmerged),
-  **stacked on `fix/insight-value-ranking` (v92), which is stacked on
-  `fix/insight-families` (v91)**. Merge order: **v91 → v92 → v93**.
-  `origin/main` is at **v90** (`d12d77f`, PR #29 merged 27 Jul 2026).
-  Six spots agree. Local `main` goes stale between sessions (Max merges via GitHub PR) —
+- **Version:** **v95** on `main` — PR #34 (`fix/dashboard-density`, the
+  v94 density + v95 bento batch) merged 29 Jul 2026 as one deploy. Before it,
+  `main` was v93 + the RLS migration (PRs #32/#33, 28 Jul 2026). Six spots
+  agree at v95.
+  Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
+- **v94 (presentation-only)** compressed the dashboard to the approved
+  mockup's density: scoped CSS under `#dashBody`, chart viewBox H 210→104,
+  hints compressed (pinned phrases kept), per-point chart dots removed and the
+  dotted fill replaced by a translucent gradient (deliberate reversal — do not
+  restore), dig-row touch pin relaxed 44→32px (display rows). See
+  `HANDOVER-v94.md`.
+- **v95 (desktop bento, Max-approved wireframe):** at ≥1024px the dashboard is
+  a 12-col grid where every FIXED-height region composes the upper rows and
+  BOTH variable-height tiles (insights 1–5, By menu) share the TERMINAL row —
+  the only arrangement where "no dead space at any content level" and "nothing
+  jumps on scope change" hold structurally. `renderDashboard` wraps the top
+  card's pieces in `.dp-tile` divs (mobile DOM order, chrome-free below
+  1024px — the phone stack is unchanged); By-menu rows regained the mockup's
+  **sparklines** (`mcmpSparkHtml`, from `menuHistory`, nothing drawn under 2
+  points); v90-dash's insights-beside-chart pin superseded. See
+  `HANDOVER-v95.md` for the jump sources found (scope-note line, verdict-line
+  wrap, compares-lead wrap, scrollbar toggle) and their structural fixes.
 - **Suite:** `npm test` = **485 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not
@@ -364,6 +381,9 @@ history belongs in `handovers/`, nowhere else.
   the static dev server 501s on POST. **They are also the safe way to drive
   real flows here** — throwaway profile, Supabase never contacted, nothing
   written — which matters while there is still no staging environment.
+  **Run the suite alone**: a concurrent browser session (another Playwright
+  run, a flow-tester agent) starves it into 15-min phantom timeouts that read
+  as failures.
 - **Supabase (verified against prod 28 Jul 2026, not assumed):** every table
   the app queries exists — `menu_items`, `price_history`, `ingredients`,
   `supplier_phrases`, `plates`, `menus`, `menu_price_history`, `app_settings` —
@@ -373,8 +393,10 @@ history belongs in `handovers/`, nowhere else.
   **⚠️ ONE REAL FAULT: `menu_price_history` has RLS enabled and NO policies, so
   every insert is rejected (42501) and the table holds 0 rows.** v90's migration
   created the table and index and never granted anything.
-  `supabase/migrations/20260728_menu_price_history_rls.sql` fixes it — **Max
-  must run it in the SQL editor.**
+  `supabase/migrations/20260728_menu_price_history_rls.sql` fixes it and is
+  now merged (PR #33) — but a merged FILE grants nothing: **whether Max has
+  actually run it in the SQL editor was NOT verified in the v94 batch.** Check
+  before relying on `menu_price_history` writes.
   **The support probe cannot see this**: `bootstrapSync` decides the feature is
   usable by checking `.error` on a `select`, and RLS-with-no-policy returns 200
   with zero rows and no error. So `menuPriceHistSupported` stays true and every
