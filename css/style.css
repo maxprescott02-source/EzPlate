@@ -2516,7 +2516,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .verdict-num{font-family:var(--mono);font-size:var(--fs-xl);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--text)}
 .verdict-num.good{color:var(--good)}
 .verdict-num.bad{color:var(--bad)}
-.verdict-cap{font-size:var(--fs-xs);color:var(--muted2)}
+/* v97: .verdict-cap is gone with the rule that styled it — the scope moved into the card heading
+   (.dh-scope, in the #dashBody density block below). A tombstone so the old name stays greppable. */
 .verdict-line{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);line-height:1.45;color:var(--text2)}
 .verdict-trend{font-weight:700}
 .verdict-trend.good{color:var(--good)}
@@ -2628,6 +2629,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 #dashBody{gap:var(--sp-2);padding-top:var(--sp-4)}   /* sp-4: other tabs' first panel lands 16px down on mobile (collapsed margin — measured, and pinned by layout-consistency) */
 #dashBody .panel{margin-top:0}
 #dashBody .panel h2{color:var(--muted2)}
+/* v97 — the ONE deliberate exception to the v94/v95 density pass. Scope is now stated once, in this
+   heading, so the heading carries metric + menu name together. The metric stays quiet like every other
+   dashboard heading; the MENU NAME does not, because it is the only heading content on this tab that
+   CHANGES, and a scope indicator quieter than the target line beneath it is exactly how someone reads a
+   specials figure as a whole-menu figure. Do not flatten both to muted for consistency. */
+#dashBody .dash-panel h2 .dh-scope{color:var(--text);font-weight:inherit}
 #dashBody .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}   /* left/right stay sp-5: one text edge with the h2 title (pinned) */
 #dashBody .chart-controls{margin-bottom:var(--sp-1)}
 #dashBody .chart-hint{margin-top:var(--sp-1);font-size:var(--fs-xs)}

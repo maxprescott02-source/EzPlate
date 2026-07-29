@@ -1086,17 +1086,36 @@ function dishesOverTarget(){                                         // dishes w
 }
 function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v}); }, 'price history'); }
 function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v, menu_id:menuId}); }, 'menu price history'); }
-/* v89: one aggregator, two callers. scope===DASH_ALL (or falsy) reproduces the all-menus figure
-   EXACTLY as computeAvgFoodCost always has; any other scope is a menu id and narrows to that menu's
-   dishes. The unfiltered path is byte-for-byte the old maths — the trend line, the stat cards and the
-   logged history all still mean what they meant before this batch. */
+/* v89: one aggregator, two callers. scope===DASH_ALL (or falsy) is the all-menus figure; any other
+   scope is a menu id and narrows to that menu's dishes.
+
+   ⚠️ v97 — THE UNIT IS A PUBLICATION, AND THAT IS A DECISION, NOT AN OVERSIGHT. ⚠️
+   This iterates MENU (dishes/menu_items), and since v55 ONE plate can back MANY dishes — one per menu it
+   is published to. So a plate on three menus contributes THREE terms to the all-menus mean. That looks
+   exactly like a double-counting bug, and v97 briefly "fixed" it to count distinct plates. DON'T. It was
+   reverted on purpose, by Max, on real data. Read this before touching it:
+
+   Counting per publication makes the all-menus figure a dish-count-WEIGHTED BLEND of the per-menu
+   figures, so it is arithmetically guaranteed to sit inside the range of the By-menu rows. Counting
+   distinct plates does not: a plate on two menus that is dearer than average loses its second copy, and
+   the headline drops BELOW every row. On Max's own data that is exactly what happened — All menus 21.4%
+   against rows of 21.6% and 21.7%, caused by one plate (Bacon & Egg Muffin, ~29.4%) on both menus. A
+   headline that contradicts every row underneath it costs more trust than the 0.19pt correction buys.
+
+   THE KNOWN COST, accepted with eyes open (Max, 29 Jul): publishing an existing plate to another menu
+   MOVES this number, though nothing got dearer. That is real and it is pinned by a test, so it can't be
+   mistaken for a regression. If you want to revisit it, the fix is not to change the maths quietly — it
+   is to make the By-menu list stop presenting the headline as comparable to the rows.
+
+   Deliberately NOT mean-of-menu-averages either: that weights a three-plate specials menu equally with a
+   forty-plate main menu, i.e. it measures how the menus have been SPLIT. */
 var DASH_ALL='all';
 function avgFoodCostForScope(scope){
   var vals=[];
   MENU.forEach(function(m){
     if(!(m.price>0)) return;
     if(scope && scope!==DASH_ALL && (m.menuId||'MENU_ORIGINAL')!==scope) return;
-    var sp=plateForMenuItem(m);
+    var sp=plateForMenuItem(m);                                        // the ONLY sanctioned resolution path (rule 6)
     if(!sp) return;
     var c=costFromLines(sp.lines);
     if(c>0) vals.push(c/m.price);
@@ -1106,10 +1125,22 @@ function avgFoodCostForScope(scope){
 }
 function computeAvgFoodCost(){ return avgFoodCostForScope(DASH_ALL); }
 /* v89: which menu the DASHBOARD is looking at. Deliberately NOT currentMenuId — that is the Menu tab's
-   own selection, it persists across reloads, and it seeds the menu insights (insightSeedFor). Re-scoping
-   a read-only dashboard must not silently re-point the tab where Max edits prices. Session-only, as briefed:
-   a module var, never written to localStorage, so a reload lands back on "All menus". */
-var dashScope=DASH_ALL;
+   own selection, and re-scoping a read-only dashboard must not silently re-point the tab where Max edits
+   prices. The two stay separate; only the storage KEY is new.
+
+   v97 — NOW PERSISTED. v96 merged the picker into the By-menu list, which made that list the dashboard's
+   only scope control; a reload then silently returned to All menus, and the app reloads itself on deploy,
+   so it fired without the user doing anything. This is the SAME mechanism the chart timeframe uses
+   (dashRange, above): localStorage only, same cafeDB_ namespace, read once here, written on selection.
+   Device-local by design — a view preference is not data, so no Supabase and no pushWrite; it must never
+   become a row that needs business-scoping when multi-tenant lands. The menu's ID is stored, never its
+   list position: the ranking moves whenever prices move.
+
+   VALIDATED AT RENDER, NOT HERE. dashScopeValid() already collapses a scope with no row to All menus,
+   silently, which is exactly the required fallback for a menu that has since been deleted. Checking here
+   instead would be wrong: menusList loads after this module var initialises, so a boot-time check would
+   discard every valid scope while sync is still in flight. */
+var dashScope=(function(){ try{ return localStorage.getItem('cafeDB_dashScope')||DASH_ALL; }catch(e){ return DASH_ALL; } })();
 function dashScopeValid(){
   if(dashScope===DASH_ALL) return DASH_ALL;
   // The invariant is v89's, unchanged: a narrowed scope exists if and only if the control that can
@@ -1123,7 +1154,8 @@ function dashScopeValid(){
   return rows.some(function(r){return r.id===dashScope;})?dashScope:DASH_ALL;
 }
 function dashScopeLabel(scope){ return (scope===DASH_ALL)?'across all menus':('on '+menuNameById(scope)); }
-function setDashScope(scope){ dashScope=scope||DASH_ALL; renderDashboard(); }   // session-only: never persisted, so a reload lands back on "All menus"
+// v97: write on SELECTION only — not on render, not on a scope-dependent recompute. Mirrors setDashRange.
+function setDashScope(scope){ dashScope=scope||DASH_ALL; try{ localStorage.setItem('cafeDB_dashScope',dashScope); }catch(e){} renderDashboard(); }
 /* v89: the By-menu list. Ranked by average food cost %, LOWEST first — lower food cost is the better
    result. Menus with nothing costed on them are excluded rather than shown as 0% or "—": a menu with no
    costed plates has no cost efficiency to rank, and an empty row invites a comparison that isn't there.
@@ -1878,8 +1910,17 @@ function avgOf(arr){ return arr.length? arr.reduce(function(a,b){return a+b;},0)
 function histInRange(fromTs, toTs){ return priceHistory.filter(function(h){ var t=new Date(h.t).getTime(); return t>=fromTs && t<toTs; }).map(function(h){return h.v;}); }
 function dashComparisons(){
   var now=new Date();
+  // v97 ROOT CAUSE of the reported stale headline (v96 handover, friction 2): this used to read
+  // `if(current==null && priceHistory.length) current=priceHistory[last].v` — when nothing is costed AND
+  // priced right now, computeAvgFoodCost correctly returns null and the old line substituted the last
+  // LOGGED point, i.e. a figure describing a state that no longer exists. It was never one region: cmp.current
+  // is the single value the headline AND all three stat cards read, so both went stale together, and the
+  // `ytd=current` fallback below then baselined the ghost against itself ("holding steady" vs nothing).
+  // Null now propagates: the headline falls to "—" plus verdictHtml's existing "Nothing costed and priced
+  // yet" copy (which this fallback had made unreachable at all-menus scope), and statCard falls to its
+  // existing "not enough history yet" path. The CHART is untouched and stays honest — priceHistory is a log
+  // of what WAS true, and drawing it is not a claim about now.
   var current=computeAvgFoodCost();
-  if(current==null && priceHistory.length) current=priceHistory[priceHistory.length-1].v;
   var startThisMonth=new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   var startLastMonth=new Date(now.getFullYear(), now.getMonth()-1, 1).getTime();
   var lastMonth=avgOf(histInRange(startLastMonth, startThisMonth));
@@ -3002,13 +3043,15 @@ function scopeTrend(scope, current){
   if(Math.abs(d)<0.05) return {cls:'flat', arrow:'→', word:'holding steady'};
   return (d<0)?{cls:'good', arrow:'↓', word:'improving'}:{cls:'bad', arrow:'↑', word:'creeping up'};
 }
+/* v97: .verdict-cap is GONE — the scope now lives in this card's heading (see renderDashboard), stated once.
+   dashScopeLabel itself stays: the Dig-in cards still subtitle themselves with it, and they are a separate
+   panel from the card that owns the number and the chart.
+   Also v97: cmp.current no longer falls back to the last logged history point, so `pct==null` — and the copy
+   below — is reachable again at all-menus scope. That branch had been dead since v89 for that reason. */
 function verdictHtml(scope, cmp){
-  // all-menus keeps cmp.current (which falls back to the last logged point when nothing is costed
-  // right now) so the headline figure is exactly the one this dashboard has always shown.
   var pct=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
-  var cap='<span class="verdict-cap">'+esc(dashScopeLabel(scope))+'</span>';
   if(pct==null){
-    return '<div class="verdict"><span class="verdict-num">—</span>'+cap+'</div>'
+    return '<div class="verdict"><span class="verdict-num">—</span></div>'
       +'<p class="verdict-line">Nothing costed and priced '+(scope===DASH_ALL?'yet':'on this menu yet')
       +' — put a costed plate on a menu with a sell price to start.</p>';
   }
@@ -3017,7 +3060,7 @@ function verdictHtml(scope, cmp){
     ? ('bang on your '+fmtTargetPct()+' target')
     : (Math.abs(d).toFixed(1)+' pts '+(d<0?'under':'over')+' your '+fmtTargetPct()+' target');
   var tr=scopeTrend(scope, pct);
-  return '<div class="verdict"><span class="verdict-num '+cls+'">'+pct.toFixed(1)+'%</span>'+cap+'</div>'
+  return '<div class="verdict"><span class="verdict-num '+cls+'">'+pct.toFixed(1)+'%</span></div>'
     +'<p class="verdict-line">'+esc(vs)
     +(tr?(' · <b class="verdict-trend '+tr.cls+'">'+tr.arrow+' '+esc(tr.word)+'</b>'):'')+'</p>';
 }
@@ -3066,6 +3109,10 @@ function mcmpSparkSeries(h){
    empty row invites a comparison that isn't there. They are no longer reachable as a scope. Nothing
    is lost that could be shown: scoping to one only ever produced the "Nothing costed and priced on
    this menu yet" headline. */
+/* v97: multiPublishedCount() lived here and drove a line explaining why All menus could sit outside the
+   rows' range. That explanation only applied to the short-lived distinct-plate maths, which never
+   shipped — with per-publication counting the headline is a weighted blend of the rows, so both the
+   helper and the line are gone. Tombstone so the name stays greppable. */
 function menuCompareHtml(scope){
   var rows=menuComparisonRows();
   if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare, and dashScopeValid collapses the scope to match
@@ -3104,14 +3151,28 @@ function renderDashboard(){
      So when a menu is selected the block says plainly that it is showing all menus. Stage 2 gives it the
      two-line chart once the history exists. */
   var narrowed=(scope!==DASH_ALL);
-  var chartTitle='Food cost trend'+(narrowed?' \u2014 all menus':'');
+  /* v97 SCOPE IS STATED ONCE, in this card's heading. It used to be stated three times \u2014 the highlighted
+     By-menu row, "on <menu>" beside the headline number, and "\u2014 ALL MENUS" on the chart title. That is the
+     picker-chip redundancy v96 removed, grown back in a different place, and the grid batch makes it worse
+     by merging the headline and the chart into one card. So: the chart title no longer restates scope (the
+     same selector governs it), and verdictHtml no longer emits .verdict-cap.
+     What STAYS is the scope-note below \u2014 not a restatement but a CORRECTION, the v89 honesty rule: with a
+     menu selected the line still covers all menus, and dropping that would make the heading lie about the
+     chart. Same for statLead's "all-menus". */
+  var chartTitle='Food cost trend';
   var statLead='How today\u2019s '+(narrowed?'all-menus ':'')+'average compares';
+  // The metric stays muted like every other dashboard heading; the MENU NAME does not. This is the one
+  // heading here whose content changes, and a scope indicator quieter than the target line beneath it is
+  // exactly how someone reads a specials figure as a whole-menu figure. Deliberate exception to v95.
+  var headScope=narrowed?menuNameById(scope):'All menus';
+  // The separator belongs to the muted half \u2014 only the NAME is full strength.
+  var heading='Average food cost \u2014 <span class="dh-scope">'+esc(headScope)+'</span>';
   /* v95 bento: the three fixed pieces of this card are wrapped in .dp-tile divs so desktop CSS
      can place them as tiles on an inner grid (verdict | chart, compares under the verdict). The
      DOM ORDER is the mobile reading order (verdict \u2192 chart \u2192 compares) and mobile styles give
      the wrappers no chrome, so the phone stack is byte-identical in what it shows. TILE
      COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
-  var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'
+  var html='<div class="panel dash-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
     +verdictHtml(scope, cmp)
     +'</div><div class="dp-tile dp-chart">'
@@ -3241,7 +3302,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v96';
+var APP_VERSION='v97';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
