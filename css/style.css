@@ -2659,6 +2659,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mcmp-spark{flex:0 0 auto;width:54px;height:16px;color:var(--muted2)}
 .mcmp-spark.good{color:var(--good)}
 .mcmp-spark.bad{color:var(--bad)}
+/* a classic scrollbar appearing/disappearing (content height crossing the viewport) narrows the
+   viewport a few px and reflows the page — on the dashboard it read as cards jumping on scope
+   change. Reserving the gutter kills the whole class, on every tab and at every width; it is
+   independent of the bento grid and survives any layout revert. Overlay-scrollbar platforms
+   (iOS, macOS default) are unaffected. */
+html{scrollbar-gutter:stable}
 
 /* ===== v95 — desktop bento: variable tiles last =============================================
    The v94 two-column split could not hold: the right column's height is INHERENTLY variable
@@ -2671,10 +2677,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    Markup: renderDashboard wraps the chart card's three pieces in .dp-tile divs (DOM = mobile
    reading order); everything else is placement of existing elements. Mobile (<1024px) unchanged. */
 @media(min-width:1024px){
-  /* a classic scrollbar appearing/disappearing (content height crossing the viewport) narrows
-     the viewport a few px and reflows every tile — reads as cards jumping on scope change.
-     Reserving the gutter kills the whole class; overlay-scrollbar platforms are unaffected. */
-  html{scrollbar-gutter:stable}
   #dashBody{padding-top:0;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:none;gap:var(--sp-2)}
   /* outer rows: [chart section | dig tiles | insights + by-menu]. The v89/v94 placements above
      are all overridden here — this section is the single owner of desktop dashboard placement. */
