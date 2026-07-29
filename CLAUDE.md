@@ -339,20 +339,32 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 28 Jul 2026 (verify, don't trust)
+## State as of 29 Jul 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v95** on `main` — PR #34 (`fix/dashboard-density`, the
-  v94 density + v95 bento batch) merged 29 Jul 2026 as one deploy. Before it,
-  `main` was v93 + the RLS migration (PRs #32/#33, 28 Jul 2026). Six spots
-  agree at v95.
+- **Version:** **v96** on branch `feature/by-menu-selection`, **not yet merged** —
+  `main` is still **v95** (PR #34, the v94 density + v95 bento batch, merged
+  29 Jul 2026). Six spots agree at v96 on the branch.
   Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
+- **v96 (dashboard scope = one control):** the menu picker chip
+  (`dashScopeSelectorHtml`) is **deleted**; the By-menu rows — already real
+  `<button>`s wired to `setDashScope` since v89 — are now the only thing that sets
+  the scope, with **"All menus" as a real first row** (it was always a real
+  selectable value, never an implicit fallback). `dashScopeValid` now guards on
+  `menuComparisonRows()` rather than `menusList.length`, because the control is
+  rendered per COSTED menu: v89's invariant (a narrowed scope exists iff the
+  control that undoes it is on screen) needed retying or a menu losing its last
+  costed plate would strand the scope. **Uncosted menus are no longer a reachable
+  scope** (Max's call) — they were picker options but never rows.
+  The scope still drives **headline + insights + drill-downs only**; the
+  comparison block and chart stay all-menus under the v89 scope-honesty rule.
+  See `HANDOVER-v96.md`.
 - **v94 (presentation-only)** compressed the dashboard to the approved
   mockup's density: scoped CSS under `#dashBody`, chart viewBox H 210→104,
   hints compressed (pinned phrases kept), per-point chart dots removed and the
@@ -370,13 +382,14 @@ history belongs in `handovers/`, nowhere else.
   points); v90-dash's insights-beside-chart pin superseded. See
   `HANDOVER-v95.md` for the jump sources found (scope-note line, verdict-line
   wrap, compares-lead wrap, scrollbar toggle) and their structural fixes.
-- **Suite:** `npm test` = **485 green**, jsdom smoke green (24 sections),
+- **Suite:** `npm test` = **489 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
-- **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not
+- **Playwright:** 77 tests in `tests/visual/`. The 45 pre-v89 ones are **not
   reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
-  "v45 item 4: button copy", fails on unmodified `main`). The 26 in
-  `v89-dash.spec.js`, `v90-dash.spec.js` and `v90-flows.spec.js` are green and
-  pin behaviour, not screenshots. All three block `/api/*` as well as
+  "v45 item 4: button copy", fails on unmodified `main`; re-confirmed
+  pre-existing by stashing v96 and re-running). The 32 in `v89-dash.spec.js`,
+  `v90-dash.spec.js`, `v90-flows.spec.js` and `v96-menu-select.spec.js` are
+  green and pin behaviour, not screenshots. All three block `/api/*` as well as
   off-origin: there are no serverless functions behind `playwright test`, and
   the static dev server 501s on POST. **They are also the safe way to drive
   real flows here** — throwaway profile, Supabase never contacted, nothing
@@ -467,8 +480,11 @@ history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v93** — twelve batches, none device-verified; their
-   "needs Max's phone" lists are the backlog. v87's iOS Safari scroll-lock
+1. **Phone sign-off on v82–v96** — fifteen batches, none device-verified; their
+   "needs Max's phone" lists are the backlog. v96's is short and specific: three
+   By-menu rows are now the dashboard's only scope control, so whether they feel
+   like separate hits — and whether "All menus" reads as a pressable row rather
+   than a header — are thumb questions no viewport can answer. v87's iOS Safari scroll-lock
    check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
    v90/v91's sharpest question isn't visual: **do the insights pass the "so what"
    test on Max's real menu?** Only he can answer that — and v91/v92 change what
@@ -482,15 +498,27 @@ history belongs in `handovers/`, nowhere else.
    drops writes silently offline (v40, still real), the swallowed
    `price_history` error, staging, dead code, structural fixes.
 4. **Reconcile the Playwright/visual suite** on the browser that now exists.
-5. **The menu-aware chart and By-menu sparklines** — still blocked on per-menu
-   history, which started accumulating at v89. Don't schedule until there are
-   points to draw.
+5. **The menu-aware chart and the per-menu comparison block** — still blocked on
+   per-menu history, which started accumulating at v89. Don't schedule until
+   there are points to draw. (By-menu sparklines shipped in v95; the All-menus
+   row's own sparkline, from `priceHistory`, shipped in v96.) The v96 brief
+   assumed this was already done and asked for a regression test on it — it is
+   not, and the test pins the honest behaviour instead.
 6. Optional: purchased-quantity capture for v55 §I — protected-region edit, so
    Max's explicit yes first.
 7. Small, each needing a yes: `priceHistory` still replaces wholesale on sync
    (the offline-drop gap the other two logs avoid); `.range-btn` is 32px, not
    44px (since v46); the stale v60 target-line comment in `trendChart`. See
-   `HANDOVER-v90.md`.
+   `HANDOVER-v90.md`. **v96 adds two:** the dashboard scope still does not
+   persist across a reload (inherited from the picker, deliberately unchanged —
+   but it is now the only scope control, so a reload silently returns to All
+   menus); and `verdictHtml`'s "Nothing costed and priced on this menu yet"
+   branch is now unreachable for a named menu. **Plus one pre-existing, surfaced
+   by v96's flow-tester pass:** with ZERO menus but existing history the headline
+   shows the last logged figure rather than "—", because `dashComparisons` falls
+   back to `priceHistory[last].v` (`js/app.js:1882`, v89). Arguably an honesty
+   question; changing it moves a headline number that has shipped for seven
+   versions, so it needs a yes.
 8. **Rules D and E probably belong ABOVE the "State as of" line** (they are
    durable engine laws, not snapshot facts) — recorded in the snapshot for now
    because moving them needs Max's yes. Same question for the three-logs rule.

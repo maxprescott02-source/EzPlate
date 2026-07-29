@@ -77,32 +77,44 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
       await expect(page.locator('.verdict-line')).toContainText('10.0 pts over your 30% target');
 
-      // the selector exists, defaults to All menus, and is the Menu tab's control
-      await expect(page.locator('#dashScopeSelect')).toHaveValue('all');
-      await expect(page.locator('.dash-scope')).toHaveClass(/menu-picker-row/);
+      // v96: the picker is gone — the By-menu list is the control, and "All menus" is its first row
+      await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
+      await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'all');
 
-      // the By-menu list is ranked best-first
+      // the By-menu list is ranked best-first, under the All-menus row (which is not ranked)
       const names = await page.locator('.mcmp-name').allTextContents();
       const pcts = await page.locator('.mcmp-pct').allTextContents();
-      expect(names).toEqual(['Original', 'Winter']);
-      expect(pcts).toEqual(['30.0%', '60.0%']);
+      expect(names).toEqual(['All menus', 'Original', 'Winter']);
+      expect(pcts).toEqual(['40.0%', '30.0%', '60.0%']);
 
       await page.screenshot({ path: `tests/visual/__shots__/v89-dash-all-${label}-${theme}.png`, fullPage: true });
 
-      // switching scope via the selector drives the header
-      await page.selectOption('#dashScopeSelect', 'MENU_WINTER');
+      // switching scope by tapping a row drives the header
+      await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
       await page.waitForTimeout(300);
       await expect(page.locator('.verdict-num')).toHaveText('60.0%');
       await expect(page.locator('.verdict-cap')).toHaveText('on Winter');
       await expect(page.locator('.chart-title')).toHaveText('Food cost trend — all menus');
       await expect(page.locator('.scope-note')).toBeVisible();
+      await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
       await page.screenshot({ path: `tests/visual/__shots__/v89-dash-winter-${label}-${theme}.png`, fullPage: true });
 
-      // tapping a By-menu row drives the header too, and the selector follows it
+      // and another row moves it again — exactly one row is ever marked
       await page.locator('.mcmp-row[data-scope="MENU_ORIGINAL"]').click();
       await page.waitForTimeout(300);
       await expect(page.locator('.verdict-num')).toHaveText('30.0%');
-      await expect(page.locator('#dashScopeSelect')).toHaveValue('MENU_ORIGINAL');
+      await expect(page.locator('.mcmp-row.act')).toHaveCount(1);
+      await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_ORIGINAL');
+
+      // v96: and back to All menus via its row — the state the picker's first option used to reach
+      await page.locator('.mcmp-row[data-scope="all"]').click();
+      await page.waitForTimeout(300);
+      await expect(page.locator('.verdict-num')).toHaveText('40.0%');
+      await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
+      await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
+      await expect(page.locator('.scope-note')).toHaveCount(0);
+      await page.locator('.mcmp-row[data-scope="MENU_ORIGINAL"]').click();
+      await page.waitForTimeout(300);
 
       // the Menu tab's own selection is UNTOUCHED by dashboard scoping
       const cur = await page.evaluate(() => window.currentMenuId);
@@ -136,20 +148,35 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
   }
 }
 
-test('every chart range still renders with the selector present @ 380px', async ({ page }) => {
+/* v96: range and scope are ORTHOGONAL, in both directions. The range bar and the By-menu list are two
+   controls over two independent module vars (dashRange, persisted; dashScope, session-only), and each
+   setter re-renders from the other's live value rather than resetting it. Pinned here because the two
+   controls now sit in the same card and a shared re-render is exactly where a reset would hide. */
+test('every chart range still renders with the list present, and the range never resets the scope @ 380px', async ({ page }) => {
   await boot(page, 380, 'light');
+  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
+  await page.waitForTimeout(300);
   for (const rg of ['1w', '1m', '3m', '6m', '1y', 'all']) {
     await page.locator(`.range-btn[data-rg="${rg}"]`).click();
     await page.waitForTimeout(200);
     await expect(page.locator('.dash-chart')).toBeVisible();
-    await expect(page.locator('#dashScopeSelect')).toBeVisible();
+    await expect(page.locator('.dash-compare')).toBeVisible();
+    // the selection survives every range change
+    await expect(page.locator('.mcmp-row.act'), `range ${rg} reset the scope`)
+      .toHaveAttribute('data-scope', 'MENU_WINTER');
+    await expect(page.locator('.verdict-cap')).toHaveText('on Winter');
     const of = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(of, `range ${rg} overflows`).toBeLessThanOrEqual(0);
   }
+  // …and the reverse: changing the scope leaves the range where the user put it
+  await expect(page.locator('.range-btn.act')).toHaveAttribute('data-rg', 'all');
+  await page.locator('.mcmp-row[data-scope="MENU_ORIGINAL"]').click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.range-btn.act')).toHaveAttribute('data-rg', 'all');
 });
 
-test('the selector is hidden when only one menu exists', async ({ page }) => {
+test('the whole scope control is absent when only one menu exists', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 900 });
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
   // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
@@ -204,8 +231,8 @@ const PLATES3 = [
 
 test('deleting the OTHER menu while scoped leaves no trapped scope', async ({ page }) => {
   await boot(page, 380, 'light');
-  // scope the dashboard to Winter, then delete Original from the Menu tab
-  await page.selectOption('#dashScopeSelect', 'MENU_WINTER');
+  // scope the dashboard to Winter via its row, then delete Original from the Menu tab
+  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
   await page.waitForTimeout(250);
   await expect(page.locator('.verdict-cap')).toHaveText('on Winter');
 
@@ -220,8 +247,8 @@ test('deleting the OTHER menu while scoped leaves no trapped scope', async ({ pa
 
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(400);
-  // one menu left -> the selector is gone, so the scope must have collapsed to all-menus with it
-  await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
+  // one menu left -> the list is gone, so the scope must have collapsed to all-menus with it
+  await expect(page.locator('.mcmp-row')).toHaveCount(0);
   await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
   await expect(page.locator('.dash-compare')).toHaveCount(0);
   // and the figure is the surviving menu's own, not a stale cached one
@@ -230,7 +257,7 @@ test('deleting the OTHER menu while scoped leaves no trapped scope', async ({ pa
 
 test('deleting the menu the dashboard is scoped TO recovers cleanly', async ({ page }) => {
   await boot(page, 380, 'light');
-  await page.selectOption('#dashScopeSelect', 'MENU_WINTER');
+  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
   await page.waitForTimeout(250);
 
   await page.locator('.navbtn[data-tab="analysis"]').click();
@@ -246,12 +273,12 @@ test('deleting the menu the dashboard is scoped TO recovers cleanly', async ({ p
   await page.waitForTimeout(400);
   await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
   await expect(page.locator('.verdict-num')).toHaveText('30.0%', { timeout: 3000 });   // only Original's dishes remain
-  await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
+  await expect(page.locator('.mcmp-row')).toHaveCount(0);
 });
 
 test('zero menus is a legitimate state, not a broken dashboard', async ({ page }) => {
   await bootWith(page, [], [], PLATES3);
-  await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
+  await expect(page.locator('.mcmp-row')).toHaveCount(0);
   await expect(page.locator('.dash-compare')).toHaveCount(0);
   await expect(page.locator('.verdict-num')).toHaveText('—');
   await expect(page.locator('.verdict-line')).toContainText('Nothing costed and priced yet');
@@ -276,7 +303,11 @@ test('a menu with prices but no costed plates shows the empty verdict, not 0%', 
   await expect(page.locator('.verdict-num')).toHaveText('—');
 });
 
-test('an uncosted menu is excluded from By-menu rather than ranked at 0%', async ({ page }) => {
+/* v96 CHANGES THIS ONE, deliberately (Max, 29 Jul). An uncosted menu was never a By-menu ROW, but it
+   WAS a picker option — so it used to be a reachable scope showing "Nothing costed on this menu yet".
+   With the picker gone it is unreachable, and nothing is lost that could be shown: a menu with no
+   costed plate has no cost efficiency to display. The exclusion rule itself is unchanged. */
+test('an uncosted menu is excluded from By-menu, and is no longer a reachable scope', async ({ page }) => {
   await bootWith(page,
     [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MENU_WINTER', name: 'Winter' }],
     [
@@ -284,12 +315,30 @@ test('an uncosted menu is excluded from By-menu rather than ranked at 0%', async
       { id: 'MI2', name: 'Roast', section: 'Dinner', price: 0, custom: true, menuId: 'MENU_WINTER', plateId: 'PL3' }
     ],
     PLATES3);
-  // two menus -> the selector shows; only one is costed -> no comparison list at all
-  await expect(page.locator('#dashScopeSelect')).toHaveCount(1);
+  // one costed menu -> no list, and therefore no control: the dashboard stays at all-menus
   await expect(page.locator('.dash-compare')).toHaveCount(0);
-  // and scoping to the uncosted menu is honest about it
-  await page.selectOption('#dashScopeSelect', 'MENU_WINTER');
-  await page.waitForTimeout(250);
-  await expect(page.locator('.verdict-num')).toHaveText('—');
-  await expect(page.locator('.verdict-line')).toContainText('on this menu yet');
+  await expect(page.locator('.mcmp-row')).toHaveCount(0);
+  await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
+  await expect(page.locator('.verdict-num')).toHaveText('30.0%');   // Toastie: 3/10
+});
+
+/* The other half of the same decision: with BOTH menus costed the uncosted-menu case disappears and
+   every menu present is reachable, so the narrowing never strands the user. */
+test('v96: every menu with a row is reachable, and the All-menus row returns from any of them', async ({ page }) => {
+  await bootWith(page,
+    [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MENU_WINTER', name: 'Winter' }],
+    [
+      { id: 'MI1', name: 'Toastie', section: 'Lunch', price: 10, custom: true, menuId: 'MENU_ORIGINAL', plateId: 'PL1' },
+      { id: 'MI2', name: 'Roast', section: 'Dinner', price: 10, custom: true, menuId: 'MENU_WINTER', plateId: 'PL3' }
+    ],
+    PLATES3);
+  await expect(page.locator('.mcmp-row')).toHaveCount(3);           // All menus + both
+  for (const id of ['MENU_ORIGINAL', 'MENU_WINTER']) {
+    await page.locator(`.mcmp-row[data-scope="${id}"]`).click();
+    await page.waitForTimeout(250);
+    await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', id);
+    await page.locator('.mcmp-row[data-scope="all"]').click();
+    await page.waitForTimeout(250);
+    await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
+  }
 });
