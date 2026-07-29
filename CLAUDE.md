@@ -448,10 +448,22 @@ history belongs in `handovers/`, nowhere else.
   write fails behind a toast. A probe that tests EXISTENCE does not test
   USABILITY — remember this for any future schema-can-lag guard
   ([[supabase-schema-can-lag-app-code]]).
-  Also verified: `price_history` accepts inserts, and its newest point is
-  **25 Jul** — i.e. no data-changing event has been logged since before v89/v90
-  shipped, which is why the per-menu series (`price_history.menu_id`) is also
-  empty. That one is NOT broken, just unexercised.
+  **Re-verified against prod 30 Jul 2026 (v97):** `price_history` holds **32
+  rows, newest still 25 Jul** — two days BEFORE v89 shipped (27 Jul). So
+  `logHistory()` has not run in production for five days, and since it is what
+  calls `logMenuHistory()` and `logAllMenuPrices()`, NONE of the three logs has
+  gained a point since v89/v90 shipped: `price_history.menu_id` is null on all
+  32 rows (**0 per-menu points**) and `menu_price_history` holds **0 rows**.
+  **⚠️ That means the 0 rows in `menu_price_history` is NOT evidence about the
+  RLS fault above** — the table would be empty either way, because its writer
+  has never fired in production. Whether the RLS migration has been applied is
+  still UNKNOWN and cannot be determined through the anon key: RLS-with-no-policy
+  and never-written are indistinguishable over PostgREST. The only definitive
+  check is in the SQL editor:
+  `select policyname, cmd from pg_policies where schemaname='public' and
+  tablename='menu_price_history';` — two rows = applied, none = not.
+  (Do NOT test by inserting: the migration grants select and insert but
+  deliberately no DELETE, so a sentinel row could not be cleaned up.)
   **v91–v93 add no migrations.**
 - **THREE history series, deliberately separate — don't merge them:**
   `priceHistory` is the all-menus average food cost ONLY (`dashComparisons`/
@@ -534,8 +546,13 @@ history belongs in `handovers/`, nowhere else.
    `price_history` error, staging, dead code, structural fixes.
 4. **Reconcile the Playwright/visual suite** on the browser that now exists.
 5. **The menu-aware chart and the per-menu comparison block** — still blocked on
-   per-menu history, which started accumulating at v89. Don't schedule until
-   there are points to draw. (By-menu sparklines shipped in v95; the All-menus
+   per-menu history, which **has NOT started accumulating**, contrary to what
+   this file said until v97. Verified against prod 30 Jul: `price_history.menu_id`
+   is null on all 32 rows — **zero per-menu points, three days after v89**. The
+   series is not slow, it is empty, because `logHistory()` has not fired since
+   25 Jul. It will not start until Max next edits a price, applies an invoice or
+   saves a plate. Don't schedule until there are points to draw — and check the
+   count first rather than assuming time has passed. (By-menu sparklines shipped in v95; the All-menus
    row's own sparkline, from `priceHistory`, shipped in v96.) The v96 brief
    assumed this was already done and asked for a regression test on it — it is
    not, and the test pins the honest behaviour instead.
