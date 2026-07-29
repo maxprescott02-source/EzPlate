@@ -2542,9 +2542,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mcmp-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm)}
 .mcmp-pct{flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
 .mcmp-note{margin:var(--sp-3) 0 0;color:var(--muted2)}
-/* v97: the multi-published note is a second .mcmp-note when it appears. It belongs to the line above it,
-   not to a new zone, so it sits tight rather than repeating the block's top margin. */
-.mcmp-note + .mcmp-note{margin-top:var(--sp-1)}
 @media (prefers-reduced-motion:reduce){ .mcmp-row:active{transform:none} }
 
 /* Desktop: the dashboard is a two-column grid (.dash-panel | .dash-ins). By menu and Dig in join

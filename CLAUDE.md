@@ -352,32 +352,29 @@ history belongs in `handovers/`, nowhere else.
   Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
-- **v97 (scope persistence + the all-menus figure + one scope statement):**
+- **v97 (scope persists · scope stated once · headline stops going stale):**
   `dashScope` now persists via `cafeDB_dashScope`, mirroring `dashRange`
   exactly (localStorage only, written on selection, no Supabase — a view
   preference must never become a business-scoped row). It is **validated at
   render, not at read**: `menusList` loads after the module var initialises, so
   a boot-time check would discard a valid scope mid-sync; `dashScopeValid()`
   does the silent deleted-menu fallback it already did.
-  **`avgFoodCostForScope` now counts DISTINCT PLATES, not publications.** It
-  iterates `MENU`, and since v55 one plate backs one dish per menu it is
-  published to — so every publication was its own term and republishing a plate
-  moved the café's headline number with no cost event at all. Each plate's
-  publications now collapse to that plate's own mean first. **Narrowed scopes
-  are arithmetically unchanged** (a plate is at most once on a menu) and one
-  grouping path serves both so they can't drift. It was NOT
-  mean-of-menu-averages, the case usually assumed. **`priceHistory` holds
-  old-basis points that can't be recomputed — expect one step in the trend line
-  and cross-basis stat-card windows for up to a year. Max's call, taken
-  explicitly.**
-  **⚠️ All menus is NOT a blend of the By-menu rows and is NOT bounded by them.**
-  The rows average the DISHES on one menu; All menus averages distinct PLATES.
-  A plate on two menus that is dearer than average counts once, so the headline
-  can sit BELOW every row (verified on Max's real data pre-merge: 21.4% vs rows
-  at 21.6%/21.7%, caused by one plate on both menus at ~29.4%). Under v96 the
-  headline always was a dish-count-weighted blend, so this property was lost
-  silently. `multiPublishedCount()` drives a conditional line in the By-menu
-  list that says so, shown only when a plate really is published twice.
+  **⚠️ `avgFoodCostForScope` counts PER PUBLICATION, and that is a DECISION.**
+  It iterates `MENU`, and since v55 one plate backs one dish per menu it is
+  published to — so a plate on three menus contributes three terms. This looks
+  exactly like a double-counting bug; v97 changed it to count distinct plates
+  and **Max reverted it on real data before merge.** Counting per publication
+  makes the headline a dish-count-WEIGHTED BLEND of the per-menu figures, so it
+  stays inside the range of the By-menu rows — provided every counted dish has
+  a row (a dish whose `menuId` is not in `menusList` is the known exception,
+  latent today). Distinct plates broke
+  that: on Max's data one plate on both menus at ~29.4% lost its second copy and
+  the headline fell to 21.4% against rows of 21.6%/21.7%. A headline that
+  contradicts every row under it costs more trust than the 0.19pt correction
+  buys. **Known, accepted cost: republishing a plate moves the number.** All
+  three properties are pinned in `dash-persist.test.js`, the invariant swept over
+  four shapes. **If revisited, the fix is a DESIGN one** — stop presenting All
+  menus as comparable to the rows — not a quiet change to the maths.
   Scope is now stated ONCE, in the card heading (`.dh-scope`,
   menu name full-strength as a deliberate exception to the v94/v95 density
   pass); `.verdict-cap` is deleted and the chart title no longer appends
@@ -412,7 +409,7 @@ history belongs in `handovers/`, nowhere else.
   points); v90-dash's insights-beside-chart pin superseded. See
   `HANDOVER-v95.md` for the jump sources found (scope-note line, verdict-line
   wrap, compares-lead wrap, scrollbar toggle) and their structural fixes.
-- **Suite:** `npm test` = **510 green**, jsdom smoke green (24 sections),
+- **Suite:** `npm test` = **509 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 79 tests in `tests/visual/`. The 45 pre-v89 ones are **not
   reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
@@ -522,9 +519,7 @@ history belongs in `handovers/`, nowhere else.
    than a header — are thumb questions no viewport can answer; v97 adds whether
    the new `Average food cost — Winter` heading reads as one thing in kitchen
    light, and whether a reload landing on a narrowed dashboard reads as correct
-   or as the app having lost the overview. **v97 also moves the headline number**
-   on any café with a plate published to more than one menu — worth Max's eyes
-   against his own sense of the figure. v87's iOS Safari scroll-lock
+   or as the app having lost the overview. v87's iOS Safari scroll-lock
    check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
    v90/v91's sharpest question isn't visual: **do the insights pass the "so what"
    test on Max's real menu?** Only he can answer that — and v91/v92 change what
@@ -557,7 +552,11 @@ history belongs in `handovers/`, nowhere else.
    ("All menus · …") and `.scope-note` now both say "all menus" under the chart
    when narrowed. One fewer restatement than v96 had, so nothing regressed —
    but that pair is the redundancy worth a look. Chart copy, so it wants its
-   own brief rather than a fix on sight.
+   own brief rather than a fix on sight. **Plus one surfaced by v97 and left
+   unfixed:** `avgFoodCostForScope` counts dishes whose `menuId` is not in
+   `menusList` (no By-menu row), which would break the all-menus-within-the-rows
+   invariant. Max has zero such dishes today — verified in his own console —
+   so it is latent, not live.
 8. **Rules D and E probably belong ABOVE the "State as of" line** (they are
    durable engine laws, not snapshot facts) — recorded in the snapshot for now
    because moving them needs Max's yes. Same question for the three-logs rule.

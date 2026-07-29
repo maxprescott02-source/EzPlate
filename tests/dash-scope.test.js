@@ -56,7 +56,6 @@ function withState(MENU, menusList, cogsPct) {
     var priceHistory = [];  // v96: and the All-menus row's spark reads this one. Also empty, same reason.
     ${extractFn(SRC, 'mcmpSparkHtml')}
     ${extractFn(SRC, 'mcmpSparkSeries')}
-    ${extractFn(SRC, 'multiPublishedCount')}
     ${extractFn(SRC, 'menuCompareHtml')}
     ${extractFn(SRC, 'dashScopeValid')}
     var DASH_ALL='all';

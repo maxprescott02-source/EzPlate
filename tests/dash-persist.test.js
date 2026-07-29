@@ -1,5 +1,5 @@
 /*
- * dash-persist.test.js — v97: dashboard scope persistence, the distinct-plate all-menus figure,
+ * dash-persist.test.js — v97: dashboard scope persistence, the all-menus figure's definition,
  * and the stale-headline regression.
  *
  * The contracts this pins:
@@ -11,9 +11,13 @@
  *      direction. They are orthogonal and share only a storage namespace.
  *   4. The All-menus row shows the same figure the chart's all-menus line is built from, to the
  *      displayed precision. Two different all-menus numbers on one screen is worse than no number.
- *   5. A plate published to several menus is counted ONCE in that figure (v97). Since v55 one plate
- *      backs one dish per menu it is published to, and counting per publication measured how the
- *      menus had been split rather than anything about food cost.
+ *   5. ⚠️ A plate published to several menus counts ONCE PER PUBLICATION, and that is a DECISION.
+ *      It buys the invariant that matters more: All menus is a dish-count-weighted blend of the
+ *      per-menu figures, so it cannot sit outside the range of the By-menu rows (given every counted
+ *      dish has a row — an orphaned menuId is the known exception). v97 briefly
+ *      counted distinct plates instead; on Max's real data that put the headline at 21.4% against
+ *      rows of 21.6% and 21.7% (one plate at ~29.4% on both menus), and he reverted it. The known
+ *      cost — republishing a plate moves the headline — is pinned too, so it reads as a choice.
  *   6. The headline cannot go stale: when nothing is costed and priced, the figure is "—", not the
  *      last logged history point. Pinned for the headline AND the stat cards, because both read the
  *      one value — a symptom fixed in one place would mean the root cause was never found.
@@ -105,10 +109,9 @@ function boot(store, MENU, menusList) {
   return app;
 }
 
-/* Food-cost percentages are floating-point means, and v97 makes them a mean OF means — one more
-   rounding step than v96 had. Compare to the cent, not to the bit, exactly as dash-scope.test.js does.
-   Nothing downstream sees those bits: logHistory rounds to 1dp before logging and every display path
-   is toFixed(1). */
+/* Food-cost percentages are floating-point means. Compare to the cent, not to the bit, exactly as
+   dash-scope.test.js does. Nothing downstream sees those bits: logHistory rounds to 1dp before logging
+   and every display path is toFixed(1). */
 function near(actual, expected, msg) {
   assert.ok(actual != null && Math.abs(actual - expected) < 1e-9,
     (msg || 'value') + ': expected ~' + expected + ', got ' + actual);
@@ -243,7 +246,6 @@ function withRows(MENU, menusList) {
     ${extractFn(SRC, 'menuComparisonRows')}
     ${extractFn(SRC, 'mcmpSparkHtml')}
     ${extractFn(SRC, 'mcmpSparkSeries')}
-    ${extractFn(SRC, 'multiPublishedCount')}
     ${extractFn(SRC, 'menuCompareHtml')}
     return {
       computeAvgFoodCost: computeAvgFoodCost,
@@ -269,153 +271,91 @@ test('v97: the All-menus row shows the same figure the chart’s all-menus line 
     'one all-menus number on the screen, to the displayed precision');
 });
 
-test('v97: a plate published to two menus is counted ONCE in the all-menus figure', () => {
-  // PL1 is published to BOTH menus at the same price; PL2 sits on Original alone.
+test('v97: a plate on two menus counts ONCE PER PUBLICATION — deliberate, not an oversight', () => {
+  /* This looks exactly like a double-counting bug and it is NOT. v97 briefly changed it to count
+     distinct plates, which is arguably the truer statement about food cost — and Max reverted it on
+     real data, because it broke something worth more (see the invariant test below). Anyone "fixing"
+     this will make the headline contradict every By-menu row again. Read js/app.js at
+     avgFoodCostForScope before touching it. */
   const MENU = [
     dish('MENU_ORIGINAL', 2, 10, 'PL1'),   // 20%
     dish('MENU_WINTER', 2, 10, 'PL1'),     // 20% — the SAME plate, second publication
     dish('MENU_ORIGINAL', 5, 10, 'PL2')    // 50%
   ];
   const app = withRows(MENU, MENUS);
-  assert.strictEqual(app.computeAvgFoodCost(), 35,
-    'two distinct plates at 20% and 50% average 35% — not 30%, which counts PL1 twice');
-  assert.strictEqual(allMenusRowPct(app.menuCompareHtml('all')), '35.0%', 'and the row agrees');
+  near(app.computeAvgFoodCost(), 30, 'three publications: (20+20+50)/3 — NOT 35, which counts PL1 once');
+  assert.strictEqual(allMenusRowPct(app.menuCompareHtml('all')), '30.0%', 'and the row agrees');
 });
 
-test('v97: publishing an existing plate to another menu does not move the all-menus figure', () => {
-  // The sharpest statement of the bug: republishing changes nothing about cost, so the headline
-  // must not move. Under the old per-publication mean it moved every time.
+test('v97 INVARIANT: All menus always sits within the range of the By-menu rows', () => {
+  /* THIS is what per-publication counting buys, and why Max chose it (29 Jul, on his own data: the
+     distinct-plate figure read 21.4% against rows of 21.6% and 21.7%, because one plate at ~29.4% sat
+     on both menus and lost its second copy). Counting per publication makes the headline a
+     dish-count-WEIGHTED BLEND of the per-menu figures, so it cannot fall outside them — PROVIDED every
+     counted dish has a row, i.e. its menuId is in menusList. A dish on a menu that no longer exists is
+     the one exception; Max has none today, and it is recorded as a follow-up rather than fixed here. A headline that contradicts every row underneath it costs more trust than the
+     0.19pt correction bought. Hold this invariant or the trade was for nothing. */
+  const shapes = [
+    // the real-data shape: one DEAR plate shared across both menus
+    [dish('MENU_ORIGINAL', 4, 10, 'PL_SHARED'), dish('MENU_WINTER', 4, 10, 'PL_SHARED'),
+     dish('MENU_ORIGINAL', 1, 10, 'PL_O'), dish('MENU_WINTER', 1, 10, 'PL_S')],
+    // a CHEAP plate shared across both menus — the mirror case
+    [dish('MENU_ORIGINAL', 1, 10, 'PL_SHARED'), dish('MENU_WINTER', 1, 10, 'PL_SHARED'),
+     dish('MENU_ORIGINAL', 4, 10, 'PL_O'), dish('MENU_WINTER', 4, 10, 'PL_S')],
+    // lopsided menus: many plates on one, few on the other
+    [dish('MENU_ORIGINAL', 1, 10, 'A'), dish('MENU_ORIGINAL', 2, 10, 'B'),
+     dish('MENU_ORIGINAL', 3, 10, 'C'), dish('MENU_WINTER', 9, 10, 'D')],
+    // same plate at DIFFERENT sell prices on each menu
+    [dish('MENU_ORIGINAL', 2, 10, 'PL1'), dish('MENU_WINTER', 2, 5, 'PL1'),
+     dish('MENU_ORIGINAL', 5, 10, 'PL2')]
+  ];
+  shapes.forEach((MENU, i) => {
+    const app = withRows(MENU, MENUS);
+    const all = app.computeAvgFoodCost();
+    const pcts = app.menuComparisonRows().map(r => r.pct);
+    const lo = Math.min.apply(null, pcts), hi = Math.max.apply(null, pcts);
+    assert.ok(all >= lo - 1e-9 && all <= hi + 1e-9,
+      `shape ${i}: All menus ${all.toFixed(2)}% escaped the rows' range ${lo.toFixed(2)}–${hi.toFixed(2)}%`);
+  });
+});
+
+test('v97 KNOWN COST: publishing an existing plate to another menu DOES move the figure', () => {
+  /* The accepted price of the invariant above (Max, 29 Jul, eyes open). Republishing changes nothing
+     about what anything costs, yet the headline moves. Pinned so it reads as a decision rather than a
+     regression the next time someone notices it. */
   const base = [dish('MENU_ORIGINAL', 2, 10, 'PL1'), dish('MENU_ORIGINAL', 5, 10, 'PL2')];
   const before = withRows(base, MENUS).computeAvgFoodCost();
   const after = withRows(base.concat([dish('MENU_WINTER', 2, 10, 'PL1')]), MENUS).computeAvgFoodCost();
-  assert.strictEqual(after, before, 'republishing PL1 is not a food-cost event');
+  near(before, 35, '(20+50)/2');
+  near(after, 30, '(20+50+20)/3 — the second publication is a third term');
+  assert.notStrictEqual(after, before, 'it moves, and that is the known, accepted cost');
 });
 
-test('v97: a plate on two menus at DIFFERENT prices contributes its own mean, once', () => {
-  const MENU = [
-    dish('MENU_ORIGINAL', 2, 10, 'PL1'),   // 20%
-    dish('MENU_WINTER', 2, 5, 'PL1'),      // 40% — same plate, cheaper menu price
-    dish('MENU_ORIGINAL', 5, 10, 'PL2')    // 50%
-  ];
-  const app = withRows(MENU, MENUS);
-  assert.strictEqual(app.computeAvgFoodCost(), 40,
-    'PL1 counts once at (20+40)/2 = 30, so the figure is (30+50)/2 = 40');
-});
-
-test('v97: per-menu figures are unchanged — a plate appears at most once on a menu', () => {
+test('v97: per-menu figures are a plain mean of that menu\'s dishes', () => {
   const MENU = [
     dish('MENU_ORIGINAL', 2, 10, 'PL1'),
     dish('MENU_WINTER', 2, 10, 'PL1'),
     dish('MENU_ORIGINAL', 5, 10, 'PL2')
   ];
   const app = withRows(MENU, MENUS);
-  assert.strictEqual(app.avgFoodCostForScope('MENU_ORIGINAL'), 35, 'Original: (20+50)/2');
-  assert.strictEqual(app.avgFoodCostForScope('MENU_WINTER'), 20, 'Winter: the one dish on it');
-  // The grouping is one code path for both scopes precisely so these can never drift apart again.
+  near(app.avgFoodCostForScope('MENU_ORIGINAL'), 35, 'Original: (20+50)/2');
+  near(app.avgFoodCostForScope('MENU_WINTER'), 20, 'Winter: the one dish on it');
 });
 
-test('v97: the figure is NOT mean-of-menu-averages — splitting menus must not move it', () => {
-  // A three-plate specials menu weighted equally with a forty-plate main menu measures the split,
-  // not the food cost. Two plates on one menu vs the same two plates on two menus: same figure.
-  const together = [dish('MENU_ORIGINAL', 2, 10, 'PL1'), dish('MENU_ORIGINAL', 6, 10, 'PL2')];
-  const split = [dish('MENU_ORIGINAL', 2, 10, 'PL1'), dish('MENU_WINTER', 6, 10, 'PL2')];
-  assert.strictEqual(withRows(together, MENUS).computeAvgFoodCost(), 40, '(20+60)/2');
-  assert.strictEqual(withRows(split, MENUS).computeAvgFoodCost(), 40, 'and reorganising the menus changes nothing');
-});
-
-test('v97: an unidentifiable plate stands alone rather than merging with every other one', () => {
-  // Defensive: no id means we cannot PROVE two dishes share a plate, and collapsing them would
-  // silently erase real plates from the average.
+test('v97: the figure is NOT mean-of-menu-averages — a three-plate menu must not outweigh a forty-plate one', () => {
+  // The one aggregation the brief ruled out and this batch never adopted: weighting menus equally
+  // measures how the menus have been SPLIT, not the food cost.
   const MENU = [
-    dish('MENU_ORIGINAL', 2, 10, undefined),
-    dish('MENU_ORIGINAL', 6, 10, undefined),
-    dish('MENU_WINTER', 3, 10, undefined)
-  ];
-  near(withRows(MENU, MENUS).computeAvgFoodCost(), (20 + 60 + 30) / 3,
-    'three unidentified plates are three terms, not one');
-});
-
-/* ============================================================ 3b — owning the definition
-
-   Found on Max's real data, 29 Jul: All menus read 21.4% while both menu rows read 21.6% / 21.7%, and
-   it looked like a broken figure. It was not — one plate (Bacon & Egg Muffin, ~29.4%, dearer than
-   average) sits on both menus, and counting it once instead of twice drops the whole average below every
-   row. The rows average the DISHES on one menu; All menus averages distinct PLATES. Different
-   populations, so All menus is not a blend of the rows and is not bounded by them.
-   The number was right and the screen was silent about it. These pin the explanation. */
-
-test('v97: All menus CAN legitimately sit below every menu row', () => {
-  // The shape from real data, reduced: one dear plate on both menus, cheaper plates either side.
-  const MENU = [
-    dish('MENU_ORIGINAL', 4, 10, 'PL_SHARED'),   // 40% — the dear plate…
-    dish('MENU_WINTER', 4, 10, 'PL_SHARED'),     // 40% — …on both menus
-    dish('MENU_ORIGINAL', 1, 10, 'PL_O'),        // 10%
-    dish('MENU_WINTER', 1, 10, 'PL_S')           // 10%
+    dish('MENU_ORIGINAL', 1, 10, 'A'), dish('MENU_ORIGINAL', 1, 10, 'B'),
+    dish('MENU_ORIGINAL', 1, 10, 'C'), dish('MENU_WINTER', 9, 10, 'D')
   ];
   const app = withRows(MENU, MENUS);
-  const rows = app.menuComparisonRows();
-  const all = app.computeAvgFoodCost();
-  rows.forEach(r => near(r.pct, 25, r.name));
-  near(all, 20, 'all-menus');
-  assert.ok(rows.every(r => all < r.pct),
-    'this is arithmetic, not a bug — dropping the dear plate’s second copy pulls the mean below both rows');
+  near(app.computeAvgFoodCost(), (10 + 10 + 10 + 90) / 4, 'every dish is one term');
+  const rows = app.menuComparisonRows().map(r => r.pct);
+  assert.notStrictEqual(app.computeAvgFoodCost(), (rows[0] + rows[1]) / 2,
+    'and that is NOT the mean of the two menu averages');
 });
 
-test('v97: when a plate is on two menus, the list says so', () => {
-  const MENU = [
-    dish('MENU_ORIGINAL', 2, 10, 'PL1'),
-    dish('MENU_WINTER', 2, 10, 'PL1'),           // same plate, second menu
-    dish('MENU_ORIGINAL', 5, 10, 'PL2')
-  ];
-  const html = withRows(MENU, MENUS).menuCompareHtml('all');
-  assert.match(html, /One plate is on more than one menu/, 'named in the singular when there is one');
-  assert.match(html, /counts it once, so it can sit outside the range above/,
-    'and it explains the consequence, not just the mechanism');
-});
-
-test('v97: the note is plural and counted when several plates are shared', () => {
-  const MENU = [
-    dish('MENU_ORIGINAL', 2, 10, 'PL1'), dish('MENU_WINTER', 2, 10, 'PL1'),
-    dish('MENU_ORIGINAL', 3, 10, 'PL2'), dish('MENU_WINTER', 3, 10, 'PL2'),
-    dish('MENU_ORIGINAL', 5, 10, 'PL3')
-  ];
-  const html = withRows(MENU, MENUS).menuCompareHtml('all');
-  assert.match(html, /2 plates are on more than one menu/);
-  assert.match(html, /counts each once/);
-});
-
-test('v97: the note is ABSENT when nothing is published twice — no note without the shape', () => {
-  // With no shared plate the figure IS inside the rows' range, so the line would be pure noise.
-  const html = withRows(TWO_COSTED(), MENUS).menuCompareHtml('all');
-  assert.doesNotMatch(html, /more than one menu/, 'conditional, not decorative');
-  assert.match(html, /Ranked by average food cost %/, 'and the standing hint is untouched');
-});
-
-test('v97: a plate on THREE menus is counted once in the note, not twice', () => {
-  const THREE = MENUS.concat([{ id: 'MENU_SPRING', name: 'Spring' }]);
-  const MENU = [
-    dish('MENU_ORIGINAL', 2, 10, 'PL1'),
-    dish('MENU_WINTER', 2, 10, 'PL1'),
-    dish('MENU_SPRING', 2, 10, 'PL1'),           // third publication of the SAME plate
-    dish('MENU_ORIGINAL', 5, 10, 'PL2')
-  ];
-  const html = withRows(MENU, THREE).menuCompareHtml('all');
-  assert.match(html, /One plate is on more than one menu/, 'one plate, however many menus it is on');
-  assert.doesNotMatch(html, /2 plates are/);
-});
-
-test('v97: a dish excluded from the figure cannot trigger the note that explains the figure', () => {
-  // Unpriced, so it never enters the average. Explaining an average with a dish it ignores is a lie.
-  const MENU = [
-    dish('MENU_ORIGINAL', 2, 10, 'PL1'),
-    dish('MENU_WINTER', 2, 0, 'PL1'),            // same plate, second menu, NO sell price
-    dish('MENU_ORIGINAL', 5, 10, 'PL2'),
-    dish('MENU_WINTER', 3, 10, 'PL3')
-  ];
-  const html = withRows(MENU, MENUS).menuCompareHtml('all');
-  assert.doesNotMatch(html, /more than one menu/,
-    'the unpriced publication is not in the average, so it explains nothing about it');
-});
 
 /* ============================================================ 4 — stale headline */
 

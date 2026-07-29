@@ -1089,38 +1089,38 @@ function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.fr
 /* v89: one aggregator, two callers. scope===DASH_ALL (or falsy) is the all-menus figure; any other
    scope is a menu id and narrows to that menu's dishes.
 
-   v97 — THE UNIT IS A PLATE, NOT A PUBLICATION. This iterates MENU (dishes/menu_items), and since v55
-   ONE plate can back MANY dishes — one per menu it is published to. Until v97 each publication was its
-   own term in the mean, so a plate on three menus pulled the all-menus average three times as hard as a
-   plate on one. That measured how the menus have been SPLIT, not anything about food cost. Now each
-   plate's publications collapse to that plate's own mean first, and the headline is the unweighted mean
-   across DISTINCT plates.
+   ⚠️ v97 — THE UNIT IS A PUBLICATION, AND THAT IS A DECISION, NOT AN OVERSIGHT. ⚠️
+   This iterates MENU (dishes/menu_items), and since v55 ONE plate can back MANY dishes — one per menu it
+   is published to. So a plate on three menus contributes THREE terms to the all-menus mean. That looks
+   exactly like a double-counting bug, and v97 briefly "fixed" it to count distinct plates. DON'T. It was
+   reverted on purpose, by Max, on real data. Read this before touching it:
 
-   NARROWED SCOPES ARE UNAFFECTED and must stay so: a plate can appear at most once on a given menu, so
-   every group at menu scope has exactly one member and the maths is arithmetically the old maths. One
-   code path deliberately, so the two can never drift apart again.
+   Counting per publication makes the all-menus figure a dish-count-WEIGHTED BLEND of the per-menu
+   figures, so it is arithmetically guaranteed to sit inside the range of the By-menu rows. Counting
+   distinct plates does not: a plate on two menus that is dearer than average loses its second copy, and
+   the headline drops BELOW every row. On Max's own data that is exactly what happened — All menus 21.4%
+   against rows of 21.6% and 21.7%, caused by one plate (Bacon & Egg Muffin, ~29.4%) on both menus. A
+   headline that contradicts every row underneath it costs more trust than the 0.19pt correction buys.
 
-   Deliberately NOT weighted by plate count per menu, and deliberately NOT mean-of-menu-averages — both
-   re-introduce a figure that moves when you reorganise menus without changing a single price.
+   THE KNOWN COST, accepted with eyes open (Max, 29 Jul): publishing an existing plate to another menu
+   MOVES this number, though nothing got dearer. That is real and it is pinned by a test, so it can't be
+   mistaken for a regression. If you want to revisit it, the fix is not to change the maths quietly — it
+   is to make the By-menu list stop presenting the headline as comparable to the rows.
 
-   A plate on two menus at DIFFERENT sell prices genuinely has two food-cost %s; its own mean is the one
-   honest way to count it once without picking a menu to privilege. */
+   Deliberately NOT mean-of-menu-averages either: that weights a three-plate specials menu equally with a
+   forty-plate main menu, i.e. it measures how the menus have been SPLIT. */
 var DASH_ALL='all';
 function avgFoodCostForScope(scope){
-  var byPlate=Object.create(null), order=[];
-  MENU.forEach(function(m, i){
+  var vals=[];
+  MENU.forEach(function(m){
     if(!(m.price>0)) return;
     if(scope && scope!==DASH_ALL && (m.menuId||'MENU_ORIGINAL')!==scope) return;
     var sp=plateForMenuItem(m);                                        // the ONLY sanctioned resolution path (rule 6)
     if(!sp) return;
     var c=costFromLines(sp.lines);
-    if(!(c>0)) return;
-    var k=sp.id?('p:'+sp.id):('d:'+i);   // a plate we cannot identify cannot be PROVEN a duplicate, so it stands alone
-    if(!byPlate[k]){ byPlate[k]=[]; order.push(k); }
-    byPlate[k].push(c/m.price);
+    if(c>0) vals.push(c/m.price);
   });
-  if(!order.length) return null;
-  var vals=order.map(function(k){ var ps=byPlate[k]; return ps.reduce(function(a,b){return a+b;},0)/ps.length; });
+  if(!vals.length) return null;
   return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
 }
 function computeAvgFoodCost(){ return avgFoodCostForScope(DASH_ALL); }
@@ -3109,23 +3109,10 @@ function mcmpSparkSeries(h){
    empty row invites a comparison that isn't there. They are no longer reachable as a scope. Nothing
    is lost that could be shown: scoping to one only ever produced the "Nothing costed and priced on
    this menu yet" headline. */
-/* v97: how many DISTINCT plates are published to more than one MENU, counted only over the dishes that
-   actually enter the figure (costed and priced) — anything excluded from the average must not be
-   explained by a note about the average. Drives the conditional line in menuCompareHtml below. */
-function multiPublishedCount(){
-  var seen=Object.create(null), n=0;
-  MENU.forEach(function(m){
-    if(!(m.price>0)) return;
-    var sp=plateForMenuItem(m); if(!sp||!sp.id) return;
-    if(!(costFromLines(sp.lines)>0)) return;
-    var mid=m.menuId||'MENU_ORIGINAL';
-    var e=seen[sp.id]||(seen[sp.id]={menus:Object.create(null), n:0});
-    if(e.menus[mid]) return;                                           // same plate, same menu: not a second publication
-    e.menus[mid]=1;
-    if(++e.n===2) n++;                                                 // counted the moment it reaches two, never again
-  });
-  return n;
-}
+/* v97: multiPublishedCount() lived here and drove a line explaining why All menus could sit outside the
+   rows' range. That explanation only applied to the short-lived distinct-plate maths, which never
+   shipped — with per-publication counting the headline is a weighted blend of the rows, so both the
+   helper and the line are gone. Tombstone so the name stays greppable. */
 function menuCompareHtml(scope){
   var rows=menuComparisonRows();
   if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare, and dashScopeValid collapses the scope to match
@@ -3145,20 +3132,6 @@ function menuCompareHtml(scope){
     // v94: one compact hint line (density brief). The standing honesty rule survives compression:
     // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
     +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
-    /* v97: the All-menus row and the menu rows measure DIFFERENT populations — the rows average the dishes
-       on one menu, All menus averages distinct PLATES. So All menus is not a blend of the rows and can sit
-       outside their range entirely: a plate on two menus counts once, and if it is dearer than average,
-       dropping its second copy pulls the whole figure below every row. Correct, and completely opaque
-       sitting in one column with no explanation — which is exactly the reading it invited on real data
-       (Max, 29 Jul: "clearly not the average of all menus").
-       CONDITIONAL by design: with nothing published twice the figure IS within the rows' range and this
-       line would be noise, so it appears only when the shape it explains actually exists. */
-    +(function(){
-      var n=multiPublishedCount();
-      if(!n) return '';
-      return '<p class="hint mcmp-note">'+(n===1?'One plate is':(n+' plates are'))+' on more than one menu. '
-        +'All menus counts '+(n===1?'it':'each')+' once, so it can sit outside the range above.</p>';
-    })()
     +'</div></div>';
 }
 function renderDashboard(){
