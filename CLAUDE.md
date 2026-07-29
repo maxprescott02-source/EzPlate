@@ -369,7 +369,16 @@ history belongs in `handovers/`, nowhere else.
   mean-of-menu-averages, the case usually assumed. **`priceHistory` holds
   old-basis points that can't be recomputed — expect one step in the trend line
   and cross-basis stat-card windows for up to a year. Max's call, taken
-  explicitly.** Scope is now stated ONCE, in the card heading (`.dh-scope`,
+  explicitly.**
+  **⚠️ All menus is NOT a blend of the By-menu rows and is NOT bounded by them.**
+  The rows average the DISHES on one menu; All menus averages distinct PLATES.
+  A plate on two menus that is dearer than average counts once, so the headline
+  can sit BELOW every row (verified on Max's real data pre-merge: 21.4% vs rows
+  at 21.6%/21.7%, caused by one plate on both menus at ~29.4%). Under v96 the
+  headline always was a dish-count-weighted blend, so this property was lost
+  silently. `multiPublishedCount()` drives a conditional line in the By-menu
+  list that says so, shown only when a plate really is published twice.
+  Scope is now stated ONCE, in the card heading (`.dh-scope`,
   menu name full-strength as a deliberate exception to the v94/v95 density
   pass); `.verdict-cap` is deleted and the chart title no longer appends
   "— all menus". See `HANDOVER-v97.md`.

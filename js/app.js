@@ -3109,6 +3109,23 @@ function mcmpSparkSeries(h){
    empty row invites a comparison that isn't there. They are no longer reachable as a scope. Nothing
    is lost that could be shown: scoping to one only ever produced the "Nothing costed and priced on
    this menu yet" headline. */
+/* v97: how many DISTINCT plates are published to more than one MENU, counted only over the dishes that
+   actually enter the figure (costed and priced) — anything excluded from the average must not be
+   explained by a note about the average. Drives the conditional line in menuCompareHtml below. */
+function multiPublishedCount(){
+  var seen=Object.create(null), n=0;
+  MENU.forEach(function(m){
+    if(!(m.price>0)) return;
+    var sp=plateForMenuItem(m); if(!sp||!sp.id) return;
+    if(!(costFromLines(sp.lines)>0)) return;
+    var mid=m.menuId||'MENU_ORIGINAL';
+    var e=seen[sp.id]||(seen[sp.id]={menus:Object.create(null), n:0});
+    if(e.menus[mid]) return;                                           // same plate, same menu: not a second publication
+    e.menus[mid]=1;
+    if(++e.n===2) n++;                                                 // counted the moment it reaches two, never again
+  });
+  return n;
+}
 function menuCompareHtml(scope){
   var rows=menuComparisonRows();
   if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare, and dashScopeValid collapses the scope to match
@@ -3128,6 +3145,20 @@ function menuCompareHtml(scope){
     // v94: one compact hint line (density brief). The standing honesty rule survives compression:
     // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
     +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
+    /* v97: the All-menus row and the menu rows measure DIFFERENT populations — the rows average the dishes
+       on one menu, All menus averages distinct PLATES. So All menus is not a blend of the rows and can sit
+       outside their range entirely: a plate on two menus counts once, and if it is dearer than average,
+       dropping its second copy pulls the whole figure below every row. Correct, and completely opaque
+       sitting in one column with no explanation — which is exactly the reading it invited on real data
+       (Max, 29 Jul: "clearly not the average of all menus").
+       CONDITIONAL by design: with nothing published twice the figure IS within the rows' range and this
+       line would be noise, so it appears only when the shape it explains actually exists. */
+    +(function(){
+      var n=multiPublishedCount();
+      if(!n) return '';
+      return '<p class="hint mcmp-note">'+(n===1?'One plate is':(n+' plates are'))+' on more than one menu. '
+        +'All menus counts '+(n===1?'it':'each')+' once, so it can sit outside the range above.</p>';
+    })()
     +'</div></div>';
 }
 function renderDashboard(){

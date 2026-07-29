@@ -72,6 +72,38 @@ never stored, only the resulting percentage. So:
 Max's call, asked explicitly with the alternative (suppress the straddling comparisons) on the table:
 **fix it and accept the step.** The figure is wrong every day it stays wrong. Nothing was done to hide it.
 
+### Caught on real data before merge: All menus can sit BELOW every menu row
+
+Max checked the preview against production and asked the right question: All menus read **21.4%** while
+both rows read **21.6%** and **21.7%**. That looks broken.
+
+It was not. His console breakdown: **41 dishes, 40 distinct plates, 0 orphaned dishes**, and exactly one
+plate on two menus — **Bacon & Egg Muffin, 28.8% on specials and 30% on Original, ~29.4%**, well above his
+~21.5% average. v96 counted it twice and both copies dragged the mean up (21.59% → displays 21.6%); v97
+counts it once, so one dear entry leaves the pool (21.40% → 21.4%). Arithmetic, reproduced exactly against
+the shipped function.
+
+**The rows and the headline measure different populations** — rows average the DISHES on one menu, All
+menus averages distinct PLATES — so the headline is **not** a blend of the rows and is **not bounded by
+them**. Under v96 it always was, because a per-publication mean *is* a dish-count-weighted blend. That
+property was lost silently, and the row sits in the same column as the menus, which invites exactly the
+comparison Max made.
+
+**The number was right and the screen was silent about it. That was the defect.** Fixed by stating it
+where the invalid comparison is invited, and only when the shape exists: `multiPublishedCount()` counts
+distinct plates published to more than one menu, over the dishes that actually enter the figure, and the
+By-menu list gains one line — *"One plate is on more than one menu. All menus counts it once, so it can
+sit outside the range above."* Absent entirely when nothing is published twice, because then the figure
+IS inside the rows' range and the line would be noise.
+
+Six tests pin it, including the ones that would have caught the original confusion: All menus legitimately
+below every row; a plate on three menus counted once, not twice; and an **unpriced** second publication
+never triggering the note, because a dish excluded from the average must not be used to explain it.
+
+**Worth remembering:** when a headline and a list of parts share a column, the headline must be a
+function of the parts, or it must say what else it is. This is the second time this batch that a figure
+was correct and its presentation was not.
+
 ## The stale headline: one root cause, two stale regions
 
 **Root cause — `dashComparisons()`:** the line

@@ -243,6 +243,7 @@ function withRows(MENU, menusList) {
     ${extractFn(SRC, 'menuComparisonRows')}
     ${extractFn(SRC, 'mcmpSparkHtml')}
     ${extractFn(SRC, 'mcmpSparkSeries')}
+    ${extractFn(SRC, 'multiPublishedCount')}
     ${extractFn(SRC, 'menuCompareHtml')}
     return {
       computeAvgFoodCost: computeAvgFoodCost,
@@ -332,6 +333,88 @@ test('v97: an unidentifiable plate stands alone rather than merging with every o
   ];
   near(withRows(MENU, MENUS).computeAvgFoodCost(), (20 + 60 + 30) / 3,
     'three unidentified plates are three terms, not one');
+});
+
+/* ============================================================ 3b — owning the definition
+
+   Found on Max's real data, 29 Jul: All menus read 21.4% while both menu rows read 21.6% / 21.7%, and
+   it looked like a broken figure. It was not — one plate (Bacon & Egg Muffin, ~29.4%, dearer than
+   average) sits on both menus, and counting it once instead of twice drops the whole average below every
+   row. The rows average the DISHES on one menu; All menus averages distinct PLATES. Different
+   populations, so All menus is not a blend of the rows and is not bounded by them.
+   The number was right and the screen was silent about it. These pin the explanation. */
+
+test('v97: All menus CAN legitimately sit below every menu row', () => {
+  // The shape from real data, reduced: one dear plate on both menus, cheaper plates either side.
+  const MENU = [
+    dish('MENU_ORIGINAL', 4, 10, 'PL_SHARED'),   // 40% — the dear plate…
+    dish('MENU_WINTER', 4, 10, 'PL_SHARED'),     // 40% — …on both menus
+    dish('MENU_ORIGINAL', 1, 10, 'PL_O'),        // 10%
+    dish('MENU_WINTER', 1, 10, 'PL_S')           // 10%
+  ];
+  const app = withRows(MENU, MENUS);
+  const rows = app.menuComparisonRows();
+  const all = app.computeAvgFoodCost();
+  rows.forEach(r => near(r.pct, 25, r.name));
+  near(all, 20, 'all-menus');
+  assert.ok(rows.every(r => all < r.pct),
+    'this is arithmetic, not a bug — dropping the dear plate’s second copy pulls the mean below both rows');
+});
+
+test('v97: when a plate is on two menus, the list says so', () => {
+  const MENU = [
+    dish('MENU_ORIGINAL', 2, 10, 'PL1'),
+    dish('MENU_WINTER', 2, 10, 'PL1'),           // same plate, second menu
+    dish('MENU_ORIGINAL', 5, 10, 'PL2')
+  ];
+  const html = withRows(MENU, MENUS).menuCompareHtml('all');
+  assert.match(html, /One plate is on more than one menu/, 'named in the singular when there is one');
+  assert.match(html, /counts it once, so it can sit outside the range above/,
+    'and it explains the consequence, not just the mechanism');
+});
+
+test('v97: the note is plural and counted when several plates are shared', () => {
+  const MENU = [
+    dish('MENU_ORIGINAL', 2, 10, 'PL1'), dish('MENU_WINTER', 2, 10, 'PL1'),
+    dish('MENU_ORIGINAL', 3, 10, 'PL2'), dish('MENU_WINTER', 3, 10, 'PL2'),
+    dish('MENU_ORIGINAL', 5, 10, 'PL3')
+  ];
+  const html = withRows(MENU, MENUS).menuCompareHtml('all');
+  assert.match(html, /2 plates are on more than one menu/);
+  assert.match(html, /counts each once/);
+});
+
+test('v97: the note is ABSENT when nothing is published twice — no note without the shape', () => {
+  // With no shared plate the figure IS inside the rows' range, so the line would be pure noise.
+  const html = withRows(TWO_COSTED(), MENUS).menuCompareHtml('all');
+  assert.doesNotMatch(html, /more than one menu/, 'conditional, not decorative');
+  assert.match(html, /Ranked by average food cost %/, 'and the standing hint is untouched');
+});
+
+test('v97: a plate on THREE menus is counted once in the note, not twice', () => {
+  const THREE = MENUS.concat([{ id: 'MENU_SPRING', name: 'Spring' }]);
+  const MENU = [
+    dish('MENU_ORIGINAL', 2, 10, 'PL1'),
+    dish('MENU_WINTER', 2, 10, 'PL1'),
+    dish('MENU_SPRING', 2, 10, 'PL1'),           // third publication of the SAME plate
+    dish('MENU_ORIGINAL', 5, 10, 'PL2')
+  ];
+  const html = withRows(MENU, THREE).menuCompareHtml('all');
+  assert.match(html, /One plate is on more than one menu/, 'one plate, however many menus it is on');
+  assert.doesNotMatch(html, /2 plates are/);
+});
+
+test('v97: a dish excluded from the figure cannot trigger the note that explains the figure', () => {
+  // Unpriced, so it never enters the average. Explaining an average with a dish it ignores is a lie.
+  const MENU = [
+    dish('MENU_ORIGINAL', 2, 10, 'PL1'),
+    dish('MENU_WINTER', 2, 0, 'PL1'),            // same plate, second menu, NO sell price
+    dish('MENU_ORIGINAL', 5, 10, 'PL2'),
+    dish('MENU_WINTER', 3, 10, 'PL3')
+  ];
+  const html = withRows(MENU, MENUS).menuCompareHtml('all');
+  assert.doesNotMatch(html, /more than one menu/,
+    'the unpriced publication is not in the average, so it explains nothing about it');
 });
 
 /* ============================================================ 4 — stale headline */
