@@ -1112,14 +1112,15 @@ function computeAvgFoodCost(){ return avgFoodCostForScope(DASH_ALL); }
 var dashScope=DASH_ALL;
 function dashScopeValid(){
   if(dashScope===DASH_ALL) return DASH_ALL;
-  var list=(typeof menusList!=='undefined'?menusList:[]);
-  // A scope whose menu was deleted falls back to all-menus. So does ANY scope once fewer than two
-  // menus remain — because that is exactly when dashScopeSelectorHtml stops rendering the control,
-  // and a narrowed scope with no visible way back to "All menus" is a trap. Deleting one of two menus
-  // while the dashboard was scoped to the survivor reached it. One invariant now: narrowed scope
-  // exists if and only if the selector is on screen (CodeRabbit, v89).
-  if(list.length<2) return DASH_ALL;
-  return list.some(function(m){return m.id===dashScope;})?dashScope:DASH_ALL;
+  // The invariant is v89's, unchanged: a narrowed scope exists if and only if the control that can
+  // undo it is on screen. v96 moved that control — the picker is gone and the By-menu list IS the
+  // selector — so this now asks the LIST, not menusList. A row exists per COSTED menu, which is a
+  // strictly smaller set than "menus that exist", and it closes the same trap in three shapes at
+  // once: the menu was deleted, fewer than two costed menus remain (the list stops rendering), or
+  // the scoped menu's last costed plate went away. Any of those and there is no row to press.
+  var rows=menuComparisonRows();
+  if(rows.length<2) return DASH_ALL;
+  return rows.some(function(r){return r.id===dashScope;})?dashScope:DASH_ALL;
 }
 function dashScopeLabel(scope){ return (scope===DASH_ALL)?'across all menus':('on '+menuNameById(scope)); }
 function setDashScope(scope){ dashScope=scope||DASH_ALL; renderDashboard(); }   // session-only: never persisted, so a reload lands back on "All menus"
@@ -3020,27 +3021,23 @@ function verdictHtml(scope, cmp){
     +'<p class="verdict-line">'+esc(vs)
     +(tr?(' · <b class="verdict-trend '+tr.cls+'">'+tr.arrow+' '+esc(tr.word)+'</b>'):'')+'</p>';
 }
-/* The selector reuses the Menu tab's control EXACTLY — a native <select> in a .menu-picker-row
-   (index.html:122, css/style.css:1034). No floating layer, no placement logic, no sixth owner of
-   dropdown geometry: the 26 Jul audit's warning is answered by there being nothing new to place. */
-function dashScopeSelectorHtml(scope){
-  var list=(typeof menusList!=='undefined'?menusList:[]);
-  if(list.length<2) return '';                                       // one menu, or none: a dead control — don't render it
-  return '<div class="menu-picker-row dash-scope"><select id="dashScopeSelect" aria-label="Menu to show">'
-    +'<option value="'+DASH_ALL+'"'+(scope===DASH_ALL?' selected':'')+'>All menus</option>'
-    +list.map(function(m){
-        return '<option value="'+esc(m.id)+'"'+(m.id===scope?' selected':'')+'>'
-          +esc(m.name)+(m.season?(' — '+esc(m.season)):'')+'</option>';
-      }).join('')
-    +'</select></div>';
-}
+/* v96: dashScopeSelectorHtml is DELETED, not hidden. It was a native <select> in a .menu-picker-row
+   that set dashScope — the same value the By-menu rows below it already set. The list is now the only
+   control (see menuCompareHtml). .menu-picker-row itself stays: the Menu tab still uses it. */
 /* v95: the By-menu sparkline from the approved mockup, drawn from that menu's OWN history
    (menuHistory, recording since v89). Display-only: nothing is computed that isn't already in
    the log, and a menu with fewer than two points gets NO sparkline rather than a fabricated
    shape (the v89 scope-honesty rule applied to a 54px line). Colour is the semantic pair the
    chart uses: cost falling = good. */
 function mcmpSparkHtml(id){
-  var h=(typeof menuHistory!=='undefined'&&menuHistory&&menuHistory[id])||[];
+  // v96: the All-menus row is a row like any other, so it draws like one — from priceHistory, which
+  // is the all-menus average series (the same numbers the chart above already draws). Routed here
+  // rather than at the call site so the row markup stays one code path for every scope.
+  if(id===DASH_ALL) return mcmpSparkSeries((typeof priceHistory!=='undefined'&&priceHistory)||[]);
+  return mcmpSparkSeries((typeof menuHistory!=='undefined'&&menuHistory&&menuHistory[id])||[]);
+}
+function mcmpSparkSeries(h){
+  h=h||[];
   if(h.length<2) return '';
   var pts=h.slice(-12), vs=pts.map(function(p){return p.v;});
   var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
@@ -3054,18 +3051,37 @@ function mcmpSparkHtml(id){
   return '<svg class="mcmp-spark '+cls+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" focusable="false">'
     +'<polyline points="'+xy+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
+/* v96: this list IS the dashboard's menu selector — the picker chip that used to sit in the headline
+   block is gone. Two controls setting one value, with no visible relationship between them, made the
+   user work out that the chip drove three regions and the ranking drove nothing; merging them removes
+   a control rather than adding one.
+
+   "All menus" is therefore a ROW, not an implicit fallback — it was always a real selectable value
+   (the picker's first <option>), and with the picker gone it needs a home or the scope becomes a
+   one-way door. It leads the list and is NOT part of the ranking: it is the whole business, not a
+   competitor to the menus under it.
+
+   SELECTABLE SET, deliberately narrowed (Max, 29 Jul): menus with nothing costed were in the picker
+   but have never been rows here — a menu with no costed plate has no cost efficiency to rank, and an
+   empty row invites a comparison that isn't there. They are no longer reachable as a scope. Nothing
+   is lost that could be shown: scoping to one only ever produced the "Nothing costed and priced on
+   this menu yet" headline. */
 function menuCompareHtml(scope){
   var rows=menuComparisonRows();
-  if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare
+  if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare, and dashScopeValid collapses the scope to match
+  var allPct=computeAvgFoodCost();                                   // non-null whenever two menus are costed; the '—' is belt-and-braces, not an expected state
+  function row(id, name, pct){
+    var on=(id===scope);
+    return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(id)+'"'
+      +(on?' aria-current="true"':'')+'>'
+      +'<span class="mcmp-name">'+esc(name)+'</span>'
+      +mcmpSparkHtml(id)
+      +'<span class="mcmp-pct">'+(pct==null?'—':pct.toFixed(1)+'%')+'</span></button></li>';
+  }
   return '<div class="panel dash-compare"><h2>By menu</h2><div class="pad">'
-    +'<ul class="mcmp-list">'+rows.map(function(r){
-        var on=(r.id===scope);
-        return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(r.id)+'"'
-          +(on?' aria-current="true"':'')+'>'
-          +'<span class="mcmp-name">'+esc(r.name)+'</span>'
-          +mcmpSparkHtml(r.id)
-          +'<span class="mcmp-pct">'+r.pct.toFixed(1)+'%</span></button></li>';
-      }).join('')+'</ul>'
+    +'<ul class="mcmp-list">'
+    +row(DASH_ALL, 'All menus', allPct)
+    +rows.map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
     // v94: one compact hint line (density brief). The standing honesty rule survives compression:
     // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
     +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
@@ -3098,7 +3114,6 @@ function renderDashboard(){
   var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
     +verdictHtml(scope, cmp)
-    +dashScopeSelectorHtml(scope)
     +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
@@ -3124,8 +3139,9 @@ function renderDashboard(){
   if(dashInsPending){ try{ gemPhraseInsights(dashInsPending.insights, dashInsPending.scope||''); }catch(e){} }
   // v89: scope changes are session-only and touch nothing else — setDashScope re-renders this tab and
   // leaves currentMenuId (the Menu tab's own selection) exactly where it was.
-  var scopeSel=root.querySelector('#dashScopeSelect');
-  if(scopeSel) scopeSel.onchange=function(){ setDashScope(scopeSel.value); };
+  // v96: the By-menu rows are the ONLY thing that sets the scope now (the picker's onchange is gone).
+  // Note what this does NOT touch: dashRange. Range and scope are orthogonal, and each setter
+  // re-renders from the other's live module var rather than resetting it.
   root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ setDashScope(b.getAttribute('data-scope')); }; });
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
@@ -3225,7 +3241,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v95';
+var APP_VERSION='v96';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

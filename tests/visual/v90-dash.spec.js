@@ -173,7 +173,7 @@ test('scoping the Dashboard changes the insight set and rescopes the drill-downs
     return n;
   });
 
-  await page.selectOption('#dashScopeSelect', 'MENU_WINTER');
+  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();   // v96: the list is the selector
   await page.waitForTimeout(300);
   const after = await page.locator('#dashBody .ins-line').allTextContents();
   expect(after.join('|'), 'a different scope says different things').not.toEqual(before.join('|'));
@@ -190,7 +190,7 @@ test('scoping the Dashboard changes the insight set and rescopes the drill-downs
   expect(await page.evaluate(() => window.currentMenuId)).toBe('MENU_ORIGINAL');
 });
 
-test('the GLOBAL drill-downs ignore the selector — they rank products, not a menu', async ({ page }) => {
+test('the GLOBAL drill-downs ignore the scope — they rank products, not a menu', async ({ page }) => {
   await boot(page, 1280, 'light');
   const readCard = (i) => page.evaluate((idx) => {
     document.querySelectorAll('#dashBody .dig-card')[idx].click();
@@ -201,7 +201,7 @@ test('the GLOBAL drill-downs ignore the selector — they rank products, not a m
   }, i);
 
   const stockAll = await readCard(3);
-  await page.selectOption('#dashScopeSelect', 'MENU_WINTER');
+  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();   // v96: the list is the selector
   await page.waitForTimeout(300);
   const stockWinter = await readCard(3);
   expect(stockWinter.rows, 'dearest-per-unit is the same list at any scope').toEqual(stockAll.rows);
