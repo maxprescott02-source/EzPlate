@@ -30,8 +30,16 @@ const DISHES = [
 ];
 
 // history is a PARAMETER here: the thin-history case is one of the things under test.
-function seed(history) {
+// v97: so is the stored scope — seeding it is how the deleted-menu fallback gets exercised through a
+// real boot, which is the shape a deploy-time reload finds after a menu is deleted on another device.
+function seed() {
   return (args) => {
+    /* v97: addInitScript runs on EVERY navigation, including page.reload(). Re-seeding there would call
+       localStorage.clear() and wipe exactly the preferences a reload test exists to check — so seed once
+       per context, then leave storage alone and let the app own it. The v96 version of this file could
+       not see the problem: it re-seeded cafeDB_dashRange to '3m' and then asserted '3m', which passes
+       whether the value persisted or was just rewritten. */
+    if (localStorage.getItem('__spec_seeded')) return;
     localStorage.clear();
     localStorage.setItem('cafeDB_menus', JSON.stringify(args.MENUS));
     localStorage.setItem('cafeDB_cogsPct', '30');
@@ -39,6 +47,8 @@ function seed(history) {
     localStorage.setItem('cafeDB_menu', JSON.stringify(args.DISHES));
     localStorage.setItem('cafeDB_priceHistory', JSON.stringify(args.history));
     localStorage.setItem('cafeDB_dashRange', '3m');
+    if (args.scope) localStorage.setItem('cafeDB_dashScope', args.scope);
+    localStorage.setItem('__spec_seeded', '1');   // test-only key, deliberately outside the cafeDB_ namespace
   };
 }
 
@@ -47,13 +57,13 @@ const FULL_HISTORY = (() => {
   return [{ t: now - 20 * day, v: 42.0 }, { t: now - 10 * day, v: 38.5 }, { t: now - day, v: 36.0 }];
 })();
 
-async function boot(page, { width = 380, history = FULL_HISTORY } = {}) {
+async function boot(page, { width = 380, history = FULL_HISTORY, scope = null } = {}) {
   await page.setViewportSize({ width, height: 900 });
   await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
   // same-origin /api/* would reach the static dev server and 501 on POST — block it so the insight
   // phrasing takes its offline template path rather than logging an error that masks a real one.
   await page.route('**/api/**', r => r.abort());
-  await page.addInitScript(seed(history), { MENUS, PLATES, DISHES, history });
+  await page.addInitScript(seed(), { MENUS, PLATES, DISHES, history, scope });
   await page.goto('/');
   await page.waitForTimeout(1600);
   await page.evaluate(() => {
@@ -80,13 +90,13 @@ test('one tap moves every scope-following region at once, with no partial update
 
   // headline, its target line, and the row marking all moved together
   await expect(page.locator('.verdict-num')).toHaveText('60.0%');
-  await expect(page.locator('.verdict-cap')).toHaveText('on Winter');
+  await expect(page.locator('.dh-scope')).toHaveText('Winter');
   await expect(page.locator('.verdict-line')).toContainText('30.0 pts over your 30% target');
   await expect(page.locator('.mcmp-row.act')).toHaveCount(1);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
 
   // the chart is honest that it did NOT narrow, rather than silently redrawing as the menu
-  await expect(page.locator('.chart-title')).toHaveText('Food cost trend — all menus');
+  await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
   await expect(page.locator('.scope-note')).toBeVisible();
 
   // and the insight set is genuinely different, not a stale panel left behind. On this seed the
@@ -139,24 +149,92 @@ test('a scope with insufficient history shows the not-enough-history copy, not N
   expect(body, 'no undefined leaking into copy').not.toMatch(/undefined/);
 });
 
-/* ---- 4. reload behaviour matches what the picker did: session-only, back to All menus ----
-   dashScope is a module var that is never written to localStorage. The brief is explicit that the new
-   selector INHERITS that behaviour and that persistence is not added in this batch. */
-test('the selection does not survive a reload — session-only, exactly as the picker was', async ({ page }) => {
+/* ---- 4. reload behaviour ----
+   v96 pinned the OPPOSITE of this: the selection was session-only, inherited from the picker, because
+   that brief forbade adding persistence. v97 reverses it deliberately — merging the picker into the list
+   made the list the dashboard's only scope control, so a reload silently discarded the user's scope, and
+   the app reloads itself on deploy. The contract is reversed here rather than deleted, in the same commit
+   as the change, so the file still records what the behaviour is meant to be. Real reload, real
+   localStorage, real boot — which is the only place the module-init read is genuinely exercised. */
+test('v97: the selection survives a reload, and the range survives it independently', async ({ page }) => {
   await boot(page);
   await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
   await page.waitForTimeout(300);
-  await expect(page.locator('.verdict-cap')).toHaveText('on Winter');
+  await expect(page.locator('.dh-scope')).toHaveText('Winter');
+  await page.locator('.range-btn[data-rg="1y"]').click();              // change the OTHER persisted preference
+  await page.waitForTimeout(300);
+  await expect(page.locator('.dh-scope')).toHaveText('Winter', { timeout: 3000 });  // …which must not reset the scope
 
   await page.reload();
   await page.waitForTimeout(1600);
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(500);
 
-  await expect(page.locator('.verdict-cap')).toHaveText('across all menus');
+  await expect(page.locator('.dh-scope')).toHaveText('Winter');
+  await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
+  await expect(page.locator('.range-btn.act')).toHaveAttribute('data-rg', '1y');
+});
+
+/* The silent fallback, driven through a real boot: a stored id whose menu no longer exists must land on
+   All menus with nothing surfaced — no toast, no error, no blank card, no headline computed against a
+   menu that isn't there. Seeded directly into storage because that is the shape a deploy-time reload
+   finds after Max deletes a menu on another device. */
+test('v97: a stored scope for a deleted menu falls back to All menus, silently', async ({ page }) => {
+  const errors = [];
+  /* boot() deliberately aborts off-origin and /api/** requests, which Chromium reports as ERR_FAILED
+     console errors. Those have to be filtered or this asserts the harness rather than the fallback —
+     but the filter is keyed on the failing request's URL, not on the message text. Matching
+     /Failed to load resource/ would also swallow a REAL app asset failing to load, which is exactly the
+     kind of thing "the fallback must be silent" is supposed to catch. */
+  const isBlockedByHarness = m => {
+    const url = (m.location() && m.location().url) || '';
+    return url !== '' && (!url.startsWith('http://localhost:5173') || url.includes('/api/'));
+  };
+  page.on('pageerror', e => errors.push(String(e)));
+  page.on('console', m => { if (m.type() === 'error' && !isBlockedByHarness(m)) errors.push(m.text()); });
+
+  await boot(page, { scope: 'MENU_DELETED' });
+  await expect(page.locator('.dh-scope')).toHaveText('All menus');
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'all');
-  // the chart RANGE, which IS persisted, is untouched by the same reload — the two are independent
-  await expect(page.locator('.range-btn.act')).toHaveAttribute('data-rg', '3m');
+  await expect(page.locator('.verdict-num')).not.toHaveText('—');      // a real figure, not a blank card
+  // #toast is always in the DOM; .show is what makes it visible, so THAT is what "nothing surfaced" means
+  await expect(page.locator('#toast')).not.toHaveClass(/\bshow\b/);
+  await expect(page.locator('#toast')).toHaveText('');
+  expect(errors, 'the fallback must be silent').toEqual([]);
+});
+
+/* v97: scope is stated ONCE, in the card heading, and the two halves of that heading are deliberately
+   NOT the same weight. The v95 density pass mutes every #dashBody panel heading; this is its one
+   exception, because the menu name is the only heading content on this tab that changes, and a scope
+   indicator quieter than the target line beneath it is how someone reads a specials figure as a
+   whole-menu figure. Measured rather than asserted from the source, because what matters is which rule
+   actually WINS — a muted-by-default h2 out-specifying the exception would be silent and invisible. */
+test('v97: the menu name is full strength while the metric stays muted, and scope is stated once', async ({ page }) => {
+  await boot(page);
+  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
+  await page.waitForTimeout(300);
+
+  const seen = await page.evaluate(() => {
+    const h2 = document.querySelector('#dashBody .dash-panel h2');
+    const span = h2.querySelector('.dh-scope');
+    return {
+      heading: h2.textContent.trim(),
+      metric: getComputedStyle(h2).color,
+      name: getComputedStyle(span).color,
+      body: getComputedStyle(document.body).color
+    };
+  });
+
+  expect(seen.heading).toBe('Average food cost — Winter');       // metric + scope, together, in one place
+  expect(seen.name, 'the exception must WIN over #dashBody .panel h2').not.toBe(seen.metric);
+  expect(seen.name, 'and land on the full-strength text colour').toBe(seen.body);
+
+  // …and the scope appears exactly once in the card that owns the number and the chart.
+  const card = await page.locator('#dashBody .dash-panel').innerText();
+  // case-insensitive: innerText returns CSS-TRANSFORMED text, and dashboard headings are uppercased
+  expect(card.match(/winter/gi), 'scope stated once in this card').toHaveLength(1);
+  await expect(page.locator('.verdict-cap')).toHaveCount(0);
+  await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
 });
 
 /* ---- 5. the rows are controls now, so the 44px floor applies to them ----
