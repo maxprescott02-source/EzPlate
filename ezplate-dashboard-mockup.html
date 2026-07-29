@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EzPlate — Dashboard rework mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F2EDE4; --panel:#FFFDF8; --panel2:#F7F3EC;
+    --text:#2B2119; --text2:#5C4F44; --muted:#8A7C72;
+    --line:#E4DACA; --line2:#D8CCB8;
+    --accent:#B4571C; --good:#2F7D50; --bad:#B4451C; --warn:#B07C1A;
+    --shadow:0 2px 10px rgba(70,50,30,.07);
+  }
+  body.dark{
+    --bg:#141010; --panel:#1F1916; --panel2:#191413;
+    --text:#F2EAE1; --text2:#CFC4BB; --muted:#8A7C72;
+    --line:#332A23; --line2:#3E332B;
+    --accent:#D9702B; --good:#7FC99A; --bad:#D98A6A; --warn:#C9A227;
+    --shadow:0 2px 14px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:28px 20px 60px; background:var(--bg); color:var(--text);
+    font-family:'Poppins',system-ui,sans-serif; transition:background .2s,color .2s;
+  }
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  header.pagehead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:6px;flex-wrap:wrap}
+  h1{font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .sub{font-size:13px;color:var(--muted);margin:4px 0 26px}
+  .toggle{
+    border:1px solid var(--line2);background:var(--panel);color:var(--text2);
+    border-radius:999px;padding:8px 16px;font:inherit;font-size:12.5px;cursor:pointer;
+  }
+  .toggle:hover{border-color:var(--accent);color:var(--accent)}
+
+  .views{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+  .viewlabel{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+
+  /* phone frame */
+  .phone{width:346px;border:1px solid var(--line2);border-radius:30px;background:var(--panel2);
+         overflow:hidden;box-shadow:var(--shadow);flex:0 0 auto}
+  .screen{height:660px;overflow-y:auto;scrollbar-width:thin}
+
+  /* shared bits */
+  .zone{padding:15px 17px;background:var(--panel)}
+  .zone + .zone{border-top:7px solid var(--bg)}
+  .eyebrow{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+
+  .verdict{display:flex;align-items:baseline;gap:9px}
+  .bignum{font-size:36px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .bignum.good{color:var(--good)} .bignum.bad{color:var(--bad)}
+  .bigcap{font-size:11.5px;color:var(--muted)}
+  .verdictline{margin-top:6px;font-size:12.5px;color:var(--text2);line-height:1.45}
+  .up{color:var(--bad)} .down{color:var(--good)}
+
+  .selector{margin-top:13px;display:flex;align-items:center;gap:9px;border:1px solid var(--line);
+            border-radius:10px;padding:9px 12px;background:var(--panel2);cursor:pointer}
+  .selector:hover{border-color:var(--accent)}
+  .selector .lab{flex:1;font-size:12.5px}
+  .chev{font-size:11px;color:var(--muted)}
+
+  .rangebar{display:flex;gap:3px}
+  .rg{font-size:10px;color:var(--muted);padding:3px 8px;border-radius:999px}
+  .rg.on{background:var(--text);color:var(--panel);font-weight:500}
+
+  .chartwrap{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+
+  .insight{font-size:12.5px;line-height:1.55;color:var(--text2);padding:10px 0;border-top:1px solid var(--line)}
+  .insight:first-of-type{border-top:none;padding-top:2px}
+  .insight b{color:var(--text);font-weight:500}
+  .credit{margin-top:8px;text-align:right;font-size:10px;color:var(--muted)}
+
+  .mrow{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
+  .mrow:first-of-type{border-top:none}
+  .mrow .nm{flex:1;font-size:12.5px}
+  .mrow .fig{font-size:12.5px;width:64px;text-align:right}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .dcard{border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--panel2);cursor:pointer}
+  .dcard:hover{border-color:var(--accent)}
+  .dcard .k{font-size:10px;color:var(--muted);line-height:1.3}
+  .dcard .v{margin-top:5px;font-size:12.5px;font-weight:500}
+  .dcard .n{font-size:13px;margin-top:1px}
+
+  /* desktop frame */
+  .desk{flex:1 1 480px;min-width:440px;border:1px solid var(--line2);border-radius:16px;
+        overflow:hidden;background:var(--panel2);box-shadow:var(--shadow)}
+  .deskgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:7px;background:var(--bg)}
+  .deskgrid .zone{border-top:none}
+  .deskfull{border-top:7px solid var(--bg)}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+
+  .note{margin-top:30px;font-size:12.5px;color:var(--muted);line-height:1.6;max-width:620px}
+  .note b{color:var(--text2);font-weight:500}
+
+  /* AI marker */
+  .aihead{display:flex;align-items:center;gap:7px;margin-bottom:10px}
+  .aihead .eyebrow{margin:0}
+  .spark{width:14px;height:14px;flex:0 0 auto}
+
+  /* drill-down */
+  .backrow{display:flex;align-items:center;gap:8px;margin-bottom:11px;cursor:pointer}
+  .backrow .arw{font-size:15px;color:var(--muted);line-height:1}
+  .backrow .ttl{font-size:12.5px;font-weight:500}
+  .lrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+  .lrow:first-of-type{border-top:none}
+  .lrow .nm{flex:1;font-size:12.5px}
+  .lrow .fig{font-size:12.5px}
+  .hidden{display:none}
+</style>
+</head>
+<body class="dark">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="gsp" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#4285f4"/><stop offset="35%" stop-color="#9b72cb"/>
+<stop offset="70%" stop-color="#d96570"/><stop offset="100%" stop-color="#f2a60c"/>
+</linearGradient></defs></svg>
+<div class="wrap">
+
+  <header class="pagehead">
+    <h1>Dashboard rework — the manager's view</h1>
+    <button class="toggle" onclick="document.body.classList.toggle('dark')">Switch theme</button>
+  </header>
+  <p class="sub">Same content, two breakpoints. Scroll the phone.</p>
+
+  <div class="views">
+
+    <!-- ================= MOBILE ================= -->
+    <div>
+      <div class="viewlabel">Mobile · 375px</div>
+      <div class="phone"><div class="screen">
+
+        <!-- STATUS -->
+        <div class="zone">
+          <div class="eyebrow">Dashboard</div>
+          <div class="verdict">
+            <div class="bignum good mono">28.4%</div>
+            <div class="bigcap">avg food cost</div>
+          </div>
+          <div class="verdictline">1.6 pts under your 30% target · <span class="down">↓ improving</span></div>
+
+          <div class="selector">
+            <span class="lab">All menus</span>
+            <span class="chev">▾</span>
+          </div>
+
+          <div style="margin-top:16px" class="chartwrap">
+            <div class="eyebrow" style="margin:0">Food cost trend</div>
+            <div class="rangebar">
+              <span class="rg">1W</span><span class="rg on">1M</span><span class="rg">3M</span><span class="rg">1Y</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 300 104" style="width:100%;height:96px" aria-label="Food cost trend">
+            <text x="0" y="16" fill="currentColor" opacity=".45" font-size="9.5" font-family="JetBrains Mono, monospace">30%</text>
+            <line x1="30" y1="12.5" x2="298" y2="12.5" stroke="currentColor" stroke-opacity=".28" stroke-width="1" stroke-dasharray="4 5"/>
+            <text x="0" y="60" fill="currentColor" opacity=".45" font-size="9.5" font-family="JetBrains Mono, monospace">28%</text>
+            <text x="0" y="100" fill="currentColor" opacity=".45" font-size="9.5" font-family="JetBrains Mono, monospace">26%</text>
+            <path d="M30 78 L64 72 L98 74 L132 58 L166 48 L200 53 L234 63 L268 68 L296 71 L296 100 L30 100 Z"
+                  fill="var(--good)" opacity=".10"/>
+            <path d="M30 78 L64 72 L98 74 L132 58 L166 48 L200 53 L234 63 L268 68 L296 71"
+                  fill="none" stroke="var(--good)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="296" cy="71" r="3.4" fill="var(--good)"/>
+          </svg>
+        </div>
+
+        <!-- INSIGHTS -->
+        <div class="zone">
+          <div class="aihead"><svg class="spark" viewBox="0 0 24 24" aria-hidden="true"><path fill="url(#gsp)" d="M12 2.2l2.3 6.4 6.4 2.3-6.4 2.3L12 19.6l-2.3-6.4L3.3 10.9l6.4-2.3z"/></svg><div class="eyebrow">What needs attention</div></div>
+          <div class="insight"><b>Beef is up 18% since April</b> — 0.6 pts on your average, across 5 dishes.</div>
+          <div class="insight">Breakfast runs at <b>24%</b>; lunch sits at <b>33%</b>.</div>
+          <div class="insight">Barra &amp; Chips swings <b>26–38%</b> with fish prices — your least predictable dish.</div>
+          <div class="insight">Steak Works has been over target <b>four months running</b>.</div>
+          <div class="credit">Refined by Gemini</div>
+        </div>
+
+        <!-- BY MENU -->
+        <div class="zone">
+          <div class="eyebrow">By menu</div>
+          <div class="mrow">
+            <span class="nm">Original</span>
+            <svg viewBox="0 0 54 16" style="width:54px;height:16px"><path d="M1 12 L12 10 L23 11 L34 7 L45 8 L53 6" fill="none" stroke="var(--good)" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span class="fig mono down">28.4% ↓</span>
+          </div>
+          <div class="mrow">
+            <span class="nm">Winter</span>
+            <svg viewBox="0 0 54 16" style="width:54px;height:16px"><path d="M1 10 L12 11 L23 8 L34 7 L45 4 L53 3" fill="none" stroke="var(--bad)" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span class="fig mono up">31.2% ↑</span>
+          </div>
+        </div>
+
+        <!-- DIG IN -->
+        <div class="zone" style="padding-bottom:24px">
+          <div id="digGrid">
+            <div class="eyebrow">Dig in <span style="text-transform:none;letter-spacing:0;font-size:10px;opacity:.7">— tap a card</span></div>
+            <div class="grid2">
+              <div class="dcard" onclick="openDig('d1')"><div class="k">Highest food cost %</div><div class="v">Steak Works</div><div class="n mono up">42%</div></div>
+              <div class="dcard" onclick="openDig('d2')"><div class="k">Highest cost per plate</div><div class="v">Seafood Basket</div><div class="n mono">$8.40</div></div>
+              <div class="dcard" onclick="openDig('d3')"><div class="k">Biggest mover</div><div class="v">Beef Mince</div><div class="n mono up">+18%</div></div>
+              <div class="dcard" onclick="openDig('d4')"><div class="k">Dearest per unit</div><div class="v">Saffron</div><div class="n mono">$0.32/g</div></div>
+            </div>
+          </div>
+
+          <div id="d1" class="dig hidden">
+            <div class="backrow" onclick="closeDig()"><span class="arw">&#8592;</span><span class="ttl">Highest food cost %</span></div>
+            <div class="lrow"><span class="nm">Steak Works</span><span class="fig mono up">42%</span></div>
+            <div class="lrow"><span class="nm">Barra &amp; Chips</span><span class="fig mono up">38%</span></div>
+            <div class="lrow"><span class="nm">Fish Bites</span><span class="fig mono up">36%</span></div>
+            <div class="lrow"><span class="nm">Seafood Basket</span><span class="fig mono up">34%</span></div>
+            <div class="lrow"><span class="nm">Calamari</span><span class="fig mono">33%</span></div>
+            <div class="lrow"><span class="nm">Breakky Burger</span><span class="fig mono">31%</span></div>
+          </div>
+
+          <div id="d2" class="dig hidden">
+            <div class="backrow" onclick="closeDig()"><span class="arw">&#8592;</span><span class="ttl">Highest cost per plate</span></div>
+            <div class="lrow"><span class="nm">Seafood Basket</span><span class="fig mono">$8.40</span></div>
+            <div class="lrow"><span class="nm">Steak Works</span><span class="fig mono">$7.90</span></div>
+            <div class="lrow"><span class="nm">Surf &amp; Turf</span><span class="fig mono">$6.15</span></div>
+            <div class="lrow"><span class="nm">Barra &amp; Chips</span><span class="fig mono">$5.60</span></div>
+            <div class="lrow"><span class="nm">Fish Bites</span><span class="fig mono">$4.80</span></div>
+          </div>
+
+          <div id="d3" class="dig hidden">
+            <div class="backrow" onclick="closeDig()"><span class="arw">&#8592;</span><span class="ttl">Biggest movers · since April</span></div>
+            <div class="lrow"><span class="nm">Beef Mince</span><span class="fig mono up">+18%</span></div>
+            <div class="lrow"><span class="nm">Cheese Tasty</span><span class="fig mono up">+9%</span></div>
+            <div class="lrow"><span class="nm">Barramundi</span><span class="fig mono up">+7%</span></div>
+            <div class="lrow"><span class="nm">Eggs</span><span class="fig mono up">+4%</span></div>
+            <div class="lrow"><span class="nm">Canola Oil</span><span class="fig mono down">&minus;4%</span></div>
+          </div>
+
+          <div id="d4" class="dig hidden">
+            <div class="backrow" onclick="closeDig()"><span class="arw">&#8592;</span><span class="ttl">Dearest per unit</span></div>
+            <div class="lrow"><span class="nm">Saffron</span><span class="fig mono">$0.32/g</span></div>
+            <div class="lrow"><span class="nm">Vanilla Paste</span><span class="fig mono">$0.28/g</span></div>
+            <div class="lrow"><span class="nm">Truffle Oil</span><span class="fig mono">$0.19/ml</span></div>
+            <div class="lrow"><span class="nm">Barramundi</span><span class="fig mono">$0.03/g</span></div>
+          </div>
+        </div>
+
+      </div></div>
+    </div>
+
+    <!-- ================= DESKTOP ================= -->
+    <div class="desk">
+      <div class="viewlabel" style="padding:13px 17px 0;background:var(--panel)">Desktop</div>
+
+      <div class="deskgrid">
+        <div class="zone">
+          <div class="verdict">
+            <div class="bignum good mono">28.4%</div>
+            <div class="bigcap">avg food cost</div>
+          </div>
+          <div class="verdictline">1.6 pts under your 30% target · <span class="down">↓ improving</span></div>
+          <div class="selector"><span class="lab">All menus</span><span class="chev">▾</span></div>
+
+          <div style="margin-top:16px" class="chartwrap">
+            <div class="eyebrow" style="margin:0">Food cost trend</div>
+            <div class="rangebar">
+              <span class="rg">1W</span><span class="rg on">1M</span><span class="rg">3M</span><span class="rg">1Y</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 300 104" style="width:100%;height:118px" aria-label="Food cost trend">
+            <text x="0" y="16" fill="currentColor" opacity=".45" font-size="9.5" font-family="JetBrains Mono, monospace">30%</text>
+            <line x1="30" y1="12.5" x2="298" y2="12.5" stroke="currentColor" stroke-opacity=".28" stroke-width="1" stroke-dasharray="4 5"/>
+            <text x="0" y="60" fill="currentColor" opacity=".45" font-size="9.5" font-family="JetBrains Mono, monospace">28%</text>
+            <text x="0" y="100" fill="currentColor" opacity=".45" font-size="9.5" font-family="JetBrains Mono, monospace">26%</text>
+            <path d="M30 78 L64 72 L98 74 L132 58 L166 48 L200 53 L234 63 L268 68 L296 71 L296 100 L30 100 Z" fill="var(--good)" opacity=".10"/>
+            <path d="M30 78 L64 72 L98 74 L132 58 L166 48 L200 53 L234 63 L268 68 L296 71" fill="none" stroke="var(--good)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="296" cy="71" r="3.4" fill="var(--good)"/>
+          </svg>
+        </div>
+
+        <div class="zone">
+          <div class="aihead"><svg class="spark" viewBox="0 0 24 24" aria-hidden="true"><path fill="url(#gsp)" d="M12 2.2l2.3 6.4 6.4 2.3-6.4 2.3L12 19.6l-2.3-6.4L3.3 10.9l6.4-2.3z"/></svg><div class="eyebrow">What needs attention</div></div>
+          <div class="insight"><b>Beef is up 18% since April</b> — 0.6 pts on your average, across 5 dishes.</div>
+          <div class="insight">Breakfast runs at <b>24%</b>; lunch sits at <b>33%</b>.</div>
+          <div class="insight">Barra &amp; Chips swings <b>26–38%</b> with fish prices — your least predictable dish.</div>
+          <div class="insight">Steak Works has been over target <b>four months running</b>.</div>
+          <div class="credit">Refined by Gemini</div>
+        </div>
+      </div>
+
+      <div class="zone deskfull">
+        <div class="eyebrow">By menu</div>
+        <div class="mrow">
+          <span class="nm">Original</span>
+          <svg viewBox="0 0 54 16" style="width:54px;height:16px"><path d="M1 12 L12 10 L23 11 L34 7 L45 8 L53 6" fill="none" stroke="var(--good)" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span class="fig mono down">28.4% ↓</span>
+        </div>
+        <div class="mrow">
+          <span class="nm">Winter</span>
+          <svg viewBox="0 0 54 16" style="width:54px;height:16px"><path d="M1 10 L12 11 L23 8 L34 7 L45 4 L53 3" fill="none" stroke="var(--bad)" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span class="fig mono up">31.2% ↑</span>
+        </div>
+      </div>
+
+      <div class="zone deskfull">
+        <div class="eyebrow">Dig in</div>
+        <div class="grid4">
+          <div class="dcard"><div class="k">Highest food cost %</div><div class="v">Steak Works</div><div class="n mono up">42%</div></div>
+          <div class="dcard"><div class="k">Highest cost per plate</div><div class="v">Seafood Basket</div><div class="n mono">$8.40</div></div>
+          <div class="dcard"><div class="k">Biggest mover</div><div class="v">Beef Mince</div><div class="n mono up">+18%</div></div>
+          <div class="dcard"><div class="k">Dearest per unit</div><div class="v">Saffron</div><div class="n mono">$0.32/g</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">
+    <b>What to react to.</b> On desktop the insights sit beside the chart, which sidesteps the
+    above-or-below question entirely — that ordering only matters on mobile. Every insight shown
+    combines at least two dimensions (change × breadth × impact, category × aggregation,
+    volatility × ranking, status × duration), so none of them restates something already visible
+    in the Menu table. The four “Dig in” cards are headlines that expand to full sorted lists on tap.
+  </p>
+
+</div>
+
+<script>
+function openDig(id){
+  document.getElementById('digGrid').classList.add('hidden');
+  document.querySelectorAll('.dig').forEach(function(d){ d.classList.add('hidden'); });
+  document.getElementById(id).classList.remove('hidden');
+}
+function closeDig(){
+  document.querySelectorAll('.dig').forEach(function(d){ d.classList.add('hidden'); });
+  document.getElementById('digGrid').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
