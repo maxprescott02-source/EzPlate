@@ -346,10 +346,10 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `fix/dashboard-density` is at **v95** (unmerged, off
-  `main` `f58a5e5`; PR #34 carries v94+v95 as one deploy). `origin/main` is at
-  **v93 + the RLS migration** (`f58a5e5`; PRs #32 and #33 merged 28 Jul 2026 —
-  the v91→v92→v93 insight stack is IN). Six spots agree at v95 on the branch.
+- **Version:** **v95** on `main` — PR #34 (`fix/dashboard-density`, the
+  v94 density + v95 bento batch) merged 29 Jul 2026 as one deploy. Before it,
+  `main` was v93 + the RLS migration (PRs #32/#33, 28 Jul 2026). Six spots
+  agree at v95.
   Local `main` goes stale between sessions (Max merges via GitHub PR) —
   **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
