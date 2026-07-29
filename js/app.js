@@ -3034,6 +3034,26 @@ function dashScopeSelectorHtml(scope){
       }).join('')
     +'</select></div>';
 }
+/* v95: the By-menu sparkline from the approved mockup, drawn from that menu's OWN history
+   (menuHistory, recording since v89). Display-only: nothing is computed that isn't already in
+   the log, and a menu with fewer than two points gets NO sparkline rather than a fabricated
+   shape (the v89 scope-honesty rule applied to a 54px line). Colour is the semantic pair the
+   chart uses: cost falling = good. */
+function mcmpSparkHtml(id){
+  var h=(typeof menuHistory!=='undefined'&&menuHistory&&menuHistory[id])||[];
+  if(h.length<2) return '';
+  var pts=h.slice(-12), vs=pts.map(function(p){return p.v;});
+  var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
+  if(mx-mn<0.2){ var mid=(mn+mx)/2; mn=mid-0.1; mx=mid+0.1; }        // a flat series draws centred, not glued to an edge
+  var W=54,H=16,P=2;
+  var xy=pts.map(function(p,i){
+    return (P+(W-2*P)*(i/(pts.length-1))).toFixed(1)+','+(P+(H-2*P)*(1-(p.v-mn)/(mx-mn))).toFixed(1);
+  }).join(' ');
+  var d=vs[vs.length-1]-vs[0];
+  var cls=(d<-0.05)?'good':(d>0.05)?'bad':'flat';
+  return '<svg class="mcmp-spark '+cls+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" focusable="false">'
+    +'<polyline points="'+xy+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
 function menuCompareHtml(scope){
   var rows=menuComparisonRows();
   if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare
@@ -3043,6 +3063,7 @@ function menuCompareHtml(scope){
         return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(r.id)+'"'
           +(on?' aria-current="true"':'')+'>'
           +'<span class="mcmp-name">'+esc(r.name)+'</span>'
+          +mcmpSparkHtml(r.id)
           +'<span class="mcmp-pct">'+r.pct.toFixed(1)+'%</span></button></li>';
       }).join('')+'</ul>'
     // v94: one compact hint line (density brief). The standing honesty rule survives compression:
@@ -3069,15 +3090,23 @@ function renderDashboard(){
   var narrowed=(scope!==DASH_ALL);
   var chartTitle='Food cost trend'+(narrowed?' \u2014 all menus':'');
   var statLead='How today\u2019s '+(narrowed?'all-menus ':'')+'average compares';
+  /* v95 bento: the three fixed pieces of this card are wrapped in .dp-tile divs so desktop CSS
+     can place them as tiles on an inner grid (verdict | chart, compares under the verdict). The
+     DOM ORDER is the mobile reading order (verdict \u2192 chart \u2192 compares) and mobile styles give
+     the wrappers no chrome, so the phone stack is byte-identical in what it shows. TILE
+     COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
   var html='<div class="panel dash-panel"><h2>Average food cost</h2><div class="pad">'
+    +'<div class="dp-tile dp-verdict">'
     +verdictHtml(scope, cmp)
     +dashScopeSelectorHtml(scope)
+    +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
     +(narrowed?'<p class="hint scope-note">Per-menu history is still building \u2014 this line covers all menus.</p>':'')   // v94: compressed to one hint line (density brief); the honesty is unchanged \u2014 a menu's own trend can't be drawn yet
+    +'</div><div class="dp-tile dp-stats">'
     +'<div class="stat-attach"><div class="stat-lead">'+esc(statLead)+'</div>'
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
-    +'</div></div>';
+    +'</div></div></div>';
   // v90 ORDER (per the approved mockup): status → insights → by menu → dig in. On mobile that is the
   // reading order; on desktop CSS lifts the insights panel beside the chart, which sidesteps the
   // above-or-below question entirely. The grid rows stay EXPLICIT (v89's lesson — auto-placement pushed
@@ -3196,7 +3225,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v94';
+var APP_VERSION='v95';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

@@ -346,17 +346,30 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** branch `fix/dashboard-density` is at **v94** (unmerged, off
-  `main` `f58a5e5`). `origin/main` is at **v93 + the RLS migration** (`f58a5e5`;
-  PRs #32 and #33 merged 28 Jul 2026 — the v91→v92→v93 insight stack is IN).
-  Six spots agree at v94 on the branch. Local `main` goes stale between
-  sessions (Max merges via GitHub PR) — **`git fetch` and check `origin/main`
-  first** ([[verify-origin-main-before-trusting-local]]).
-- **v94 is presentation-only** (the density brief): one scoped CSS section
-  under `#dashBody`, chart viewBox H 210→104 + fill opacity in `trendChart`,
-  three dashboard hints compressed (their pinned phrases kept). One pinned
-  contract changed deliberately: v90-flows' dig-row floor 44→32px (display
-  rows, not controls). See `HANDOVER-v94.md`.
+- **Version:** branch `fix/dashboard-density` is at **v95** (unmerged, off
+  `main` `f58a5e5`; PR #34 carries v94+v95 as one deploy). `origin/main` is at
+  **v93 + the RLS migration** (`f58a5e5`; PRs #32 and #33 merged 28 Jul 2026 —
+  the v91→v92→v93 insight stack is IN). Six spots agree at v95 on the branch.
+  Local `main` goes stale between sessions (Max merges via GitHub PR) —
+  **`git fetch` and check `origin/main` first**
+  ([[verify-origin-main-before-trusting-local]]).
+- **v94 (presentation-only)** compressed the dashboard to the approved
+  mockup's density: scoped CSS under `#dashBody`, chart viewBox H 210→104,
+  hints compressed (pinned phrases kept), per-point chart dots removed and the
+  dotted fill replaced by a translucent gradient (deliberate reversal — do not
+  restore), dig-row touch pin relaxed 44→32px (display rows). See
+  `HANDOVER-v94.md`.
+- **v95 (desktop bento, Max-approved wireframe):** at ≥1024px the dashboard is
+  a 12-col grid where every FIXED-height region composes the upper rows and
+  BOTH variable-height tiles (insights 1–5, By menu) share the TERMINAL row —
+  the only arrangement where "no dead space at any content level" and "nothing
+  jumps on scope change" hold structurally. `renderDashboard` wraps the top
+  card's pieces in `.dp-tile` divs (mobile DOM order, chrome-free below
+  1024px — the phone stack is unchanged); By-menu rows regained the mockup's
+  **sparklines** (`mcmpSparkHtml`, from `menuHistory`, nothing drawn under 2
+  points); v90-dash's insights-beside-chart pin superseded. See
+  `HANDOVER-v95.md` for the jump sources found (scope-note line, verdict-line
+  wrap, compares-lead wrap, scrollbar toggle) and their structural fixes.
 - **Suite:** `npm test` = **485 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
 - **Playwright:** 71 tests in `tests/visual/`. The 45 pre-v89 ones are **not

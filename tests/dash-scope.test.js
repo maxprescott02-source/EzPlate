@@ -51,6 +51,8 @@ function withState(MENU, menusList, cogsPct) {
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
     ${extractFn(SRC, 'dashScopeSelectorHtml')}
+    var menuHistory = {};   // v95: the sparkline helper reads per-menu history; empty here — sparklines are not under test
+    ${extractFn(SRC, 'mcmpSparkHtml')}
     ${extractFn(SRC, 'menuCompareHtml')}
     ${extractFn(SRC, 'dashScopeValid')}
     var DASH_ALL='all';
