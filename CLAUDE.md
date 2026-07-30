@@ -346,10 +346,34 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v98** — `main` (PR #37, merged 31 Jul 2026, including the
-  same-day revision). Six spots agree at v98. Local `main` goes stale between
+- **Version:** **v99** — `feature/global-chrome` (batch 0.5 of the approved UX
+  propagation sequence; PR pending Max's merge). `main` is at v98 (PR #37).
+  Six spots agree at v99 on the branch. Local `main` goes stale between
   sessions (Max merges via GitHub PR) — **`git fetch` and check `origin/main`
   first** ([[verify-origin-main-before-trusting-local]]).
+- **v99 (batch 0.5 — global chrome, CSS-only):** elevation is app-wide now:
+  base `.panel` uses `--elev`, `.bottomnav` uses new token `--elev-nav`,
+  `.ptr-ind` uses `--elev` with new composite-safe `--elev-cast` for the
+  `.ready` ring (`none` is invalid inside a shadow list — don't "simplify" it
+  back). **`.ing-per` is VISIBLE again** — it carries the price basis (per
+  kg/unit/litre) on Products cards and "plate cost"/"not costed yet" on Plates
+  cards; correctness info (the v20 eggs-bug field), never re-hide for density.
+  Dark-mode component overrides MUST be tokens in all three root blocks —
+  `applyThemePref` removes `data-theme` on "system", so bare
+  `[data-theme="dark"] .x` rules miss system-dark (the existing `.ing-tag`
+  override has this latent gap; left for its tab's batch). See
+  `HANDOVER-v99.md`.
+- **The UX propagation sequence is approved (31 Jul, Max's Batch 0 response,
+  `~/Downloads/ezplate-batch0-response.md`; audit
+  `~/Downloads/ezplate-batch0-audit.md`):** 0.5 global chrome (this batch) →
+  1 Menu (+ v45 pin reconciliation + remove `user-scalable=no`) → 2 Settings →
+  3 Plates → 4 Ingredients → 5 **Products on Opus** (invoice review lives on
+  the PRODUCTS tab — the old brief had it on Ingredients via the naming
+  inversion). Scope per batch: approved cuts/compressions, spacing, eyebrows,
+  figure columns, type hierarchy, **card radius to `--radius-card`** (Max
+  added radius to scope). The 16px-edge rule is dashboard-and-mobile-only — do
+  NOT force it onto the tabs' responsive edge scale. Prose cull classifications
+  approved as tabled in the audit doc.
 - **v98 (desktop grid + light-mode surfaces; REVISED same-day by
   `ezplate-fable-dashboard-grid_1.md` after Max reviewed the build):** desktop
   dashboard placement has exactly ONE owner — the v98 block at the end of
@@ -368,8 +392,8 @@ history belongs in `handovers/`, nowhere else.
   chrome-free grouping handles, `.dig-card` is `--surface` + hairline at every
   width (the beige card-in-card was the light-only bug — pinned by computed
   style). **Elevation is the two-mode `--elev` token** — `--shadow` in light,
-  `none` in dark (the surface step carries dark depth) — on dashboard cards
-  only; other tabs still use `--shadow` (follow-up). ONE 8px seam both axes.
+  `none` in dark (the surface step carries dark depth) — app-wide since v99
+  (was dashboard-only in v98). ONE 8px seam both axes.
   `.mcmp-pct` is a fixed 6ch right-aligned column so figures + sparklines
   share axes. **Row selection is ADDITIVE (pinned)** — a "lost" sparkline on a
   selected row is the v89 thin-history honesty rule, not a bug; menu-row
@@ -484,13 +508,15 @@ history belongs in `handovers/`, nowhere else.
    history, which is EMPTY (see above), not slow.
 6. Optional: purchased-quantity capture for v55 §I — protected-region edit,
    Max's explicit yes first.
-7. Small, each needing a yes: migrate the OTHER tabs' cards to the two-mode
-   `--elev` token (dashboard-only since v98 — dark mode still casts shadows
-   everywhere else); `priceHistory` replaces wholesale on sync;
-   `.range-btn` is 32px; the stale v60 target-line comment in `trendChart`;
-   the `.chart-hint`/`.scope-note` "all menus" pair under the chart (chart
-   copy — wants its own brief); `avgFoodCostForScope` counts dishes whose
-   `menuId` has no By-menu row (latent, zero such dishes on Max's data).
+7. Small, each needing a yes: `priceHistory` replaces wholesale on sync;
+   **`.range-btn` is 32px — DEFERRED by Max (31 Jul) as an OPEN accessibility
+   item, not dropped**: the v96 menu-selector rows were held to a 44px floor,
+   so the dashboard now has controls at two different tap standards — resolve
+   in the dashboard's own next pass; the stale v60 target-line comment in
+   `trendChart`; the `.chart-hint`/`.scope-note` "all menus" pair under the
+   chart (chart copy — wants its own brief); `avgFoodCostForScope` counts
+   dishes whose `menuId` has no By-menu row (latent, zero such dishes on
+   Max's data). (The `--elev` migration shipped in v99 — done.)
 8. **Rules D and E probably belong ABOVE the "State as of" line** (durable
    engine laws) — needs Max's yes. Same for the three-logs rule.
 9. Supplier coverage is 18% of used products — the concentration family stays
