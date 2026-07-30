@@ -1165,7 +1165,10 @@ function menuComparisonRows(){
   var list=(typeof menusList!=='undefined'?menusList:[]);
   return list.map(function(m){ return {id:m.id, name:m.name, season:m.season||'', pct:avgFoodCostForScope(m.id)}; })
              .filter(function(r){ return r.pct!=null; })
-             .sort(function(a,b){ return a.pct-b.pct || String(a.name).localeCompare(String(b.name)); });
+             // v98 (Max, 31 Jul): WORST first — highest food cost % leads. Was best-first since v89;
+             // with the desktop selector card scrolling internally, overflow must hide the healthy
+             // menus, not the ones that need attention.
+             .sort(function(a,b){ return b.pct-a.pct || String(a.name).localeCompare(String(b.name)); });
 }
 function logHistory(){
   // v60 item 1a (LIVENESS): a data-changing event (price edit, invoice apply, plate save) must ALWAYS
@@ -2227,7 +2230,9 @@ function digData(kind, scope){
 function digCardHtml(card, scope){
   var d=digData(card.kind, scope), top=d.rows[0];
   var val=top? '<span class="dig-v'+(top.dir?(' '+top.dir):'')+'">'+esc(top.disp)+'</span>' : '<span class="dig-v muted">—</span>';
-  return '<button class="dig-card" type="button" data-kind="'+esc(card.kind)+'">'
+  // v98: an empty tile declares itself so CSS can quiet it — "Nothing yet" should not carry
+  // the same visual weight as a tile with real data (same card chrome, quieter content).
+  return '<button class="dig-card'+(top?'':' is-empty')+'" type="button" data-kind="'+esc(card.kind)+'">'
     +'<span class="dig-k">'+esc(card.label)+'</span>'
     +'<span class="dig-n">'+(top?esc(top.name):'Nothing yet')+'</span>'
     +val+'</button>';
@@ -3167,10 +3172,10 @@ function renderDashboard(){
   var headScope=narrowed?menuNameById(scope):'All menus';
   // The separator belongs to the muted half \u2014 only the NAME is full strength.
   var heading='Average food cost \u2014 <span class="dh-scope">'+esc(headScope)+'</span>';
-  /* v95 bento: the three fixed pieces of this card are wrapped in .dp-tile divs so desktop CSS
-     can place them as tiles on an inner grid (verdict | chart, compares under the verdict). The
-     DOM ORDER is the mobile reading order (verdict \u2192 chart \u2192 compares) and mobile styles give
-     the wrappers no chrome, so the phone stack is byte-identical in what it shows. TILE
+  /* v95 introduced these .dp-tile wrappers; v98 keeps them as chrome-free ORDERING HANDLES only
+     (no fill, no border at any width \u2014 the cards-in-cards fix). The DOM ORDER is the mobile
+     reading order (verdict \u2192 chart \u2192 compares); desktop CSS reorders the card to the grid
+     brief's number \u2192 compares \u2192 trend via `order`, so the phone stack is untouched. TILE
      COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
   var html='<div class="panel dash-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
@@ -3184,9 +3189,9 @@ function renderDashboard(){
     +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div></div>';
   // v90 ORDER (per the approved mockup): status → insights → by menu → dig in. On mobile that is the
-  // reading order; on desktop CSS lifts the insights panel beside the chart, which sidesteps the
-  // above-or-below question entirely. The grid rows stay EXPLICIT (v89's lesson — auto-placement pushed
-  // a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle these.
+  // reading order; on desktop the v98 grid lifts BY MENU beside the chart card (row 1) and gives each
+  // variable-height panel a full-width row. The grid rows stay EXPLICIT (v89's lesson — auto-placement
+  // pushed a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle.
   html+=dashInsightsHtml(scope);
   html+=menuCompareHtml(scope);
   html+=digInHtml(scope);
@@ -3302,7 +3307,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v97';
+var APP_VERSION='v98';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

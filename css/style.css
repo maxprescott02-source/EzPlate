@@ -1319,11 +1319,9 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .ing-list{grid-template-columns:repeat(2,1fr);gap:12px;padding:10px var(--sp-5) 8px}
   /* v49: .ing-tools/.ing-controls sit on the shared sp-5 edge at every width now — no desktop special-case */
 
-  /* -- dashboard: chart + stats + highlights use the width -- */
-  #dashBody{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--sp-5);align-items:start}
-  #dashBody .dash-panel{grid-column:1;margin:var(--sp-5) 0 0}   /* v49: same top offset as every other tab's .panel */
-  .dash-chart svg{height:auto}
-  .dash-panel .pad{padding:var(--sp-5) var(--sp-6)}
+  /* v98: the v89 dashboard rules (7fr/5fr grid, panel placement, pad) that sat here are DELETED,
+     not overridden — desktop dashboard placement has exactly ONE owner now, the v98 block at the
+     end of this file. (.dash-chart svg{height:auto} was a restatement of the base rule.) */
 
   /* -- floating chrome respects the sidebar -- */
   .toast{left:calc(50% + 116px)}
@@ -1550,12 +1548,8 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .stat-card{padding:var(--sp-3) var(--sp-4)}
 .stat-v{font-size:24px}
 .stat-sub{font-size:11px}
-@media (min-width:1024px){
-  #dashBody{display:grid;gap:0 var(--sp-5);padding:0}
-  #dashBody .stat-row{margin-top:var(--sp-5)}
-  /* v90 (CodeRabbit): the desktop .stat-v{font-size:24px} restated the base rule two lines above,
-     so it never changed anything. Dead since v49; removed while the surrounding rules were open. */
-}
+/* v98: the second desktop layer that sat here (#dashBody{display:grid} + .stat-row offset,
+   v49-era) is DELETED — the v98 block at the end of this file is the one desktop owner. */
 
 
 /* ==========================================================================
@@ -2544,16 +2538,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mcmp-note{margin:var(--sp-3) 0 0;color:var(--muted2)}
 @media (prefers-reduced-motion:reduce){ .mcmp-row:active{transform:none} }
 
-/* Desktop: the dashboard is a two-column grid (.dash-panel | .dash-ins). By menu and Dig in join
-   column 1 under the chart panel — they read as continuations of the same question, not as three
-   unrelated columns. EXPLICIT rows, never auto-flow: #dashBody relied on auto-placement once and a
-   new panel pushed the cards below the fold (v89). Pinning every child stops a fifth repeating it. */
-@media(min-width:1024px){                      /* the breakpoint #dashBody's grid itself is declared at */
-  #dashBody .dash-panel{grid-column:1;grid-row:1}
-  #dashBody .dash-ins{grid-column:2;grid-row:1;margin:var(--sp-5) 0 0}
-  #dashBody .dash-compare{grid-column:1;grid-row:2;margin:var(--sp-5) 0 0}
-  #dashBody .dash-dig{grid-column:1/-1;grid-row:3;margin:var(--sp-5) 0 0}
-}
+/* v98: the v89 desktop placement block that sat here is DELETED — placement lives in the ONE
+   v98 desktop block at the end of this file. Its lesson survives there: EXPLICIT rows, never
+   auto-flow (auto-placement once pushed a panel below the fold when a third child appeared). */
 
 /* ===== batch (v90) — insights on the Dashboard + the "Dig in" drill-downs =====================
    Two new panels, both built from the existing .panel/.pad skeleton and existing tokens. No new
@@ -2567,6 +2554,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    defined once in index.html — never inside this panel's markup, which is re-rendered constantly. */
 .dash-ins h2{display:flex;align-items:center;gap:var(--sp-2)}
 .ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
+/* v98: the sparkle is the AI-provenance marker and keeps Gemini's hues — but the stock stops
+   wash out at 16px on the cream page, so LIGHT mode draws the deeper-luminance variant of the
+   same gradient (#ezSparkGradDeep, defined beside #ezSparkGrad in index.html). The switch
+   mirrors the theme-token pattern above: light is the default, dark restores the original. */
+.ins-spark path{fill:url(#ezSparkGradDeep)}
+:root[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .ins-spark path{fill:url(#ezSparkGrad)}
+}
 .ins-line{margin:0;padding:var(--sp-3) 0;font-size:var(--fs-base);line-height:1.55;color:var(--text2)}
 .ins-line:first-child{padding-top:0}
 .ins-line:last-of-type{padding-bottom:0}
@@ -2580,7 +2576,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dig-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
 .dig-card{display:flex;flex-direction:column;gap:2px;min-height:44px;   /* 44px: the app's touch-target floor */
   padding:var(--sp-3) var(--sp-4);text-align:left;font:inherit;color:var(--text);cursor:pointer;
-  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-ctl);
+  /* v98: --surface, not --surface2 — the beige third tone made light mode read cream page →
+     white card → beige card-in-card (dark hid it: tonal deltas compress at the dark end).
+     The hairline border alone separates the tile from the panel it sits in, at every width. */
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-ctl);
   transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
 .dig-card:hover{border-color:var(--accent)}
 .dig-card:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .mcmp-row */
@@ -2592,6 +2591,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dig-v.up{color:var(--bad)}                   /* a cost going UP is bad news, not "positive" */
 .dig-v.down{color:var(--good)}
 .dig-v.muted{color:var(--muted2)}
+/* v98: an empty tile reads quieter than a populated one — same card style, quieter CONTENT.
+   "Nothing yet" used to carry the same bold ink as three tiles of real data. */
+.dig-card.is-empty .dig-n{color:var(--muted2);font-weight:400}
 
 /* detail view: the back arrow rides in the panel heading, mirroring Settings' .set-back */
 .dash-dig h2{display:flex;align-items:center;gap:var(--sp-1)}
@@ -2667,79 +2669,67 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    (iOS, macOS default) are unaffected. */
 html{scrollbar-gutter:stable}
 
-/* ===== v95 — desktop bento: variable tiles last =============================================
-   The v94 two-column split could not hold: the right column's height is INHERENTLY variable
-   (1–5 insights by design, menus grow the list), so it gapped at some content level however it
-   was tuned, and row-locks traded gaps for reserved air. v95 recomposes: rows 1–2 contain only
-   FIXED-height tiles (verdict, compares, chart, the four dig tiles), tuned to match once; BOTH
-   variable tiles (insights, By menu) share the TERMINAL row, hug their content and grow toward
-   the page end — nothing beside them to mismatch, nothing below them to push. No dead space at
-   any insight/menu count, nothing jumps on scope change, structurally.
-   Markup: renderDashboard wraps the chart card's three pieces in .dp-tile divs (DOM = mobile
-   reading order); everything else is placement of existing elements. Mobile (<1024px) unchanged. */
+/* ===== v98 — desktop grid: variable-height rows are full-width ==============================
+   The v95 bento still asked a fixed-height element to agree with variable ones; it was retuned
+   twice and the dead space moved rather than closed. v98 stops asking: anything whose height
+   cannot be predicted gets a FULL-WIDTH row where nothing sits beside it.
+     row 1  .dash-panel (7 tracks) | .dash-compare (5 tracks), top-aligned. The CHART CARD ALONE
+            sets the row height: the selector card is absolutely positioned into its grid area
+            (an abs-pos grid child's containing block IS its placed area), so the menu count can
+            never stretch row 1 — past what fits, the list scrolls inside the card. The ranking
+            is WORST-first (flipped with this grid, Max's call — pinned by dash-scope.test.js),
+            so overflow hides the healthiest menus: the right thing to lose.
+            SPARSE STATE, decided not defaulted: with two menus the card carries quiet space
+            below the rows. Accepted — it self-corrects as menus are added, and a content-sized
+            card would give row 1 a ragged bottom edge against the full-width row beneath (the
+            same dead space, relocated to the page).
+     row 2  .dash-ins — full width; 1–5 insights BY DESIGN, its height is free here.
+     row 3  .dash-dig — full width, the four tiles.
+   THE ONLY desktop placement layer: v89's 7fr/5fr rules, the v49 grid re-declare and both v95
+   bento bands are DELETED, not overridden — a third stacked layer is how this file bred repeat
+   breakages. EXPLICIT rows, never auto-flow (v89's lesson: auto-placement pushed a panel below
+   the fold when a third child appeared).
+   Markup: the .dp-tile wrappers stay as chrome-free ORDERING HANDLES only — no fill, no border
+   at any width (the cards-in-cards fix); mobile DOM order (verdict → chart → compares) is
+   untouched and CSS order re-cuts the card to the brief's number → compares → trend. */
 @media(min-width:1024px){
-  #dashBody{padding-top:0;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:none;gap:var(--sp-2)}
-  /* outer rows: [chart section | dig tiles | insights + by-menu]. The v89/v94 placements above
-     are all overridden here — this section is the single owner of desktop dashboard placement. */
-  #dashBody .dash-panel{grid-column:1/13;grid-row:1;margin-top:var(--sp-5);min-height:0}
-  #dashBody .dash-dig{grid-column:1/13;grid-row:2;margin:0}
-  #dashBody .dash-ins{grid-column:1/9;grid-row:3;margin:0;align-self:start;min-height:0}
-  #dashBody .dash-compare{grid-column:9/13;grid-row:3;margin:0;align-self:start}
-  /* one of the terminal tiles absent (single menu / quiet engine): the other takes the row */
-  #dashBody:not(:has(.dash-compare)) .dash-ins{grid-column:1/13}
-  #dashBody:not(:has(.dash-ins)) .dash-compare{grid-column:1/13}
+  #dashBody{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-2) var(--sp-5);padding:0 0 var(--sp-3)}
+  #dashBody .dash-panel{grid-column:1/8;grid-row:1;margin:var(--sp-5) 0 0;min-height:0}
+  /* inset-top mirrors the panel's sp-5 margin so the two cards top-align; inset-bottom 0 pins
+     the card's floor to the panel's. Height matches row 1 without ever defining it.
+     BOTH grid lines must be EXPLICIT (1/2, not 1): an abs-pos grid child's containing block only
+     uses a grid line that is definite — an auto end line falls back to the container's padding
+     edge, and the card stretched to the page end (caught by v98-grid.spec.js, run 1). */
+  #dashBody .dash-compare{grid-column:8/13;grid-row:1/2;position:absolute;inset:var(--sp-5) 0 0 0;margin:0;display:flex;flex-direction:column;min-height:0}
+  #dashBody .dash-compare .pad{flex:1 1 auto;min-height:0;overflow-y:auto}
+  #dashBody .dash-ins{grid-column:1/13;grid-row:2;margin:0}
+  #dashBody .dash-dig{grid-column:1/13;grid-row:3;margin:0}
+  /* absent panels: the neighbour takes the width / the row closes up (rows stay explicit) */
+  #dashBody:not(:has(.dash-compare)) .dash-panel{grid-column:1/13}
+  #dashBody:not(:has(.dash-ins)) .dash-dig{grid-row:2}
 
-  /* --- the top card's inner grid: verdict | chart, compares under the verdict --- */
-  #dashBody .dash-panel .pad{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto 1fr;gap:var(--sp-2);padding:var(--sp-2) var(--sp-4) var(--sp-4)}
-  #dashBody .dp-tile{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-ctl);padding:var(--sp-3) var(--sp-4)}
-  /* 1024-1279 is too narrow for a side column — anything at 4-5 tracks wraps taller than the
-     narrowed chart and strands air at its floor. In this band the top card is two rows instead:
-     verdict | compares side by side, chart FULL WIDTH beneath (its tallest rendering). ≥1280
-     switches to the approved left-stack | chart composition (below). */
-  /* the verdict tile centres its short stack — the slack becomes symmetric breathing room instead
-     of a hole at the tile floor. v96: it is ALWAYS the short stack now (the selector that used to
-     make it the taller of the two variants is gone), so the two column splits that used to fork on
-     :not(:has(.dash-scope)) collapse into the one below — the former single-menu split, which is
-     what every scope renders as now. */
-  #dashBody .dp-verdict{grid-column:1/6;grid-row:1;display:flex;flex-direction:column;justify-content:center}
-  /* the target/trend sentence is one line for some scopes and two for others ("over" vs
-     "under", trend word length) — reserving two lines makes every scope's tile identical,
-     which the no-jump rule requires. The centred flex absorbs the single-line case. */
-  #dashBody .dp-verdict .verdict-line{min-height:2.9em}
-  /* compares takes the wider share so the row stays as short as its content */
-  #dashBody .dp-stats{grid-column:6/13;grid-row:1}
-  #dashBody .dp-chart{grid-column:1/13;grid-row:2}
+  /* --- the top card: ONE surface, one column — the number and the trend are the same story.
+     Order: headline → target line → compares → trendline + ranges (the brief's reading order);
+     hairlines separate the zones, never a second fill. --- */
+  #dashBody .dash-panel .pad{display:flex;flex-direction:column;padding:var(--sp-3) var(--sp-5) var(--sp-4)}
+  #dashBody .dp-verdict{order:1}
+  #dashBody .dp-stats{order:2}
+  #dashBody .dp-chart{order:3;margin-top:var(--sp-3);border-top:1px solid var(--border);padding-top:var(--sp-3)}
   /* the chart KEEPS its 540px cap and centred controls: rendering the 320-unit viewBox any
-     wider scales the axis type with it (axis fonts are out of bounds for this batch, and 2×
-     labels read clownish). The tile centres the pair; title/labels share one left edge. */
-  /* the per-menu caption's line is RESERVED at the tile's floor and the note absolutely
-     positioned into it — so selecting a menu changes zero geometry (the no-jump rule) at any
-     width, with no per-width magic numbers. Empty on "All menus", it reads as bottom padding. */
-  #dashBody .dp-chart{position:relative;padding-bottom:calc(var(--sp-2) + 32px)}   /* 32px: the caption band also out-sizes the compares tile's worst wrap (scoped lead = 2 lines), so the chart-driven row track never yields to it */
-  #dashBody .dp-chart .scope-note{position:absolute;left:var(--sp-4);right:var(--sp-4);bottom:var(--sp-2);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* compares: three rows distributed over the tile — slack reads as rhythm, not a hole */
-  #dashBody .dp-stats{display:flex;flex-direction:column}
-  #dashBody .dp-stats .stat-attach{flex:1 1 auto;display:flex;flex-direction:column;margin-top:0;padding-top:0;border-top:0}
-  #dashBody .dp-stats .stat-line{flex:1 1 auto;justify-content:space-evenly;gap:2px;padding:0}
+     wider scales the axis type with it (axis fonts are out of bounds for this batch). */
+  /* the scope caption's line is RESERVED at the card's floor and the note absolutely positioned
+     into it — selecting a menu changes zero geometry (the no-jump rule, kept from v95). Empty
+     on "All menus", the band reads as bottom padding. 18px = one fs-xs line. */
+  #dashBody .dp-chart{position:relative;padding-bottom:calc(var(--sp-2) + 18px)}
+  #dashBody .dp-chart .scope-note{position:absolute;left:0;right:0;bottom:0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-  /* --- DIG IN: the wrapper loses its chrome so the four cards read as top-level tiles --- */
+  /* --- DIG IN: the wrapper loses its chrome so the four tiles read as direct children of the
+     page (kept from v95); a drill-down is a full list again and gets the chrome back --- */
   #dashBody .dash-dig{background:none;border:0;box-shadow:none;border-radius:0}
   #dashBody .dash-dig > h2{border-bottom:0;padding:var(--sp-2) 2px var(--sp-1)}
   #dashBody .dash-dig > .pad{padding:0}
-  #dashBody .dig-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4)}
-  /* a drill-down is a full list again — the open state gets its card chrome back */
+  #dashBody .dig-card{border-radius:var(--radius-card);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4)}
   #dashBody .dash-dig.detail-open{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow)}
   #dashBody .dash-dig.detail-open > h2{border-bottom:1px solid var(--border);padding:var(--sp-4) var(--sp-5) var(--sp-3)}
   #dashBody .dash-dig.detail-open > .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}
-}
-@media(min-width:1280px){
-  /* left column takes FIVE tracks: the compares rows are single-line (base nowrap) and need
-     ~340px; at four tracks they clip at the tile edge. The chart tile still exceeds the svg's
-     540px cap at seven tracks, so the chart loses nothing. */
-  #dashBody .dp-verdict{grid-column:1/6;grid-row:1}
-  #dashBody .dp-stats{grid-column:1/6;grid-row:2}
-  #dashBody .dp-chart{grid-column:6/13;grid-row:1/3}
-  /* v96: the :not(:has(.dash-scope)) re-pin that used to sit here is gone with the selector. It
-     existed only because the 1024-band fallback out-specified these rules and dragged .dp-stats
-     over the chart; with one unconditional split in that band there is nothing to out-specify. */
 }

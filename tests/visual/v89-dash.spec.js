@@ -81,11 +81,13 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
       await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'all');
 
-      // the By-menu list is ranked best-first, under the All-menus row (which is not ranked)
+      // the By-menu list is ranked WORST-first (v98, Max's call — the scrolling selector card
+      // must overflow the healthy menus, not the ones needing attention), under the All-menus
+      // row (which is not ranked)
       const names = await page.locator('.mcmp-name').allTextContents();
       const pcts = await page.locator('.mcmp-pct').allTextContents();
-      expect(names).toEqual(['All menus', 'Original', 'Winter']);
-      expect(pcts).toEqual(['40.0%', '30.0%', '60.0%']);
+      expect(names).toEqual(['All menus', 'Winter', 'Original']);
+      expect(pcts).toEqual(['40.0%', '60.0%', '30.0%']);
 
       await page.screenshot({ path: `tests/visual/__shots__/v89-dash-all-${label}-${theme}.png`, fullPage: true });
 
@@ -125,21 +127,27 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       const cur = await page.evaluate(() => window.currentMenuId);
       expect(cur).toBe('MENU_ORIGINAL');
 
-      // desktop: v95 bento (SUPERSEDES the v90 "insights in row 1" pin, Max-approved) — the
-      // insights panel lives in the TERMINAL row beside By menu, where its 1–5 line variance
-      // can't open gaps or move other cards. Asserted unconditionally so the placement check
-      // can't pass vacuously if the panel stops rendering (CodeRabbit, v90 — still applies).
+      // desktop: v98 grid (SUPERSEDES the v95 terminal-row bento, per the grid brief) — the
+      // selector card sits beside the chart card in row 1, heights matched and CHART-driven;
+      // every variable-height region (insights, Dig in) gets a full-width row beneath, where
+      // nothing sits beside it to mismatch. Asserted unconditionally so the placement check
+      // can't pass vacuously if a panel stops rendering (CodeRabbit, v90 — still applies).
       if (width >= 1024) {
         await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
-        const tops = await page.evaluate(() => ({
-          dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect(),
+        const geo = await page.evaluate(() => ({
+          panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect(),
+          cmp: document.querySelector('#dashBody .dash-compare').getBoundingClientRect(),
           ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
-          cmp: document.querySelector('#dashBody .dash-compare').getBoundingClientRect()
+          dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
         }));
-        expect(tops.ins.top, 'insights sit below the whole Dig-in region').toBeGreaterThanOrEqual(tops.dig.bottom - 1);   // vs dig.BOTTOM — CodeRabbit, accepted
-        expect(Math.abs(tops.ins.top - tops.cmp.top), 'insights and By menu share the terminal row')
-          .toBeLessThanOrEqual(8);
-        expect(tops.cmp.left, 'By menu is the right-hand terminal tile').toBeGreaterThan(tops.ins.left);
+        expect(Math.abs(geo.cmp.top - geo.panel.top), 'selector and chart card top-aligned in row 1').toBeLessThanOrEqual(2);
+        expect(geo.cmp.left, 'the selector is the right-hand card').toBeGreaterThanOrEqual(geo.panel.right - 1);
+        expect(Math.abs(geo.cmp.bottom - geo.panel.bottom), 'row-1 card floors match — the chart card sets the height').toBeLessThanOrEqual(2);
+        expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
+        // edge pins, not a width comparison (CodeRabbit, v98): a width check could pass offset
+        expect(geo.ins.left, 'insights start at the chart card edge').toBeLessThanOrEqual(geo.panel.left + 1);
+        expect(geo.ins.right, 'insights span through the selector card edge').toBeGreaterThanOrEqual(geo.cmp.right - 1);
+        expect(geo.dig.top, 'Dig in sits below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
       }
 
       // nothing overflows horizontally

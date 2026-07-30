@@ -107,27 +107,40 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
         await expect(page.locator('#dashBody .dig-card'), `card ${i} returns`).toHaveCount(4);
       }
 
-      // ---- desktop: v95 bento (SUPERSEDES v90's insights-beside-chart pin, Max-approved) ----
-      // Fixed tiles compose the upper rows (verdict/compares/chart in the top card, the four
-      // dig tiles under it); BOTH variable-height tiles (insights, By menu) share the terminal
-      // row so no insight/menu count can open a gap or move anything above.
+      // ---- desktop: v98 grid (SUPERSEDES the v95 bento pin, per the grid brief) ----
+      // Row 1 is the ONLY side-by-side (chart card | selector card); the card reads number →
+      // compares → trend top to bottom (CSS order — the DOM keeps the mobile reading order);
+      // insights (row 2) and Dig in (row 3) are full-width rows with nothing beside them.
+      // One composition at every desktop width — the 1024/1280 fork is gone with the bento.
       if (width >= 1024) {
         const geo = await page.evaluate(() => ({
           panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect(),
           verd: document.querySelector('#dashBody .dp-verdict').getBoundingClientRect(),
+          stats: document.querySelector('#dashBody .dp-stats').getBoundingClientRect(),
           chart: document.querySelector('#dashBody .dp-chart').getBoundingClientRect(),
           ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
           dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
         }));
-        expect(geo.dig.top, 'Dig in sits below the chart section').toBeGreaterThan(geo.panel.bottom - 1);
-        expect(geo.ins.top, 'insights are in the terminal row, below the whole Dig-in region').toBeGreaterThanOrEqual(geo.dig.bottom - 1);   // vs dig.BOTTOM — CodeRabbit, accepted
-        if (width >= 1280) {
-          expect(Math.abs(geo.chart.top - geo.verd.top), 'verdict and chart tiles top-aligned').toBeLessThanOrEqual(8);
-          expect(geo.chart.left, 'chart is the right-hand tile').toBeGreaterThan(geo.verd.left);
-        } else {
-          expect(geo.chart.top, '1024 band: chart full-width under the verdict row').toBeGreaterThan(geo.verd.bottom - 1);
-        }
+        expect(geo.stats.top, 'the compares sit under the headline').toBeGreaterThanOrEqual(geo.verd.bottom - 1);
+        expect(geo.chart.top, 'the trend is the card’s last zone, under the compares').toBeGreaterThanOrEqual(geo.stats.bottom - 1);
+        expect(geo.ins.top, 'insights are a full-width row below the chart section').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
+        expect(geo.dig.top, 'Dig in sits below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
       }
+
+      // ---- v98 surfaces: one card tone on one page tone, at EVERY width ----
+      // The .dp-tile wrappers are ordering handles with no fill of their own, and the dig
+      // tiles share the panel's card tone — the beige card-inside-card is the light-mode bug
+      // this batch exists to fix, so it is pinned by computed style, not by eyeballing.
+      const fills = await page.evaluate(() => {
+        const bg = (sel) => getComputedStyle(document.querySelector(sel)).backgroundColor;
+        return {
+          verd: bg('#dashBody .dp-verdict'),
+          panel: bg('#dashBody .dash-panel'),
+          dig: bg('#dashBody .dig-card')
+        };
+      });
+      expect(fills.verd, 'dp-tile wrappers carry no fill').toBe('rgba(0, 0, 0, 0)');
+      expect(fills.dig, 'dig tiles share the one card tone').toBe(fills.panel);
 
       // ---- nothing overflows, nothing errored ----
       const overflow = await page.evaluate(() =>

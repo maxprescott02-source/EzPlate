@@ -142,14 +142,17 @@ test('a scope with nothing costed returns null, never zero', () => {
   assert.strictEqual(app.avgFoodCostForScope('MENU_WINTER'), null);
 });
 
-test('comparison list is ordered best (lowest food cost %) first', () => {
+test('comparison list is ordered worst (highest food cost %) first — v98, Max\'s call', () => {
+  // Was best-first from v89 to v97. Flipped WITH the v98 desktop grid: the selector card
+  // scrolls internally past what fits, so overflow must hide the healthy menus, not the
+  // ones that need attention. If this pin goes red, someone flipped it back — ask Max first.
   const MENU = [
     dish('MENU_ORIGINAL', 4, 10),   // Original 40%
     dish('MENU_WINTER', 2, 10)      // Winter 20%
   ];
   const rows = withState(MENU, MENUS).menuComparisonRows();
-  assert.deepStrictEqual(rows.map(r => r.id), ['MENU_WINTER', 'MENU_ORIGINAL']);
-  near(rows[0].pct, 20, 'Winter'); near(rows[1].pct, 40, 'Original');
+  assert.deepStrictEqual(rows.map(r => r.id), ['MENU_ORIGINAL', 'MENU_WINTER']);
+  near(rows[0].pct, 40, 'Original'); near(rows[1].pct, 20, 'Winter');
 });
 
 test('comparison list excludes menus with no costed plates', () => {
@@ -213,8 +216,8 @@ test('v96: selecting a menu does not reorder the list', () => {
   const onOriginal = order(withState(MENU, MENUS).menuCompareHtml('MENU_ORIGINAL'));
   assert.deepStrictEqual(onWinter, onAll, 'ranking is independent of the selection');
   assert.deepStrictEqual(onOriginal, onAll);
-  // and the ranking itself is unchanged by v96: lowest food cost % first, All menus excluded from it
-  assert.deepStrictEqual(onAll, ['data-scope="all"', 'data-scope="MENU_WINTER"', 'data-scope="MENU_ORIGINAL"']);
+  // and the ranking is v98's worst-first (highest food cost % leads), All menus excluded from it
+  assert.deepStrictEqual(onAll, ['data-scope="all"', 'data-scope="MENU_ORIGINAL"', 'data-scope="MENU_WINTER"']);
 });
 
 test('v96: a menu with nothing costed is not a row, so it is not a reachable scope', () => {
