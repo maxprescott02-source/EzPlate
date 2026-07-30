@@ -346,11 +346,10 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v98** on branch `feature/dashboard-grid`, **not yet merged** —
-  `main` is at **v97** (PR #36, merged 30 Jul 2026). Six spots agree at v98 on
-  the branch. Local `main` goes stale between sessions (Max merges via GitHub
-  PR) — **`git fetch` and check `origin/main` first**
-  ([[verify-origin-main-before-trusting-local]]).
+- **Version:** **v98** — `main` (PR #37, merged 31 Jul 2026, including the
+  same-day revision). Six spots agree at v98. Local `main` goes stale between
+  sessions (Max merges via GitHub PR) — **`git fetch` and check `origin/main`
+  first** ([[verify-origin-main-before-trusting-local]]).
 - **v98 (desktop grid + light-mode surfaces; REVISED same-day by
   `ezplate-fable-dashboard-grid_1.md` after Max reviewed the build):** desktop
   dashboard placement has exactly ONE owner — the v98 block at the end of
