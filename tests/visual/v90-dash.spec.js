@@ -109,23 +109,23 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
 
       // ---- desktop: v98 grid (SUPERSEDES the v95 bento pin, per the grid brief) ----
       // Row 1 is the ONLY side-by-side (chart card | selector card); the card reads number →
-      // compares → trend top to bottom (CSS order — the DOM keeps the mobile reading order);
-      // insights (row 2) and Dig in (row 3) are full-width rows with nothing beside them.
-      // One composition at every desktop width — the 1024/1280 fork is gone with the bento.
+      // trend top to bottom (the compares tile is DELETED in the v98 revision — pinned in
+      // dash-persist.test.js and by the count check here); insights (row 2) and Dig in (row 3)
+      // are full-width rows. One composition at every desktop width — the 1024/1280 fork is gone.
       if (width >= 1024) {
         const geo = await page.evaluate(() => ({
           panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect(),
           verd: document.querySelector('#dashBody .dp-verdict').getBoundingClientRect(),
-          stats: document.querySelector('#dashBody .dp-stats').getBoundingClientRect(),
           chart: document.querySelector('#dashBody .dp-chart').getBoundingClientRect(),
           ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
           dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
         }));
-        expect(geo.stats.top, 'the compares sit under the headline').toBeGreaterThanOrEqual(geo.verd.bottom - 1);
-        expect(geo.chart.top, 'the trend is the card’s last zone, under the compares').toBeGreaterThanOrEqual(geo.stats.bottom - 1);
+        expect(geo.chart.top, 'the trend is the card’s last zone, under the headline').toBeGreaterThanOrEqual(geo.verd.bottom - 1);
         expect(geo.ins.top, 'insights are a full-width row below the chart section').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
         expect(geo.dig.top, 'Dig in sits below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
       }
+      // v98 revision: the compares block is gone at EVERY width — deleted, not relocated
+      await expect(page.locator('#dashBody .dp-stats, #dashBody .stat-attach, #dashBody .stat-line')).toHaveCount(0);
 
       // ---- v98 surfaces: one card tone on one page tone, at EVERY width ----
       // The .dp-tile wrappers are ordering handles with no fill of their own, and the dig

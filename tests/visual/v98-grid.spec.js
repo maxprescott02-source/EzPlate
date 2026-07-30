@@ -21,7 +21,8 @@ const { test, expect } = require('@playwright/test');
 const seedFor = (n) => `
   localStorage.clear();
   (function(){
-    var costs = [3, 6, 3.2, 4.5, 3.8, 5.2, 4.1, 3.5];  // 30,60,32,45,38,52,41,35 % at $10
+    // 30, 60, 8.5 (single-digit width — the alignment pin needs a narrow figure), 45, 38, ... % at $10
+    var costs = [3, 6, 0.85, 4.5, 3.8, 5.2, 4.1, 3.5];
     var menus = [], plates = [], dishes = [];
     for (var i = 0; i < ${n}; i++){
       menus.push({ id: 'M' + (i+1), name: 'Menu ' + (i+1) });
@@ -40,6 +41,12 @@ const seedFor = (n) => `
     localStorage.setItem('cafeDB_priceHistory', JSON.stringify([
       { t: now - 20*day, v: 42.0 }, { t: now - 10*day, v: 38.5 }, { t: now - day, v: 36.0 }
     ]));
+    // per-menu history for the first two menus, so their rows draw sparklines (>=2 points each)
+    // — the selection-additive pin needs sparked rows to select
+    localStorage.setItem('cafeDB_menuHistory', JSON.stringify({
+      M1: [{ t: now - 10*day, v: 31.0 }, { t: now - day, v: 30.0 }],
+      M2: [{ t: now - 10*day, v: 58.0 }, { t: now - day, v: 60.0 }]
+    }));
     localStorage.setItem('cafeDB_dashRange', '3m');
   })();
 `;
@@ -74,7 +81,9 @@ function expectGridContract(geo) {
   expect(geo.ins, 'the insights panel renders (non-vacuous placement check)').not.toBeNull();
   expect(Math.abs(geo.cmp.top - geo.panel.top), 'row-1 cards top-aligned').toBeLessThanOrEqual(2);
   expect(geo.cmp.left, 'the selector is the right-hand card').toBeGreaterThanOrEqual(geo.panel.right - 1);
-  expect(Math.abs(geo.cmp.bottom - geo.panel.bottom), 'row-1 floors match — the chart card sets the height').toBeLessThanOrEqual(2);
+  // v98 revision: the selector card is CONTENT-SIZED, capped at the chart card's floor — it may
+  // end above the panel's bottom (short list) but never below it (the cap; long lists scroll).
+  expect(geo.cmp.bottom, 'the selector card never outgrows the chart card').toBeLessThanOrEqual(geo.panel.bottom + 2);
   expect(geo.ins.top, 'insights: full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
   // edge pins, not a width comparison (CodeRabbit on the v89 twin of this check): width could pass offset
   expect(geo.ins.left, 'insights start at the chart card edge').toBeLessThanOrEqual(geo.panel.left + 1);
@@ -101,12 +110,20 @@ for (const width of [1280, 1600]) {
   }
 }
 
-// ---- the sparse floor: 2 menus. The selector card keeps row-1 height (quiet space below the
-// rows is the DECIDED trade — it self-corrects as menus are added; a content-sized card would
-// hand row 1 a ragged floor against the full-width row beneath) ----
-test('sparse state: 2 menus do not collapse the grid @ 1280', async ({ page }) => {
+// ---- the sparse floor: 2 menus. v98 revision (Max's call on seeing the void): the selector
+// card SIZES TO ITS CONTENT — it ends where its rows end, and the space below it is page
+// background, not card interior asserting content that doesn't exist ----
+test('sparse state: 2 menus — the selector card ends at its content @ 1280', async ({ page }) => {
   await boot(page, 1280, 2, 'light');
-  expectGridContract(await gridGeo(page));
+  const geo = await gridGeo(page);
+  expectGridContract(geo);
+  expect(geo.cmp.bottom, 'a three-row list does not stretch to the chart card\'s floor')
+    .toBeLessThan(geo.panel.bottom - 8);
+  const scroll = await page.evaluate(() => {
+    const pad = document.querySelector('#dashBody .dash-compare .pad');
+    return { sh: pad.scrollHeight, ch: pad.clientHeight };
+  });
+  expect(scroll.sh, 'nothing scrolls when everything fits').toBeLessThanOrEqual(scroll.ch + 1);
   await noHorizontalOverflow(page);
   await page.screenshot({ path: 'tests/visual/__shots__/v98-grid-2menus-1280-light.png', fullPage: true });
 });
@@ -118,6 +135,9 @@ test('full state: 12 menus scroll inside the selector card @ 1280', async ({ pag
   await boot(page, 1280, 12, 'light');
   const geo = await gridGeo(page);
   expectGridContract(geo);
+  // content-sized BUT capped: a long list fills the row exactly and scrolls, never stretches it
+  expect(Math.abs(geo.cmp.bottom - geo.panel.bottom), 'a long list hits the cap at the chart card\'s floor')
+    .toBeLessThanOrEqual(2);
   const scroll = await page.evaluate(() => {
     const pad = document.querySelector('#dashBody .dash-compare .pad');
     return { sh: pad.scrollHeight, ch: pad.clientHeight };
@@ -157,6 +177,72 @@ test('an empty Dig-in tile reads quieter than a populated one @ 1280', async ({ 
     full: getComputedStyle(document.querySelector('#dashBody .dig-card:not(.is-empty) .dig-n')).fontWeight
   }));
   expect(Number(weights.empty), 'empty name is not bold').toBeLessThan(Number(weights.full));
+});
+
+// ---- v98 revision: SELECTION IS ADDITIVE — a selected row keeps its sparkline. Diagnosed on
+// Max's report of a selected row "losing" its spark: no code path ties sparks to selection (the
+// marking is font-weight alone); what he saw is the v89 honesty rule — a menu with <2 points of
+// its OWN history draws no spark, selected or not, and on production data only All menus
+// qualifies today. This pin makes the additive property permanent: with per-menu history seeded,
+// selecting a sparked row must not remove its spark (or anyone else's). ----
+test('selecting a row keeps every sparkline, including its own @ 1280', async ({ page }) => {
+  await boot(page, 1280, 6, 'light');
+  const sparksBefore = await page.locator('.mcmp-row .mcmp-spark').count();
+  expect(sparksBefore, 'the seed puts sparks on All menus + M1 + M2').toBeGreaterThanOrEqual(3);
+  await expect(page.locator('.mcmp-row[data-scope="M2"] .mcmp-spark')).toHaveCount(1);
+  await page.locator('.mcmp-row[data-scope="M2"]').click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.mcmp-row[data-scope="M2"].act .mcmp-spark'),
+    'the now-selected row still draws its spark').toHaveCount(1);
+  expect(await page.locator('.mcmp-row .mcmp-spark').count(),
+    'no other row lost one either').toBe(sparksBefore);
+});
+
+// ---- v98 revision: the figure column is a shared axis. Percentages sit in a fixed-width,
+// right-aligned column, so figures AND the sparklines beside them align across every row —
+// including All menus, and including a narrow "8.5%" beside a wide "30.0%". ----
+test('percentages and sparklines share axes across all rows @ 1280', async ({ page }) => {
+  await boot(page, 1280, 6, 'light');
+  const cols = await page.evaluate(() => {
+    const r = (el) => el.getBoundingClientRect();
+    return {
+      pctL: [...document.querySelectorAll('.mcmp-pct')].map(e => r(e).left),
+      pctR: [...document.querySelectorAll('.mcmp-pct')].map(e => r(e).right),
+      sparkR: [...document.querySelectorAll('.mcmp-spark')].map(e => r(e).right)
+    };
+  });
+  const spread = a => Math.max(...a) - Math.min(...a);
+  expect(cols.pctL.length, 'seven rows render a figure').toBe(7);
+  expect(spread(cols.pctL), 'figure column left edges align').toBeLessThanOrEqual(1);
+  expect(spread(cols.pctR), 'figure column right edges align').toBeLessThanOrEqual(1);
+  expect(spread(cols.sparkR), 'sparklines align against the figure column').toBeLessThanOrEqual(1);
+});
+
+// ---- v98 revision: ONE elevation, two modes. Every dashboard card draws the same --elev token
+// — cast shadow in light; none in dark, where the surface-lightness step carries depth. Pinned
+// by computed style so a per-card override or a murky dark shadow cannot creep back. ----
+test('one elevation token: cards share it in light, and it is none in dark @ 1280', async ({ page }) => {
+  await boot(page, 1280, 6, 'light');
+  const light = await page.evaluate(() => ({
+    panel: getComputedStyle(document.querySelector('#dashBody .dash-panel')).boxShadow,
+    cmp: getComputedStyle(document.querySelector('#dashBody .dash-compare')).boxShadow,
+    ins: getComputedStyle(document.querySelector('#dashBody .dash-ins')).boxShadow,
+    dig: getComputedStyle(document.querySelector('#dashBody .dig-card')).boxShadow
+  }));
+  expect(light.panel, 'light mode casts a real shadow').not.toBe('none');
+  expect(new Set(Object.values(light)).size, 'every card shares ONE shadow value in light').toBe(1);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  // the dark half sweeps the same four card types as the light half (CodeRabbit)
+  const dark = await page.evaluate(() => ({
+    panel: getComputedStyle(document.querySelector('#dashBody .dash-panel')).boxShadow,
+    cmp: getComputedStyle(document.querySelector('#dashBody .dash-compare')).boxShadow,
+    ins: getComputedStyle(document.querySelector('#dashBody .dash-ins')).boxShadow,
+    dig: getComputedStyle(document.querySelector('#dashBody .dig-card')).boxShadow
+  }));
+  expect(dark.panel, 'dark mode draws no cast shadow — the surface step is the depth').toBe('none');
+  expect(dark.cmp, 'selector included').toBe('none');
+  expect(dark.ins, 'insights included').toBe('none');
+  expect(dark.dig, 'dig tiles included').toBe('none');
 });
 
 // ---- v98: the sparkle keeps Gemini's hues (it marks AI provenance, beside the earned credit)

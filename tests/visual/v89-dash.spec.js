@@ -142,7 +142,8 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
         }));
         expect(Math.abs(geo.cmp.top - geo.panel.top), 'selector and chart card top-aligned in row 1').toBeLessThanOrEqual(2);
         expect(geo.cmp.left, 'the selector is the right-hand card').toBeGreaterThanOrEqual(geo.panel.right - 1);
-        expect(Math.abs(geo.cmp.bottom - geo.panel.bottom), 'row-1 card floors match — the chart card sets the height').toBeLessThanOrEqual(2);
+        // v98 revision: the selector card is content-sized, capped at the chart card's floor
+        expect(geo.cmp.bottom, 'the selector card never outgrows the chart card').toBeLessThanOrEqual(geo.panel.bottom + 2);
         expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
         // edge pins, not a width comparison (CodeRabbit, v98): a width check could pass offset
         expect(geo.ins.left, 'insights start at the chart card edge').toBeLessThanOrEqual(geo.panel.left + 1);

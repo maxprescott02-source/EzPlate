@@ -137,9 +137,9 @@ test('a scope with insufficient history shows the not-enough-history copy, not N
 
   // the headline still computes from live costing — only the HISTORY is missing
   await expect(page.locator('.verdict-num')).toHaveText('60.0%');
-  // the comparison cards say so in the existing words
-  const subs = await page.locator('#dashBody .stat-line .stat-sub, #dashBody .stat-line').allTextContents();
-  expect(subs.join(' ')).toMatch(/not enough history\s*yet/);
+  /* v98 revision: the comparison cards (and their "not enough history yet" line) were DELETED
+     with the compares block — the chart empty state below is now the one place thin history
+     speaks, and the no-NaN sweep keeps the honesty this test exists for. */
   // the chart takes its empty-state card, not a broken plot
   await expect(page.locator('.dash-chart.empty')).toHaveCount(1);
   await expect(page.locator('.chart-hint')).toContainText('at least two logged points');

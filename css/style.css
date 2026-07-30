@@ -76,6 +76,10 @@
   --shadow:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
   --shadow-lg:0 22px 56px rgba(41,28,22,.24);
   --shadow-float:0 3px 10px rgba(60,40,20,.13);       /* v79: soft elevation for the floating Suggestions button */
+  /* v98: card elevation is a TWO-MODE token — cast shadow in light; none in dark, where depth
+     comes from the surface-lightness step instead (cast shadow reads as murk on a dark page).
+     Dashboard cards use it now; migrating the other tabs is a listed follow-up, not implied. */
+  --elev:var(--shadow);
   --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
   --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
@@ -101,6 +105,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
   --shadow-lg:0 28px 68px rgba(0,0,0,.6);
   --shadow-float:0 3px 12px rgba(0,0,0,.45);          /* v79: soft elevation for the floating Suggestions button */
+  --elev:none;                                        /* v98: dark depth = the surface step, not cast shadow */
   --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
   --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
@@ -126,6 +131,7 @@
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
     --shadow-lg:0 28px 68px rgba(0,0,0,.6);
     --shadow-float:0 3px 12px rgba(0,0,0,.45);          /* v79: soft elevation for the floating Suggestions button */
+    --elev:none;                                        /* v98: dark depth = the surface step, not cast shadow */
     --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
   --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
@@ -1164,8 +1170,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* ============ Dashboard ============ */
 #dashBody{padding-bottom:var(--sp-2)}
 /* v49: `.dash-panel h2{margin-bottom:0}` removed — .panel h2 already has margin:0 (a no-op since v3x) */
-.stat-attach{margin-top:var(--sp-2);border-top:1px solid var(--border);padding-top:var(--sp-3)}
-.stat-lead{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:0 0 8px}   /* v56: left edge = 0 = chart title/axis/caption column (was 2px, sat a hair right) */
+/* v98 revision: .stat-attach/.stat-lead deleted with the compares block (see renderDashboard).
+   NOTE for the dead-code audit: the .stat-row/.stat-card/.stat-v rules further down predate the
+   block and were ALREADY unreferenced; left in place because clearing pre-existing dead CSS is
+   the audit's scope, not this batch's. */
 .dash-chart{position:relative;max-width:540px;margin:0 auto}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:11px}
@@ -2154,12 +2162,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* menu empty state: centred, no orphaned quotes */
 .an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
 /* dashboard: stat cards collapsed to one quiet line; chart takes the space */
-.stat-line{display:flex;flex-direction:column;gap:3px;padding:2px 0 10px;font-size:12px;color:var(--muted2);align-items:flex-start}   /* v39 fix: one comparison per line, stacked. v40: left-align with .stat-lead. v56: left pad 2px->0, shares the chart block's x0 (title/axis/caption) */
-.stat-line .stat-bit{display:flex;align-items:baseline;gap:var(--sp-2);white-space:nowrap}
-.stat-line .stat-h{min-width:82px}   /* the three labels line up, so the numbers do too */
-.stat-line .stat-h{font-weight:700}
-.stat-line .stat-arrow.good{color:var(--good)} .stat-line .stat-arrow.bad{color:var(--bad)}
-.stat-line .stat-sub.good{color:var(--good)} .stat-line .stat-sub.bad{color:var(--bad)} .stat-line .stat-sub.flat{color:var(--muted2)}
+/* v98 revision: the .stat-line/.stat-bit comparison rows are gone with the compares block. */
 .range-bar{gap:4px}
 .range-btn{padding:4px 10px;font-size:12px;min-height:32px;border-radius:999px}
 /* settings: quiet grouped cards */
@@ -2534,7 +2537,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mcmp-row:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .dig-card */
 .mcmp-row.act{font-weight:700}
 .mcmp-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm)}
-.mcmp-pct{flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+/* v98 revision: a fixed-width, right-aligned figure column. Percentages only shared a right
+   edge before, so the sparkline beside a narrow "8.5%" sat further right than one beside
+   "30.0%" — the figures and sparks now sit on shared axes across every row, All menus included.
+   6ch fits "100.0%", the widest possible figure. */
+.mcmp-pct{flex:0 0 auto;min-width:6ch;text-align:right;font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
 .mcmp-note{margin:var(--sp-3) 0 0;color:var(--muted2)}
 @media (prefers-reduced-motion:reduce){ .mcmp-row:active{transform:none} }
 
@@ -2630,6 +2637,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    geometry below is deliberately NOT overridden; only its colour goes quiet, which isn't skeleton) */
 #dashBody{gap:var(--sp-2);padding-top:var(--sp-4)}   /* sp-4: other tabs' first panel lands 16px down on mobile (collapsed margin — measured, and pinned by layout-consistency) */
 #dashBody .panel{margin-top:0}
+/* v98: dashboard cards draw the two-mode elevation token (shadow in light, none in dark — the
+   surface step carries dark depth). One value for every card; the other tabs keep --shadow
+   until their own pass (follow-up, listed). */
+#dashBody .panel{box-shadow:var(--elev)}
 #dashBody .panel h2{color:var(--muted2)}
 /* v97 — the ONE deliberate exception to the v94/v95 density pass. Scope is now stated once, in this
    heading, so the heading carries metric + menu name together. The metric stays quiet like every other
@@ -2642,9 +2653,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 #dashBody .chart-hint{margin-top:var(--sp-1);font-size:var(--fs-xs)}
 #dashBody .scope-note{font-size:var(--fs-xs)}
 /* the comparison block attaches tight under the chart */
-#dashBody .stat-attach{margin-top:var(--sp-2);padding-top:var(--sp-2)}
-#dashBody .stat-lead{margin-bottom:var(--sp-1)}
-#dashBody .stat-line{gap:2px;padding:0;font-size:var(--fs-xs)}
+/* (v98 revision: the stat-attach/stat-lead/stat-line density overrides died with the block) */
 /* insights: the mockup's 12.5px lines with tight rhythm */
 #dashBody .ins-line{padding:var(--sp-2) 0;font-size:var(--fs-sm);line-height:1.5}
 #dashBody .ins-credit{margin-top:var(--sp-2)}
@@ -2674,33 +2683,38 @@ html{scrollbar-gutter:stable}
    twice and the dead space moved rather than closed. v98 stops asking: anything whose height
    cannot be predicted gets a FULL-WIDTH row where nothing sits beside it.
      row 1  .dash-panel (7 tracks) | .dash-compare (5 tracks), top-aligned. The CHART CARD ALONE
-            sets the row height: the selector card is absolutely positioned into its grid area
-            (an abs-pos grid child's containing block IS its placed area), so the menu count can
-            never stretch row 1 — past what fits, the list scrolls inside the card. The ranking
-            is WORST-first (flipped with this grid, Max's call — pinned by dash-scope.test.js),
-            so overflow hides the healthiest menus: the right thing to lose.
-            SPARSE STATE, decided not defaulted: with two menus the card carries quiet space
-            below the rows. Accepted — it self-corrects as menus are added, and a content-sized
-            card would give row 1 a ragged bottom edge against the full-width row beneath (the
-            same dead space, relocated to the page).
+            sets the row height. The selector card is absolutely positioned into its grid area
+            (an abs-pos grid child's containing block IS its placed area) and — v98 revision,
+            Max's call on seeing it — SIZES TO ITS CONTENT, capped at the row: a short list ends
+            where its rows end (the void below was card-interior emptiness asserting content
+            that doesn't exist; page background there is just page, like rows 2–3 sit on), and
+            a long list hits the cap and scrolls inside the card. Giving the void "a job" was
+            rejected: any job is new content, and this batch adds no metrics, tiles or cards.
+            The ranking is WORST-first (flipped with this grid, Max's call — pinned by
+            dash-scope.test.js), so overflow hides the healthiest menus: the right thing to lose.
      row 2  .dash-ins — full width; 1–5 insights BY DESIGN, its height is free here.
      row 3  .dash-dig — full width, the four tiles.
+   ONE SEAM: every gap between cards is the v95 8px seam, both axes, every adjacent pair; the
+   16px card-to-page-edge (.wrap padding) is deliberately 2× the seam, not a third rhythm.
+   ONE ELEVATION: every card draws var(--elev) — the two-mode token (shadow in light, none in
+   dark, where the surface step carries depth). No per-card shadow values.
    THE ONLY desktop placement layer: v89's 7fr/5fr rules, the v49 grid re-declare and both v95
    bento bands are DELETED, not overridden — a third stacked layer is how this file bred repeat
    breakages. EXPLICIT rows, never auto-flow (v89's lesson: auto-placement pushed a panel below
    the fold when a third child appeared).
-   Markup: the .dp-tile wrappers stay as chrome-free ORDERING HANDLES only — no fill, no border
-   at any width (the cards-in-cards fix); mobile DOM order (verdict → chart → compares) is
-   untouched and CSS order re-cuts the card to the brief's number → compares → trend. */
+   Markup: the .dp-tile wrappers are chrome-free grouping handles — no fill, no border at any
+   width (the cards-in-cards fix). With the compares tile deleted (v98 revision) the DOM order
+   verdict → chart IS the card order; the CSS `order` re-cut is gone. */
 @media(min-width:1024px){
-  #dashBody{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-2) var(--sp-5);padding:0 0 var(--sp-3)}
+  #dashBody{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-2);padding:0 0 var(--sp-3)}
   #dashBody .dash-panel{grid-column:1/8;grid-row:1;margin:var(--sp-5) 0 0;min-height:0}
-  /* inset-top mirrors the panel's sp-5 margin so the two cards top-align; inset-bottom 0 pins
-     the card's floor to the panel's. Height matches row 1 without ever defining it.
+  /* inset-top mirrors the panel's sp-5 margin so the two cards top-align; inset-bottom stays
+     AUTO so the card ends at its content, and max-height caps it at the panel's floor (100% of
+     the grid area minus the top offset) so a long list scrolls instead of stretching the page.
      BOTH grid lines must be EXPLICIT (1/2, not 1): an abs-pos grid child's containing block only
      uses a grid line that is definite — an auto end line falls back to the container's padding
      edge, and the card stretched to the page end (caught by v98-grid.spec.js, run 1). */
-  #dashBody .dash-compare{grid-column:8/13;grid-row:1/2;position:absolute;inset:var(--sp-5) 0 0 0;margin:0;display:flex;flex-direction:column;min-height:0}
+  #dashBody .dash-compare{grid-column:8/13;grid-row:1/2;position:absolute;inset:var(--sp-5) 0 auto 0;max-height:calc(100% - var(--sp-5));margin:0;display:flex;flex-direction:column;min-height:0}
   #dashBody .dash-compare .pad{flex:1 1 auto;min-height:0;overflow-y:auto}
   #dashBody .dash-ins{grid-column:1/13;grid-row:2;margin:0}
   #dashBody .dash-dig{grid-column:1/13;grid-row:3;margin:0}
@@ -2708,13 +2722,10 @@ html{scrollbar-gutter:stable}
   #dashBody:not(:has(.dash-compare)) .dash-panel{grid-column:1/13}
   #dashBody:not(:has(.dash-ins)) .dash-dig{grid-row:2}
 
-  /* --- the top card: ONE surface, one column — the number and the trend are the same story.
-     Order: headline → target line → compares → trendline + ranges (the brief's reading order);
-     hairlines separate the zones, never a second fill. --- */
+  /* --- the top card: ONE surface, one column — number, target line, then the trend (the
+     compares tile is deleted, v98 revision); a hairline separates the zones, never a fill. --- */
   #dashBody .dash-panel .pad{display:flex;flex-direction:column;padding:var(--sp-3) var(--sp-5) var(--sp-4)}
-  #dashBody .dp-verdict{order:1}
-  #dashBody .dp-stats{order:2}
-  #dashBody .dp-chart{order:3;margin-top:var(--sp-3);border-top:1px solid var(--border);padding-top:var(--sp-3)}
+  #dashBody .dp-chart{margin-top:var(--sp-3);border-top:1px solid var(--border);padding-top:var(--sp-3)}
   /* the chart KEEPS its 540px cap and centred controls: rendering the 320-unit viewBox any
      wider scales the axis type with it (axis fonts are out of bounds for this batch). */
   /* the scope caption's line is RESERVED at the card's floor and the note absolutely positioned
@@ -2728,8 +2739,8 @@ html{scrollbar-gutter:stable}
   #dashBody .dash-dig{background:none;border:0;box-shadow:none;border-radius:0}
   #dashBody .dash-dig > h2{border-bottom:0;padding:var(--sp-2) 2px var(--sp-1)}
   #dashBody .dash-dig > .pad{padding:0}
-  #dashBody .dig-card{border-radius:var(--radius-card);box-shadow:var(--shadow);padding:var(--sp-3) var(--sp-4)}
-  #dashBody .dash-dig.detail-open{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow)}
+  #dashBody .dig-card{border-radius:var(--radius-card);box-shadow:var(--elev);padding:var(--sp-3) var(--sp-4)}
+  #dashBody .dash-dig.detail-open{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--elev)}
   #dashBody .dash-dig.detail-open > h2{border-bottom:1px solid var(--border);padding:var(--sp-4) var(--sp-5) var(--sp-3)}
   #dashBody .dash-dig.detail-open > .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}
 }

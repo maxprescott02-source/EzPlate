@@ -3,7 +3,47 @@
 **Completed:** 31 Jul 2026 · branch `feature/dashboard-grid`.
 Brief: `ezplate-fable-dashboard-grid.md`. Its stated dependency (`ezplate-opus-menu-selector.md`)
 was verified as shipped-and-merged (it is v96, PR #35) before any code. Six spots → **v98**.
-No migration. No Supabase write touched. No behaviour change.
+No migration. No Supabase write touched. No behaviour change beyond the two Max ordered
+(the ranking flip, and — in the revision — the compares-block deletion).
+
+## ⚠️ REVISED IN PLACE, same day: `ezplate-fable-dashboard-grid_1.md`
+
+Max reviewed the built branch and a revised brief followed. Same batch, same unmerged PR, still
+v98 (main never saw the first cut, so nothing re-ships). What the revision changed:
+
+1. **The "how today's average compares" block is DELETED — every width, mobile included.** It
+   duplicated the chart, the long horizon lives in the range toggles, and it stated an all-menus
+   average under a heading that can name a single menu. `dashComparisons()` is UNTOUCHED (the
+   headline reads `cmp.current`; the v97 null-propagation regression still pins it). `statCard`,
+   `statLead` and the stat-* CSS are gone; a new unit pin in `dash-persist.test.js` guards the
+   deletion itself. Two pins that sat ON the block were rewritten with it: dash-persist's
+   "stat cards recover too" (its root-cause half survives in the headline tests) and the v96
+   spec's thin-history `.stat-line` read (the chart empty state is now where thin history
+   speaks). The trend word beside the headline keeps the same 7-day definition it always had.
+2. **Elevation became a two-mode token.** The audit found light mode already shared one shadow —
+   the wrongness was DARK, where cast shadow reads as murk. `--elev` = `--shadow` in light,
+   `none` in dark (the surface-lightness step carries dark depth). All dashboard cards draw it;
+   per-card values deleted. **The other tabs still use `--shadow` in dark — migrating them is a
+   real follow-up, listed, not implied.** Pinned by computed style, both modes, all four card
+   types.
+3. **One seam.** The first cut used 8px row gaps but 20px column gaps; now every card-to-card
+   gap is the 8px seam on both axes, and the 16px card-to-page edge is deliberately 2× the seam.
+4. **The sparse void: REVERSED my first-cut call.** I had the selector card stretch to match the
+   chart card and accepted quiet space; on real data Max called the void the most visible flaw
+   on the page. The card now SIZES TO ITS CONTENT, capped at the chart card's floor (abs-pos
+   with `inset-bottom:auto` + `max-height`), so a short list ends at its rows and a long list
+   still scrolls internally. "Give the void a job" was rejected: a job means new content, and
+   the brief adds no metrics, tiles or cards.
+5. **"Selected row loses its sparkline" — diagnosed, NOT a bug.** No code path ties sparks to
+   selection; the marking is font-weight alone. What Max saw is the v89 honesty rule: a menu
+   with fewer than two points of its OWN history draws no spark, selected or not — and on
+   production data only All menus qualifies today. Menu-row sparks appear by themselves as
+   per-menu history accumulates (it starts when `logHistory()` next fires). The additive
+   property is now PINNED (seeded per-menu history, select a sparked row, nothing loses a
+   spark) so a future selected-state style can't regress it.
+6. **Shared figure axis.** `.mcmp-pct` is a fixed-width (6ch, fits "100.0%") right-aligned
+   column, so figures AND sparklines align across every row including All menus — pinned with a
+   narrow 8.5% seeded beside 30.0%.
 
 ## Root causes, as built
 
@@ -40,12 +80,14 @@ panel, to the page end. **An auto end line means that edge of the containing blo
 container's padding edge, not the track's.** `grid-row:1/2` fixed it. The floor pin in
 `v98-grid.spec.js` caught it on its first run — the pin earned its keep before it was a day old.
 
-## The sparse-state decision (made explicitly, as the brief ordered)
+## The sparse-state decision (first cut — SUPERSEDED by revision item 4 above)
 
-With two menus the selector card carries quiet space below the rows. **Accepted, deliberately:**
-it self-corrects as menus are added, and a content-sized card would give row 1 a ragged bottom
-edge against the full-width row beneath — the same dead space, relocated to the page. Judged on
-the 2-menu screenshot: reads as a calm card, not a broken one.
+First cut: the selector card stretched to the chart card's height and the quiet space below the
+rows was accepted as calm. **Max overruled it on sight** — with three real rows the void read as
+the original dead-space problem relocated. The shipped behaviour is revision item 4:
+content-sized, capped, scrolls past the cap. Kept here because the reversal is the batch's most
+instructive judgement call: quiet space inside a card asserts content that doesn't exist; page
+background below a finished card asserts nothing.
 
 ## ⚠️ What the brief got wrong — flagged, then fixed on Max's yes
 
@@ -93,24 +135,28 @@ font-weight of an empty vs populated tile.
   v90-flows.spec.js (dig rows stayed display rows), copy pins in dash-scope.test.js,
   sparklines and their extraction hook.
 
-## Verification
+## Verification (final state, after the revision)
 
-- `npm test` — **509 green** (baseline verified 509 before starting; no unit-level surface
-  changed). `node -c` clean on app.js + sw.js. jsdom smoke green (24 sections).
-- **Playwright: 88 tests (79 + 9 new), 87 pass.** The one failure is fresh-states'
-  "v45 item 4: button copy" — the known-stale pin CLAUDE.md documents, failing on unmodified
-  main since before v97.
-- **Mutation-tested, three ways:** the grid-row:1 bug was caught live by the floor pin (above);
-  restoring the beige `--surface2` dig fill turns the surface pin red; deleting the reserved
-  caption band turns the no-jump pin red. Both mutations reverted, suite re-green.
+- `npm test` — **509 green** (the deleted stat-cards test was replaced one-for-one by the
+  compares-deletion pin). `node -c` clean on app.js + sw.js. jsdom smoke green (24 sections).
+- **Playwright: 91 tests (79 + 12 in `v98-grid.spec.js`), 90 pass.** The one failure is
+  fresh-states' "v45 item 4: button copy" — the known-stale pin CLAUDE.md documents, failing on
+  unmodified main since before v97.
+- **Mutation-tested, six ways across the two passes:** the grid-row:1 bug caught live by the
+  floor pin; beige `--surface2` restoration → surface pin red; reserved caption band removed →
+  no-jump pin red; per-card shadow override → elevation pin red; stretch-to-floor restored →
+  sparse content-size pin red; fixed figure column dropped → alignment pin red. All reverted,
+  suite re-green after each.
 - **A triage worth recording:** the first full run produced 13 boot TIMEOUTS scattered across
   files this batch never touched, including mobile-only tests the ≥1024 CSS cannot reach. The
   host was severely degraded at the time (a ~1s `npm test` took 16 minutes of wall-clock).
   A rerun on the recovered machine: 87/88 in 1.6m. Phantom timeouts look exactly like real
   failures — check the machine before diagnosing the code.
-- **CodeRabbit: 1 finding (minor), accepted and fixed** — the insights full-width check
-  asserted width, which could pass offset; replaced with left/right edge pins in BOTH specs
-  (it could only see the tracked one). Re-run green. Nothing flagged on the CSS or JS.
+- **CodeRabbit: 2 findings across the two passes (both minor, both accepted and fixed).**
+  (1) The insights full-width check asserted width, which could pass offset — replaced with
+  left/right edge pins in both specs. (2) The elevation pin's dark half swept two card types
+  while its light half swept four — made symmetric. Re-run green after each. Nothing flagged
+  on the CSS or JS in either pass.
 
 ## Deliberately NOT built
 
@@ -125,7 +171,10 @@ font-weight of an empty vs populated tile.
 
 ## Needs Max's phone
 
-1. The dig-card tone change is the one thing visible on the phone: do the Dig-in tiles still
+0. **The compares block is gone on the phone too** (delete-don't-relocate, revision item 1).
+   The mobile card is now number → target line → trend. Worth one deliberate look: is the
+   vs-last-week/month/year line missed in the hand, where the range toggles are more taps away?
+1. The dig-card tone change: do the Dig-in tiles still
    read as tappable against the white panel in kitchen light, with only a hairline for an edge?
 2. The sparkle in light mode — brighter, still reads "Gemini", at arm's length?
 3. Desktop is where this batch lives: at ~1280 on the laptop, does the quiet space under two

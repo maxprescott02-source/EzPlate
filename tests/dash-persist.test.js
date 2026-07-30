@@ -377,7 +377,6 @@ function withComparisons(MENU, priceHistory) {
     ${extractFn(SRC, 'avgOf')}
     ${extractFn(SRC, 'histInRange')}
     ${extractFn(SRC, 'dashComparisons')}
-    ${extractFn(SRC, 'statCard')}
     ${extractFn(SRC, 'fmtTargetPct')}
     ${extractFn(SRC, 'scopeHistory')}
     ${extractFn(SRC, 'scopeTrend')}
@@ -385,7 +384,6 @@ function withComparisons(MENU, priceHistory) {
     ${extractFn(SRC, 'verdictHtml')}
     return {
       dashComparisons: dashComparisons,
-      statCard: statCard,
       verdictHtml: verdictHtml,
       histLength: function(){ return priceHistory.length; },
       histInRange: histInRange
@@ -415,18 +413,18 @@ test('v97 REGRESSION: nothing costed + existing history shows “—”, not the
     'and the copy that explains it is reachable again at all-menus scope');
 });
 
-test('v97 REGRESSION: the stat cards recover too — one root cause, not one symptom', () => {
-  // cmp.current is the ONE value the headline and all three cards read. A fix that only moved the
-  // headline would leave the cards comparing a ghost against real history.
-  const app = withComparisons([], RECENT_HISTORY());
-  const cmp = app.dashComparisons();
-
-  ['Last week', 'Last month', 'This year'].forEach(label => {
-    const card = app.statCard(label, cmp.current, cmp[label === 'Last week' ? 'lastWeek' : label === 'Last month' ? 'lastMonth' : 'ytd']);
-    assert.match(card, /not enough history yet/, label + ': falls to its honest empty state');
-    assert.doesNotMatch(card, /31\.7|holding steady|creeping up|improving/,
-      label + ': claims no comparison it cannot make');
-  });
+/* v98 revision: the "stat cards recover too" test is GONE WITH ITS SUBJECT — statCard and the
+   compares block were deleted from the dashboard (Max, 31 Jul; see HANDOVER-v98). The root-cause
+   half of that pin — cmp.current propagating null instead of ghosting the last logged point —
+   is the surviving contract, held by the headline tests around this tombstone. A v98 pin below
+   guards the deletion itself so the block cannot quietly return. */
+test('v98: the compares block stays deleted from the shipped source', () => {
+  assert.doesNotMatch(SRC, /function statCard/,
+    'statCard must be deleted, not merely unrendered (the tombstone comment naming it is expected)');
+  assert.doesNotMatch(SRC, /statCard\s*\(/,
+    'and nothing may still call it');
+  assert.doesNotMatch(SRC, /stat-attach|stat-lead|stat-line|stat-bit/,
+    'no markup may still emit the compares block\'s classes');
 });
 
 test('v97 REGRESSION: ytd does not baseline the missing figure against itself', () => {

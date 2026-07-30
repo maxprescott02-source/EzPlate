@@ -351,25 +351,33 @@ history belongs in `handovers/`, nowhere else.
   the branch. Local `main` goes stale between sessions (Max merges via GitHub
   PR) — **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
-- **v98 (desktop grid + light-mode surfaces):** desktop dashboard placement has
-  exactly ONE owner — the v98 block at the end of style.css. Row 1 is chart
-  card (7 tracks) | By-menu selector card (5 tracks, absolutely positioned into
-  its grid area so the CHART alone sets row height; the list scrolls internally
-  — **an abs-pos grid child needs BOTH lines definite (`grid-row:1/2`), an auto
-  end line falls back to the container's padding edge**). Insights and Dig in
-  are full-width rows: nothing variable ever sits beside anything fixed. The
-  v89 `7fr/5fr` rules, the v49 grid re-declare and both v95 bento bands are
-  DELETED. One card tone on one page tone in BOTH modes: `.dp-tile` wrappers
-  are chrome-free ordering handles (desktop card order number → compares →
-  trend via CSS `order`; mobile DOM untouched), `.dig-card` is `--surface` +
-  hairline at every width (the beige `--surface2` card-in-card was the
-  light-only bug — now pinned by computed style so dark-only review can't pass
-  it). Sparkle = AI-provenance marker, kept Gemini-hued; light mode draws
-  `#ezSparkGradDeep` (same hues, deeper luminance — defined in index.html,
-  switched in CSS). Empty Dig-in tiles carry `is-empty` and render quieter.
-  Sparse-state decision: with two menus the selector card keeps row-1 height
-  and carries quiet space — deliberate, self-corrects as menus grow. See
-  `HANDOVER-v98.md`.
+- **v98 (desktop grid + light-mode surfaces; REVISED same-day by
+  `ezplate-fable-dashboard-grid_1.md` after Max reviewed the build):** desktop
+  dashboard placement has exactly ONE owner — the v98 block at the end of
+  style.css. Row 1 is chart card (7 tracks) | By-menu selector card (5 tracks,
+  absolutely positioned into its grid area; **CONTENT-SIZED, capped at the
+  chart card's floor** — a short list ends at its rows, a long one scrolls
+  inside the card. **An abs-pos grid child needs BOTH lines definite
+  (`grid-row:1/2`); an auto end line falls back to the container's padding
+  edge**). Insights and Dig in are full-width rows: nothing variable ever sits
+  beside anything fixed. The v89 `7fr/5fr` rules, the v49 grid re-declare and
+  both v95 bento bands are DELETED. **The "how today's average compares"
+  block (statCard, vs last week/month/year) is DELETED at every width** —
+  `dashComparisons()` survives whole for the headline (v97 null-propagation
+  still pinned; the deletion itself pinned in `dash-persist.test.js`).
+  One card tone on one page tone in BOTH modes: `.dp-tile` wrappers are
+  chrome-free grouping handles, `.dig-card` is `--surface` + hairline at every
+  width (the beige card-in-card was the light-only bug — pinned by computed
+  style). **Elevation is the two-mode `--elev` token** — `--shadow` in light,
+  `none` in dark (the surface step carries dark depth) — on dashboard cards
+  only; other tabs still use `--shadow` (follow-up). ONE 8px seam both axes.
+  `.mcmp-pct` is a fixed 6ch right-aligned column so figures + sparklines
+  share axes. **Row selection is ADDITIVE (pinned)** — a "lost" sparkline on a
+  selected row is the v89 thin-history honesty rule, not a bug; menu-row
+  sparks appear as per-menu history accumulates. Sparkle = AI-provenance
+  marker, Gemini-hued; light mode draws `#ezSparkGradDeep`. Empty Dig-in tiles
+  carry `is-empty` and render quieter. See `HANDOVER-v98.md` (including the
+  revision section).
 - **By-menu ranking is WORST-first (highest food cost % leads) since v98 —
   Max's explicit call (31 Jul), pinned by `dash-scope.test.js`.** It was
   best-first from v89 to v97; both the Opus selector brief and the Fable grid
@@ -404,9 +412,10 @@ history belongs in `handovers/`, nowhere else.
   (`mcmpSparkHtml`) and the `.dp-tile` wrappers.
 - **Suite:** `npm test` = **509 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
-- **Playwright: 88 tests in `tests/visual/`** (v98 adds `v98-grid.spec.js`, 9
+- **Playwright: 91 tests in `tests/visual/`** (v98 adds `v98-grid.spec.js`, 12
   tests: loaded/sparse/full-state grid geometry, row-1 no-jump, quiet empty
-  tile, sparkle switch). 87 green; the ONE failure is fresh-states'
+  tile, sparkle switch, selection-additive sparklines, figure-column axes,
+  two-mode elevation). 90 green; the ONE failure is fresh-states'
   "v45 item 4: button copy" — known-stale, fails on unmodified `main`. The 45
   pre-v89 tests remain unreconciled since v72. Seeds installed with
   `addInitScript` re-run on every navigation — guard with a one-shot sentinel
@@ -459,11 +468,12 @@ history belongs in `handovers/`, nowhere else.
 **Outstanding, in priority order:**
 
 1. **Phone sign-off on v82–v98** — seventeen batches, none device-verified;
-   their "needs Max's phone" lists are the backlog. v98's is short: dig-tile
-   tappability with only a hairline edge, the brighter light-mode sparkle, and
-   (laptop) whether the sparse selector card's quiet space reads as calm.
-   v87's iOS scroll-lock and v90–v92's "so what" test on real insights remain
-   the sharpest carried items.
+   their "needs Max's phone" lists are the backlog. v98's sharpest: the
+   compares block is GONE on the phone too (delete-don't-relocate — is the
+   vs-last-week line missed in the hand?), dig-tile tappability with only a
+   hairline edge, and the brighter light-mode sparkle. v87's iOS scroll-lock
+   and v90–v92's "so what" test on real insights remain the sharpest carried
+   items.
 2. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
    v88 (`isEvalSupported:false`), NOT fixed. Needs its own brief.
 3. **The 26 Jul audit's remaining findings**: `pushWrite` drops writes silently
@@ -475,7 +485,9 @@ history belongs in `handovers/`, nowhere else.
    history, which is EMPTY (see above), not slow.
 6. Optional: purchased-quantity capture for v55 §I — protected-region edit,
    Max's explicit yes first.
-7. Small, each needing a yes: `priceHistory` replaces wholesale on sync;
+7. Small, each needing a yes: migrate the OTHER tabs' cards to the two-mode
+   `--elev` token (dashboard-only since v98 — dark mode still casts shadows
+   everywhere else); `priceHistory` replaces wholesale on sync;
    `.range-btn` is 32px; the stale v60 target-line comment in `trendChart`;
    the `.chart-hint`/`.scope-note` "all menus" pair under the chart (chart
    copy — wants its own brief); `avgFoodCostForScope` counts dishes whose
