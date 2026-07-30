@@ -339,247 +339,162 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 29 Jul 2026 (verify, don't trust)
+## State as of 31 Jul 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v97** on branch `feature/dash-scope-persistence`, **not yet
-  merged** — `main` is at **v96** (PR #35, merged 29 Jul 2026). Six spots agree
-  at v97 on the branch.
-  Local `main` goes stale between sessions (Max merges via GitHub PR) —
-  **`git fetch` and check `origin/main` first**
-  ([[verify-origin-main-before-trusting-local]]).
-- **v97 (scope persists · scope stated once · headline stops going stale):**
-  `dashScope` now persists via `cafeDB_dashScope`, mirroring `dashRange`
-  exactly (localStorage only, written on selection, no Supabase — a view
-  preference must never become a business-scoped row). It is **validated at
-  render, not at read**: `menusList` loads after the module var initialises, so
-  a boot-time check would discard a valid scope mid-sync; `dashScopeValid()`
-  does the silent deleted-menu fallback it already did.
+- **Version:** **v98** — `main` (PR #37, merged 31 Jul 2026, including the
+  same-day revision). Six spots agree at v98. Local `main` goes stale between
+  sessions (Max merges via GitHub PR) — **`git fetch` and check `origin/main`
+  first** ([[verify-origin-main-before-trusting-local]]).
+- **v98 (desktop grid + light-mode surfaces; REVISED same-day by
+  `ezplate-fable-dashboard-grid_1.md` after Max reviewed the build):** desktop
+  dashboard placement has exactly ONE owner — the v98 block at the end of
+  style.css. Row 1 is chart card (7 tracks) | By-menu selector card (5 tracks,
+  absolutely positioned into its grid area; **CONTENT-SIZED, capped at the
+  chart card's floor** — a short list ends at its rows, a long one scrolls
+  inside the card. **An abs-pos grid child needs BOTH lines definite
+  (`grid-row:1/2`); an auto end line falls back to the container's padding
+  edge**). Insights and Dig in are full-width rows: nothing variable ever sits
+  beside anything fixed. The v89 `7fr/5fr` rules, the v49 grid re-declare and
+  both v95 bento bands are DELETED. **The "how today's average compares"
+  block (statCard, vs last week/month/year) is DELETED at every width** —
+  `dashComparisons()` survives whole for the headline (v97 null-propagation
+  still pinned; the deletion itself pinned in `dash-persist.test.js`).
+  One card tone on one page tone in BOTH modes: `.dp-tile` wrappers are
+  chrome-free grouping handles, `.dig-card` is `--surface` + hairline at every
+  width (the beige card-in-card was the light-only bug — pinned by computed
+  style). **Elevation is the two-mode `--elev` token** — `--shadow` in light,
+  `none` in dark (the surface step carries dark depth) — on dashboard cards
+  only; other tabs still use `--shadow` (follow-up). ONE 8px seam both axes.
+  `.mcmp-pct` is a fixed 6ch right-aligned column so figures + sparklines
+  share axes. **Row selection is ADDITIVE (pinned)** — a "lost" sparkline on a
+  selected row is the v89 thin-history honesty rule, not a bug; menu-row
+  sparks appear as per-menu history accumulates. Sparkle = AI-provenance
+  marker, Gemini-hued; light mode draws `#ezSparkGradDeep`. Empty Dig-in tiles
+  carry `is-empty` and render quieter. See `HANDOVER-v98.md` (including the
+  revision section).
+- **By-menu ranking is WORST-first (highest food cost % leads) since v98 —
+  Max's explicit call (31 Jul), pinned by `dash-scope.test.js`.** It was
+  best-first from v89 to v97; both the Opus selector brief and the Fable grid
+  brief wrongly believed it was already worst-first. Flipped so the scrolling
+  selector card overflows the healthy menus, not the ones needing attention.
+  Tie-break (name, ascending) unchanged. Don't "fix" it back.
+- **v97 (scope persists · stated once · headline stops going stale):**
+  `dashScope` persists via `cafeDB_dashScope` mirroring `dashRange` exactly
+  (localStorage only; validated at render, not at read — `menusList` loads
+  after the module var initialises). Scope is stated ONCE, in the card heading
+  (`.dh-scope`, menu name full-strength).
   **⚠️ `avgFoodCostForScope` counts PER PUBLICATION, and that is a DECISION.**
-  It iterates `MENU`, and since v55 one plate backs one dish per menu it is
-  published to — so a plate on three menus contributes three terms. This looks
-  exactly like a double-counting bug; v97 changed it to count distinct plates
-  and **Max reverted it on real data before merge.** Counting per publication
-  makes the headline a dish-count-WEIGHTED BLEND of the per-menu figures, so it
-  stays inside the range of the By-menu rows — provided every counted dish has
-  a row (a dish whose `menuId` is not in `menusList` is the known exception,
-  latent today). Distinct plates broke
-  that: on Max's data one plate on both menus at ~29.4% lost its second copy and
-  the headline fell to 21.4% against rows of 21.6%/21.7%. A headline that
-  contradicts every row under it costs more trust than the 0.19pt correction
-  buys. **Known, accepted cost: republishing a plate moves the number.** All
-  three properties are pinned in `dash-persist.test.js`, the invariant swept over
-  four shapes. **If revisited, the fix is a DESIGN one** — stop presenting All
-  menus as comparable to the rows — not a quiet change to the maths.
-  Scope is now stated ONCE, in the card heading (`.dh-scope`,
-  menu name full-strength as a deliberate exception to the v94/v95 density
-  pass); `.verdict-cap` is deleted and the chart title no longer appends
-  "— all menus". See `HANDOVER-v97.md`.
-- **v96 (dashboard scope = one control):** the menu picker chip
-  (`dashScopeSelectorHtml`) is **deleted**; the By-menu rows — already real
-  `<button>`s wired to `setDashScope` since v89 — are now the only thing that sets
-  the scope, with **"All menus" as a real first row** (it was always a real
-  selectable value, never an implicit fallback). `dashScopeValid` now guards on
-  `menuComparisonRows()` rather than `menusList.length`, because the control is
-  rendered per COSTED menu: v89's invariant (a narrowed scope exists iff the
-  control that undoes it is on screen) needed retying or a menu losing its last
-  costed plate would strand the scope. **Uncosted menus are no longer a reachable
-  scope** (Max's call) — they were picker options but never rows.
-  The scope still drives **headline + insights + drill-downs only**; the
-  comparison block and chart stay all-menus under the v89 scope-honesty rule.
-  See `HANDOVER-v96.md`.
-- **v94 (presentation-only)** compressed the dashboard to the approved
-  mockup's density: scoped CSS under `#dashBody`, chart viewBox H 210→104,
-  hints compressed (pinned phrases kept), per-point chart dots removed and the
-  dotted fill replaced by a translucent gradient (deliberate reversal — do not
-  restore), dig-row touch pin relaxed 44→32px (display rows). See
-  `HANDOVER-v94.md`.
-- **v95 (desktop bento, Max-approved wireframe):** at ≥1024px the dashboard is
-  a 12-col grid where every FIXED-height region composes the upper rows and
-  BOTH variable-height tiles (insights 1–5, By menu) share the TERMINAL row —
-  the only arrangement where "no dead space at any content level" and "nothing
-  jumps on scope change" hold structurally. `renderDashboard` wraps the top
-  card's pieces in `.dp-tile` divs (mobile DOM order, chrome-free below
-  1024px — the phone stack is unchanged); By-menu rows regained the mockup's
-  **sparklines** (`mcmpSparkHtml`, from `menuHistory`, nothing drawn under 2
-  points); v90-dash's insights-beside-chart pin superseded. See
-  `HANDOVER-v95.md` for the jump sources found (scope-note line, verdict-line
-  wrap, compares-lead wrap, scrollbar toggle) and their structural fixes.
+  A plate on three menus contributes three terms. This looks exactly like a
+  double-counting bug; v97 changed it to distinct plates and **Max reverted it
+  on real data before merge** — per-publication keeps the headline a
+  dish-count-weighted blend of the per-menu figures, guaranteed inside the range
+  of the By-menu rows (provided every counted dish has a row; a dish whose
+  `menuId` is not in `menusList` is the known latent exception). Distinct
+  plates made the headline contradict every row under it. **Known, accepted
+  cost: republishing a plate moves the number.** Pinned three ways in
+  `dash-persist.test.js`. **If revisited, the fix is a DESIGN one** — stop
+  presenting All menus as comparable to the rows — never a quiet maths change.
+  See `HANDOVER-v97.md`.
+- **v96:** the By-menu rows are the dashboard's ONLY scope control ("All
+  menus" a real first row; uncosted menus unreachable as a scope — Max's
+  call). Scope drives headline + insights + drill-downs; the comparison block
+  and chart stay all-menus (v89 scope-honesty). **v94** compressed density
+  (chart viewBox H 210→104, gradient fill `#tcarea` replacing the dotted
+  pattern — deliberate reversal, do not restore; per-point dots removed,
+  scrub dot stays; pinned in `fresh-states.spec.js`). v95's bento layout is
+  SUPERSEDED by v98; its surviving pieces are the By-menu sparklines
+  (`mcmpSparkHtml`) and the `.dp-tile` wrappers.
 - **Suite:** `npm test` = **509 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
-- **Playwright:** 79 tests in `tests/visual/`. The 45 pre-v89 ones are **not
-  reconciled since v72** — `fresh-states.spec.js` has known-stale pins (one,
-  "v45 item 4: button copy", fails on unmodified `main`; re-confirmed
-  pre-existing by stashing v97 and re-running). The 34 in `v89-dash.spec.js`,
-  `v90-dash.spec.js`, `v90-flows.spec.js` and `v96-menu-select.spec.js` are
-  green and pin behaviour, not screenshots.
-  **A Playwright seed installed with `addInitScript` re-runs on every
-  navigation, including `page.reload()`** — if it starts with
-  `localStorage.clear()` it wipes exactly what a reload test is checking, and
-  the test passes for the wrong reason (v96's "range survives a reload" did).
-  Guard the seed with a one-shot sentinel. All three block `/api/*` as well as
-  off-origin: there are no serverless functions behind `playwright test`, and
-  the static dev server 501s on POST. **They are also the safe way to drive
-  real flows here** — throwaway profile, Supabase never contacted, nothing
-  written — which matters while there is still no staging environment.
-  **Run the suite alone**: a concurrent browser session (another Playwright
-  run, a flow-tester agent) starves it into 15-min phantom timeouts that read
-  as failures.
-- **Supabase (verified against prod 28 Jul 2026, not assumed):** every table
-  the app queries exists — `menu_items`, `price_history`, `ingredients`,
-  `supplier_phrases`, `plates`, `menus`, `menu_price_history`, `app_settings` —
-  and every migrated column is present (`plates.menu_id` nullable + `.category`,
-  `menu_items.plate_id`, `price_history.menu_id`,
-  `menu_price_history.{menu_item_id,recorded_at,price}`).
-  **⚠️ ONE REAL FAULT: `menu_price_history` has RLS enabled and NO policies, so
-  every insert is rejected (42501) and the table holds 0 rows.** v90's migration
-  created the table and index and never granted anything.
-  `supabase/migrations/20260728_menu_price_history_rls.sql` fixes it and is
-  now merged (PR #33) — but a merged FILE grants nothing: **whether Max has
-  actually run it in the SQL editor was NOT verified in the v94 batch.** Check
-  before relying on `menu_price_history` writes.
-  **The support probe cannot see this**: `bootstrapSync` decides the feature is
-  usable by checking `.error` on a `select`, and RLS-with-no-policy returns 200
-  with zero rows and no error. So `menuPriceHistSupported` stays true and every
-  write fails behind a toast. A probe that tests EXISTENCE does not test
-  USABILITY — remember this for any future schema-can-lag guard
-  ([[supabase-schema-can-lag-app-code]]).
-  **Re-verified against prod 30 Jul 2026 (v97):** `price_history` holds **32
-  rows, newest still 25 Jul** — two days BEFORE v89 shipped (27 Jul). So
-  `logHistory()` has not run in production for five days, and since it is what
-  calls `logMenuHistory()` and `logAllMenuPrices()`, NONE of the three logs has
-  gained a point since v89/v90 shipped: `price_history.menu_id` is null on all
-  32 rows (**0 per-menu points**) and `menu_price_history` holds **0 rows**.
-  **⚠️ That means the 0 rows in `menu_price_history` is NOT evidence about the
-  RLS fault above** — the table would be empty either way, because its writer
-  has never fired in production. Whether the RLS migration has been applied is
-  still UNKNOWN and cannot be determined through the anon key: RLS-with-no-policy
-  and never-written are indistinguishable over PostgREST. The only definitive
-  check is in the SQL editor:
+- **Playwright: 91 tests in `tests/visual/`** (v98 adds `v98-grid.spec.js`, 12
+  tests: loaded/sparse/full-state grid geometry, row-1 no-jump, quiet empty
+  tile, sparkle switch, selection-additive sparklines, figure-column axes,
+  two-mode elevation). 90 green; the ONE failure is fresh-states'
+  "v45 item 4: button copy" — known-stale, fails on unmodified `main`. The 45
+  pre-v89 tests remain unreconciled since v72. Seeds installed with
+  `addInitScript` re-run on every navigation — guard with a one-shot sentinel
+  or reload tests pass for the wrong reason (v97 lesson). Block `/api/*` and
+  off-origin in every spec. **Run the suite alone** — a concurrent browser
+  session starves it into phantom timeouts; and **check the machine before
+  diagnosing the code**: a degraded host produced 13 boot timeouts in files a
+  CSS batch never touched (v98 triage), all green on the recovered rerun.
+- **Supabase (verified against prod 28–30 Jul 2026):** every table the app
+  queries exists with every migrated column. **⚠️ ONE REAL FAULT:
+  `menu_price_history` has RLS enabled and NO policies** — inserts 42501.
+  The fix file `supabase/migrations/20260728_menu_price_history_rls.sql` is
+  merged, but **whether Max has RUN it in the SQL editor is still UNKNOWN and
+  cannot be determined through the anon key** (RLS-with-no-policy and
+  never-written are indistinguishable over PostgREST; the writer has never
+  fired in production — see next bullet). Definitive check, SQL editor only:
   `select policyname, cmd from pg_policies where schemaname='public' and
-  tablename='menu_price_history';` — two rows = applied, none = not.
-  (Do NOT test by inserting: the migration grants select and insert but
-  deliberately no DELETE, so a sentinel row could not be cleaned up.)
-  **v91–v93 add no migrations.**
-- **THREE history series, deliberately separate — don't merge them:**
-  `priceHistory` is the all-menus average food cost ONLY (`dashComparisons`/
-  `histInRange`/the 500-cap all assume one point per moment across the whole
-  business); `menuHistory` is the same figure per menu (v89, `price_history.
-  menu_id`); `menuPriceLog` is each plate's SELL PRICE over time (v90,
-  `menu_price_history`). `menuHistory` and `menuPriceLog` share a shape, so
-  `mergeMenuHistory` serves both. `dashScope` is session-only and is NOT
-  `currentMenuId` (the Menu tab's own, persisted selection).
-- **Insights live on the DASHBOARD only** (v90), scoped by `dashScope`. The
-  Menu tab has no suggestions UI — the pill, panel and `.msug*` CSS are gone,
-  which retires one of the five floating-layer placement owners the 26 Jul audit
-  flagged (**four remain**). An insight must clear **`ruleA`**: two dimensions,
-  or one whole-dataset aggregate. Rankings are by **cost efficiency only** —
-  EzPlate has no sales volume, so nothing may imply profit or money lost.
-  Reconstructed history goes through `ingPriceAt`/`costAtLines` against ONE
-  reference moment, and requires `priced > 0` — a plate of fixed misc lines
-  reconstructs perfectly and must never be read as observed history.
-  **RULE D (v91): every family runs on every render.** No family may be gated on
-  another's result or on the state of the menu; one with nothing to say returns
-  `[]` and blocks nothing. The all-healthy line is not a family — it is what the
-  panel says when the whole engine came back empty, and it may only claim "all
-  clear" when nothing is over target as well. v90 gated the engine on the
-  over-target count and shipped a panel saying "nothing needs attention" above a
-  bar reporting costs creeping up. See `HANDOVER-v91.md`.
-  **RULE E (v92): value is declared, and the floor is absolute.** Every family
-  scores itself via `insightScore` against the ONE `INSIGHT_VALUE` table
-  (non-obviousness × actionability × magnitude); `selectInsights` drops anything
-  under `INSIGHT_FLOOR` **before** ranking, so a weak candidate never displays
-  merely because nothing better fired. Three insights beat five padded ones. A
-  family's own emit gate MUST clear the floor at the weakest input it accepts —
-  a gate that admits what the floor refuses means nothing, and a test pins every
-  family at its minimum. Nine families remain; `insRecentChange`/`insData`/
-  `insBest` were deleted as unreachable bare counts, and `insPriceGap` became
-  `insPriceAnomaly` (category is a supplier catalogue heading, NOT a
-  substitutability class — it compared onions with spinach). See
-  `HANDOVER-v92.md`.
-- **`tests/insight-coverage.test.js` (v93) drives the REAL pipeline** —
-  `computeInsights()` over seeded app state, one TRIGGER + one SILENCE fixture
-  per family. It exists because `insights.test.js` hands each family its
-  primitives ready-made, so the impure BUILDER was untested and a broken builder
-  was indistinguishable from a quiet family. **Add a fixture pair here whenever
-  you add or change a family**, and mutation-test it: deliberately break the
-  builder and confirm the suite goes red. That check found a silence fixture
-  passing on the wrong gate (see `HANDOVER-v93.md` §3).
-- **THREE price-ish logs are written by DIFFERENT events — check the writer, not
-  just the reader.** `priceHistory` is written by `logHistory()` on every
-  data-changing event (including adding or repricing a plate, with no ingredient
-  price change at all); `ingPriceLog` is written by `logIngPrice()` on an invoice
-  apply **and** (v91) a hand-edited price in the builder; `menuPriceLog` by
-  `logAllMenuPrices()`. Until v91 `logIngPrice` had ONE caller, so hand-edited
-  prices moved the average and left no per-product point — which is why "Biggest
-  movers" read empty while the comparison bar reported movement, and why insight
-  family 1 had nothing to reconstruct. Any new "the app should notice X changed"
-  feature: confirm every path that changes X actually writes the log it reads.
+  tablename='menu_price_history';` — two rows = applied. Do NOT test by
+  inserting (no DELETE policy — a sentinel row would be permanent).
+  The `bootstrapSync` support probe tests EXISTENCE, not USABILITY
+  ([[supabase-schema-can-lag-app-code]]).
+- **Per-menu history has NOT started accumulating.** Verified 30 Jul:
+  `price_history` newest point 25 Jul (pre-v89), `menu_id` null on all 32
+  rows, `menu_price_history` 0 rows — `logHistory()` has not fired in
+  production since 25 Jul. It starts when Max next edits a price, applies an
+  invoice or saves a plate. Check the counts, don't assume time has passed.
+- **THREE history series, deliberately separate — don't merge:** `priceHistory`
+  (all-menus average only), `menuHistory` (same figure per menu, v89),
+  `menuPriceLog` (each plate's SELL price, v90). `menuHistory`/`menuPriceLog`
+  share `mergeMenuHistory`. **THREE price-ish logs have DIFFERENT writers —
+  check the writer, not just the reader:** `logHistory()` on every
+  data-changing event; `logIngPrice()` on invoice apply + builder hand-edit
+  (v91); `logAllMenuPrices()` for the sell-price log. Any new "notice X
+  changed" feature: confirm every path that changes X writes the log it reads.
+- **Insights (dashboard only, v90):** must clear `ruleA` (two dimensions or a
+  whole-dataset aggregate); rankings by cost efficiency only — no sales data,
+  nothing may imply profit. **RULE D (v91): every family runs on every render**
+  — no family gated on another's result; all-healthy is what the panel says
+  when the engine came back empty AND nothing is over target. **RULE E (v92):
+  value is declared, the floor is absolute** — `insightScore` against
+  `INSIGHT_VALUE`, `INSIGHT_FLOOR` drops weak candidates BEFORE ranking; a
+  family's emit gate must clear the floor at its weakest accepted input.
+  `tests/insight-coverage.test.js` (v93) drives the REAL pipeline — add a
+  TRIGGER + SILENCE fixture pair whenever a family changes, and mutation-test.
+  Reconstructed history via `ingPriceAt`/`costAtLines`, one reference moment,
+  `priced > 0` required.
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
   pinned, SRI-checked except the pdf.js worker (hard rule 4).
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v97** — sixteen batches, none device-verified; their
-   "needs Max's phone" lists are the backlog. v96/v97's are short and specific:
-   three By-menu rows are the dashboard's only scope control, so whether they feel
-   like separate hits — and whether "All menus" reads as a pressable row rather
-   than a header — are thumb questions no viewport can answer; v97 adds whether
-   the new `Average food cost — Winter` heading reads as one thing in kitchen
-   light, and whether a reload landing on a narrowed dashboard reads as correct
-   or as the app having lost the overview. v87's iOS Safari scroll-lock
-   check is sharpest: `position:fixed` on `<body>` is what no desktop can model.
-   v90/v91's sharpest question isn't visual: **do the insights pass the "so what"
-   test on Max's real menu?** Only he can answer that — and v91/v92 change what
-   the panel shows: the warm all-healthy line is exclusive (v91), and v92 drops
-   the panel from five lines to three real ones on his own data. Both are tone
-   calls worth his eyes.
-2. **Upgrade pdf.js to 4.2.67+.** 3.11.174 carries **CVE-2024-4367** (malicious
-   PDF → arbitrary JS); mitigated v88 via `isEvalSupported:false`, NOT fixed.
-   Supplier PDFs are untrusted input. A 3→4 jump needs its own brief.
-3. **The 26 Jul audit's remaining findings**, sequenced separately: `pushWrite`
-   drops writes silently offline (v40, still real), the swallowed
-   `price_history` error, staging, dead code, structural fixes.
-4. **Reconcile the Playwright/visual suite** on the browser that now exists.
-5. **The menu-aware chart and the per-menu comparison block** — still blocked on
-   per-menu history, which **has NOT started accumulating**, contrary to what
-   this file said until v97. Verified against prod 30 Jul: `price_history.menu_id`
-   is null on all 32 rows — **zero per-menu points, three days after v89**. The
-   series is not slow, it is empty, because `logHistory()` has not fired since
-   25 Jul. It will not start until Max next edits a price, applies an invoice or
-   saves a plate. Don't schedule until there are points to draw — and check the
-   count first rather than assuming time has passed. (By-menu sparklines shipped in v95; the All-menus
-   row's own sparkline, from `priceHistory`, shipped in v96.) The v96 brief
-   assumed this was already done and asked for a regression test on it — it is
-   not, and the test pins the honest behaviour instead.
-6. Optional: purchased-quantity capture for v55 §I — protected-region edit, so
+1. **Phone sign-off on v82–v98** — seventeen batches, none device-verified;
+   their "needs Max's phone" lists are the backlog. v98's sharpest: the
+   compares block is GONE on the phone too (delete-don't-relocate — is the
+   vs-last-week line missed in the hand?), dig-tile tappability with only a
+   hairline edge, and the brighter light-mode sparkle. v87's iOS scroll-lock
+   and v90–v92's "so what" test on real insights remain the sharpest carried
+   items.
+2. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
+   v88 (`isEvalSupported:false`), NOT fixed. Needs its own brief.
+3. **The 26 Jul audit's remaining findings**: `pushWrite` drops writes silently
+   offline (v40, still real), the swallowed `price_history` error, staging,
+   dead code, structural fixes.
+4. **Reconcile the 45 pre-v89 Playwright tests** (stale since v72, incl. the
+   v45 button-copy pin that is the suite's one standing failure).
+5. **Menu-aware chart / per-menu comparison** — still blocked on per-menu
+   history, which is EMPTY (see above), not slow.
+6. Optional: purchased-quantity capture for v55 §I — protected-region edit,
    Max's explicit yes first.
-7. Small, each needing a yes: `priceHistory` still replaces wholesale on sync
-   (the offline-drop gap the other two logs avoid); `.range-btn` is 32px, not
-   44px (since v46); the stale v60 target-line comment in `trendChart`. See
-   `HANDOVER-v90.md`. **All three v96 entries here are DONE in v97** — scope
-   persists; the zero-menus stale headline is fixed at its root
-   (`dashComparisons` no longer substitutes the last logged point, which also
-   re-reaches the `verdictHtml` branch that had been dead since v89). **v97
-   adds one:** with the chart title no longer restating scope, `.chart-hint`
-   ("All menus · …") and `.scope-note` now both say "all menus" under the chart
-   when narrowed. One fewer restatement than v96 had, so nothing regressed —
-   but that pair is the redundancy worth a look. Chart copy, so it wants its
-   own brief rather than a fix on sight. **Plus one surfaced by v97 and left
-   unfixed:** `avgFoodCostForScope` counts dishes whose `menuId` is not in
-   `menusList` (no By-menu row), which would break the all-menus-within-the-rows
-   invariant. Max has zero such dishes today — verified in his own console —
-   so it is latent, not live.
-8. **Rules D and E probably belong ABOVE the "State as of" line** (they are
-   durable engine laws, not snapshot facts) — recorded in the snapshot for now
-   because moving them needs Max's yes. Same question for the three-logs rule.
-9. **Supplier coverage is 18% of used products** (8 of 44 in the 16 Jul backup),
-   so the concentration family stays silent by design. Not a bug — but if Max
-   wants that insight, the supplier field needs filling in past 50%.
+7. Small, each needing a yes: migrate the OTHER tabs' cards to the two-mode
+   `--elev` token (dashboard-only since v98 — dark mode still casts shadows
+   everywhere else); `priceHistory` replaces wholesale on sync;
+   `.range-btn` is 32px; the stale v60 target-line comment in `trendChart`;
+   the `.chart-hint`/`.scope-note` "all menus" pair under the chart (chart
+   copy — wants its own brief); `avgFoodCostForScope` counts dishes whose
+   `menuId` has no By-menu row (latent, zero such dishes on Max's data).
+8. **Rules D and E probably belong ABOVE the "State as of" line** (durable
+   engine laws) — needs Max's yes. Same for the three-logs rule.
+9. Supplier coverage is 18% of used products — the concentration family stays
+    silent by design until the supplier field is filled past ~50%.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be

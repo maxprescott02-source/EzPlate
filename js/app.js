@@ -1165,7 +1165,10 @@ function menuComparisonRows(){
   var list=(typeof menusList!=='undefined'?menusList:[]);
   return list.map(function(m){ return {id:m.id, name:m.name, season:m.season||'', pct:avgFoodCostForScope(m.id)}; })
              .filter(function(r){ return r.pct!=null; })
-             .sort(function(a,b){ return a.pct-b.pct || String(a.name).localeCompare(String(b.name)); });
+             // v98 (Max, 31 Jul): WORST first — highest food cost % leads. Was best-first since v89;
+             // with the desktop selector card scrolling internally, overflow must hide the healthy
+             // menus, not the ones that need attention.
+             .sort(function(a,b){ return b.pct-a.pct || String(a.name).localeCompare(String(b.name)); });
 }
 function logHistory(){
   // v60 item 1a (LIVENESS): a data-changing event (price edit, invoice apply, plate save) must ALWAYS
@@ -1917,9 +1920,11 @@ function dashComparisons(){
   // is the single value the headline AND all three stat cards read, so both went stale together, and the
   // `ytd=current` fallback below then baselined the ghost against itself ("holding steady" vs nothing).
   // Null now propagates: the headline falls to "—" plus verdictHtml's existing "Nothing costed and priced
-  // yet" copy (which this fallback had made unreachable at all-menus scope), and statCard falls to its
-  // existing "not enough history yet" path. The CHART is untouched and stays honest — priceHistory is a log
-  // of what WAS true, and drawing it is not a claim about now.
+  // yet" copy (which this fallback had made unreachable at all-menus scope). The CHART is untouched and
+  // stays honest — priceHistory is a log of what WAS true, and drawing it is not a claim about now.
+  // (v98 revision: the "how today's average compares" stat cards that also read cmp.current are DELETED
+  // from the dashboard — see renderDashboard — but this null-propagation contract is about the HEADLINE
+  // and predates them; dash-persist.test.js still pins it.)
   var current=computeAvgFoodCost();
   var startThisMonth=new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   var startLastMonth=new Date(now.getFullYear(), now.getMonth()-1, 1).getTime();
@@ -1930,20 +1935,11 @@ function dashComparisons(){
   if(ytd==null) ytd=current;
   return {current:current, lastMonth:lastMonth, lastWeek:lastWeek, ytd:ytd};
 }
-function statCard(label, current, base){
-  var cur=(current==null)?'\u2014':current.toFixed(1)+'%';
-  var sub, nums='', cls='flat', arrow='\u2192';
-  // v94 polish: \u00a0 keeps each qualifier phrase in one piece, so a narrow column wraps to
-  // "N pts higher \u2014" / "costs creeping up" instead of orphaning the last word. Copy unchanged.
-  if(current==null||base==null){ sub='not enough history\u00a0yet'; }
-  else { var d=current-base;                                   // food cost down = good
-    nums='Today '+current.toFixed(1)+'% \u00b7 '+label+' avg '+base.toFixed(1)+'%';
-    if(Math.abs(d)<0.05){ sub='same \u2014 costs\u00a0holding\u00a0steady'; }
-    else if(d<0){ cls='good'; arrow='\u2193'; sub=Math.abs(d).toFixed(1)+' pts\u00a0lower \u2014 costs\u00a0improving'; }
-    else { cls='bad'; arrow='\u2191'; sub=d.toFixed(1)+' pts\u00a0higher \u2014 costs\u00a0creeping\u00a0up'; }
-  }
-  return '<span class="stat-bit"><span class="stat-h">vs '+esc(label.toLowerCase())+'</span> <b class="stat-arrow '+cls+'">'+arrow+'</b> <span class="stat-sub '+cls+'">'+esc(sub)+'</span></span>';
-}
+/* v98 revision: statCard and the "how today's average compares" block are DELETED (Max's call,
+   31 Jul) \u2014 the block duplicated what the chart shows, the long horizon is reachable via the
+   range toggles, and it stated an all-menus average under a heading naming a single menu.
+   Deleted, not relocated, on every width. dashComparisons above stays whole: the headline reads
+   cmp.current and the v97 null-propagation regression pins it. Tombstone so the name greps. */
 /* ===== v47: trend-chart rebuild (Collectr feel, EzPlate skin) \u2014 helpers ===== */
 /* Monotone cubic tangents (Fritsch\u2013Carlson). Clamped so the curve NEVER overshoots a real
    reading \u2014 between two points it stays inside their value range, so it can't dip below 0
@@ -2227,7 +2223,9 @@ function digData(kind, scope){
 function digCardHtml(card, scope){
   var d=digData(card.kind, scope), top=d.rows[0];
   var val=top? '<span class="dig-v'+(top.dir?(' '+top.dir):'')+'">'+esc(top.disp)+'</span>' : '<span class="dig-v muted">—</span>';
-  return '<button class="dig-card" type="button" data-kind="'+esc(card.kind)+'">'
+  // v98: an empty tile declares itself so CSS can quiet it — "Nothing yet" should not carry
+  // the same visual weight as a tile with real data (same card chrome, quieter content).
+  return '<button class="dig-card'+(top?'':' is-empty')+'" type="button" data-kind="'+esc(card.kind)+'">'
     +'<span class="dig-k">'+esc(card.label)+'</span>'
     +'<span class="dig-n">'+(top?esc(top.name):'Nothing yet')+'</span>'
     +val+'</button>';
@@ -3029,8 +3027,9 @@ function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).fi
    building things. These three pieces answer it for a chosen scope. */
 function fmtTargetPct(){ return (cogsPct%1?cogsPct.toFixed(1):cogsPct.toFixed(0))+'%'; }
 function scopeHistory(scope){ return (scope===DASH_ALL)?priceHistory:((menuHistory&&menuHistory[scope])||[]); }
-/* Trend direction for the verdict line. Deliberately the SAME comparison the stat cards below it use
-   (today vs the last 7 days' average of the same series) so the header and the cards can never disagree.
+/* Trend direction for the verdict line: today vs the last 7 days' average of the same series. (Until the
+   v98 revision this was deliberately the same comparison the vs-last-week stat card used, so the two could
+   never disagree; the compares block is gone but the definition stays — it is the honest short horizon.)
    Returns null when that scope has no history to compare against — the clause is then omitted rather
    than shown flat, because "→ steady" against no data is a claim we can't make. */
 function scopeTrend(scope, current){
@@ -3158,19 +3157,18 @@ function renderDashboard(){
      same selector governs it), and verdictHtml no longer emits .verdict-cap.
      What STAYS is the scope-note below \u2014 not a restatement but a CORRECTION, the v89 honesty rule: with a
      menu selected the line still covers all menus, and dropping that would make the heading lie about the
-     chart. Same for statLead's "all-menus". */
+     chart. (statLead's "all-menus" qualifier went with the compares block, v98 revision.) */
   var chartTitle='Food cost trend';
-  var statLead='How today\u2019s '+(narrowed?'all-menus ':'')+'average compares';
   // The metric stays muted like every other dashboard heading; the MENU NAME does not. This is the one
   // heading here whose content changes, and a scope indicator quieter than the target line beneath it is
   // exactly how someone reads a specials figure as a whole-menu figure. Deliberate exception to v95.
   var headScope=narrowed?menuNameById(scope):'All menus';
   // The separator belongs to the muted half \u2014 only the NAME is full strength.
   var heading='Average food cost \u2014 <span class="dh-scope">'+esc(headScope)+'</span>';
-  /* v95 bento: the three fixed pieces of this card are wrapped in .dp-tile divs so desktop CSS
-     can place them as tiles on an inner grid (verdict | chart, compares under the verdict). The
-     DOM ORDER is the mobile reading order (verdict \u2192 chart \u2192 compares) and mobile styles give
-     the wrappers no chrome, so the phone stack is byte-identical in what it shows. TILE
+  /* v95 introduced these .dp-tile wrappers; v98 keeps them as chrome-free ORDERING HANDLES only
+     (no fill, no border at any width \u2014 the cards-in-cards fix). The DOM ORDER is the mobile
+     reading order (verdict \u2192 chart \u2192 compares); desktop CSS reorders the card to the grid
+     brief's number \u2192 compares \u2192 trend via `order`, so the phone stack is untouched. TILE
      COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
   var html='<div class="panel dash-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
@@ -3179,14 +3177,14 @@ function renderDashboard(){
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
     +(narrowed?'<p class="hint scope-note">Per-menu history is still building \u2014 this line covers all menus.</p>':'')   // v94: compressed to one hint line (density brief); the honesty is unchanged \u2014 a menu's own trend can't be drawn yet
-    +'</div><div class="dp-tile dp-stats">'
-    +'<div class="stat-attach"><div class="stat-lead">'+esc(statLead)+'</div>'
-    +'<div class="stat-line">'+statCard('Last week', cmp.current, cmp.lastWeek)+statCard('Last month', cmp.current, cmp.lastMonth)+statCard('This year', cmp.current, cmp.ytd)+'</div></div>'
     +'</div></div></div>';
+  // v98 revision: the dp-stats tile ("how today's average compares", vs last week/month/year) is
+  // DELETED on every width \u2014 it duplicated the chart, and its all-menus figures sat under a heading
+  // that can name a single menu. The card is now number \u2192 target line \u2192 trend, no CSS reordering.
   // v90 ORDER (per the approved mockup): status → insights → by menu → dig in. On mobile that is the
-  // reading order; on desktop CSS lifts the insights panel beside the chart, which sidesteps the
-  // above-or-below question entirely. The grid rows stay EXPLICIT (v89's lesson — auto-placement pushed
-  // a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle these.
+  // reading order; on desktop the v98 grid lifts BY MENU beside the chart card (row 1) and gives each
+  // variable-height panel a full-width row. The grid rows stay EXPLICIT (v89's lesson — auto-placement
+  // pushed a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle.
   html+=dashInsightsHtml(scope);
   html+=menuCompareHtml(scope);
   html+=digInHtml(scope);
@@ -3302,7 +3300,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v97';
+var APP_VERSION='v98';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
