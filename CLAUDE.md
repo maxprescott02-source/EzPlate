@@ -346,11 +346,24 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v99** — `feature/global-chrome` (batch 0.5 of the approved UX
-  propagation sequence; PR pending Max's merge). `main` is at v98 (PR #37).
-  Six spots agree at v99 on the branch. Local `main` goes stale between
-  sessions (Max merges via GitHub PR) — **`git fetch` and check `origin/main`
-  first** ([[verify-origin-main-before-trusting-local]]).
+- **Version:** **v100** — `feature/menu-batch` (batch 1 of the sequence; PR
+  pending Max's merge). `main` is at v99 (PR #38, batch 0.5). Six spots agree
+  at v100 on the branch. Local `main` goes stale between sessions (Max merges
+  via GitHub PR) — **`git fetch` and check `origin/main` first**
+  ([[verify-origin-main-before-trusting-local]]).
+- **v100 (batch 1 — Menu):** the tab's prose cull landed (strapline + new-menu
+  hint cut; target meta + add-plate modal compressed — `#ad_menuName` kept as
+  a live anchor); desktop `tr.sec` lost its `--surface2` fill (the last
+  third-tone band outside the dashboard); quiet lowercase `td::before` data
+  labels (UI face — uppercase only on true boundaries); spacing/type/radius on
+  tokens; `.atable-wrap` padding override is `#tab-analysis`-scoped because
+  the INVOICE modal shares that class (the invoice table itself is
+  `class="invtable"` only — the `:not(.invtable)` guards are vestigial).
+  **Viewport allows pinch-zoom again** (`user-scalable=no` AND
+  `maximum-scale=1` removed — the 26 Jul audit item, decided by Max 31 Jul);
+  fixed-chrome-under-zoom is on the phone list. **The v45 button-copy pin is
+  reconciled (`+ Existing plate`) — Playwright is 91/91, fully green for the
+  first time since v72.** See `HANDOVER-v100.md`.
 - **v99 (batch 0.5 — global chrome, CSS-only):** elevation is app-wide now:
   base `.panel` uses `--elev`, `.bottomnav` uses new token `--elev-nav`,
   `.ptr-ind` uses `--elev` with new composite-safe `--elev-cast` for the
@@ -435,12 +448,10 @@ history belongs in `handovers/`, nowhere else.
   (`mcmpSparkHtml`) and the `.dp-tile` wrappers.
 - **Suite:** `npm test` = **509 green**, jsdom smoke green (24 sections),
   `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
-- **Playwright: 91 tests in `tests/visual/`** (v98 adds `v98-grid.spec.js`, 12
-  tests: loaded/sparse/full-state grid geometry, row-1 no-jump, quiet empty
-  tile, sparkle switch, selection-additive sparklines, figure-column axes,
-  two-mode elevation). 90 green; the ONE failure is fresh-states'
-  "v45 item 4: button copy" — known-stale, fails on unmodified `main`. The 45
-  pre-v89 tests remain unreconciled since v72. Seeds installed with
+- **Playwright: 91 tests in `tests/visual/`, ALL GREEN since v100** (the v45
+  button-copy pin was reconciled — treat any failure as REAL now). The 45
+  pre-v89 tests otherwise remain unreconciled since v72 (they pass; their
+  premises just predate v89). Seeds installed with
   `addInitScript` re-run on every navigation — guard with a one-shot sentinel
   or reload tests pass for the wrong reason (v97 lesson). Block `/api/*` and
   off-origin in every spec. **Run the suite alone** — a concurrent browser
@@ -502,8 +513,9 @@ history belongs in `handovers/`, nowhere else.
 3. **The 26 Jul audit's remaining findings**: `pushWrite` drops writes silently
    offline (v40, still real), the swallowed `price_history` error, staging,
    dead code, structural fixes.
-4. **Reconcile the 45 pre-v89 Playwright tests** (stale since v72, incl. the
-   v45 button-copy pin that is the suite's one standing failure).
+4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72;
+   the v45 button-copy pin — formerly the suite's one standing failure — was
+   fixed in v100).
 5. **Menu-aware chart / per-menu comparison** — still blocked on per-menu
    history, which is EMPTY (see above), not slow.
 6. Optional: purchased-quantity capture for v55 §I — protected-region edit,
