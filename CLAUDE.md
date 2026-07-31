@@ -346,11 +346,18 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v104** — `feature/products-batch` (batch 5, the LAST of the
-  sequence; PR pending Max's merge). `main` is at v103 (PR #42, batch 4
-  Ingredients). Six spots agree at v104 on the branch. Local `main` goes stale
-  between sessions (Max merges via GitHub PR) — **`git fetch` and check
+- **Version:** **v105** — `chore/privacy-line` (PR pending Max's merge).
+  `main` is at v104 (PR #43 — the UX propagation sequence, batches 0.5–5, is
+  fully merged). Six spots agree at v105 on the branch. Local `main` goes
+  stale between sessions (Max merges via GitHub PR) — **`git fetch` and check
   `origin/main` first** ([[verify-origin-main-before-trusting-local]]).
+- **v105 (chore):** Settings → About's literal `Privacy — TODO(Max)`
+  placeholder replaced with the true one-liner (on-device + synced database;
+  the two optional AI features send invoice text / plate names to Gemini).
+  NOT a privacy policy — the privacy gate above stands unchanged for
+  multi-tenant. Surfaced by the post-sequence flow-tester pass (which found
+  NO defects and NO guidance gaps from the v99–v104 cull — 10/10 flows).
+  See `HANDOVER-v105.md`.
 - **v104 (batch 5 — Products; THE SEQUENCE IS COMPLETE):** the invoice-area
   cull — `#invIntro` 37w → 13w, the CSV hint 18w → 7w (the format example
   lives in the textarea's `placeholder`), the pack-size sub-label to its
