@@ -1142,7 +1142,13 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ing-controls .menu-search{flex:1 1 200px;min-width:160px}
 .ing-filter{flex:0 1 auto;padding:9px 10px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);max-width:48%}
 .ing-count{color:var(--muted2);font-size:12px}
-.ing-list{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
+.ing-list{display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-2) var(--sp-4) var(--sp-1)}
+/* v102 (Plates batch): seam + radius on the system for THIS tab only — .ing-list/.ing-card are
+   shared with Products, whose batch applies (or promotes) the same values later. Same staging
+   reason .panel went to batch 0.5: one base edit must not restyle two tabs inside a one-tab batch. */
+#plateList.ing-list{gap:var(--sp-2)}
+#plateList .ing-card{border-radius:var(--radius-card)}
+@media (min-width:1024px){ #plateList.ing-list{padding:var(--sp-2) var(--sp-5) var(--sp-2)} }   /* was 10px … 8px — top edge on-scale; sp-5 sides stay (the tabs' own responsive edge scale) */
 .ing-card{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;width:100%;text-align:left;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
   transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
@@ -1150,11 +1156,15 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ing-card:active{transform:scale(.985)}   /* v72: shared tap press — see .dig-card */
 .ing-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ing-name{font-weight:700;line-height:1.2}
-.ing-brand{font-size:12px;color:var(--muted2)}
+.ing-brand{font-size:var(--fs-xs);color:var(--muted2)}
 .ing-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
 .ing-tag{font-size:11px;font-weight:600;color:var(--muted2);background:rgba(0,0,0,.05);border-radius:6px;padding:1px 7px}
 .ing-tag.sup{color:var(--accent)}
 [data-theme="dark"] .ing-tag{background:rgba(255,255,255,.08)}
+/* v102: the override above misses SYSTEM-dark — applyThemePref removes data-theme on "system",
+   so the media variant is required too (the v99 handover's latent gap, fixed while this batch
+   touched the card chips) */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ing-tag{background:rgba(255,255,255,.08)} }
 .ing-price{grid-column:2;grid-row:1 / span 2;text-align:right;white-space:nowrap}
 .ing-price b{font-size:15px}
 .ing-price .ing-per{display:block;font-size:11px;color:var(--muted2)}

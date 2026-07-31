@@ -346,11 +346,20 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v101** — `feature/settings-batch` (batch 2 of the sequence;
-  PR pending Max's merge). `main` is at v100 (PR #39, batch 1 Menu). Six
-  spots agree at v101 on the branch. Local `main` goes stale between sessions
+- **Version:** **v102** — `feature/plates-batch` (batch 3 of the sequence; PR
+  pending Max's merge). `main` is at v101 (PR #40, batch 2 Settings). Six
+  spots agree at v102 on the branch. Local `main` goes stale between sessions
   (Max merges via GitHub PR) — **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
+- **v102 (batch 3 — Plates):** strapline + default `#builderHint` cut (the
+  ELEMENT stays — the no-ingredients empty state renders into it, JS hides it
+  otherwise); docket + manage-menus lines compressed. Rendering changes to
+  the SHARED `.ing-list`/`.ing-card` are `#plateList`-scoped (8px seam,
+  `--radius-card`) — **Products' batch applies the same values and should
+  promote them to base, deleting the scoped block.** The `.ing-tag`
+  system-dark tint gap is fixed at base (media variant added — the v99
+  latent bug). Sequence remaining: 4 Ingredients → 5 Products (Opus).
+  See `HANDOVER-v102.md`.
 - **v101 (batch 2 — Settings cull, copy-only):** all six help lines + the
   tidy pair compressed to one voice (`Off = …` for toggle consequences);
   Account/Team subs cut (titles keep the pinned "arrive with EzPlate
