@@ -49,9 +49,14 @@ docket warnings/tooltips, draft/resume copy.
   scoped values confirmed, chip tint correct under SYSTEM-dark, builder hint
   hidden-and-empty with ingredients present, both compressed lines verbatim.
   Screenshots eyeballed.
-- CodeRabbit: one run reported `findings:1` but the payload was never
-  delivered; two full reruns on identical changes returned 0 findings.
-  Noted rather than hidden.
+- CodeRabbit: one CLI run reported `findings:1` but the payload was never
+  delivered; two full reruns returned 0 findings. **The finding surfaced via
+  the PR thread and was REAL**: `renderPlate` early-returns on an empty
+  plate BEFORE the hint update, so a fresh install (no ingredients + empty
+  plate — the exact user the empty-state serves) lost all guidance once the
+  markup shipped the hint hidden. Fixed by hoisting the hint block above the
+  early return; locked by smoke section [25] (link shows on fresh-install
+  empty plate, routes to Ingredients, hidden once ingredients exist).
 
 ## Needs Max's phone (v102) — this batch also clears the B-block backlog
 
