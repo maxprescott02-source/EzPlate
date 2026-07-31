@@ -1455,7 +1455,7 @@ function saveIngEdit(){
 function kingProductLabel(k){                                        // "Chips 10mm Straight Cut — Safries · $2.68/kg" (v36: arrow dropped, the text is the link)
   var p=byId[k.pid];
   if(!p) return '(product missing)';
-  return p.description+(p.brand?' \u2014 '+p.brand:'')+' \u00b7 '+unitCostStr(p);
+  return p.description+(p.brand?' \u2014 '+p.brand:'');   // v103: the price moved out of the sentence into the card's .king-price figure column
 }
 // v59 item 6a: an ingredient's category is DERIVED, live, from its linked product \u2014 never stored on
 // the ingredient. Repointing the link or editing the product's category changes it automatically.
@@ -1504,9 +1504,11 @@ function renderKitchenPanel(){
     // v67 follow-up: category chip sits in a meta row at the BOTTOM of the card (name → linked product →
     // category), matching the Products card layout (.ing-main then .ing-meta), and reuses the same .ing-tag
     // chip so ingredient and product cards read identically. It used to sit inline between name and link.
+    var kp=byId[k.pid];                                              // v103: price is a right-aligned figure column (the .ing-price idiom), not part of the sentence
     return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
       +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
       +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
+      +(kp?'<span class="king-price">'+esc(unitCostStr(kp))+'</span>':'')
       +(c?'<div class="king-meta"><span class="ing-tag">'+esc(c)+'</span></div>':'')
       +'</div>';
   }).join('');
@@ -3302,7 +3304,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v102';
+var APP_VERSION='v103';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

@@ -346,11 +346,19 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v102** — `feature/plates-batch` (batch 3 of the sequence; PR
-  pending Max's merge). `main` is at v101 (PR #40, batch 2 Settings). Six
-  spots agree at v102 on the branch. Local `main` goes stale between sessions
-  (Max merges via GitHub PR) — **`git fetch` and check `origin/main` first**
-  ([[verify-origin-main-before-trusting-local]]).
+- **Version:** **v103** — `feature/ingredients-batch` (batch 4 of the
+  sequence; PR pending Max's merge). `main` is at v102 (PR #41, batch 3
+  Plates). Six spots agree at v103 on the branch. Local `main` goes stale
+  between sessions (Max merges via GitHub PR) — **`git fetch` and check
+  `origin/main` first** ([[verify-origin-main-before-trusting-local]]).
+- **v103 (batch 4 — Ingredients):** two kingModal hints compressed (the
+  link-a-product hint keeps exactly its pinned portion); **the ingredient
+  card's price moved OUT of the `.king-link` sentence into `.king-price`** —
+  second grid column, right-aligned mono, the `.ing-price` idiom
+  (`kingProductLabel` no longer appends the price; a missing product renders
+  no price element). `#kingList` seams/radius on the system. Sequence
+  remaining: 5 Products (Opus, invoice area — promote the #plateList-scoped
+  card values to base there). See `HANDOVER-v103.md`.
 - **v102 (batch 3 — Plates):** strapline + default `#builderHint` cut (the
   ELEMENT stays — the no-ingredients empty state renders into it, JS hides it
   otherwise); docket + manage-menus lines compressed. Rendering changes to
