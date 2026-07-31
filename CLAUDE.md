@@ -346,11 +346,18 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v100** — `feature/menu-batch` (batch 1 of the sequence; PR
-  pending Max's merge). `main` is at v99 (PR #38, batch 0.5). Six spots agree
-  at v100 on the branch. Local `main` goes stale between sessions (Max merges
-  via GitHub PR) — **`git fetch` and check `origin/main` first**
+- **Version:** **v101** — `feature/settings-batch` (batch 2 of the sequence;
+  PR pending Max's merge). `main` is at v100 (PR #39, batch 1 Menu). Six
+  spots agree at v101 on the branch. Local `main` goes stale between sessions
+  (Max merges via GitHub PR) — **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
+- **v101 (batch 2 — Settings cull, copy-only):** all six help lines + the
+  tidy pair compressed to one voice (`Off = …` for toggle consequences);
+  Account/Team subs cut (titles keep the pinned "arrive with EzPlate
+  accounts" fragment); the smem-modal 35-word preamble CUT — which also
+  killed the literal `’`/`—` escape-sequence bug it shipped.
+  Sequence remaining: 3 Plates → 4 Ingredients → 5 Products (Opus, invoice
+  area). See `HANDOVER-v101.md`.
 - **v100 (batch 1 — Menu):** the tab's prose cull landed (strapline + new-menu
   hint cut; target meta + add-plate modal compressed — `#ad_menuName` kept as
   a live anchor); desktop `tr.sec` lost its `--surface2` fill (the last

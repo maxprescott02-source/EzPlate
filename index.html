@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=100">
+<link rel="stylesheet" href="css/style.css?v=101">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -382,7 +382,8 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="smemTitle">
     <div class="mhead"><h3 id="smemTitle">Remembered items</h3><button class="x" id="smemClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <p class="hint" style="margin:0 0 10px">Pack sizes EzPlate has learned from your invoices. These keep your costings right, so they\u2019re read-only here \u2014 to correct one, remove it and the next invoice that includes it will teach the right size again.</p>
+      <!-- v101 prose cull: the 35-word preamble is gone - the Settings row above this modal's only
+           entry point already explains it (and the old string shipped literal unicode escapes) -->
       <div id="smemList"></div>
     </div>
     <div class="mfoot"><button class="btn primary" id="smemDone" type="button">Done</button></div>
@@ -565,14 +566,14 @@
           <div class="set-item">
             <div class="set-item-text">
               <label class="set-item-label" for="setCogsInput">Target food cost</label>
-              <p class="set-item-help">The share of the sell price that goes to ingredients. Lower means a higher margin. Drives the Menu suggested prices and the Dashboard target line.</p>
+              <p class="set-item-help">Share of the sell price going to ingredients. Drives suggested prices and the target line.</p>
             </div>
             <div class="set-item-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
           </div>
           <div class="set-item">
             <div class="set-item-text">
               <span class="set-item-label" id="setThemeLbl">Theme</span>
-              <p class="set-item-help">System follows your phone’s setting. The header moon still flips between light and dark.</p>
+              <p class="set-item-help">System follows your phone’s setting.</p>
             </div>
             <div class="seg set-item-ctl" role="radiogroup" aria-labelledby="setThemeLbl">
               <button type="button" class="seg-btn" id="setThemeLight" data-theme-pref="light" role="radio" aria-checked="false">Light</button>
@@ -583,7 +584,7 @@
           <div class="set-item">
             <div class="set-item-text">
               <label class="set-item-label" for="setAiSuggestChk">AI suggestions</label>
-              <p class="set-item-help">EzPlate Insights points out margin issues on your menus. Turn it off to hide the insights panel and its button — no AI calls are made.</p>
+              <p class="set-item-help">Shows margin insights on the Dashboard. Off = no AI calls.</p>
             </div>
             <label class="switch set-item-ctl"><input type="checkbox" id="setAiSuggestChk"><span class="switch-track" aria-hidden="true"></span></label>
           </div>
@@ -594,7 +595,7 @@
           <div class="set-item">
             <div class="set-item-text">
               <label class="set-item-label" for="setGstDefault">GST default</label>
-              <p class="set-item-help">Used only when an invoice doesn’t say either way. If it does say, the invoice wins. EzPlate always stores costs ex-GST.</p>
+              <p class="set-item-help">Used only when an invoice doesn’t say. Costs are always stored ex-GST.</p>
             </div>
             <select id="setGstDefault" class="set-item-ctl">
               <option value="ex">GST-exclusive</option>
@@ -604,14 +605,14 @@
           <div class="set-item">
             <div class="set-item-text">
               <label class="set-item-label" for="setAiInvoiceChk">AI invoice check</label>
-              <p class="set-item-help">A second AI read-through double-checks invoice matches and prices. Turn it off to keep imports fully offline — the standard reader still parses everything, and no invoice data leaves your device.</p>
+              <p class="set-item-help">A second AI read of invoice matches. Off = imports stay fully offline.</p>
             </div>
             <label class="switch set-item-ctl"><input type="checkbox" id="setAiInvoiceChk"><span class="switch-track" aria-hidden="true"></span></label>
           </div>
           <div class="set-item">
             <div class="set-item-text">
               <span class="set-item-label">Remembered packs</span>
-              <p class="set-item-help">Pack sizes EzPlate learned from your invoices. View them, and remove any that are wrong — the next invoice re-teaches the right size.</p>
+              <p class="set-item-help">Pack sizes learned from invoices — remove a wrong one and the next invoice re-teaches it.</p>
             </div>
             <button class="btn set-item-ctl" id="setSmemOpen" type="button">Open</button>
           </div>
@@ -622,7 +623,7 @@
           <div class="set-item">
             <div class="set-item-text">
               <span class="set-item-label">Tidy lists</span>
-              <p class="set-item-help">Rename, merge or clear your product categories, brands, suppliers and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
+              <p class="set-item-help">Rename, merge or clear categories, brands and suppliers — applies everywhere at once.</p>
             </div>
             <button class="btn set-item-ctl" id="setTidyOpen" type="button">Open</button>
           </div>
@@ -640,7 +641,7 @@
           <div class="set-item">
             <div class="set-item-text">
               <span class="set-item-label">Clear cache &amp; refresh</span>
-              <p class="set-item-help">Forces the latest version to download. Your data is untouched — this only clears the app’s offline copy.</p>
+              <p class="set-item-help">Re-downloads the app. Your data is untouched.</p>
             </div>
             <button class="btn set-item-ctl" id="setClearCache" type="button">Clear</button>
           </div>
@@ -650,7 +651,6 @@
           <h4 class="set-sec-title">Account</h4>
           <div class="set-empty">
             <p class="set-empty-title">Sign-in and account settings arrive with EzPlate accounts.</p>
-            <p class="set-empty-sub">For now everything runs on this device, backed up to the cloud.</p>
           </div>
         </section>
 
@@ -658,7 +658,6 @@
           <h4 class="set-sec-title">Team</h4>
           <div class="set-empty">
             <p class="set-empty-title">Team roles arrive with EzPlate accounts.</p>
-            <p class="set-empty-sub">Owner and staff access is already planned — you’ll choose who can see and edit here.</p>
           </div>
         </section>
 
@@ -683,7 +682,7 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tidyManageTitle">
     <div class="mhead"><h3 id="tidyManageTitle">Tidy lists</h3><button class="x" id="tidyManageClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <p class="hint">Rename, merge or clear the categories, brands and suppliers on your products — and plate categories. Changes apply everywhere at once; ingredient categories follow their product automatically.</p>
+      <p class="hint">Rename, merge or clear categories, brands and suppliers — applies everywhere at once.</p>
       <div class="field">
         <label for="tidyField">List to tidy</label>
         <select id="tidyField">
@@ -760,7 +759,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=100"></script>
+<script src="js/app.js?v=101"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
