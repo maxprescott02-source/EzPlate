@@ -1,8 +1,8 @@
 /* EzPlate service worker */
-const CACHE = 'ezplate-v103';
+const CACHE = 'ezplate-v104';
 const ASSETS = [
   './', './index.html', './css/style.css', './js/app.js',
-  './css/style.css?v=103', './js/app.js?v=103',
+  './css/style.css?v=104', './js/app.js?v=104',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', function(e){

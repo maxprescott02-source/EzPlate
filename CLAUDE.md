@@ -346,35 +346,40 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v103** — `feature/ingredients-batch` (batch 4 of the
-  sequence; PR pending Max's merge). `main` is at v102 (PR #41, batch 3
-  Plates). Six spots agree at v103 on the branch. Local `main` goes stale
+- **Version:** **v104** — `feature/products-batch` (batch 5, the LAST of the
+  sequence; PR pending Max's merge). `main` is at v103 (PR #42, batch 4
+  Ingredients). Six spots agree at v104 on the branch. Local `main` goes stale
   between sessions (Max merges via GitHub PR) — **`git fetch` and check
   `origin/main` first** ([[verify-origin-main-before-trusting-local]]).
-- **v103 (batch 4 — Ingredients):** two kingModal hints compressed (the
-  link-a-product hint keeps exactly its pinned portion); **the ingredient
-  card's price moved OUT of the `.king-link` sentence into `.king-price`** —
-  second grid column, right-aligned mono, the `.ing-price` idiom
-  (`kingProductLabel` no longer appends the price; a missing product renders
-  no price element). `#kingList` seams/radius on the system. Sequence
-  remaining: 5 Products (Opus, invoice area — promote the #plateList-scoped
-  card values to base there). See `HANDOVER-v103.md`.
+- **v104 (batch 5 — Products; THE SEQUENCE IS COMPLETE):** the invoice-area
+  cull — `#invIntro` 37w → 13w, the CSV hint 18w → 7w (the format example
+  lives in the textarea's `placeholder`), the pack-size sub-label to its
+  example alone, and `renderInvReview`'s save hint to "Only ticked rows are
+  saved." (text-only; no markup/class/order change — `inv-rowmarkup.test.js`
+  pins those). **The invoice region's KEEPs are deliberate** — GST honesty,
+  `.pt-explain`, the flag/chip/AI vocabulary, the pinned "the name you'll use
+  when building plates". **v102's `#plateList`-scoped card values are PROMOTED
+  to base** (8px seam, `--radius-card`, on-scale ≥1024 padding); the scoped
+  block is deleted and Plates' computed values are unchanged (verified, not
+  assumed). Invoice flow joins the v98 two-mode elevation (`--elev` on
+  `.ni-panel` ×2, the `.invtable` row card, `.import-summary`) and the ≥640
+  `.invtable` row drops its `--surface2` card-in-card fill — but **`.ni-raw`
+  KEEPS `--surface2` on purpose**: it is a semantic inset well for raw
+  supplier text, not a card. See `HANDOVER-v104.md`.
 - **v102 (batch 3 — Plates):** strapline + default `#builderHint` cut (the
   ELEMENT stays — the no-ingredients empty state renders into it, JS hides it
-  otherwise); docket + manage-menus lines compressed. Rendering changes to
-  the SHARED `.ing-list`/`.ing-card` are `#plateList`-scoped (8px seam,
-  `--radius-card`) — **Products' batch applies the same values and should
-  promote them to base, deleting the scoped block.** The `.ing-tag`
-  system-dark tint gap is fixed at base (media variant added — the v99
-  latent bug). Sequence remaining: 4 Ingredients → 5 Products (Opus).
+  otherwise); docket + manage-menus lines compressed. Its rendering changes to
+  the SHARED `.ing-list`/`.ing-card` were `#plateList`-scoped (8px seam,
+  `--radius-card`); **v104 promoted them to base and deleted the scoped
+  block — done, nothing owed here.** The `.ing-tag` system-dark tint gap is
+  fixed at base (media variant added — the v99 latent bug).
   See `HANDOVER-v102.md`.
 - **v101 (batch 2 — Settings cull, copy-only):** all six help lines + the
   tidy pair compressed to one voice (`Off = …` for toggle consequences);
   Account/Team subs cut (titles keep the pinned "arrive with EzPlate
   accounts" fragment); the smem-modal 35-word preamble CUT — which also
   killed the literal `’`/`—` escape-sequence bug it shipped.
-  Sequence remaining: 3 Plates → 4 Ingredients → 5 Products (Opus, invoice
-  area). See `HANDOVER-v101.md`.
+  See `HANDOVER-v101.md`.
 - **v100 (batch 1 — Menu):** the tab's prose cull landed (strapline + new-menu
   hint cut; target meta + add-plate modal compressed — `#ad_menuName` kept as
   a live anchor); desktop `tr.sec` lost its `--surface2` fill (the last
@@ -402,11 +407,13 @@ history belongs in `handovers/`, nowhere else.
   `HANDOVER-v99.md`.
 - **The UX propagation sequence is approved (31 Jul, Max's Batch 0 response,
   `~/Downloads/ezplate-batch0-response.md`; audit
-  `~/Downloads/ezplate-batch0-audit.md`):** 0.5 global chrome (this batch) →
-  1 Menu (+ v45 pin reconciliation + remove `user-scalable=no`) → 2 Settings →
-  3 Plates → 4 Ingredients → 5 **Products on Opus** (invoice review lives on
+  `~/Downloads/ezplate-batch0-audit.md`):** 0.5 global chrome → 1 Menu (+ v45
+  pin reconciliation + remove `user-scalable=no`) → 2 Settings → 3 Plates →
+  4 Ingredients → 5 **Products on Opus** (invoice review lives on
   the PRODUCTS tab — the old brief had it on Ingredients via the naming
-  inversion). Scope per batch: approved cuts/compressions, spacing, eyebrows,
+  inversion). **ALL SIX BATCHES ARE BUILT as of v104 — the sequence is
+  COMPLETE, pending phone sign-off; nothing in it remains to implement.**
+  Scope per batch was: approved cuts/compressions, spacing, eyebrows,
   figure columns, type hierarchy, **card radius to `--radius-card`** (Max
   added radius to scope). The 16px-edge rule is dashboard-and-mobile-only — do
   NOT force it onto the tabs' responsive edge scale. Prose cull classifications
@@ -525,8 +532,12 @@ history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on v82–v98** — seventeen batches, none device-verified;
-   their "needs Max's phone" lists are the backlog. v98's sharpest: the
+1. **Phone sign-off on v82–v104** — the whole UX propagation sequence is now
+   built and NONE of it is device-verified; the per-batch "needs Max's phone"
+   lists are the backlog, and this is the top item. v104's sharpest: Products
+   cards at the new 8px seam (the app's most-scrolled list), the compressed
+   `#invIntro`, and the invoice modal as the stress case for the carried iOS
+   modal items F1–F4 + the C4–C8 real-PDF invoice items. v98's sharpest: the
    compares block is GONE on the phone too (delete-don't-relocate — is the
    vs-last-week line missed in the hand?), dig-tile tappability with only a
    hairline edge, and the brighter light-mode sparkle. v87's iOS scroll-lock
