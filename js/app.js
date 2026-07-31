@@ -168,7 +168,22 @@ async function bootstrapSync(){
         menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog); saveMenuPriceLog();
       } }catch(e){}
     }
-    try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){ var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }); supplierMem=mm; saveSupplierMem(); } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
+    /* v107: an EMPTY server read must never wipe local supplier memory. Server-wins is deliberate —
+       it is how a phrase deleted on one device disappears from the others — but a successful-but-empty
+       read and an RLS-blocked read are indistinguishable over PostgREST (the same ambiguity CLAUDE.md
+       records for menu_price_history), so a policy fault on supplier_phrases presented as "zero rows"
+       and destroyed every taught pack, saving over the local copy in the same breath. Taught packs are
+       user-confirmed ground truth with no other copy; keeping a stale entry costs one Remove, losing
+       them all costs a re-teach per phrase. Accepted trade: deleting your LAST remaining phrase no
+       longer propagates across devices. Local is re-pushed so the server heals rather than diverges. */
+    try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){
+      var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; });
+      var localIds=Object.keys(supplierMem);
+      if(!spr.data.length && localIds.length){
+        invDbg('[smem] server returned 0 rows but', localIds.length, 'held locally — keeping local, re-pushing');
+        localIds.forEach(function(id){ if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(supplierMem[id]); });
+      } else { supplierMem=mm; saveSupplierMem(); }
+    } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
@@ -1275,15 +1290,44 @@ function invSupplierDetect(text){
   var stop=lines.length;
   for(var s=0;s<lines.length;s++){ if(/\b(?:tax\s+)?invoice\b|\bstatement\b/i.test(lines[s])){ stop=s; break; } }
   var header=lines.slice(0, stop>0?stop:Math.min(lines.length,8));
-  // 2) a known supplier/brand appearing in the header
-  var known=Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).concat(PRODUCTS.map(function(p){return p.brand;})).filter(Boolean)));
-  var head=header.join('\n').toLowerCase(), best=null;
-  known.forEach(function(k){ if(k && k.length>=3 && head.indexOf(k.toLowerCase())>=0){ if(!best||k.length>best.length) best=k; } });
-  if(best){ invDbg('[supplier] known match in header:', best); return best; }
+  /* v107 ROOT CAUSE: the heading is NOT a reliable end-of-letterhead. On Bidfood's layout (all four
+     of Max's real invoices) the extracted order is "Document No:" / "I\u2026\u200b.SUN" / "TAX INVOICE" /
+     "BIDFOOD SUNSHINE COAST a division of" \u2014 the trading name is one line BELOW the heading, so the
+     slice above holds only the document number and the supplier line is unreachable. Give the
+     KNOWN-NAME pass a window that spans the heading; it matches only values already present in the
+     user's own products, so widening it cannot invent a supplier, only find one it would have
+     missed. The GUESSER below keeps the narrow letterhead \u2014 that one can be wrong, so it stays tight. */
+  var knownWin=lines.slice(0, Math.min(lines.length, Math.max(stop+8, 12)));
+  /* 2) a known SUPPLIER, then a known BRAND. The two are searched over different windows on purpose
+     (CodeRabbit, v107): a supplier value IS the answer to "who invoiced this", so it earns the wide
+     window. A brand is only circumstantial evidence, and the wide window can reach far enough down a
+     compact invoice to touch the first item rows — where a brand like "Tip Top" would be read as the
+     supplier. Brands therefore stay confined to the letterhead exactly as before v107. */
+  function longestIn(win, vals){
+    var hay=win.join('\n').toLowerCase(), hit=null;
+    vals.forEach(function(k){ if(k && k.length>=3 && hay.indexOf(k.toLowerCase())>=0){ if(!hit||k.length>hit.length) hit=k; } });
+    return hit;
+  }
+  var uniq=function(a){ return Array.from(new Set(a.filter(Boolean))); };
+  var bestSup=longestIn(knownWin, uniq(PRODUCTS.map(function(p){return p.supplier;})));
+  if(bestSup){ invDbg('[supplier] known supplier in header:', bestSup); return bestSup; }
+  var bestBrand=longestIn(header, uniq(PRODUCTS.map(function(p){return p.brand;})));
+  if(bestBrand){ invDbg('[supplier] known brand in letterhead:', bestBrand); return bestBrand; }
   // 3) first business-name-looking line in the header (skip ABN/address/phone/date/number lines)
   for(var j=0;j<header.length;j++){
     var L=header[j];
     if(/\d{2}[\/\-.]\d{2}|\babn\b|\bacn\b|statement|street|\brd\b|\bst\b|road|p\.?\s*o\.?\s*box|phone|ph:|fax|email|www\.|@|\$|\d{3,}/i.test(L)) continue;
+    /* v107: a BARE FIELD LABEL is not a business name. "Document No:" carries no digits, no address
+       word and no punctuation the filters above look for, so it passed every one of them and became
+       the supplier on six of Max's seven taught packs. Labels WITH their value ("Document No: 47821")
+       were already caught by the \d{3,} rule \u2014 it is the label alone, its value wrapped to the next
+       line by PDF extraction, that leaked. Skipping it makes an unidentified supplier come back
+       BLANK, and blank is safe: rememberSupplierPhrase refuses to store without a supplier.
+       The list includes strategy 1's OWN labels (supplier/vendor/sold by/…) — CodeRabbit, v107:
+       strategy 1 needs `label: value` on one line, so a bare "Supplier:" whose value wrapped falls
+       through to here, and without this would be returned as a supplier literally named "Supplier:".
+       Matching is whole-line, so a real business ("Page Brothers", "Account Foods") is untouched. */
+    if(/^(?:(?:document|invoice|order|purchase|customer|account|delivery|docket|consignment|reference|ref|page|date|our|your|route|tax|no|number|supplier|vendor|sold|distributed|from|by|to|ship|bill)\b[\s.#:—–-]*)+$/i.test(L)) continue;
     if(/[A-Za-z]{3,}/.test(L) && L.length<=42){ invDbg('[supplier] header business name:', L); return clean(L); }
   }
   invDbg('[supplier] could not identify \u2014 left blank'); return '';   // no guess
@@ -3304,7 +3348,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v106';
+var APP_VERSION='v107';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

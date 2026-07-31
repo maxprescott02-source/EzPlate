@@ -370,12 +370,46 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v106** — `feature/backup-export-completion` (PR pending Max's
-  merge). `main` is at v105 (PR #44, the About privacy line; PR #43 before it
-  completed the UX propagation sequence). Six spots agree at v106 on the branch.
-  Local `main` goes stale between sessions (Max merges via GitHub PR) —
-  **`git fetch` and check `origin/main` first**
+- **Version:** **v107** — `fix/supplier-detect-and-sync-guard` (PR pending Max's
+  merge). `main` is at v106 (PR #45, the completed backup export). Six spots
+  agree at v107 on the branch. Local `main` goes stale between sessions (Max
+  merges via GitHub PR) — **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
+- **v107 (supplier detection + the supplier-memory sync guard):** two real
+  faults the v106 backup audit exposed once supplier memory was finally IN the
+  export and could be read.
+  **(1) `invSupplierDetect` was keying Max's taught packs to `"Document No:"`** —
+  six of seven. TWO defects, proved against his four real Bidfood PDFs, not
+  guessed. The heading is **not** a reliable end-of-letterhead: `extractPdfText`
+  emits `Document No:` / `I…​.SUN` / `TAX INVOICE` / `BIDFOOD SUNSHINE COAST…`,
+  so a header slice that stops at the heading holds only the document number and
+  the one line naming the supplier is unreachable — starving the known-name pass
+  even though **`Bidfood` is a supplier on his own products**. With that pass
+  starved, the fallback guesser returned the bare label, which carries no digits,
+  address word or punctuation any of its skip filters look for. Fix: the
+  **known-name pass gets a window spanning the heading** (it can only match
+  values already in the user's products, so widening cannot invent a supplier —
+  only find one it would have missed), the **guesser keeps the narrow letterhead
+  and gained a field-label skip**. All four real invoices now resolve to
+  `Bidfood`; an unidentified supplier returns **blank**, which is safe because
+  `rememberSupplierPhrase` refuses to store without one.
+  **(2) An empty `supplier_phrases` read wiped local supplier memory.**
+  `Array.isArray([])` is true, so zero rows replaced `supplierMem` with `{}` and
+  saved over it. Zero rows is not proof of zero rows: a successful-but-empty read
+  and an RLS-blocked read are indistinguishable over PostgREST (same ambiguity as
+  `menu_price_history`). Now: empty server + non-empty local → **keep local and
+  re-push** so the server heals. **Accepted trade (Max's call, 1 Aug 2026): deleting
+  your LAST remaining phrase no longer propagates across devices** — server-wins
+  is otherwise unchanged, and a stale entry costs one Remove where losing every
+  taught pack costs a re-teach each.
+  **The six `"Document No:"` entries orphan by design and were NOT migrated** —
+  the app cannot know retroactively which supplier they came from, and a taught
+  pack is user-confirmed ground truth (the v71 read-only rule). The cost is one
+  entry: four of the six are also stored as **product packs**, which OUTRANK
+  supplier memory in the precedence chain, and a fifth is a contradictory
+  duplicate for the same cheese product that is better lost. Max clears them in
+  Settings → Remembered items; one Bidfood import re-teaches. See
+  `HANDOVER-v107.md`.
 - **v106 (the backup export completed):** `buildBackup` gained the two datasets
   it silently dropped — **`ing_price_log`** (`cafeDB_ingPriceLog`: NO server
   table exists, so the export is the only second copy that can exist; it feeds
@@ -532,7 +566,8 @@ history belongs in `handovers/`, nowhere else.
   scrub dot stays; pinned in `fresh-states.spec.js`). v95's bento layout is
   SUPERSEDED by v98; its surviving pieces are the By-menu sparklines
   (`mcmpSparkHtml`) and the `.dp-tile` wrappers.
-- **Suite:** `npm test` = **514 green** (v106 added 5 backup tests), jsdom smoke
+- **Suite:** `npm test` = **533 green** (v107 added 19: 13 supplier-detect,
+  6 sync-guard), jsdom smoke
   green (25 sections), `node -c` clean (`js/app.js`, `sw.js`, the four
   `api/*.js`).
 - **Playwright: 91 tests in `tests/visual/`, ALL GREEN since v100** (the v45
@@ -631,13 +666,12 @@ history belongs in `handovers/`, nowhere else.
    engine laws) — needs Max's yes. Same for the three-logs rule.
 9. Supplier coverage is 18% of used products — the concentration family stays
     silent by design until the supplier field is filled past ~50%.
-10. **`bootstrapSync` can WIPE local supplier memory** (found v106, not fixed —
-    out of that batch's scope, wants its own brief). app.js:171 replaces
-    `supplierMem` wholesale with the server read and immediately
-    `saveSupplierMem()`s it; the guard is `Array.isArray(spr.data)`, and an
-    empty array passes. So a `supplier_phrases` table that is empty — or
-    emptied — silently destroys the local copy on next boot, before the user
-    could ever export it. Same failure shape v106 exists to close, one layer up.
+10. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
+    Remembered items → Remove) once v107 is on his phone, then imports one
+    Bidfood invoice to re-teach. Only ONE is a real loss — the cheesecake; four
+    are also product packs, which outrank memory anyway, and the sixth is a
+    contradictory duplicate. Not urgent, and not something the app should do
+    for him. (The `bootstrapSync` wipe that sat here was FIXED in v107.)
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be
