@@ -505,7 +505,7 @@ input[type=checkbox]{
 .dot.red{background:var(--bad)}   .dot.none{background:var(--border2)}
 /* v68: margin-light filter chips (Menu tab). Reuse the .dot colour-key; multi-select toggle buttons. */
 .mlf{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center}
-.mlf-chip{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:36px;padding:8px 14px;
+.mlf-chip{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:36px;padding:var(--sp-2) var(--sp-3);
   border:1px solid var(--border2);background:var(--surface);color:var(--text2);border-radius:var(--radius-pill);
   font-size:var(--fs-sm);font-weight:600;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
@@ -533,20 +533,26 @@ input[type=checkbox]{
 .mi-btn.del:hover{background:var(--bad);color:var(--on-bad)}
 
 /* ---- mobile: table becomes cards ---- */
+/* v100 (Menu batch): spacing/type on the --sp/--fs scales, quiet data labels, --radius-card,
+   desktop section rows lose the --surface2 fill (the v98 one-card-tone rule). The WRAP override
+   is #tab-analysis-scoped because the invoice modal reuses .atable-wrap (fragile area — its look
+   must not change until its own batch). */
 .atable-wrap{overflow:visible;padding:var(--sp-2) var(--sp-3) var(--sp-4)}
-.atable{width:100%;border-collapse:collapse;font-size:13px}
+#tab-analysis .atable-wrap{padding:var(--sp-2) var(--sp-4) var(--sp-4)}
+.atable{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
 .atable thead{display:none}
 .atable,.atable tbody{display:block}
 .atable tr{display:block}
-.atable td{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);border:0;padding:5px 0}
+.atable td{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);border:0;padding:var(--sp-1) 0}
 .atable td::before{
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  font-size:var(--fs-xs);font-weight:600;   /* v100: quiet data labels — uppercase eyebrows are for section boundaries, not every card row */
+  font-family:var(--ui);                    /* v100: labels in UI face — td.num's mono is for the figures, not their labels */
   color:var(--muted2);flex:0 0 auto;
 }
 .atable td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-sm)}
 
 /* section headers */
-.atable tr.sec{background:none;margin:var(--sp-4) var(--sp-1) var(--sp-2)}
+.atable tr.sec{background:none;margin:var(--sp-4) 0 var(--sp-2)}
 .atable tr.sec td{
   display:block;padding:0;background:none;font-weight:800;font-size:var(--fs-xs);
   letter-spacing:.12em;text-transform:uppercase;color:var(--brand);
@@ -555,10 +561,10 @@ input[type=checkbox]{
 /* item cards */
 .atable tbody tr:not(.sec):not(.ni-row){
   position:relative;background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);   /* v36: one card system — matches .ing-card / .king-row */
+  border-radius:var(--radius-card);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);   /* v36: one card system — matches .ing-card / .king-row */
 }
 .atable tr.muted td{color:var(--muted2)}
-.atable tbody tr > td:first-child{display:block;font-size:15px;font-weight:700;color:var(--text);padding:0 28px 6px 0}
+.atable tbody tr > td:first-child{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text);padding:0 28px 6px 0}
 .atable tr.muted > td:first-child{color:var(--text2);font-weight:600}
 
 /* generated labels — analysis table columns */
@@ -575,6 +581,7 @@ input[type=checkbox]{
 /* ---- desktop: same markup as a table ---- */
 @media (min-width:640px){
   .atable-wrap{overflow-x:auto;padding:0}
+  #tab-analysis .atable-wrap{padding:0}   /* v100: mirror the base — the mobile override above must not win here on specificity */
   .atable{display:table;min-width:600px}
   .atable thead{display:table-header-group}
   .atable tbody{display:table-row-group}
@@ -582,19 +589,19 @@ input[type=checkbox]{
     display:table-row;position:static;background:none;border:0;border-radius:0;padding:0;margin:0;
   }
   .atable td,.atable tbody tr > td:first-child{
-    display:table-cell;padding:12px;border-bottom:1px solid var(--border);
-    vertical-align:middle;font-size:13px;font-weight:normal;color:var(--text);
+    display:table-cell;padding:var(--sp-3);border-bottom:1px solid var(--border);
+    vertical-align:middle;font-size:var(--fs-sm);font-weight:normal;color:var(--text);
   }
   .atable td::before{content:none!important}
   .atable th{
-    text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
-    color:var(--muted2);padding:11px 12px;border-bottom:1.5px solid var(--border2);white-space:nowrap;font-weight:700;
+    text-align:left;font-size:var(--fs-xs);letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted2);padding:var(--sp-3);border-bottom:1.5px solid var(--border2);white-space:nowrap;font-weight:700;
   }
   .atable td.num{text-align:right;white-space:nowrap;font-family:var(--mono)}
   .atable tr.sec{margin:0}
   .atable tr.sec td{
-    display:table-cell;background:var(--surface2);font-weight:800;font-size:var(--fs-xs);
-    letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:10px 12px;
+    display:table-cell;background:none;font-weight:800;font-size:var(--fs-xs);   /* v100: no --surface2 fill — one card tone on one page tone (the v98 rule; this was the last third-tone band outside the dashboard) */
+    letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:var(--sp-4) var(--sp-3) var(--sp-2);
   }
   .atable tr.muted td{color:var(--muted2)}
   .atable:not(.invtable) tbody tr:not(.sec) td:nth-child(6){position:static;top:auto;right:auto;padding:12px}
@@ -1344,7 +1351,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .install-banner{left:auto;right:24px;bottom:24px;max-width:400px}
 
   /* -- analysis: roomier table -- */
-  .atable th,.atable td{padding:13px 14px}
+  .atable th,.atable td,
+  .atable tbody tr > td:first-child{padding:var(--sp-3) var(--sp-4)}   /* v100: roomier, on the spacing scale (was 13px 14px); first-child listed because the ≥640 rule outranks `.atable td` for it — without it the Plate column misaligns with its header */
 }
 
 /* ============================ DESKTOP ≥1280px ============================ */

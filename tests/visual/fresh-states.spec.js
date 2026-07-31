@@ -341,7 +341,9 @@ test('v45 item 4: button copy at both breakpoints', async ({ page }) => {
   expect((await page.locator('#newBtn').innerText()).trim(), 'mobile shortens to + New').toBe('+ New');
   await page.locator('.navbtn[data-tab="analysis"]').click();
   await page.waitForTimeout(300);
-  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'full label survives mobile').toBe('+ Existing dish');
+  // v100: reconciled with the v86 dish→plate terminology pass — the app has said "+ Existing plate"
+  // since then; this pin was stale (red on unmodified main from v86 to v99).
+  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'full label survives mobile').toBe('+ Existing plate');
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.locator('.navbtn[data-tab="ingredients"]').click();
   await page.waitForTimeout(300);
