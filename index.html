@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=101">
+<link rel="stylesheet" href="css/style.css?v=102">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -86,7 +86,7 @@
       <h2>Plates</h2>
       <div class="panel-actions">
         <button class="btn primary" id="newPlateBtn" type="button">+ New<span class="btn-noun"> plate</span></button>
-        <span class="panel-sub">Your costed plates — save here, publish to a menu when the price is right</span>
+        <!-- v102 prose cull: strapline gone - the save/publish model is carried by the buttons and the Unpublished / On-menu badges -->
       </div>
       <div class="ing-controls">
         <div class="menu-search plate-search">
@@ -242,7 +242,9 @@
             <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
             <div id="drop" class="drop" role="listbox"></div>
           </div>
-          <p class="hint" id="builderHint">Build plates from your ingredients. New ones are added on the Ingredients tab.</p>
+          <!-- v102 prose cull: the default hint is gone (the search dropdown carries the same guidance,
+               pinned) - the element stays for the no-ingredients empty state, which JS un-hides -->
+          <p class="hint" id="builderHint" style="display:none"></p>
         </div>
         <div class="docket-head">
           <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
@@ -251,7 +253,7 @@
         <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
         <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
         <div class="flag" id="flag" style="display:none"></div>
-        <p class="hint docket-hint">Tap a price to update it — changes apply everywhere and save automatically.</p>
+        <p class="hint docket-hint">Tap a price to edit — changes apply everywhere.</p>
       </div>
 
       <div class="panel" id="platePanel">
@@ -310,7 +312,7 @@
   <div class="modal confirm-modal manage-menus" role="dialog" aria-modal="true" aria-labelledby="manageMenusTitle">
     <div class="mhead"><h3 id="manageMenusTitle">Plate</h3><button class="x" id="manageMenusClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <p class="pa-sub">Add this plate to a menu (each gets its own price), or remove it from one. The plate itself stays in your library.</p>
+      <p class="pa-sub">Each menu prices it separately — the plate always stays in your library.</p>
       <div class="mm-list" id="mmList"></div>
     </div>
     <div class="mfoot"><button class="btn" id="manageMenusDone" type="button">Done</button></div>
@@ -759,7 +761,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=101"></script>
+<script src="js/app.js?v=102"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

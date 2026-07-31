@@ -444,6 +444,13 @@ function renderPlate(){
   scheduleDraftSave();                                        // v82 D1: persist the in-progress builder (debounced) on every structural change
   var nIng=plate.filter(function(l){return !l.misc;}).length;
   document.getElementById('dCount').textContent=nIng+(nIng===1?' item':' items');
+  // v102 fix (CodeRabbit): the hint update must run BEFORE the empty-plate early return — a fresh
+  // install has no ingredients AND an empty plate, and that user needs the add-first-ingredient link.
+  var bh=document.getElementById('builderHint');
+  if(bh){
+    if(!kitchenIngredients.length){ bh.style.display=''; bh.innerHTML='No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
+    else { bh.style.display='none'; bh.textContent=''; }   // v102 prose cull: the default hint is gone — the search dropdown carries the same guidance (v59: still no create-on-the-spot)
+  }
   if(!plate.length){linesEl.innerHTML='<div class="empty">No ingredients yet.<br>Search above to add the first one.</div>';updateTotals();return;}
   linesEl.innerHTML=plate.map(l=>{
     if(l.misc){ return miscRowHtml(l); }
@@ -498,11 +505,6 @@ function renderPlate(){
       </div>
     </div>`;}).join('');
   updateTotals();
-  var bh=document.getElementById('builderHint');
-  if(bh){
-    if(!kitchenIngredients.length){ bh.innerHTML='No ingredients yet \u2014 <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
-    else bh.textContent='Build plates from your ingredients. New ones are added on the Ingredients tab.';   // v59: no create-on-the-spot
-  }
 }
 function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=lineProduct(l);const lc=lineCost(p,l.qty);
   const el=document.getElementById('lc-'+uid);if(el)el.innerHTML=lc==null?'<span class=nocost>no cost</span>':money(lc);}
@@ -3300,7 +3302,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v101';
+var APP_VERSION='v102';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
