@@ -68,10 +68,14 @@ function buildBackupIn(state) {
     var APP_VERSION = S.APP_VERSION;
     var overrides = S.overrides, kitchenIngredients = S.kitchenIngredients,
         savedPlates = S.savedPlates, customMenu = S.customMenu,
+        ingPriceLog = S.ingPriceLog, supplierMem = S.supplierMem,
         cogsPct = S.cogsPct, gstDefault = S.gstDefault,
         deletedMenuIds = S.deletedMenuIds, deletedProdIds = S.deletedProdIds,
         menusList = S.menusList, currentMenuId = S.currentMenuId;
     var kingWizSkip = S.kingWizSkip;
+    var BASE_PRODUCTS = S.BASE_PRODUCTS;              // the real literal is 393 rows; a stand-in is enough to prove the hash tracks it
+    var _baseProductsFp = null;                       // module-scope memo in app.js; fresh per call here so a mutated fixture is seen
+    ${extractFn(APP, 'baseProductsFingerprint')}
     ${extractFn(APP, 'kingWizSkipIds')}
     ${extractFn(APP, 'buildBackup')}
     return buildBackup();
@@ -85,15 +89,20 @@ const STATE = {
   kitchenIngredients: [{ id: 'K0001', name: 'Chips', pid: 'P0108' }],
   savedPlates: [{ id: 'SP1', name: 'Cod & Chips', lines: [{ kid: 'K0001', qty: 250 }] }],
   customMenu: [{ id: 'M1', section: 'FISH PACKS', name: 'Cod & Chips', price: 16 }],
+  ingPriceLog: { P0108: [{ t: 1750000000000, v: 0.0029 }, { t: 1751000000000, v: 0.0031 }] },
+  supplierMem: { SM1: { id: 'SM1', supplier: 'Bidfood', phrase_norm: 'chips straight cut', qty: 2.5, unit: 'kg' } },
   cogsPct: 38, gstDefault: 'inc',
   kingWizSkip: { P0005: 1 },
   deletedMenuIds: ['M9'], deletedProdIds: ['P0999'],
-  menusList: [{ id: 'MENU_ORIGINAL', name: 'Original' }], currentMenuId: 'MENU_ORIGINAL'
+  menusList: [{ id: 'MENU_ORIGINAL', name: 'Original' }], currentMenuId: 'MENU_ORIGINAL',
+  BASE_PRODUCTS: [{ id: 'P0001', description: 'Apple Pie', cost_per_base_unit: 0.02478 },
+                  { id: 'P0108', description: 'Chips', cost_per_base_unit: 0.0029 }]
 };
 
-test('ITEM 6: the backup serialises to real JSON and carries all five data groups', () => {
+test('ITEM 6: the backup serialises to real JSON and carries all seven data groups', () => {
   const parsed = JSON.parse(JSON.stringify(buildBackupIn(STATE)));   // must survive a real round-trip
-  ['products', 'kitchen_ingredients', 'plates', 'menu_items', 'settings'].forEach(k => {
+  ['products', 'kitchen_ingredients', 'plates', 'menu_items',
+   'ing_price_log', 'supplier_mem', 'settings'].forEach(k => {
     assert.ok(k in parsed, `backup is missing the "${k}" group`);
   });
   assert.equal(parsed.app, 'EzPlate');
@@ -107,6 +116,56 @@ test('ITEM 6: the backup carries the actual data, not just the shape', () => {
   assert.deepEqual(b.kitchen_ingredients, STATE.kitchenIngredients);
   assert.equal(b.plates[0].lines[0].kid, 'K0001', 'plate lines reference kitchen words by kid');
   assert.equal(b.menu_items[0].price, 16);
+});
+
+/* v106: the two datasets the export used to drop on the floor. ing_price_log is the sharp one \u2014
+   it has no server table at all, so the exported file is the ONLY second copy that can exist. */
+test('v106: the backup carries the per-ingredient price log, populated', () => {
+  const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
+  assert.deepEqual(b.ing_price_log, STATE.ingPriceLog,
+    'cafeDB_ingPriceLog has NO server table \u2014 if the backup drops it, one cleared browser profile destroys every cost history point');
+  assert.equal(b.ing_price_log.P0108[1].v, 0.0031, 'the points are the real {t,v} shape ingPriceAt reads, not a summary');
+});
+
+test('v106: the backup carries supplier memory, populated', () => {
+  const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
+  assert.deepEqual(b.supplier_mem, STATE.supplierMem,
+    'supplier_phrases survives a device loss, but a backup exists for the case where BOTH copies go');
+  assert.equal(b.supplier_mem.SM1.phrase_norm, 'chips straight cut',
+    'phrase_norm is what tidySupplierMemMigration rebuilds keys from \u2014 dropping it orphans every taught match');
+});
+
+/* v106: the provenance stamp. The export is a DELTA against BASE_PRODUCTS, so a file with no
+   record of which literal it was taken against cannot be safely restored \u2014 ~275 untouched
+   products would silently take the restoring build's prices. */
+test('v106: the export is stamped with the build it is a delta against', () => {
+  const s = JSON.parse(JSON.stringify(buildBackupIn(STATE))).stamp;
+  assert.ok(s, 'the stamp is the whole point of v106');
+  assert.equal(s.format, 1, 'the file shape is versioned separately from the app');
+  assert.equal(s.app_version, 'v35', 'the stamp is self-contained \u2014 a restore reads it without hunting the top level');
+  assert.equal(s.base_products_count, STATE.BASE_PRODUCTS.length);
+  assert.match(s.base_products_hash, /^[0-9a-f]{8}$/, 'eight lowercase hex digits, zero-padded');
+});
+
+test('v106: the fingerprint moves when BASE_PRODUCTS drifts \u2014 including on a same-length edit', () => {
+  const base = buildBackupIn(STATE).stamp;
+
+  const added = buildBackupIn({ ...STATE, BASE_PRODUCTS: [...STATE.BASE_PRODUCTS, { id: 'P0999', description: 'New', cost_per_base_unit: 1 }] }).stamp;
+  assert.notEqual(added.base_products_count, base.base_products_count);
+  assert.notEqual(added.base_products_hash, base.base_products_hash);
+
+  // the case a row count alone cannot catch, and the one that silently rewrites prices
+  const repriced = STATE.BASE_PRODUCTS.map(p => ({ ...p }));
+  repriced[1].cost_per_base_unit = 0.0035;
+  const drifted = buildBackupIn({ ...STATE, BASE_PRODUCTS: repriced }).stamp;
+  assert.equal(drifted.base_products_count, base.base_products_count, 'same number of rows \u2014 a count check would pass this');
+  assert.notEqual(drifted.base_products_hash, base.base_products_hash, 'a price changed; the hash MUST move or the stamp is decorative');
+});
+
+test('v106: the fingerprint is stable \u2014 the same literal always hashes the same', () => {
+  assert.equal(buildBackupIn(STATE).stamp.base_products_hash,
+               buildBackupIn(STATE).stamp.base_products_hash,
+               'a restore compares this across sessions and devices; a drifting hash would refuse every valid file');
 });
 
 test('ITEM 6: the backup carries every setting, including the ones added this version', () => {

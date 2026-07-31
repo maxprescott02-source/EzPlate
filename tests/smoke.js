@@ -36,6 +36,15 @@ window.URL.createObjectURL = () => 'blob:stub';
 window.URL.revokeObjectURL = () => {};
 // no SUPA_URL -> the data layer stays local/offline, which is what we want for a smoke test
 
+/* v106: seed the two datasets the export learned to carry, BEFORE app.js runs. This is the
+   cold-boot case the brief asked for and the only one that proves anything: with no SUPA_URL
+   bootstrapSync never fires, so what buildBackup captures below is what a device holds having
+   loaded from localStorage and synced NOTHING. If either var were hydrated lazily or post-sync,
+   these come back empty and the file would look complete while being empty. The supplier name
+   is deliberately one no fixture uses, so seeding can't perturb the invoice sections. */
+window.localStorage.setItem('cafeDB_ingPriceLog', JSON.stringify({ P0001: [{ t: 1750000000000, v: 0.0241 }, { t: 1751000000000, v: 0.02478 }] }));
+window.localStorage.setItem('cafeDB_supplierMem', JSON.stringify({ SMOKE1: { id: 'SMOKE1', supplier: 'ZZ Smoke Supplier', phrase_norm: 'smoke test phrase', qty: 2.5, unit: 'kg' } }));
+
 console.log('\n[1] app.js loads against the real markup');
 let loaded = false, loadErr = null;
 try { window.eval(appJs); loaded = true; }
@@ -105,7 +114,12 @@ window.document.createElement = function (t) {
 window.exportBackup();
 ok('clicking Export produces a dated .json download', /^ezplate-backup-\d{4}-\d{2}-\d{2}\.json$/.test(exported || ''), exported);
 const backup = window.buildBackup();
-ok('backup has all five groups', ['products','kitchen_ingredients','plates','menu_items','settings'].every(k => k in backup));
+ok('backup has all seven groups', ['products','kitchen_ingredients','plates','menu_items','ing_price_log','supplier_mem','settings'].every(k => k in backup));
+// v106: present-but-empty is the failure this batch exists to prevent, so assert POPULATED, not just present
+ok('cold boot: ing_price_log is populated (no sync ran)', !!(backup.ing_price_log && backup.ing_price_log.P0001 && backup.ing_price_log.P0001.length === 2), JSON.stringify(backup.ing_price_log));
+ok('cold boot: supplier_mem is populated (no sync ran)', !!(backup.supplier_mem && backup.supplier_mem.SMOKE1 && backup.supplier_mem.SMOKE1.phrase_norm === 'smoke test phrase'), JSON.stringify(backup.supplier_mem));
+ok('stamp names the build the file is a delta against', !!(backup.stamp && backup.stamp.app_version === swVer && /^[0-9a-f]{8}$/.test(backup.stamp.base_products_hash)), JSON.stringify(backup.stamp));
+ok('stamp counts the REAL BASE_PRODUCTS literal', backup.stamp.base_products_count === 393, String(backup.stamp && backup.stamp.base_products_count));
 window.document.createElement = origCreate;
 
 console.log('\n[5] item 6 — clear cache is blocked offline');
