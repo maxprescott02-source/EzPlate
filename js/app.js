@@ -3304,7 +3304,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v105';
+var APP_VERSION='v106';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3452,16 +3452,45 @@ function applyTidy(){
 function syncCogsRead(){                                              // the Menu tab's read-only mirror of the target
   var r=document.getElementById('cogsTargetRead'); if(r) r.textContent=cogsPct;
 }
-/* Export backup — client-side only, no server round-trip. Five data groups, matching
+/* v106 — the provenance stamp. The export is a DELTA, not a snapshot: `products` carries only
+   the edited/custom overrides; every untouched product comes from the BASE_PRODUCTS literal in
+   whichever build does the restoring. Restore against a build whose literal has drifted and those
+   products silently take the NEW build's prices — wrong numbers, no error, in a costing app. The
+   stamp is what lets a restore path detect that; the refusal itself belongs to the restore batch.
+   FNV-1a over the serialised literal: no new dependency, deterministic, and it moves on ANY field
+   edit, not just a changed row count. Memoised — BASE_PRODUCTS is const and rebuild() copies it. */
+var _baseProductsFp=null;
+function baseProductsFingerprint(){
+  if(_baseProductsFp) return _baseProductsFp;
+  var s=JSON.stringify(BASE_PRODUCTS), h=0x811c9dc5;
+  for(var i=0;i<s.length;i++){ h=Math.imul(h ^ s.charCodeAt(i), 0x01000193); }
+  return (_baseProductsFp={count:BASE_PRODUCTS.length, hash:('00000000'+(h>>>0).toString(16)).slice(-8)});
+}
+/* Export backup — client-side only, no server round-trip. Seven data groups, matching
    what bootstrapSync pulls: products (overrides), kitchen words, plates, menu items,
-   settings. Deliberately a plain JSON dump: it's a lifeboat, not an interchange format. */
+   the per-ingredient price log, supplier memory, settings. Deliberately a plain JSON dump:
+   it's a lifeboat, not an interchange format.
+   v106 added ing_price_log and supplier_mem. ing_price_log is the one dataset with NO server
+   table (see IPLKEY) — one copy, one browser profile, and it is the input to ingPriceAt, so
+   losing it loses every historical plate cost the dashboard draws. supplier_mem does have a
+   server table (supplier_phrases); it's here because a backup exists for the case where both
+   copies go. */
 function buildBackup(){
+  var fp=baseProductsFingerprint();
   return {
     app:'EzPlate', version:APP_VERSION, exported_at:new Date().toISOString(),
+    stamp:{
+      format:1,                                                       // shape of this file, not the app
+      app_version:APP_VERSION,
+      base_products_count:fp.count,
+      base_products_hash:fp.hash
+    },
     products:overrides,
     kitchen_ingredients:kitchenIngredients,
     plates:savedPlates,
     menu_items:customMenu,
+    ing_price_log:ingPriceLog,
+    supplier_mem:supplierMem,
     settings:{
       food_cost_target:cogsPct,
       gst_default:gstDefault,

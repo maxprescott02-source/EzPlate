@@ -170,6 +170,30 @@ single most important thing to reopen before EzPlate is used by anyone else.
    deleted id and returns `null` when no menu exists; `ensureDefaultMenu` seeds
    "Original" only on a genuinely fresh install (the `cafeDB_menus` key was never
    written). Publishing when no menu exists prompts to create one first.
+8. **The backup export is IN-MEMORY shape, not schema shape — a restore written
+   against the tables silently drops every link** (recorded v106, from the backup
+   audit). `buildBackup` dumps the live JS objects verbatim, so `menu_items` rows
+   come out **camelCase**: `menuId`, `plateId`, `sourcePlateId`, `custom`. The
+   Supabase columns are `menu_id`, `plate_id`, `source_plate_id`, `is_custom`
+   (`rowToMenu`/`dbPushMenu` do the translation on every normal read/write; the
+   export bypasses both). A restore script written from the schema therefore
+   inserts every dish with a null plate link — **every row present, nothing
+   connected**, no error raised. On Max's 1 Aug export that is 76 of 77 dishes.
+   Any importer must translate through `dbPushMenu`'s mapping, never assume the
+   file matches the table. This is exactly the class this file exists for: code
+   that looks correct and is not.
+9. **The export is a DELTA against `BASE_PRODUCTS`, and carries a stamp saying
+   which one** (v106). Only edited/custom products are in `products` — on Max's
+   1 Aug export, 118 overrides (98 edited base rows + 20 custom) out of 412 live
+   products; the other 295 come from the literal in whatever build restores.
+   (The arithmetic: 393 base rows − 98 edited = **295 untouched**; 295 + 98 + 20
+   custom − **1 deleted** (`deleted_prod_ids`) = 412 live. The deleted row is why
+   412 − 118 doesn't land on 295 directly.)
+   `stamp.base_products_count` + `stamp.base_products_hash` (FNV-1a over the
+   serialised literal) identify that build. **A restore path MUST compare the
+   stamp and refuse on mismatch** — proceeding gives those 295 products the
+   restoring build's prices, silently. Any change to `BASE_PRODUCTS` moves the
+   hash by design; that is the feature, not a break.
 
 ## Cache-version discipline (six spots — easy to get wrong)
 
@@ -339,18 +363,42 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 31 Jul 2026 (verify, don't trust)
+## State as of 1 Aug 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v105** — `chore/privacy-line` (PR pending Max's merge).
-  `main` is at v104 (PR #43 — the UX propagation sequence, batches 0.5–5, is
-  fully merged). Six spots agree at v105 on the branch. Local `main` goes
-  stale between sessions (Max merges via GitHub PR) — **`git fetch` and check
-  `origin/main` first** ([[verify-origin-main-before-trusting-local]]).
+- **Version:** **v106** — `feature/backup-export-completion` (PR pending Max's
+  merge). `main` is at v105 (PR #44, the About privacy line; PR #43 before it
+  completed the UX propagation sequence). Six spots agree at v106 on the branch.
+  Local `main` goes stale between sessions (Max merges via GitHub PR) —
+  **`git fetch` and check `origin/main` first**
+  ([[verify-origin-main-before-trusting-local]]).
+- **v106 (the backup export completed):** `buildBackup` gained the two datasets
+  it silently dropped — **`ing_price_log`** (`cafeDB_ingPriceLog`: NO server
+  table exists, so the export is the only second copy that can exist; it feeds
+  `ingPriceAt` → historical plate costs → the movers card and insight family 1)
+  and **`supplier_mem`** (`cafeDB_supplierMem`; it does have `supplier_phrases`,
+  included because a backup is for the case where both copies go). Seven groups
+  now, not five. **New: the provenance `stamp`** — `format`, `app_version`,
+  `base_products_count` (393), `base_products_hash` (FNV-1a over the serialised
+  literal, currently `be5e0fbe`) — see hard rule 9 for why a count alone is not
+  enough and what a restore must do with it. **Both datasets verified populated
+  from a genuine COLD BOOT** (smoke section [4] seeds localStorage before
+  `app.js` runs and has no `SUPA_URL`, so `bootstrapSync` never fires) — the
+  audit's "already in memory" claim was checked against the hydration order, not
+  taken forward: both are plain `var`s initialised synchronously at module scope
+  (app.js:991, app.js:1227) and `buildBackup` only ever runs from a click.
+  **Lemon (`Umr9ypwaf`) `pack_qty:0` was diagnosed and is INERT, not a bug** —
+  all four `pack_qty` read sites guard `pack_qty>0 && pack_unit`, and plate
+  costing reads `cost_per_base_unit` (0.0056667 = $85 ÷ 15 kg, correct); its one
+  plate, "Cod & Chips" at 20 g, costs $0.113 correctly. `0` and `null` behave
+  identically; 113 of 118 overrides already carry `null`. Nothing was changed.
+  **The restore importer is deliberately NOT built** — it must target the
+  post-online-only data shape, not the localStorage shape that batch deletes.
+  See `HANDOVER-v106.md`.
 - **v105 (chore):** Settings → About's literal `Privacy — TODO(Max)`
   placeholder replaced with the true one-liner (on-device + synced database;
   the two optional AI features send invoice text / plate names to Gemini).
@@ -484,8 +532,9 @@ history belongs in `handovers/`, nowhere else.
   scrub dot stays; pinned in `fresh-states.spec.js`). v95's bento layout is
   SUPERSEDED by v98; its surviving pieces are the By-menu sparklines
   (`mcmpSparkHtml`) and the `.dp-tile` wrappers.
-- **Suite:** `npm test` = **509 green**, jsdom smoke green (24 sections),
-  `node -c` clean (`js/app.js`, `sw.js`, the four `api/*.js`).
+- **Suite:** `npm test` = **514 green** (v106 added 5 backup tests), jsdom smoke
+  green (25 sections), `node -c` clean (`js/app.js`, `sw.js`, the four
+  `api/*.js`).
 - **Playwright: 91 tests in `tests/visual/`, ALL GREEN since v100** (the v45
   button-copy pin was reconciled — treat any failure as REAL now). The 45
   pre-v89 tests otherwise remain unreconciled since v72 (they pass; their
@@ -539,6 +588,13 @@ history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
+0. **Max re-exports a v106 backup and confirms it.** The 1 Aug file
+   (`~/Downloads/ezplate-backup-2026-08-01.json`, v104) predates the stamp and
+   is missing both new datasets — **keep it only as a fallback**. The v106
+   re-export is the backup the online-only batch runs against, and that batch
+   makes every pre-v106 file unrestorable (it migrates `BASE_PRODUCTS` into the
+   products table and deletes the overrides layer). Confirm the file has all
+   seven groups populated and a `stamp` reading `393` / `be5e0fbe`.
 1. **Phone sign-off on v82–v104** — the whole UX propagation sequence is now
    built and NONE of it is device-verified; the per-batch "needs Max's phone"
    lists are the backlog, and this is the top item. v104's sharpest: Products
@@ -575,6 +631,13 @@ history belongs in `handovers/`, nowhere else.
    engine laws) — needs Max's yes. Same for the three-logs rule.
 9. Supplier coverage is 18% of used products — the concentration family stays
     silent by design until the supplier field is filled past ~50%.
+10. **`bootstrapSync` can WIPE local supplier memory** (found v106, not fixed —
+    out of that batch's scope, wants its own brief). app.js:171 replaces
+    `supplierMem` wholesale with the server read and immediately
+    `saveSupplierMem()`s it; the guard is `Array.isArray(spr.data)`, and an
+    empty array passes. So a `supplier_phrases` table that is empty — or
+    emptied — silently destroys the local copy on next boot, before the user
+    could ever export it. Same failure shape v106 exists to close, one layer up.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be
