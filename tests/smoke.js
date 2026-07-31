@@ -925,6 +925,21 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[24] …and does not rewrite the stored log either',
      w4.localStorage.getItem('cafeDB_ingPriceLog') === steadyLS);
 
+  // ------------------------------------------------------------------
+  console.log('\n[25] v102 — builderHint empty-state survives the empty-plate early return (CodeRabbit)');
+  // The hint update must run BEFORE renderPlate's empty-plate early return: a fresh install has
+  // no ingredients AND an empty plate, and that user needs the add-first-ingredient link.
+  const w5 = bootWithDraft(null);
+  w5.document.getElementById('newPlateBtn').click();
+  const bh5 = w5.document.getElementById('builderHint');
+  ok('[25] fresh install (no ingredients, EMPTY plate): the add-first-ingredient link shows',
+     bh5.style.display !== 'none' && !!w5.document.getElementById('bhGo'), bh5.outerHTML.slice(0, 120));
+  w5.document.getElementById('bhGo').click();
+  ok('[25] the link routes to the Ingredients tab', w5.document.getElementById('tab-pantry').style.display !== 'none');
+  window.renderPlate();                                        // main window: ingredients ARE seeded
+  ok('[25] with ingredients present the hint is hidden and empty (the v102 cull)',
+     $('builderHint').style.display === 'none' && $('builderHint').textContent === '');
+
   console.log('\n' + (failures ? `smoke: ${failures} FAILURE(S)\n` : 'smoke: all checks passed\n'));
   process.exit(failures ? 1 : 0);
 })();
