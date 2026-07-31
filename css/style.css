@@ -1939,8 +1939,12 @@ body{overflow-x:clip}
    (see the v49 batch at the end of this file). Nothing here to override anymore. */
 /* v36: ingredient rows share the Products card language (one card system app-wide) */
 .king-row{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
   padding:var(--sp-3) var(--sp-4);margin:0 var(--sp-5) var(--sp-2)}
+/* v103: the unit price sits in the card's second grid column, right-aligned mono — the .ing-price
+   idiom, so ingredient and product cards read identically (it was inline in the .king-link sentence) */
+.king-price{grid-column:2;grid-row:1 / span 2;text-align:right;white-space:nowrap;
+  font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-md);font-weight:700}
 .king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2350,8 +2354,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)} }
-@media (min-width:1024px){ #kingList{gap:12px;padding:10px var(--sp-5) 8px} }
+@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)} }   /* v103: the 8px seam (was sp-3) */
+@media (min-width:1024px){ #kingList{gap:var(--sp-2);padding:var(--sp-2) var(--sp-5) var(--sp-2)} }   /* v103: seam + top edge on-scale; sp-5 sides stay (the tabs' edge scale) */
 @media (min-width:1280px){ #kingList{grid-template-columns:repeat(3,1fr)} }
 /* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
    (a) v44 made the title cell a baseline flex row, but justify-content:space-between leaked in
