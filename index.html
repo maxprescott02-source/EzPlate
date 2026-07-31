@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=103">
+<link rel="stylesheet" href="css/style.css?v=104">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -353,7 +353,7 @@
     <div class="mhead"><h3>Import invoice &mdash; price update</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
       <div class="inv-intro" id="invIntro" style="display:none">
-        <p>Upload a supplier invoice PDF and we’ll automatically match items to your database and update prices. New items not found will be flagged so you can add them. Nothing saves until you review and confirm each change.</p>
+        <p>Upload a supplier invoice &mdash; nothing saves until you review and confirm each change.</p>
         <button class="inv-introx" id="invIntroX" type="button" aria-label="Dismiss">&times;</button>
       </div>
       <div class="ferr" id="invFileErr" style="display:none"></div>
@@ -368,7 +368,7 @@
         <span class="hint" id="invFileName"></span>
       </div>
       <div id="invManualBox" class="inv-manual-box" hidden>
-        <p class="hint inv-csv-hint">Most supplier PDFs work directly. Or paste lines manually as CSV, one per row: <b>product name, new price per kg/unit</b>.</p>
+        <p class="hint inv-csv-hint">One line per product: name, new price.</p>
         <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
         <!-- v72 (Max): Match products lives with the paste box — an upload auto-parses, so the button is only ever needed after a manual paste. -->
         <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button></div>
@@ -499,7 +499,7 @@
         <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit" disabled aria-disabled="true"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
         <div class="field"><label for="ig_price">Price per unit ($) *</label><input id="ig_price" type="number" min="0" step="0.0001"></div>
         <div class="field full ig-pack"><label>Pack size (optional)
-          <span class="hint" style="font-weight:400">Units per pack — e.g. a carton of eggs = 180. Helps invoice imports price it right.</span></label>
+          <span class="hint" style="font-weight:400">e.g. a carton of eggs = 180</span></label>
           <div class="pack-row"><input id="ig_packQty" type="number" min="0" step="any" placeholder="qty" style="max-width:120px">
           <select id="ig_packUnit"><option value="">unit type…</option><option value="ea">units</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">mL</option></select></div>
         </div>
@@ -761,7 +761,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=103"></script>
+<script src="js/app.js?v=104"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

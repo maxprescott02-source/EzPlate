@@ -862,7 +862,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ni-row td::before{content:none!important}
 .ni-panel{
   background:var(--surface);border:1.5px solid var(--accent-ink);border-radius:var(--radius-ctl);
-  padding:var(--sp-4);margin:2px 0 6px;box-shadow:var(--shadow);
+  padding:var(--sp-4);margin:2px 0 6px;box-shadow:var(--elev);   /* v104: two-mode elevation (v98 rule) */
 }
 .ni-head{font-weight:800;margin-bottom:4px;font-size:14px}
 .ni-raw{
@@ -1143,14 +1143,11 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ing-filter{flex:0 1 auto;padding:9px 10px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);max-width:48%}
 .ing-count{color:var(--muted2);font-size:12px}
 .ing-list{display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-2) var(--sp-4) var(--sp-1)}
-/* v102 (Plates batch): seam + radius on the system for THIS tab only — .ing-list/.ing-card are
-   shared with Products, whose batch applies (or promotes) the same values later. Same staging
-   reason .panel went to batch 0.5: one base edit must not restyle two tabs inside a one-tab batch. */
-#plateList.ing-list{gap:var(--sp-2)}
-#plateList .ing-card{border-radius:var(--radius-card)}
-@media (min-width:1024px){ #plateList.ing-list{padding:var(--sp-2) var(--sp-5) var(--sp-2)} }   /* was 10px … 8px — top edge on-scale; sp-5 sides stay (the tabs' own responsive edge scale) */
+/* v104 (Products batch): the v102 #plateList-scoped seam + radius are PROMOTED to base — Products
+   now adopts the same values, so the shared .ing-list/.ing-card system carries them for both tabs
+   (8px seam, --radius-card, on-scale ≥1024 padding). Plates' computed values are unchanged. */
 .ing-card{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;width:100%;text-align:left;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
   transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
 .ing-card:hover{border-color:var(--accent)}
 .ing-card:active{transform:scale(.985)}   /* v72: shared tap press — see .dig-card */
@@ -1294,7 +1291,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* ============================ TABLET ≥640px ============================ */
 @media (min-width:640px){
   .wrap{max-width:760px;padding:0 var(--sp-5)}
-  .ing-list{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
+  .ing-list{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}
   .stat-row{gap:var(--sp-3)}
   .actions{grid-template-columns:1fr 1fr}
   .btn-stack{grid-column:auto}
@@ -1347,7 +1344,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
      Plates panel to ~400px (the mobile-width-on-desktop bug). */
 
   /* -- ingredients + plates: card grid -- */
-  .ing-list{grid-template-columns:repeat(2,1fr);gap:12px;padding:10px var(--sp-5) 8px}
+  .ing-list{grid-template-columns:repeat(2,1fr);gap:var(--sp-2);padding:var(--sp-2) var(--sp-5) var(--sp-2)}
   /* v49: .ing-tools/.ing-controls sit on the shared sp-5 edge at every width now — no desktop special-case */
 
   /* v98: the v89 dashboard rules (7fr/5fr grid, panel placement, pad) that sat here are DELETED,
@@ -1422,7 +1419,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   .invtable thead{display:none}
   .invtable tr{display:block;margin:0}
   .invtable tbody tr:not(.sec):not(.ni-row){
-    position:relative;background:var(--surface2);border:1px solid var(--border);
+    position:relative;background:var(--surface);border:1px solid var(--border);   /* v104: one card tone — the row already has a border, so no card-in-card beige in light mode */
     border-radius:var(--radius-ctl);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);
   }
   .invtable td{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
@@ -1615,7 +1612,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 /* -- the card itself: same language as every other EzPlate card -- */
 .ni-panel{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);box-shadow:var(--shadow);
+  border-radius:var(--radius-card);box-shadow:var(--elev);   /* v104: two-mode elevation (v98 rule) */
   padding:var(--sp-5);margin:6px 0 10px;
 }
 /* v72: nested in the line's card (inside the Match cell). Read as a continuation of the
@@ -1688,7 +1685,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .invtable tr{display:block;width:100%;margin:0}
 .invtable tbody tr:not(.sec):not(.ni-row){
   position:relative;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);box-shadow:var(--shadow);
+  border-radius:var(--radius-card);box-shadow:var(--elev);   /* v104: two-mode elevation (v98 rule) */
   padding:var(--sp-4) var(--sp-4) var(--sp-3);margin:0 0 var(--sp-3);
 }
 .invtable td{
@@ -1800,7 +1797,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
 
 /* ===== dashboard+features batch (v25) ===== */
 /* item 2: import summary banner */
-.import-summary{position:relative;margin:0 0 var(--sp-4);padding:var(--sp-4) var(--sp-5);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-md,10px);background:var(--surface);box-shadow:var(--shadow);transition:opacity .5s ease}
+.import-summary{position:relative;margin:0 0 var(--sp-4);padding:var(--sp-4) var(--sp-5);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--r-md,10px);background:var(--surface);box-shadow:var(--elev);transition:opacity .5s ease}   /* v104: two-mode elevation (v98 rule) */
 .import-summary.is-fade{opacity:.35}
 .import-summary .is-head{font-family:var(--ui);font-weight:700;font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)}
 .import-summary .is-line{margin-top:3px;font-size:15px;color:var(--text)}
