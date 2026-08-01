@@ -77,6 +77,20 @@
 </div></header>
 <div id="syncBanner" class="sync-banner" hidden></div>
 
+<!-- v108 — the boot gate. Supabase is the source of truth, so until the first fetch lands there is
+     genuinely nothing to show. This covers the tabs with an honest loading state rather than letting
+     an empty app paint and look like a café with no products in it.
+     It is NOT the splash: the splash is a brand moment that a same-session refresh skips and that
+     gives up after 3s. This is keyed to the DATA, so a warm refresh gets it too, and it never
+     reveals an unpopulated app. Live region so a screen reader hears the outcome, not just sighted
+     users. Hidden by default — app.js opens it at boot, so a JS failure cannot trap the app behind it. -->
+<div id="bootGate" hidden role="status" aria-live="polite">
+  <div class="bg-inner">
+    <div class="bg-spin" aria-hidden="true"></div>
+    <p class="bg-msg" id="bootGateMsg">Loading your data…</p>
+    <button type="button" class="btn" id="bootGateRetry" hidden>Try again</button>
+  </div>
+</div>
 <div class="wrap" id="appMain">
   <div id="tab-builder">
     <!-- v54: the Builder tab is now the PLATES LIBRARY — a card grid identical in style to Products

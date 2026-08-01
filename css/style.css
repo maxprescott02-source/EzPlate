@@ -2770,3 +2770,35 @@ html{scrollbar-gutter:stable}
   #dashBody .dash-dig.detail-open > h2{border-bottom:1px solid var(--border);padding:var(--sp-4) var(--sp-5) var(--sp-3)}
   #dashBody .dash-dig.detail-open > .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}
 }
+
+/* ===== online-only data layer (v108) ===== */
+/* The boot gate. Supabase is the source of truth now, so between first paint and the first fetch
+   landing there is genuinely nothing to render — this states that honestly instead of letting an
+   empty app paint. Covers the tab area only: the header and bottom nav stay visible and usable, so
+   the app never looks crashed, and Settings/About remains reachable if the data never arrives.
+   Two-mode via the existing tokens; no new colours. */
+#bootGate{
+  position:fixed; inset:0; z-index:60;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg); padding:var(--sp-5);
+}
+#bootGate[hidden]{display:none}
+#bootGate .bg-inner{
+  display:flex; flex-direction:column; align-items:center; gap:var(--sp-4);
+  text-align:center; max-width:34ch;
+}
+#bootGate .bg-msg{margin:0; color:var(--text2); font-size:15px; line-height:1.45}
+/* The error state speaks in full sentences and gets the Try again button; the spinner goes away so
+   a stalled ring never reads as "still working". */
+#bootGate.is-error .bg-spin{display:none}
+#bootGate.is-error .bg-msg{color:var(--text)}
+#bootGate .bg-spin{
+  width:28px; height:28px; border-radius:50%;
+  border:2.5px solid var(--line); border-top-color:var(--text2);
+  animation:bgspin .8s linear infinite;
+}
+@keyframes bgspin{to{transform:rotate(360deg)}}
+/* Respect the OS setting — a spinner is decoration, and the message carries the meaning. */
+@media (prefers-reduced-motion: reduce){
+  #bootGate .bg-spin{animation:none; border-top-color:var(--line)}
+}

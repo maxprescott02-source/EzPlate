@@ -12,6 +12,7 @@
  * Run: npx playwright test tests/visual/v90-dash.spec.js
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 // Two menus with enough shape for real insights: Original spans two sections at different food
 // costs (category imbalance), Winter runs hot. Ingredient price history gives the movement families
@@ -47,7 +48,7 @@ const SEED = () => {
 
 async function boot(page, width, theme) {
   await page.setViewportSize({ width, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.route('**/api/**', r => r.abort());   // no serverless functions behind the static dev server
   await page.addInitScript(SEED);
   await page.goto('/');

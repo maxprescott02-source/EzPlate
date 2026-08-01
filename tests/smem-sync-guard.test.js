@@ -29,9 +29,13 @@ const path = require('path');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 
-// the supplier_phrases sync block, verbatim, by its anchors
-const START = "try{ var spr=await SUPA.from('supplier_phrases')";
-const END = "/* supplier_phrases table may not exist yet -> keep local */ }";
+/* the supplier_phrases sync block, verbatim, by its anchors.
+   v108: the block no longer fetches for itself — the read moved into bootstrapSync's single
+   Promise.all, so the block now RECEIVES `spr` instead of awaiting it. The anchors moved with it and
+   the harness below supplies `spr` from the same stub, so what is under test is unchanged: the guard
+   that an empty server read must not wipe a populated local memory. */
+const START = "if(spr && !spr.error && Array.isArray(spr.data)){";
+const END = "/* supplier_phrases table may not exist yet -> keep local */";
 
 function extractBlock() {
   const i = SRC.indexOf(START);
@@ -72,6 +76,9 @@ async function syncWith(localMem, serverRows, opts) {
       function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
       function invDbg(){}
       ${extractFn('rowToSupplierPhrase')}
+      /* v108: bootstrapSync now hands the block its already-settled read. Same stub, same values —
+         only the fetch moved out, so the guard below still sees exactly what production gives it. */
+      var spr = await SUPA.from('supplier_phrases').select('*');
       ${extractBlock()}
       return supplierMem;
     })();

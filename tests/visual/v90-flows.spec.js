@@ -13,6 +13,7 @@
  * Run: npx playwright test tests/visual/v90-flows.spec.js
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 const SEED = () => {
   localStorage.clear();
@@ -50,7 +51,7 @@ const clean = (errs) => errs.filter(e => !/favicon|manifest|net::ERR_FAILED/i.te
 
 async function boot(page, width) {
   await page.setViewportSize({ width, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.route('**/api/**', r => r.abort());
   await page.addInitScript(SEED);
   await page.goto('/');

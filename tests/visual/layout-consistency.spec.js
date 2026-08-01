@@ -21,6 +21,7 @@
  *   yet added to the strict actions-row checks (verify on a browser env first).
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 const TABS = ['dashboard', 'builder', 'pantry', 'ingredients', 'analysis'];
 const SIZES = [
@@ -32,7 +33,7 @@ const TOL = 1;
 for (const size of SIZES) {
   test(`panel skeleton identical across all five tabs @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
 

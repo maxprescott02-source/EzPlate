@@ -209,20 +209,81 @@ function reconcileLocalOnly(local, server, tombstones){
   return { merged:(server||[]).concat(localOnly), localOnly:localOnly };
 }
 
+/* ---- v108: the boot gate ----------------------------------------------------------------
+   Online-only means that between first paint and the first fetch landing there is genuinely nothing
+   to show. The brief's rule: default to an honest loading state, and never paint stale or empty data
+   and swap it — that reintroduces two sources of truth in miniature, which is the ambiguity this
+   batch removes.
+
+   WHY THIS IS NOT THE SPLASH. The splash is a brand moment: index.html SKIPS it on a same-session
+   refresh, and it gives up after 3s regardless. Both are wrong for data — a warm refresh would reveal
+   an empty app, and a slow fetch would too. The gate is keyed to the DATA and has no timeout.
+
+   FIRST BOOT ONLY. Pull-to-refresh and every later re-sync go through the same bootstrapSync, and
+   flashing a full-screen gate over a working app on every refresh would be worse than useless. The
+   sync pill already reports those.
+
+   `bootReady` is what index.html's splash polls (window.__ezReady) — kept so the two cannot disagree
+   about whether the app is usable. */
+var _bootGateDone=false;
+function bootGate(state, msg){
+  if(_bootGateDone && state!=='error') return;              // never re-gate a working app
+  var g=document.getElementById('bootGate'); if(!g) return;
+  var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
+  if(state==='loading'){ g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…'; return; }
+  if(state==='ok'){ _bootGateDone=true; g.hidden=true; g.classList.remove('is-error'); return; }
+  // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
+  g.hidden=false; g.classList.add('is-error');
+  if(m) m.textContent=msg||'Couldn’t load your data.';
+  if(r){ r.hidden=false; r.onclick=function(){ bootGate('loading','Trying again…'); bootstrapSync(); }; }
+}
+function bootReady(state, msg){ window.__ezReady=true; bootGate(state, msg); }
+
 /* pull everything from Supabase and refresh the UI */
 async function bootstrapSync(){
-  if(!SUPA){ setSync('offline'); window.__ezReady=true; return; }
-  if(!navigator.onLine){ setSync('offline'); window.__ezReady=true; return; }
+  /* v108: no client and no connection are DIFFERENT failures and say so. Neither falls back to
+     rendering whatever localStorage happens to hold — under online-only that is not "saved data",
+     it is data of unknown age with no way to tell the user how old it is. */
+  if(!SUPA){ setSync('offline'); bootReady('error','This device can’t reach your database. Check the app’s configuration.'); return; }
+  if(!navigator.onLine){ setSync('offline'); bootReady('error','You’re offline. EzPlate needs a connection to load your products, plates and menus.'); return; }
+  bootGate('loading');
   setSync('loading');
   try{
+    /* v108 — ONE ROUND TRIP INSTEAD OF SEVEN. Measured against production 1 Aug 2026: the old shape
+       (a 4-query batch followed by five sequential awaits) took ~915ms wall clock; all of it in one
+       Promise.all takes 181-333ms. Nothing in the chain ever needed the sequencing — it was historical.
+       Bytes were never the problem: Supabase serves gzip, so the whole payload is ~36 KB on the wire
+       (259 KB decoded), and 25 KB of that is `ingredients`. LATENCY dominates, and each extra await
+       costs a full round trip on a phone. That 4x matters because the honest loading state below is
+       only honest if it is short.
+
+       REQUIRED vs OPTIONAL. ingredients / menu_items / plates / app_settings must load or the app has
+       nothing to show — their errors throw to the catch and raise the error state, which is the point
+       of online-only: no partial render pretending to be real. The rest are wrapped in `soft` so a
+       missing table or column degrades one feature instead of killing the boot (schema-can-lag —
+       these tables genuinely arrived in later migrations). supabase-js RESOLVES with {error} rather
+       than rejecting, so `soft` only catches a genuine network throw.
+
+       THE TWO SCHEMA PROBES ARE GONE. `price_history.select('menu_id').limit(1)` and the
+       `menu_price_history` equivalent each cost a round trip purely to ask "does this column exist".
+       Naming the columns explicitly makes the REAL query answer the same question — it errors if the
+       column is missing — so support is now read off the query that had to happen anyway. */
+    var soft=function(p){ return Promise.resolve(p).then(function(r){ return r; }, function(e){ return {error:e}; }); };
     var results=await Promise.all([
       SUPA.from('ingredients').select('*'),
       SUPA.from('menu_items').select('*'),
       SUPA.from('plates').select('*'),
-      SUPA.from('app_settings').select('*')
+      SUPA.from('app_settings').select('*'),
+      soft(SUPA.from('menus').select('*')),
+      soft(SUPA.from('price_history').select('recorded_at,avg_food_cost_pct,menu_id').order('recorded_at',{ascending:true})),
+      soft(SUPA.from('menu_price_history').select('recorded_at,price,menu_item_id').order('recorded_at',{ascending:true})),
+      soft(SUPA.from('supplier_phrases').select('*'))
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
+    var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7];
     if(ing.error||men.error||pla.error) throw (ing.error||men.error||pla.error);
+    menuHistSupported = !(_h && _h.error);                 // the query IS the probe now
+    menuPriceHistSupported = !(_mp2 && _mp2.error);
     // v108: through the boundary, not the raw row. Was `ov[r.id]=r` — see rowToIngredient on why that
     // worked by luck rather than design.
     var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); overrides=ov; saveOverrides(); rebuild();
@@ -241,7 +302,7 @@ async function bootstrapSync(){
     // and re-push them (idempotent) so the server catches up. deletedMenuIds tombstones are respected.
     var recMenu=reconcileLocalOnly(customMenu, (men.data||[]).map(rowToMenu), deletedMenuIds);
     customMenu=recMenu.merged; saveCustomMenu();
-    try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(rowToMenuRecord); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
+    if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(rowToMenuRecord); }   // menus table may not exist yet -> keep local/default
     ensureDefaultMenu(); saveMenus();   // v54: seed Original only on a fresh install; a synced empty menus set is respected (zero menus is legitimate)
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     // v42/v55 (HEAL, don't clobber): keep local-only rows and re-push them idempotently. v55 flips the FK
@@ -256,11 +317,9 @@ async function bootstrapSync(){
       if(!pp){ dbPushMenu(c); return; }                                       // its plate is already on the server -> push the dish now
       Promise.resolve(pp).then(function(res){ if(res && !res.error) dbPushMenu(c); });   // wait for the plate to land first
     });
-    // v89: probe for price_history.menu_id ONCE. An empty table returns no rows, so the column's
-    // presence can't be inferred from the data read below — it needs its own select. Failure here
-    // means the migration hasn't been applied: keep per-menu history local and never attempt a write.
-    try{ var _mp=await SUPA.from('price_history').select('menu_id').limit(1); if(_mp && _mp.error) menuHistSupported=false; }catch(e){ menuHistSupported=false; }
-    try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){
+    // v89/v108: support is read off the fetch above — naming menu_id in the select means the query
+    // fails exactly when the column is missing, which is what the separate probe used to establish.
+    if(_h && _h.data){
       // v89: NULL menu_id = the all-menus aggregate (every pre-v89 row). Rows carrying a menu_id are
       // the per-menu series and are kept apart, so priceHistory means exactly what it always meant.
       // v108: split through the boundary layer. rowsToSeries drops unparseable points rather than
@@ -275,17 +334,12 @@ async function bootstrapSync(){
       // NOTE: the all-menus priceHistory above still replaces wholesale and has the same gap — untouched
       // here deliberately, it predates this batch and everything reads it. Flagged in the handover.
       if(menuHistSupported){ menuHistory=mergeMenuHistory(_bym, menuHistory); saveMenuHistory(); }
-    } }catch(e){}
-    // v90: the sell-price log. Same schema-can-lag probe as menu_id above — the table may not exist yet,
-    // in which case points stay local and no write is ever attempted. Same MERGE rather than replace, for
-    // the same reason: pushWrite drops writes silently offline, and a price point is unrecoverable.
+    }
+    // v90: the sell-price log. Same MERGE rather than replace, for the same reason as above.
     // menuPriceLog has the identical {key: [{t,v}]} shape as menuHistory, so mergeMenuHistory serves both.
-    try{ var _mpp=await SUPA.from('menu_price_history').select('menu_item_id').limit(1); if(_mpp && _mpp.error) menuPriceHistSupported=false; }catch(e){ menuPriceHistSupported=false; }
-    if(menuPriceHistSupported){
-      try{ var _mp2=await SUPA.from('menu_price_history').select('*').order('recorded_at',{ascending:true}); if(_mp2 && _mp2.data){
-        var _byItem=rowsToSeries(_mp2.data, 'price', 'menu_item_id');
-        menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog); saveMenuPriceLog();
-      } }catch(e){}
+    if(menuPriceHistSupported && _mp2 && _mp2.data){
+      var _byItem=rowsToSeries(_mp2.data, 'price', 'menu_item_id');
+      menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog); saveMenuPriceLog();
     }
     /* v107: an EMPTY server read must never wipe local supplier memory. Server-wins is deliberate —
        it is how a phrase deleted on one device disappears from the others — but a successful-but-empty
@@ -295,14 +349,14 @@ async function bootstrapSync(){
        user-confirmed ground truth with no other copy; keeping a stale entry costs one Remove, losing
        them all costs a re-teach per phrase. Accepted trade: deleting your LAST remaining phrase no
        longer propagates across devices. Local is re-pushed so the server heals rather than diverges. */
-    try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){
+    if(spr && !spr.error && Array.isArray(spr.data)){
       var mm={}; spr.data.forEach(function(r){ mm[r.id]=rowToSupplierPhrase(r); });
       var localIds=Object.keys(supplierMem);
       if(!spr.data.length && localIds.length){
         invDbg('[smem] server returned 0 rows but', localIds.length, 'held locally — keeping local, re-pushing');
         localIds.forEach(function(id){ if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(supplierMem[id]); });
       } else { supplierMem=mm; saveSupplierMem(); }
-    } }catch(e){ /* supplier_phrases table may not exist yet -> keep local */ }
+    }   /* supplier_phrases table may not exist yet -> keep local */
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
@@ -317,8 +371,13 @@ async function bootstrapSync(){
     // v74: the v71 'suggest_fab_hidden' synced setting is retired — the insights are a static inline pill now,
     // nothing to hide. An old value left in the DB/localStorage is simply ignored (no reader remains).
     buildMenuOptions(); buildMenuSelector(); renderPlate(); renderPlatesTab(); renderAnalysis(); updateLastImport(); updateEditTag();
-    setSync('ok'); window.__ezReady=true;
-  }catch(err){ console.error('[sync] load failed:', err); setSync('error'); window.__ezReady=true; }
+    setSync('ok'); bootReady('ok');
+  }catch(err){
+    console.error('[sync] load failed:', err); setSync('error');
+    // v108: an error state, NOT a silent fall back to whatever is in localStorage. errText surfaces
+    // the real reason (an RLS refusal reads very differently from a dropped connection).
+    bootReady('error', 'Couldn’t load your data: '+errText(err));
+  }
 }
 /* ================== end Supabase data layer ================== */
 
