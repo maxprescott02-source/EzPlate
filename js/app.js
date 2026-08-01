@@ -37,7 +37,43 @@ function pushWrite(builder, label){
   });
 }
 
-/* row mappers */
+/* ============================================================================
+   THE ROW BOUNDARY (v108) — every crossing between a Supabase row and an
+   in-memory object lives HERE, in pairs, and nowhere else.
+
+   WHY THIS IS A SECTION AND NOT SCATTERED HELPERS. Until v108 the translation
+   ran on sync only, at a handful of sites, and a reader could get away with
+   touching raw fields. With the server as the source of truth EVERY read
+   crosses this boundary, and a missed field does not throw — it arrives
+   `undefined` and the damage reads like a missing relationship rather than a
+   naming bug. That is how the v106 backup audit found `menu_items` exporting
+   camelCase against snake_case columns, silently, on 76 of 77 dishes.
+
+   THE RULE: readers call `rowToX`, writers call `xToRow`. Nothing outside this
+   section names a column, and nothing inside it names a DOM node.
+
+   WHERE THE SHAPE ACTUALLY CHANGES — the complete list, checked against the
+   live schema 1 Aug 2026, not assumed:
+
+     menu_items   is_custom <-> custom · menu_id <-> menuId
+                  plate_id <-> plateId · source_plate_id <-> sourcePlateId
+     price_history        recorded_at <-> t (ISO <-> epoch ms)
+                          avg_food_cost_pct <-> v
+     menu_price_history   recorded_at <-> t · price <-> v · keyed menu_item_id
+     ing_price_history    recorded_at <-> t · cost_per_base_unit <-> v
+                          keyed product_id
+     ingredients / plates / menus / supplier_phrases
+                  NO case change — snake_case on both sides. Do not "tidy"
+                  them into camelCase to match the others; the JS product
+                  model has used `cost_per_base_unit` since v1 and every
+                  costing path reads it by that name.
+
+   The three history logs share ONE point shape, `{t, v}`, and differ only in
+   which column carries the value. That is why they get one pair of mappers
+   with the column named, not three near-copies.
+   ============================================================================ */
+
+/* --- products (UI "Products"; table `ingredients`) --- */
 function ingredientToRow(p){ return {
   id:p.id, description:p.description, brand:p.brand||null, category:p.category||null,
   sub_category:p.sub_category||null, item_type:p.item_type||null, base_unit:p.base_unit||null,
@@ -48,22 +84,98 @@ function ingredientToRow(p){ return {
   supplier:p.supplier||null,
   pack_qty:(p.pack_qty==null?null:p.pack_qty), pack_unit:p.pack_unit||null,
   is_custom:!BASE_IDS.has(p.id) }; }
+/* v108: the read direction, which did not exist before — bootstrapSync used the raw row AS the override
+   object (`ov[r.id]=r`). That worked only because `ingredients` columns happen to match the product model
+   field-for-field, i.e. by luck rather than by design, and it left no place to normalise a value. Named
+   here so the luck is documented and the pair is symmetric.
+   The `Number()` calls are DEFENSIVE, not a fix: checked against production 1 Aug 2026, PostgREST returns
+   `numeric` as a JSON number, so they are identity today. They are here because the column type is what
+   guarantees that, not the client, and a `numeric` read as a string would corrupt costing silently rather
+   than throw. `search_aliases` is jsonb and can arrive null on a row written before the column's default. */
+function rowToIngredient(r){ return {
+  id:r.id, description:r.description, brand:r.brand||null, category:r.category||null,
+  sub_category:r.sub_category||null, item_type:r.item_type||null, base_unit:r.base_unit||null,
+  cost_per_base_unit:(r.cost_per_base_unit==null?null:Number(r.cost_per_base_unit)),
+  cost_basis:r.cost_basis||null, is_food:(r.is_food!==false),
+  pack_size_raw:r.pack_size_raw||null, sold_by:r.sold_by||null,
+  current_price_exgst:(r.current_price_exgst==null?null:Number(r.current_price_exgst)),
+  price_as_of:(r.price_as_of||null), search_aliases:(Array.isArray(r.search_aliases)?r.search_aliases:[]),
+  supplier:r.supplier||null,
+  pack_qty:(r.pack_qty==null?null:Number(r.pack_qty)), pack_unit:r.pack_unit||null }; }
+
+/* --- dishes / menu items (table `menu_items`) — the case-crossing one --- */
 // v55: a dish links to its plate via menu_items.plate_id (canonical). source_plate_id is legacy — still
 // READ as a fallback for rows not yet migrated, never relied on as the primary link.
 function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), plateId:(r.plate_id||r.source_plate_id||null), sourcePlateId:(r.source_plate_id||null)}; }
+/* v108: extracted verbatim from dbPushMenu's inline object literal. Same values, same plate_id/
+   source_plate_id mirroring (v55 rollout) — the point is that the column names now appear once. */
+function menuToRow(item){ var pid=(item.plateId||item.sourcePlateId||null); return {
+  id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null,
+  is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), plate_id:pid, source_plate_id:pid }; }
+
+/* --- plates (table `plates`) --- */
 // v55: plates.menu_id is legacy (a plate no longer belongs to one dish). Not read into the model anymore.
 function rowToPlate(r){ return {id:r.id, name:r.name, lines:Array.isArray(r.lines)?r.lines:[], category:(r.category||null)}; }
+// v55: menu_id is deliberately absent from the write — the legacy column keeps whatever it had and is
+// never read. category (§J) is the plate library's own grouping, independent of per-menu sections.
+function plateToRow(sp){ return {id:sp.id, name:sp.name, lines:sp.lines||[], category:(sp.category||null)}; }
+
+/* --- menus (table `menus`) — NOTE: `menus` holds MENUS; `menu_items` holds DISHES.
+   `rowToMenu` above maps a DISH despite its name (v55 naming, pinned by tests). Do not rename it;
+   read the table name, not the function name. --- */
+function rowToMenuRecord(r){ return {id:r.id, name:r.name, season:(r.season||null)}; }
+function menuRecordToRow(m){ return {id:m.id, name:m.name, season:m.season||null}; }
+
+/* --- supplier memory (table `supplier_phrases`) --- */
+function rowToSupplierPhrase(r){ return {id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }
+function supplierPhraseToRow(e){ return {id:e.id, supplier:e.supplier, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, updated_at:new Date().toISOString()}; }
+
+/* --- the three history logs, one shape `{t, v}` ---
+   `valueCol` is the only thing that differs: price_history -> avg_food_cost_pct,
+   menu_price_history -> price, ing_price_history -> cost_per_base_unit.
+   `t` is epoch MILLISECONDS in memory and timestamptz on the server; the conversion is here and
+   only here. A row whose timestamp will not parse is DROPPED rather than admitted as NaN — a NaN
+   `t` sorts unpredictably and would poison every chart and band that reads the series. */
+function rowToPoint(r, valueCol){
+  var raw=r?r[valueCol]:null;
+  // The null check is SEPARATE from isFinite on purpose: Number(null) is 0 and Number('') is 0, both
+  // finite, so a null price column would have become a REAL-LOOKING $0.00 point rather than a dropped
+  // one — a fabricated observation in a series the dashboard draws bands from. (Caught by
+  // row-boundary.test.js when this mapper was written; 0 itself is legitimate — P0277 costs 0.)
+  if(raw==null || raw==='') return null;
+  var t=new Date(r.recorded_at).getTime(), v=Number(raw);
+  if(!isFinite(t) || !isFinite(v)) return null;
+  return {t:t, v:v};
+}
+function pointToRow(t, v, valueCol, keyCol, keyVal){
+  var row={recorded_at:(typeof t==='string'?t:new Date(t).toISOString())};
+  row[valueCol]=v; if(keyCol) row[keyCol]=keyVal;
+  return row;
+}
+/* Group history rows into `{key: [{t,v}]}` — the shape menuHistory / menuPriceLog / ingPriceLog all use.
+   `keyCol` null means the ungrouped all-menus series (price_history rows with a null menu_id). */
+function rowsToSeries(rows, valueCol, keyCol){
+  var out=keyCol?{}:[];
+  (rows||[]).forEach(function(r){
+    var pt=rowToPoint(r, valueCol); if(!pt) return;
+    if(!keyCol){ out.push(pt); return; }
+    var k=r[keyCol]; if(k==null) return;
+    (out[k]||(out[k]=[])).push(pt);
+  });
+  return out;
+}
 
 /* writes */
 function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
 // v55: write plate_id (canonical) and MIRROR it to source_plate_id, so a device still running v54 keeps
 // resolving the dish's plate during the rollout. Requires the plate_id migration applied first (v43 lesson).
-function dbPushMenu(item){ var pid=(item.plateId||item.sourcePlateId||null); return pushWrite(function(){ return SUPA.from('menu_items').upsert({id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null, is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), plate_id:pid, source_plate_id:pid}); }, 'menu item'); }
-function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('menus').upsert({id:m.id, name:m.name, season:m.season||null}); }, 'menu'); }
+// v108: the row literal moved to menuToRow — this is the write, not the translation.
+function dbPushMenu(item){ return pushWrite(function(){ return SUPA.from('menu_items').upsert(menuToRow(item)); }, 'menu item'); }
+function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('menus').upsert(menuRecordToRow(m)); }, 'menu'); }
 // v55: a plate no longer carries a menu link (many-to-many lives on menu_items.plate_id). menu_id is left
 // out of the write — the legacy column keeps whatever it had and is never read. category (§J) is the plate
 // library's own grouping (independent of per-menu sections).
-function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert({id:sp.id, name:sp.name, lines:sp.lines||[], category:(sp.category||null)}); }, 'plate'); }
+function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert(plateToRow(sp)); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
@@ -104,7 +216,9 @@ async function bootstrapSync(){
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
     if(ing.error||men.error||pla.error) throw (ing.error||men.error||pla.error);
-    var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=r; }); overrides=ov; saveOverrides(); rebuild();
+    // v108: through the boundary, not the raw row. Was `ov[r.id]=r` — see rowToIngredient on why that
+    // worked by luck rather than design.
+    var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); overrides=ov; saveOverrides(); rebuild();
     var setRows=(setg&&setg.data)?setg.data:[];
     var delRow=setRows.filter(function(r){return r.key==='deleted_menu_ids';})[0];
     deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
@@ -120,7 +234,7 @@ async function bootstrapSync(){
     // and re-push them (idempotent) so the server catches up. deletedMenuIds tombstones are respected.
     var recMenu=reconcileLocalOnly(customMenu, (men.data||[]).map(rowToMenu), deletedMenuIds);
     customMenu=recMenu.merged; saveCustomMenu();
-    try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(function(r){return {id:r.id, name:r.name, season:r.season||null};}); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
+    try{ var mres=await SUPA.from('menus').select('*'); if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(rowToMenuRecord); } }catch(e){ /* menus table may not exist yet -> keep local/default */ }
     ensureDefaultMenu(); saveMenus();   // v54: seed Original only on a fresh install; a synced empty menus set is respected (zero menus is legitimate)
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     // v42/v55 (HEAL, don't clobber): keep local-only rows and re-push them idempotently. v55 flips the FK
@@ -142,11 +256,10 @@ async function bootstrapSync(){
     try{ var _h=await SUPA.from('price_history').select('*').order('recorded_at',{ascending:true}); if(_h && _h.data){
       // v89: NULL menu_id = the all-menus aggregate (every pre-v89 row). Rows carrying a menu_id are
       // the per-menu series and are kept apart, so priceHistory means exactly what it always meant.
-      var _all=[], _bym={};
-      _h.data.forEach(function(r){
-        var pt={t:new Date(r.recorded_at).getTime(), v:Number(r.avg_food_cost_pct)};
-        if(r.menu_id) (_bym[r.menu_id]||(_bym[r.menu_id]=[])).push(pt); else _all.push(pt);
-      });
+      // v108: split through the boundary layer. rowsToSeries drops unparseable points rather than
+      // admitting NaN — see rowToPoint. Two passes so each series states which rows it wants.
+      var _all=rowsToSeries(_h.data.filter(function(r){ return !r.menu_id; }), 'avg_food_cost_pct', null);
+      var _bym=rowsToSeries(_h.data.filter(function(r){ return !!r.menu_id; }), 'avg_food_cost_pct', 'menu_id');
       priceHistory=_all; saveHistory();
       // v89: MERGE, don't replace. pushWrite still drops writes silently when fully offline (a known gap,
       // CLAUDE.md Data-write rules), so a point logged on a café phone with no signal exists only in
@@ -163,8 +276,7 @@ async function bootstrapSync(){
     try{ var _mpp=await SUPA.from('menu_price_history').select('menu_item_id').limit(1); if(_mpp && _mpp.error) menuPriceHistSupported=false; }catch(e){ menuPriceHistSupported=false; }
     if(menuPriceHistSupported){
       try{ var _mp2=await SUPA.from('menu_price_history').select('*').order('recorded_at',{ascending:true}); if(_mp2 && _mp2.data){
-        var _byItem={};
-        _mp2.data.forEach(function(r){ (_byItem[r.menu_item_id]||(_byItem[r.menu_item_id]=[])).push({t:new Date(r.recorded_at).getTime(), v:Number(r.price)}); });
+        var _byItem=rowsToSeries(_mp2.data, 'price', 'menu_item_id');
         menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog); saveMenuPriceLog();
       } }catch(e){}
     }
@@ -177,7 +289,7 @@ async function bootstrapSync(){
        them all costs a re-teach per phrase. Accepted trade: deleting your LAST remaining phrase no
        longer propagates across devices. Local is re-pushed so the server heals rather than diverges. */
     try{ var spr=await SUPA.from('supplier_phrases').select('*'); if(spr && !spr.error && Array.isArray(spr.data)){
-      var mm={}; spr.data.forEach(function(r){ mm[r.id]={id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; });
+      var mm={}; spr.data.forEach(function(r){ mm[r.id]=rowToSupplierPhrase(r); });
       var localIds=Object.keys(supplierMem);
       if(!spr.data.length && localIds.length){
         invDbg('[smem] server returned 0 rows but', localIds.length, 'held locally — keeping local, re-pushing');
@@ -1041,7 +1153,7 @@ var menuPriceLog = loadMenuPriceLog();
    and clears this if it isn't there, so an unapplied migration degrades to local-only history rather
    than a failing write on every price edit. */
 var menuPriceHistSupported=true;
-function dbPushMenuPrice(id, iso, v){ pushWrite(function(){ return SUPA.from('menu_price_history').insert({menu_item_id:id, recorded_at:iso, price:v}); }, 'menu price history'); }
+function dbPushMenuPrice(id, iso, v){ pushWrite(function(){ return SUPA.from('menu_price_history').insert(pointToRow(iso, v, 'price', 'menu_item_id', id)); }, 'menu price history'); }
 /* Record one dish's sell price. Deduped on VALUE, not on time: a price is a discrete decision, so every
    change deserves a point and an unchanged price deserves none — unlike the food-cost series, which
    moves continuously and needs the hourly guard. Returns true when a point was actually added. */
@@ -1101,8 +1213,8 @@ function dishesOverTarget(){                                         // dishes w
     var c=costFromLines(sp.lines); if(!(c>0)) return; var a=analyze(c, m.price); if(a.state==='under') over++; });
   return over;
 }
-function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v}); }, 'price history'); }
-function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.from('price_history').insert({recorded_at:iso, avg_food_cost_pct:v, menu_id:menuId}); }, 'menu price history'); }
+function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert(pointToRow(iso, v, 'avg_food_cost_pct')); }, 'price history'); }
+function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.from('price_history').insert(pointToRow(iso, v, 'avg_food_cost_pct', 'menu_id', menuId)); }, 'menu price history'); }
 /* v89: one aggregator, two callers. scope===DASH_ALL (or falsy) is the all-menus figure; any other
    scope is a menu id and narrows to that menu's dishes.
 
@@ -1242,7 +1354,7 @@ function saveSupplierMem(){ try{ localStorage.setItem('cafeDB_supplierMem', JSON
 var supplierMem=loadSupplierMem();
 function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
-function dbPushSupplierPhrase(e){ pushWrite(function(){ return SUPA.from('supplier_phrases').upsert({id:e.id, supplier:e.supplier, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, updated_at:new Date().toISOString()}); }, 'supplier phrase'); }
+function dbPushSupplierPhrase(e){ pushWrite(function(){ return SUPA.from('supplier_phrases').upsert(supplierPhraseToRow(e)); }, 'supplier phrase'); }
 function dbDeleteSupplierPhrase(id){ pushWrite(function(){ return SUPA.from('supplier_phrases').delete().eq('id',id); }, 'supplier phrase delete'); }
 function rememberSupplierPhrase(supplier, phrase, qty, unit, pid){
   if(!normSupplier(supplier) || !(qty>0)) return;                 // no supplier -> never store

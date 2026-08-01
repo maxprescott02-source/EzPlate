@@ -41,6 +41,22 @@ function extractBlock() {
   return SRC.slice(i, j + END.length);
 }
 
+/* v108: the block now maps rows through the shared row boundary instead of an inline object literal,
+   so the sandbox needs the REAL mapper — brace-extracted, never mirrored, or this test would pass
+   against a copy while production used a different one. */
+function extractFn(name) {
+  const sig = `function ${name}(`;
+  const i = SRC.indexOf(sig);
+  if (i < 0) throw new Error(`smem-sync-guard: function not found -> ${name}. app.js changed; update this test`);
+  const start = SRC.indexOf('{', i);
+  let depth = 0;
+  for (let n = start; n < SRC.length; n++) {
+    if (SRC[n] === '{') depth++;
+    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
+  }
+  throw new Error(`smem-sync-guard: unbalanced braces for ${name}`);
+}
+
 /* Run the real block against a stubbed Supabase. Returns the resulting local memory,
    what was persisted, and everything re-pushed to the server. */
 async function syncWith(localMem, serverRows, opts) {
@@ -55,6 +71,7 @@ async function syncWith(localMem, serverRows, opts) {
       function saveSupplierMem(){ S.saved.push(JSON.parse(JSON.stringify(supplierMem))); }
       function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
       function invDbg(){}
+      ${extractFn('rowToSupplierPhrase')}
       ${extractBlock()}
       return supplierMem;
     })();
