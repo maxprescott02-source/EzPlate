@@ -397,11 +397,24 @@ append. Appending took it 334 → 995 lines in nine days, until 68% of this file
 was history nobody read and "Next up" was fifteen versions stale. Per-batch
 history belongs in `handovers/`, nowhere else.
 
-- **Version:** **v107** — `fix/supplier-detect-and-sync-guard` (PR pending Max's
-  merge). `main` is at v106 (PR #45, the completed backup export). Six spots
-  agree at v107 on the branch. Local `main` goes stale between sessions (Max
-  merges via GitHub PR) — **`git fetch` and check `origin/main` first**
+- **Version: `origin/main` IS v107, and that is what production serves.**
+  Verified 1 Aug 2026 by `git fetch` — PR #46
+  (`fix/supplier-detect-and-sync-guard`) is **merged** at `7bde784`. This file
+  claimed "main is at v106, v107 PR pending" for a day after the merge; it was
+  written while #46 was open and never caught up. **That is the standing failure
+  mode of this bullet** — check `origin/main` yourself, every session
   ([[verify-origin-main-before-trusting-local]]).
+  Current branch `feature/online-only-data-layer` is **one commit ahead** of
+  `origin/main` (`27e65b6`, docs + SQL only). All six cache spots read v107 on
+  both, correctly: that commit ships no JS/CSS/HTML, and **docs and migrations
+  do not earn a version bump.**
+- **⚠️ "v108" NAMES WORK THAT DOES NOT EXIST YET — do not treat it as a shipped
+  version.** It is the label for the online-only data-layer batch, whose
+  DATABASE half is applied (next bullet) while its CLIENT half is unwritten.
+  The migration filenames and their comments say v108 for that reason. **The
+  next batch to ship JS/CSS/HTML is the one that bumps the six spots to v108**
+  — until then v107 is correct everywhere and bumping would be a lie to the
+  service worker.
 - **⚠️ THE FOUR v108 MIGRATIONS ARE APPLIED TO PRODUCTION (1 Aug 2026) — the
   DATABASE IS AHEAD OF THE CODE.** The online-only data layer has its server
   side already in place while `js/app.js` is still v107. All four verified, not
