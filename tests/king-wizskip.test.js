@@ -30,9 +30,10 @@ function extractFn(src, name) {
 }
 
 // The stored-key constant must not drift from the source.
-const KEY_LINE = /var KWSKIPKEY='([^']+)'/.exec(SRC);
-if (!KEY_LINE) throw new Error('king-wizskip: KWSKIPKEY not found in app.js');
-const KWSKIPKEY = KEY_LINE[1];
+/* v108: KWSKIPKEY is gone — wizard skips are a SETTING (app_settings.king_wiz_skips), shared across
+   devices, and no longer mirrored locally. The sandbox keeps a name so the harness reads the same,
+   but nothing asserts a localStorage write any more; what matters is the dbSetSetting call. */
+const KWSKIPKEY = 'cafeDB_kingWizSkips';
 
 // Build a sandbox with the real skip helpers + kingWizGroups' skip gate.
 function sandbox(products, words) {
@@ -85,7 +86,6 @@ test('ITEM 4: a skip persists to the king_wiz_skips setting payload AND the loca
   assert.equal(writes[0].key, 'king_wiz_skips', 'the key the brief specifies');
   assert.deepEqual(writes[0].value, ['P0010'], 'stored shape is an array of product ids');
 
-  assert.deepEqual(JSON.parse(store[KWSKIPKEY]), ['P0010'], 'mirrored locally like every other setting');
 });
 
 test('ITEM 4: an unskip removes the id and persists the shorter list', () => {
@@ -97,7 +97,6 @@ test('ITEM 4: an unskip removes the id and persists the shorter list', () => {
   api.unskip('P0010');
   assert.deepEqual(api.ids(), ['P0298'], 'gone from memory');
   assert.deepEqual(writes[writes.length - 1].value, ['P0298'], 'and gone from the payload');
-  assert.deepEqual(JSON.parse(store[KWSKIPKEY]), ['P0298'], 'and gone from the mirror');
 });
 
 test('ITEM 4: loading the setting is idempotent \u2014 bootstrapSync can run twice safely', () => {
@@ -106,7 +105,6 @@ test('ITEM 4: loading the setting is idempotent \u2014 bootstrapSync can run twi
   const first = api.ids().sort();
   api.load(['P0010', 'P0298']);
   assert.deepEqual(api.ids().sort(), first, 'same payload in, same state out');
-  assert.deepEqual(JSON.parse(store[KWSKIPKEY]).sort(), ['P0010', 'P0298']);
 
   api.load([]);
   assert.deepEqual(api.ids(), [], 'an empty payload clears, it does not merge');

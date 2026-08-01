@@ -5,7 +5,6 @@ var gemToken=0,gemStatus=null,gemApplied=false,gemCheckStart=0;   // v62: AI sec
    The base+productsById merge existed only because localStorage held deltas on top of a hardcoded base;
    with the server as the source of truth, products are just products. is_custom is no longer derived
    from BASE_IDS — it round-trips through the row boundary instead (see rowToIngredient). */
-const OVRKEY = "cafeDB_overrides";
 
 /* ================== Supabase data layer (single source of truth) ==================
    Local storage is kept only as an OFFLINE MIRROR so the app still opens and search
@@ -388,7 +387,7 @@ async function bootstrapSync(){
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
-    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; try{localStorage.setItem('cafeDB_cogsPct',String(pv));}catch(e){} if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
+    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
     // v81: AI feature toggles round-trip across devices (no row -> the load*() default of ON stands, unchanged behaviour)
@@ -418,13 +417,33 @@ function refreshFromCloud(){
 }
 
 
-function loadProductCache(){ try{ return JSON.parse(localStorage.getItem(OVRKEY)) || {}; }catch(e){ return {}; } }
-function saveProductCache(){ try{ localStorage.setItem(OVRKEY, JSON.stringify(productsById)); }catch(e){ /* storage blocked: session-only */ } }
-let productsById = loadProductCache();
+/* v108 — THE LOCAL DATA MIRRORS ARE RETIRED.
+   (The eight key constants they used — OVRKEY, KINGKEY, MENUKEY, PLATEKEY, HISTKEY, MHISTKEY,
+   MPLKEY, GSTKEY — are deleted with them. The KEYS themselves are never reused: an old browser
+   profile may still hold those entries, and a future reader must not mistake them for live stores.)
+   Every store below used to be `var x = loadX()` at module scope plus a `saveX()` that wrote
+   localStorage. That is what made localStorage a second source of truth: the app hydrated from it
+   synchronously before a byte arrived from the server, and kept writing a copy that nothing could
+   tell the age of.
+
+   Now: each store initialises EMPTY and is filled by bootstrapSync's single batch, and the boot gate
+   holds the UI until that lands, so nothing paints against an empty store. The loadX functions are
+   deleted outright.
+
+   The saveX functions are KEPT AS NO-OPS ON PURPOSE, and this is a deliberate trade rather than an
+   oversight. They have ~50 call sites; deleting the writes is what matters for correctness, while
+   collapsing 50 call sites is a large mechanical diff whose only benefit is tidiness — and four of
+   them are the sole body of an `if`, where a careless removal leaves a dangling branch. The bodies
+   are gutted here (so no business data reaches localStorage), and the call sites are a separate,
+   safely-reviewable follow-up. Named in the handover so it is not mistaken for dead code nobody
+   noticed. Each is a one-line comment stating what the persistence actually is now: a server push.
+*/
+function saveProductCache(){}   // v108: products persist via dbPushIngredient
+let productsById = {};
 
 let PRODUCTS, byId, SEARCHABLE;
-var deletedProdIds=(function(){ try{ return JSON.parse(localStorage.getItem('cafeDB_deletedProds'))||[]; }catch(e){ return []; } })();
-function saveDeletedProds(){ try{ localStorage.setItem('cafeDB_deletedProds', JSON.stringify(deletedProdIds)); }catch(e){} }
+var deletedProdIds=[];
+function saveDeletedProds(){}   // v108: tombstones retire in phase 6 (D3)
 /* v108: THE MERGE IS GONE. This was `BASE_PRODUCTS` seeded into a map, then `productsById` layered on
    top, because localStorage held deltas against a hardcoded base. `productsById` now holds the whole
    catalogue as read from `ingredients`, so there is one layer and nothing to reconcile.
@@ -462,13 +481,11 @@ function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;'
    swapping its product re-prices every recipe with ZERO plate writes.
    Store: localStorage mirror + the app_settings row 'kitchen_ingredients'.
    ============================================================ */
-var KINGKEY='cafeDB_kitchenIngredients';
-function loadKitchenIngredients(){ try{ var a=JSON.parse(localStorage.getItem(KINGKEY)); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-var kitchenIngredients=loadKitchenIngredients();
+var kitchenIngredients=[];
 var kById={};
 function rebuildKById(){ kById={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.id) kById[k.id]=k; }); }
 rebuildKById();
-function saveKitchenLS(){ try{ localStorage.setItem(KINGKEY, JSON.stringify(kitchenIngredients)); }catch(e){} }
+function saveKitchenLS(){}   // v108: kitchen words persist via saveKitchenIngredients -> app_settings
 function saveKitchenIngredients(){ saveKitchenLS(); rebuildKById(); if(typeof dbSetSetting==='function') dbSetSetting('kitchen_ingredients', kitchenIngredients); }
 function nextKid(){                                                   // 'K0001' + zero-padded, stable across the store
   var max=0; (kitchenIngredients||[]).forEach(function(k){ var n=parseInt(String(k.id||'').replace(/^K/,''),10); if(isFinite(n)&&n>max)max=n; });
@@ -855,14 +872,11 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
    `menu_items`, and the missing 3 (m42, m51, m50) are exactly the three Max had deleted, so the literal
    was re-adding them on every rebuild and the tombstone list was suppressing them again. Deleting the
    literal drops them by itself, which is why `deleted_menu_ids` has nothing left to do (D3). */
-const MENUKEY='cafeDB_menu';
-function loadCustomMenu(){try{return JSON.parse(localStorage.getItem(MENUKEY))||[];}catch(e){return [];}}
-function saveCustomMenu(){try{localStorage.setItem(MENUKEY,JSON.stringify(customMenu));}catch(e){}}
-let customMenu=loadCustomMenu();
+function saveCustomMenu(){}   // v108: dishes persist via dbPushMenu
+let customMenu=[];
 /* ===== multiple menus ===== */
-function loadMenus(){ try{ var a=JSON.parse(localStorage.getItem('cafeDB_menus')); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
-function saveMenus(){ try{ localStorage.setItem('cafeDB_menus', JSON.stringify(menusList)); }catch(e){} }
-var menusList=loadMenus();
+function saveMenus(){}   // v108: menus persist via dbUpsertMenuRecord
+var menusList=[];
 // v54: plates are an independent library, so the "Unassigned dishes" holding area (v40/v42) is GONE.
 // Menus reference plates; deleting a menu deletes its dishes and UNLINKS (never deletes) their plates,
 // which live on in the Plates tab. With plates able to stand alone, ZERO menus is a legitimate state.
@@ -897,14 +911,12 @@ function upsertCustomMenu(item){
   if(i>=0) customMenu[i]=item; else customMenu.push(item);
   saveCustomMenu(); return dbPushMenu(item);   // v42: return the push so a dependent plate write can be sequenced after this menu_items upsert confirms (heals an orphaned existing dish)
 }
-var deletedMenuIds=loadDeletedMenu();
+var deletedMenuIds=[];
 rebuildMenu();
-function loadCogs(){ try{ var v=parseFloat(localStorage.getItem('cafeDB_cogsPct')); if(v>=1&&v<=99) return v; }catch(e){} return 40; }
-var cogsPct = loadCogs();                                  // target food cost, as a percent (e.g. 40)
+var cogsPct = 40;                                  // target food cost, as a percent (e.g. 40)
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
 function setCogs(pct, persist){
   pct=Math.max(1,Math.min(99, Math.round(pct))); cogsPct=pct;
-  try{ localStorage.setItem('cafeDB_cogsPct', String(pct)); }catch(e){}
   if(persist) dbSetSetting('food_cost_target', pct);       // shared across devices
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+pct+'%)';
   if(typeof syncCogsRead==='function') syncCogsRead();     // ITEM 6 (v35): the Menu tab's read-only display follows Settings
@@ -963,10 +975,8 @@ document.getElementById('plateName').addEventListener('input',function(e){
 });
 (function(){ var pc=document.getElementById('plateCat'); if(pc) pc.addEventListener('input', scheduleDraftSave); })();   // v82 D1: category into the draft
 /* saved plates */
-const PLATEKEY='cafeDB_plates';
-function loadPlates(){try{return JSON.parse(localStorage.getItem(PLATEKEY))||[];}catch(e){return [];}}
-function savePlatesLS(){try{localStorage.setItem(PLATEKEY,JSON.stringify(savedPlates));}catch(e){}}
-let savedPlates=loadPlates();
+function savePlatesLS(){}   // v108: plates persist via dbPushPlate
+let savedPlates=[];
 /* v82 D1 — in-progress plate DRAFT (offline-first). Building a plate then reloading used to lose
    everything. Persist the live builder to ONE localStorage slot (not a draft library), restore it on the
    next open. Snapshot the boot value BEFORE any render can clear it, so an empty-builder render at startup
@@ -1159,10 +1169,8 @@ renderPlate(); renderPlatesTab();
    ============================================================ */
 
 /* ---------- price history (Supabase table: price_history) ---------- */
-var HISTKEY='cafeDB_priceHistory';
-function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HISTKEY))||[]; }catch(e){ return []; } }
-function saveHistory(){ try{ localStorage.setItem(HISTKEY, JSON.stringify(priceHistory)); }catch(e){} }
-var priceHistory = loadHistory();
+function saveHistory(){}   // v108: history persists via dbPushHistory
+var priceHistory = [];
 
 /* ---------- v89: per-menu price history (price_history.menu_id) ----------
    priceHistory holds ONLY the all-menus aggregate — the series every existing figure on this
@@ -1174,10 +1182,8 @@ var priceHistory = loadHistory();
 /* A point's `t` is an ISO string when this device logged it and a number when it came back from
    Supabase — the same duality dashRangePts already guards against. One normaliser for both. */
 function ptMs(p){ var t=p&&p.t; return (typeof t==='string')?new Date(t).getTime():(t||0); }
-var MHISTKEY='cafeDB_menuHistory';
-function loadMenuHistory(){ try{ var o=JSON.parse(localStorage.getItem(MHISTKEY)); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
-function saveMenuHistory(){ try{ localStorage.setItem(MHISTKEY, JSON.stringify(menuHistory)); }catch(e){} }
-var menuHistory = loadMenuHistory();
+function saveMenuHistory(){}   // v108: persists via dbPushMenuHistory
+var menuHistory = {};
 /* Fold local per-menu points into what the server returned. Pure, so bootstrapSync stays a one-liner
    and tests can run the real thing. Server points win on an identical timestamp; a local point the
    server has never seen is KEPT, because pushWrite drops writes silently when fully offline (CLAUDE.md,
@@ -1263,10 +1269,8 @@ function ingPriceBand(pid){                                          // {min,max
    say a plate's COST rose but not whether the PRICE moved with it — so "its cost rose, its price
    didn't" and "over target N months running" were claims it could not stand behind. This starts that
    clock. Same {menuItemId: [{t,v}]} shape as menuHistory, so mergeMenuHistory (v89) merges it too. */
-var MPLKEY='cafeDB_menuPriceLog';
-function loadMenuPriceLog(){ try{ var o=JSON.parse(localStorage.getItem(MPLKEY)); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
-function saveMenuPriceLog(){ try{ localStorage.setItem(MPLKEY, JSON.stringify(menuPriceLog)); }catch(e){} }
-var menuPriceLog = loadMenuPriceLog();
+function saveMenuPriceLog(){}   // v108: persists via dbPushMenuPrice
+var menuPriceLog = {};
 /* Schema-can-lag guard, exactly as menuHistSupported (v89): bootstrapSync probes for the table once
    and clears this if it isn't there, so an unapplied migration degrades to local-only history rather
    than a failing write on every price edit. */
@@ -1467,9 +1471,8 @@ function logMenuHistory(){
 /* ---------- supplier extraction from invoice header (Feature 1) ---------- */
 var invSupplier='';
 /* ===== supplier memory: state + persistence ===== */
-function loadSupplierMem(){ try{ var o=JSON.parse(localStorage.getItem('cafeDB_supplierMem')); return (o&&typeof o==='object')?o:{}; }catch(e){ return {}; } }
-function saveSupplierMem(){ try{ localStorage.setItem('cafeDB_supplierMem', JSON.stringify(supplierMem)); }catch(e){} }
-var supplierMem=loadSupplierMem();
+function saveSupplierMem(){}   // v108: persists via dbPushSupplierPhrase
+var supplierMem={};
 function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
 function dbPushSupplierPhrase(e){ pushWrite(function(){ return SUPA.from('supplier_phrases').upsert(supplierPhraseToRow(e)); }, 'supplier phrase'); }
@@ -1801,7 +1804,6 @@ function renderKitchenPanel(){
    only the stored shape is an array. There are no per-skip confirms by design —
    speed is the point, and a mis-skip costs two taps to undo. */
 var kingWizOpen=false, kingWizSkip={}, kingWizLimit=40, kingWizShowSkipped=false;
-var KWSKIPKEY='cafeDB_kingWizSkips';
 function kingWizSkipIds(){ return Object.keys(kingWizSkip); }
 // v55 §H: park a product the user just repointed AWAY from into the wizard's Skipped list, so it isn't
 // re-proposed as "unlinked" and nag. Recoverable via Unskip. No-op for a falsy pid.
@@ -1809,14 +1811,12 @@ function parkRepointedProduct(pid){ if(pid){ kingWizSkip[pid]=true; saveKingWizS
 function setKingWizSkips(ids){                                        // idempotent: same payload in, same state out
   var m={}; (ids||[]).forEach(function(id){ if(id) m[id]=1; });
   kingWizSkip=m;
-  try{ localStorage.setItem(KWSKIPKEY, JSON.stringify(Object.keys(m))); }catch(e){}
 }
 function saveKingWizSkips(){
   var ids=kingWizSkipIds();
-  try{ localStorage.setItem(KWSKIPKEY, JSON.stringify(ids)); }catch(e){}
   if(typeof dbSetSetting==='function') dbSetSetting('king_wiz_skips', ids);
 }
-(function(){ try{ var a=JSON.parse(localStorage.getItem(KWSKIPKEY)); if(Array.isArray(a)) setKingWizSkips(a); }catch(e){} })();
+// v108: the localStorage hydrate is gone — bootstrapSync's app_settings read calls setKingWizSkips.
 function kingLinkableProducts(){ return PRODUCTS.filter(function(p){ return p && p.description && p.is_food!==false; }); }
 function kingUnlinkedProducts(){
   var linked={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.pid) linked[k.pid]=1; });
@@ -4524,13 +4524,10 @@ var invGst={mode:'unknown', note:''};
    thing: what to assume when the invoice doesn't say. An explicit statement on the
    invoice still wins; this only replaces the hardcoded ex-GST assumption in the
    'unknown' branch. See the handover note. */
-var GSTKEY='cafeDB_gstDefault';
-function loadGstDefault(){ try{ var v=localStorage.getItem(GSTKEY); if(v==='inc'||v==='ex') return v; }catch(e){} return 'ex'; }   // 'ex' preserves the current behaviour for brand-new accounts
-var gstDefault=loadGstDefault();
+var gstDefault='ex';   // v108: default until app_settings arrives
 function setGstDefault(mode, persist){
   if(mode!=='inc'&&mode!=='ex') return;
   gstDefault=mode;
-  try{ localStorage.setItem(GSTKEY, mode); }catch(e){}
   if(persist && typeof dbSetSetting==='function') dbSetSetting('gst_default', mode);
 }
 
@@ -5979,8 +5976,7 @@ function submitNewMenu(){
 }
 
 /* ===== Menu Analysis: split "/" items + safe delete ===== */
-function loadDeletedMenu(){ try{ return JSON.parse(localStorage.getItem('cafeDB_deletedMenu'))||[]; }catch(e){ return []; } }
-function saveDeletedMenu(){ try{ localStorage.setItem('cafeDB_deletedMenu', JSON.stringify(deletedMenuIds)); }catch(e){} }
+function saveDeletedMenu(){}   // v108: tombstones retire in phase 6 (D3)
 function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').delete().eq('id',id); }, 'menu delete'); }
 /* v108: isBaseMenuId was `BASE_MENU.some(...)` and is deleted with the literal. There are no built-in
    dishes any more, so removeMenuItem's tombstone branch is unreachable by construction — a deleted

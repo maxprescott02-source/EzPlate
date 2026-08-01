@@ -87,10 +87,15 @@ test('v86: "dish" is no longer a UI noun — the object is a Plate (Max, 25 Jul 
 
 test('INVERSION GUARD: the internal identifiers are untouched by the copy pass', () => {
   for (const id of ['kitchenIngredients', 'renderKitchenPanel', 'addKitchenLine',
-                    'saveKitchenIngredients', 'kitchenSearchMatches', 'KINGKEY']) {
+                    'saveKitchenIngredients', 'kitchenSearchMatches']) {
     assert.ok(app.includes(id), `${id} must still exist — renaming identifiers has caused rollbacks`);
   }
-  assert.match(app, /cafeDB_kitchenIngredients/, 'the localStorage key is a data contract');
+  /* v108: KINGKEY and the `cafeDB_kitchenIngredients` literal were dropped from this list because the
+     local mirror they named is GONE — kitchen words live in app_settings.kitchen_ingredients now. The
+     guard itself is unweakened: it lost a localStorage key and kept the SERVER key, which is the
+     stronger contract of the two and the one a rename would actually corrupt. Deleting a store is not
+     the failure this guard exists to catch; renaming `kitchenIngredients` to match the UI label is,
+     and that is still pinned above. */
   assert.match(app, /'kitchen_ingredients'/, 'the Supabase app_settings key is a data contract');
 });
 

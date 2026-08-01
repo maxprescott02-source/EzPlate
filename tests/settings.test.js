@@ -193,12 +193,15 @@ function cogsHarness() {
   return { api: factory(writes, store), writes, store };
 }
 
-test('ITEM 6: editing the target in Settings writes one setting + the localStorage mirror', () => {
+/* v108: the "+ localStorage mirror" half of this pin is gone. The target is a SETTING, not a view
+   preference, so it lives in app_settings and arrives with the rest of the boot batch. A local mirror
+   would be a second copy of a number that drives every suggested price, with no way to tell its age. */
+test('ITEM 6: editing the target in Settings writes exactly one setting, and no local copy', () => {
   const { api, writes, store } = cogsHarness();
   api.setCogs(32, true);
   assert.equal(writes.length, 1, 'one dbSetSetting write, per the house rule');
   assert.deepEqual(writes[0], { key: 'food_cost_target', value: 32 });
-  assert.equal(store['cafeDB_cogsPct'], '32', 'mirrored locally');
+  assert.ok(!('cafeDB_cogsPct' in store), 'the target must not be mirrored locally any more');
 });
 
 test('ITEM 6: a target set in Settings reaches the MATHS, not just the label', () => {

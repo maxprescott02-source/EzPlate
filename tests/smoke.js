@@ -45,21 +45,28 @@ window.URL.revokeObjectURL = () => {};
 /* v108: the cafeDB_ingPriceLog seed is GONE. The per-product price log moved to ing_price_history,
    so seeding that key would be seeding a store nothing reads — and it would mask the very thing the
    pins below now check, which is that the local mirror no longer exists. */
-window.localStorage.setItem('cafeDB_supplierMem', JSON.stringify({ SMOKE1: { id: 'SMOKE1', supplier: 'ZZ Smoke Supplier', phrase_norm: 'smoke test phrase', qty: 2.5, unit: 'kg' } }));
-/* v108: the products this file exercises used to come from the BASE_PRODUCTS literal inside app.js.
-   That literal is deleted — the catalogue lives in the `ingredients` table now — so the 393 rows moved
-   here, to tests/fixtures/base-products.json, and are seeded as the local product cache.
-   This is the RIGHT place for them: smoke.js tests DOM wiring and rendering, not catalogue accuracy,
-   and it deliberately runs with no SUPA_URL so bootstrapSync never fires. Without a seed there would be
-   no products at all and two thirds of the sections below would be asserting against an empty app.
-   The fixture is a snapshot taken at the moment of deletion; it does not need to track production,
-   because nothing here checks a price against the real world. */
-window.localStorage.setItem('cafeDB_overrides',
-  require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'base-products.json'), 'utf8'));
+/* v108: the cafeDB_supplierMem seed is gone too — same reason as cafeDB_ingPriceLog. Seeding a store
+   nothing reads would mask the very thing the cold-boot pin below now checks. */
+/* v108: the products this file exercises came from the BASE_PRODUCTS literal until phase 2 deleted it,
+   then briefly from a localStorage seed until phase 5b deleted THAT read too. Both are gone on purpose:
+   the catalogue lives in `ingredients` and arrives with bootstrapSync.
+   smoke runs with no SUPA_URL and asserts synchronously, so it cannot await a fetch. `hydrate()` below
+   therefore injects exactly what bootstrapSync would have delivered, straight into the module globals,
+   and calls the same rebuild the real path calls. That keeps this file testing what it is for — DOM
+   wiring and rendering — without pretending localStorage is still a data store. */
+const FIXTURE_PRODUCTS = fs.readFileSync(path.join(__dirname, 'fixtures', 'base-products.json'), 'utf8');
+/* The hydrate has to be APPENDED TO app.js AND EVALUATED WITH IT, not run as a second eval.
+   `productsById` / `savedPlates` / `customMenu` are top-level `let`s, i.e. global LEXICAL bindings, and
+   jsdom gives every window.eval() call its own lexical environment — so `w.productsById = x` silently
+   creates an unrelated window property and a later `w.eval('productsById = x')` cannot see the real
+   binding either. (The same trap is recorded against `byId` further down this file, from v91.)
+   Concatenating puts the assignment in the same scope as the declaration, which is the only thing that
+   reaches it. */
+const HYDRATE = '\n;productsById = ' + FIXTURE_PRODUCTS + ';\nrebuild();\n';
 
 console.log('\n[1] app.js loads against the real markup');
 let loaded = false, loadErr = null;
-try { window.eval(appJs); loaded = true; }
+try { window.eval(appJs + HYDRATE); loaded = true; }
 catch (e) { loadErr = e; }
 ok('app.js runs to completion with no thrown error', loaded, loadErr && (loadErr.message + '\n        ' + String(loadErr.stack).split('\n')[1]));
 if (!loaded) { console.log('\nsmoke: aborting — nothing else can be trusted.\n'); process.exit(1); }
@@ -135,7 +142,13 @@ ok('backup has all seven groups', ['products','kitchen_ingredients','plates','me
    loads should say so rather than hand back a stale local copy dressed as current. */
 ok('cold boot: ing_price_log is EMPTY — it is server data now, not a local store',
    !!backup.ing_price_log && Object.keys(backup.ing_price_log).length === 0, JSON.stringify(backup.ing_price_log));
-ok('cold boot: supplier_mem is populated (no sync ran)', !!(backup.supplier_mem && backup.supplier_mem.SMOKE1 && backup.supplier_mem.SMOKE1.phrase_norm === 'smoke test phrase'), JSON.stringify(backup.supplier_mem));
+/* v108: inverted for the same reason as ing_price_log above. supplier memory lives in
+   supplier_phrases and arrives with the boot batch; a cold boot with no sync correctly holds none.
+   The v107 guard that an EMPTY SERVER READ must not wipe a populated memory is unaffected and still
+   pinned, properly, in smem-sync-guard.test.js — that is about a read that RETURNED, not about a
+   boot that has not happened yet. */
+ok('cold boot: supplier_mem is EMPTY — it is server data now, not a local store',
+   !!backup.supplier_mem && Object.keys(backup.supplier_mem).length === 0, JSON.stringify(backup.supplier_mem));
 /* v108 (D2): the export is a COMPLETE SNAPSHOT, so the two base_products_* fields are gone with the
    literal they fingerprinted. Asserting they are ABSENT rather than null is the point — a null hash
    compares equal to a null hash, which would read as a matching build. */
@@ -203,14 +216,17 @@ const skipBtn = window.document.querySelector('#kingWiz .kw-skip');
 ok('the wizard renders skippable rows', !!skipBtn);
 if (skipBtn) {
   skipBtn.click();
-  ok('a skip lands in localStorage immediately', (JSON.parse(window.localStorage.getItem('cafeDB_kingWizSkips')) || []).length > 0);
+  /* v108: wizard skips are a SETTING (app_settings.king_wiz_skips), shared across devices, and no
+     longer mirrored locally — so the observable is the in-memory state the push is built from, not a
+     localStorage write that no longer happens. */
+  ok('a skip registers immediately', window.kingWizSkipIds().length > 0, JSON.stringify(window.kingWizSkipIds()));
   ok('the skipped list is reachable', !!window.document.querySelector('#kingWiz .kw-skiptoggle'));
   window.document.querySelector('#kingWiz .kw-skiptoggle').click();
   const unskip = window.document.querySelector('#kingWiz .kw-unskip');
   ok('"show" reveals an Unskip control', !!unskip);
   if (unskip) {
     unskip.click();
-    ok('unskip clears it from storage', (JSON.parse(window.localStorage.getItem('cafeDB_kingWizSkips')) || []).length === 0);
+    ok('unskip clears it', window.kingWizSkipIds().length === 0, JSON.stringify(window.kingWizSkipIds()));
   }
 }
 window.kingWizOpen = false; window.renderKingWizard();
@@ -759,7 +775,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
     w.URL.createObjectURL = () => 'blob:stub';
     w.URL.revokeObjectURL = () => {};
     if (draft) w.localStorage.setItem('cafeDB_plateDraft', JSON.stringify(draft));
-    w.eval(appJs);
+    w.eval(appJs + HYDRATE);
     return w;
   };
   const DRAFT = { lines: [{ uid: 1, kid: 'K1', qty: 3 }], name: 'Half-built Plate', cat: 'Breakfast', loadedPlateId: null, ts: Date.now() };

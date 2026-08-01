@@ -63,11 +63,39 @@ async function installBoot(page, opts = {}) {
         plate_id: m.plateId || m.sourcePlateId || null,
         source_plate_id: m.sourcePlateId || m.plateId || null,
       }));
+      /* History and settings stopped being read from localStorage in phase 5b, so the specs' seeds
+         have to arrive as rows too. `{t,v}` in memory <-> recorded_at + a per-table value column,
+         which is exactly the crossing js/app.js's rowToPoint/pointToRow describe. */
+      const pts = (obj, valueCol, keyCol) => {
+        const out = [];
+        const push = (arr, key) => (arr || []).forEach((p) => {
+          const row = { recorded_at: new Date(p.t).toISOString() };
+          row[valueCol] = p.v;
+          if (keyCol) row[keyCol] = key;
+          out.push(row);
+        });
+        if (Array.isArray(obj)) push(obj, null);
+        else Object.keys(obj || {}).forEach((k) => push(obj[k], k));
+        return out;
+      };
+      const priceHistoryRows = () => pts(ls('cafeDB_priceHistory', []), 'avg_food_cost_pct', null)
+        .map((r) => ({ ...r, menu_id: null }))
+        .concat(pts(ls('cafeDB_menuHistory', {}), 'avg_food_cost_pct', 'menu_id'))
+        .sort((a, b) => (a.recorded_at < b.recorded_at ? -1 : 1));
+      const settingRows = () => {
+        const out = [];
+        const cogs = localStorage.getItem('cafeDB_cogsPct');
+        if (cogs != null) out.push({ key: 'food_cost_target', value: Number(cogs) });
+        return out;
+      };
       const result = (table) => {
         if (table === 'ingredients') return { data: ingredientRows, error: null };
         if (table === 'menu_items') return { data: dishRows(), error: null };
         if (table === 'plates') return { data: ls('cafeDB_plates', []), error: null };
         if (table === 'menus') return { data: ls('cafeDB_menus', []), error: null };
+        if (table === 'price_history') return { data: priceHistoryRows(), error: null };
+        if (table === 'menu_price_history') return { data: pts(ls('cafeDB_menuPriceLog', {}), 'price', 'menu_item_id'), error: null };
+        if (table === 'app_settings') return { data: settingRows(), error: null };
         if (emptyOk.includes(table)) return { data: [], error: null };
         return { data: null, error: { message: 'fixture: table not served' } };
       };
