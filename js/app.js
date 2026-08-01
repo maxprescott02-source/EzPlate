@@ -2,7 +2,7 @@ var loadedPlateId=null,invRows=[],dismissedMatch='',nameTimer=null,publishTarget
 var gemToken=0,gemStatus=null,gemApplied=false,gemCheckStart=0;   // v62: AI second-reader — token discards late/stale responses, status drives the summary note, gemApplied freezes an applied import. v63: gemCheckStart timestamps the "checking" state so the flip to checked/unavailable never flickers (see gemSettle)
 /* v108: BASE_PRODUCTS (393 rows, 132 KB) and BASE_IDS were deleted here. The catalogue lives in the
    `ingredients` table — migrated by 20260801_base_products_backfill.sql, verified 412 live products.
-   The base+overrides merge existed only because localStorage held deltas on top of a hardcoded base;
+   The base+productsById merge existed only because localStorage held deltas on top of a hardcoded base;
    with the server as the source of truth, products are just products. is_custom is no longer derived
    from BASE_IDS — it round-trips through the row boundary instead (see rowToIngredient). */
 const OVRKEY = "cafeDB_overrides";
@@ -22,22 +22,46 @@ function setSync(state){
 }
 function online(){ return !!SUPA && navigator.onLine; }
 function errText(err){ return (err && (err.message||err.error_description||err.error||err.details||err.hint||err.code)) || 'unknown error'; }
+/* v108 \u2014 A FAILED WRITE IS NEVER QUIET AGAIN.
+   The defect this batch exists to remove was not that offline happens; it was that offline failed
+   INVISIBLY. A price edit vanished with no word, under a green banner, and the user found out a week
+   later. Two things caused that and both are gone:
+
+     1. The `!navigator.onLine` branch below used to set a quiet 'offline' banner and suppress the
+        toast, on the reasoning that the write was "saved locally". With localStorage no longer a
+        data store that sentence is simply false \u2014 and it was always half-false, because nothing ever
+        retried. Every failure now says so, in the same words, whatever the cause.
+     2. `if(!SUPA) return Promise.resolve(null)` returned a NULL that read as success to any caller
+        doing `if(!res.error)`. It now returns an error shape, so "no client" cannot be mistaken for
+        "wrote fine".
+
+   v40's lesson still stands and is deliberately kept: do NOT pre-skip on `navigator.onLine`. It
+   false-reports offline in installed PWAs, which both showed a bogus banner AND dropped the write.
+   We ATTEMPT the write and judge by the real outcome. `navigator.onLine` is used only to word the
+   message afterwards, where being wrong costs nothing.
+
+   Returns the settled result so ordered writes (plate -> dish) can chain. */
 function pushWrite(builder, label){
-  if(!SUPA) return Promise.resolve(null);            // no client configured
+  if(!SUPA){
+    var noClient={error:{message:'No database connection'}};
+    setSync('error'); toast('Couldn\u2019t save '+label+' \u2014 no database connection');
+    return Promise.resolve(noClient);
+  }
   setSync('saving');
-  // v40: do NOT pre-skip on navigator.onLine \u2014 it false-reports 'offline' in installed PWAs (caf\u00e9 phones),
-  // which both showed a bogus "offline" banner AND silently dropped the write. A dropped menu-item write then
-  // let a plate reference a row that was never sent (plates_menu_id_fkey). We ATTEMPT the write and judge by
-  // the real outcome; a thrown error below is the genuine-offline / unreachable case.
-  return Promise.resolve().then(builder).then(function(res){          // returns the settled result so ordered writes (menu -> plate) can chain
-    if(res && res.error){ console.error('[sync] '+label+' failed:', res.error); setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(res.error)); }
-    else { setSync('ok'); }
-    return res;
-  }).catch(function(e){ console.error('[sync] '+label+' error:', e);
-    if(!navigator.onLine){ setSync('offline'); }                      // genuinely offline: quiet banner, no scary toast \u2014 it's saved locally
-    else { setSync('error'); toast('Couldn\u2019t save '+label+': '+errText(e)); }
+  var fail=function(e){
+    console.error('[sync] '+label+' failed:', e);
+    setSync('error');
+    // Offline only changes the WORDING \u2014 never whether the user is told.
+    toast(navigator.onLine
+      ? 'Couldn\u2019t save '+label+': '+errText(e)
+      : 'Couldn\u2019t save '+label+' \u2014 you\u2019re offline. It has NOT been saved.');
     return {error:e};
-  });
+  };
+  return Promise.resolve().then(builder).then(function(res){
+    if(res && res.error) return fail(res.error);
+    setSync('ok');
+    return res;
+  }).catch(fail);
 }
 
 /* ============================================================================
@@ -197,17 +221,21 @@ function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_sett
    multi-tenant hazard to note rather than fix; deleting the function retires that too, for free.)
    The tables were populated for real by 20260801_base_products_backfill.sql. */
 
-// v42 (Item 1): given the server snapshot and the local array, return the merged list (server rows PLUS any
-// local rows the server doesn't have yet — a dropped offline write) and the list of those local-only rows to
-// re-push. Tombstoned ids (deliberately deleted) are never resurrected. Pure + unit-tested (menu-plate-order).
-// Idempotent: once the re-push lands, the next server snapshot contains those ids, so localOnly is empty and
-// merged has no duplicates.
-function reconcileLocalOnly(local, server, tombstones){
-  var have={}; (server||[]).forEach(function(r){ if(r&&r.id!=null) have[r.id]=true; });
-  var tomb={}; (tombstones||[]).forEach(function(id){ tomb[id]=true; });
-  var localOnly=(local||[]).filter(function(r){ return r && r.id!=null && !have[r.id] && !tomb[r.id]; });
-  return { merged:(server||[]).concat(localOnly), localOnly:localOnly };
-}
+/* v108: reconcileLocalOnly is DELETED, and this is the batch's single biggest simplification.
+   It existed to heal ONE specific wound: pushWrite dropped writes silently when offline, so a dish
+   or plate created with no signal lived only in localStorage, and blindly replacing local with the
+   server snapshot would destroy it. Its whole premise was "a local row the server has never seen is
+   probably a dropped write, so keep it and re-push".
+
+   Both halves of that premise are now false. A write that fails says so loudly and is NOT applied as
+   though it succeeded, so there is no such thing as a row the user believes is saved but isn't. And
+   localStorage is no longer a data store, so a local-only row is not evidence of anything.
+
+   Keeping it would have been worse than useless: it is the heal-vs-purge collision the 26 Jul audit
+   said had no clean resolution without a write queue. Given a genuinely empty server read — the RLS
+   failure this batch also hardens against — it would have resurrected every local row and re-pushed
+   it, turning a permissions fault into a data-integrity one. The server snapshot is now simply the
+   answer. */
 
 /* ---- v108: the boot gate ----------------------------------------------------------------
    Online-only means that between first paint and the first fetch landing there is genuinely nothing
@@ -277,16 +305,17 @@ async function bootstrapSync(){
       soft(SUPA.from('menus').select('*')),
       soft(SUPA.from('price_history').select('recorded_at,avg_food_cost_pct,menu_id').order('recorded_at',{ascending:true})),
       soft(SUPA.from('menu_price_history').select('recorded_at,price,menu_item_id').order('recorded_at',{ascending:true})),
-      soft(SUPA.from('supplier_phrases').select('*'))
+      soft(SUPA.from('supplier_phrases').select('*')),
+      soft(SUPA.from('ing_price_history').select('recorded_at,cost_per_base_unit,product_id').order('recorded_at',{ascending:true}))
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
-    var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7];
+    var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7], _ipl=results[8];
     if(ing.error||men.error||pla.error) throw (ing.error||men.error||pla.error);
     menuHistSupported = !(_h && _h.error);                 // the query IS the probe now
     menuPriceHistSupported = !(_mp2 && _mp2.error);
     // v108: through the boundary, not the raw row. Was `ov[r.id]=r` — see rowToIngredient on why that
     // worked by luck rather than design.
-    var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); overrides=ov; saveOverrides(); rebuild();
+    var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); productsById=ov; saveProductCache(); rebuild();
     var setRows=(setg&&setg.data)?setg.data:[];
     var delRow=setRows.filter(function(r){return r.key==='deleted_menu_ids';})[0];
     deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
@@ -296,27 +325,17 @@ async function bootstrapSync(){
     if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; saveKitchenLS(); rebuildKById(); }
     var kwsRow=setRows.filter(function(r){return r.key==='king_wiz_skips';})[0];                 // ITEM 4 (v35): wizard skips are shared across staff devices
     if(kwsRow&&Array.isArray(kwsRow.value)){ setKingWizSkips(kwsRow.value); }
-    // v42 (Item 1): HEAL, don't clobber. A dish created offline may never have reached the server (pushWrite
-    // drops writes offline — the known gap). Blindly replacing local with the server snapshot would DESTROY it
-    // on reload, and any plate referencing that dish would FK-fail forever. Keep local-only dishes, merge them,
-    // and re-push them (idempotent) so the server catches up. deletedMenuIds tombstones are respected.
-    var recMenu=reconcileLocalOnly(customMenu, (men.data||[]).map(rowToMenu), deletedMenuIds);
-    customMenu=recMenu.merged; saveCustomMenu();
+    // v108: THE SERVER SNAPSHOT IS THE ANSWER. Was a reconcileLocalOnly heal-and-re-push for both
+    // dishes and plates (v42/v55) — see the note where that function used to live. With writes that
+    // can no longer fail quietly, a local row the server has never seen is not evidence of a dropped
+    // write, and treating it as one would resurrect rows on the RLS-empty read this batch hardens
+    // against. The re-push chain (plate first, then the dish that references it) went with it; the
+    // ordering rule itself is unchanged and still lives in dbPushMenuAfterPlate for real publishes.
+    customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu();
     if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(rowToMenuRecord); }   // menus table may not exist yet -> keep local/default
     ensureDefaultMenu(); saveMenus();   // v54: seed Original only on a fresh install; a synced empty menus set is respected (zero menus is legitimate)
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
-    // v42/v55 (HEAL, don't clobber): keep local-only rows and re-push them idempotently. v55 flips the FK
-    // (menu_items.plate_id -> plates.id), so re-push local-only PLATES first, then re-push each local-only
-    // DISH only AFTER the plate it references has landed — otherwise the dish orphans against a missing plate.
-    var recPlate=reconcileLocalOnly(savedPlates, (pla.data||[]).map(rowToPlate), null);
-    savedPlates=recPlate.merged; savePlatesLS(); rebuildMenu();
-    var platePushById={};
-    recPlate.localOnly.forEach(function(sp){ platePushById[sp.id]=dbPushPlate(sp); });
-    recMenu.localOnly.filter(function(c){return c.custom;}).forEach(function(c){
-      var pid=plateIdOf(c), pp=(pid&&platePushById[pid])?platePushById[pid]:null;
-      if(!pp){ dbPushMenu(c); return; }                                       // its plate is already on the server -> push the dish now
-      Promise.resolve(pp).then(function(res){ if(res && !res.error) dbPushMenu(c); });   // wait for the plate to land first
-    });
+    savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS(); rebuildMenu();
     // v89/v108: support is read off the fetch above — naming menu_id in the select means the query
     // fails exactly when the column is missing, which is what the separate probe used to establish.
     if(_h && _h.data){
@@ -349,6 +368,15 @@ async function bootstrapSync(){
        user-confirmed ground truth with no other copy; keeping a stale entry costs one Remove, losing
        them all costs a re-teach per phrase. Accepted trade: deleting your LAST remaining phrase no
        longer propagates across devices. Local is re-pushed so the server heals rather than diverges. */
+    /* v108: the per-product price log arrives from the server for the first time. Straight replace,
+       not a merge: mergeMenuHistory existed to protect points that only lived locally because a write
+       had been dropped, and writes can no longer be dropped silently. Trimmed to the same 60-point
+       window logIngPrice keeps, so memory holds the recent series while the server keeps all of it. */
+    if(_ipl && !_ipl.error && Array.isArray(_ipl.data)){
+      var _series=rowsToSeries(_ipl.data, 'cost_per_base_unit', 'product_id');
+      Object.keys(_series).forEach(function(pid){ var a=_series[pid]; if(a.length>60) _series[pid]=a.slice(-60); });
+      ingPriceLog=_series;
+    }
     if(spr && !spr.error && Array.isArray(spr.data)){
       var mm={}; spr.data.forEach(function(r){ mm[r.id]=rowToSupplierPhrase(r); });
       var localIds=Object.keys(supplierMem);
@@ -390,29 +418,29 @@ function refreshFromCloud(){
 }
 
 
-function loadOverrides(){ try{ return JSON.parse(localStorage.getItem(OVRKEY)) || {}; }catch(e){ return {}; } }
-function saveOverrides(){ try{ localStorage.setItem(OVRKEY, JSON.stringify(overrides)); }catch(e){ /* storage blocked: session-only */ } }
-let overrides = loadOverrides();
+function loadProductCache(){ try{ return JSON.parse(localStorage.getItem(OVRKEY)) || {}; }catch(e){ return {}; } }
+function saveProductCache(){ try{ localStorage.setItem(OVRKEY, JSON.stringify(productsById)); }catch(e){ /* storage blocked: session-only */ } }
+let productsById = loadProductCache();
 
 let PRODUCTS, byId, SEARCHABLE;
 var deletedProdIds=(function(){ try{ return JSON.parse(localStorage.getItem('cafeDB_deletedProds'))||[]; }catch(e){ return []; } })();
 function saveDeletedProds(){ try{ localStorage.setItem('cafeDB_deletedProds', JSON.stringify(deletedProdIds)); }catch(e){} }
-/* v108: THE MERGE IS GONE. This was `BASE_PRODUCTS` seeded into a map, then `overrides` layered on
-   top, because localStorage held deltas against a hardcoded base. `overrides` now holds the whole
+/* v108: THE MERGE IS GONE. This was `BASE_PRODUCTS` seeded into a map, then `productsById` layered on
+   top, because localStorage held deltas against a hardcoded base. `productsById` now holds the whole
    catalogue as read from `ingredients`, so there is one layer and nothing to reconcile.
-   The variable is still called `overrides` and no longer means overrides — renaming it is deferred to
+   The variable is still called `productsById` and no longer means productsById — renaming it is deferred to
    the phase that removes the localStorage read entirely, so that the deletion diff and the rename diff
    stay separately reviewable. Named in the handover so it is not mistaken for an oversight.
    `deletedProdIds` still filters here; the tombstone lists die in a later phase (D3). */
 function rebuild(){
   const map = new Map();
-  for(const id in overrides) map.set(id, Object.assign({}, overrides[id]));
+  for(const id in productsById) map.set(id, Object.assign({}, productsById[id]));
   (deletedProdIds||[]).forEach(function(id){ map.delete(id); });          // hidden/deleted ingredients never appear
   PRODUCTS = [...map.values()];
   byId = Object.fromEntries(PRODUCTS.map(p=>[p.id, p]));
   SEARCHABLE = PRODUCTS.filter(p=>p.is_food);
 }
-function setOverride(id, patch){ overrides[id] = Object.assign({}, overrides[id]||{}, patch); saveOverrides(); rebuild(); dbPushIngredient(id); }
+function setProduct(id, patch){ productsById[id] = Object.assign({}, productsById[id]||{}, patch); saveProductCache(); rebuild(); dbPushIngredient(id); }
 rebuild();
 
 function unitNoun(p){return p.base_unit==='g'?'g':p.base_unit==='ml'?'ml':p.base_unit==='ea'?'unit':'';}
@@ -599,7 +627,7 @@ function commitPrice(uid,raw){
   const v=parseFloat(raw);
   if(!isNaN(v)&&v>=0){
     const base=(p.base_unit==='g'||p.base_unit==='ml')?v/1000:v;
-    setOverride(p.id,{cost_per_base_unit:base});
+    setProduct(p.id,{cost_per_base_unit:base});
     // v91 ROOT CAUSE (the movers card + insight family 1): until now logIngPrice was called from ONE
     // place — the invoice-confirm path. A price edited by hand here moved the all-menus average (via
     // logHistory below, which feeds priceHistory) but left NO per-product point, so the two logs
@@ -789,7 +817,7 @@ function submitNew(){
     isFood:document.getElementById('f_food').checked,
     packSize:document.getElementById('f_packsize').value, packUnit:szUnit,
     packPrice:document.getElementById('f_price').value});
-  setOverride(id,prod);
+  setProduct(id,prod);
   closeModal();clearForm();
   if(typeof renderIngredients==='function') renderIngredients();       // v83: the list repaints so the product you just made is visible (rebuild() updates data only, not the DOM)
   toast(desc+' added');
@@ -1186,11 +1214,24 @@ function rangeBarHtml(){
   var os=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
   return '<div class="range-bar">'+os.map(function(o){return '<button type="button" class="range-btn'+(dashRange===o[0]?' act':'')+'" data-rg="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div>';
 }
-/* ---- per-ingredient price log (local; powers price-change alerts + cost ranges). No new Supabase table. ---- */
-var IPLKEY='cafeDB_ingPriceLog';
-function loadIngLog(){ try{ return JSON.parse(localStorage.getItem(IPLKEY))||{}; }catch(e){ return {}; } }
-function saveIngLog(){ try{ localStorage.setItem(IPLKEY, JSON.stringify(ingPriceLog)); }catch(e){} }
-var ingPriceLog = loadIngLog();
+/* ---- per-product price log — powers price-change alerts + cost ranges.
+   v108: this was the ONE dataset in the app with no server destination at all. `ing_price_history`
+   now exists (20260801_ing_price_history.sql) and holds the 33 points that had only ever lived in
+   one browser profile. It is read in bootstrapSync's single batch and appended to on every new
+   point, exactly like price_history and menu_price_history.
+   `saveIngLog` is kept as the name every caller already uses, but it now PUSHES rather than writing
+   localStorage — the 60-point cap stays a client-side read concern, so the server keeps the full
+   append-only series while memory keeps the recent window. ---- */
+var ingPriceLog = {};
+var _ingLogPending=[];                                              // points added since the last flush
+function saveIngLog(){
+  if(!_ingLogPending.length) return;
+  var batch=_ingLogPending; _ingLogPending=[];
+  batch.forEach(function(p){ dbPushIngPrice(p.pid, p.t, p.v); });
+}
+function dbPushIngPrice(pid, t, v){
+  pushWrite(function(){ return SUPA.from('ing_price_history').insert(pointToRow(t, v, 'cost_per_base_unit', 'product_id', pid)); }, 'price history');
+}
 /* Record a per-base-unit price point for this product. Returns true when a point was actually added,
    so callers know whether saveIngLog() is needed (v91 — the invoice path used to key that off
    `priceChanges`, which is only populated when there WAS an old price, so the first price ever logged
@@ -1203,7 +1244,9 @@ function logIngPrice(pid, cpbuVal){
   // value, so at zero it collapses to `0 < 0` and every repeat logged a fresh point. (CodeRabbit, v91 —
   // newly reachable now that a hand-edited price feeds this log, and commitPrice accepts 0.)
   if(last!=null && (last===cpbuVal || Math.abs(last-cpbuVal) < Math.abs(cpbuVal)*1e-6)) return false;
-  a.push({t:Date.now(), v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60);
+  var now=Date.now();
+  a.push({t:now, v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60);
+  _ingLogPending.push({pid:pid, t:now, v:cpbuVal});
   return true;
 }
 function ingPriceBand(pid){                                          // {min,max} $/base-unit from logged history, or null
@@ -1648,7 +1691,7 @@ function deleteIngredient(){
   var id=ingEditId; if(!id||!byId[id]) return; var nm=byId[id].description||'this product';
   askConfirm('Delete product?', 'Remove \u201c'+nm+'\u201d from your products? It won\u2019t change plates you\u2019ve already saved.', 'Delete', function(){
     if(deletedProdIds.indexOf(id)<0){ deletedProdIds.push(id); saveDeletedProds(); }
-    if(overrides[id]){ delete overrides[id]; saveOverrides(); }            // drop any custom/edited data too
+    if(productsById[id]){ delete productsById[id]; saveProductCache(); }            // drop any custom/edited data too
     dbSetSetting('deleted_prod_ids', deletedProdIds);
     rebuild(); closeIngEdit(); renderIngredients(); toast('Product deleted');
   });
@@ -1671,7 +1714,7 @@ function saveIngEdit(){
   var sup=resolveCombo('ig_sup', prodSuppliers); if(!sup.ok) return fail('\u201c'+sup.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d to confirm.');
   var ub=invUnitToBase(unitType);
   var pq=parseFloat(document.getElementById('ig_packQty').value); var pu=document.getElementById('ig_packUnit').value;
-  setOverride(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
+  setProduct(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
     base_unit:ub.base_unit, cost_basis:ub.cost_basis, cost_per_base_unit:price/ub.div,
     pack_qty:(isNaN(pq)?null:pq), pack_unit:(pu||null)});
   if(!isNaN(pq) && pq>0) syncMemoryToProduct(id, pq, (pu||'ea'));   // ITEM 1: no stale Remembered-items entry left behind
@@ -3587,7 +3630,7 @@ function closeTidyManage(){ hide('tidyManageModal'); backToSettingsSection(); } 
 
 /* ===== v59 item 6b: Tidy lists UI (Settings) — the Settings surface for the v40 pure core =====
    Category spans products + plate categories; Brand/Supplier are product-only. Every action goes
-   through ONE blast-radius confirm and applies via the existing write helpers (setOverride ->
+   through ONE blast-radius confirm and applies via the existing write helpers (setProduct ->
    dbPushIngredient for products, dbPushPlate for plates, plus tidySupplierMemMigration for a
    supplier rename/clear so taught invoice packs don't orphan). Ingredient categories mirror their
    product, so a category rename here flows to the Ingredients tab automatically. */
@@ -3656,9 +3699,9 @@ function applyTidy(){
   var plan=tidyPlanAll(PRODUCTS, savedPlates, field, action, from, to);
   if(!plan.count){ hide('tidyModal'); toast('Nothing to change'); return; }
   var col=plan.field;   // 'category' | 'brand' | 'supplier'
-  // products: write through overrides (rebuild once, then push each changed row)
-  plan.productPatches.forEach(function(pt){ overrides[pt.id]=Object.assign({}, overrides[pt.id]||{}); overrides[pt.id][col]=pt.value; });
-  if(plan.productPatches.length){ saveOverrides(); rebuild(); plan.productPatches.forEach(function(pt){ dbPushIngredient(pt.id); }); }
+  // products: write through productsById (rebuild once, then push each changed row)
+  plan.productPatches.forEach(function(pt){ productsById[pt.id]=Object.assign({}, productsById[pt.id]||{}); productsById[pt.id][col]=pt.value; });
+  if(plan.productPatches.length){ saveProductCache(); rebuild(); plan.productPatches.forEach(function(pt){ dbPushIngredient(pt.id); }); }
   // plates (category only)
   plan.platePatches.forEach(function(pt){ var sp=(savedPlates||[]).filter(function(s){return s.id===pt.id;})[0]; if(sp){ sp.category=pt.value; dbPushPlate(sp); } });
   if(plan.platePatches.length){ savePlatesLS(); }
@@ -3709,7 +3752,7 @@ function buildBackup(){
       format:2,                                                       // shape of this file, not the app
       app_version:APP_VERSION
     },
-    products:overrides,
+    products:productsById,
     kitchen_ingredients:kitchenIngredients,
     plates:savedPlates,
     menu_items:customMenu,
@@ -5620,7 +5663,7 @@ function applyInvoice(){
     if(r.addNew){
       var s=specs[i]; if(!s) return;
       var id='CX'+Date.now().toString(36)+i;
-      setOverride(id, {id:id, description:s.name, brand:s.brand, category:s.category, sub_category:null,
+      setProduct(id, {id:id, description:s.name, brand:s.brand, category:s.category, sub_category:null,
         item_type:null, search_aliases:[], base_unit:s.base_unit, cost_per_base_unit:s.cpbu,
         cost_basis:s.cost_basis, is_food:true, pack_size_raw:s.pack_size_raw, sold_by:null,
         current_price_exgst:null, supplier:s.supplier});
@@ -5638,7 +5681,7 @@ function applyInvoice(){
       var priceUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:(p.base_unit==='g'?'kg':p.base_unit==='ml'?'l':'ea');
       var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
       var oldC=cpbu(p); var newC=up/ub2.div;
-      setOverride(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
+      setProduct(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
       if(logIngPrice(pid, newC)) ingLogged=true;                    // record the new price point (builds cost-range history)
       if(oldC!=null && Math.abs(newC-oldC)>Math.abs(oldC)*0.005){ priceChanges.push({name:p.description||r.name, oldC:oldC, newC:newC, unit:ub2.base_unit, dir:(newC>oldC?1:-1), pctAbs:Math.abs((newC-oldC)/oldC)*100}); }
     }
@@ -5654,7 +5697,7 @@ function applyInvoice(){
       if(q>0){
         if(r.bestId && byId[r.bestId]){                             // the product pack — written whoever the supplier is, or teach-once never survives
           var bp=byId[r.bestId];
-          if(bp.pack_qty!==q || (bp.pack_unit||'')!==(u||'')) setOverride(r.bestId, {pack_qty:q, pack_unit:u});
+          if(bp.pack_qty!==q || (bp.pack_unit||'')!==(u||'')) setProduct(r.bestId, {pack_qty:q, pack_unit:u});
         }
         if(normSupplier(invSupplier)){                              // supplier memory is keyed supplier+phrase — it cannot be stored without a supplier
           var key=memKey(invSupplier, r.raw||r.name); var before=supplierMem[key];

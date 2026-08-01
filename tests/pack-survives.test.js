@@ -11,7 +11,7 @@
  * supplier-memory block in applyInvoice, gated on `normSupplier(invSupplier)`:
  *
  *     if(normSupplier(invSupplier) && (r.needManual || r.remembered || r.packTaught)){
- *        ... setOverride(r.bestId, {pack_qty:q, pack_unit:u}) ...
+ *        ... setProduct(r.bestId, {pack_qty:q, pack_unit:u}) ...
  *     }
  *
  * invSupplierDetect returns '' by design when it can't read the letterhead ("no guess").
@@ -67,7 +67,7 @@ const TEACH_ANCHOR = 'if(r.needManual || r.remembered || r.packTaught){';
  * ------------------------------------------------------------------------- */
 
 function runTeachBlock({ supplier, typedQty, typedUnit, product, row }) {
-  const patches = [];      // every setOverride(id, patch)
+  const patches = [];      // every setProduct(id, patch)
   const memWrites = [];    // every rememberSupplierPhrase
 
   // a fake <tr> exposing only what the block reaches for
@@ -93,7 +93,7 @@ function runTeachBlock({ supplier, typedQty, typedUnit, product, row }) {
     var supplierMem = {};
     var learned = [];
     var r = ROW, tr = TR;
-    function setOverride(id, patch){ PATCHES.push({id:id, patch:patch}); Object.assign(byId[id], patch); }
+    function setProduct(id, patch){ PATCHES.push({id:id, patch:patch}); Object.assign(byId[id], patch); }
     function rememberSupplierPhrase(s, p, q, u, id){ MEMW.push({supplier:s, qty:q, unit:u}); }
     function syncMemoryToProduct(){}
     ${extractFn(SRC, 'normSupplier')}

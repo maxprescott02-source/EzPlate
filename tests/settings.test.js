@@ -66,7 +66,7 @@ function buildBackupIn(state) {
   const factory = new Function('S', `
     "use strict";
     var APP_VERSION = S.APP_VERSION;
-    var overrides = S.overrides, kitchenIngredients = S.kitchenIngredients,
+    var productsById = S.productsById, kitchenIngredients = S.kitchenIngredients,
         savedPlates = S.savedPlates, customMenu = S.customMenu,
         ingPriceLog = S.ingPriceLog, supplierMem = S.supplierMem,
         cogsPct = S.cogsPct, gstDefault = S.gstDefault,
@@ -85,7 +85,7 @@ function buildBackupIn(state) {
 
 const STATE = {
   APP_VERSION: 'v35',
-  overrides: { P0108: { id: 'P0108', cost_per_base_unit: 0.0031 } },
+  productsById: { P0108: { id: 'P0108', cost_per_base_unit: 0.0031 } },
   kitchenIngredients: [{ id: 'K0001', name: 'Chips', pid: 'P0108' }],
   savedPlates: [{ id: 'SP1', name: 'Cod & Chips', lines: [{ kid: 'K0001', qty: 250 }] }],
   customMenu: [{ id: 'M1', section: 'FISH PACKS', name: 'Cod & Chips', price: 16 }],
@@ -112,7 +112,7 @@ test('ITEM 6: the backup serialises to real JSON and carries all seven data grou
 
 test('ITEM 6: the backup carries the actual data, not just the shape', () => {
   const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
-  assert.equal(b.products.P0108.cost_per_base_unit, 0.0031, 'product overrides are the only thing not in BASE_PRODUCTS \u2014 losing them loses every price ever imported');
+  assert.equal(b.products.P0108.cost_per_base_unit, 0.0031, 'product productsById are the only thing not in BASE_PRODUCTS \u2014 losing them loses every price ever imported');
   assert.deepEqual(b.kitchen_ingredients, STATE.kitchenIngredients);
   assert.equal(b.plates[0].lines[0].kid, 'K0001', 'plate lines reference kitchen words by kid');
   assert.equal(b.menu_items[0].price, 16);
@@ -158,7 +158,7 @@ test('v108: the retired fingerprint fields are ABSENT, not null', () => {
 test('v108: the export carries EVERY product, not just the edited ones', () => {
   // The delta/snapshot distinction is the whole reason format moved. `products` is now the catalogue.
   const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
-  assert.deepEqual(Object.keys(b.products), Object.keys(STATE.overrides),
+  assert.deepEqual(Object.keys(b.products), Object.keys(STATE.productsById),
     'products mirrors what the app holds \u2014 which, post-v108, is every row from the ingredients table');
 });
 

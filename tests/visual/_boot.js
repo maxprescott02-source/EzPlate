@@ -25,13 +25,17 @@
  *
  *   ingredients   the 393-row fixture (tests/fixtures/base-products.json) — the catalogue the specs
  *                 used to get from the literal.
- *   menu_items    empty, no error. reconcileLocalOnly HEALS rather than clobbers, so dishes seeded
- *   plates        into localStorage survive as local-only rows exactly as before.
+ *   menu_items    SERVED FROM THE SPEC'S OWN localStorage SEED, translated to row shape.
+ *   plates        v108 phase 5 deleted reconcileLocalOnly, so an empty server response no longer
+ *   menus         "heals" into the seeded local rows — it correctly WIPES them. The seeds are the
+ *                 user's data, and under online-only the user's data arrives from the server, so the
+ *                 shim has to hand it back as rows. Read at QUERY time, not install time, because the
+ *                 specs' own addInitScript seeds run after this one.
  *   app_settings  empty, no error — the setRows lookups find nothing and every local value stands.
  *   everything    returns an ERROR, which bootstrapSync's `soft` path treats as "not supported" and
- *   else          skips, leaving the seeded local history/menus/supplier memory untouched. Returning
- *                 empty-with-no-error would instead REPLACE priceHistory with [] and wipe the very
- *                 series the dashboard specs seed.
+ *   else          skips, leaving the seeded local history untouched. Returning empty-with-no-error
+ *                 would instead REPLACE priceHistory with [] and wipe the very series the dashboard
+ *                 specs seed.
  */
 const fs = require('fs');
 const path = require('path');
@@ -40,16 +44,30 @@ const PRODUCTS = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'base-products.json'), 'utf8'),
 );
 
-/* Tables that must load for the app to be usable. Anything not listed is reported unsupported. */
-const EMPTY_OK = ['menu_items', 'plates', 'app_settings'];
+/* Served as empty-but-fine. Anything not handled explicitly is reported unsupported. */
+const EMPTY_OK = ['app_settings'];
 
 async function installBoot(page, opts = {}) {
   const rows = Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
     ([ingredientRows, emptyOk, noClient]) => {
       if (noClient) return;                       // opt out: exercise the real "can't reach the database" state
+      const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+      /* The spec seeds the in-memory shape; the app now reads rows. This is the same crossing
+         js/app.js's menuToRow does — spelled out here rather than imported, because the shim runs in
+         the page before app.js has defined anything. */
+      const dishRows = () => ls('cafeDB_menu', []).map((m) => ({
+        id: m.id, section: m.section, name: m.name, price: m.price, notes: m.notes || null,
+        is_custom: m.custom !== false,
+        menu_id: m.menuId || 'MENU_ORIGINAL',
+        plate_id: m.plateId || m.sourcePlateId || null,
+        source_plate_id: m.sourcePlateId || m.plateId || null,
+      }));
       const result = (table) => {
         if (table === 'ingredients') return { data: ingredientRows, error: null };
+        if (table === 'menu_items') return { data: dishRows(), error: null };
+        if (table === 'plates') return { data: ls('cafeDB_plates', []), error: null };
+        if (table === 'menus') return { data: ls('cafeDB_menus', []), error: null };
         if (emptyOk.includes(table)) return { data: [], error: null };
         return { data: null, error: { message: 'fixture: table not served' } };
       };

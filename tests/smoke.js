@@ -42,7 +42,9 @@ window.URL.revokeObjectURL = () => {};
    loaded from localStorage and synced NOTHING. If either var were hydrated lazily or post-sync,
    these come back empty and the file would look complete while being empty. The supplier name
    is deliberately one no fixture uses, so seeding can't perturb the invoice sections. */
-window.localStorage.setItem('cafeDB_ingPriceLog', JSON.stringify({ P0001: [{ t: 1750000000000, v: 0.0241 }, { t: 1751000000000, v: 0.02478 }] }));
+/* v108: the cafeDB_ingPriceLog seed is GONE. The per-product price log moved to ing_price_history,
+   so seeding that key would be seeding a store nothing reads — and it would mask the very thing the
+   pins below now check, which is that the local mirror no longer exists. */
 window.localStorage.setItem('cafeDB_supplierMem', JSON.stringify({ SMOKE1: { id: 'SMOKE1', supplier: 'ZZ Smoke Supplier', phrase_norm: 'smoke test phrase', qty: 2.5, unit: 'kg' } }));
 /* v108: the products this file exercises used to come from the BASE_PRODUCTS literal inside app.js.
    That literal is deleted — the catalogue lives in the `ingredients` table now — so the 393 rows moved
@@ -126,7 +128,13 @@ ok('clicking Export produces a dated .json download', /^ezplate-backup-\d{4}-\d{
 const backup = window.buildBackup();
 ok('backup has all seven groups', ['products','kitchen_ingredients','plates','menu_items','ing_price_log','supplier_mem','settings'].every(k => k in backup));
 // v106: present-but-empty is the failure this batch exists to prevent, so assert POPULATED, not just present
-ok('cold boot: ing_price_log is populated (no sync ran)', !!(backup.ing_price_log && backup.ing_price_log.P0001 && backup.ing_price_log.P0001.length === 2), JSON.stringify(backup.ing_price_log));
+/* v108: this pin INVERTED, and the inversion is the point. It used to assert the log survived a cold
+   boot from localStorage, because ing_price_log was the one dataset with NO server table — the export
+   was the only second copy that could exist. It has a table now (ing_price_history), so on a cold boot
+   with no sync there is correctly NOTHING: the log is server data, and an export taken before the data
+   loads should say so rather than hand back a stale local copy dressed as current. */
+ok('cold boot: ing_price_log is EMPTY — it is server data now, not a local store',
+   !!backup.ing_price_log && Object.keys(backup.ing_price_log).length === 0, JSON.stringify(backup.ing_price_log));
 ok('cold boot: supplier_mem is populated (no sync ran)', !!(backup.supplier_mem && backup.supplier_mem.SMOKE1 && backup.supplier_mem.SMOKE1.phrase_norm === 'smoke test phrase'), JSON.stringify(backup.supplier_mem));
 /* v108 (D2): the export is a COMPLETE SNAPSHOT, so the two base_products_* fields are gone with the
    literal they fingerprinted. Asserting they are ABSENT rather than null is the point — a null hash
@@ -939,20 +947,20 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const v4 = logAfter.length ? logAfter[logAfter.length - 1].v : null;
   ok(`[24] …at the committed price in base units (chip reads ${chipTxt.trim()})`,
      v4 != null && Math.abs(v4 - expected4) < 1e-9, `${v4} vs ${expected4}`);
-  ok('[24] …and persists it, so a reload can still see the change',
-     ((JSON.parse(w4.localStorage.getItem('cafeDB_ingPriceLog') || '{}')[pid4] || []).length) === logAfter.length,
-     w4.localStorage.getItem('cafeDB_ingPriceLog'));
+  /* v108: persistence moved to the server, so the assertion moved with it — the point must NOT be
+     written to localStorage any more. Smoke runs with no SUPA_URL, so the push itself cannot land
+     here; what this pins is that the local mirror is genuinely gone rather than quietly still there. */
+  ok('[24] …and does NOT write it to localStorage — the mirror is gone',
+     w4.localStorage.getItem('cafeDB_ingPriceLog') === null,
+     String(w4.localStorage.getItem('cafeDB_ingPriceLog')));
 
   // Re-committing the SAME price is a no-op — the log records changes, not keystrokes. Snapshot the
   // STORED log as well as the in-memory one: a guard that skips the push but still writes would leave
   // the array right and the write budget wrong, and only the stored copy shows it. (CodeRabbit, v91.)
   const steadyMem = JSON.stringify(w4.ingPriceLog[pid4] || []);
-  const steadyLS = w4.localStorage.getItem('cafeDB_ingPriceLog');
   w4.commitPrice(uid4, '7.77');
   ok('[24] re-committing an unchanged price adds no point',
      JSON.stringify(w4.ingPriceLog[pid4] || []) === steadyMem, JSON.stringify(w4.ingPriceLog[pid4] || []));
-  ok('[24] …and does not rewrite the stored log either',
-     w4.localStorage.getItem('cafeDB_ingPriceLog') === steadyLS);
 
   // ------------------------------------------------------------------
   console.log('\n[25] v102 — builderHint empty-state survives the empty-plate early return (CodeRabbit)');
