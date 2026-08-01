@@ -44,6 +44,16 @@ window.URL.revokeObjectURL = () => {};
    is deliberately one no fixture uses, so seeding can't perturb the invoice sections. */
 window.localStorage.setItem('cafeDB_ingPriceLog', JSON.stringify({ P0001: [{ t: 1750000000000, v: 0.0241 }, { t: 1751000000000, v: 0.02478 }] }));
 window.localStorage.setItem('cafeDB_supplierMem', JSON.stringify({ SMOKE1: { id: 'SMOKE1', supplier: 'ZZ Smoke Supplier', phrase_norm: 'smoke test phrase', qty: 2.5, unit: 'kg' } }));
+/* v108: the products this file exercises used to come from the BASE_PRODUCTS literal inside app.js.
+   That literal is deleted — the catalogue lives in the `ingredients` table now — so the 393 rows moved
+   here, to tests/fixtures/base-products.json, and are seeded as the local product cache.
+   This is the RIGHT place for them: smoke.js tests DOM wiring and rendering, not catalogue accuracy,
+   and it deliberately runs with no SUPA_URL so bootstrapSync never fires. Without a seed there would be
+   no products at all and two thirds of the sections below would be asserting against an empty app.
+   The fixture is a snapshot taken at the moment of deletion; it does not need to track production,
+   because nothing here checks a price against the real world. */
+window.localStorage.setItem('cafeDB_overrides',
+  require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'base-products.json'), 'utf8'));
 
 console.log('\n[1] app.js loads against the real markup');
 let loaded = false, loadErr = null;
@@ -118,8 +128,13 @@ ok('backup has all seven groups', ['products','kitchen_ingredients','plates','me
 // v106: present-but-empty is the failure this batch exists to prevent, so assert POPULATED, not just present
 ok('cold boot: ing_price_log is populated (no sync ran)', !!(backup.ing_price_log && backup.ing_price_log.P0001 && backup.ing_price_log.P0001.length === 2), JSON.stringify(backup.ing_price_log));
 ok('cold boot: supplier_mem is populated (no sync ran)', !!(backup.supplier_mem && backup.supplier_mem.SMOKE1 && backup.supplier_mem.SMOKE1.phrase_norm === 'smoke test phrase'), JSON.stringify(backup.supplier_mem));
-ok('stamp names the build the file is a delta against', !!(backup.stamp && backup.stamp.app_version === swVer && /^[0-9a-f]{8}$/.test(backup.stamp.base_products_hash)), JSON.stringify(backup.stamp));
-ok('stamp counts the REAL BASE_PRODUCTS literal', backup.stamp.base_products_count === 393, String(backup.stamp && backup.stamp.base_products_count));
+/* v108 (D2): the export is a COMPLETE SNAPSHOT, so the two base_products_* fields are gone with the
+   literal they fingerprinted. Asserting they are ABSENT rather than null is the point — a null hash
+   compares equal to a null hash, which would read as a matching build. */
+ok('stamp declares format 2 and names the build', !!(backup.stamp && backup.stamp.format === 2 && backup.stamp.app_version === swVer), JSON.stringify(backup.stamp));
+ok('the retired fingerprint fields are absent, not null',
+   !('base_products_hash' in backup.stamp) && !('base_products_count' in backup.stamp), JSON.stringify(backup.stamp));
+ok('cold boot: products come from the local cache, not a literal', Object.keys(backup.products || {}).length === 393, String(Object.keys(backup.products || {}).length));
 window.document.createElement = origCreate;
 
 console.log('\n[5] item 6 — clear cache is blocked offline');

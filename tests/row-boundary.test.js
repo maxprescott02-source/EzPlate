@@ -209,12 +209,24 @@ test('rowToIngredient treats a missing is_food as true, matching ingredientToRow
   assert.strictEqual(B.rowToIngredient({ id: 'X', description: 'd', is_food: false }).is_food, false);
 });
 
-test('ingredientToRow derives is_custom from BASE_IDS, and rowToIngredient does not echo it back', () => {
-  assert.strictEqual(B.ingredientToRow({ id: 'P0001', description: 'd' }).is_custom, false, 'a base id is not custom');
-  assert.strictEqual(B.ingredientToRow({ id: 'CX99', description: 'd' }).is_custom, true, 'a CX id is custom');
-  // is_custom is a SERVER-side classification derived on write; carrying it back into the model would
-  // give it two sources of truth, which is the whole disease v108 is treating.
-  assert.ok(!('is_custom' in B.rowToIngredient({ id: 'P0001', description: 'd', is_custom: false })));
+/* v108 phase 2 REPLACED this pin. It used to assert that ingredientToRow derived is_custom from
+   BASE_IDS and that rowToIngredient did NOT carry it back. Both halves died with the literal:
+   there is no BASE_IDS to derive from, so the flag can only survive by round-tripping. It is the
+   only remaining record of which rows the user made, and nothing renders it. */
+test('is_custom round-trips unchanged now that BASE_IDS is gone', () => {
+  const baseRow = { id: 'P0001', description: 'Apple Pie', is_custom: false };
+  assert.strictEqual(B.rowToIngredient(baseRow).is_custom, false);
+  assert.strictEqual(B.ingredientToRow(B.rowToIngredient(baseRow)).is_custom, false,
+    'a base product must not be relabelled custom by a read/write cycle');
+
+  const customRow = { id: 'CX99', description: 'Mine', is_custom: true };
+  assert.strictEqual(B.ingredientToRow(B.rowToIngredient(customRow)).is_custom, true);
+});
+
+test('a product the app is CREATING defaults to custom', () => {
+  // newProductRecord output has no is_custom — it has never been to the server. Defaulting the other
+  // way would file a user's own product as part of the built-in catalogue.
+  assert.strictEqual(B.ingredientToRow({ id: 'CXnew', description: 'Just made' }).is_custom, true);
 });
 
 test('plates and menus cross with no case change at all', () => {
