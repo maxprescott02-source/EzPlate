@@ -2,8 +2,18 @@
 
 You are working on **EzPlate**, a plate/menu-costing PWA for a real café
 ("Scoopy's Family Cafe"). The owner is **Max** — hospitality background, new to
-coding and to git. Real staff use this app on real phones every day, and price
-data drives real menu decisions. Broken deploys cost money. Work accordingly.
+coding and to git. Price data drives real menu decisions, so a broken deploy
+costs money. Work accordingly.
+
+**Who actually uses it, corrected 1 Aug 2026 (Max).** ONE intermittent user, not
+staff on real phones mid-service. **Gaps of a week between uses are normal.**
+This file said the opposite for months and it produced at least one wrong
+recommendation, because the two readings pull opposite ways: "daily, mid-service,
+on the pass" argues for tolerating anything rather than blocking, and for
+optimising the seconds. One occasional user on mobile data can wait for a fetch,
+and would rather be told a thing did not save than discover it next week. **When
+a design call turns on how often the app is opened, this is the answer.** What
+does NOT change: the data is real and irreplaceable, and there is no restore.
 
 ## What the app does
 
@@ -182,18 +192,35 @@ single most important thing to reopen before EzPlate is used by anyone else.
    Any importer must translate through `dbPushMenu`'s mapping, never assume the
    file matches the table. This is exactly the class this file exists for: code
    that looks correct and is not.
-9. **The export is a DELTA against `BASE_PRODUCTS`, and carries a stamp saying
-   which one** (v106). Only edited/custom products are in `products` — on Max's
-   1 Aug export, 118 overrides (98 edited base rows + 20 custom) out of 412 live
-   products; the other 295 come from the literal in whatever build restores.
-   (The arithmetic: 393 base rows − 98 edited = **295 untouched**; 295 + 98 + 20
-   custom − **1 deleted** (`deleted_prod_ids`) = 412 live. The deleted row is why
-   412 − 118 doesn't land on 295 directly.)
+9. **The export's `products` group mirrors the `ingredients` TABLE — not "the
+   user's edits" — so how complete it is depends on the DATABASE, and it has
+   already changed once. A restore MUST detect which shape it is holding.**
+   (v106; rewritten 1 Aug 2026 after the v108 backfill.)
+   The chain is `bootstrapSync` → `overrides` → `buildBackup`. Line
+   `js/app.js:107` replaces `overrides` **wholesale** with every row read from
+   `ingredients`, and `buildBackup` dumps `overrides` verbatim. So `overrides`
+   means "what the table held at last sync", and the export inherits that.
+   `rebuild()` (app.js:222) then layers it over `BASE_PRODUCTS` and subtracts
+   `deleted_prod_ids` (which the export does carry, under `settings`).
+   **Two shapes exist in the wild. Do not assume either:**
+   - **DELTA** — any export taken before the v108 backfill. Max's 1 Aug file is
+     118 of 412 products (98 edited base + 20 custom); the other 295 come from
+     the literal in whatever build restores. **The stamp must match or the
+     restore must refuse** — proceeding silently gives those 295 the restoring
+     build's prices, in a costing app.
+   - **FULL** — any export taken after Max's next online boot. The backfill put
+     all 393 base rows in the table, so `overrides` becomes all 412 and the
+     literal is never consulted. The stamp is then provenance, not a dependency.
+   **The test is per-id, not a count:** if every `BASE_PRODUCTS` id appears in
+   `products`, the literal is unused; if ANY is absent, the file leans on the
+   literal for that id and the stamp governs. Compare the stamp either way —
+   it is one string and it records which build wrote the file.
    `stamp.base_products_count` + `stamp.base_products_hash` (FNV-1a over the
-   serialised literal) identify that build. **A restore path MUST compare the
-   stamp and refuse on mismatch** — proceeding gives those 295 products the
-   restoring build's prices, silently. Any change to `BASE_PRODUCTS` moves the
-   hash by design; that is the feature, not a break.
+   serialised literal) identify that build; any change to `BASE_PRODUCTS` moves
+   the hash by design — that is the feature, not a break.
+   **The general law, which is why this rule is here:** a backup that dumps live
+   in-memory objects inherits every assumption those objects carry. Change what
+   fills them and you have changed the file format without touching the exporter.
 
 ## Cache-version discipline (six spots — easy to get wrong)
 
@@ -375,6 +402,39 @@ history belongs in `handovers/`, nowhere else.
   agree at v107 on the branch. Local `main` goes stale between sessions (Max
   merges via GitHub PR) — **`git fetch` and check `origin/main` first**
   ([[verify-origin-main-before-trusting-local]]).
+- **⚠️ THE FOUR v108 MIGRATIONS ARE APPLIED TO PRODUCTION (1 Aug 2026) — the
+  DATABASE IS AHEAD OF THE CODE.** The online-only data layer has its server
+  side already in place while `js/app.js` is still v107. All four verified, not
+  assumed:
+  - `20260801_ing_price_history.sql` — **was already applied** before this
+    session (table + RLS + both policies + grants + sequence usage all present).
+  - `20260801_ing_price_log_seed.sql` — 33 points / 33 products, 15 Jul window.
+  - `20260801_base_products_backfill.sql` — `ingredients` went 120 → 413 rows.
+    **It is no longer a delta layer: all 393 base products are now server rows.**
+    `on conflict (id) do nothing` held (P0007 still carries Max's 0.00305, not
+    the literal's 0.00333, with its 31 Jul timestamp intact). Corruption was
+    ruled out by md5 over all 293 inserted rows × 14 columns, computed
+    independently in node and in Postgres — `2e197f265b978525f2f2df3ce85a3380`
+    both sides. Stamp re-checked as 393 / `be5e0fbe` first, so the file was
+    not stale.
+  - `20260801_drop_tombstoned_rows.sql` — `DELETE 1` (`Umrzbztwn`,
+    "ZZTEST Olive Oil"). **Products are 412**, the live count. The two
+    `app_settings` tombstone rows are deliberately left in place.
+  **v107 keeps working unchanged**: `bootstrapSync` reads the new rows into
+  `overrides` and `rebuild()` merges them over `BASE_PRODUCTS` value-for-value.
+  The ONE place that is not literally identical: the 8 rows whose `base_unit`
+  was coerced to null (the table's CHECK rejects the literal's `unknown`/`dim`)
+  now merge `null` over those values. Behaviour-neutral — nothing reads either
+  value and all 8 carry a null cost — but don't be surprised by it.
+- **⚠️ `ing_price_history` IS SEEDED BUT STALE BY AT LEAST TWO POINTS.** The
+  seed was generated from the 31 Jul **21:45Z** export; Max then edited
+  **P0007** and **P0267** at **23:07Z**, after it. Both `logIngPrice` call
+  sites (invoice apply at app.js:5462, builder hand-edit at app.js:426) write a
+  point, and P0007 moved 0.00333 → 0.00305, so points exist. **They live only
+  in `localStorage.cafeDB_ingPriceLog` on Max's phone, and the online-only
+  batch stops reading that key.** Regenerate the seed from a fresh export and
+  re-run before that batch ships — it is idempotent on
+  `(product_id, recorded_at)`, so a re-run adds only what is missing.
 - **v107 (supplier detection + the supplier-memory sync guard):** two real
   faults the v106 backup audit exposed once supplier memory was finally IN the
   export and could be read.
@@ -580,24 +640,23 @@ history belongs in `handovers/`, nowhere else.
   session starves it into phantom timeouts; and **check the machine before
   diagnosing the code**: a degraded host produced 13 boot timeouts in files a
   CSS batch never touched (v98 triage), all green on the recovered rerun.
-- **Supabase (verified against prod 28–30 Jul 2026):** every table the app
-  queries exists with every migrated column. **⚠️ ONE REAL FAULT:
-  `menu_price_history` has RLS enabled and NO policies** — inserts 42501.
-  The fix file `supabase/migrations/20260728_menu_price_history_rls.sql` is
-  merged, but **whether Max has RUN it in the SQL editor is still UNKNOWN and
-  cannot be determined through the anon key** (RLS-with-no-policy and
-  never-written are indistinguishable over PostgREST; the writer has never
-  fired in production — see next bullet). Definitive check, SQL editor only:
-  `select policyname, cmd from pg_policies where schemaname='public' and
-  tablename='menu_price_history';` — two rows = applied. Do NOT test by
-  inserting (no DELETE policy — a sentinel row would be permanent).
-  The `bootstrapSync` support probe tests EXISTENCE, not USABILITY
-  ([[supabase-schema-can-lag-app-code]]).
-- **Per-menu history has NOT started accumulating.** Verified 30 Jul:
-  `price_history` newest point 25 Jul (pre-v89), `menu_id` null on all 32
-  rows, `menu_price_history` 0 rows — `logHistory()` has not fired in
-  production since 25 Jul. It starts when Max next edits a price, applies an
-  invoice or saves a plate. Check the counts, don't assume time has passed.
+- **Supabase (verified against prod 1 Aug 2026, through the MCP server —
+  which reads `pg_policies` directly, so these are now FACTS, not inferences):**
+  every table the app queries exists with every migrated column.
+  **✅ The `menu_price_history` RLS fault is FIXED and CONFIRMED.**
+  `20260728_menu_price_history_rls.sql` HAS been run: two policies present, and
+  the table holds 77 rows (newest 30 Jul), so the writer is firing. This sat as
+  "UNKNOWN, undeterminable through the anon key" from 28 Jul — the anon key
+  genuinely cannot tell RLS-with-no-policy from never-written, but the MCP
+  server can. **Use it for any future "did the migration run?" question**
+  ([[running-supabase-migrations-here]], [[supabase-schema-can-lag-app-code]]).
+  The `bootstrapSync` support probe still tests EXISTENCE, not USABILITY.
+- **Per-menu history HAS started accumulating** (corrected 1 Aug; it had not as
+  of 30 Jul). `price_history` 43 rows, **7 now carry `menu_id`**, newest
+  31 Jul 23:07 — `logHistory()` has fired. `menu_price_history` 77 rows
+  (keyed by `menu_item_id`; it has no `menu_id` column). The menu-aware chart
+  is no longer blocked on an empty table, though 7 points is still thin.
+  Check the counts, don't assume time has passed.
 - **THREE history series, deliberately separate — don't merge:** `priceHistory`
   (all-menus average only), `menuHistory` (same figure per menu, v89),
   `menuPriceLog` (each plate's SELL price, v90). `menuHistory`/`menuPriceLog`
@@ -623,13 +682,19 @@ history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
-0. **Max re-exports a v106 backup and confirms it.** The 1 Aug file
+0. **Max re-exports a v106 backup — now for a SECOND reason, and it is the one
+   with a deadline.** Beyond being the backup the online-only batch runs
+   against, the fresh export is **the only way to recover the two
+   `ing_price_log` points logged on 31 Jul at 23:07** (P0007, P0267), which
+   exist nowhere but his phone; regenerate `20260801_ing_price_log_seed.sql`
+   from it and re-run (idempotent). The 1 Aug file
    (`~/Downloads/ezplate-backup-2026-08-01.json`, v104) predates the stamp and
-   is missing both new datasets — **keep it only as a fallback**. The v106
-   re-export is the backup the online-only batch runs against, and that batch
+   is missing both new datasets — **keep it only as a fallback**. That batch
    makes every pre-v106 file unrestorable (it migrates `BASE_PRODUCTS` into the
    products table and deletes the overrides layer). Confirm the file has all
    seven groups populated and a `stamp` reading `393` / `be5e0fbe`.
+   **Note the DB half of that migration is already done — see the v108
+   migrations bullet above; what remains is the client code.**
 1. **Phone sign-off on v82–v104** — the whole UX propagation sequence is now
    built and NONE of it is device-verified; the per-batch "needs Max's phone"
    lists are the backlog, and this is the top item. v104's sharpest: Products
@@ -649,8 +714,10 @@ history belongs in `handovers/`, nowhere else.
 4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72;
    the v45 button-copy pin — formerly the suite's one standing failure — was
    fixed in v100).
-5. **Menu-aware chart / per-menu comparison** — still blocked on per-menu
-   history, which is EMPTY (see above), not slow.
+5. **Menu-aware chart / per-menu comparison** — **no longer blocked**: per-menu
+   history started accumulating (7 `price_history` rows now carry `menu_id`,
+   was 0 on 30 Jul). Still THIN, so judge whether 7 points is enough to draw
+   honestly before building — the v89 thin-history honesty rule applies.
 6. Optional: purchased-quantity capture for v55 §I — protected-region edit,
    Max's explicit yes first.
 7. Small, each needing a yes: `priceHistory` replaces wholesale on sync;
