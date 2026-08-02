@@ -66,16 +66,16 @@ function buildBackupIn(state) {
   const factory = new Function('S', `
     "use strict";
     var APP_VERSION = S.APP_VERSION;
-    var overrides = S.overrides, kitchenIngredients = S.kitchenIngredients,
+    var productsById = S.productsById, kitchenIngredients = S.kitchenIngredients,
         savedPlates = S.savedPlates, customMenu = S.customMenu,
         ingPriceLog = S.ingPriceLog, supplierMem = S.supplierMem,
         cogsPct = S.cogsPct, gstDefault = S.gstDefault,
         deletedMenuIds = S.deletedMenuIds, deletedProdIds = S.deletedProdIds,
         menusList = S.menusList, currentMenuId = S.currentMenuId;
     var kingWizSkip = S.kingWizSkip;
-    var BASE_PRODUCTS = S.BASE_PRODUCTS;              // the real literal is 393 rows; a stand-in is enough to prove the hash tracks it
-    var _baseProductsFp = null;                       // module-scope memo in app.js; fresh per call here so a mutated fixture is seen
-    ${extractFn(APP, 'baseProductsFingerprint')}
+    /* v108: BASE_PRODUCTS and baseProductsFingerprint are gone from the sandbox because they are gone
+       from the app — the catalogue lives in the ingredients table and the export is a complete
+       snapshot, so there is no literal to fingerprint. See the format-2 tests below. */
     ${extractFn(APP, 'kingWizSkipIds')}
     ${extractFn(APP, 'buildBackup')}
     return buildBackup();
@@ -85,7 +85,7 @@ function buildBackupIn(state) {
 
 const STATE = {
   APP_VERSION: 'v35',
-  overrides: { P0108: { id: 'P0108', cost_per_base_unit: 0.0031 } },
+  productsById: { P0108: { id: 'P0108', cost_per_base_unit: 0.0031 } },
   kitchenIngredients: [{ id: 'K0001', name: 'Chips', pid: 'P0108' }],
   savedPlates: [{ id: 'SP1', name: 'Cod & Chips', lines: [{ kid: 'K0001', qty: 250 }] }],
   customMenu: [{ id: 'M1', section: 'FISH PACKS', name: 'Cod & Chips', price: 16 }],
@@ -112,7 +112,7 @@ test('ITEM 6: the backup serialises to real JSON and carries all seven data grou
 
 test('ITEM 6: the backup carries the actual data, not just the shape', () => {
   const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
-  assert.equal(b.products.P0108.cost_per_base_unit, 0.0031, 'product overrides are the only thing not in BASE_PRODUCTS \u2014 losing them loses every price ever imported');
+  assert.equal(b.products.P0108.cost_per_base_unit, 0.0031, 'product productsById are the only thing not in BASE_PRODUCTS \u2014 losing them loses every price ever imported');
   assert.deepEqual(b.kitchen_ingredients, STATE.kitchenIngredients);
   assert.equal(b.plates[0].lines[0].kid, 'K0001', 'plate lines reference kitchen words by kid');
   assert.equal(b.menu_items[0].price, 16);
@@ -135,37 +135,31 @@ test('v106: the backup carries supplier memory, populated', () => {
     'phrase_norm is what tidySupplierMemMigration rebuilds keys from \u2014 dropping it orphans every taught match');
 });
 
-/* v106: the provenance stamp. The export is a DELTA against BASE_PRODUCTS, so a file with no
-   record of which literal it was taken against cannot be safely restored \u2014 ~275 untouched
-   products would silently take the restoring build's prices. */
-test('v106: the export is stamped with the build it is a delta against', () => {
+/* v108 (decision D2) \u2014 THE THREE v106 FINGERPRINT TESTS ABOVE THIS POINT WERE DELETED, deliberately.
+   They pinned that the export was a DELTA against BASE_PRODUCTS and that the stamp's hash moved
+   whenever the literal drifted. Both premises are gone: there is no literal, and `products` is a
+   complete snapshot, so there is nothing for a restore to agree about. Keeping the fields with a null
+   hash would be actively worse than dropping them \u2014 a naive restore comparison reads null == null as a
+   MATCH, converting the guard into a rubber stamp, which is the exact failure the stamp existed to
+   prevent. What replaces them is the format bump, which is what tells a restore which shape it holds. */
+test('v108: the export declares format 2 and stays self-describing', () => {
   const s = JSON.parse(JSON.stringify(buildBackupIn(STATE))).stamp;
-  assert.ok(s, 'the stamp is the whole point of v106');
-  assert.equal(s.format, 1, 'the file shape is versioned separately from the app');
+  assert.ok(s, 'a file with no stamp cannot be told apart from a format-1 delta');
+  assert.equal(s.format, 2, 'format 2 == complete snapshot; format 1 == delta against a literal');
   assert.equal(s.app_version, 'v35', 'the stamp is self-contained \u2014 a restore reads it without hunting the top level');
-  assert.equal(s.base_products_count, STATE.BASE_PRODUCTS.length);
-  assert.match(s.base_products_hash, /^[0-9a-f]{8}$/, 'eight lowercase hex digits, zero-padded');
 });
 
-test('v106: the fingerprint moves when BASE_PRODUCTS drifts \u2014 including on a same-length edit', () => {
-  const base = buildBackupIn(STATE).stamp;
-
-  const added = buildBackupIn({ ...STATE, BASE_PRODUCTS: [...STATE.BASE_PRODUCTS, { id: 'P0999', description: 'New', cost_per_base_unit: 1 }] }).stamp;
-  assert.notEqual(added.base_products_count, base.base_products_count);
-  assert.notEqual(added.base_products_hash, base.base_products_hash);
-
-  // the case a row count alone cannot catch, and the one that silently rewrites prices
-  const repriced = STATE.BASE_PRODUCTS.map(p => ({ ...p }));
-  repriced[1].cost_per_base_unit = 0.0035;
-  const drifted = buildBackupIn({ ...STATE, BASE_PRODUCTS: repriced }).stamp;
-  assert.equal(drifted.base_products_count, base.base_products_count, 'same number of rows \u2014 a count check would pass this');
-  assert.notEqual(drifted.base_products_hash, base.base_products_hash, 'a price changed; the hash MUST move or the stamp is decorative');
+test('v108: the retired fingerprint fields are ABSENT, not null', () => {
+  const s = JSON.parse(JSON.stringify(buildBackupIn(STATE))).stamp;
+  assert.ok(!('base_products_count' in s), 'a null count invites a restore to compare it and pass');
+  assert.ok(!('base_products_hash' in s), 'null == null would read as a matching build \u2014 the rubber-stamp failure');
 });
 
-test('v106: the fingerprint is stable \u2014 the same literal always hashes the same', () => {
-  assert.equal(buildBackupIn(STATE).stamp.base_products_hash,
-               buildBackupIn(STATE).stamp.base_products_hash,
-               'a restore compares this across sessions and devices; a drifting hash would refuse every valid file');
+test('v108: the export carries EVERY product, not just the edited ones', () => {
+  // The delta/snapshot distinction is the whole reason format moved. `products` is now the catalogue.
+  const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
+  assert.deepEqual(Object.keys(b.products), Object.keys(STATE.productsById),
+    'products mirrors what the app holds \u2014 which, post-v108, is every row from the ingredients table');
 });
 
 test('ITEM 6: the backup carries every setting, including the ones added this version', () => {
@@ -173,8 +167,12 @@ test('ITEM 6: the backup carries every setting, including the ones added this ve
   assert.equal(s.food_cost_target, 38);
   assert.equal(s.gst_default, 'inc');
   assert.deepEqual(s.king_wiz_skips, ['P0005'], 'v35 skips are data — they belong in a backup');
-  assert.deepEqual(s.deleted_menu_ids, ['M9']);
-  assert.deepEqual(s.deleted_prod_ids, ['P0999']);
+  /* v108 (D3): the two tombstone lists are gone from the export because they are gone from the app.
+     They were a second, weaker way of saying "deleted", kept alive by a hardcoded base layer that
+     re-added rows and by a heal that re-pushed them. Both are deleted, so a deleted row is simply
+     absent — one meaning, no third category. */
+  assert.ok(!('deleted_menu_ids' in s), 'a tombstone list in a backup would restore rows as hidden-but-present');
+  assert.ok(!('deleted_prod_ids' in s), 'same — the export must not carry a concept the app no longer has');
   assert.equal(s.current_menu_id, 'MENU_ORIGINAL');
 });
 
@@ -199,12 +197,15 @@ function cogsHarness() {
   return { api: factory(writes, store), writes, store };
 }
 
-test('ITEM 6: editing the target in Settings writes one setting + the localStorage mirror', () => {
+/* v108: the "+ localStorage mirror" half of this pin is gone. The target is a SETTING, not a view
+   preference, so it lives in app_settings and arrives with the rest of the boot batch. A local mirror
+   would be a second copy of a number that drives every suggested price, with no way to tell its age. */
+test('ITEM 6: editing the target in Settings writes exactly one setting, and no local copy', () => {
   const { api, writes, store } = cogsHarness();
   api.setCogs(32, true);
   assert.equal(writes.length, 1, 'one dbSetSetting write, per the house rule');
   assert.deepEqual(writes[0], { key: 'food_cost_target', value: 32 });
-  assert.equal(store['cafeDB_cogsPct'], '32', 'mirrored locally');
+  assert.ok(!('cafeDB_cogsPct' in store), 'the target must not be mirrored locally any more');
 });
 
 test('ITEM 6: a target set in Settings reaches the MATHS, not just the label', () => {

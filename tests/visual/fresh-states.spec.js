@@ -11,6 +11,7 @@
  * Run: npm run shots  (writes to tests/visual/__shots__/)
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
@@ -31,7 +32,7 @@ async function openFreshBuilder(page) {
 for (const tab of ['pantry', 'ingredients', 'builder']) {
   test(`fresh ${tab} header @ mobile`, async ({ page }) => {
     await page.setViewportSize({ width: 380, height: 780 });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.locator(`.navbtn[data-tab="${tab}"]`).click();
@@ -43,7 +44,7 @@ for (const tab of ['pantry', 'ingredients', 'builder']) {
 
 test('v44 item 8: builder lines render as name row + costs row @ 380px', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await openFreshBuilder(page);
@@ -90,7 +91,7 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
 
 test('v44 items 1+3: unified pack control (both moods) + pills on the title baseline', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => {
@@ -127,7 +128,7 @@ test('v44 items 1+3: unified pack control (both moods) + pills on the title base
 
 test('v44 item 6b: tapping an ingredient card opens Edit; Remove lives in the modal and confirms on top', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   // seed one kitchen word against a base product, then paint the pantry
@@ -156,7 +157,7 @@ test('v44 item 6b: tapping an ingredient card opens Edit; Remove lives in the mo
 test('v44 dark theme: builder lines + pack control still read correctly', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 900 });
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'dark'); });
@@ -186,7 +187,7 @@ test('v44 dark theme: builder lines + pack control still read correctly', async 
 
 test('v44 item 6: a confirm dialog stacks ABOVE the Settings panel', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => {
@@ -222,7 +223,7 @@ document.getElementById('invModal').classList.add('open');`;
 for (const size of SIZES) {
   test(`v45 item 1: pack control ${size.name} — ${size.name === 'desktop' ? 'one line' : 'two centred lines'} + preview line beneath`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.evaluate(V45_INV_ROWS);
@@ -258,7 +259,7 @@ for (const size of SIZES) {
 
 test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient plate', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await openFreshBuilder(page);
@@ -312,7 +313,7 @@ test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient 
 
 test('v45 item 3: Ingredients header order — title, divider, buttons, strapline', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="pantry"]').click();
@@ -333,7 +334,7 @@ test('v45 item 3: Ingredients header order — title, divider, buttons, straplin
 
 test('v45 item 4: button copy at both breakpoints', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="ingredients"]').click();
@@ -374,7 +375,7 @@ document.getElementById('invModal').classList.add('open');`;
 for (const size of SIZES) {
   test(`v46 item 3: ingredient cards share the Products grid @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.evaluate(() => {
@@ -408,7 +409,7 @@ for (const size of SIZES) {
 
   test(`v46 item 5: flag pill centres on the title line @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.evaluate(V46_INV_ROWS);
@@ -445,7 +446,7 @@ for (const size of SIZES) {
 
   test(`v46 item 6: builder dots sit on the shared text baseline @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await openFreshBuilder(page);
@@ -486,7 +487,7 @@ for (const size of SIZES) {
 
 test('v46 items 1+4: strapline inline on desktop; target line labels itself (no pill, big number stays)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="pantry"]').click();
@@ -534,7 +535,7 @@ const V47_SEED = `(() => {
 for (const size of SIZES) {
   test(`v47: chart statics — smooth curve, dotted fill, real axes, sparse/dense dots @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.evaluate(V47_SEED);
@@ -626,7 +627,7 @@ for (const size of SIZES) {
 
   test(`v47: scrubbing — crosshair, curve-riding dot, snapping tooltip, dim-ahead, rest @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.evaluate(V47_SEED);
@@ -702,7 +703,7 @@ for (const size of SIZES) {
 
 test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="dashboard"]').click();
@@ -755,7 +756,7 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
 
 test('v48: NON-ROUND target (32%) still lands exactly on a labelled tick — the unlabelled-line guarantee', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => {
@@ -787,7 +788,7 @@ test('v48: NON-ROUND target (32%) still lands exactly on a labelled tick — the
 
 test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => {
@@ -840,7 +841,7 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
 for (const size of SIZES) {
   test(`v52: menu header structure — skeleton order, one left edge, target line intact @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.locator('.navbtn[data-tab="analysis"]').click();
@@ -874,7 +875,7 @@ for (const size of SIZES) {
 for (const size of SIZES) {
   test(`fresh analysis empty state @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort()); // offline: no Supabase, no CDN
+    await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.locator('.navbtn[data-tab="analysis"]').click();

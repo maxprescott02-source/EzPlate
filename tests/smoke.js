@@ -42,12 +42,36 @@ window.URL.revokeObjectURL = () => {};
    loaded from localStorage and synced NOTHING. If either var were hydrated lazily or post-sync,
    these come back empty and the file would look complete while being empty. The supplier name
    is deliberately one no fixture uses, so seeding can't perturb the invoice sections. */
-window.localStorage.setItem('cafeDB_ingPriceLog', JSON.stringify({ P0001: [{ t: 1750000000000, v: 0.0241 }, { t: 1751000000000, v: 0.02478 }] }));
-window.localStorage.setItem('cafeDB_supplierMem', JSON.stringify({ SMOKE1: { id: 'SMOKE1', supplier: 'ZZ Smoke Supplier', phrase_norm: 'smoke test phrase', qty: 2.5, unit: 'kg' } }));
+/* v108: the cafeDB_ingPriceLog seed is GONE. The per-product price log moved to ing_price_history,
+   so seeding that key would be seeding a store nothing reads — and it would mask the very thing the
+   pins below now check, which is that the local mirror no longer exists. */
+/* v108: the cafeDB_supplierMem seed is gone too — same reason as cafeDB_ingPriceLog. Seeding a store
+   nothing reads would mask the very thing the cold-boot pin below now checks. */
+/* v108: the products this file exercises came from the BASE_PRODUCTS literal until phase 2 deleted it,
+   then briefly from a localStorage seed until phase 5b deleted THAT read too. Both are gone on purpose:
+   the catalogue lives in `ingredients` and arrives with bootstrapSync.
+   smoke runs with no SUPA_URL and asserts synchronously, so it cannot await a fetch. `hydrate()` below
+   therefore injects exactly what bootstrapSync would have delivered, straight into the module globals,
+   and calls the same rebuild the real path calls. That keeps this file testing what it is for — DOM
+   wiring and rendering — without pretending localStorage is still a data store. */
+const FIXTURE_PRODUCTS = fs.readFileSync(path.join(__dirname, 'fixtures', 'base-products.json'), 'utf8');
+/* The hydrate has to be APPENDED TO app.js AND EVALUATED WITH IT, not run as a second eval.
+   `productsById` / `savedPlates` / `customMenu` are top-level `let`s, i.e. global LEXICAL bindings, and
+   jsdom gives every window.eval() call its own lexical environment — so `w.productsById = x` silently
+   creates an unrelated window property and a later `w.eval('productsById = x')` cannot see the real
+   binding either. (The same trap is recorded against `byId` further down this file, from v91.)
+   Concatenating puts the assignment in the same scope as the declaration, which is the only thing that
+   reaches it. */
+const HYDRATE = '\n;productsById = ' + FIXTURE_PRODUCTS + ';\nrebuild();\n'
+  /* v108: a menu too. The module-scope ensureDefaultMenu() call is gone — an empty menus TABLE
+     is a legitimate zero-menu state and must not be re-seeded, so only bootstrapSync may decide
+     to seed, and only when the table did not answer. smoke has no server, so it supplies what a
+     loaded app would hold. */
+  + ";menusList = [{id:'MENU_ORIGINAL',name:'Original menu',season:null}];\n";
 
 console.log('\n[1] app.js loads against the real markup');
 let loaded = false, loadErr = null;
-try { window.eval(appJs); loaded = true; }
+try { window.eval(appJs + HYDRATE); loaded = true; }
 catch (e) { loadErr = e; }
 ok('app.js runs to completion with no thrown error', loaded, loadErr && (loadErr.message + '\n        ' + String(loadErr.stack).split('\n')[1]));
 if (!loaded) { console.log('\nsmoke: aborting — nothing else can be trusted.\n'); process.exit(1); }
@@ -116,10 +140,27 @@ ok('clicking Export produces a dated .json download', /^ezplate-backup-\d{4}-\d{
 const backup = window.buildBackup();
 ok('backup has all seven groups', ['products','kitchen_ingredients','plates','menu_items','ing_price_log','supplier_mem','settings'].every(k => k in backup));
 // v106: present-but-empty is the failure this batch exists to prevent, so assert POPULATED, not just present
-ok('cold boot: ing_price_log is populated (no sync ran)', !!(backup.ing_price_log && backup.ing_price_log.P0001 && backup.ing_price_log.P0001.length === 2), JSON.stringify(backup.ing_price_log));
-ok('cold boot: supplier_mem is populated (no sync ran)', !!(backup.supplier_mem && backup.supplier_mem.SMOKE1 && backup.supplier_mem.SMOKE1.phrase_norm === 'smoke test phrase'), JSON.stringify(backup.supplier_mem));
-ok('stamp names the build the file is a delta against', !!(backup.stamp && backup.stamp.app_version === swVer && /^[0-9a-f]{8}$/.test(backup.stamp.base_products_hash)), JSON.stringify(backup.stamp));
-ok('stamp counts the REAL BASE_PRODUCTS literal', backup.stamp.base_products_count === 393, String(backup.stamp && backup.stamp.base_products_count));
+/* v108: this pin INVERTED, and the inversion is the point. It used to assert the log survived a cold
+   boot from localStorage, because ing_price_log was the one dataset with NO server table — the export
+   was the only second copy that could exist. It has a table now (ing_price_history), so on a cold boot
+   with no sync there is correctly NOTHING: the log is server data, and an export taken before the data
+   loads should say so rather than hand back a stale local copy dressed as current. */
+ok('cold boot: ing_price_log is EMPTY — it is server data now, not a local store',
+   !!backup.ing_price_log && Object.keys(backup.ing_price_log).length === 0, JSON.stringify(backup.ing_price_log));
+/* v108: inverted for the same reason as ing_price_log above. supplier memory lives in
+   supplier_phrases and arrives with the boot batch; a cold boot with no sync correctly holds none.
+   The v107 guard that an EMPTY SERVER READ must not wipe a populated memory is unaffected and still
+   pinned, properly, in smem-sync-guard.test.js — that is about a read that RETURNED, not about a
+   boot that has not happened yet. */
+ok('cold boot: supplier_mem is EMPTY — it is server data now, not a local store',
+   !!backup.supplier_mem && Object.keys(backup.supplier_mem).length === 0, JSON.stringify(backup.supplier_mem));
+/* v108 (D2): the export is a COMPLETE SNAPSHOT, so the two base_products_* fields are gone with the
+   literal they fingerprinted. Asserting they are ABSENT rather than null is the point — a null hash
+   compares equal to a null hash, which would read as a matching build. */
+ok('stamp declares format 2 and names the build', !!(backup.stamp && backup.stamp.format === 2 && backup.stamp.app_version === swVer), JSON.stringify(backup.stamp));
+ok('the retired fingerprint fields are absent, not null',
+   !('base_products_hash' in backup.stamp) && !('base_products_count' in backup.stamp), JSON.stringify(backup.stamp));
+ok('cold boot: products come from the local cache, not a literal', Object.keys(backup.products || {}).length === 393, String(Object.keys(backup.products || {}).length));
 window.document.createElement = origCreate;
 
 console.log('\n[5] item 6 — clear cache is blocked offline');
@@ -180,14 +221,17 @@ const skipBtn = window.document.querySelector('#kingWiz .kw-skip');
 ok('the wizard renders skippable rows', !!skipBtn);
 if (skipBtn) {
   skipBtn.click();
-  ok('a skip lands in localStorage immediately', (JSON.parse(window.localStorage.getItem('cafeDB_kingWizSkips')) || []).length > 0);
+  /* v108: wizard skips are a SETTING (app_settings.king_wiz_skips), shared across devices, and no
+     longer mirrored locally — so the observable is the in-memory state the push is built from, not a
+     localStorage write that no longer happens. */
+  ok('a skip registers immediately', window.kingWizSkipIds().length > 0, JSON.stringify(window.kingWizSkipIds()));
   ok('the skipped list is reachable', !!window.document.querySelector('#kingWiz .kw-skiptoggle'));
   window.document.querySelector('#kingWiz .kw-skiptoggle').click();
   const unskip = window.document.querySelector('#kingWiz .kw-unskip');
   ok('"show" reveals an Unskip control', !!unskip);
   if (unskip) {
     unskip.click();
-    ok('unskip clears it from storage', (JSON.parse(window.localStorage.getItem('cafeDB_kingWizSkips')) || []).length === 0);
+    ok('unskip clears it', window.kingWizSkipIds().length === 0, JSON.stringify(window.kingWizSkipIds()));
   }
 }
 window.kingWizOpen = false; window.renderKingWizard();
@@ -736,7 +780,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
     w.URL.createObjectURL = () => 'blob:stub';
     w.URL.revokeObjectURL = () => {};
     if (draft) w.localStorage.setItem('cafeDB_plateDraft', JSON.stringify(draft));
-    w.eval(appJs);
+    w.eval(appJs + HYDRATE);
     return w;
   };
   const DRAFT = { lines: [{ uid: 1, kid: 'K1', qty: 3 }], name: 'Half-built Plate', cat: 'Breakfast', loadedPlateId: null, ts: Date.now() };
@@ -924,20 +968,20 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const v4 = logAfter.length ? logAfter[logAfter.length - 1].v : null;
   ok(`[24] …at the committed price in base units (chip reads ${chipTxt.trim()})`,
      v4 != null && Math.abs(v4 - expected4) < 1e-9, `${v4} vs ${expected4}`);
-  ok('[24] …and persists it, so a reload can still see the change',
-     ((JSON.parse(w4.localStorage.getItem('cafeDB_ingPriceLog') || '{}')[pid4] || []).length) === logAfter.length,
-     w4.localStorage.getItem('cafeDB_ingPriceLog'));
+  /* v108: persistence moved to the server, so the assertion moved with it — the point must NOT be
+     written to localStorage any more. Smoke runs with no SUPA_URL, so the push itself cannot land
+     here; what this pins is that the local mirror is genuinely gone rather than quietly still there. */
+  ok('[24] …and does NOT write it to localStorage — the mirror is gone',
+     w4.localStorage.getItem('cafeDB_ingPriceLog') === null,
+     String(w4.localStorage.getItem('cafeDB_ingPriceLog')));
 
   // Re-committing the SAME price is a no-op — the log records changes, not keystrokes. Snapshot the
   // STORED log as well as the in-memory one: a guard that skips the push but still writes would leave
   // the array right and the write budget wrong, and only the stored copy shows it. (CodeRabbit, v91.)
   const steadyMem = JSON.stringify(w4.ingPriceLog[pid4] || []);
-  const steadyLS = w4.localStorage.getItem('cafeDB_ingPriceLog');
   w4.commitPrice(uid4, '7.77');
   ok('[24] re-committing an unchanged price adds no point',
      JSON.stringify(w4.ingPriceLog[pid4] || []) === steadyMem, JSON.stringify(w4.ingPriceLog[pid4] || []));
-  ok('[24] …and does not rewrite the stored log either',
-     w4.localStorage.getItem('cafeDB_ingPriceLog') === steadyLS);
 
   // ------------------------------------------------------------------
   console.log('\n[25] v102 — builderHint empty-state survives the empty-plate early return (CodeRabbit)');

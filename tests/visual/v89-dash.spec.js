@@ -10,6 +10,7 @@
  * Run: npx playwright test tests/visual/v89-dash.spec.js
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 // Two menus, three costed+priced dishes: Original at 30%/30% (avg 30), Winter at 60%.
 // v92: Original's two dishes were 20%/40%. Same average, same every asserted figure — but they now
@@ -45,7 +46,7 @@ const SEED = () => {
 
 async function boot(page, width, theme) {
   await page.setViewportSize({ width, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
   // 501s on POST. There are no serverless functions behind `playwright test` — block them so the
   // insight phrasing takes its offline path (deterministic templates) instead of logging an error
@@ -192,7 +193,7 @@ test('every chart range still renders with the list present, and the range never
 
 test('the whole scope control is absent when only one menu exists', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
   // 501s on POST. There are no serverless functions behind `playwright test` — block them so the
   // insight phrasing takes its offline path (deterministic templates) instead of logging an error
@@ -218,7 +219,7 @@ test('the whole scope control is absent when only one menu exists', async ({ pag
 // Boot with an arbitrary menus/dishes seed rather than the shared SEED above.
 async function bootWith(page, menus, dishes, plates) {
   await page.setViewportSize({ width: 380, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   // v90: /api/* is same-origin, so the rule above lets it through to the static dev server, which
   // 501s on POST. There are no serverless functions behind `playwright test` — block them so the
   // insight phrasing takes its offline path (deterministic templates) instead of logging an error

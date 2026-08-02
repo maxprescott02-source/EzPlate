@@ -29,9 +29,13 @@ const path = require('path');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 
-// the supplier_phrases sync block, verbatim, by its anchors
-const START = "try{ var spr=await SUPA.from('supplier_phrases')";
-const END = "/* supplier_phrases table may not exist yet -> keep local */ }";
+/* the supplier_phrases sync block, verbatim, by its anchors.
+   v108: the block no longer fetches for itself — the read moved into bootstrapSync's single
+   Promise.all, so the block now RECEIVES `spr` instead of awaiting it. The anchors moved with it and
+   the harness below supplies `spr` from the same stub, so what is under test is unchanged: the guard
+   that an empty server read must not wipe a populated local memory. */
+const START = "if(spr && !spr.error && Array.isArray(spr.data)){";
+const END = "/* supplier_phrases table may not exist yet -> keep local */";
 
 function extractBlock() {
   const i = SRC.indexOf(START);
@@ -39,6 +43,22 @@ function extractBlock() {
   const j = SRC.indexOf(END, i);
   if (j < 0) throw new Error('smem-sync-guard: end anchor not found. app.js changed; update this test');
   return SRC.slice(i, j + END.length);
+}
+
+/* v108: the block now maps rows through the shared row boundary instead of an inline object literal,
+   so the sandbox needs the REAL mapper — brace-extracted, never mirrored, or this test would pass
+   against a copy while production used a different one. */
+function extractFn(name) {
+  const sig = `function ${name}(`;
+  const i = SRC.indexOf(sig);
+  if (i < 0) throw new Error(`smem-sync-guard: function not found -> ${name}. app.js changed; update this test`);
+  const start = SRC.indexOf('{', i);
+  let depth = 0;
+  for (let n = start; n < SRC.length; n++) {
+    if (SRC[n] === '{') depth++;
+    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
+  }
+  throw new Error(`smem-sync-guard: unbalanced braces for ${name}`);
 }
 
 /* Run the real block against a stubbed Supabase. Returns the resulting local memory,
@@ -55,6 +75,10 @@ async function syncWith(localMem, serverRows, opts) {
       function saveSupplierMem(){ S.saved.push(JSON.parse(JSON.stringify(supplierMem))); }
       function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
       function invDbg(){}
+      ${extractFn('rowToSupplierPhrase')}
+      /* v108: bootstrapSync now hands the block its already-settled read. Same stub, same values —
+         only the fetch moved out, so the guard below still sees exactly what production gives it. */
+      var spr = await SUPA.from('supplier_phrases').select('*');
       ${extractBlock()}
       return supplierMem;
     })();

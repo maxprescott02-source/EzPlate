@@ -13,6 +13,7 @@
  * Run: npx playwright test tests/visual/v96-menu-select.spec.js
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 const MENUS = [
   { id: 'MENU_ORIGINAL', name: 'Original' },
@@ -59,7 +60,7 @@ const FULL_HISTORY = (() => {
 
 async function boot(page, { width = 380, history = FULL_HISTORY, scope = null } = {}) {
   await page.setViewportSize({ width, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   // same-origin /api/* would reach the static dev server and 501 on POST — block it so the insight
   // phrasing takes its offline template path rather than logging an error that masks a real one.
   await page.route('**/api/**', r => r.abort());

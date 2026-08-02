@@ -192,35 +192,46 @@ single most important thing to reopen before EzPlate is used by anyone else.
    Any importer must translate through `dbPushMenu`'s mapping, never assume the
    file matches the table. This is exactly the class this file exists for: code
    that looks correct and is not.
-9. **The export's `products` group mirrors the `ingredients` TABLE — not "the
-   user's edits" — so how complete it is depends on the DATABASE, and it has
-   already changed once. A restore MUST detect which shape it is holding.**
-   (v106; rewritten 1 Aug 2026 after the v108 backfill.)
-   The chain is `bootstrapSync` → `overrides` → `buildBackup`. Line
-   `js/app.js:107` replaces `overrides` **wholesale** with every row read from
-   `ingredients`, and `buildBackup` dumps `overrides` verbatim. So `overrides`
-   means "what the table held at last sync", and the export inherits that.
-   `rebuild()` (app.js:222) then layers it over `BASE_PRODUCTS` and subtracts
-   `deleted_prod_ids` (which the export does carry, under `settings`).
-   **Two shapes exist in the wild. Do not assume either:**
-   - **DELTA** — any export taken before the v108 backfill. Max's 1 Aug file is
-     118 of 412 products (98 edited base + 20 custom); the other 295 come from
-     the literal in whatever build restores. **The stamp must match or the
-     restore must refuse** — proceeding silently gives those 295 the restoring
-     build's prices, in a costing app.
-   - **FULL** — any export taken after Max's next online boot. The backfill put
-     all 393 base rows in the table, so `overrides` becomes all 412 and the
-     literal is never consulted. The stamp is then provenance, not a dependency.
-   **The test is per-id, not a count:** if every `BASE_PRODUCTS` id appears in
-   `products`, the literal is unused; if ANY is absent, the file leans on the
-   literal for that id and the stamp governs. Compare the stamp either way —
-   it is one string and it records which build wrote the file.
-   `stamp.base_products_count` + `stamp.base_products_hash` (FNV-1a over the
-   serialised literal) identify that build; any change to `BASE_PRODUCTS` moves
-   the hash by design — that is the feature, not a break.
-   **The general law, which is why this rule is here:** a backup that dumps live
-   in-memory objects inherits every assumption those objects carry. Change what
-   fills them and you have changed the file format without touching the exporter.
+9. **The export's `products` group mirrors whatever the app holds in memory — so
+   what the FILE means is decided by the DATA LAYER, not by `buildBackup`. It has
+   changed twice. A restore MUST read `stamp.format` and branch, never assume.**
+   (v106 · rewritten twice, 1 and 2 Aug 2026 — see the law at the end for why
+   this rule keeps moving.)
+   The chain is `bootstrapSync` → `productsById` → `buildBackup`, which dumps
+   that object verbatim. Nobody has ever edited the exporter to change the file's
+   meaning; changing what fills the object was enough, both times.
+
+   **THREE shapes exist in the wild. `stamp.format` is the only safe way to
+   tell them apart:**
+   - **no stamp** — pre-v106. A DELTA against `BASE_PRODUCTS`, with no record of
+     which build. Not safely restorable; treat as reference material only.
+   - **`format: 1`** — v106–v107. Also a delta *if* taken before the 1 Aug
+     backfill (Max's 31 Jul file is 118 of 412 products; the other 295 came from
+     the literal in whatever build restored it, which is what
+     `base_products_count` + `base_products_hash` existed to guard). A format-1
+     file taken AFTER the backfill is already a full snapshot — his 2 Aug export,
+     412 products, is the last and best one.
+   - **`format: 2`** — v108 on. A COMPLETE snapshot. There is no literal, so
+     there is nothing for a restore to agree about, and the two `base_products_*`
+     fields are **absent**. That absence is deliberate: with nothing left to hash
+     they could only be null, and a naive comparison reads `null == null` as a
+     MATCH — turning the guard into a rubber stamp, the exact failure it existed
+     to prevent. `app_version` stays, because a restore will need it when the
+     schema drifts.
+
+   **For a format-1 file the test is per-id, not a count:** if every
+   `BASE_PRODUCTS` id of the restoring build appears in `products`, the literal
+   is unused; if ANY is absent, the file leans on the literal for that id and the
+   stamp must match or the restore must refuse. (`BASE_PRODUCTS` no longer exists
+   in the app, so this check needs the literal recovered from git — commit
+   `aa16387` is the last one that has it.)
+
+   **The general law, which is why this rule is here and why it keeps needing
+   rewriting:** a backup that dumps live in-memory objects inherits every
+   assumption those objects carry. Change what fills them and you have changed
+   the file format without touching the exporter — silently, with the tests still
+   green. Any change to what `bootstrapSync` puts in memory is a change to the
+   backup format, and must bump `stamp.format`.
 
 ## Cache-version discipline (six spots — easy to get wrong)
 
@@ -390,368 +401,131 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 1 Aug 2026 (verify, don't trust)
+## State as of 2 Aug 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
-append. Appending took it 334 → 995 lines in nine days, until 68% of this file
-was history nobody read and "Next up" was fifteen versions stale. Per-batch
-history belongs in `handovers/`, nowhere else.
+append. Per-batch history belongs in `handovers/`, nowhere else.
 
-- **Version: `origin/main` IS v107, and that is what production serves.**
-  Verified 1 Aug 2026 by `git fetch` — PR #46
-  (`fix/supplier-detect-and-sync-guard`) is **merged** at `7bde784`. This file
-  claimed "main is at v106, v107 PR pending" for a day after the merge; it was
-  written while #46 was open and never caught up. **That is the standing failure
-  mode of this bullet** — check `origin/main` yourself, every session
-  ([[verify-origin-main-before-trusting-local]]).
-  Current branch `feature/online-only-data-layer` is **one commit ahead** of
-  `origin/main` (`27e65b6`, docs + SQL only). All six cache spots read v107 on
-  both, correctly: that commit ships no JS/CSS/HTML, and **docs and migrations
-  do not earn a version bump.**
-- **⚠️ "v108" NAMES WORK THAT DOES NOT EXIST YET — do not treat it as a shipped
-  version.** It is the label for the online-only data-layer batch, whose
-  DATABASE half is applied (next bullet) while its CLIENT half is unwritten.
-  The migration filenames and their comments say v108 for that reason. **The
-  next batch to ship JS/CSS/HTML is the one that bumps the six spots to v108**
-  — until then v107 is correct everywhere and bumping would be a lie to the
-  service worker.
-- **⚠️ THE FOUR v108 MIGRATIONS ARE APPLIED TO PRODUCTION (1 Aug 2026) — the
-  DATABASE IS AHEAD OF THE CODE.** The online-only data layer has its server
-  side already in place while `js/app.js` is still v107. All four verified, not
-  assumed:
-  - `20260801_ing_price_history.sql` — **was already applied** before this
-    session (table + RLS + both policies + grants + sequence usage all present).
-  - `20260801_ing_price_log_seed.sql` — 33 points / 33 products, 15 Jul window.
-  - `20260801_base_products_backfill.sql` — `ingredients` went 120 → 413 rows.
-    **It is no longer a delta layer: all 393 base products are now server rows.**
-    `on conflict (id) do nothing` held (P0007 still carries Max's 0.00305, not
-    the literal's 0.00333, with its 31 Jul timestamp intact). Corruption was
-    ruled out by md5 over all 293 inserted rows × 14 columns, computed
-    independently in node and in Postgres — `2e197f265b978525f2f2df3ce85a3380`
-    both sides. Stamp re-checked as 393 / `be5e0fbe` first, so the file was
-    not stale.
-  - `20260801_drop_tombstoned_rows.sql` — `DELETE 1` (`Umrzbztwn`,
-    "ZZTEST Olive Oil"). **Products are 412**, the live count. The two
-    `app_settings` tombstone rows are deliberately left in place.
-  **v107 keeps working unchanged**: `bootstrapSync` reads the new rows into
-  `overrides` and `rebuild()` merges them over `BASE_PRODUCTS` value-for-value.
-  The ONE place that is not literally identical: the 8 rows whose `base_unit`
-  was coerced to null (the table's CHECK rejects the literal's `unknown`/`dim`)
-  now merge `null` over those values. Behaviour-neutral — nothing reads either
-  value and all 8 carry a null cost — but don't be surprised by it.
-- **⚠️ `ing_price_history` IS SEEDED BUT STALE BY AT LEAST TWO POINTS.** The
-  seed was generated from the 31 Jul **21:45Z** export; Max then edited
-  **P0007** and **P0267** at **23:07Z**, after it. Both `logIngPrice` call
-  sites (invoice apply at app.js:5462, builder hand-edit at app.js:426) write a
-  point, and P0007 moved 0.00333 → 0.00305, so points exist. **They live only
-  in `localStorage.cafeDB_ingPriceLog` on Max's phone, and the online-only
-  batch stops reading that key.** Regenerate the seed from a fresh export and
-  re-run before that batch ships — it is idempotent on
-  `(product_id, recorded_at)`, so a re-run adds only what is missing.
-- **v107 (supplier detection + the supplier-memory sync guard):** two real
-  faults the v106 backup audit exposed once supplier memory was finally IN the
-  export and could be read.
-  **(1) `invSupplierDetect` was keying Max's taught packs to `"Document No:"`** —
-  six of seven. TWO defects, proved against his four real Bidfood PDFs, not
-  guessed. The heading is **not** a reliable end-of-letterhead: `extractPdfText`
-  emits `Document No:` / `I…​.SUN` / `TAX INVOICE` / `BIDFOOD SUNSHINE COAST…`,
-  so a header slice that stops at the heading holds only the document number and
-  the one line naming the supplier is unreachable — starving the known-name pass
-  even though **`Bidfood` is a supplier on his own products**. With that pass
-  starved, the fallback guesser returned the bare label, which carries no digits,
-  address word or punctuation any of its skip filters look for. Fix: the
-  **known-name pass gets a window spanning the heading** (it can only match
-  values already in the user's products, so widening cannot invent a supplier —
-  only find one it would have missed), the **guesser keeps the narrow letterhead
-  and gained a field-label skip**. All four real invoices now resolve to
-  `Bidfood`; an unidentified supplier returns **blank**, which is safe because
-  `rememberSupplierPhrase` refuses to store without one.
-  **(2) An empty `supplier_phrases` read wiped local supplier memory.**
-  `Array.isArray([])` is true, so zero rows replaced `supplierMem` with `{}` and
-  saved over it. Zero rows is not proof of zero rows: a successful-but-empty read
-  and an RLS-blocked read are indistinguishable over PostgREST (same ambiguity as
-  `menu_price_history`). Now: empty server + non-empty local → **keep local and
-  re-push** so the server heals. **Accepted trade (Max's call, 1 Aug 2026): deleting
-  your LAST remaining phrase no longer propagates across devices** — server-wins
-  is otherwise unchanged, and a stale entry costs one Remove where losing every
-  taught pack costs a re-teach each.
-  **The six `"Document No:"` entries orphan by design and were NOT migrated** —
-  the app cannot know retroactively which supplier they came from, and a taught
-  pack is user-confirmed ground truth (the v71 read-only rule). The cost is one
-  entry: four of the six are also stored as **product packs**, which OUTRANK
-  supplier memory in the precedence chain, and a fifth is a contradictory
-  duplicate for the same cheese product that is better lost. Max clears them in
-  Settings → Remembered items; one Bidfood import re-teaches. See
-  `HANDOVER-v107.md`.
-- **v106 (the backup export completed):** `buildBackup` gained the two datasets
-  it silently dropped — **`ing_price_log`** (`cafeDB_ingPriceLog`: NO server
-  table exists, so the export is the only second copy that can exist; it feeds
-  `ingPriceAt` → historical plate costs → the movers card and insight family 1)
-  and **`supplier_mem`** (`cafeDB_supplierMem`; it does have `supplier_phrases`,
-  included because a backup is for the case where both copies go). Seven groups
-  now, not five. **New: the provenance `stamp`** — `format`, `app_version`,
-  `base_products_count` (393), `base_products_hash` (FNV-1a over the serialised
-  literal, currently `be5e0fbe`) — see hard rule 9 for why a count alone is not
-  enough and what a restore must do with it. **Both datasets verified populated
-  from a genuine COLD BOOT** (smoke section [4] seeds localStorage before
-  `app.js` runs and has no `SUPA_URL`, so `bootstrapSync` never fires) — the
-  audit's "already in memory" claim was checked against the hydration order, not
-  taken forward: both are plain `var`s initialised synchronously at module scope
-  (app.js:991, app.js:1227) and `buildBackup` only ever runs from a click.
-  **Lemon (`Umr9ypwaf`) `pack_qty:0` was diagnosed and is INERT, not a bug** —
-  all four `pack_qty` read sites guard `pack_qty>0 && pack_unit`, and plate
-  costing reads `cost_per_base_unit` (0.0056667 = $85 ÷ 15 kg, correct); its one
-  plate, "Cod & Chips" at 20 g, costs $0.113 correctly. `0` and `null` behave
-  identically; 113 of 118 overrides already carry `null`. Nothing was changed.
-  **The restore importer is deliberately NOT built** — it must target the
-  post-online-only data shape, not the localStorage shape that batch deletes.
-  See `HANDOVER-v106.md`.
-- **v105 (chore):** Settings → About's literal `Privacy — TODO(Max)`
-  placeholder replaced with the true one-liner (on-device + synced database;
-  the two optional AI features send invoice text / plate names to Gemini).
-  NOT a privacy policy — the privacy gate above stands unchanged for
-  multi-tenant. Surfaced by the post-sequence flow-tester pass (which found
-  NO defects and NO guidance gaps from the v99–v104 cull — 10/10 flows).
-  See `HANDOVER-v105.md`.
-- **v104 (batch 5 — Products; THE SEQUENCE IS COMPLETE):** the invoice-area
-  cull — `#invIntro` 37w → 13w, the CSV hint 18w → 7w (the format example
-  lives in the textarea's `placeholder`), the pack-size sub-label to its
-  example alone, and `renderInvReview`'s save hint to "Only ticked rows are
-  saved." (text-only; no markup/class/order change — `inv-rowmarkup.test.js`
-  pins those). **The invoice region's KEEPs are deliberate** — GST honesty,
-  `.pt-explain`, the flag/chip/AI vocabulary, the pinned "the name you'll use
-  when building plates". **v102's `#plateList`-scoped card values are PROMOTED
-  to base** (8px seam, `--radius-card`, on-scale ≥1024 padding); the scoped
-  block is deleted and Plates' computed values are unchanged (verified, not
-  assumed). Invoice flow joins the v98 two-mode elevation (`--elev` on
-  `.ni-panel` ×2, the `.invtable` row card, `.import-summary`) and the ≥640
-  `.invtable` row drops its `--surface2` card-in-card fill — but **`.ni-raw`
-  KEEPS `--surface2` on purpose**: it is a semantic inset well for raw
-  supplier text, not a card. See `HANDOVER-v104.md`.
-- **v102 (batch 3 — Plates):** strapline + default `#builderHint` cut (the
-  ELEMENT stays — the no-ingredients empty state renders into it, JS hides it
-  otherwise); docket + manage-menus lines compressed. Its rendering changes to
-  the SHARED `.ing-list`/`.ing-card` were `#plateList`-scoped (8px seam,
-  `--radius-card`); **v104 promoted them to base and deleted the scoped
-  block — done, nothing owed here.** The `.ing-tag` system-dark tint gap is
-  fixed at base (media variant added — the v99 latent bug).
-  See `HANDOVER-v102.md`.
-- **v101 (batch 2 — Settings cull, copy-only):** all six help lines + the
-  tidy pair compressed to one voice (`Off = …` for toggle consequences);
-  Account/Team subs cut (titles keep the pinned "arrive with EzPlate
-  accounts" fragment); the smem-modal 35-word preamble CUT — which also
-  killed the literal `’`/`—` escape-sequence bug it shipped.
-  See `HANDOVER-v101.md`.
-- **v100 (batch 1 — Menu):** the tab's prose cull landed (strapline + new-menu
-  hint cut; target meta + add-plate modal compressed — `#ad_menuName` kept as
-  a live anchor); desktop `tr.sec` lost its `--surface2` fill (the last
-  third-tone band outside the dashboard); quiet lowercase `td::before` data
-  labels (UI face — uppercase only on true boundaries); spacing/type/radius on
-  tokens; `.atable-wrap` padding override is `#tab-analysis`-scoped because
-  the INVOICE modal shares that class (the invoice table itself is
-  `class="invtable"` only — the `:not(.invtable)` guards are vestigial).
-  **Viewport allows pinch-zoom again** (`user-scalable=no` AND
-  `maximum-scale=1` removed — the 26 Jul audit item, decided by Max 31 Jul);
-  fixed-chrome-under-zoom is on the phone list. **The v45 button-copy pin is
-  reconciled (`+ Existing plate`) — Playwright is 91/91, fully green for the
-  first time since v72.** See `HANDOVER-v100.md`.
-- **v99 (batch 0.5 — global chrome, CSS-only):** elevation is app-wide now:
-  base `.panel` uses `--elev`, `.bottomnav` uses new token `--elev-nav`,
-  `.ptr-ind` uses `--elev` with new composite-safe `--elev-cast` for the
-  `.ready` ring (`none` is invalid inside a shadow list — don't "simplify" it
-  back). **`.ing-per` is VISIBLE again** — it carries the price basis (per
-  kg/unit/litre) on Products cards and "plate cost"/"not costed yet" on Plates
-  cards; correctness info (the v20 eggs-bug field), never re-hide for density.
-  Dark-mode component overrides MUST be tokens in all three root blocks —
-  `applyThemePref` removes `data-theme` on "system", so bare
-  `[data-theme="dark"] .x` rules miss system-dark (the existing `.ing-tag`
-  override has this latent gap; left for its tab's batch). See
-  `HANDOVER-v99.md`.
-- **The UX propagation sequence is approved (31 Jul, Max's Batch 0 response,
-  `~/Downloads/ezplate-batch0-response.md`; audit
-  `~/Downloads/ezplate-batch0-audit.md`):** 0.5 global chrome → 1 Menu (+ v45
-  pin reconciliation + remove `user-scalable=no`) → 2 Settings → 3 Plates →
-  4 Ingredients → 5 **Products on Opus** (invoice review lives on
-  the PRODUCTS tab — the old brief had it on Ingredients via the naming
-  inversion). **ALL SIX BATCHES ARE BUILT as of v104 — the sequence is
-  COMPLETE, pending phone sign-off; nothing in it remains to implement.**
-  Scope per batch was: approved cuts/compressions, spacing, eyebrows,
-  figure columns, type hierarchy, **card radius to `--radius-card`** (Max
-  added radius to scope). The 16px-edge rule is dashboard-and-mobile-only — do
-  NOT force it onto the tabs' responsive edge scale. Prose cull classifications
-  approved as tabled in the audit doc.
-- **v98 (desktop grid + light-mode surfaces; REVISED same-day by
-  `ezplate-fable-dashboard-grid_1.md` after Max reviewed the build):** desktop
-  dashboard placement has exactly ONE owner — the v98 block at the end of
-  style.css. Row 1 is chart card (7 tracks) | By-menu selector card (5 tracks,
-  absolutely positioned into its grid area; **CONTENT-SIZED, capped at the
-  chart card's floor** — a short list ends at its rows, a long one scrolls
-  inside the card. **An abs-pos grid child needs BOTH lines definite
-  (`grid-row:1/2`); an auto end line falls back to the container's padding
-  edge**). Insights and Dig in are full-width rows: nothing variable ever sits
-  beside anything fixed. The v89 `7fr/5fr` rules, the v49 grid re-declare and
-  both v95 bento bands are DELETED. **The "how today's average compares"
-  block (statCard, vs last week/month/year) is DELETED at every width** —
-  `dashComparisons()` survives whole for the headline (v97 null-propagation
-  still pinned; the deletion itself pinned in `dash-persist.test.js`).
-  One card tone on one page tone in BOTH modes: `.dp-tile` wrappers are
-  chrome-free grouping handles, `.dig-card` is `--surface` + hairline at every
-  width (the beige card-in-card was the light-only bug — pinned by computed
-  style). **Elevation is the two-mode `--elev` token** — `--shadow` in light,
-  `none` in dark (the surface step carries dark depth) — app-wide since v99
-  (was dashboard-only in v98). ONE 8px seam both axes.
-  `.mcmp-pct` is a fixed 6ch right-aligned column so figures + sparklines
-  share axes. **Row selection is ADDITIVE (pinned)** — a "lost" sparkline on a
-  selected row is the v89 thin-history honesty rule, not a bug; menu-row
-  sparks appear as per-menu history accumulates. Sparkle = AI-provenance
-  marker, Gemini-hued; light mode draws `#ezSparkGradDeep`. Empty Dig-in tiles
-  carry `is-empty` and render quieter. See `HANDOVER-v98.md` (including the
-  revision section).
-- **By-menu ranking is WORST-first (highest food cost % leads) since v98 —
-  Max's explicit call (31 Jul), pinned by `dash-scope.test.js`.** It was
-  best-first from v89 to v97; both the Opus selector brief and the Fable grid
-  brief wrongly believed it was already worst-first. Flipped so the scrolling
-  selector card overflows the healthy menus, not the ones needing attention.
-  Tie-break (name, ascending) unchanged. Don't "fix" it back.
-- **v97 (scope persists · stated once · headline stops going stale):**
-  `dashScope` persists via `cafeDB_dashScope` mirroring `dashRange` exactly
-  (localStorage only; validated at render, not at read — `menusList` loads
-  after the module var initialises). Scope is stated ONCE, in the card heading
-  (`.dh-scope`, menu name full-strength).
-  **⚠️ `avgFoodCostForScope` counts PER PUBLICATION, and that is a DECISION.**
-  A plate on three menus contributes three terms. This looks exactly like a
-  double-counting bug; v97 changed it to distinct plates and **Max reverted it
-  on real data before merge** — per-publication keeps the headline a
-  dish-count-weighted blend of the per-menu figures, guaranteed inside the range
-  of the By-menu rows (provided every counted dish has a row; a dish whose
-  `menuId` is not in `menusList` is the known latent exception). Distinct
-  plates made the headline contradict every row under it. **Known, accepted
-  cost: republishing a plate moves the number.** Pinned three ways in
-  `dash-persist.test.js`. **If revisited, the fix is a DESIGN one** — stop
-  presenting All menus as comparable to the rows — never a quiet maths change.
-  See `HANDOVER-v97.md`.
-- **v96:** the By-menu rows are the dashboard's ONLY scope control ("All
-  menus" a real first row; uncosted menus unreachable as a scope — Max's
-  call). Scope drives headline + insights + drill-downs; the comparison block
-  and chart stay all-menus (v89 scope-honesty). **v94** compressed density
-  (chart viewBox H 210→104, gradient fill `#tcarea` replacing the dotted
-  pattern — deliberate reversal, do not restore; per-point dots removed,
-  scrub dot stays; pinned in `fresh-states.spec.js`). v95's bento layout is
-  SUPERSEDED by v98; its surviving pieces are the By-menu sparklines
-  (`mcmpSparkHtml`) and the `.dp-tile` wrappers.
-- **Suite:** `npm test` = **533 green** (v107 added 19: 13 supplier-detect,
-  6 sync-guard), jsdom smoke
-  green (25 sections), `node -c` clean (`js/app.js`, `sw.js`, the four
-  `api/*.js`).
-- **Playwright: 91 tests in `tests/visual/`, ALL GREEN since v100** (the v45
-  button-copy pin was reconciled — treat any failure as REAL now). The 45
-  pre-v89 tests otherwise remain unreconciled since v72 (they pass; their
-  premises just predate v89). Seeds installed with
-  `addInitScript` re-run on every navigation — guard with a one-shot sentinel
-  or reload tests pass for the wrong reason (v97 lesson). Block `/api/*` and
-  off-origin in every spec. **Run the suite alone** — a concurrent browser
-  session starves it into phantom timeouts; and **check the machine before
-  diagnosing the code**: a degraded host produced 13 boot timeouts in files a
-  CSS batch never touched (v98 triage), all green on the recovered rerun.
-- **Supabase (verified against prod 1 Aug 2026, through the MCP server —
-  which reads `pg_policies` directly, so these are now FACTS, not inferences):**
-  every table the app queries exists with every migrated column.
-  **✅ The `menu_price_history` RLS fault is FIXED and CONFIRMED.**
-  `20260728_menu_price_history_rls.sql` HAS been run: two policies present, and
-  the table holds 77 rows (newest 30 Jul), so the writer is firing. This sat as
-  "UNKNOWN, undeterminable through the anon key" from 28 Jul — the anon key
-  genuinely cannot tell RLS-with-no-policy from never-written, but the MCP
-  server can. **Use it for any future "did the migration run?" question**
-  ([[running-supabase-migrations-here]], [[supabase-schema-can-lag-app-code]]).
-  The `bootstrapSync` support probe still tests EXISTENCE, not USABILITY.
-- **Per-menu history HAS started accumulating** (corrected 1 Aug; it had not as
-  of 30 Jul). `price_history` 43 rows, **7 now carry `menu_id`**, newest
-  31 Jul 23:07 — `logHistory()` has fired. `menu_price_history` 77 rows
-  (keyed by `menu_item_id`; it has no `menu_id` column). The menu-aware chart
-  is no longer blocked on an empty table, though 7 points is still thin.
-  Check the counts, don't assume time has passed.
+- **Version: v108 on branch `feature/online-only-client`, six spots agree.**
+  `origin/main` is at **v107** (`aa16387`). **`git fetch` and check
+  `origin/main` yourself every session** — this bullet was a merge stale for a
+  day in v107 ([[verify-origin-main-before-trusting-local]]).
+  `aa16387` is also **the last commit containing the `BASE_PRODUCTS` literal**,
+  which a format-1 restore needs (hard rule 9).
+- **⚠️ v108 IS THE ONLINE-ONLY DATA LAYER. Supabase is the source of truth and
+  localStorage is no longer a data store.** The single largest change to this
+  app's architecture. Read `HANDOVER-v108.md` before touching the data layer.
+  What is now TRUE and was not:
+  - **There is no `BASE_PRODUCTS` and no `BASE_MENU`.** 132 KB of hardcoded
+    catalogue is gone; app.js is 590 KB → ~455 KB. Products come from
+    `ingredients`, dishes from `menu_items`. The base+overrides merge is gone —
+    `productsById` (was `overrides`) holds the whole catalogue, one layer.
+  - **Boot is async and gated.** `bootstrapSync` does ONE `Promise.all` of nine
+    reads (was a 4-query batch plus five sequential awaits: ~915 ms → ~225 ms
+    measured; the two schema probes folded into their real queries). `#bootGate`
+    covers the tabs until data lands. It is NOT the splash — the splash skips a
+    same-session refresh and times out at 3 s, both of which would reveal an
+    empty app. First boot only; a later failure can still surface.
+  - **A failed write is never quiet.** `pushWrite` lost its silent-offline
+    branch and its `null`-that-read-as-success. Offline changes the WORDING, not
+    whether the user is told. **Still no pre-skip on `navigator.onLine`** — v40's
+    lesson, it false-reports in installed PWAs.
+  - **`reconcileLocalOnly` is gone**, with the whole heal-and-re-push idea. Its
+    premise (a local-only row is probably a dropped write) is false now, and
+    against an RLS-empty read it would have resurrected every local row.
+  - **Tombstone lists are gone** (D3). A delete is a real DELETE, guarded by
+    `productRefs` — see below. The two `app_settings` rows are left in the DB
+    deliberately, unread.
+  - **The export is `format: 2`**, a complete snapshot. See hard rule 9.
+- **⚠️ DELETING A PRODUCT NOW REFUSES IF ANYTHING USES IT (D3).** Until v108,
+  `deleted_prod_ids` filtered at RENDER time and the row stayed, so a "delete"
+  could not break a plate that costed from it. **That protection was accidental**
+  and a real DELETE removes it. `productRefs(pid)` checks BOTH live paths —
+  ingredient→pid AND plate-line→pid (of Max's 179 plate lines, 81 take the first
+  and 84 the second, so a guard walking only one misses half) — and the delete
+  refuses, naming what breaks. Don't "simplify" it to one path.
+- **What is still in localStorage, and it is the whole list:** `currentMenuId`
+  (D1 — validated at render, never at read), `dashScope`, `dashRange`,
+  `lastTab`, `plateDraft`, `lastImport`, `insightCache`, the two AI toggles,
+  theme, and two dismissals. **View preferences and derived caches only. If
+  something new resists that classification, ask — there is no third category.**
+- **The `saveX()` functions are deliberate empty no-ops**, each with a comment
+  naming what persistence now is (a server push). ~50 call sites; gutting the
+  bodies is what mattered, collapsing the call sites is safely-reviewable
+  follow-up and four of them are the sole body of an `if`. Not dead code nobody
+  noticed — see the handover.
+- **⚠️ jsdom gives every `window.eval()` its own lexical environment.** Top-level
+  `let`s (`productsById`, `savedPlates`, `customMenu`, `byId`) are unreachable
+  from outside: `w.x = v` makes an unrelated window property and a second
+  `w.eval('x = v')` cannot see the binding either. **Concatenate onto app.js and
+  evaluate together.** Verified, and this has now bitten twice (v91, v108).
+- **Playwright specs no longer abort everything off-origin.** `tests/visual/
+  _boot.js` installs a fake Supabase client before app.js so the REAL boot path
+  runs against fixtures; it serves `ingredients` from
+  `tests/fixtures/base-products.json` and everything else from each spec's own
+  localStorage seed, translated to row shape. **Both times these specs went red
+  this batch, the app was right and the harness assumption had expired** — but
+  the v100 rule stands: treat a failure as real until you have proved otherwise.
+- **Suite:** `npm test` **563 green** · jsdom smoke green · Playwright **94/94**
+  (91 + 3 new boot-gate) · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`).
+- **Supabase (verified 1–2 Aug 2026 through the MCP server, which reads
+  `pg_policies` directly — these are facts, not inferences):** every table the
+  app queries exists. **The `menu_price_history` RLS fault is FIXED and
+  CONFIRMED** (two policies, 77 rows) — open as "undeterminable" from 28 Jul;
+  true of the anon key, not of the MCP. `ing_price_history` exists, RLS on, two
+  policies, seeded with 33 points. **Use the MCP for any future "did the
+  migration run?" question** ([[running-supabase-migrations-here]]).
+- **The four v108 migrations are APPLIED** (see `supabase/migrations/`,
+  1 Aug). `ingredients` 120 → 413 → **412 rows** after the `Umrzbztwn` delete.
+  `list_migrations` is empty — this project has no CLI migration tracking, so
+  the files plus their commit messages ARE the audit trail.
+- **Per-menu history has started:** `price_history` 43 rows, 7 carrying
+  `menu_id` (was 0 on 30 Jul); `menu_price_history` 77 rows. Thin, but no longer
+  empty — check counts, don't assume time has passed.
 - **THREE history series, deliberately separate — don't merge:** `priceHistory`
-  (all-menus average only), `menuHistory` (same figure per menu, v89),
-  `menuPriceLog` (each plate's SELL price, v90). `menuHistory`/`menuPriceLog`
-  share `mergeMenuHistory`. **THREE price-ish logs have DIFFERENT writers —
-  check the writer, not just the reader:** `logHistory()` on every
-  data-changing event; `logIngPrice()` on invoice apply + builder hand-edit
-  (v91); `logAllMenuPrices()` for the sell-price log. Any new "notice X
-  changed" feature: confirm every path that changes X writes the log it reads.
-- **Insights (dashboard only, v90):** must clear `ruleA` (two dimensions or a
-  whole-dataset aggregate); rankings by cost efficiency only — no sales data,
-  nothing may imply profit. **RULE D (v91): every family runs on every render**
-  — no family gated on another's result; all-healthy is what the panel says
-  when the engine came back empty AND nothing is over target. **RULE E (v92):
-  value is declared, the floor is absolute** — `insightScore` against
-  `INSIGHT_VALUE`, `INSIGHT_FLOOR` drops weak candidates BEFORE ranking; a
-  family's emit gate must clear the floor at its weakest accepted input.
-  `tests/insight-coverage.test.js` (v93) drives the REAL pipeline — add a
-  TRIGGER + SILENCE fixture pair whenever a family changes, and mutation-test.
-  Reconstructed history via `ingPriceAt`/`costAtLines`, one reference moment,
-  `priced > 0` required.
+  (all-menus average), `menuHistory` (per menu, v89), `menuPriceLog` (each
+  plate's SELL price, v90). Plus `ingPriceLog` (per PRODUCT cost), which as of
+  v108 finally has its own table. **Four price-ish logs with DIFFERENT writers —
+  check the writer, not just the reader.** `logIngPrice()` fires on invoice
+  apply and builder hand-edit ONLY; **editing a price on the Products tab
+  (`js/app.js` product form) writes no per-product point** — a real gap, found
+  1 Aug, deliberately left for its own batch.
+- **Insights rules A–E and the three-logs rule are unchanged** (v90–v93). Rules
+  D and E probably belong above the snapshot line — still needs Max's yes.
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
   pinned, SRI-checked except the pdf.js worker (hard rule 4).
 
 **Outstanding, in priority order:**
 
-0. **Max re-exports a v106 backup — now for a SECOND reason, and it is the one
-   with a deadline.** Beyond being the backup the online-only batch runs
-   against, the fresh export is **the only way to recover the two
-   `ing_price_log` points logged on 31 Jul at 23:07** (P0007, P0267), which
-   exist nowhere but his phone; regenerate `20260801_ing_price_log_seed.sql`
-   from it and re-run (idempotent). The 1 Aug file
-   (`~/Downloads/ezplate-backup-2026-08-01.json`, v104) predates the stamp and
-   is missing both new datasets — **keep it only as a fallback**. That batch
-   makes every pre-v106 file unrestorable (it migrates `BASE_PRODUCTS` into the
-   products table and deletes the overrides layer). Confirm the file has all
-   seven groups populated and a `stamp` reading `393` / `be5e0fbe`.
-   **Note the DB half of that migration is already done — see the v108
-   migrations bullet above; what remains is the client code.**
-1. **Phone sign-off on v82–v104** — the whole UX propagation sequence is now
-   built and NONE of it is device-verified; the per-batch "needs Max's phone"
-   lists are the backlog, and this is the top item. v104's sharpest: Products
-   cards at the new 8px seam (the app's most-scrolled list), the compressed
-   `#invIntro`, and the invoice modal as the stress case for the carried iOS
-   modal items F1–F4 + the C4–C8 real-PDF invoice items. v98's sharpest: the
-   compares block is GONE on the phone too (delete-don't-relocate — is the
-   vs-last-week line missed in the hand?), dig-tile tappability with only a
-   hairline edge, and the brighter light-mode sparkle. v87's iOS scroll-lock
-   and v90–v92's "so what" test on real insights remain the sharpest carried
-   items.
-2. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
-   v88 (`isEvalSupported:false`), NOT fixed. Needs its own brief.
-3. **The 26 Jul audit's remaining findings**: `pushWrite` drops writes silently
-   offline (v40, still real), the swallowed `price_history` error, staging,
-   dead code, structural fixes.
-4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72;
-   the v45 button-copy pin — formerly the suite's one standing failure — was
-   fixed in v100).
-5. **Menu-aware chart / per-menu comparison** — **no longer blocked**: per-menu
-   history started accumulating (7 `price_history` rows now carry `menu_id`,
-   was 0 on 30 Jul). Still THIN, so judge whether 7 points is enough to draw
-   honestly before building — the v89 thin-history honesty rule applies.
-6. Optional: purchased-quantity capture for v55 §I — protected-region edit,
-   Max's explicit yes first.
-7. Small, each needing a yes: `priceHistory` replaces wholesale on sync;
-   **`.range-btn` is 32px — DEFERRED by Max (31 Jul) as an OPEN accessibility
-   item, not dropped**: the v96 menu-selector rows were held to a 44px floor,
-   so the dashboard now has controls at two different tap standards — resolve
-   in the dashboard's own next pass; the stale v60 target-line comment in
-   `trendChart`; the `.chart-hint`/`.scope-note` "all menus" pair under the
-   chart (chart copy — wants its own brief); `avgFoodCostForScope` counts
-   dishes whose `menuId` has no By-menu row (latent, zero such dishes on
-   Max's data). (The `--elev` migration shipped in v99 — done.)
-8. **Rules D and E probably belong ABOVE the "State as of" line** (durable
-   engine laws) — needs Max's yes. Same for the three-logs rule.
-9. Supplier coverage is 18% of used products — the concentration family stays
-    silent by design until the supplier field is filled past ~50%.
-10. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
-    Remembered items → Remove) once v107 is on his phone, then imports one
-    Bidfood invoice to re-teach. Only ONE is a real loss — the cheesecake; four
-    are also product packs, which outrank memory anyway, and the sixth is a
-    contradictory duplicate. Not urgent, and not something the app should do
-    for him. (The `bootstrapSync` wipe that sat here was FIXED in v107.)
+0. **Phone sign-off on v108, and it is a different KIND of sign-off.** Every
+   previous list was visual; this one is behavioural. Sharpest: **the cold-start
+   penalty** — the first request after idle measured **~1,138 ms** against
+   79–152 ms warm, and with week-long gaps that is Max's NORMAL case, landing
+   on top of the boot gate. Then: does the gate read as honest or as broken?
+   Does the offline message arrive when the signal actually drops, not just when
+   `navigator.onLine` says so? Does a refused product delete explain itself?
+   **Take a fresh `format: 2` export once v108 is on the phone** — the 2 Aug
+   format-1 file is the fallback until then.
+1. **Phone sign-off on v82–v104** — the whole UX propagation sequence, still
+   none of it device-verified. Carried.
+2. **Collapse the ~50 `saveX()` call sites** now that the bodies are empty.
+   Mechanical, safely reviewable, no behaviour change.
+3. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
+   v88 (`isEvalSupported:false`), NOT fixed. Its own brief.
+4. **A price edited on the Products tab writes no `ing_price_log` point** (see
+   above). Real gap; the movers card and insight family 1 never see it.
+5. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72).
+6. **The restore importer** — still unbuilt, and now well-defined: hard rule 9
+   plus `stamp.format`. Its own brief.
+7. Small, each needing a yes: the stale v60 target-line comment in `trendChart`;
+   the `.chart-hint`/`.scope-note` pair under the chart; `.range-btn` is 32px
+   (DEFERRED by Max 31 Jul as an OPEN accessibility item, not dropped);
+   `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row.
+8. Supplier coverage is 18% of used products — the concentration family stays
+   silent by design until ~50%.
+9. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
+   Remembered items) then imports one Bidfood invoice to re-teach. Only one is a
+   real loss. Not urgent.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
 Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be

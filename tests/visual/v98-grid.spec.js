@@ -15,6 +15,7 @@
  * Run: npx playwright test tests/visual/v98-grid.spec.js
  */
 const { test, expect } = require('@playwright/test');
+const { installBoot } = require('./_boot');
 
 // n menus, each with one costed+priced dish (menu 1 gets two on-target dishes so the insight
 // engine earns its panel — the placement checks must not pass vacuously on an absent region).
@@ -53,7 +54,7 @@ const seedFor = (n) => `
 
 async function boot(page, width, menus, theme) {
   await page.setViewportSize({ width, height: 900 });
-  await page.route(/^(?!http:\/\/localhost:5173)/, r => r.abort());
+  await installBoot(page);
   await page.route('**/api/**', r => r.abort());   // offline template path, like v89/v90-dash
   await page.addInitScript(seedFor(menus));
   await page.goto('/');
