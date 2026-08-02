@@ -401,17 +401,39 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 2 Aug 2026 (verify, don't trust)
+## State as of 3 Aug 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Per-batch history belongs in `handovers/`, nowhere else.
 
-- **Version: v108 on branch `feature/online-only-client`, six spots agree.**
-  `origin/main` is at **v107** (`aa16387`). **`git fetch` and check
-  `origin/main` yourself every session** — this bullet was a merge stale for a
-  day in v107 ([[verify-origin-main-before-trusting-local]]).
-  `aa16387` is also **the last commit containing the `BASE_PRODUCTS` literal**,
-  which a format-1 restore needs (hard rule 9).
+- **Version: v109 on branch `fix/price-log-every-path`, six spots agree.**
+  `origin/main` is at **v108** (`4f750eb`, the v108 merge). **`git fetch` and
+  check `origin/main` yourself every session** — this bullet was a merge stale
+  for a day in v107 ([[verify-origin-main-before-trusting-local]]).
+  **`aa16387` is the last commit containing the `BASE_PRODUCTS` literal**, which
+  a format-1 restore needs (hard rule 9).
+- **⚠️ EVERY PRODUCT-PRICE PATH WRITES `ing_price_history`, AND THERE IS ONE
+  WRITER (v109).** `setProduct` logs the point; nothing else calls `logIngPrice`.
+  Recorded here so the next session cannot repeat the gap: the five paths that
+  write `cost_per_base_unit` are the builder hand-edit (`commitPrice`), invoice
+  confirm's matched branch and its add-new branch (`applyInvoice`), the Products
+  tab edit form (`saveIngEdit`), and the Products tab create form (`submitNew`).
+  All five funnel through `setProduct`; the only writers that touch
+  `productsById` directly are `applyTidy` (category/brand/supplier) and
+  `bootstrapSync` (fills the object, never calls `setProduct` — which is what
+  stops boot fabricating 412 points).
+  **The condition is the PREVIOUS STORED price, not the last logged point.**
+  `logIngPrice` dedupes against the LOG, and nearly every product's log is empty,
+  so a non-price write — the invoice pack teach, `{pack_qty, pack_unit}` — would
+  sail past that dedupe and invent an observation. Don't "simplify" the two
+  guards into one. Product CREATION logs a first point deliberately (Max, 3 Aug):
+  `ingPriceAt` returns null before a product's first point, so without it a new
+  product's first price move has nothing to have moved from.
+  **Device-verified 3 Aug** (see outstanding item 0): a Products-tab edit wrote
+  its point. `ing_price_history` is 34 points / 34 products of 412 — the series
+  has restarted after 19 dead days, but it is still thin, so the movers card and
+  insight family 1 will stay quiet on most products for a while. That is a
+  series that has just started, not a bug.
 - **⚠️ v108 IS THE ONLINE-ONLY DATA LAYER. Supabase is the source of truth and
   localStorage is no longer a data store.** The single largest change to this
   app's architecture. Read `HANDOVER-v108.md` before touching the data layer.
@@ -466,8 +488,10 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   localStorage seed, translated to row shape. **Both times these specs went red
   this batch, the app was right and the harness assumption had expired** — but
   the v100 rule stands: treat a failure as real until you have proved otherwise.
-- **Suite:** `npm test` **563 green** · jsdom smoke green · Playwright **94/94**
-  (91 + 3 new boot-gate) · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`).
+- **Suite:** `npm test` **582 green** · jsdom smoke green · Playwright **94/94**
+  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (563 → 566 was v108's
+  own phase 6c landing after its snapshot was written; 566 → 582 is v109's
+  `tests/price-log-paths.test.js`.)
 - **Supabase (verified 1–2 Aug 2026 through the MCP server, which reads
   `pg_policies` directly — these are facts, not inferences):** every table the
   app queries exists. **The `menu_price_history` RLS fault is FIXED and
@@ -486,10 +510,9 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   (all-menus average), `menuHistory` (per menu, v89), `menuPriceLog` (each
   plate's SELL price, v90). Plus `ingPriceLog` (per PRODUCT cost), which as of
   v108 finally has its own table. **Four price-ish logs with DIFFERENT writers —
-  check the writer, not just the reader.** `logIngPrice()` fires on invoice
-  apply and builder hand-edit ONLY; **editing a price on the Products tab
-  (`js/app.js` product form) writes no per-product point** — a real gap, found
-  1 Aug, deliberately left for its own batch.
+  check the writer, not just the reader.** As of v109 `ingPriceLog` is the one
+  with a SINGLE writer (`setProduct`, see the price-path bullet above); the other
+  three are still written from their own call sites, so the rule stands for them.
 - **Insights rules A–E and the three-logs rule are unchanged** (v90–v93). Rules
   D and E probably belong above the snapshot line — still needs Max's yes.
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
@@ -506,24 +529,33 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    `navigator.onLine` says so? Does a refused product delete explain itself?
    **Take a fresh `format: 2` export once v108 is on the phone** — the 2 Aug
    format-1 file is the fallback until then.
+   **v109's own check is DONE — device-verified 3 Aug.** Max edited a price on
+   the Products tab and `ing_price_history` went 33 → 34 points (P0001, one
+   point, 0.0247 $/g), which v108 could not have written. He was on the **Vercel
+   PREVIEW deploy of the branch**, not production — pushing a branch deploys a
+   preview, so a device test can silently be running unmerged code. Check
+   `gh api repos/.../deployments` before concluding which build produced a
+   result ([[verify-origin-main-before-trusting-local]] applies to deploys too).
 1. **Phone sign-off on v82–v104** — the whole UX propagation sequence, still
    none of it device-verified. Carried.
 2. **Collapse the ~50 `saveX()` call sites** now that the bodies are empty.
    Mechanical, safely reviewable, no behaviour change.
 3. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
    v88 (`isEvalSupported:false`), NOT fixed. Its own brief.
-4. **A price edited on the Products tab writes no `ing_price_log` point** (see
-   above). Real gap; the movers card and insight family 1 never see it.
-5. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72).
-6. **The restore importer** — still unbuilt, and now well-defined: hard rule 9
+4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72).
+5. **The restore importer** — still unbuilt, and now well-defined: hard rule 9
    plus `stamp.format`. Its own brief.
-7. Small, each needing a yes: the stale v60 target-line comment in `trendChart`;
+6. Small, each needing a yes: **`ingredients.updated_at` is stale and means
+   nothing** — `ingredientToRow` never sends it and nothing sets it, so P0001
+   read 18 Jul minutes after being written (found 3 Aug). Don't use it to judge
+   whether a write landed; either populate it or drop it.
+   Then: the stale v60 target-line comment in `trendChart`;
    the `.chart-hint`/`.scope-note` pair under the chart; `.range-btn` is 32px
    (DEFERRED by Max 31 Jul as an OPEN accessibility item, not dropped);
    `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row.
-8. Supplier coverage is 18% of used products — the concentration family stays
+7. Supplier coverage is 18% of used products — the concentration family stays
    silent by design until ~50%.
-9. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
+8. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
    Remembered items) then imports one Bidfood invoice to re-teach. Only one is a
    real loss. Not urgent.
 

@@ -478,7 +478,40 @@ function rebuild(){
   byId = Object.fromEntries(PRODUCTS.map(p=>[p.id, p]));
   SEARCHABLE = PRODUCTS.filter(p=>p.is_food);
 }
-function setProduct(id, patch){ productsById[id] = Object.assign({}, productsById[id]||{}, patch); saveProductCache(); rebuild(); dbPushIngredient(id); }
+/* v109 — the ONE place a product price becomes a history point.
+   ROOT CAUSE of the gap this replaces: `logIngPrice` was called from TWO call sites kept in step by
+   discipline (the builder hand-edit and invoice-confirm's matched branch), and the Products-tab edit
+   form was simply missed — so a price edited there left no trace at all. Max edited two prices on
+   31 Jul; the export showed 33 points, newest 15 Jul, with neither of them in it. Product CREATION
+   (submitNew, applyInvoice's add-new branch) logged nothing either, which is worse than it reads:
+   `ingPriceAt` returns null before a product's first point, so a product created and later re-priced
+   has no "was" to have moved from, and the movers card / insight family 1 can say nothing about it.
+   Every price write already funnels through here — the only writers that touch productsById directly
+   are applyTidy (category/brand/supplier) and bootstrapSync (fills the object, never calls this) —
+   so this is where the log belongs.
+   THE INVARIANT, stated because it is an invariant and not a guarantee: a product price is only ever
+   changed by calling setProduct. There is exactly one shape that could break it — assigning into
+   productsById directly, which applyTidy already does (`productsById[pt.id][col]=pt.value`, with
+   `col` a runtime value, not a literal). That is safe today because tidy's field is only ever
+   category/brand/supplier, but nothing in the code CONSTRAINS it to those. Anything new that writes
+   a price must come through here, or it will be invisible to history exactly as saveIngEdit was.
+   THE CONDITION IS THE PREVIOUS STORED PRICE, not the last logged point. logIngPrice dedupes against
+   the LOG, and nearly every product's log is empty (33 points across 412 products), so a non-price
+   write — applyInvoice's pack teach, which patches pack_qty/pack_unit only — would have sailed past
+   that dedupe and fabricated a point for a change that never happened. The two guards compose: this
+   one asks "did the stored price move", logIngPrice's asks "is this a new observation". */
+function setProduct(id, patch){
+  var had=productsById[id]?productsById[id].cost_per_base_unit:undefined;
+  productsById[id] = Object.assign({}, productsById[id]||{}, patch);
+  saveProductCache(); rebuild(); dbPushIngredient(id);
+  if(patch && Object.prototype.hasOwnProperty.call(patch, 'cost_per_base_unit')){
+    var now=patch.cost_per_base_unit;
+    // had==null covers a brand-new product (undefined) and a product that never had a price: both are
+    // a first observation, not a no-op. Max's call, 3 Aug — one row, and it is the difference between
+    // a product's first price move being reconstructible and being invisible.
+    if((had==null || !samePrice(had, now)) && logIngPrice(id, now)) saveIngLog();
+  }
+}
 rebuild();
 
 function unitNoun(p){return p.base_unit==='g'?'g':p.base_unit==='ml'?'ml':p.base_unit==='ea'?'unit':'';}
@@ -663,13 +696,11 @@ function commitPrice(uid,raw){
   const v=parseFloat(raw);
   if(!isNaN(v)&&v>=0){
     const base=(p.base_unit==='g'||p.base_unit==='ml')?v/1000:v;
+    // v109: the per-product point is written by setProduct itself — one writer for every price path.
+    // (v91 added an explicit logIngPrice call here, which was correct and incomplete: keeping the two
+    // logs in agreement by remembering to call it at each site is exactly how the Products tab was
+    // missed for 18 versions. logHistory stays — it is the OTHER log, the all-menus average.)
     setProduct(p.id,{cost_per_base_unit:base});
-    // v91 ROOT CAUSE (the movers card + insight family 1): until now logIngPrice was called from ONE
-    // place — the invoice-confirm path. A price edited by hand here moved the all-menus average (via
-    // logHistory below, which feeds priceHistory) but left NO per-product point, so the two logs
-    // disagreed about whether a price had changed at all. "Biggest movers" read empty and the
-    // cost-base family had nothing to reconstruct, while the comparison bar reported the same change.
-    if(logIngPrice(p.id, base)) saveIngLog();
     logHistory();
   }
   renderPlate();
@@ -1260,18 +1291,27 @@ function saveIngLog(){
 function dbPushIngPrice(pid, t, v){
   pushWrite(function(){ return SUPA.from('ing_price_history').insert(pointToRow(t, v, 'cost_per_base_unit', 'product_id', pid)); }, 'price history');
 }
+/* "the same price", one definition — asked twice: by setProduct against the product's PREVIOUS STORED
+   value, and by logIngPrice below against the LAST LOGGED point. The exact-equality arm carries $0.00:
+   the relative tolerance is scaled BY the value, so at zero it collapses to `0 < 0` and every repeat
+   would log a fresh point. (CodeRabbit, v91 — newly reachable once a hand-edited price fed this log,
+   and commitPrice accepts 0.) The tolerance is also what absorbs display rounding: the price chip
+   shows 2dp, so re-committing an unchanged price hands back a value differing in the 18th decimal,
+   which is a keystroke and not an observation. */
+function samePrice(a, b){ return a===b || Math.abs(a-b) < Math.abs(b)*1e-6; }
 /* Record a per-base-unit price point for this product. Returns true when a point was actually added,
    so callers know whether saveIngLog() is needed (v91 — the invoice path used to key that off
    `priceChanges`, which is only populated when there WAS an old price, so the first price ever logged
-   for a product lived in memory until something else happened to save the log). */
+   for a product lived in memory until something else happened to save the log).
+   v109: the ONE caller is setProduct. Anything that changes a product's price goes through it. */
 function logIngPrice(pid, cpbuVal){
-  if(pid==null || cpbuVal==null || !isFinite(cpbuVal)) return false;
+  // typeof, not just isFinite: `isFinite('')` is TRUE because Number('') is 0, so a blank field would
+  // have been recorded as a real-looking $0.00 observation. Same trap rowToPoint was corrected for in
+  // v108 — and 0 itself stays legitimate (P0277 costs 0), which is why the check is on the TYPE.
+  if(pid==null || typeof cpbuVal!=='number' || !isFinite(cpbuVal)) return false;
   var a=ingPriceLog[pid]||(ingPriceLog[pid]=[]);
   var last=a.length?a[a.length-1].v:null;
-  // skip no-op repeats. The exact-equality arm carries $0.00: the relative tolerance is scaled BY the
-  // value, so at zero it collapses to `0 < 0` and every repeat logged a fresh point. (CodeRabbit, v91 —
-  // newly reachable now that a hand-edited price feeds this log, and commitPrice accepts 0.)
-  if(last!=null && (last===cpbuVal || Math.abs(last-cpbuVal) < Math.abs(cpbuVal)*1e-6)) return false;
+  if(last!=null && samePrice(last, cpbuVal)) return false;
   var now=Date.now();
   a.push({t:now, v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60);
   _ingLogPending.push({pid:pid, t:now, v:cpbuVal});
@@ -3652,7 +3692,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v108';
+var APP_VERSION='v109';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -5725,7 +5765,7 @@ function applyInvoice(){
     if(r.addNew){ var s=collectNewItem(i); if(!s){ ok=false; } else specs[i]=s; }
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
-  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[]; var ingLogged=false;
+  var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[];
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
@@ -5750,8 +5790,7 @@ function applyInvoice(){
       var priceUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:(p.base_unit==='g'?'kg':p.base_unit==='ml'?'l':'ea');
       var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
       var oldC=cpbu(p); var newC=up/ub2.div;
-      setProduct(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;
-      if(logIngPrice(pid, newC)) ingLogged=true;                    // record the new price point (builds cost-range history)
+      setProduct(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;   // v109: setProduct writes the price point (and flushes it) — one writer, every path
       if(oldC!=null && Math.abs(newC-oldC)>Math.abs(oldC)*0.005){ priceChanges.push({name:p.description||r.name, oldC:oldC, newC:newC, unit:ub2.base_unit, dir:(newC>oldC?1:-1), pctAbs:Math.abs((newC-oldC)/oldC)*100}); }
     }
     // ITEM 1 (v38) ROOT CAUSE: the product-pack write lived INSIDE this supplier-memory block, so it was gated on normSupplier(invSupplier). A pack belongs to the PRODUCT — 105 slices in a bag is 105 slices whoever invoiced it — but invSupplierDetect returns '' by design when it can't read the letterhead ("no guess"), which made the whole block skip and silently dropped the teach, while the price write above (ungated) still saved. That is why the old price survived as $0.200/unit but the pack vanished. The pack write is now unconditional; supplier memory keeps its own gate, which it genuinely needs because it is keyed supplier+phrase.
@@ -5777,7 +5816,10 @@ function applyInvoice(){
       }
     }
   });
-  if(ingLogged) saveIngLog();                                        // v91: was gated on priceChanges, which misses a product's FIRST logged price
+  // v109: the batched flush is gone with the batched flag — setProduct logs AND flushes each point as
+  // it writes it. Same number of server inserts either way (saveIngLog pushes one row per point), and
+  // it means an add-new line's very first price is logged too, which this loop never did. (v91's note
+  // stands historically: this was gated on priceChanges, which only fills when there WAS an old price.)
   // ITEM 5 (v35): settle the deferred re-links. Clean ones commit now; ones where the
   // ingredient's unit category disagrees with the new product go through the SAME guard
   // saveKingModal uses. The ask is batched into one confirm rather than chained per-item:
