@@ -429,6 +429,11 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   guards into one. Product CREATION logs a first point deliberately (Max, 3 Aug):
   `ingPriceAt` returns null before a product's first point, so without it a new
   product's first price move has nothing to have moved from.
+  **Device-verified 3 Aug** (see outstanding item 0): a Products-tab edit wrote
+  its point. `ing_price_history` is 34 points / 34 products of 412 — the series
+  has restarted after 19 dead days, but it is still thin, so the movers card and
+  insight family 1 will stay quiet on most products for a while. That is a
+  series that has just started, not a bug.
 - **⚠️ v108 IS THE ONLINE-ONLY DATA LAYER. Supabase is the source of truth and
   localStorage is no longer a data store.** The single largest change to this
   app's architecture. Read `HANDOVER-v108.md` before touching the data layer.
@@ -524,12 +529,13 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    `navigator.onLine` says so? Does a refused product delete explain itself?
    **Take a fresh `format: 2` export once v108 is on the phone** — the 2 Aug
    format-1 file is the fallback until then.
-   **v109 rides along with one check of its own:** edit a price on the Products
-   tab and confirm a point lands for **that product id** (`select recorded_at,
-   cost_per_base_unit from ing_price_history where product_id = '<the id you
-   edited>'`) — checking only the newest rows would let an unrelated point read
-   as a pass. Baseline 3 Aug: 33 points, 33 products, newest 15 Jul, of 412
-   products. That also starts filling the series the movers card can't draw.
+   **v109's own check is DONE — device-verified 3 Aug.** Max edited a price on
+   the Products tab and `ing_price_history` went 33 → 34 points (P0001, one
+   point, 0.0247 $/g), which v108 could not have written. He was on the **Vercel
+   PREVIEW deploy of the branch**, not production — pushing a branch deploys a
+   preview, so a device test can silently be running unmerged code. Check
+   `gh api repos/.../deployments` before concluding which build produced a
+   result ([[verify-origin-main-before-trusting-local]] applies to deploys too).
 1. **Phone sign-off on v82–v104** — the whole UX propagation sequence, still
    none of it device-verified. Carried.
 2. **Collapse the ~50 `saveX()` call sites** now that the bodies are empty.
@@ -539,7 +545,11 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
 4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72).
 5. **The restore importer** — still unbuilt, and now well-defined: hard rule 9
    plus `stamp.format`. Its own brief.
-6. Small, each needing a yes: the stale v60 target-line comment in `trendChart`;
+6. Small, each needing a yes: **`ingredients.updated_at` is stale and means
+   nothing** — `ingredientToRow` never sends it and nothing sets it, so P0001
+   read 18 Jul minutes after being written (found 3 Aug). Don't use it to judge
+   whether a write landed; either populate it or drop it.
+   Then: the stale v60 target-line comment in `trendChart`;
    the `.chart-hint`/`.scope-note` pair under the chart; `.range-btn` is 32px
    (DEFERRED by Max 31 Jul as an OPEN accessibility item, not dropped);
    `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row.
