@@ -983,6 +983,64 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[24] re-committing an unchanged price adds no point',
      JSON.stringify(w4.ingPriceLog[pid4] || []) === steadyMem, JSON.stringify(w4.ingPriceLog[pid4] || []));
 
+  // ---------------------------------------------------------------------------
+  // [24b] v109 — the SAME question asked of the two screens v91 never reached.
+  // v91 fixed the builder by adding a second explicit logIngPrice call; the Products tab kept none,
+  // so a price edited there wrote the product and logged nothing — 18 versions of silently
+  // incomplete history, depending only on which screen the user happened to open. v109 moves the
+  // write inside setProduct, so this section drives the REAL screens (openIngEdit/saveIngEdit and
+  // the create form/submitNew) rather than the helper, because the helper was never the thing that
+  // was wrong. price-log-paths.test.js pins the condition; this pins the wiring.
+  // ---------------------------------------------------------------------------
+  console.log('\n[24b] v109 — a price edited on the PRODUCTS TAB logs a point, and so does a new product');
+  // a product other than the one [24] just edited, taken from the rendered list (byId is a top-level
+  // `let` and unreachable from out here — same trap noted at [24])
+  w4.renderIngredients();
+  const cards = [...w4.document.querySelectorAll('#ingList .ing-card, .ing-card')]
+    .map(b => b.getAttribute('data-id')).filter(id => id && id !== pid4);
+  ok('[24b] the Products list rendered at least one other product to edit', cards.length > 0, String(cards.length));
+  const pid5 = cards[0];
+  w4.openIngEdit(pid5);
+  const unit5 = w4.document.getElementById('ig_unit').value;         // 'kg' | 'litre' | 'unit'
+  const div5 = (unit5 === 'kg' || unit5 === 'litre') ? 1000 : 1;     // invUnitToBase's own mapping
+  const before5 = (w4.ingPriceLog[pid5] || []).length;
+  w4.document.getElementById('ig_price').value = '19.95';
+  w4.saveIngEdit();
+  const after5 = w4.ingPriceLog[pid5] || [];
+  ok('[24b] editing a price on the Products tab logs a per-product price point',
+     after5.length === before5 + 1, `${before5} -> ${after5.length}`);
+  ok(`[24b] …at the saved price in base units (form unit ${unit5})`,
+     after5.length > 0 && Math.abs(after5[after5.length - 1].v - 19.95 / div5) < 1e-12,
+     after5.length ? String(after5[after5.length - 1].v) : 'no point');
+
+  // Saving the form again without touching the price is not an observation.
+  const steady5 = JSON.stringify(w4.ingPriceLog[pid5] || []);
+  w4.openIngEdit(pid5);
+  w4.document.getElementById('ig_name').value = 'Renamed by smoke';
+  w4.saveIngEdit();
+  ok('[24b] re-saving the form with an unchanged price adds no point',
+     JSON.stringify(w4.ingPriceLog[pid5] || []) === steady5, JSON.stringify(w4.ingPriceLog[pid5] || []));
+
+  // The create form: a brand-new product records its FIRST price. Without it ingPriceAt returns null
+  // for that product, so its first price move later has nothing to have moved FROM.
+  const cat5 = (w4.prodCategories() || [])[0] || '';
+  const keysBefore = Object.keys(w4.ingPriceLog);
+  w4.document.getElementById('f_desc').value = 'Smoke Test Barramundi';
+  w4.document.getElementById('f_brand').value = '';
+  w4.document.getElementById('f_sup').value = '';
+  w4.document.getElementById('f_category').value = cat5;
+  w4.document.getElementById('f_packsize').value = '2';
+  w4.document.getElementById('f_packunit').value = 'kg';
+  w4.document.getElementById('f_price').value = '9.00';
+  w4.document.getElementById('f_food').checked = true;
+  w4.submitNew();
+  const newKeys = Object.keys(w4.ingPriceLog).filter(k => keysBefore.indexOf(k) < 0);
+  ok('[24b] creating a product records its first price as one point', newKeys.length === 1, JSON.stringify(newKeys));
+  const newPts = newKeys.length ? w4.ingPriceLog[newKeys[0]] : [];
+  ok('[24b] …exactly one, at $9.00 for 2kg = $0.0045/g',
+     newPts.length === 1 && Math.abs(newPts[0].v - 0.0045) < 1e-12,
+     JSON.stringify(newPts));
+
   // ------------------------------------------------------------------
   console.log('\n[25] v102 — builderHint empty-state survives the empty-plate early return (CodeRabbit)');
   // The hint update must run BEFORE renderPlate's empty-plate early return: a fresh install has
