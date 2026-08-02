@@ -254,17 +254,25 @@ function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_sett
 
    `bootReady` is what index.html's splash polls (window.__ezReady) — kept so the two cannot disagree
    about whether the app is usable. */
-var _bootGateDone=false;
+var _bootGateDone=false, _bootRetrying=false;
 function bootGate(state, msg){
-  if(_bootGateDone && state!=='error') return;              // never re-gate a working app
   var g=document.getElementById('bootGate'); if(!g) return;
+  var showing=!g.hidden;
+  /* Never re-gate a WORKING app — pull-to-refresh runs the same bootstrapSync and a full-screen
+     overlay on every refresh would be worse than useless. But once the gate IS showing an error,
+     'loading' must be allowed through or Try again looks dead: the sync reruns while the screen still
+     says it failed. (CodeRabbit — my own test missed this because it never reached 'ok' first.) */
+  if(_bootGateDone && state!=='error' && !showing) return;
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
   if(state==='loading'){ g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…'; return; }
-  if(state==='ok'){ _bootGateDone=true; g.hidden=true; g.classList.remove('is-error'); return; }
+  if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); return; }
   // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
-  g.hidden=false; g.classList.add('is-error');
+  g.hidden=false; g.classList.add('is-error'); _bootRetrying=false;
   if(m) m.textContent=msg||'Couldn’t load your data.';
-  if(r){ r.hidden=false; r.onclick=function(){ bootGate('loading','Trying again…'); bootstrapSync(); }; }
+  if(r){ r.hidden=false; r.onclick=function(){
+    if(_bootRetrying) return;                               // a second tap must not race a second boot
+    _bootRetrying=true; bootGate('loading','Trying again…'); bootstrapSync();
+  }; }
 }
 function bootReady(state, msg){ window.__ezReady=true; bootGate(state, msg); }
 
@@ -311,7 +319,12 @@ async function bootstrapSync(){
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
     var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7], _ipl=results[8];
-    if(ing.error||men.error||pla.error) throw (ing.error||men.error||pla.error);
+    // v108: setg.error belongs here and was missing (CodeRabbit). app_settings is not a nice-to-have —
+    // it carries `kitchen_ingredients`, so a failed read empties every kitchen word AND silently drops
+    // the food-cost target back to its 40% default, which moves every suggested price on the Menu tab.
+    // Falling back to an empty settings list is exactly the partial-render-pretending-to-be-real that
+    // online-only exists to stop.
+    if(ing.error||men.error||pla.error||setg.error) throw (ing.error||men.error||pla.error||setg.error);
     menuHistSupported = !(_h && _h.error);                 // the query IS the probe now
     menuPriceHistSupported = !(_mp2 && _mp2.error);
     // v108: through the boundary, not the raw row. Was `ov[r.id]=r` — see rowToIngredient on why that
@@ -335,8 +348,13 @@ async function bootstrapSync(){
     // against. The re-push chain (plate first, then the dish that references it) went with it; the
     // ordering rule itself is unchanged and still lives in dbPushMenuAfterPlate for real publishes.
     customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu();
-    if(mres && !mres.error && Array.isArray(mres.data) && mres.data.length){ menusList=mres.data.map(rowToMenuRecord); }   // menus table may not exist yet -> keep local/default
-    ensureDefaultMenu(); saveMenus();   // v54: seed Original only on a fresh install; a synced empty menus set is respected (zero menus is legitimate)
+    /* v54/v108: a SUCCESSFUL EMPTY read is the user having deleted every menu, and zero menus is a
+       legitimate state — so it must be respected, not re-seeded. Seed only when the table did not
+       answer at all (it may not exist on an older project). */
+    var menusRead = !!(mres && !mres.error && Array.isArray(mres.data));
+    if(menusRead) menusList=mres.data.map(rowToMenuRecord);
+    else ensureDefaultMenu();
+    saveMenus();
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS(); rebuildMenu();
     // v89/v108: support is read off the fetch above — naming menu_id in the select means the query
@@ -881,11 +899,17 @@ var menusList=[];
 // v54: plates are an independent library, so the "Unassigned dishes" holding area (v40/v42) is GONE.
 // Menus reference plates; deleting a menu deletes its dishes and UNLINKS (never deletes) their plates,
 // which live on in the Plates tab. With plates able to stand alone, ZERO menus is a legitimate state.
-function menusKeyExists(){ try{ return localStorage.getItem('cafeDB_menus')!=null; }catch(e){ return false; } }
+/* v108: menusKeyExists is DELETED. It read `cafeDB_menus`, and phase 5b removed every write to that
+   key — so it returned false forever, which made ensureDefaultMenu re-seed "Original menu" on EVERY
+   boot once the user had deleted their last menu. That silently violates hard rule 7 (zero menus is a
+   legitimate state) and would have resurrected a deleted menu indefinitely. Found by CodeRabbit.
+   The replacement signal is whether the menus TABLE answered — see bootstrapSync. */
 // Seed "Original menu" only on a genuinely fresh install — i.e. the menus key was never written. Once the
 // user has created OR deleted menus (either writes the key), we respect exactly what's there, including none.
-function ensureDefaultMenu(){ if(!menusList.length && !menusKeyExists()) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
-ensureDefaultMenu();
+/* Seeds "Original menu" ONLY when the caller has established there is no server answer to respect.
+   The caller decides; this function must never guess, because an empty menus table and a fresh
+   install are indistinguishable from in here — and they mean opposite things. */
+function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
 function fallbackMenuId(){                                          // v54: never a deleted id; null when no menu exists (a valid zero-menu state)
   if(menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
   return (menusList[0] && menusList[0].id) || null;
@@ -1720,15 +1744,25 @@ function deleteIngredient(){
      better than a scary confirm here because the fix is real work the user has to do anyway \u2014 an
      ingredient must point at SOME product, so repointing it first is the correct next step, not an
      obstacle. */
-  if(refs.ingredients.length){
-    var what=refs.ingredients.slice(0,3).join(', ')+(refs.ingredients.length>3?' and '+(refs.ingredients.length-3)+' more':'');
-    var plateBit=refs.plates.length
-      ? ' Those are used by '+refs.plates.length+' plate'+(refs.plates.length===1?'':'s')+', whose costs would break.'
-      : '';
-    askConfirm('Can\u2019t delete this product',
-      '\u201c'+nm+'\u201d is linked to the ingredient '+(refs.ingredients.length===1?'':'s ')+what+'.'+plateBit+
-      ' Point '+(refs.ingredients.length===1?'it':'them')+' at another product first, then delete this one.',
-      'OK', function(){});
+  /* BOTH reference kinds block the delete. Gating on `refs.ingredients` alone was a real bug \u2014 caught
+     by CodeRabbit, and it is the exact failure this guard exists to prevent. `productRefs` finds the
+     direct plate-line path correctly and the delete then ignored it, so a product used ONLY by a
+     direct line (84 of Max's 179 lines take that route \u2014 the LARGER half) would have been deleted and
+     the plate would quietly get cheaper. The unit tests pinned productRefs thoroughly and only
+     structurally pinned deleteIngredient, which is precisely the gap that let it through. */
+  if(refs.ingredients.length || refs.plates.length){
+    var list=function(a){ return a.slice(0,3).join(', ')+(a.length>3?' and '+(a.length-3)+' more':''); };
+    var plateCount=refs.plates.length, plural=(plateCount===1?'':'s');
+    var msg;
+    if(refs.ingredients.length){
+      msg='\u201c'+nm+'\u201d is linked to the ingredient'+(refs.ingredients.length===1?' ':'s ')+list(refs.ingredients)+'.'
+        + (plateCount?' Those are used by '+plateCount+' plate'+plural+', whose costs would break.':'')
+        + ' Point '+(refs.ingredients.length===1?'it':'them')+' at another product first, then delete this one.';
+    } else {
+      msg='\u201c'+nm+'\u201d is used directly by '+plateCount+' plate'+plural+' ('+list(refs.plates)+'), whose cost'+plural
+        + ' would break. Change '+(plateCount===1?'that plate':'those plates')+' first, then delete this one.';
+    }
+    askConfirm('Can\u2019t delete this product', msg, 'OK', function(){});
     return;
   }
   askConfirm('Delete product?', 'Remove \u201c'+nm+'\u201d from your products? Nothing is using it.', 'Delete', function(){

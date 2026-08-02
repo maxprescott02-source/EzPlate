@@ -62,7 +62,12 @@ const FIXTURE_PRODUCTS = fs.readFileSync(path.join(__dirname, 'fixtures', 'base-
    binding either. (The same trap is recorded against `byId` further down this file, from v91.)
    Concatenating puts the assignment in the same scope as the declaration, which is the only thing that
    reaches it. */
-const HYDRATE = '\n;productsById = ' + FIXTURE_PRODUCTS + ';\nrebuild();\n';
+const HYDRATE = '\n;productsById = ' + FIXTURE_PRODUCTS + ';\nrebuild();\n'
+  /* v108: a menu too. The module-scope ensureDefaultMenu() call is gone — an empty menus TABLE
+     is a legitimate zero-menu state and must not be re-seeded, so only bootstrapSync may decide
+     to seed, and only when the table did not answer. smoke has no server, so it supplies what a
+     loaded app would hold. */
+  + ";menusList = [{id:'MENU_ORIGINAL',name:'Original menu',season:null}];\n";
 
 console.log('\n[1] app.js loads against the real markup');
 let loaded = false, loadErr = null;

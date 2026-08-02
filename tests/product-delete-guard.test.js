@@ -98,6 +98,17 @@ test('empty and malformed inputs are safe, not throwing', () => {
   assert.deepStrictEqual(r.plates, [], 'a null line must not be read as a match');
 });
 
+test('THE BUG CODERABBIT CAUGHT: a DIRECT plate-line reference must block the delete too', () => {
+  /* productRefs found the pid path correctly and deleteIngredient then gated on refs.ingredients
+     ALONE, so a product used only by a direct plate line — 84 of Max's 179 lines, the LARGER half —
+     would have been deleted and the plate would quietly get cheaper. The guard above pinned
+     productRefs thoroughly and pinned deleteIngredient only structurally, which is exactly the gap
+     that let this through. This asserts the refusal CONDITION, not just that a check happens. */
+  const del = extractFn('deleteIngredient');
+  const cond = /if\(\s*refs\.ingredients\.length\s*\|\|\s*refs\.plates\.length\s*\)/.test(del);
+  assert.ok(cond, 'the refusal must trigger on EITHER reference kind, not on ingredients alone');
+});
+
 test('THE REGRESSION THIS LOCKS: the delete path consults the guard before deleting', () => {
   // Cheap structural check, but it is the one that matters — productRefs could be perfect and
   // unreferenced, and the delete would silently break plates again.

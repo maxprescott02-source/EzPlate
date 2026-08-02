@@ -8,8 +8,15 @@ This is the largest architectural change the app has had. It replaces the
 planned `pushWrite` retry-queue work rather than following it, and closes four
 open defects by removing their shared cause.
 
-`npm test` **563 green** (533 → 563, +30 added, 8 pins retired) · jsdom smoke
-green · Playwright **94/94** · `node -c` clean. app.js **590 KB → ~455 KB**.
+`npm test` **566 green**, from a 533 baseline · jsdom smoke green ·
+Playwright **94/94** · `node -c` clean. app.js **590 KB → ~455 KB**.
+
+The arithmetic, since a bare delta hides what happened: **37 new cases** across
+three new files — `row-boundary` (19), `boot-gate` (10),
+`product-delete-guard` (8) — plus 3 new browser tests in `v108-boot.spec.js`.
+**Four pins were retired outright** (the `reconcileLocalOnly` heal contract) and
+several more were *replaced in place* rather than removed, so the net is +33.
+Every retirement is listed with its reason below.
 
 Built in six phases, each ending green, on Max's instruction to checkpoint
 before the risky one.
@@ -256,8 +263,61 @@ the moment this shipped.
 | terminology inversion guard | Lost `KINGKEY` and the localStorage literal, **kept the Supabase key** — the stronger contract and the one a rename would corrupt. Deleting a store is not what that guard exists to catch. |
 | settings: tombstone lists in the backup | Restoring hidden-but-present rows would reintroduce the concept the app just dropped. |
 
-**Added:** `row-boundary` (18), `boot-gate` (8), `product-delete-guard` (7),
-`v108-boot.spec` (3 browser).
+**Added:** `row-boundary` (19), `boot-gate` (10), `product-delete-guard` (8),
+`v108-boot.spec` (3 browser) — 37 unit + 3 browser.
+
+---
+
+## CodeRabbit — 6 findings, 3 of them real bugs, 2 of those mine and critical
+
+The independent second reviewer earned its place this batch.
+
+**FIXED (critical) — the delete guard checked only half of what it had found.**
+`deleteIngredient` gated on `refs.ingredients.length` alone, while `productRefs`
+correctly reported the direct plate-line path too. So a product used **only** by
+a direct line — **84 of Max's 179 lines, the larger half** — would have been
+deleted, and the plate would quietly get cheaper. This is precisely the failure
+D3 exists to prevent, shipped inside the guard written to prevent it. The reason
+it survived my own tests is worth recording: I pinned `productRefs` thoroughly
+and pinned `deleteIngredient` only *structurally* ("does it call the guard"),
+which cannot catch a wrong condition. There is now a pin on the refusal
+**condition**, not just its presence.
+
+**FIXED (critical) — `setg.error` was missing from the required-load check.**
+An `app_settings` failure fell through to `setRows = []`. That table carries
+`kitchen_ingredients`, so a failed read would empty every kitchen word *and*
+silently drop the food-cost target back to its 40% default — moving every
+suggested price on the Menu tab. A partial render pretending to be real, which
+is the exact thing online-only exists to stop.
+
+**FIXED (major) — and it was worse than the finding said.** CodeRabbit flagged
+that `ensureDefaultMenu()` ran even when the menus read succeeded with an empty
+array. True, but the root cause was mine from phase 5b: `menusKeyExists()` read
+`cafeDB_menus`, and 5b deleted every write to that key, so it returned `false`
+forever. Combined with `saveMenus()` becoming a no-op, **"Original menu" would
+have been resurrected on every boot once the user deleted their last menu** —
+directly violating hard rule 7, which says zero menus is a legitimate state.
+`menusKeyExists` is deleted; the signal is now whether the menus *table*
+answered, which is the only thing that can distinguish "no menus" from "no
+table".
+
+**FIXED (minor) — Try again looked dead after a post-startup failure.** The
+"never re-gate a working app" guard also swallowed the retry's own `loading`, so
+once the app had booted successfully, tapping Try again reran the sync while the
+screen still said it had failed. My own test missed it because it never reached
+`ok` first. Also added a re-entrancy guard so a second tap cannot race a second
+`bootstrapSync`.
+
+**FIXED (minor) — fixed `waitForTimeout` sleeps in the new browser spec.**
+Replaced with auto-retrying `expect()` assertions: faster when the app is ready,
+and more robust when a loaded box is slow. The spec went 4.7s → 1.2s.
+
+**FIXED (minor) — the test-count arithmetic in this handover was muddled.**
+Recounted from the actual suites rather than restated.
+
+Nothing was declined. Every finding was real, which is unusual and worth
+noting — the two critical ones were both in code written *this batch*, in the
+guards meant to make it safe.
 
 ---
 

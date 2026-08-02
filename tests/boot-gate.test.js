@@ -59,7 +59,7 @@ function makeGate(present) {
     "use strict";
     var document = { getElementById: function(id){ return D[id] || null; } };
     var bootstrapSync = function(){ C.bootstrapSync++; };
-    var _bootGateDone = false;
+    var _bootGateDone = false, _bootRetrying = false;
     ${extractFn('bootGate')}
     return { bootGate: bootGate };
   `)(nodes, calls);
@@ -118,6 +118,28 @@ test('…but a later FAILURE can still surface', () => {
   g.run('error', 'lost it');
   assert.strictEqual(g.gate.hidden, false, 'silence is the failure mode this batch exists to remove');
   assert.match(g.msg.textContent, /lost it/);
+});
+
+test('Try again works after a LATER failure, not just a first-boot one', () => {
+  /* CodeRabbit found this: the "never re-gate a working app" guard also swallowed the retry's own
+     'loading', so once the app had booted successfully, hitting Try again on a later failure reran
+     the sync while the screen still said it had failed. The button looked dead. */
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('ok');                             // app booted fine
+  g.run('error', 'lost the connection');   // a later sync failed
+  g.retry.onclick();
+  assert.strictEqual(g.calls.bootstrapSync, 1);
+  assert.match(g.msg.textContent, /Trying again/, 'the screen must visibly respond to the tap');
+  assert.strictEqual(g.gate.classList.contains('is-error'), false, 'and stop claiming it failed');
+});
+
+test('a second tap on Try again does not launch a second boot', () => {
+  const g = makeGate(true);
+  g.run('error', 'nope');
+  g.retry.onclick();
+  g.retry.onclick();
+  assert.strictEqual(g.calls.bootstrapSync, 1, 'concurrent bootstrapSync calls would race each other');
 });
 
 test('offline and misconfigured are different messages, not one generic failure', () => {

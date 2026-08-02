@@ -12,19 +12,18 @@ const { installBoot } = require('./_boot');
 test('data loads: the gate gets out of the way and the app renders', async ({ page }) => {
   await installBoot(page);
   await page.goto('/');
-  await page.waitForTimeout(1200);
 
+  // expect() auto-waits, so the boot fetch is awaited by the assertion itself — no fixed sleeps,
+  // which are both slower when the app is ready and flakier when a loaded box is slow.
   await expect(page.locator('#bootGate')).toBeHidden();
   // the catalogue is on screen, from the fetch — not from a literal, which no longer exists
   await page.locator('.navbtn[data-tab="ingredients"]').click();
-  await page.waitForTimeout(400);
   await expect(page.locator('#ingList .ing-card').first()).toBeVisible();
 });
 
 test('data cannot load: the gate says so, in words, with one way forward', async ({ page }) => {
   await installBoot(page, { noClient: true });      // no Supabase client — the real failure path
   await page.goto('/');
-  await page.waitForTimeout(1200);
 
   const gate = page.locator('#bootGate');
   await expect(gate).toBeVisible();
@@ -45,9 +44,10 @@ test('the gate never paints an empty app underneath itself', async ({ page }) =>
   // The failure this batch exists to remove: rendering zeroes that look like real data.
   await installBoot(page, { noClient: true });
   await page.goto('/');
-  await page.waitForTimeout(1200);
 
   const gate = page.locator('#bootGate');
+  await expect(gate).toBeVisible();      // boundingBox() returns null on a hidden node, which would
+                                         // throw on .width and read as a crash rather than a failure
   const box = await gate.boundingBox();
   const vp = page.viewportSize();
   expect(box.width).toBeGreaterThanOrEqual(vp.width - 1);
