@@ -212,6 +212,8 @@ function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('m
 // library's own grouping (independent of per-menu sections).
 function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert(plateToRow(sp)); }, 'plate'); }
 function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
+// v108 (D3): products are really deleted now — the tombstone list that used to hide them is gone.
+function dbDeleteIngredient(id){ return pushWrite(function(){ return SUPA.from('ingredients').delete().eq('id',id); }, 'product delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 
 /* v108: seedIfEmpty is DELETED. It pushed BASE_PRODUCTS / BASE_MENU into empty tables on first run;
@@ -316,10 +318,12 @@ async function bootstrapSync(){
     // worked by luck rather than design.
     var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); productsById=ov; saveProductCache(); rebuild();
     var setRows=(setg&&setg.data)?setg.data:[];
-    var delRow=setRows.filter(function(r){return r.key==='deleted_menu_ids';})[0];
-    deletedMenuIds=(delRow&&Array.isArray(delRow.value))?delRow.value:[]; saveDeletedMenu();
-    var delP=setRows.filter(function(r){return r.key==='deleted_prod_ids';})[0];
-    if(delP&&Array.isArray(delP.value)){ deletedProdIds=delP.value; saveDeletedProds(); }
+    /* v108 (D3): the two tombstone settings are no longer READ. They existed because deletion had to
+       survive a hardcoded base layer that re-added the row on every rebuild, and reconcileLocalOnly,
+       which needed telling which absences were deliberate. Both are gone, so a tombstone is a second,
+       weaker way of saying "deleted" — the third category the brief rules out. The app_settings rows
+       are left in the database on purpose: dropping them is not reversible if this batch is rolled
+       back, and they cost nothing unread. They can be cleared in a later tidy. */
     var kiRow=setRows.filter(function(r){return r.key==='kitchen_ingredients';})[0];
     if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; saveKitchenLS(); rebuildKById(); }
     var kwsRow=setRows.filter(function(r){return r.key==='king_wiz_skips';})[0];                 // ITEM 4 (v35): wizard skips are shared across staff devices
@@ -442,19 +446,16 @@ function saveProductCache(){}   // v108: products persist via dbPushIngredient
 let productsById = {};
 
 let PRODUCTS, byId, SEARCHABLE;
-var deletedProdIds=[];
-function saveDeletedProds(){}   // v108: tombstones retire in phase 6 (D3)
 /* v108: THE MERGE IS GONE. This was `BASE_PRODUCTS` seeded into a map, then `productsById` layered on
    top, because localStorage held deltas against a hardcoded base. `productsById` now holds the whole
    catalogue as read from `ingredients`, so there is one layer and nothing to reconcile.
    The variable is still called `productsById` and no longer means productsById — renaming it is deferred to
    the phase that removes the localStorage read entirely, so that the deletion diff and the rename diff
    stay separately reviewable. Named in the handover so it is not mistaken for an oversight.
-   `deletedProdIds` still filters here; the tombstone lists die in a later phase (D3). */
+   v108 (D3): the deletedProdIds filter is gone too — a deleted product is a deleted ROW now. */
 function rebuild(){
   const map = new Map();
   for(const id in productsById) map.set(id, Object.assign({}, productsById[id]));
-  (deletedProdIds||[]).forEach(function(id){ map.delete(id); });          // hidden/deleted ingredients never appear
   PRODUCTS = [...map.values()];
   byId = Object.fromEntries(PRODUCTS.map(p=>[p.id, p]));
   SEARCHABLE = PRODUCTS.filter(p=>p.is_food);
@@ -901,8 +902,6 @@ let MENU=[],menuById={};
 function rebuildMenu(){
   var map={},order=[];
   customMenu.forEach(function(m){ if(!(m.id in map))order.push(m.id); map[m.id]=Object.assign({},map[m.id]||{},m); });
-  var del=(typeof deletedMenuIds!=='undefined'&&deletedMenuIds)?deletedMenuIds:[];
-  order=order.filter(function(k){return del.indexOf(k)<0;});   // drop deleted / split-away items
   MENU=order.map(function(k){return map[k];});
   menuById={}; order.forEach(function(k){ menuById[k]=map[k]; });
 }
@@ -911,7 +910,6 @@ function upsertCustomMenu(item){
   if(i>=0) customMenu[i]=item; else customMenu.push(item);
   saveCustomMenu(); return dbPushMenu(item);   // v42: return the push so a dependent plate write can be sequenced after this menu_items upsert confirms (heals an orphaned existing dish)
 }
-var deletedMenuIds=[];
 rebuildMenu();
 var cogsPct = 40;                                  // target food cost, as a percent (e.g. 40)
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
@@ -1690,12 +1688,54 @@ function syncIgUnitFromPack(){                                        // when a 
   if(uSel.value!==want){ uSel.value=want; var lp=document.getElementById('ig_pricePer'); if(lp) lp.textContent=igPriceSuffix(); }
 }
 function igPriceSuffix(){ var u=(document.getElementById('ig_unit')||{}).value; return u==='unit'?'/unit':u==='litre'?'/L':u==='ml'?'/mL':u==='g'?'/g':'/kg'; }
+/* v108 (decision D3) \u2014 WHAT REFERENCES THIS PRODUCT.
+   Pure, so it can be tested without a DOM. Returns {ingredients:[names], plates:[names]}.
+
+   WHY THIS EXISTS AT ALL. Until now `deleted_prod_ids` filtered at RENDER time and the row stayed,
+   so "deleting" a product could not break a plate that costed from it \u2014 every reference still
+   resolved. That property was accidental, undocumented, and is exactly what a real DELETE removes.
+   The chain is plate -> ingredient -> product, so the breakage lands on plate COSTS: a dangling pid
+   makes a line cost nothing, and a plate quietly gets cheaper. In a costing app that is the worst
+   possible failure, because the number still looks like a number.
+
+   BOTH reference paths are checked, because both are live on real data (verified against production
+   1 Aug 2026: of 179 plate lines, 81 reach a product through a kitchen ingredient's pid and 84 name
+   one directly). Checking only the first would miss half of them. */
+function productRefs(pid){
+  var ings=(kitchenIngredients||[]).filter(function(k){ return k && k.pid===pid; });
+  var kids={}; ings.forEach(function(k){ kids[k.id]=true; });
+  var plates=(savedPlates||[]).filter(function(sp){
+    return (sp && Array.isArray(sp.lines) ? sp.lines : []).some(function(l){
+      return l && (l.pid===pid || (l.kid!=null && kids[l.kid]));
+    });
+  });
+  return { ingredients:ings.map(function(k){ return k.name; }),
+           plates:plates.map(function(sp){ return sp.name; }) };
+}
 function deleteIngredient(){
   var id=ingEditId; if(!id||!byId[id]) return; var nm=byId[id].description||'this product';
-  askConfirm('Delete product?', 'Remove \u201c'+nm+'\u201d from your products? It won\u2019t change plates you\u2019ve already saved.', 'Delete', function(){
-    if(deletedProdIds.indexOf(id)<0){ deletedProdIds.push(id); saveDeletedProds(); }
-    if(productsById[id]){ delete productsById[id]; saveProductCache(); }            // drop any custom/edited data too
-    dbSetSetting('deleted_prod_ids', deletedProdIds);
+  var refs=productRefs(id);
+  /* REFUSE, and name what breaks \u2014 not a generic "are you sure". Max's call (D3): the thing that
+     protects the user is not reversibility, it is not silently breaking plate costs. Refusing is
+     better than a scary confirm here because the fix is real work the user has to do anyway \u2014 an
+     ingredient must point at SOME product, so repointing it first is the correct next step, not an
+     obstacle. */
+  if(refs.ingredients.length){
+    var what=refs.ingredients.slice(0,3).join(', ')+(refs.ingredients.length>3?' and '+(refs.ingredients.length-3)+' more':'');
+    var plateBit=refs.plates.length
+      ? ' Those are used by '+refs.plates.length+' plate'+(refs.plates.length===1?'':'s')+', whose costs would break.'
+      : '';
+    askConfirm('Can\u2019t delete this product',
+      '\u201c'+nm+'\u201d is linked to the ingredient '+(refs.ingredients.length===1?'':'s ')+what+'.'+plateBit+
+      ' Point '+(refs.ingredients.length===1?'it':'them')+' at another product first, then delete this one.',
+      'OK', function(){});
+    return;
+  }
+  askConfirm('Delete product?', 'Remove \u201c'+nm+'\u201d from your products? Nothing is using it.', 'Delete', function(){
+    // v108: a REAL delete. The tombstone list is gone \u2014 deletion means the row is gone, one meaning,
+    // no second weaker way of saying it. Recoverable from the last backup export if ever needed.
+    if(productsById[id]) delete productsById[id];
+    dbDeleteIngredient(id);
     rebuild(); closeIngEdit(); renderIngredients(); toast('Product deleted');
   });
 }
@@ -3578,7 +3618,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v107';
+var APP_VERSION='v108';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3762,8 +3802,6 @@ function buildBackup(){
       food_cost_target:cogsPct,
       gst_default:gstDefault,
       king_wiz_skips:kingWizSkipIds(),
-      deleted_menu_ids:deletedMenuIds,
-      deleted_prod_ids:deletedProdIds,
       menus:menusList,
       current_menu_id:currentMenuId
     }
@@ -5976,7 +6014,6 @@ function submitNewMenu(){
 }
 
 /* ===== Menu Analysis: split "/" items + safe delete ===== */
-function saveDeletedMenu(){}   // v108: tombstones retire in phase 6 (D3)
 function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').delete().eq('id',id); }, 'menu delete'); }
 /* v108: isBaseMenuId was `BASE_MENU.some(...)` and is deleted with the literal. There are no built-in
    dishes any more, so removeMenuItem's tombstone branch is unreachable by construction — a deleted

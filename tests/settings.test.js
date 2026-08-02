@@ -167,8 +167,12 @@ test('ITEM 6: the backup carries every setting, including the ones added this ve
   assert.equal(s.food_cost_target, 38);
   assert.equal(s.gst_default, 'inc');
   assert.deepEqual(s.king_wiz_skips, ['P0005'], 'v35 skips are data — they belong in a backup');
-  assert.deepEqual(s.deleted_menu_ids, ['M9']);
-  assert.deepEqual(s.deleted_prod_ids, ['P0999']);
+  /* v108 (D3): the two tombstone lists are gone from the export because they are gone from the app.
+     They were a second, weaker way of saying "deleted", kept alive by a hardcoded base layer that
+     re-added rows and by a heal that re-pushed them. Both are deleted, so a deleted row is simply
+     absent — one meaning, no third category. */
+  assert.ok(!('deleted_menu_ids' in s), 'a tombstone list in a backup would restore rows as hidden-but-present');
+  assert.ok(!('deleted_prod_ids' in s), 'same — the export must not carry a concept the app no longer has');
   assert.equal(s.current_menu_id, 'MENU_ORIGINAL');
 });
 
