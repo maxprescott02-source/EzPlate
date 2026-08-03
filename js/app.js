@@ -3692,7 +3692,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v109';
+var APP_VERSION='v110';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3892,6 +3892,212 @@ function exportBackup(){
     toast('Backup downloaded');
   }catch(e){ console.error('[settings] export failed:', e); toast('Couldn\u2019t build the backup'); }
 }
+/* ===== Restore from backup (v110) — the counterpart to exportBackup =========================
+   exportBackup has shipped without one since it was written. That mattered more after v108 (D3)
+   made a product delete a real DELETE: the reasoning that made that acceptable was "reversibility
+   is provided by the export" — and that sentence is only true once something can READ the file.
+   Until now, recovery meant hand-inserting rows in the Supabase SQL editor.
+
+   THE TRAP THIS CODE EXISTS TO AVOID (hard rule 8). The export dumps IN-MEMORY objects, so a dish
+   comes out camelCase (`menuId`, `plateId`) while the columns are `menu_id`, `plate_id`. A restore
+   written from the SCHEMA inserts every row with a null plate link — every row present, nothing
+   connected, no error raised. On the 1 Aug file that was 76 of 77. So nothing here names a column:
+   every group goes through the SAME `xToRow` writers the app already uses, and the SQL function is
+   handed rows that are already row-shaped.
+
+   TWO GROUPS HAVE NO ROW MAPPER, and that is not an oversight to paper over: `kitchen_ingredients`
+   and everything under `settings` are `app_settings` JSON blobs written by `dbSetSetting`, not
+   table rows. Their boundary is the SETTING KEY, so they are assembled as `{key, value}` pairs and
+   the key names appear here — the one place outside dbSetSetting's callers that they can.
+
+   ATOMICITY IS THE SERVER'S JOB, NOT THIS FILE'S. A partial restore is worse than none: plates
+   without products means every line costs nothing while the margin still reads green. PostgREST
+   gives no cross-table transaction across requests, so this sends ONE rpc and lets Postgres be
+   all-or-nothing. Verified against production 3 Aug 2026 — a payload that fails at the dishes
+   insert rolled back the preceding deletes and inserts completely.
+   See supabase/migrations/20260803_restore_backup_fn.sql. */
+
+/* Accept or refuse a file, PURE so tests can slice it. Every refusal has to SAY why in words the
+   user can act on: rule 9 exists because a wrong restore is silent, so the refusal must not be. */
+function parseBackupFile(text){
+  var b;
+  try{ b=JSON.parse(text); }
+  catch(e){ return {ok:false, reason:'That file isn’t valid JSON — it may be damaged or only partly downloaded.'}; }
+  if(!b || typeof b!=='object' || Array.isArray(b)) return {ok:false, reason:'That file isn’t an EzPlate backup.'};
+  var st=b.stamp;
+  /* No stamp at all = pre-v106. It is a delta against a product list with no record of WHICH build,
+     so there is nothing to check it against. Reference material, not a restorable file. */
+  if(!st || typeof st!=='object' || Array.isArray(st))
+    return {ok:false, reason:'This backup was saved before EzPlate started recording a backup format, so there’s no way to tell what’s inside it. It can’t be restored.'};
+  var f=st.format;
+  /* Format 1 is REFUSED WHOLESALE, and the honest reason is not "format 1 is incomplete" — some are
+     complete (one taken after the 1 Aug backfill holds all 412). It is that EzPlate can no longer
+     run the test that tells them apart: rule 9's check is per-id against the built-in product list,
+     and v108 deleted that list. Guessing wrong means 295 products carry silently wrong prices,
+     which is the exact failure rule 9 was written to prevent. */
+  if(f===1)
+    return {ok:false, reason:'This is a format 1 backup (v107 or earlier). Some of those hold every product and some hold only the ones you’d edited — and EzPlate can no longer tell which, because the built-in product list it would have to compare against was removed in v108. It survives only in commit aa16387. Restoring blind could leave 295 products with silently wrong prices, so EzPlate won’t do it.'};
+  if(f!==2)
+    return {ok:false, reason:'This backup is marked format “'+String(f)+'”, which this version of EzPlate doesn’t know how to read. It may have been made by a newer version.'};
+  /* A format-2 file must carry every group. A missing one is a damaged file, not an empty dataset —
+     and the difference matters, because the server would happily replace a table with nothing. */
+  var groups=[
+    ['products','object','products'], ['kitchen_ingredients','array','ingredients'],
+    ['plates','array','plates'], ['menu_items','array','menus'],
+    ['ing_price_log','object','price history'], ['supplier_mem','object','remembered items'],
+    ['settings','object','settings']
+  ];
+  for(var i=0;i<groups.length;i++){
+    var k=groups[i][0], want=groups[i][2], v=b[k];
+    var isArr=Array.isArray(v), isObj=(v&&typeof v==='object'&&!isArr);
+    if(groups[i][1]==='array' ? !isArr : !isObj)
+      return {ok:false, reason:'This backup is damaged — its '+want+' are missing or unreadable. Nothing has been changed.'};
+  }
+  if(!Array.isArray(b.settings.menus))
+    return {ok:false, reason:'This backup is damaged — its menus are missing or unreadable. Nothing has been changed.'};
+  return {ok:true, data:b};
+}
+
+/* Two KINDS of broken reference, and they must not be treated alike.
+   HARD — a menu entry pointing at a plate or a menu the file doesn't contain. Postgres rejects the
+   whole restore on the foreign key, so catching it here turns an opaque FK error into a sentence.
+   SOFT — a dangling pid/kid. It restores fine and then costs nothing, which is the quiet-wrong-
+   number failure. But refusing would leave someone whose only lifeboat is slightly imperfect with
+   NOTHING, so it is reported in the confirm and the choice is the user's.
+   (Misc cost lines carry {cost, misc, label} and no kid BY DESIGN — not a dangling reference.) */
+function backupRefCheck(b){
+  var hard=[], soft=[];
+  var prodIds={}, kIds={}, plateIds={}, menuIds={};
+  Object.keys(b.products).forEach(function(id){ prodIds[id]=1; });
+  b.kitchen_ingredients.forEach(function(k){ if(k&&k.id) kIds[k.id]=1; });
+  b.plates.forEach(function(p){ if(p&&p.id) plateIds[p.id]=1; });
+  b.settings.menus.forEach(function(m){ if(m&&m.id) menuIds[m.id]=1; });
+
+  var badPlate=0, badMenu=0;
+  b.menu_items.forEach(function(d){
+    if(!d) return;
+    var pid=d.plateId||d.sourcePlateId||null;
+    if(pid && !plateIds[pid]) badPlate++;
+    if(d.menuId && !menuIds[d.menuId]) badMenu++;
+  });
+  /* "entry on your menus" DESCRIBES rather than names. The object noun would have to be a fifth one
+     ("menu item" already survives in the Edit modal awaiting its own brief) and this copy must not
+     add another — describing without naming is allowed, inventing a noun is not. */
+  var s=function(n){ return n===1?'':'s'; }, v=function(n){ return n===1?'s':''; };
+  var ent=function(n){ return n+(n===1?' entry':' entries'); };
+  if(badPlate) hard.push(ent(badPlate)+' on your menus point'+v(badPlate)+' to a plate that isn’t in this backup');
+  if(badMenu) hard.push(ent(badMenu)+' point'+v(badMenu)+' to a menu that isn’t in this backup');
+
+  var badPid=0;
+  b.kitchen_ingredients.forEach(function(k){ if(k&&k.pid&&!prodIds[k.pid]) badPid++; });
+  if(badPid) soft.push(badPid+' ingredient'+s(badPid)+' link'+v(badPid)+' to a product that isn’t in this backup');
+
+  var badKid=0, badLinePid=0;
+  b.plates.forEach(function(p){
+    ((p&&p.lines)||[]).forEach(function(l){
+      if(!l||typeof l!=='object') return;
+      if(l.kid!=null){ if(!kIds[l.kid]) badKid++; }
+      else if(l.pid!=null){ if(!prodIds[l.pid]) badLinePid++; }
+    });
+  });
+  if(badKid) soft.push(badKid+' plate line'+s(badKid)+' use'+v(badKid)+' an ingredient that isn’t in this backup');
+  if(badLinePid) soft.push(badLinePid+' plate line'+s(badLinePid)+' use'+v(badLinePid)+' a product that isn’t in this backup');
+  return {hard:hard, soft:soft};
+}
+
+/* Build the rpc payload. EVERY group crosses the boundary through the writer the app already uses —
+   this function must never grow a column name of its own. `format` is repeated into the payload so
+   the server can refuse independently: a guard only one side knows about is a guard a future caller
+   can skip by not knowing about it. */
+function backupToPayload(b){
+  var ipl=[];
+  Object.keys(b.ing_price_log||{}).forEach(function(pid){
+    (b.ing_price_log[pid]||[]).forEach(function(pt){
+      if(!pt || pt.t==null || pt.v==null) return;                 // a null would restore as a real-looking $0.00
+      ipl.push(pointToRow(pt.t, pt.v, 'cost_per_base_unit', 'product_id', pid));
+    });
+  });
+  var s=b.settings, settings=[{key:'kitchen_ingredients', value:b.kitchen_ingredients}];
+  if(s.food_cost_target!=null) settings.push({key:'food_cost_target', value:s.food_cost_target});
+  if(s.gst_default!=null) settings.push({key:'gst_default', value:s.gst_default});
+  if(Array.isArray(s.king_wiz_skips)) settings.push({key:'king_wiz_skips', value:s.king_wiz_skips});
+  return {
+    format:2,
+    ingredients:Object.keys(b.products).map(function(id){ return ingredientToRow(b.products[id]); }),
+    menus:s.menus.map(menuRecordToRow),
+    plates:b.plates.map(plateToRow),
+    menu_items:b.menu_items.map(menuToRow),
+    supplier_phrases:Object.keys(b.supplier_mem||{}).map(function(id){ return supplierPhraseToRow(b.supplier_mem[id]); }),
+    ing_price_history:ipl,
+    app_settings:settings
+  };
+}
+
+/* Counts for the confirm. Deliberately worded in the four object nouns only: a plate published to a
+   menu is still a plate (CLAUDE.md), so menu entries are described by their relationship rather
+   than given a noun of their own. */
+function backupSummary(b){
+  var nm=b.settings.menus.length, nd=b.menu_items.length;
+  var s=function(n){ return n===1?'':'s'; };
+  return [
+    Object.keys(b.products).length+' product'+s(Object.keys(b.products).length),
+    b.kitchen_ingredients.length+' ingredient'+s(b.kitchen_ingredients.length),
+    b.plates.length+' plate'+s(b.plates.length),
+    nm+' menu'+s(nm)+', with '+nd+' plate'+s(nd)+' on '+(nm===1?'it':'them'),
+    Object.keys(b.supplier_mem||{}).length+' remembered item'+s(Object.keys(b.supplier_mem||{}).length)
+  ];
+}
+
+function dbRestoreBackup(payload){
+  return pushWrite(function(){ return SUPA.rpc('restore_backup', {payload:payload}); }, 'the restore');
+}
+
+function restoreFromBackupFile(file){
+  if(!file) return;
+  var refuse=function(msg){ askConfirm('Can’t restore this backup', msg, 'OK', function(){}); };
+  if(!online()){ refuse('EzPlate needs a connection to restore — the restore happens on the server. Nothing has been changed.'); return; }
+  var reader=new FileReader();
+  reader.onerror=function(){ refuse('That file couldn’t be read. Nothing has been changed.'); };
+  reader.onload=function(){
+    var parsed=parseBackupFile(String(reader.result||''));
+    if(!parsed.ok){ refuse(parsed.reason); return; }
+    var b=parsed.data, refs=backupRefCheck(b);
+    if(refs.hard.length){
+      refuse('This backup can’t be restored as it stands:\n\n• '+refs.hard.join('\n• ')+
+             '\n\nRestoring it would be rejected part-way through, so nothing has been changed.');
+      return;
+    }
+    var when=b.exported_at ? new Date(b.exported_at) : null;
+    var whenTxt=(when && isFinite(when.getTime())) ? when.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}) : 'an unknown date';
+    var msg='Exported '+whenTxt+' by EzPlate '+(b.version||'(unknown version)')+'.\n\n'+
+            'Everything below REPLACES what’s on the server:\n• '+backupSummary(b).join('\n• ')+
+            '\n\nAnything saved since that export is replaced and can’t be recovered. '+
+            'Your price history is added to, never replaced.';
+    if(refs.soft.length) msg+='\n\nWorth knowing first:\n• '+refs.soft.join('\n• ')+
+                             '\nThose will cost nothing until you relink them.';
+    askConfirm('Restore from backup', msg, 'Replace my data', function(){
+      var payload;
+      try{ payload=backupToPayload(b); }
+      catch(e){ console.error('[restore] payload build failed:', e); refuse('EzPlate couldn’t read that backup’s contents. Nothing has been changed.'); return; }
+      toast('Restoring…');
+      dbRestoreBackup(payload).then(function(res){
+        if(!res || res.error) return;                              // pushWrite has already said so, in the real words
+        /* REPAINT FROM THE SERVER, NEVER FROM THE FILE. Rendering the file's objects would show a
+           screen that agrees with the backup whether or not the write actually landed — the same
+           two-sources-of-truth ambiguity v108 removed. bootstrapSync is the only reader. */
+        var wanted=b.settings.current_menu_id;
+        return Promise.resolve(bootstrapSync()).then(function(){
+          if(wanted && menusList.some(function(m){ return m.id===wanted; })) setCurrentMenuId(wanted);
+          rerenderCurrentTab();
+          var n=(res.data&&res.data.ingredients)!=null ? res.data.ingredients : Object.keys(b.products).length;
+          toast('Restored — '+n+' products back');
+        });
+      });
+    });
+  };
+  reader.readAsText(file);
+}
+
 /* Clear cache & refresh — deletes the service worker's copies of the app shell and
    reloads, so the newest build downloads. It touches NOTHING else: no localStorage, no
    Supabase. Blocked while offline: wiping the offline copy with no connection would
@@ -3912,6 +4118,15 @@ function clearCacheAndRefresh(){
   on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
   on('cogsToSettings',openSettings);                                // the Menu tab's "Change it in Settings"
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
+  /* v110: the file input is hidden and driven by the visible button, matching the invoice
+     Upload-PDF pattern. `value=''` before opening the picker so choosing the SAME file twice
+     still fires `change` — without it a second attempt after a refusal silently does nothing. */
+  (function(){
+    var b=document.getElementById('setRestore'), f=document.getElementById('setRestoreFile');
+    if(!b||!f) return;
+    b.addEventListener('click', function(){ f.value=''; f.click(); });
+    f.addEventListener('change', function(){ var fl=f.files&&f.files[0]; if(fl) restoreFromBackupFile(fl); });
+  })();
   var sp=document.getElementById('settingsPanel');
   if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
   var ci=document.getElementById('setCogsInput');
