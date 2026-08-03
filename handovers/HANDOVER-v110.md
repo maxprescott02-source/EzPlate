@@ -1,9 +1,9 @@
 # HANDOVER v110 — backup restore, the counterpart to exportBackup
 
-**Date:** 3 Aug 2026
+**Date:** 3–4 Aug 2026 (NZST) — built 3 Aug; destructive steps 1 and 2 run 3 and 4 Aug
 **Branch:** `feature/backup-restore` off `main` at `c8a6dd2` (the v109 merge)
 **Brief:** `ezplate-opus-backup-restore.md`
-**Suite:** `npm test` 611 green (582 → 611) · jsdom smoke green · Playwright 94/94 · `node -c` clean
+**Suite:** `npm test` 614 green (582 → 614) · jsdom smoke green · Playwright 94/94 · `node -c` clean
 
 ---
 
@@ -354,19 +354,45 @@ and that the boot gate behaves when the database is genuinely empty mid-restore.
 
 ## CodeRabbit
 
-**Did not complete — three attempts, three server-side timeouts** (review IDs `ac5ac955`,
-`dd161da7`, and a third). This is not a clean review and should not be read as one; the
-service never returned findings. What stands in for it: the self-review that found bugs 2 and
-3 above, 29 new tests, and the production verification table. **Worth re-running before the
-PR is merged** — the diff is 1,058 lines, which may itself be what timed the service out.
+**The CLI did not complete — three attempts, three server-side timeouts** (review IDs
+`ac5ac955`, `dd161da7`, and a third). The **GitHub app reviewed PR #50 successfully**, so the
+code did get its second reviewer; if the CLI times out again, push the PR and let the app do
+it rather than treating the CLI's silence as a pass.
+
+Two findings, **both real, both mine, both in this document**:
+
+1. **Suite count stale** (minor) — the header said 611 while the tree registered 614. I had
+   updated `CLAUDE.md` when the three migration-pinning tests landed and never came back to
+   the handover header. Fixed.
+2. **This document contradicted itself on the destructive plan** (major) — the body recorded
+   steps 1 and 2 as run, while the "Needs Max's phone" list still said "Steps 1–3 as agreed.
+   None of it has been run." That bullet was written before either step ran. Fixed, and the
+   phone gap restated as what it actually is.
+
+Worth noting what that says about the batch: CodeRabbit found nothing wrong with the
+migration, the client or the tests — the whole diff's defects were in my record of it. That
+is the failure mode a long handover invites, and it is why the count and the status both need
+to be re-read at the end rather than written once.
+
+**Considered and not applied:** it also suggested marking step 2 pending "until
+`~/Downloads/ezplate-PRE-STEP2.json` exists". It does exist — 312,999 bytes, 4 Aug 2026
+05:16 NZST — but CodeRabbit's sandbox cannot see outside the repo, so it correctly refused to
+take the claim on trust. The size and timestamp are recorded here for exactly that reason: a
+safety net named by a path nobody else can check is a claim, not evidence.
 
 ## Needs Max's phone / not verified here
 
-- **The whole destructive test plan — outstanding item 5.** Steps 1–3 as agreed. None of it
-  has been run. **Step 1 is not quite a no-op**, and I would rather say so than let it be
-  discovered: restoring the 3 Aug file permanently nulls the 20 legacy `plates.menu_id`
-  values and resets every `updated_at`. Both are documented as unread — but "unread" is a
-  claim worth re-checking, not a guarantee.
+- **Step 3 of the destructive plan — the only step not run.** Steps 1 and 2 are done and
+  passed (see their sections above; this bullet said "none of it has been run" until
+  CodeRabbit caught that it had gone stale). What step 3 would newly prove is narrow: that an
+  EMPTY table restores as well as a populated one, and how the boot gate reads against a
+  genuinely empty database mid-restore.
+  Recorded for step 1, since it was predicted rather than discovered: restoring permanently
+  nulls the 20 legacy `plates.menu_id` values and resets every `updated_at`. Both are
+  documented as unread — but "unread" is a claim worth re-checking, not a guarantee.
+- **NONE of the restore UI has been seen on a phone.** Everything above was a desktop
+  browser driving the real client against the real database. That is the largest remaining
+  gap, and it is bigger than step 3.
 - **Does the file picker behave on iOS Safari?** A hidden `<input type="file">` driven by a
   button is the invoice-upload pattern and works there, but a `.json` `accept` filter is not
   the same as a PDF one, and iOS is particular about which files it will offer.

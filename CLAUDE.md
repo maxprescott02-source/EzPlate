@@ -549,9 +549,11 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
     narrow: that an empty table restores as well as a populated one, and how the
     boot gate behaves against a genuinely empty database mid-restore.
   - **Newest backup: `~/Downloads/ezplate-PRE-STEP2.json`** — v110, `format: 2`,
-    412 products, taken 4 Aug immediately before step 2 and validated (parses, no
-    broken references, every dish reference resolves). This supersedes the 3 Aug
-    file as the fallback.
+    412 products, **312,999 bytes, 4 Aug 2026 05:16 NZST**, taken immediately
+    before step 2 and validated (parses, no broken references, every dish
+    reference resolves). This supersedes the 3 Aug file as the fallback. The size
+    and timestamp are here on purpose: a safety net named only by a path is a
+    claim, not evidence — check them before relying on it.
 - **⚠️ EVERY PRODUCT-PRICE PATH WRITES `ing_price_history`, AND THERE IS ONE
   WRITER (v109).** `setProduct` logs the point; nothing else calls `logIngPrice`.
   Recorded here so the next session cannot repeat the gap: the five paths that
