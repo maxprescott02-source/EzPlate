@@ -105,9 +105,15 @@ this file's to destroy.
 
 Nothing here is inferred.
 
+The migration was applied **three times** — initial, then the `DISTINCT ON` fix, then the
+`where true` fix — with the body hash re-checked against the file each time. The final,
+shipped hash is **`3f91871f…91c4`**; `3b15aec4…c848` and `9b3174f5…b93b` appear elsewhere in
+this document and are the two HISTORICAL values, not disagreements. Every row below was
+re-run after the last re-apply.
+
 | Check | Method | Result |
 |---|---|---|
-| Function body matches the reviewed file | `md5(prosrc)` vs local hash | `3b15aec4…c848` **exact** |
+| Function body matches the reviewed file | `md5(prosrc)` vs local hash | `3f91871f…91c4` **exact** |
 | SECURITY INVOKER | `pg_proc.prosecdef` | `false` |
 | Guards refuse before any DELETE | 5 payloads through the function | all refused, each naming why |
 | Row counts after those 5 refusals | recount 8 tables | unchanged |
@@ -359,26 +365,55 @@ and that the boot gate behaves when the database is genuinely empty mid-restore.
 code did get its second reviewer; if the CLI times out again, push the PR and let the app do
 it rather than treating the CLI's silence as a pass.
 
-Two findings, **both real, both mine, both in this document**:
+Seven findings. **Four fixed, three skipped with reasons.**
 
-1. **Suite count stale** (minor) — the header said 611 while the tree registered 614. I had
-   updated `CLAUDE.md` when the three migration-pinning tests landed and never came back to
-   the handover header. Fixed.
+**Fixed — documentation (three), all mine:**
+
+1. **Suite count stale** — the header said 611 while the tree registered 614. I updated
+   `CLAUDE.md` when the three migration-pinning tests landed and never came back here.
 2. **This document contradicted itself on the destructive plan** (major) — the body recorded
    steps 1 and 2 as run, while the "Needs Max's phone" list still said "Steps 1–3 as agreed.
-   None of it has been run." That bullet was written before either step ran. Fixed, and the
-   phone gap restated as what it actually is.
+   None of it has been run." That bullet predated both runs.
+3. **The verification table's migration hash was stale** — it showed `3b15aec4…c848`, the
+   FIRST of three applies. CodeRabbit proposed `9b3174f5…b93b`, which is the SECOND. The
+   shipped hash is `3f91871f…91c4`. The table now carries the final value and names the other
+   two as historical, so a reader hitting three hashes in one document knows which is live.
 
-Worth noting what that says about the batch: CodeRabbit found nothing wrong with the
-migration, the client or the tests — the whole diff's defects were in my record of it. That
-is the failure mode a long handover invites, and it is why the count and the status both need
-to be re-read at the end rather than written once.
+**Fixed — code (one), and the only finding in shipped code:**
 
-**Considered and not applied:** it also suggested marking step 2 pending "until
-`~/Downloads/ezplate-PRE-STEP2.json` exists". It does exist — 312,999 bytes, 4 Aug 2026
-05:16 NZST — but CodeRabbit's sandbox cannot see outside the repo, so it correctly refused to
-take the claim on trust. The size and timestamp are recorded here for exactly that reason: a
-safety net named by a path nobody else can check is a claim, not evidence.
+4. **The restore's promise chain had no rejection handler.** If the rpc succeeded but
+   `bootstrapSync` or the repaint below it threw, the last thing the user saw was the
+   `Restoring…` toast — forever, after a destructive operation, with no way to tell whether
+   their data had been replaced. The fix says the true thing, which is neither "restored" nor
+   "failed": **"Restored — but the screen couldn't refresh. Close and reopen EzPlate."**
+   Getting that wording wrong in the other direction would be worse than the bug: "couldn't
+   restore" would invite a second restore of a database that had already been replaced.
+
+**Skipped, each with a reason:**
+
+5. **Mark step 2 pending until `~/Downloads/ezplate-PRE-STEP2.json` is confirmed to exist.**
+   It exists — 312,999 bytes, 4 Aug 2026 05:16 NZST — and was validated *before* the
+   deletion. But CodeRabbit's sandbox cannot see outside the repo and correctly declined to
+   take the claim on trust. Rather than unwind a passing result, the size and timestamp are
+   now recorded in both documents: a safety net named only by a path is a claim, not evidence.
+6. **A unique index on `ing_price_history (product_id, recorded_at)`, replacing `not exists` +
+   `DISTINCT ON` with `on conflict do nothing`.** A genuine improvement and genuinely
+   race-safe, and checked as applicable (0 duplicate pairs on 4 Aug). Not built, under hard
+   rule 5: it constrains `logIngPrice`/`dbPushIngPrice` too, turning a silent duplicate on the
+   NORMAL price-logging path into a surfaced error. That is probably right, but it is a change
+   to the price log rather than to the restore. **Now outstanding item 6** with the check
+   already done.
+7. **Rewrite the brace-extraction helper to understand strings, comments and regexes.** Not
+   done: it is the same helper `_extract.js` and `row-boundary.test.js` use, and diverging
+   would make this file inconsistent with the repo's convention for no proven gain. Its second
+   suggestion WAS taken — each extracted slice is now validated with `new Function` and names
+   the function when it fails to parse. That addresses the real cost, which was never a wrong
+   extraction but an unreadable error if one ever happened.
+
+Worth noting what this says about the batch: **CodeRabbit found nothing wrong with the
+migration, and one defensive gap in the client.** Three of the four fixes were in my record of
+the work rather than the work. That is the failure mode a 380-line handover invites — code
+gets re-read constantly, prose gets written once and goes quietly stale.
 
 ## Needs Max's phone / not verified here
 

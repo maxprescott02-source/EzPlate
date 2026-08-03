@@ -700,7 +700,18 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    on a real phone** — everything so far was a desktop browser driving the real
    client. The file picker on iOS Safari with a `.json` filter is the specific
    unknown.
-6. Small, each needing a yes: **`ingredients.updated_at` is stale and means
+6. **A unique index on `ing_price_history (product_id, recorded_at)`** — raised by
+   CodeRabbit on PR #50 and deliberately NOT built under hard rule 5 (list extra
+   work, don't build it). It is a real improvement: the restore's additive insert
+   currently guards duplicates with `not exists` + `DISTINCT ON`, which is correct
+   for a single writer but not race-safe, and the constraint would let both
+   collapse into `on conflict do nothing`. **Checked 4 Aug: 0 duplicate pairs, so
+   it would apply cleanly.** The reason it needs its own brief rather than a
+   quick patch is blast radius — it constrains `logIngPrice`/`dbPushIngPrice`
+   too, turning a silent duplicate on the NORMAL price-logging path into a
+   surfaced error. That is probably the right behaviour, but it is a change to
+   the price log, not to the restore.
+7. Small, each needing a yes: **`ingredients.updated_at` is stale and means
    nothing** — `ingredientToRow` never sends it and nothing sets it, so P0001
    read 18 Jul minutes after being written (found 3 Aug). Don't use it to judge
    whether a write landed; either populate it or drop it.
@@ -708,9 +719,9 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    the `.chart-hint`/`.scope-note` pair under the chart; `.range-btn` is 32px
    (DEFERRED by Max 31 Jul as an OPEN accessibility item, not dropped);
    `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row.
-7. Supplier coverage is 18% of used products — the concentration family stays
+8. Supplier coverage is 18% of used products — the concentration family stays
    silent by design until ~50%.
-8. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
+9. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
    Remembered items) then imports one Bidfood invoice to re-teach. Only one is a
    real loss. Not urgent.
 

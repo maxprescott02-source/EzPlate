@@ -36,7 +36,21 @@ function extractFn(src, name) {
   let depth = 0;
   for (let n = start; n < src.length; n++) {
     if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
+    else if (src[n] === '}' && --depth === 0) {
+      const out = src.slice(i, n + 1);
+      /* The depth counter is brace-NAIVE: it does not know strings, template literals, regexes or
+         comments, so a `}` inside any of those would end the slice early. That is the same helper
+         the rest of the suite uses, and reimplementing a JS parser here would be worse than the
+         problem. Instead, prove every slice is real JavaScript and name the culprit when it is
+         not — without this, a bad extraction surfaces as a syntax error on the whole concatenated
+         bundle, with nothing saying which function broke it. (CodeRabbit, PR #50.) */
+      try { new Function(`return (${out})`); }
+      catch (e) {
+        throw new Error(`restore: extracted ${name} does not parse (${e.message}). A brace inside `
+          + `a string, comment or regex in app.js can fool this extractor; update tests/restore.test.js`);
+      }
+      return out;
+    }
   }
   throw new Error(`restore: unbalanced braces for ${name}`);
 }

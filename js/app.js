@@ -4091,6 +4091,17 @@ function restoreFromBackupFile(file){
           rerenderCurrentTab();
           var n=(res.data&&res.data.ingredients)!=null ? res.data.ingredients : Object.keys(b.products).length;
           toast('Restored — '+n+' products back');
+        }, function(err){
+          /* THE RESTORE ITSELF SUCCEEDED — only the re-read or the repaint failed. Saying
+             "couldn't restore" here would be a lie that invites a second restore, and leaving the
+             'Restoring…' toast as the last word is worse: after a destructive operation, silence
+             reads as "still going" and the user cannot tell whether their data was replaced.
+             So: confirm the write landed, and name the one action that fixes the screen.
+             (bootstrapSync normally swallows its own errors into the boot gate, so this is
+             defence for the repaint below it — CodeRabbit, PR #50.) */
+          console.error('[restore] restored, but the refresh failed:', err);
+          setSync('error');
+          toast('Restored — but the screen couldn’t refresh. Close and reopen EzPlate.');
         });
       });
     });
