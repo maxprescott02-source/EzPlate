@@ -167,9 +167,19 @@ single most important thing to reopen before EzPlate is used by anyone else.
      (`source_plate_id` still read as a fallback + mirrored on write during rollout;
      `plates.menu_id` unread/unwritten). Because the DISH now references the plate,
      a dish write must not race ahead of its plate's insert — sequence with
-     `dbPushMenuAfterPlate`. (The FK direction FLIPPED in v55: the old
-     `plates.menu_id → menu_items.id` FK `plates_menu_id_fkey` and the old
-     `dbPushPlateAfterMenu` are gone.) See Data-write rules.
+     `dbPushMenuAfterPlate`. **The APPLICATION-level direction flipped in v55 —
+     the DATABASE constraint did not, and this line said otherwise until v110.**
+     `dbPushPlateAfterMenu` is genuinely gone, but the FK
+     `plates_menu_id_fkey` (`plates.menu_id → menu_items.id`, `ON DELETE SET
+     NULL`) is **still live**, and 20 of 78 plates still carry a non-null
+     `menu_id` (checked through the MCP, 3 Aug 2026). So the two tables are
+     **CIRCULAR**: `menu_items.plate_id → plates.id` has no delete action and
+     errors if plates go first, while `plates.menu_id` cannot be inserted before
+     the dishes exist. **Any delete-and-reinsert of both tables must delete
+     dishes first and insert plates with `menu_id` omitted** — which is what
+     `plateToRow` already does, so v110's restore is correct by existing design
+     rather than by luck. If `plateToRow` ever starts writing that column,
+     restore breaks (pinned by `tests/restore.test.js`). See Data-write rules.
 7. **Menu deletion deletes its dishes and UNLINKS their plates — never the
    plates.** (v54, reverses v40/v42.) Deleting a menu removes its `menu_items`
    rows and sets each affected plate's `menu_id` to null; every plate survives in
@@ -192,6 +202,16 @@ single most important thing to reopen before EzPlate is used by anyone else.
    Any importer must translate through `dbPushMenu`'s mapping, never assume the
    file matches the table. This is exactly the class this file exists for: code
    that looks correct and is not.
+   **v110 built that importer and obeys this rule structurally, not by care.**
+   `backupToPayload` maps every group through the existing `xToRow` writers and
+   names no column of its own; the SQL function is handed rows that are already
+   row-shaped and uses `jsonb_populate_recordset`, so it names TABLES but not
+   columns. Two groups have **no row mapper and that is not an oversight** —
+   `kitchen_ingredients` and everything under `settings` are `app_settings` JSON
+   blobs written by `dbSetSetting`, so their boundary is the SETTING KEY. Two
+   tests pin the trap directly: a restored dish must RESOLVE to its plate and its
+   menu (row counts pass happily with every link null), and no camelCase key may
+   reach any row.
 9. **The export's `products` group mirrors whatever the app holds in memory — so
    what the FILE means is decided by the DATA LAYER, not by `buildBackup`. It has
    changed twice. A restore MUST read `stamp.format` and branch, never assume.**
@@ -226,12 +246,53 @@ single most important thing to reopen before EzPlate is used by anyone else.
    in the app, so this check needs the literal recovered from git — commit
    `aa16387` is the last one that has it.)
 
+   **AS SHIPPED IN v110, THE RESTORE REFUSES FORMAT 1 OUTRIGHT** (`parseBackupFile`),
+   and the reason is worth stating exactly, because "format 1 is incomplete" is
+   the wrong summary: some format-1 files ARE complete. It refuses because the
+   app can no longer RUN the per-id test above — v108 deleted the literal it
+   needs. Refusing a restorable file costs one manual recovery; accepting an
+   unrestorable one costs 295 silently wrong prices. **Accepts:** `format: 2`
+   with all seven groups present and of the right type. **Refuses, each naming
+   why:** unparseable JSON · no `stamp` · `format: 1` (naming `aa16387`) · any
+   other `format` · a missing or wrong-typed group. A missing group is treated as
+   a DAMAGED FILE, never as an empty dataset — the distinction matters because
+   the server would otherwise replace a 412-product catalogue with nothing.
+
    **The general law, which is why this rule is here and why it keeps needing
    rewriting:** a backup that dumps live in-memory objects inherits every
    assumption those objects carry. Change what fills them and you have changed
    the file format without touching the exporter — silently, with the tests still
    green. Any change to what `bootstrapSync` puts in memory is a change to the
    backup format, and must bump `stamp.format`.
+10. **A migration verified through the MCP or the SQL editor has NOT been
+    verified for the client. They are different roles.** (v110, 3 Aug 2026 —
+    found the hard way, on production.)
+
+    `postgres` (what the MCP and the SQL editor connect as) and `authenticator`
+    (what PostgREST connects as, for `anon` and `authenticated`) differ in ways
+    that change whether SQL *runs at all*:
+    - **Preloaded libraries.** `authenticator` carries
+      `session_preload_libraries = supautils, safeupdate`; `postgres` carries
+      only `supautils`. **`safeupdate` rejects any `DELETE` or `UPDATE` with no
+      `WHERE` clause** — so a bare `delete from t;` works perfectly in the SQL
+      editor and through the MCP, and fails on the real client path with
+      "DELETE requires a WHERE clause". Measured from the anon path, not
+      inferred: bare is blocked, while `where true`, `where id is not null` and a
+      self-subquery all pass, so safeupdate reads the PARSE TREE rather than the
+      plan.
+    - **`statement_timeout`.** `anon` 3 s, `authenticated` 8 s, `postgres`
+      unlimited. A function that is comfortable through the MCP can time out for
+      a user.
+    - **RLS.** The MCP bypasses it. `ing_price_history` and
+      `menu_price_history` carry SELECT+INSERT policies only, so the anon key
+      cannot DELETE from them at ALL — invisible to every SQL test.
+
+    v110's `restore_backup` was hashed, guard-tested and atomicity-proven
+    through the MCP, and still failed on the first real browser call. **Exercise
+    any new RPC from the app itself, or from the browser console with a payload
+    its own guards refuse** (`rpc('restore_backup', {payload:{format:1}})` is the
+    pattern — it is rejected before any write). Cheap, and it is the only thing
+    that tests the role your users actually are.
 
 ## Cache-version discipline (six spots — easy to get wrong)
 
@@ -262,6 +323,15 @@ to hardcode a version string and silently go stale).
 - `tests/smoke.js` — jsdom DOM smoke (not in the default suite):
   `npm install jsdom --no-save && node tests/smoke.js`. Run it for anything
   touching rendering, wiring, or Settings.
+- **Anything server-side must ALSO be exercised as the client's role — see hard
+  rule 10.** `npm test`, the smoke and Playwright all stop at the network
+  boundary, and the MCP sits on the far side of it as a different, more
+  privileged role. A green suite plus a green MCP check is NOT coverage of a
+  migration or an RPC. To run the real client against the real database: serve
+  the working tree (`python3 -m http.server 8899`) and open it — the local build
+  talks to production Supabase, so it exercises the true path while letting you
+  test code that is not deployed yet. That is how v110's `safeupdate` failure
+  was found.
 - **A browser IS available here** (corrected v88; this line used to say "there
   is no browser here" and that was believed for dozens of batches). Playwright
   drives the installed Chromium against the app from `file://` —
@@ -406,12 +476,84 @@ merge to `main` as a production deploy.
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Per-batch history belongs in `handovers/`, nowhere else.
 
-- **Version: v109 on branch `fix/price-log-every-path`, six spots agree.**
-  `origin/main` is at **v108** (`4f750eb`, the v108 merge). **`git fetch` and
+- **Version: v110 on branch `feature/backup-restore`, six spots agree.**
+  `origin/main` is at **v109** (`c8a6dd2`, the v109 merge). **`git fetch` and
   check `origin/main` yourself every session** — this bullet was a merge stale
   for a day in v107 ([[verify-origin-main-before-trusting-local]]).
   **`aa16387` is the last commit containing the `BASE_PRODUCTS` literal**, which
   a format-1 restore needs (hard rule 9).
+- **⚠️ THE BACKUP RESTORE EXISTS (v110), AND ATOMICITY IS THE SERVER'S JOB.**
+  Settings → Data → **Restore from backup**. What it accepts and refuses is in
+  hard rule 9; how it crosses the row boundary is in hard rule 8. The parts a
+  future session most needs to know:
+  - **One `SUPA.rpc('restore_backup', …)`, never per-table writes.** PostgREST
+    wraps an rpc in ONE transaction; ~575 rows sent from the client would be ~6
+    independent ones with no rollback between them. A partial restore is the
+    worst outcome available here — plates without products cost nothing while
+    the margin still reads green. A test pins that there is exactly one call
+    site.
+  - **The function is `SECURITY INVOKER`, deliberately.** The first draft was
+    DEFINER, on the assumption a restore must wipe `ing_price_history` (anon has
+    SELECT+INSERT policies only, so it cannot). The additive-log decision killed
+    that need, and INVOKER means the function grants **no privilege the anon key
+    does not already hold** — which matters because that key is public in
+    `index.html`. A DEFINER function here would hand every reader of the page a
+    one-call database wipe that RLS would otherwise refuse.
+  - **`ing_price_history` is ADDITIVE — the one deliberate exception to
+    "replace".** Inserted only where `(product_id, recorded_at)` is absent, never
+    deleted. The export caps each product at 60 points, so a replace could only
+    ever LOSE observations, silently, in the series the movers card reads.
+  - **Atomicity was verified against production, 3 Aug 2026**, not assumed: a
+    payload failing at the dishes insert rolled back the preceding five deletes
+    and three inserts completely (the tell was `plates.menu_id`, still 20 rows
+    after). Guards were confirmed the same way — format 1, no stamp, `"two"`, a
+    missing group and a wrong-typed group all refuse before any DELETE runs.
+  - **The rpc was also called for real from the browser** against the production
+    deploy, with guard-refused payloads: the function is exposed, the `payload`
+    argument maps, the anon EXECUTE grant works, and the raised message reaches
+    the client verbatim. A `format: 2` payload passed the format guard and
+    stopped at the group check — the real path, as far as it goes without
+    replacing data. **A `format: 2` payload with all seven groups present IS a
+    live restore; never paste one into a console to see what happens.**
+  - **⚠️ `where true` ON THE FIVE DELETES IS LOAD-BEARING. Do not remove it as
+    redundant.** Supabase preloads the `safeupdate` extension for the
+    **`authenticator`** role (`session_preload_libraries = supautils,
+    safeupdate`), which rejects any `DELETE` with no `WHERE`. The **`postgres`**
+    role does NOT load it. Measured from the anon path: bare is blocked;
+    `where true`, `where id is not null` and a self-subquery all pass — so
+    safeupdate reads the PARSE TREE, not the plan. Pinned by a test that reads
+    the migration file.
+    The general lesson this produced is now **hard rule 10** — a migration
+    verified through the MCP has not been verified for the client. It is above
+    the snapshot line because it outlives this batch.
+  - `supabase/migrations/20260803_restore_backup_fn.sql` was applied by hand via
+    the MCP; its body md5 was cross-checked against the file
+    (`3f91871f…91c4`, exact) ([[running-supabase-migrations-here]]). Adapt that
+    md5 habit for DDL: hash the function body, apply, then hash `prosrc` back out
+    — `length(prosrc)` counts CHARACTERS while the file is BYTES, so compare
+    hashes, never lengths.
+  - **STEPS 1 AND 2 OF THE DESTRUCTIVE PLAN ARE DONE — 3–4 Aug 2026, against
+    production.** Step 1 (round-trip): the 3 Aug file restored through the real
+    client, `Restored — 412 products back` in ~1.1 s; a fresh `buildBackup()`
+    compared to it keyed by id showed products / plates / kitchen ingredients /
+    menus / supplier memory / settings **all zero changed**, every price-log
+    point surviving. The only deltas were 70 dishes changing `custom` and
+    `sourcePlateId` — `menuToRow`'s own long-standing behaviour, not a restore
+    defect. Step 2 (recovery): a plate and a menu entry deleted through the real
+    user paths, the loss confirmed to survive a cold boot, then restored — **all
+    seven table fingerprints matched the pre-deletion state byte-for-byte**, and
+    the restored plate costed identically ($3.85). **The restore is idempotent:**
+    the `menu_items` fingerprint after step 2 equals the one after step 1, so
+    `menuToRow`'s normalisation converges on the first restore and never moves
+    again. **Step 3 (full wipe) is still not run** — what it would newly prove is
+    narrow: that an empty table restores as well as a populated one, and how the
+    boot gate behaves against a genuinely empty database mid-restore.
+  - **Newest backup: `~/Downloads/ezplate-PRE-STEP2.json`** — v110, `format: 2`,
+    412 products, **312,999 bytes, 4 Aug 2026 05:16 NZST**, taken immediately
+    before step 2 and validated (parses, no broken references, every dish
+    reference resolves). This supersedes the 3 Aug file as the fallback. The size
+    and timestamp are here on purpose: a safety net named only by a path is a
+    claim, not evidence — check them before relying on it.
 - **⚠️ EVERY PRODUCT-PRICE PATH WRITES `ing_price_history`, AND THERE IS ONE
   WRITER (v109).** `setProduct` logs the point; nothing else calls `logIngPrice`.
   Recorded here so the next session cannot repeat the gap: the five paths that
@@ -488,10 +630,9 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   localStorage seed, translated to row shape. **Both times these specs went red
   this batch, the app was right and the harness assumption had expired** — but
   the v100 rule stands: treat a failure as real until you have proved otherwise.
-- **Suite:** `npm test` **582 green** · jsdom smoke green · Playwright **94/94**
-  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (563 → 566 was v108's
-  own phase 6c landing after its snapshot was written; 566 → 582 is v109's
-  `tests/price-log-paths.test.js`.)
+- **Suite:** `npm test` **614 green** · jsdom smoke green · Playwright **94/94**
+  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (566 → 582 was v109's
+  `tests/price-log-paths.test.js`; 582 → 614 is v110's `tests/restore.test.js`.)
 - **Supabase (verified 1–2 Aug 2026 through the MCP server, which reads
   `pg_policies` directly — these are facts, not inferences):** every table the
   app queries exists. **The `menu_price_history` RLS fault is FIXED and
@@ -500,9 +641,12 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   policies, seeded with 33 points. **Use the MCP for any future "did the
   migration run?" question** ([[running-supabase-migrations-here]]).
 - **The four v108 migrations are APPLIED** (see `supabase/migrations/`,
-  1 Aug). `ingredients` 120 → 413 → **412 rows** after the `Umrzbztwn` delete.
+  1 Aug), **and so is v110's `20260803_restore_backup_fn.sql`** (3 Aug).
+  `ingredients` 120 → 413 → **412 rows** after the `Umrzbztwn` delete.
   `list_migrations` is empty — this project has no CLI migration tracking, so
   the files plus their commit messages ARE the audit trail.
+  **`public.restore_backup(jsonb)` is the only function in the schema** —
+  before v110 there were none at all.
 - **Per-menu history has started:** `price_history` 43 rows, 7 carrying
   `menu_id` (was 0 on 30 Jul); `menu_price_history` 77 rows. Thin, but no longer
   empty — check counts, don't assume time has passed.
@@ -527,8 +671,11 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    on top of the boot gate. Then: does the gate read as honest or as broken?
    Does the offline message arrive when the signal actually drops, not just when
    `navigator.onLine` says so? Does a refused product delete explain itself?
-   **Take a fresh `format: 2` export once v108 is on the phone** — the 2 Aug
-   format-1 file is the fallback until then.
+   **A fresh `format: 2` export now EXISTS** —
+   `~/Downloads/ezplate-backup-2026-08-03.json`, v108, 412 products / 78 plates /
+   2 menus, verified internally clean (0 dangling references of any kind) and an
+   exact match for the live database. That is the fallback the 2 Aug format-1
+   file used to be, and it is what v110's restore was validated against.
    **v109's own check is DONE — device-verified 3 Aug.** Max edited a price on
    the Products tab and `ing_price_history` went 33 → 34 points (P0001, one
    point, 0.0247 $/g), which v108 could not have written. He was on the **Vercel
@@ -543,9 +690,28 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
 3. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
    v88 (`isEvalSupported:false`), NOT fixed. Its own brief.
 4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72).
-5. **The restore importer** — still unbuilt, and now well-defined: hard rule 9
-   plus `stamp.format`. Its own brief.
-6. Small, each needing a yes: **`ingredients.updated_at` is stale and means
+5. **The restore's destructive plan — only STEP 3 remains**, and it is optional
+   rather than blocking. Steps 1 and 2 are done and passed (see the restore
+   bullet above). Step 3 is a full wipe and restore, ONLY on an explicit go with
+   a fresh export taken minutes before. What is genuinely still unproven is
+   narrower than "does restore work": whether an EMPTY table restores as well as
+   a populated one, and how the boot gate reads against a genuinely empty
+   database. **Separately, and more useful: none of the restore UI has been seen
+   on a real phone** — everything so far was a desktop browser driving the real
+   client. The file picker on iOS Safari with a `.json` filter is the specific
+   unknown.
+6. **A unique index on `ing_price_history (product_id, recorded_at)`** — raised by
+   CodeRabbit on PR #50 and deliberately NOT built under hard rule 5 (list extra
+   work, don't build it). It is a real improvement: the restore's additive insert
+   currently guards duplicates with `not exists` + `DISTINCT ON`, which is correct
+   for a single writer but not race-safe, and the constraint would let both
+   collapse into `on conflict do nothing`. **Checked 4 Aug: 0 duplicate pairs, so
+   it would apply cleanly.** The reason it needs its own brief rather than a
+   quick patch is blast radius — it constrains `logIngPrice`/`dbPushIngPrice`
+   too, turning a silent duplicate on the NORMAL price-logging path into a
+   surfaced error. That is probably the right behaviour, but it is a change to
+   the price log, not to the restore.
+7. Small, each needing a yes: **`ingredients.updated_at` is stale and means
    nothing** — `ingredientToRow` never sends it and nothing sets it, so P0001
    read 18 Jul minutes after being written (found 3 Aug). Don't use it to judge
    whether a write landed; either populate it or drop it.
@@ -553,9 +719,9 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    the `.chart-hint`/`.scope-note` pair under the chart; `.range-btn` is 32px
    (DEFERRED by Max 31 Jul as an OPEN accessibility item, not dropped);
    `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row.
-7. Supplier coverage is 18% of used products — the concentration family stays
+8. Supplier coverage is 18% of used products — the concentration family stays
    silent by design until ~50%.
-8. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
+9. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
    Remembered items) then imports one Bidfood invoice to re-teach. Only one is a
    real loss. Not urgent.
 
