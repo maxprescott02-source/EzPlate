@@ -476,10 +476,18 @@ merge to `main` as a production deploy.
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Per-batch history belongs in `handovers/`, nowhere else.
 
-- **Version: v110 on branch `feature/backup-restore`, six spots agree.**
-  `origin/main` is at **v109** (`c8a6dd2`, the v109 merge). **`git fetch` and
-  check `origin/main` yourself every session** — this bullet was a merge stale
-  for a day in v107 ([[verify-origin-main-before-trusting-local]]).
+- **Version: v110, MERGED and LIVE.** `origin/main` is at **`a524d48`** (the
+  PR #50 merge, 3 Aug 2026); production served v110 on all six spots within a
+  minute, verified by fetching them. **`git fetch` and check `origin/main`
+  yourself every session** — this bullet was a merge stale for a day in v107,
+  and was stale again for the few minutes between the v110 merge and this line
+  ([[verify-origin-main-before-trusting-local]]).
+  **Production is `https://scoopyscosting.vercel.app`** — the stable alias, and
+  the only URL that answers without a login. The per-deployment URLs that
+  `gh api …/deployments` returns are **auth-protected and 302 to Vercel SSO**, so
+  a `curl` against one proves nothing about what shipped. Fetch the alias.
+  (Related to v109's lesson that a branch push deploys a PREVIEW: check WHICH
+  build answered before concluding anything from a device or a fetch.)
   **`aa16387` is the last commit containing the `BASE_PRODUCTS` literal**, which
   a format-1 restore needs (hard rule 9).
 - **⚠️ THE BACKUP RESTORE EXISTS (v110), AND ATOMICITY IS THE SERVER'S JOB.**
