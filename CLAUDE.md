@@ -202,14 +202,18 @@ single most important thing to reopen before EzPlate is used by anyone else.
      branch is DELETED, not merely dormant. Its only writer anywhere was the
      unreachable `savePlateRestore`, and `rowToPlate` never reads `menu_id`, so a
      server-loaded plate never carried `.menuId` in the first place.
-     **⚠️ "so no link was lost" — which this line claimed until v112 — WAS WRONG.**
-     The single dish with no plate link (`ummrq8xbur`, "Cheese & Ham Toastie GF")
-     has an unreferenced plate `SPmrq8xbut` with the SAME NAME, THREE real
-     ingredient lines, and an id 2 ms apart. v111 checked only whether a plate
-     pointed BACK via `menu_id` and drew the wrong conclusion from it. The dish
-     reads as uncosted while its recipe sits in the library; the repair is
-     unwritten and needs Max's yes (see the snapshot). **The CONSTRAINT is what
-     still matters, not the data.** So the two tables are
+     **⚠️ "so no link was lost" — which this line claimed until v112 — WAS WRONG,
+     and the lost link has since been REPAIRED.** The one dish with no plate link
+     (`ummrq8xbur`, "Cheese & Ham Toastie GF") had an unreferenced plate
+     `SPmrq8xbut` with the SAME NAME, THREE real ingredient lines, and an id 2 ms
+     apart. It read as uncosted on the menu while its recipe sat in the library.
+     v111 checked only whether a plate pointed BACK via `menu_id` and drew the
+     wrong conclusion from it — **the absence of a back-pointer is not evidence
+     that nothing was lost; look for an orphan on the OTHER side too.** Repaired
+     5 Aug 2026 on Max's explicit yes (`plate_id`/`source_plate_id` set to
+     `SPmrq8xbut`, keeping its Sandwiches section and $8 price). **There are now 0
+     orphan dishes.** **The CONSTRAINT is what still matters, not the data.** So
+     the two tables are
      **CIRCULAR**: `menu_items.plate_id → plates.id` has no delete action and
      errors if plates go first, while `plates.menu_id` cannot be inserted before
      the dishes exist. **Any delete-and-reinsert of both tables must delete
@@ -615,16 +619,23 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
     undocumented until v112.** It means `doDeleteMenu`'s comment claiming its
     ordering guards an FK violation is WRONG — that ordering was never
     load-bearing. The ingredient and supplier-phrase delete paths cross no FK.
-- **⚠️ ONE PRODUCTION ORPHAN, AND v111's "NOTHING WAS LOST" WAS WRONG.** Dish
-  `ummrq8xbur` ("Cheese & Ham Toastie GF") has no plate link — and plate
-  `SPmrq8xbut` has the **same name, three real ingredient lines**, and an id
-  2 ms apart (both 18 Jul 2026 10:50:45). The dish reads as uncosted while its
-  recipe sits unreferenced in the library. v111 checked only whether a plate
-  pointed BACK via `menu_id`. **No repair has been written** — a repair that
-  guesses at links is worse than an orphan, and it needs Max's yes. The plate is
-  NEWER than the dish, so `savePlateRestore` did not create the pair; the cause is
-  historical and was not chased. The other unreferenced plate ("chippy",
-  `SPms07iwy5`) is a legitimately unpublished plate, not an orphan.
+- **✅ THE PRODUCTION ORPHAN IS REPAIRED (5 Aug), AND MAX FOUND IT BY TESTING.**
+  There are now **0 orphan dishes**. Dish `ummrq8xbur` ("Cheese & Ham Toastie GF")
+  had no plate link while plate `SPmrq8xbut` — **same name, three real ingredient
+  lines**, id 2 ms apart (both 18 Jul 2026 10:50:45) — sat unreferenced. v111
+  checked only whether a plate pointed BACK via `menu_id` and concluded nothing
+  was lost. **The absence of a back-pointer is not evidence that nothing was
+  lost — look for an orphan on the OTHER side too.** The plate is NEWER than the
+  dish, so `savePlateRestore` never created the pair; the cause is historical and
+  was not chased. The remaining unreferenced plate ("chippy", `SPms07iwy5`) is a
+  legitimately unpublished plate, not an orphan.
+  **⚠️ HOW IT SURFACED, AND THE REAL GAP IT EXPOSED.** Max published the plate to
+  Original to test the delete flow and got a SECOND dish of the same name — one
+  costed, one not — because **`submitMenuItem`'s duplicate guard is
+  `dishesOfPlate(sp)`, which matches by PLATE.** A dish with no plate link is
+  invisible to it, so publishing cannot heal an orphan and silently creates a
+  duplicate instead. That is the "five plates called Chips" family and it is
+  UNFIXED — see the outstanding list.
 - **⚠️ THE BACKUP RESTORE EXISTS (v110), AND ATOMICITY IS THE SERVER'S JOB.**
   Settings → Data → **Restore from backup**. What it accepts and refuses is in
   hard rule 9; how it crosses the row boundary is in hard rule 8. The parts a
@@ -791,10 +802,24 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    was unreachable dead code; removed rather than repaired.
 4. ~~`deletePlate`/`doDeleteEverything` don't await their dish deletes~~ —
    **CLOSED in v112.** See `dbDeletePlateAfterDishes`.
-5. **Repair the one production orphan?** Dish `ummrq8xbur` reads as uncosted
-   while plate `SPmrq8xbut` (same name, 3 lines) sits unreferenced. Linking them
-   is a one-row UPDATE, but it is a JUDGEMENT that they belong together — needs
-   Max's yes, not a script's guess.
+5. ~~Repair the one production orphan~~ — **DONE 5 Aug**, on Max's explicit yes.
+   0 orphan dishes remain. See the snapshot above for what it exposed.
+5a. **⚠️ Publishing a plate cannot heal an orphaned dish — it silently duplicates
+   it.** `submitMenuItem`'s "one entry per (plate, menu)" guard is
+   `dishesOfPlate(sp).find(...)`, which resolves through `plateIdOf`. A dish with
+   NO plate link is therefore invisible to it, so publishing the plate that dish
+   should have been using adds a SECOND row of the same name — one costed, one
+   not. This is exactly how the orphan above surfaced. Fixing it means matching on
+   something other than the plate link (name + menu is the obvious candidate) and
+   deciding whether to heal or to warn — a real UX call, so it needs its own brief
+   and Max's yes. **Not urgent now that the orphan count is 0**, but it is the
+   mechanism that would let one recur unnoticed.
+5b. **⚠️ `Ham Leg Sliced 2Mm (App 1Kg)` (`P0182`) is stored at $0.0003/g —
+   30 c/kg.** Almost certainly wrong by a factor of ~46 (≈$13.90/kg would be
+   normal). Spotted 5 Aug while costing the toastie; it makes that plate read
+   $2.30 (29%, green) when the true cost is nearer $3.70 (46%, amber). **Not
+   changed** — it is a price, and prices are Max's call. Worth checking against a
+   recent invoice.
 6. **`public.menus` RLS is off** — see above. Its own brief; harmless today,
    blocking at the multi-tenant gate.
 7. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated

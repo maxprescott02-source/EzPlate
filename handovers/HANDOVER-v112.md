@@ -237,3 +237,54 @@ check is **Plates tab → Publish → reload → confirm the dish still reads as
 
 Carried from before, still unverified on a device: phone sign-off on v108 (especially the ~1,138 ms
 cold-start against a boot gate), and the whole v82–v104 UX sequence.
+
+---
+
+## Addendum — 5 Aug 2026, during Max's device check
+
+**Reported:** "ham and cheese toastie gf is costed in plates, I then attached it
+to original menu to test delete flow and it doesn't show as costed on the menu."
+
+**Not a v112 defect. The publish worked.** What Max saw was the pre-existing
+orphan documented above, made visible by his own test:
+
+| Row | Section | Plate link | Reads as |
+|---|---|---|---|
+| `ummrq8xbur` (pre-existing) | **Sandwiches** | none | **not costed** ← what he was looking at |
+| `ummsf4uldn` (created by his publish) | Uncategorised | `SPmrq8xbut` ✓ | costed |
+
+Two rows of the same name on the same menu, in different sections.
+
+### The real gap this exposed
+
+`submitMenuItem`'s "one entry per (plate, menu)" guard is
+`dishesOfPlate(sp).find(...)`, which resolves through `plateIdOf`. **A dish with
+no plate link is invisible to it.** So publishing the very plate an orphaned dish
+should have been using cannot heal it — it adds a second row instead, silently.
+That is the "five plates called Chips" family, it is UNFIXED, and it is the
+mechanism by which an orphan could recur unnoticed. Logged as outstanding item
+5a; it needs its own brief because "heal vs warn" is a real UX call.
+
+### The repair (Max's explicit yes, option A of three)
+
+```sql
+UPDATE menu_items SET plate_id='SPmrq8xbut', source_plate_id='SPmrq8xbut'
+ WHERE id='ummrq8xbur';
+DELETE FROM menu_items WHERE id='ummsf4uldn';
+```
+
+Chose to heal the ORIGINAL row rather than keep the new one: it already carried
+the correct `Sandwiches` section and $8 price, and it is the row with the
+history. Verified after: one toastie row, `Sandwiches`, $8, linked to a 3-line
+plate. **78 dishes / 78 plates, 0 orphan dishes.** The one remaining unreferenced
+plate ("chippy") is a legitimately unpublished library plate.
+
+### Spotted while costing it, NOT changed
+
+`Ham Leg Sliced 2Mm (App 1Kg)` (`P0182`) is stored at **$0.0003/g = 30 c/kg**,
+almost certainly wrong by ~46×. It makes the toastie read $2.30 (29%, green) when
+the truth is nearer $3.70 (46%, amber). Prices are Max's call — flagged as
+outstanding item 5b, not edited.
+
+**No code changed in this addendum.** Suite still 643 green; the repair was data
+only.
