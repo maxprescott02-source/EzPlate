@@ -1,4 +1,4 @@
-var loadedPlateId=null,invRows=[],dismissedMatch='',nameTimer=null,publishTargetId=null;
+var loadedPlateId=null,invRows=[],nameTimer=null,publishTargetId=null;
 var gemToken=0,gemStatus=null,gemApplied=false,gemCheckStart=0;   // v62: AI second-reader — token discards late/stale responses, status drives the summary note, gemApplied freezes an applied import. v63: gemCheckStart timestamps the "checking" state so the flip to checked/unavailable never flickers (see gemSettle)
 /* v108: BASE_PRODUCTS (393 rows, 132 KB) and BASE_IDS were deleted here. The catalogue lives in the
    `ingredients` table — migrated by 20260801_base_products_backfill.sql, verified 412 live products.
@@ -40,6 +40,25 @@ function errText(err){ return (err && (err.message||err.error_description||err.e
    message afterwards, where being wrong costs nothing.
 
    Returns the settled result so ordered writes (plate -> dish) can chain. */
+
+/* ===== where each dataset actually persists (v111) =====
+   v108 emptied nine `saveX()` functions to no-ops but left ~35 calls to them scattered through the
+   mutation paths. v111 deleted both. The ONLY thing those no-ops still carried was this map, so it
+   lives here instead — one place, next to the gateway every one of these helpers goes through.
+   A mutation to any of these is only persisted if it reaches its helper below; there is no other
+   destination, and (see the top of this comment) a failure to arrive is always surfaced.
+     products (`productsById`)      -> dbPushIngredient        [ingredients]
+     kitchen words                  -> dbSetSetting            [app_settings, key kitchen_ingredients]
+     dishes (`customMenu`)          -> dbPushMenu / dbDeleteMenu             [menu_items]
+     menus (`menusList`)            -> dbUpsertMenuRecord / dbDeleteMenuRecord  [menus]
+     plates (`savedPlates`)         -> dbPushPlate / dbDeletePlate           [plates]
+     food-cost history              -> dbPushHistory           [price_history]
+     per-menu history               -> dbPushMenuHistory       [menu_price_history, menu_id set]
+     per-dish sell price            -> dbPushMenuPrice         [menu_price_history]
+     per-product cost               -> dbPushIngPrice via saveIngLog         [ing_price_history]
+     supplier memory                -> dbPushSupplierPhrase / dbDeleteSupplierPhrase [supplier_phrases]
+   `saveIngLog` and `saveKitchenIngredients` survive because they are NOT no-ops — they flush and
+   push. Do not assume a `save`-prefixed name here is decoration. */
 function pushWrite(builder, label){
   if(!SUPA){
     var noClient={error:{message:'No database connection'}};
@@ -329,7 +348,7 @@ async function bootstrapSync(){
     menuPriceHistSupported = !(_mp2 && _mp2.error);
     // v108: through the boundary, not the raw row. Was `ov[r.id]=r` — see rowToIngredient on why that
     // worked by luck rather than design.
-    var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); productsById=ov; saveProductCache(); rebuild();
+    var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); productsById=ov; rebuild();
     var setRows=(setg&&setg.data)?setg.data:[];
     /* v108 (D3): the two tombstone settings are no longer READ. They existed because deletion had to
        survive a hardcoded base layer that re-added the row on every rebuild, and reconcileLocalOnly,
@@ -338,7 +357,7 @@ async function bootstrapSync(){
        are left in the database on purpose: dropping them is not reversible if this batch is rolled
        back, and they cost nothing unread. They can be cleared in a later tidy. */
     var kiRow=setRows.filter(function(r){return r.key==='kitchen_ingredients';})[0];
-    if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; saveKitchenLS(); rebuildKById(); }
+    if(kiRow&&Array.isArray(kiRow.value)){ kitchenIngredients=kiRow.value; rebuildKById(); }
     var kwsRow=setRows.filter(function(r){return r.key==='king_wiz_skips';})[0];                 // ITEM 4 (v35): wizard skips are shared across staff devices
     if(kwsRow&&Array.isArray(kwsRow.value)){ setKingWizSkips(kwsRow.value); }
     // v108: THE SERVER SNAPSHOT IS THE ANSWER. Was a reconcileLocalOnly heal-and-re-push for both
@@ -347,16 +366,15 @@ async function bootstrapSync(){
     // write, and treating it as one would resurrect rows on the RLS-empty read this batch hardens
     // against. The re-push chain (plate first, then the dish that references it) went with it; the
     // ordering rule itself is unchanged and still lives in dbPushMenuAfterPlate for real publishes.
-    customMenu=(men.data||[]).map(rowToMenu); saveCustomMenu();
+    customMenu=(men.data||[]).map(rowToMenu);
     /* v54/v108: a SUCCESSFUL EMPTY read is the user having deleted every menu, and zero menus is a
        legitimate state — so it must be respected, not re-seeded. Seed only when the table did not
        answer at all (it may not exist on an older project). */
     var menusRead = !!(mres && !mres.error && Array.isArray(mres.data));
     if(menusRead) menusList=mres.data.map(rowToMenuRecord);
     else ensureDefaultMenu();
-    saveMenus();
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
-    savedPlates=(pla.data||[]).map(rowToPlate); savePlatesLS(); rebuildMenu();
+    savedPlates=(pla.data||[]).map(rowToPlate); rebuildMenu();
     // v89/v108: support is read off the fetch above — naming menu_id in the select means the query
     // fails exactly when the column is missing, which is what the separate probe used to establish.
     if(_h && _h.data){
@@ -366,20 +384,20 @@ async function bootstrapSync(){
       // admitting NaN — see rowToPoint. Two passes so each series states which rows it wants.
       var _all=rowsToSeries(_h.data.filter(function(r){ return !r.menu_id; }), 'avg_food_cost_pct', null);
       var _bym=rowsToSeries(_h.data.filter(function(r){ return !!r.menu_id; }), 'avg_food_cost_pct', 'menu_id');
-      priceHistory=_all; saveHistory();
+      priceHistory=_all;
       // v89: MERGE, don't replace. pushWrite still drops writes silently when fully offline (a known gap,
       // CLAUDE.md Data-write rules), so a point logged on a café phone with no signal exists only in
       // localStorage. Replacing wholesale would delete it on the next sync — cost history Max can never
       // get back. Server points win on identical timestamps; local-only points survive. (CodeRabbit, v89.)
       // NOTE: the all-menus priceHistory above still replaces wholesale and has the same gap — untouched
       // here deliberately, it predates this batch and everything reads it. Flagged in the handover.
-      if(menuHistSupported){ menuHistory=mergeMenuHistory(_bym, menuHistory); saveMenuHistory(); }
+      if(menuHistSupported){ menuHistory=mergeMenuHistory(_bym, menuHistory); }
     }
     // v90: the sell-price log. Same MERGE rather than replace, for the same reason as above.
     // menuPriceLog has the identical {key: [{t,v}]} shape as menuHistory, so mergeMenuHistory serves both.
     if(menuPriceHistSupported && _mp2 && _mp2.data){
       var _byItem=rowsToSeries(_mp2.data, 'price', 'menu_item_id');
-      menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog); saveMenuPriceLog();
+      menuPriceLog=mergeMenuHistory(_byItem, menuPriceLog);
     }
     /* v107: an EMPTY server read must never wipe local supplier memory. Server-wins is deliberate —
        it is how a phrase deleted on one device disappears from the others — but a successful-but-empty
@@ -404,7 +422,7 @@ async function bootstrapSync(){
       if(!spr.data.length && localIds.length){
         invDbg('[smem] server returned 0 rows but', localIds.length, 'held locally — keeping local, re-pushing');
         localIds.forEach(function(id){ if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(supplierMem[id]); });
-      } else { supplierMem=mm; saveSupplierMem(); }
+      } else { supplierMem=mm; }
     }   /* supplier_phrases table may not exist yet -> keep local */
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
@@ -460,10 +478,9 @@ function refreshFromCloud(){
    safely-reviewable follow-up. Named in the handover so it is not mistaken for dead code nobody
    noticed. Each is a one-line comment stating what the persistence actually is now: a server push.
 */
-function saveProductCache(){}   // v108: products persist via dbPushIngredient
 let productsById = {};
 
-let PRODUCTS, byId, SEARCHABLE;
+let PRODUCTS, byId;
 /* v108: THE MERGE IS GONE. This was `BASE_PRODUCTS` seeded into a map, then `productsById` layered on
    top, because localStorage held deltas against a hardcoded base. `productsById` now holds the whole
    catalogue as read from `ingredients`, so there is one layer and nothing to reconcile.
@@ -476,7 +493,6 @@ function rebuild(){
   for(const id in productsById) map.set(id, Object.assign({}, productsById[id]));
   PRODUCTS = [...map.values()];
   byId = Object.fromEntries(PRODUCTS.map(p=>[p.id, p]));
-  SEARCHABLE = PRODUCTS.filter(p=>p.is_food);
 }
 /* v109 — the ONE place a product price becomes a history point.
    ROOT CAUSE of the gap this replaces: `logIngPrice` was called from TWO call sites kept in step by
@@ -503,7 +519,7 @@ function rebuild(){
 function setProduct(id, patch){
   var had=productsById[id]?productsById[id].cost_per_base_unit:undefined;
   productsById[id] = Object.assign({}, productsById[id]||{}, patch);
-  saveProductCache(); rebuild(); dbPushIngredient(id);
+  rebuild(); dbPushIngredient(id);
   if(patch && Object.prototype.hasOwnProperty.call(patch, 'cost_per_base_unit')){
     var now=patch.cost_per_base_unit;
     // had==null covers a brand-new product (undefined) and a product that never had a price: both are
@@ -537,8 +553,7 @@ var kitchenIngredients=[];
 var kById={};
 function rebuildKById(){ kById={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.id) kById[k.id]=k; }); }
 rebuildKById();
-function saveKitchenLS(){}   // v108: kitchen words persist via saveKitchenIngredients -> app_settings
-function saveKitchenIngredients(){ saveKitchenLS(); rebuildKById(); if(typeof dbSetSetting==='function') dbSetSetting('kitchen_ingredients', kitchenIngredients); }
+function saveKitchenIngredients(){ rebuildKById(); if(typeof dbSetSetting==='function') dbSetSetting('kitchen_ingredients', kitchenIngredients); }
 function nextKid(){                                                   // 'K0001' + zero-padded, stable across the store
   var max=0; (kitchenIngredients||[]).forEach(function(k){ var n=parseInt(String(k.id||'').replace(/^K/,''),10); if(isFinite(n)&&n>max)max=n; });
   return 'K'+String(max+1).padStart(4,'0');
@@ -557,7 +572,6 @@ function lineSig(l){
 }
 
 /* ---------- search ---------- */
-function subseq(q,t){let i=0;for(let k=0;k<t.length&&i<q.length;k++){if(t[k]===q[i])i++;}return i===q.length;}
 /* v59: THE shared search matcher — token-order-independent, used by every list search bar
    (Products, Ingredients, Plates, Menu, builder #q). The query splits into whitespace tokens;
    EVERY token must appear as a substring of the (already-lowercased) haystack, in ANY order, so
@@ -566,25 +580,6 @@ function subseq(q,t){let i=0;for(let k=0;k<t.length&&i<q.length;k++){if(t[k]===q
    per-keystroke-per-row allocation. */
 function searchTokens(q){ return String(q==null?'':q).toLowerCase().split(/\s+/).filter(Boolean); }
 function matchTokens(tokens,hay){ for(var i=0;i<tokens.length;i++){ if(hay.indexOf(tokens[i])<0) return false; } return true; }
-function runSearch(raw){
-  const q=raw.trim().toLowerCase();
-  if(!q) return SEARCHABLE.slice().sort((a,b)=>a.description.localeCompare(b.description)).slice(0,40);
-  const out=[];
-  for(const p of SEARCHABLE){
-    const nm=p.description.toLowerCase(), cat=(p.category||'').toLowerCase(), ty=(p.item_type||'').toLowerCase(),
-          al=(p.search_aliases||[]).join(' ').toLowerCase(), br=(p.brand||'').toLowerCase();
-    let s=-1; const idx=nm.indexOf(q);
-    if(idx>=0) s=1000-idx;
-    else if(ty && (ty.includes(q)||q.includes(ty))) s=620;
-    else if(al.includes(q)) s=560;
-    else if(br.includes(q)) s=500;
-    else if(cat.includes(q)) s=420;
-    else if(subseq(q,nm)) s=200;
-    if(s>=0) out.push([s,p]);
-  }
-  out.sort((a,b)=>b[0]-a[0]||a[1].description.localeCompare(b[1].description));
-  return out.slice(0,40).map(x=>x[1]);
-}
 function hl(text,q){q=q.trim();if(!q)return esc(text);const i=text.toLowerCase().indexOf(q.toLowerCase());
   if(i<0)return esc(text);return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));}
 const qEl=document.getElementById('q'), dropEl=document.getElementById('drop');
@@ -673,12 +668,14 @@ function alternatives(p){
 /* ---------- plate ---------- */
 let plate=[], uidc=1;
 const linesEl=document.getElementById('lines');
-function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* legacy: no builder UI path in v31 (builder is ingredients-only); retained for programmatic use */
+function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,pid,qty:defaultQty(p)});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* legacy: no UI path since v31 (the builder is ingredients-only). RETAINED DELIBERATELY, v111: it is
+   the only constructor of a pid-line reachable from a test, because `plate` is a `let` and therefore not
+   a window property. pid-lines are live production data (84 of 179 plate lines) that reach the builder
+   via loadPlateState, and four fresh-states specs cover their rendering through this door. Deleting it
+   would trade one line for the only coverage of that shape. */
 function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):null});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60: qty starts empty */
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
-function swapLine(uid,newpid){const l=plate.find(x=>x.uid===uid);if(!l)return;l.pid=newpid;const np=byId[newpid];if(np.base_unit==='ea'&&l.qty>100)l.qty=defaultQty(np);renderPlate();}   /* legacy: alternatives moved to the ingredient popup in v31 */
 function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;const s=(v==null?'':String(v)).trim();const n=parseFloat(s);l.qty=(s===''||isNaN(n))?null:Math.max(0,n);updateLine(uid);updateTotals();}   // v60: a cleared field is null (empty), not 0 — save requires a real quantity
-function toggleAlts(uid){const el=document.getElementById('alts-'+uid);if(el)el.classList.toggle('open');}
 
 function editPrice(uid){
   const l=plate.find(x=>x.uid===uid);if(!l)return;const p=lineProduct(l);if(!p)return;
@@ -922,10 +919,8 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
    `menu_items`, and the missing 3 (m42, m51, m50) are exactly the three Max had deleted, so the literal
    was re-adding them on every rebuild and the tombstone list was suppressing them again. Deleting the
    literal drops them by itself, which is why `deleted_menu_ids` has nothing left to do (D3). */
-function saveCustomMenu(){}   // v108: dishes persist via dbPushMenu
 let customMenu=[];
 /* ===== multiple menus ===== */
-function saveMenus(){}   // v108: menus persist via dbUpsertMenuRecord
 var menusList=[];
 // v54: plates are an independent library, so the "Unassigned dishes" holding area (v40/v42) is GONE.
 // Menus reference plates; deleting a menu deletes its dishes and UNLINKS (never deletes) their plates,
@@ -935,8 +930,6 @@ var menusList=[];
    boot once the user had deleted their last menu. That silently violates hard rule 7 (zero menus is a
    legitimate state) and would have resurrected a deleted menu indefinitely. Found by CodeRabbit.
    The replacement signal is whether the menus TABLE answered — see bootstrapSync. */
-// Seed "Original menu" only on a genuinely fresh install — i.e. the menus key was never written. Once the
-// user has created OR deleted menus (either writes the key), we respect exactly what's there, including none.
 /* Seeds "Original menu" ONLY when the caller has established there is no server answer to respect.
    The caller decides; this function must never guess, because an empty menus table and a fresh
    install are indistinguishable from in here — and they mean opposite things. */
@@ -963,7 +956,7 @@ function rebuildMenu(){
 function upsertCustomMenu(item){
   var i=customMenu.findIndex(function(c){return c.id===item.id;});
   if(i>=0) customMenu[i]=item; else customMenu.push(item);
-  saveCustomMenu(); return dbPushMenu(item);   // v42: return the push so a dependent plate write can be sequenced after this menu_items upsert confirms (heals an orphaned existing dish)
+  return dbPushMenu(item);   // v42: return the push so a dependent plate write can be sequenced after this menu_items upsert confirms (heals an orphaned existing dish)
 }
 rebuildMenu();
 var cogsPct = 40;                                  // target food cost, as a percent (e.g. 40)
@@ -988,26 +981,6 @@ function analyze(cost, menuPrice){
   else { light='red'; state='under'; recommended=suggested; }                       // more than 15% below
   return {cost,suggested,menuPrice,recommended,absPct,light,state};
 }
-function tipText(a){
-  const c=fmt2(a.cost), s=fmt2(a.suggested);
-  if(a.state==='nomenu') return 'Ingredient cost is '+c+'. At a '+cogsPct+'% food cost target that points to a sell price of '+s+'. No menu price is linked, so '+s+' is the suggested starting point.';
-  const m=fmt2(a.menuPrice);
-  if(a.state==='ok') return 'Ingredient cost is '+c+'. At a '+cogsPct+'% food cost target the cost-justified price is '+s+'. Your menu price of '+m+' is at or above that \u2014 a healthy margin.';
-  if(a.light==='amber') return 'Ingredient cost is '+c+', which suggests '+s+' at a '+cogsPct+'% food cost. Your menu price of '+m+' is about '+a.absPct+'% below that \u2014 slightly underpriced; consider lifting it toward '+s+'.';
-  return 'Ingredient cost is '+c+', which suggests '+s+' at a '+cogsPct+'% food cost. Your menu price of '+m+' is about '+a.absPct+'% below that \u2014 significantly underpriced and worth attention. Aim toward '+s+'.';
-}
-function matchMenu(name){
-  name=(name||'').toLowerCase().trim(); if(!name) return null;
-  let best=null,bs=0;
-  for(const m of MENU){
-    const mn=m.name.toLowerCase(); let s=0;
-    if(mn===name) s=100;
-    else if(mn.includes(name)||name.includes(mn)) s=70;
-    else{const A=new Set(name.split(/[^a-z0-9]+/).filter(Boolean)),B=new Set(mn.split(/[^a-z0-9]+/).filter(Boolean));let o=0;A.forEach(w=>{if(B.has(w))o++;});s=o*22;}
-    if(s>bs){bs=s;best=m;}
-  }
-  return bs>=22?best:null;
-}
 /* builder pricing panel */
 let menuTouched=false;
 const menuLinkEl=document.getElementById('menuLink');
@@ -1017,8 +990,6 @@ function buildMenuOptions(){
   for(const g in groups){html+='<optgroup label="'+esc(g)+'">'+groups[g].map(m=>'<option value="'+m.id+'">'+esc(m.name)+' ('+fmt2(m.price)+')</option>').join('')+'</optgroup>';}
   menuLinkEl.innerHTML=html;
 }
-function currentMenuPrice(){const v=menuLinkEl.value;return v&&menuById[v]?menuById[v].price:null;}
-function plateCostNow(){let c=0;plate.forEach(l=>{const lc=lineCost(lineProduct(l),l.qty);if(lc!=null)c+=lc;});return c;}
 function updatePricing(){}  /* pricing now lives only in Menu Analysis */
 menuLinkEl.addEventListener('change',()=>{menuTouched=true;updatePricing();});
 document.getElementById('plateName').addEventListener('input',function(e){
@@ -1028,7 +999,6 @@ document.getElementById('plateName').addEventListener('input',function(e){
 });
 (function(){ var pc=document.getElementById('plateCat'); if(pc) pc.addEventListener('input', scheduleDraftSave); })();   // v82 D1: category into the draft
 /* saved plates */
-function savePlatesLS(){}   // v108: plates persist via dbPushPlate
 let savedPlates=[];
 /* v82 D1 — in-progress plate DRAFT (offline-first). Building a plate then reloading used to lose
    everything. Persist the live builder to ONE localStorage slot (not a draft library), restore it on the
@@ -1073,7 +1043,6 @@ function offerPlateDraftResume(){
   askConfirm('Unfinished plate', 'You were building '+what+'. Resume it, or discard?', 'Resume',
     function(){ resumePlateDraft(d); }, 'Discard', clearPlateDraft);
 }
-function plateNameVal(){return (document.getElementById('plateName').value.trim())||'Unnamed plate';}
 // v55: the builder edits a PLATE only (name + lines + category). It carries NO menu link — publishing to
 // menus is a separate action (Manage menus, from the card). Editing a plate's recipe automatically re-costs
 // every menu entry backed by it (they resolve cost via plateForMenuItem). Returns true on success.
@@ -1097,7 +1066,7 @@ function saveCurrentPlate(asNew){
   var sp;
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
-  savePlatesLS(); dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
+  dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   return true;
 }
@@ -1120,7 +1089,6 @@ function plateIdOf(d){ if(!d) return null;
 function plateForMenuItem(m){ if(!m) return null; var pid=plateIdOf(m); return pid?(savedPlates.find(function(s){return s.id===pid;})||null):null; }
 function dishesOfPlate(sp){ if(!sp) return []; return MENU.filter(function(d){ return plateIdOf(d)===sp.id; }); }   // every menu entry backed by this plate
 function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(function(d){ var mid=d.menuId||'MENU_ORIGINAL'; if(seen[mid])return; seen[mid]=1; var m=menusList.find(function(x){return x.id===mid;}); if(m) out.push({menuId:m.id, name:m.name, dishId:d.id, price:d.price, section:d.section}); }); return out; }
-function isPublishedPlate(sp){ return dishesOfPlate(sp).length>0; }
 // v55: every dish should own a plate (its recipe). If one is missing (a pre-v55 uncosted dish, or a fresh
 // legacy row), create an empty plate and link the dish to it via plateId. §B backfills this at the DB level;
 // this is the app-side guarantee. The dish write is sequenced after the plate (menu_items.plate_id FK).
@@ -1128,8 +1096,8 @@ function ensurePlateForDish(m){
   if(!m) return null;
   var sp=plateForMenuItem(m); if(sp) return sp;
   var id='SP'+Date.now().toString(36); sp={id:id, name:m.name||'Plate', lines:[]};
-  savedPlates.push(sp); savePlatesLS();
-  m.plateId=id; var i=customMenu.findIndex(function(c){return c.id===m.id;}); if(i>=0) customMenu[i]=m; else customMenu.push(m); saveCustomMenu();
+  savedPlates.push(sp);
+  m.plateId=id; var i=customMenu.findIndex(function(c){return c.id===m.id;}); if(i>=0) customMenu[i]=m; else customMenu.push(m);
   dbPushMenuAfterPlate(m, sp);
   return sp;
 }
@@ -1141,31 +1109,6 @@ function vbadge(a){
   if(a.state==='ok')return '<span class="vbadge vgood">healthy</span>';
   if(a.state==='under')return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'">'+a.absPct+'% under</span>';
   return '<span class="muted-dash">\u2014</span>';
-}
-function aRow(name,a){
-  return '<tr><td>'+esc(name)+'</td>'+
-    '<td class="num">'+(a.cost>0?fmt2(a.cost):'—')+'</td>'+
-    '<td class="num"><span class="tip">'+(a.suggested>0?fmt2(a.suggested):'—')+'<span class="tipbox">'+esc(tipText(a))+'</span></span></td>'+
-    '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'—')+'</td>'+
-    '<td class="num">'+vbadge(a)+'</td>'+
-    '<td><span class="dot '+a.light+'"></span></td></tr>';
-}
-function renderAnalysis(){
-  const tb=document.getElementById('aBody'); const byMenu={}; const customs=[];
-  savedPlates.forEach(sp=>{ if(sp.menuId)byMenu[sp.menuId]=sp; else customs.push(sp); });
-  let html=''; let lastSec=null;
-  MENU.forEach(m=>{
-    if(m.section!==lastSec){html+='<tr class="sec"><td colspan="6">'+esc(m.section)+'</td></tr>';lastSec=m.section;}
-    const sp=byMenu[m.id];
-    if(sp){const a=analyze(costFromLines(sp.lines),m.price);html+=aRow(sp.name||m.name,a);}
-    else{html+='<tr class="muted"><td>'+esc(m.name)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>';}
-  });
-  if(customs.length){
-    html+='<tr class="sec"><td colspan="6">Custom plates (no menu link)</td></tr>';
-    customs.forEach(sp=>{const a=analyze(costFromLines(sp.lines),null);html+=aRow(sp.name||'Custom plate',a);});
-  }
-  tb.innerHTML=html;
-  bindTips();
 }
 /* tooltips: tap to toggle (touch) + hover (css) */
 function bindTips(){
@@ -1222,7 +1165,6 @@ renderPlate(); renderPlatesTab();
    ============================================================ */
 
 /* ---------- price history (Supabase table: price_history) ---------- */
-function saveHistory(){}   // v108: history persists via dbPushHistory
 var priceHistory = [];
 
 /* ---------- v89: per-menu price history (price_history.menu_id) ----------
@@ -1235,7 +1177,6 @@ var priceHistory = [];
 /* A point's `t` is an ISO string when this device logged it and a number when it came back from
    Supabase — the same duality dashRangePts already guards against. One normaliser for both. */
 function ptMs(p){ var t=p&&p.t; return (typeof t==='string')?new Date(t).getTime():(t||0); }
-function saveMenuHistory(){}   // v108: persists via dbPushMenuHistory
 var menuHistory = {};
 /* Fold local per-menu points into what the server returned. Pure, so bootstrapSync stays a one-liner
    and tests can run the real thing. Server points win on an identical timestamp; a local point the
@@ -1331,7 +1272,6 @@ function ingPriceBand(pid){                                          // {min,max
    say a plate's COST rose but not whether the PRICE moved with it — so "its cost rose, its price
    didn't" and "over target N months running" were claims it could not stand behind. This starts that
    clock. Same {menuItemId: [{t,v}]} shape as menuHistory, so mergeMenuHistory (v89) merges it too. */
-function saveMenuPriceLog(){}   // v108: persists via dbPushMenuPrice
 var menuPriceLog = {};
 /* Schema-can-lag guard, exactly as menuHistSupported (v89): bootstrapSync probes for the table once
    and clears this if it isn't there, so an unapplied migration degrades to local-only history rather
@@ -1356,12 +1296,11 @@ function logMenuPrice(id, price){
    baseline point for every dish that already has a price, so the history is useful from v90 onward
    instead of only from the next time somebody edits something. */
 function logAllMenuPrices(){
-  var changed=false, iso=new Date().toISOString();
+  var iso=new Date().toISOString();
   (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
     if(!m || !(m.price>0)) return;
-    if(logMenuPrice(m.id, m.price)){ changed=true; if(menuPriceHistSupported) dbPushMenuPrice(m.id, iso, m.price); }
+    if(logMenuPrice(m.id, m.price) && menuPriceHistSupported) dbPushMenuPrice(m.id, iso, m.price);
   });
-  if(changed) saveMenuPriceLog();
 }
 /* The sell price in force at a moment: the last point at or before it. null when the log doesn't reach
    back that far — the caller must then stay silent rather than substitute today's price. */
@@ -1499,7 +1438,7 @@ function logHistory(){
     if(!dup){
       priceHistory.push({t:iso, v:v});
       if(priceHistory.length>500) priceHistory=priceHistory.slice(-500);
-      saveHistory(); dbPushHistory(iso, v);
+      dbPushHistory(iso, v);
     }
   }
   logMenuHistory();
@@ -1525,7 +1464,6 @@ function logMenuHistory(){
     if(arr.length>500) menuHistory[mn.id]=arr.slice(-500);
     if(menuHistSupported) dbPushMenuHistory(iso, v, mn.id);
   });
-  saveMenuHistory();
 }
 
 /* ---------- shared COGS editor (used by Menu Analysis + Dashboard) ---------- */
@@ -1533,7 +1471,6 @@ function logMenuHistory(){
 /* ---------- supplier extraction from invoice header (Feature 1) ---------- */
 var invSupplier='';
 /* ===== supplier memory: state + persistence ===== */
-function saveSupplierMem(){}   // v108: persists via dbPushSupplierPhrase
 var supplierMem={};
 function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
@@ -1543,14 +1480,13 @@ function rememberSupplierPhrase(supplier, phrase, qty, unit, pid){
   if(!normSupplier(supplier) || !(qty>0)) return;                 // no supplier -> never store
   var id=memKey(supplier, phrase);
   var e={id:id, supplier:supplier, phrase_norm:normalizePhrase(phrase), qty:qty, unit:unit, pid:(pid||(supplierMem[id]&&supplierMem[id].pid)||null)};
-  supplierMem[id]=e; saveSupplierMem(); dbPushSupplierPhrase(e);  // same id => one entry, overwritten (never duplicated)
+  supplierMem[id]=e; dbPushSupplierPhrase(e);  // same id => one entry, overwritten (never duplicated)
 }
 function syncMemoryToProduct(pid, qty, unit){                     // ITEM 1: keep Remembered items in step with the product's taught pack
-  if(!pid || !(qty>0)) return; var changed=false;
+  if(!pid || !(qty>0)) return;
   for(var id in supplierMem){ var e=supplierMem[id];
-    if(e && e.pid===pid && (e.qty!==qty || (e.unit||'')!==(unit||''))){ e.qty=qty; e.unit=unit; dbPushSupplierPhrase(e); changed=true; }
+    if(e && e.pid===pid && (e.qty!==qty || (e.unit||'')!==(unit||''))){ e.qty=qty; e.unit=unit; dbPushSupplierPhrase(e); }
   }
-  if(changed) saveSupplierMem();
 }
 function renderSmemList(){
   var box=document.getElementById('smemList'); if(!box) return;
@@ -1568,7 +1504,7 @@ function renderSmemList(){
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
     var id=row.getAttribute('data-id');
-    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; saveSupplierMem(); dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
+    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
@@ -2300,7 +2236,6 @@ wireSearchClear('ad_search','ad_searchClear',function(){ if(typeof renderDishPic
 /* ============================================================
    Feature 2 — Dashboard
    ============================================================ */
-function monthKey(d){ d=new Date(d); return d.getFullYear()+'-'+(d.getMonth()+1); }
 function avgOf(arr){ return arr.length? arr.reduce(function(a,b){return a+b;},0)/arr.length : null; }
 function histInRange(fromTs, toTs){ return priceHistory.filter(function(h){ var t=new Date(h.t).getTime(); return t>=fromTs && t<toTs; }).map(function(h){return h.v;}); }
 function dashComparisons(){
@@ -3413,7 +3348,6 @@ function dashInsightsHtml(scope){
     +'<p class="ins-credit" hidden translate="no">Refined by Gemini</p>'
     +'</div></div>';
 }
-function menuNameFor(id){ var m=(typeof menusList!=='undefined'?menusList:[]).filter(function(x){return x.id===id;})[0]; return m?m.name:''; }
 /* ===== v89: the verdict header, the menu selector and the By-menu list =====
    The Dashboard is the manager's surface — "am I OK?" — where every other tab serves the chef
    building things. These three pieces answer it for a chosen scope. */
@@ -3692,7 +3626,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v110';
+var APP_VERSION='v111';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3749,7 +3683,7 @@ function closeTidyManage(){ hide('tidyManageModal'); backToSettingsSection(); } 
    supplier rename/clear so taught invoice packs don't orphan). Ingredient categories mirror their
    product, so a category rename here flows to the Ingredients tab automatically. */
 var tidyField='category', tidyAction=null, tidyFrom=null;
-function tidyFieldLabel(){ return tidyField.charAt(0).toUpperCase()+tidyField.slice(1); }
+var TIDY_COLS=['category','brand','supplier'];   // v111: the only product columns applyTidy may write
 function renderTidyValues(){
   var box=document.getElementById('tidyValues'); if(!box) return;
   var sel=document.getElementById('tidyField'); tidyField=(sel&&sel.value)||'category';
@@ -3813,12 +3747,17 @@ function applyTidy(){
   var plan=tidyPlanAll(PRODUCTS, savedPlates, field, action, from, to);
   if(!plan.count){ hide('tidyModal'); toast('Nothing to change'); return; }
   var col=plan.field;   // 'category' | 'brand' | 'supplier'
+  // v111: `col` is written straight into productsById below, bypassing setProduct — which is the ONE
+  // place a price becomes an ing_price_history point (v109). Today it can only be one of three label
+  // fields, but nothing in tidyPlanAll constrains it: it takes `field` free and hands it back. If a
+  // future field ever routed a PRICE column through here it would move money with no price-log entry
+  // and no error. Refuse anything outside the permitted set rather than trust the caller.
+  if(TIDY_COLS.indexOf(col)<0){ hide('tidyModal'); toast('Can’t tidy that field'); return; }
   // products: write through productsById (rebuild once, then push each changed row)
   plan.productPatches.forEach(function(pt){ productsById[pt.id]=Object.assign({}, productsById[pt.id]||{}); productsById[pt.id][col]=pt.value; });
-  if(plan.productPatches.length){ saveProductCache(); rebuild(); plan.productPatches.forEach(function(pt){ dbPushIngredient(pt.id); }); }
+  if(plan.productPatches.length){ rebuild(); plan.productPatches.forEach(function(pt){ dbPushIngredient(pt.id); }); }
   // plates (category only)
   plan.platePatches.forEach(function(pt){ var sp=(savedPlates||[]).filter(function(s){return s.id===pt.id;})[0]; if(sp){ sp.category=pt.value; dbPushPlate(sp); } });
-  if(plan.platePatches.length){ savePlatesLS(); }
   // supplier memory migration (rename/merge/clear a supplier)
   if(field==='supplier'){
     tidySupplierMemMigration(supplierMem, from, (action==='clear'?null:to)).forEach(function(mig){
@@ -3827,7 +3766,6 @@ function applyTidy(){
       supplierMem[mig.newId]={id:mig.newId, supplier:mig.supplier, phrase_norm:mig.phrase_norm, qty:mig.qty, unit:mig.unit, pid:mig.pid};
       if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(supplierMem[mig.newId]);
     });
-    saveSupplierMem();
   }
   hide('tidyModal');
   if(typeof renderIngredients==='function') renderIngredients();
@@ -4217,7 +4155,6 @@ if ('serviceWorker' in navigator) {
   function dismissed(){try{return localStorage.getItem(KEY)==='1';}catch(e){return false;}}
   function setDismissed(){try{localStorage.setItem(KEY,'1');}catch(e){}}
   function standalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
-  function isiOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent);}
   function show(){ if(!dismissed()&&!standalone()) banner.style.display='flex'; }
   function hide(){ banner.style.display='none'; }
   window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferred=e; show(); });
@@ -4303,37 +4240,6 @@ function updatePublishLabel(){
   else { t.textContent='Publish to Menu'; s.textContent='Makes this a live menu item with pricing'; }
 }
 
-/* ---- plate-name -> menu match prompt ---- */
-function menuScore(name,m){
-  var a=name.toLowerCase().trim(), mn=m.name.toLowerCase();
-  if(a===mn)return 100;
-  if(mn.indexOf(a)>=0||a.indexOf(mn)>=0)return 70;
-  var A=a.split(/[^a-z0-9]+/).filter(Boolean), B=new Set(mn.split(/[^a-z0-9]+/).filter(Boolean)), o=0;
-  A.forEach(function(w){if(B.has(w))o++;}); return o*22;
-}
-function nameNorm(s){return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
-function bestNameMatch(name){
-  var q=nameNorm(name); if(q.length<3)return null;
-  var A=q.split(' ').filter(Boolean);
-  var best=null,bs=0,bestExact=false;
-  MENU.forEach(function(m){
-    var mn=nameNorm(m.name); if(!mn)return;
-    var exact=(mn===q), score;
-    if(exact) score=1;
-    else if(mn.indexOf(q)>=0||q.indexOf(mn)>=0) score=0.9;
-    else{
-      var B=mn.split(' ').filter(Boolean), sb=new Set(B), hit=0;
-      A.forEach(function(t){
-        if(sb.has(t))hit+=1;
-        else if(t.length>=3 && B.some(function(x){return x.length>=3&&(x.indexOf(t)>=0||t.indexOf(x)>=0);}))hit+=0.7;
-      });
-      score=hit/Math.max(A.length,B.length);
-    }
-    if(score>bs){bs=score;best=m;bestExact=exact;}
-  });
-  if(best && (bs>=0.5||bestExact)) return {item:best,exact:bestExact,score:bs};
-  return null;
-}
 /* ---- word-level fuzzy menu matcher + live suggestions dropdown ---- */
 function nmNorm(s){return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
 function nmPrefix(a,b){var n=Math.min(a.length,b.length),i=0;while(i<n&&a[i]===b[i])i++;return i;}
@@ -4361,13 +4267,6 @@ function scoreMenuName(query,m){
   });
   if(!matched) return 0;
   return total*(matched/qw.length);                // reward covering more of the typed words
-}
-function rankPlateMatches(query){
-  var q=nmNorm(query); if(q.length<2) return [];
-  var out=[];
-  savedPlates.forEach(function(sp){ var s=scoreMenuName(query,sp); if(s>=50) out.push({item:sp,score:s}); });
-  out.sort(function(a,b){ return b.score-a.score || (a.item.name||'').toLowerCase().localeCompare((b.item.name||'').toLowerCase()); });
-  return out.slice(0,6);   // up to 6 saved-plate suggestions
 }
 function platesLinkedMenuIds(){ var s={}; MENU.forEach(function(d){ if(plateIdOf(d)) s[d.id]=true; }); return s; }   // v55: dishes that already have a plate (so the suggest list doesn't offer both)
 function rankLoadMatches(query){
@@ -4428,24 +4327,11 @@ function requestLoadPlate(id){
     askConfirm('Load plate', 'Load '+(sp.name||'plate')+'? Unsaved changes will be lost.', 'Load', function(){ loadPlate(id); });
   } else { loadPlate(id); }
 }
-function checkNameMatch(v){ renderPlateSuggest(v); }   /* kept for existing call sites */
 (function(){var pn=document.getElementById('plateName'); if(!pn)return;
   pn.addEventListener('focus',function(){ renderPlateSuggest(pn.value); });
   pn.addEventListener('blur',function(){ setTimeout(hidePlateSuggest,150); });
 })();
-function showMatchPrompt(item,exact){
-  var el=document.getElementById('matchPrompt'); if(!el)return;
-  el.querySelector('.mp-text').innerHTML='Did you mean to update <b>'+esc(item.name)+'</b>?';
-  el.dataset.mid=item.id; el.style.display='flex';
-}
 function hideMatchPrompt(){ hidePlateSuggest(); }
-function linkMatch(){
-  var el=document.getElementById('matchPrompt'); var id=el.dataset.mid; if(!id||!menuById[id])return;
-  document.getElementById('plateName').value=menuById[id].name;   // prefill exactly as stored in Menu Analysis
-  menuLinkEl.value=id; menuTouched=true; hideMatchPrompt(); updatePublishLabel();
-  toast('Linked to '+menuById[id].name+' — saving will update it');
-}
-function dismissMatch(){ dismissedMatch=document.getElementById('plateName').value.trim().toLowerCase(); hideMatchPrompt(); }
 
 /* ---- load saved plates (via the plate-name search field, or a plate card) ---- */
 // v54: set the builder state from a saved plate WITHOUT navigating — used both by loadPlate (which then
@@ -4563,7 +4449,7 @@ function deletePlate(id){
     dishesOfPlate(sp).forEach(function(d){ removeMenuItem(d.id); });   // drop every menu entry that used this plate
     savedPlates=savedPlates.filter(function(s){return s.id!==id;});
     if(loadedPlateId===id) loadedPlateId=null;
-    savePlatesLS(); dbDeletePlate(id);
+    dbDeletePlate(id);
     rebuildMenu(); buildMenuOptions(); buildMenuSelector(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab();
     toast('“'+nm+'” deleted');
   });
@@ -4692,7 +4578,7 @@ function submitMenuItem(){
   var targetId=existing?existing.id:('um'+Date.now().toString(36));
   var item={id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,plateId:sp.id};
   if(existing){ upsertCustomMenu(item); }
-  else { customMenu.push(item); saveCustomMenu(); dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
+  else { customMenu.push(item); dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
   rebuildMenu(); buildMenuOptions(); setCurrentMenuId(chosenMenu); buildMenuSelector();
   logHistory();   // v90: publishing a plate at a sell price changes the menu average and seeds that dish's price log
   renderAnalysis(); renderPlatesTab(); closeMenuModal();
@@ -4747,21 +4633,6 @@ async function extractPdfText(file){
   }
   return out;
 }
-function pdfTextToCsv(text){                              // turn extracted lines into "name,price" the CSV flow already understands
-  var rows=[];
-  (text||'').split(/\n/).forEach(function(raw){
-    var line=raw.trim(); if(!line) return;
-    if(!/[A-Za-z]{2,}/.test(line)) return;               // needs a product name
-    var re=/\$?\s*\d{1,6}[.,]\d{2}\b/g, mtch, last=null;  // money = a number with 2 decimals (avoids matching pack sizes/qty)
-    while((mtch=re.exec(line))!==null){ last=mtch; }
-    if(!last) return;
-    var price=parseFloat(last[0].replace(/[^0-9.]/g,'')); if(isNaN(price)) return;
-    var name=line.slice(0,last.index).replace(/[\s,;:\-]+$/,'').trim();
-    if(name.length<2) return;
-    rows.push(name+','+price);
-  });
-  return rows.join('\n');
-}
 function showInvFileErr(msg){ var e=document.getElementById('invFileErr'); if(e){ e.textContent=msg; e.style.display='block'; } }
 var IMG_PDF_MSG="This PDF appears to be image-based and can't be read automatically \u2014 please use the manual entry option instead";
 function handleInvFile(file){
@@ -4810,18 +4681,6 @@ function toggleInvManual(){ var box=document.getElementById('invManualBox'); set
 function openInv(){gemStatus=null;gemToken++;gemApplied=false;document.getElementById('invCsv').value='';setInvManual(false);var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';invSupplier='';var _in=document.getElementById('invIntro');if(_in){var _d='';try{_d=localStorage.getItem('ezInvIntroDismissed');}catch(e){}_in.style.display=_d?'none':'';}updateLastImport();show('invModal');}
 function closeInv(){hide('invModal');}
 function inorm(s){return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
-function itoks(s){return inorm(s).split(' ').filter(Boolean);}
-function simScore(a,b){
-  var A=itoks(a),B=itoks(b); if(!A.length||!B.length)return 0;
-  var sb=new Set(B),hit=0;
-  A.forEach(function(t){
-    if(sb.has(t))hit+=1;
-    else if(t.length>=3 && B.some(function(x){return x.length>=3 && (x.indexOf(t)>=0||t.indexOf(x)>=0);}))hit+=0.7;
-  });
-  var coverage=hit/A.length;                 /* share of the invoice name found in the product */
-  var na=inorm(a),nb=inorm(b), sub=(nb.indexOf(na)>=0)?0.15:0;
-  return Math.min(1, coverage*0.9+sub);
-}
 var INV_STOP={kg:1,kgs:1,g:1,gr:1,gram:1,grams:1,l:1,lt:1,ltr:1,litre:1,liter:1,ml:1,ea:1,each:1,unit:1,units:1,pk:1,pack:1,packs:1,packet:1,ctn:1,carton:1,box:1,bag:1,btl:1,bottle:1,tray:1,tub:1,can:1,tin:1,jar:1,x:1,per:1,approx:1,app:1,pcs:1,pce:1,piece:1,pieces:1,portion:1,portions:1,sliced:1,sleeve:1,sleeves:1,case:1,value:1,added:1,premium:1,prem:1,select:1,choice:1,bulk:1,foodservice:1,catering:1,frozen:1,frz:1,fresh:1,raw:1,diced:1,whole:1,pkt:1,or:1,and:1,the:1,of:1,with:1,size:1,pre:1,cut:1,gluten:1,free:1,gf:1};
 function coreTokens(s, brand){
   var toks=inorm(s).split(' ').filter(Boolean);
@@ -4840,21 +4699,6 @@ function prodTokenSet(p){
   (p.search_aliases||[]).forEach(function(a){ inorm(a).split(' ').forEach(function(t){ if(t&&!/[0-9]/.test(t)&&t.length>=2) set[t]=1; }); });
   if(p.item_type){ inorm(p.item_type).split(' ').forEach(function(t){ if(t&&t.length>=2) set[t]=1; }); }
   return set;
-}
-function matchScore(invName, p){                        // word-level match on the core product noun(s)
-  var inv=coreTokens(invName,null); if(!inv.length) return 0;
-  var prod=prodTokenSet(p), pk=Object.keys(prod);
-  var total=0, hit=0;
-  inv.forEach(function(t,idx){
-    var w=(idx===0?1.6:1); total+=w;                    // first surviving word = the key noun
-    if(prod[t]){ hit+=w; return; }
-    var fz=pk.some(function(x){ return (t.length>=4&&x.length>=4)&&(x.indexOf(t)===0||t.indexOf(x)===0||x.indexOf(t)>=0||t.indexOf(x)>=0); });
-    if(fz) hit+=w*0.6;
-  });
-  var score=hit/total;
-  var first=inv[0], firstMatched=prod[first]||pk.some(function(x){ return first.length>=4&&(x.indexOf(first)===0||first.indexOf(x)===0); });
-  if(!firstMatched) score*=0.5;                         // main noun must land for a strong score
-  return Math.min(1, score);
 }
 var invGst={mode:'unknown', note:''};
 /* ITEM 6 (v35): the GST DEFAULT. There is no invGst *control* in the build — invGst is
@@ -6232,7 +6076,7 @@ function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus')
 function doDeleteMenu(id, name){
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
   affected.forEach(function(c){ removeMenuItem(c.id); });           // v55: remove only THIS menu's entries; plates (and any other menus they're on) survive
-  menusList=menusList.filter(function(x){return x.id!==id;}); saveMenus(); dbDeleteMenuRecord(id);
+  menusList=menusList.filter(function(x){return x.id!==id;}); dbDeleteMenuRecord(id);
   setCurrentMenuId(fallbackMenuId());
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
   toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
@@ -6289,7 +6133,7 @@ function submitAddDish(){
   if(dishesOfPlate(sp).some(function(d){return (d.menuId||'MENU_ORIGINAL')===currentMenuId;})){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
   var id='um'+Date.now().toString(36);
   var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Plate', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
-  customMenu.push(item); saveCustomMenu(); dbPushMenuAfterPlate(item, sp);
+  customMenu.push(item); dbPushMenuAfterPlate(item, sp);
   rebuildMenu(); buildMenuOptions();
   logHistory();   // v90: as above — a new priced dish moves the menu average and seeds its price log
   renderAnalysis(); renderPlatesTab(); closeAddDishModal();
@@ -6309,7 +6153,7 @@ function submitNewMenu(){
   if(!name){ if(err){ err.textContent='Enter a menu name.'; err.style.display='block'; } return; }
   var id='MENU'+Date.now().toString(36);
   var rec={id:id, name:name, season:season||null};
-  menusList.push(rec); saveMenus(); dbUpsertMenuRecord(rec);
+  menusList.push(rec); dbUpsertMenuRecord(rec);
   setCurrentMenuId(id);
   buildMenuSelector(); renderAnalysis(); closeNewMenuModal();
   toast('\u201c'+name+'\u201d menu created');
@@ -6326,20 +6170,8 @@ function menuActions(m){
   // tab (tap the card \u2192 Edit plate); the Menu-tab row stays tap-to-edit for price/category/menu only.
   return '';
 }
-function openMenuInBuilder(mid){                                      // jump from Menu Analysis straight into the Builder for this dish
-  var m=menuById[mid]; if(!m) return;
-  var sp=plateForMenuItem(m);                                        // respects reuse (menuId link OR sourcePlateId)
-  if(sp){ loadPlate(sp.id); return; }                               // costed already -> load its recipe
-  plate=[]; loadedPlateId=null;                                     // not costed -> start a fresh plate, pre-named + linked to this item
-  var pn=document.getElementById('plateName'); if(pn) pn.value=m.name||'';
-  if(typeof menuLinkEl!=='undefined' && menuLinkEl){ menuTouched=true; menuLinkEl.value=m.id; }
-  hidePlateSuggest(); updateEditTag(); renderPlate(); openBuilder();
-  toast('Start costing \u201c'+(m.name||'this plate')+'\u201d \u2014 add ingredients');
-}
 function removeMenuItem(id){
-  var before=customMenu.length;
   customMenu=customMenu.filter(function(c){ return c.id!==id; });
-  if(customMenu.length!==before) saveCustomMenu();
   dbDeleteMenu(id);                                   // remove server row (harmless if none)
   // v108: the tombstone branch is gone with BASE_MENU. Deleting the row IS the deletion now.
 }
@@ -6356,17 +6188,6 @@ function askConfirm(title,msg,okLabel,fn,cancelLabel,cancelFn){
   show('confirmModal');
 }
 function closeConfirm(){ hide('confirmModal'); __confirmFn=null; __confirmCancelFn=null; }
-/* safe delete (used by the edit modal) */
-function doDeleteMenuItem(id){
-  var m=menuById[id]; if(!m) return; var nm=m.name, touched=false;
-  savedPlates.forEach(function(sp){ if(sp.menuId===id){ sp.menuId=null; dbPushPlate(sp); touched=true; } });  // unlink, keep the plate + its data
-  if(touched) savePlatesLS();
-  if(menuLinkEl.value===id){ menuLinkEl.value=''; menuTouched=false; if(typeof updatePublishLabel==='function')updatePublishLabel(); }
-  if(loadedPlateId && !savedPlates.some(function(s){ return s.id===loadedPlateId; })) loadedPlateId=null;
-  removeMenuItem(id);
-  rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis();
-  toast('Deleted '+nm);
-}
 
 /* ===== Menu item edit modal ===== */
 var editTargetId=null, edDelArmed=false, edCatState={chosen:null,chosenIsNew:false}, edCat=null, editKind='menu', edRestoreMode=false, delChoiceId=null;
@@ -6441,17 +6262,8 @@ function editDeleteTap(){
   var id=editTargetId; if(!id||!menuById[id]) return;
   var nm=menuById[id].name; closeEdit(); openDelChoice(id, nm);
 }
-function editOpenInBuilder(){
-  var id=editTargetId;
-  if(editKind==='plate'){ closeEdit(); requestLoadPlate(id); return; }
-  var m=menuById[id]; if(!m) return;
-  closeEdit();
-  var go=function(){ var sp=ensurePlateForDish(m); if(sp) requestLoadPlate(sp.id); };   // v55: edit the dish's plate (created+linked if it had none)
-  if(isBuilderDirty()) askConfirm('Open in builder','Open '+m.name+'? Unsaved changes will be lost.','Open',go); else go();
-}
 
 /* ===== orphan-plate edit + delete-choice ===== */
-function plateEditAction(sp){ return '<div class="mi-act"><button class="mi-btn tobuilder" type="button" data-pid="'+esc(sp.id)+'" title="Open in plate builder">\u2192 Builder</button></div>'; }   // v52: Edit retired \u2014 card tap edits
 function setEditMode(mode){
   editKind=mode; edRestoreMode=false;
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
@@ -6489,7 +6301,7 @@ function savePlateRename(){
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
   var name=document.getElementById('ed_name').value.trim();
   if(!name){ err.textContent='Enter a plate name.'; err.style.display='block'; return; }
-  sp.name=name; savePlatesLS(); dbPushPlate(sp);
+  sp.name=name; dbPushPlate(sp);
   if(loadedPlateId===id) document.getElementById('plateName').value=name;
   renderPlate(); renderAnalysis(); closeEdit(); toast('Plate renamed');
 }
@@ -6514,7 +6326,7 @@ function savePlateRestore(){
   if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
   var newId='um'+Date.now().toString(36);
   upsertCustomMenu({id:newId, section:cat, name:name, price:parseFloat(priceV), notes:'', custom:true});
-  sp.name=name; sp.menuId=newId; savePlatesLS(); dbPushPlate(sp);
+  sp.name=name; sp.menuId=newId; dbPushPlate(sp);
   rebuildMenu(); buildMenuOptions(); renderPlate(); renderAnalysis(); closeEdit();
   toast('\u201c'+name+'\u201d restored to the menu');
 }
@@ -6524,7 +6336,7 @@ function editPermDeletePlate(){
   askConfirm('Permanently delete','Permanently delete \u201c'+nm+'\u201d? This removes the plate and its ingredients everywhere and cannot be undone.','Delete', function(){
     savedPlates=savedPlates.filter(function(s){return s.id!==id;});
     if(loadedPlateId===id){ loadedPlateId=null; }
-    savePlatesLS(); dbDeletePlate(id);
+    dbDeletePlate(id);
     updateEditTag(); renderPlate(); renderAnalysis();
     toast('\u201c'+nm+'\u201d permanently deleted');
   });
@@ -6547,7 +6359,7 @@ function doDeleteMenuOnly(){
 function doDeleteEverything(){
   var id=delChoiceId; if(!id||!menuById[id]){ closeDelChoice(); return; }
   var nm=menuById[id].name; var sp=plateForMenuItem(menuById[id]);
-  if(sp){ dishesOfPlate(sp).forEach(function(d){ removeMenuItem(d.id); }); savedPlates=savedPlates.filter(function(s){return s.id!==sp.id;}); if(loadedPlateId===sp.id) loadedPlateId=null; savePlatesLS(); dbDeletePlate(sp.id); }
+  if(sp){ dishesOfPlate(sp).forEach(function(d){ removeMenuItem(d.id); }); savedPlates=savedPlates.filter(function(s){return s.id!==sp.id;}); if(loadedPlateId===sp.id) loadedPlateId=null; dbDeletePlate(sp.id); }
   else { removeMenuItem(id); }
   rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); closeDelChoice();
   toast('\u201c'+nm+'\u201d and its plate deleted');

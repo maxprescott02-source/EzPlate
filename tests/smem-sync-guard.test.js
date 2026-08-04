@@ -61,18 +61,21 @@ function extractFn(name) {
   throw new Error(`smem-sync-guard: unbalanced braces for ${name}`);
 }
 
-/* Run the real block against a stubbed Supabase. Returns the resulting local memory,
-   what was persisted, and everything re-pushed to the server. */
+/* Run the real block against a stubbed Supabase. Returns the resulting local memory and
+   everything re-pushed to the server.
+   v111: the `saved` tracker is gone with the `saveSupplierMem()` no-op it counted. It asserted that a
+   FUNCTION WAS CALLED, and that function did nothing — so it could not have failed if the adoption
+   itself were wrong. The assertions below now pin the resulting supplierMem instead, which is the
+   outcome the guard exists to protect. */
 async function syncWith(localMem, serverRows, opts) {
   opts = opts || {};
-  const saved = [], pushed = [];
+  const pushed = [];
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
     "use strict";
     return (async function(){
       var supplierMem = S.localMem;
       var SUPA = S.SUPA;
-      function saveSupplierMem(){ S.saved.push(JSON.parse(JSON.stringify(supplierMem))); }
       function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
       function invDbg(){}
       ${extractFn('rowToSupplierPhrase')}
@@ -90,8 +93,8 @@ async function syncWith(localMem, serverRows, opts) {
       };
     }
   };
-  const mem = await factory({ localMem, SUPA, saved, pushed });
-  return { mem, saved, pushed };
+  const mem = await factory({ localMem, SUPA, pushed });
+  return { mem, pushed };
 }
 
 const LOCAL = {
@@ -100,9 +103,9 @@ const LOCAL = {
 };
 
 test('v107: an EMPTY server read does not wipe a populated local supplier memory', async () => {
-  const { mem, saved } = await syncWith({ ...LOCAL }, []);
+  const { mem } = await syncWith({ ...LOCAL }, []);
   assert.equal(Object.keys(mem).length, 2, 'both taught packs must survive — this is the whole bug');
-  assert.deepEqual(saved, [], 'and nothing is persisted over the top of them');
+  assert.deepEqual(mem, LOCAL, 'and every field survives intact, not just the keys');
 });
 
 test('v107: the surviving local entries are re-pushed so the server heals', async () => {
@@ -113,11 +116,12 @@ test('v107: the surviving local entries are re-pushed so the server heals', asyn
 
 test('v107: a NON-empty server read still wins — deletions propagate as before', async () => {
   const rows = [{ id: 'the fruit wagon|avocado tray', supplier: 'The Fruit Wagon', phrase_norm: 'avocado tray', qty: 18, unit: 'ea' }];
-  const { mem, saved, pushed } = await syncWith({ ...LOCAL }, rows);
+  const { mem, pushed } = await syncWith({ ...LOCAL }, rows);
   assert.deepEqual(Object.keys(mem), ['the fruit wagon|avocado tray'],
     'the phrase deleted on another device is gone here too — server-wins is preserved');
-  assert.equal(saved.length, 1, 'and the replacement is persisted');
-  assert.deepEqual(pushed, [], 'no re-push when the server had data');
+  assert.deepEqual(mem['the fruit wagon|avocado tray'],
+    { id: 'the fruit wagon|avocado tray', supplier: 'The Fruit Wagon', phrase_norm: 'avocado tray', qty: 18, unit: 'ea' },
+    'the SERVER row is what was adopted, field for field — not the local one that happened to share an id');
 });
 
 test('v107: qty is still coerced to a number on the server path', async () => {
@@ -127,14 +131,13 @@ test('v107: qty is still coerced to a number on the server path', async () => {
 });
 
 test('v107: an empty server read on an empty local memory is a plain no-op', async () => {
-  const { mem, saved, pushed } = await syncWith({}, []);
+  const { mem, pushed } = await syncWith({}, []);
   assert.deepEqual(mem, {}, 'nothing to protect, nothing to do');
   assert.deepEqual(pushed, [], 'a fresh install must not push phantom rows');
-  assert.equal(saved.length, 1, 'the empty server state is still adopted normally');
 });
 
 test('v107: a real server ERROR leaves local untouched (the pre-existing guard)', async () => {
-  const { mem, saved } = await syncWith({ ...LOCAL }, null, { error: true });
+  const { mem } = await syncWith({ ...LOCAL }, null, { error: true });
   assert.equal(Object.keys(mem).length, 2, 'a missing table or a failed read must never clear memory');
-  assert.deepEqual(saved, []);
+  assert.deepEqual(mem, LOCAL, 'and untouched means field-for-field, not merely the right count');
 });
