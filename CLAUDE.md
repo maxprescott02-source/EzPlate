@@ -13,12 +13,20 @@ on the pass" argues for tolerating anything rather than blocking, and for
 optimising the seconds. One occasional user on mobile data can wait for a fetch,
 and would rather be told a thing did not save than discover it next week. **When
 a design call turns on how often the app is opened, this is the answer.** What
-does NOT change: the data is real and irreplaceable, and there is no restore.
+does NOT change: the data is real, and losing it costs Max real money.
+**It is no longer irreplaceable, and "there is no restore" — which this line said
+until v111 — is no longer true.** v110 shipped one, and it has recovered a real
+deletion against production byte-for-byte (see the snapshot). That does not make
+data loss cheap: a restore needs a recent export, and the newest one is named in
+the snapshot with its size and timestamp precisely because a backup referred to
+only by a path is a claim rather than evidence. Check it before relying on it.
 
 ## What the app does
 
-1. **Products** — supplier goods with prices, pack sizes, base units (~400,
-   seeded from `BASE_PRODUCTS` plus custom `CX*` ids).
+1. **Products** — supplier goods with prices, pack sizes, base units (412 rows
+   as of 4 Aug 2026). They come from the Supabase `ingredients` table and nowhere
+   else: **there is no `BASE_PRODUCTS` literal** (v108 deleted it; this line said
+   otherwise until v111). Custom ids are still `CX*`.
 2. **Ingredients** ("kitchen words") — friendly names (e.g. "Chips") that each
    link to ONE product (`{id, name, pid}`). Recipes cost from these, so swapping
    the linked product once updates every recipe.
@@ -44,7 +52,11 @@ does NOT change: the data is real and irreplaceable, and there is no restore.
    `tidySupplierMemMigration`). Ingredient categories are derived from the linked
    product, so a category rename here flows to the Ingredients tab automatically.
 
-Data: **localStorage (offline-first) + Supabase sync**. No analytics, no
+Data: **Supabase is the source of truth; the app is online-only** (v108).
+**localStorage holds view preferences and derived caches ONLY** — never data.
+This line said "localStorage (offline-first) + Supabase sync" until v111, which
+was the pre-v108 architecture and the exact opposite of the rule below it; see
+the snapshot for the full list of the twelve keys that remain. No analytics, no
 tracking, no build step — hard product constraints. Third-party code is limited
 to **two pinned, integrity-checked CDN scripts** (supabase-js, pdf.js); adding a
 third needs Max's yes — see hard rule 4.
@@ -88,11 +100,13 @@ consistent" has caused rollbacks.
 
 ## The codebase (no build step — four hand-written files)
 
-- `js/app.js` (~3000+ lines) — ALL logic, one browser script. Cannot be
-  `require()`d; tests extract functions from it by source slicing.
-- `css/style.css` (~2000 lines) — entire visual layer, organised in numbered
+- `js/app.js` (**6,576 lines / 474 KB**, measured 4 Aug 2026) — ALL logic, one
+  browser script. Cannot be `require()`d; tests extract functions from it by
+  source slicing. (This said "~3000+ lines" for many batches and was roughly half
+  the truth — check it rather than quoting it.)
+- `css/style.css` (**2,804 lines**) — entire visual layer, organised in numbered
   sections with `/* ===== batch (vNN) ===== */` history headers.
-- `index.html` (~500 lines) — splash, header, five tab containers in
+- `index.html` (**819 lines**) — splash, header, five tab containers in
   `#appMain`, bottom nav, all modals.
 - `sw.js` — service worker (offline cache).
 
@@ -129,9 +143,15 @@ single most important thing to reopen before EzPlate is used by anyone else.
    every notation like "105'S").
 2. **Never touch** `resolveMatchedPrice`, `unitCatCategory`,
    `applySupplierMemory`, `packToUnitCost`. Reading them is fine.
-3. **`aRow` and `renderAnalysis` are each defined TWICE.** The first definition
-   of each is dead; the **second is live**. Grep, confirm line numbers, edit
-   the second. Editing the first is a silent no-op that has shipped real bugs.
+3. **RETIRED in v111 — the hazard is gone, the number is kept so every existing
+   cross-reference to rules 4–10 still points where it says.** This rule used to
+   warn that `aRow` and `renderAnalysis` were each defined TWICE, the first dead
+   and the second live, so editing the first was a silent no-op that shipped real
+   bugs. Both dead first definitions are now deleted. The property that made them
+   dead is worth keeping in mind: these were top-level declarations in one scope,
+   so **hoisting makes the LAST definition win everywhere**, before any statement
+   runs — a duplicate is never "dead until reached". `tests/housekeeping.test.js`
+   now fails if any name in `js/app.js` is defined twice again.
 4. **No NEW runtime dependencies, no analytics, no build step, no scope creep.**
    If you spot extra work worth doing, list it for Max — don't build it.
    **This rule used to say "no external libraries", which was simply false** —
@@ -153,9 +173,12 @@ single most important thing to reopen before EzPlate is used by anyone else.
    menu item are the same row"):
    - **Menus** — `menusList` (`{id,name,season}`, e.g. `MENU_ORIGINAL`). This is
      what the selector, `canDeleteMenu`, `fallbackMenuId`, and `currentMenuId`
-     act on. Backed by localStorage `cafeDB_menus` **and** a Supabase `menus`
-     table (`dbUpsertMenuRecord`/`dbDeleteMenuRecord`) that is real but may not
-     exist on older projects — the bootstrap read is wrapped in a try/catch.
+     act on. Backed by the Supabase `menus` table
+     (`dbUpsertMenuRecord`/`dbDeleteMenuRecord`), which may not exist on older
+     projects — the bootstrap read is wrapped in a try/catch. **The localStorage
+     `cafeDB_menus` key is GONE** (v108 removed every write to it, and this line
+     said otherwise until v111); see rule 7 for what replaced it as the
+     fresh-install signal.
    - **Dishes / menu items** — `MENU`/`customMenu` (the `menu_items` table). Each
      dish's `.menuId` points at a `menusList` entry. `menuById` keys dishes.
    - **Plates** — the cost builds (`plates` table), the library's own objects. A
@@ -171,8 +194,14 @@ single most important thing to reopen before EzPlate is used by anyone else.
      the DATABASE constraint did not, and this line said otherwise until v110.**
      `dbPushPlateAfterMenu` is genuinely gone, but the FK
      `plates_menu_id_fkey` (`plates.menu_id → menu_items.id`, `ON DELETE SET
-     NULL`) is **still live**, and 20 of 78 plates still carry a non-null
-     `menu_id` (checked through the MCP, 3 Aug 2026). So the two tables are
+     NULL`) is **still live**, though **0 of 78 plates now carry a non-null
+     `menu_id`** (checked through the MCP as `postgres`, 4 Aug 2026 — it was 20 on
+     3 Aug). v110's own restore nulled them: `plateToRow` omits the column and the
+     restore reinserts every plate. **Nothing resolved through those values** —
+     the single dish with no plate link had no plate pointing back at it — so no
+     link was lost, and `plateIdOf`'s `sp.menuId` last-resort fallback is now dead
+     in practice for server-loaded plates. **The CONSTRAINT is what still matters,
+     not the data.** So the two tables are
      **CIRCULAR**: `menu_items.plate_id → plates.id` has no delete action and
      errors if plates go first, while `plates.menu_id` cannot be inserted before
      the dishes exist. **Any delete-and-reinsert of both tables must delete
@@ -187,9 +216,15 @@ single most important thing to reopen before EzPlate is used by anyone else.
    and its machinery — `ensureUnassignedMenu`/`holdingHasDishes`/`realMenus` — were
    removed) and **no last-menu guard**: any menu is deletable, including the last,
    and **zero menus is a legitimate state**. `fallbackMenuId()` never returns a
-   deleted id and returns `null` when no menu exists; `ensureDefaultMenu` seeds
-   "Original" only on a genuinely fresh install (the `cafeDB_menus` key was never
-   written). Publishing when no menu exists prompts to create one first.
+   deleted id and returns `null` when no menu exists. **`ensureDefaultMenu` seeds
+   "Original" only when the caller has established there is no server answer to
+   respect — i.e. the `menus` table did not answer at all.** It used to key off
+   "the `cafeDB_menus` key was never written", and v108 deleted that test as a
+   BUG: phase 5b removed every write to the key, so it read false forever and
+   re-seeded "Original menu" on EVERY boot once the user deleted their last menu,
+   silently resurrecting it. A successful EMPTY read is the user having deleted
+   everything and must be respected. (This line described the deleted mechanism
+   until v111.) Publishing when no menu exists prompts to create one first.
 8. **The backup export is IN-MEMORY shape, not schema shape — a restore written
    against the tables silently drops every link** (recorded v106, from the backup
    audit). `buildBackup` dumps the live JS objects verbatim, so `menu_items` rows
@@ -471,25 +506,54 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
-## State as of 3 Aug 2026 (verify, don't trust)
+## State as of 4 Aug 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Per-batch history belongs in `handovers/`, nowhere else.
 
-- **Version: v110, MERGED and LIVE.** `origin/main` is at **`a524d48`** (the
-  PR #50 merge, 3 Aug 2026); production served v110 on all six spots within a
-  minute, verified by fetching them. **`git fetch` and check `origin/main`
-  yourself every session** — this bullet was a merge stale for a day in v107,
-  and was stale again for the few minutes between the v110 merge and this line
+- **Version: v111, on branch `chore/v111-housekeeping` — NOT yet merged.**
+  `origin/main` is at **`53c4778`** (the PR #51 merge). **The previous snapshot
+  said `a524d48` and was already one merge stale when written** — that is twice
+  in three batches, so `git fetch` and read `origin/main` yourself
   ([[verify-origin-main-before-trusting-local]]).
   **Production is `https://scoopyscosting.vercel.app`** — the stable alias, and
   the only URL that answers without a login. The per-deployment URLs that
-  `gh api …/deployments` returns are **auth-protected and 302 to Vercel SSO**, so
-  a `curl` against one proves nothing about what shipped. Fetch the alias.
-  (Related to v109's lesson that a branch push deploys a PREVIEW: check WHICH
-  build answered before concluding anything from a device or a fetch.)
+  `gh api …/deployments` returns are auth-protected and 302 to Vercel SSO, so a
+  `curl` against one proves nothing. Fetch the alias, and check WHICH build
+  answered before concluding anything from a device (a branch push deploys a
+  PREVIEW).
   **`aa16387` is the last commit containing the `BASE_PRODUCTS` literal**, which
   a format-1 restore needs (hard rule 9).
+- **⚠️ v111 WAS A HOUSEKEEPING PASS: 31 dead functions and 35 no-op call sites
+  deleted, with NO behaviour change intended or found.** What a future session
+  needs from it:
+  - **The nine `saveX()` no-ops are gone, and so is the map they carried.** That
+    map — which dataset persists via which `dbPush*` helper — now lives in ONE
+    comment block above `pushWrite`, because it was the only thing of value the
+    empty functions still held. **`saveIngLog` and `saveKitchenIngredients`
+    SURVIVE and are NOT no-ops**; do not delete by prefix.
+  - **No dropped write was found.** All 26 mutation sites (of 35 total; the other
+    9 were `bootstrapSync` read-path) reach a real push, some via the enclosing
+    `forEach` rather than the same line. This was checked site by site, not
+    inferred.
+  - **`logAllMenuPrices` is the one call site whose SHAPE changed**, from
+    `if(log()){changed=true; if(supported) push;}` to `if(log() && supported)
+    push;`. The operand ORDER is load-bearing — `logMenuPrice` MUTATES
+    `menuPriceLog`, so swapping them would short-circuit the in-memory series away
+    whenever the table is missing. Pinned by `tests/housekeeping.test.js`.
+  - **`applyTidy` now refuses a column outside `TIDY_COLS`** (category / brand /
+    supplier). It writes `productsById[id][col]` directly, bypassing `setProduct`
+    — the ONLY writer of `ing_price_history` (v109) — and `tidyPlanAll` takes
+    `field` free. A price column routed through it would move money with no price
+    point and no error.
+  - **`addProduct` is dead in the app and DELIBERATELY KEPT.** `plate` is a `let`,
+    so it is not a window property, which makes `addProduct` the only handle four
+    `fresh-states` specs have on the **pid-line** shape. pid-lines are live data
+    (84 of 179 plate lines) reaching the builder via `loadPlateState`. Deleting it
+    would trade one line for the only coverage of that shape.
+  - **Retiring hard rule 3 exposed dead code the duplicates were hiding:**
+    `tipText` was referenced only from the dead first `aRow` body. Re-run a
+    reachability closure AFTER removing duplicate definitions, not before.
 - **⚠️ THE BACKUP RESTORE EXISTS (v110), AND ATOMICITY IS THE SERVER'S JOB.**
   Settings → Data → **Restore from backup**. What it accepts and refuses is in
   hard rule 9; how it crosses the row boundary is in hard rule 8. The parts a
@@ -500,175 +564,136 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
     worst outcome available here — plates without products cost nothing while
     the margin still reads green. A test pins that there is exactly one call
     site.
-  - **The function is `SECURITY INVOKER`, deliberately.** The first draft was
-    DEFINER, on the assumption a restore must wipe `ing_price_history` (anon has
-    SELECT+INSERT policies only, so it cannot). The additive-log decision killed
-    that need, and INVOKER means the function grants **no privilege the anon key
-    does not already hold** — which matters because that key is public in
-    `index.html`. A DEFINER function here would hand every reader of the page a
-    one-call database wipe that RLS would otherwise refuse.
+  - **The function is `SECURITY INVOKER`, deliberately** (verified in the
+    migration file, 4 Aug). The first draft was DEFINER, on the assumption a
+    restore must wipe `ing_price_history` (anon has SELECT+INSERT policies only,
+    so it cannot). The additive-log decision killed that need, and INVOKER means
+    the function grants **no privilege the anon key does not already hold** —
+    which matters because that key is public in `index.html`.
   - **`ing_price_history` is ADDITIVE — the one deliberate exception to
     "replace".** Inserted only where `(product_id, recorded_at)` is absent, never
     deleted. The export caps each product at 60 points, so a replace could only
-    ever LOSE observations, silently, in the series the movers card reads.
-  - **Atomicity was verified against production, 3 Aug 2026**, not assumed: a
-    payload failing at the dishes insert rolled back the preceding five deletes
-    and three inserts completely (the tell was `plates.menu_id`, still 20 rows
-    after). Guards were confirmed the same way — format 1, no stamp, `"two"`, a
-    missing group and a wrong-typed group all refuse before any DELETE runs.
-  - **The rpc was also called for real from the browser** against the production
-    deploy, with guard-refused payloads: the function is exposed, the `payload`
-    argument maps, the anon EXECUTE grant works, and the raised message reaches
-    the client verbatim. A `format: 2` payload passed the format guard and
-    stopped at the group check — the real path, as far as it goes without
-    replacing data. **A `format: 2` payload with all seven groups present IS a
-    live restore; never paste one into a console to see what happens.**
-  - **⚠️ `where true` ON THE FIVE DELETES IS LOAD-BEARING. Do not remove it as
-    redundant.** Supabase preloads the `safeupdate` extension for the
-    **`authenticator`** role (`session_preload_libraries = supautils,
-    safeupdate`), which rejects any `DELETE` with no `WHERE`. The **`postgres`**
-    role does NOT load it. Measured from the anon path: bare is blocked;
-    `where true`, `where id is not null` and a self-subquery all pass — so
-    safeupdate reads the PARSE TREE, not the plan. Pinned by a test that reads
-    the migration file.
-    The general lesson this produced is now **hard rule 10** — a migration
-    verified through the MCP has not been verified for the client. It is above
-    the snapshot line because it outlives this batch.
-  - `supabase/migrations/20260803_restore_backup_fn.sql` was applied by hand via
-    the MCP; its body md5 was cross-checked against the file
-    (`3f91871f…91c4`, exact) ([[running-supabase-migrations-here]]). Adapt that
-    md5 habit for DDL: hash the function body, apply, then hash `prosrc` back out
-    — `length(prosrc)` counts CHARACTERS while the file is BYTES, so compare
-    hashes, never lengths.
-  - **STEPS 1 AND 2 OF THE DESTRUCTIVE PLAN ARE DONE — 3–4 Aug 2026, against
-    production.** Step 1 (round-trip): the 3 Aug file restored through the real
-    client, `Restored — 412 products back` in ~1.1 s; a fresh `buildBackup()`
-    compared to it keyed by id showed products / plates / kitchen ingredients /
-    menus / supplier memory / settings **all zero changed**, every price-log
-    point surviving. The only deltas were 70 dishes changing `custom` and
-    `sourcePlateId` — `menuToRow`'s own long-standing behaviour, not a restore
-    defect. Step 2 (recovery): a plate and a menu entry deleted through the real
-    user paths, the loss confirmed to survive a cold boot, then restored — **all
-    seven table fingerprints matched the pre-deletion state byte-for-byte**, and
-    the restored plate costed identically ($3.85). **The restore is idempotent:**
-    the `menu_items` fingerprint after step 2 equals the one after step 1, so
-    `menuToRow`'s normalisation converges on the first restore and never moves
-    again. **Step 3 (full wipe) is still not run** — what it would newly prove is
-    narrow: that an empty table restores as well as a populated one, and how the
-    boot gate behaves against a genuinely empty database mid-restore.
+    ever LOSE observations.
+  - **⚠️ `where true` ON THE FIVE DELETES IS LOAD-BEARING** (all five verified
+    present, 4 Aug). Supabase preloads `safeupdate` for the **`authenticator`**
+    role, which rejects any `DELETE` with no `WHERE`; the **`postgres`** role does
+    NOT load it. Measured from the anon path: bare is blocked; `where true`,
+    `where id is not null` and a self-subquery all pass — so safeupdate reads the
+    PARSE TREE, not the plan. Pinned by a test that reads the migration file. The
+    general lesson is **hard rule 10**.
+  - **STEPS 1 AND 2 OF THE DESTRUCTIVE PLAN ARE DONE** (3–4 Aug, against
+    production): a full round-trip with zero changed rows across products /
+    plates / kitchen ingredients / menus / supplier memory / settings, then a real
+    deletion recovered with all seven table fingerprints matching. The restore is
+    idempotent — `menuToRow`'s normalisation converges on the first restore.
+    **Step 3 (full wipe) is still not run**; what it would newly prove is narrow.
+  - **The restore's one measurable side effect, found in v111's audit:** it NULLS
+    `plates.menu_id` for every plate, because `plateToRow` omits the column. That
+    took the count from 20 to 0. Nothing resolved through those values, so nothing
+    was lost — but do not read a future non-zero count as "the restore preserved
+    them". See hard rule 6.
   - **Newest backup: `~/Downloads/ezplate-PRE-STEP2.json`** — v110, `format: 2`,
-    412 products, **312,999 bytes, 4 Aug 2026 05:16 NZST**, taken immediately
-    before step 2 and validated (parses, no broken references, every dish
-    reference resolves). This supersedes the 3 Aug file as the fallback. The size
-    and timestamp are here on purpose: a safety net named only by a path is a
-    claim, not evidence — check them before relying on it.
+    412 products / 78 plates / 78 dishes, **312,999 bytes, 4 Aug 2026 05:16
+    NZST**, re-validated in v111 (parses, `stamp.format` 2, every dish reference
+    resolves, one dish deliberately uncosted). The size and timestamp are here on
+    purpose: a safety net named only by a path is a claim, not evidence.
 - **⚠️ EVERY PRODUCT-PRICE PATH WRITES `ing_price_history`, AND THERE IS ONE
   WRITER (v109).** `setProduct` logs the point; nothing else calls `logIngPrice`.
-  Recorded here so the next session cannot repeat the gap: the five paths that
-  write `cost_per_base_unit` are the builder hand-edit (`commitPrice`), invoice
-  confirm's matched branch and its add-new branch (`applyInvoice`), the Products
-  tab edit form (`saveIngEdit`), and the Products tab create form (`submitNew`).
-  All five funnel through `setProduct`; the only writers that touch
-  `productsById` directly are `applyTidy` (category/brand/supplier) and
-  `bootstrapSync` (fills the object, never calls `setProduct` — which is what
-  stops boot fabricating 412 points).
+  The five paths that write `cost_per_base_unit` are the builder hand-edit
+  (`commitPrice`), invoice confirm's matched branch and its add-new branch
+  (`applyInvoice`), the Products tab edit form (`saveIngEdit`), and the Products
+  tab create form (`submitNew`). All five funnel through `setProduct`; the only
+  writers that touch `productsById` directly are `applyTidy` (category/brand/
+  supplier, now guarded — see v111 above) and `bootstrapSync` (fills the object,
+  never calls `setProduct`, which is what stops boot fabricating 412 points).
   **The condition is the PREVIOUS STORED price, not the last logged point.**
   `logIngPrice` dedupes against the LOG, and nearly every product's log is empty,
-  so a non-price write — the invoice pack teach, `{pack_qty, pack_unit}` — would
-  sail past that dedupe and invent an observation. Don't "simplify" the two
-  guards into one. Product CREATION logs a first point deliberately (Max, 3 Aug):
-  `ingPriceAt` returns null before a product's first point, so without it a new
-  product's first price move has nothing to have moved from.
-  **Device-verified 3 Aug** (see outstanding item 0): a Products-tab edit wrote
-  its point. `ing_price_history` is 34 points / 34 products of 412 — the series
-  has restarted after 19 dead days, but it is still thin, so the movers card and
-  insight family 1 will stay quiet on most products for a while. That is a
-  series that has just started, not a bug.
+  so a non-price write — the invoice pack teach — would sail past that dedupe and
+  invent an observation. Don't "simplify" the two guards into one. Product
+  CREATION logs a first point deliberately (Max, 3 Aug).
 - **⚠️ v108 IS THE ONLINE-ONLY DATA LAYER. Supabase is the source of truth and
-  localStorage is no longer a data store.** The single largest change to this
-  app's architecture. Read `HANDOVER-v108.md` before touching the data layer.
-  What is now TRUE and was not:
-  - **There is no `BASE_PRODUCTS` and no `BASE_MENU`.** 132 KB of hardcoded
-    catalogue is gone; app.js is 590 KB → ~455 KB. Products come from
-    `ingredients`, dishes from `menu_items`. The base+overrides merge is gone —
-    `productsById` (was `overrides`) holds the whole catalogue, one layer.
+  localStorage is no longer a data store.** Read `HANDOVER-v108.md` before
+  touching the data layer. What is now TRUE and was not:
+  - **There is no `BASE_PRODUCTS` and no `BASE_MENU`** (re-verified 4 Aug: all
+    eight remaining mentions are comments). Products come from `ingredients`,
+    dishes from `menu_items`. `productsById` holds the whole catalogue, one layer.
   - **Boot is async and gated.** `bootstrapSync` does ONE `Promise.all` of nine
-    reads (was a 4-query batch plus five sequential awaits: ~915 ms → ~225 ms
-    measured; the two schema probes folded into their real queries). `#bootGate`
-    covers the tabs until data lands. It is NOT the splash — the splash skips a
-    same-session refresh and times out at 3 s, both of which would reveal an
-    empty app. First boot only; a later failure can still surface.
-  - **A failed write is never quiet.** `pushWrite` lost its silent-offline
-    branch and its `null`-that-read-as-success. Offline changes the WORDING, not
-    whether the user is told. **Still no pre-skip on `navigator.onLine`** — v40's
-    lesson, it false-reports in installed PWAs.
-  - **`reconcileLocalOnly` is gone**, with the whole heal-and-re-push idea. Its
-    premise (a local-only row is probably a dropped write) is false now, and
-    against an RLS-empty read it would have resurrected every local row.
+    reads (~915 ms → ~225 ms measured). `#bootGate` covers the tabs until data
+    lands. It is NOT the splash. First boot only.
+  - **A failed write is never quiet.** `pushWrite` lost its silent-offline branch
+    and its `null`-that-read-as-success. Offline changes the WORDING, not whether
+    the user is told. **Still no pre-skip on `navigator.onLine`** — it
+    false-reports in installed PWAs.
+  - **`reconcileLocalOnly` is gone**, with the whole heal-and-re-push idea.
   - **Tombstone lists are gone** (D3). A delete is a real DELETE, guarded by
-    `productRefs` — see below. The two `app_settings` rows are left in the DB
-    deliberately, unread.
+    `productRefs`.
   - **The export is `format: 2`**, a complete snapshot. See hard rule 9.
-- **⚠️ DELETING A PRODUCT NOW REFUSES IF ANYTHING USES IT (D3).** Until v108,
+- **⚠️ DELETING A PRODUCT REFUSES IF ANYTHING USES IT (D3).** Until v108,
   `deleted_prod_ids` filtered at RENDER time and the row stayed, so a "delete"
-  could not break a plate that costed from it. **That protection was accidental**
-  and a real DELETE removes it. `productRefs(pid)` checks BOTH live paths —
-  ingredient→pid AND plate-line→pid (of Max's 179 plate lines, 81 take the first
-  and 84 the second, so a guard walking only one misses half) — and the delete
-  refuses, naming what breaks. Don't "simplify" it to one path.
-- **What is still in localStorage, and it is the whole list:** `currentMenuId`
-  (D1 — validated at render, never at read), `dashScope`, `dashRange`,
-  `lastTab`, `plateDraft`, `lastImport`, `insightCache`, the two AI toggles,
-  theme, and two dismissals. **View preferences and derived caches only. If
-  something new resists that classification, ask — there is no third category.**
-- **The `saveX()` functions are deliberate empty no-ops**, each with a comment
-  naming what persistence now is (a server push). ~50 call sites; gutting the
-  bodies is what mattered, collapsing the call sites is safely-reviewable
-  follow-up and four of them are the sole body of an `if`. Not dead code nobody
-  noticed — see the handover.
+  could not break a plate that costed from it. **That protection was accidental.**
+  `productRefs(pid)` checks BOTH live paths — ingredient→pid AND plate-line→pid
+  (81/84 of Max's 179 plate lines respectively, so a guard walking one misses
+  half) — and the delete refuses, naming what breaks. Don't "simplify" it.
+- **What is still in localStorage, and it is the whole list** (re-verified 4 Aug,
+  12 keys, exactly as documented): `cafeDB_currentMenuId` (D1 — validated at
+  render, never at read), `cafeDB_dashScope`, `cafeDB_dashRange`,
+  `cafeDB_lastTab`, `cafeDB_plateDraft`, `cafeDB_lastImport`,
+  `cafeDB_insightCache`, `cafeDB_aiInvoiceCheck`, `cafeDB_aiSuggestions`,
+  `cafeCost_theme`, and two dismissals (`ezInvIntroDismissed`, the install
+  banner). **View preferences and derived caches only. If something new resists
+  that classification, ask — there is no third category.**
 - **⚠️ jsdom gives every `window.eval()` its own lexical environment.** Top-level
-  `let`s (`productsById`, `savedPlates`, `customMenu`, `byId`) are unreachable
-  from outside: `w.x = v` makes an unrelated window property and a second
-  `w.eval('x = v')` cannot see the binding either. **Concatenate onto app.js and
-  evaluate together.** Verified, and this has now bitten twice (v91, v108).
+  `let`s (`productsById`, `savedPlates`, `customMenu`, `byId`, `plate`) are
+  unreachable from outside. **Concatenate onto app.js and evaluate together.**
+  This has bitten twice (v91, v108) — and the same `let`-is-not-a-window-property
+  rule is why v111 kept `addProduct` (see above).
+- **The `saveX()` no-ops and their ~35 call sites are GONE (v111).** The four
+  `if`-wrapped ones took four stranded locals with them. Outstanding item 2 is
+  closed.
 - **Playwright specs no longer abort everything off-origin.** `tests/visual/
   _boot.js` installs a fake Supabase client before app.js so the REAL boot path
-  runs against fixtures; it serves `ingredients` from
-  `tests/fixtures/base-products.json` and everything else from each spec's own
-  localStorage seed, translated to row shape. **Both times these specs went red
-  this batch, the app was right and the harness assumption had expired** — but
-  the v100 rule stands: treat a failure as real until you have proved otherwise.
-- **Suite:** `npm test` **614 green** · jsdom smoke green · Playwright **94/94**
-  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (566 → 582 was v109's
-  `tests/price-log-paths.test.js`; 582 → 614 is v110's `tests/restore.test.js`.)
-- **Supabase (verified 1–2 Aug 2026 through the MCP server, which reads
-  `pg_policies` directly — these are facts, not inferences):** every table the
-  app queries exists. **The `menu_price_history` RLS fault is FIXED and
-  CONFIRMED** (two policies, 77 rows) — open as "undeterminable" from 28 Jul;
-  true of the anon key, not of the MCP. `ing_price_history` exists, RLS on, two
-  policies, seeded with 33 points. **Use the MCP for any future "did the
-  migration run?" question** ([[running-supabase-migrations-here]]).
-- **The four v108 migrations are APPLIED** (see `supabase/migrations/`,
-  1 Aug), **and so is v110's `20260803_restore_backup_fn.sql`** (3 Aug).
-  `ingredients` 120 → 413 → **412 rows** after the `Umrzbztwn` delete.
-  `list_migrations` is empty — this project has no CLI migration tracking, so
-  the files plus their commit messages ARE the audit trail.
-  **`public.restore_backup(jsonb)` is the only function in the schema** —
-  before v110 there were none at all.
-- **Per-menu history has started:** `price_history` 43 rows, 7 carrying
-  `menu_id` (was 0 on 30 Jul); `menu_price_history` 77 rows. Thin, but no longer
-  empty — check counts, don't assume time has passed.
+  runs against fixtures. **Both times these specs went red in v108, the app was
+  right and the harness assumption had expired** — but the v100 rule stands:
+  treat a failure as real until you have proved otherwise.
+- **Suite:** `npm test` **626 green** · jsdom smoke green · Playwright **94/94**
+  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (614 → 626 is v111's
+  `tests/housekeeping.test.js`.) **There is no known-failing test and there was
+  not one before this batch either** — the brief that commissioned v111 believed
+  `fresh-states`' "v45 item 4: button copy" was red on main; it passes, and has.
+- **Playwright is 94 tests across NINE specs in `tests/visual/`** — the "45
+  tests across the three specs" figure was counting only the pre-v89 three
+  (`fresh-states` 31 + `layout-consistency` 2 + `screenshots` 12 = 45, confirmed).
+  Of those three, only `screenshots.spec.js` is genuinely untouched since v82;
+  `fresh-states` and `layout-consistency` were both updated in v108.
+- **Supabase, re-verified 4 Aug 2026 through the MCP — which connects as
+  `postgres`, NOT as the client's role (hard rule 10).** Row counts and schema
+  facts are role-independent and safe to read here; anything about whether a
+  STATEMENT is permitted is not. `ingredients` **412** · `plates` **78** ·
+  `menu_items` **78** (77 with a `plate_id`; one dish, "Cheese & Ham Toastie GF",
+  has no plate link and never had one) · `menus` **2** · `ing_price_history`
+  **34 points / 34 products** · `price_history` **49** (11 carrying `menu_id`) ·
+  `menu_price_history` **78** · `supplier_phrases` **7** · `app_settings` **10** ·
+  `plates` with non-null `menu_id` **0**. **`public.restore_backup(jsonb)` is
+  still the only function in the schema.** Both FKs
+  (`plates_menu_id_fkey`, `menu_items_plate_id_fkey`) are live.
+  **Several of these had drifted from the previous snapshot** (`price_history`
+  43→49, `menu_price_history` 77→78, `plates.menu_id` 20→0) — check counts, don't
+  quote them.
+- **The four v108 migrations are APPLIED**, and so is v110's
+  `20260803_restore_backup_fn.sql`. `list_migrations` is empty — this project has
+  no CLI migration tracking, so the files plus their commit messages ARE the
+  audit trail ([[running-supabase-migrations-here]]).
 - **THREE history series, deliberately separate — don't merge:** `priceHistory`
   (all-menus average), `menuHistory` (per menu, v89), `menuPriceLog` (each
-  plate's SELL price, v90). Plus `ingPriceLog` (per PRODUCT cost), which as of
-  v108 finally has its own table. **Four price-ish logs with DIFFERENT writers —
-  check the writer, not just the reader.** As of v109 `ingPriceLog` is the one
-  with a SINGLE writer (`setProduct`, see the price-path bullet above); the other
-  three are still written from their own call sites, so the rule stands for them.
+  plate's SELL price, v90). Plus `ingPriceLog` (per PRODUCT cost). **Four
+  price-ish logs with DIFFERENT writers — check the writer, not just the
+  reader.** As of v109 `ingPriceLog` is the one with a SINGLE writer
+  (`setProduct`); the other three are still written from their own call sites.
 - **Insights rules A–E and the three-logs rule are unchanged** (v90–v93). Rules
   D and E probably belong above the snapshot line — still needs Max's yes.
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
-  pinned, SRI-checked except the pdf.js worker (hard rule 4).
+  pinned, SRI-checked except the pdf.js worker (hard rule 4). Both re-verified in
+  the source, 4 Aug.
 
 **Outstanding, in priority order:**
 
@@ -679,61 +704,74 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    on top of the boot gate. Then: does the gate read as honest or as broken?
    Does the offline message arrive when the signal actually drops, not just when
    `navigator.onLine` says so? Does a refused product delete explain itself?
-   **A fresh `format: 2` export now EXISTS** —
-   `~/Downloads/ezplate-backup-2026-08-03.json`, v108, 412 products / 78 plates /
-   2 menus, verified internally clean (0 dangling references of any kind) and an
-   exact match for the live database. That is the fallback the 2 Aug format-1
-   file used to be, and it is what v110's restore was validated against.
-   **v109's own check is DONE — device-verified 3 Aug.** Max edited a price on
-   the Products tab and `ing_price_history` went 33 → 34 points (P0001, one
-   point, 0.0247 $/g), which v108 could not have written. He was on the **Vercel
-   PREVIEW deploy of the branch**, not production — pushing a branch deploys a
-   preview, so a device test can silently be running unmerged code. Check
-   `gh api repos/.../deployments` before concluding which build produced a
-   result ([[verify-origin-main-before-trusting-local]] applies to deploys too).
+   The fallback for this is `~/Downloads/ezplate-PRE-STEP2.json` (see above).
+   **v109's own check is DONE — device-verified 3 Aug**, though on the Vercel
+   PREVIEW deploy of the branch rather than production. Check
+   `gh api repos/.../deployments` before concluding which build produced a result.
 1. **Phone sign-off on v82–v104** — the whole UX propagation sequence, still
    none of it device-verified. Carried.
-2. **Collapse the ~50 `saveX()` call sites** now that the bodies are empty.
-   Mechanical, safely reviewable, no behaviour change.
-3. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
+2. ~~Collapse the ~50 `saveX()` call sites~~ — **DONE in v111.** There were 35,
+   not ~50, and nine of those were read-path.
+3. **⚠️ "Restore to menu" links the dish to its plate IN MEMORY ONLY — the link
+   dies on reload.** Found by CodeRabbit reviewing v111, confirmed by reading the
+   path; NOT fixed, because it is a behaviour change and v111 was housekeeping.
+   `savePlateRestore` creates the dish with **no `plateId`** and links it only via
+   `sp.menuId=newId`. That is the third branch of `plateIdOf` — and `plateToRow`
+   **omits `menu_id`**, so the value is never persisted. After a reload the
+   restored dish resolves to no plate: it reads as uncosted in Menu Analysis, and
+   if the user then taps it to cost it, `ensurePlateForDish` creates a SECOND,
+   empty plate, leaving the original orphaned again. Nothing auto-heals —
+   `ensurePlateForDish` is reached only from `loadMenuItemBlank`. The fix is to
+   set `plateId` on the dish and sequence the writes per the fragile-area rule;
+   it needs its own brief and a regression test.
+4. **⚠️ `deletePlate` and `doDeleteEverything` delete the PLATE without waiting
+   for the dish deletes.** Also CodeRabbit on v111, also confirmed and NOT fixed
+   for the same reason. `removeMenuItem` → `dbDeleteMenu` and `dbDeletePlate` are
+   both fire-and-forget `pushWrite`s, so the `plates` DELETE can reach the server
+   before the `menu_items` ones. `menu_items.plate_id → plates.id` has **no delete
+   action**, so that ordering errors. This is precisely the case the "Cross-
+   referencing writes are a SEQUENCE" fragile-area rule exists for, and this path
+   does not obey it. `pushWrite` already returns its promise (v40), so the fix is
+   available; it needs async handlers and its own tests.
+5. **Upgrade pdf.js to 4.2.67+** — 3.11.174 carries CVE-2024-4367; mitigated
    v88 (`isEvalSupported:false`), NOT fixed. Its own brief.
-4. **Reconcile the 45 pre-v89 Playwright tests** (stale premises since v72).
-5. **The restore's destructive plan — only STEP 3 remains**, and it is optional
-   rather than blocking. Steps 1 and 2 are done and passed (see the restore
-   bullet above). Step 3 is a full wipe and restore, ONLY on an explicit go with
-   a fresh export taken minutes before. What is genuinely still unproven is
-   narrower than "does restore work": whether an EMPTY table restores as well as
-   a populated one, and how the boot gate reads against a genuinely empty
+6. **Audit the 45 pre-v89 Playwright tests for MEANING, not for green** — they
+   all pass, so this is not urgent and never was. What is genuinely stale:
+   12 of the 45 (`screenshots.spec.js`) are capture-only, and four `fresh-states`
+   setups build a plate through `addProduct`, a door no user has had since v31.
+   v111 deliberately touched none of them.
+7. **The restore's destructive plan — only STEP 3 remains**, and it is optional
+   rather than blocking. ONLY on an explicit go with a fresh export taken minutes
+   before. What is still unproven is narrow: whether an EMPTY table restores as
+   well as a populated one, and how the boot gate reads against a genuinely empty
    database. **Separately, and more useful: none of the restore UI has been seen
-   on a real phone** — everything so far was a desktop browser driving the real
-   client. The file picker on iOS Safari with a `.json` filter is the specific
-   unknown.
-6. **A unique index on `ing_price_history (product_id, recorded_at)`** — raised by
-   CodeRabbit on PR #50 and deliberately NOT built under hard rule 5 (list extra
-   work, don't build it). It is a real improvement: the restore's additive insert
-   currently guards duplicates with `not exists` + `DISTINCT ON`, which is correct
-   for a single writer but not race-safe, and the constraint would let both
-   collapse into `on conflict do nothing`. **Checked 4 Aug: 0 duplicate pairs, so
-   it would apply cleanly.** The reason it needs its own brief rather than a
-   quick patch is blast radius — it constrains `logIngPrice`/`dbPushIngPrice`
-   too, turning a silent duplicate on the NORMAL price-logging path into a
-   surfaced error. That is probably the right behaviour, but it is a change to
-   the price log, not to the restore.
-7. Small, each needing a yes: **`ingredients.updated_at` is stale and means
-   nothing** — `ingredientToRow` never sends it and nothing sets it, so P0001
-   read 18 Jul minutes after being written (found 3 Aug). Don't use it to judge
-   whether a write landed; either populate it or drop it.
+   on a real phone.** The file picker on iOS Safari with a `.json` filter is the
+   specific unknown.
+8. **A unique index on `ing_price_history (product_id, recorded_at)`** — raised by
+   CodeRabbit on PR #50 and deliberately NOT built under hard rule 5. It is a real
+   improvement: the restore's additive insert guards duplicates with `not exists`
+   + `DISTINCT ON`, correct for a single writer but not race-safe, and the
+   constraint would let both collapse into `on conflict do nothing`. **0 duplicate
+   pairs as of 4 Aug, so it would apply cleanly.** It needs its own brief because
+   of blast radius: it constrains `logIngPrice`/`dbPushIngPrice` too, turning a
+   silent duplicate on the NORMAL price-logging path into a surfaced error.
+9. Small, each needing a yes: **`ingredients.updated_at` is stale and means
+   nothing** — `ingredientToRow` never sends it and nothing sets it. Don't use it
+   to judge whether a write landed; either populate it or drop it.
    Then: the stale v60 target-line comment in `trendChart`;
    the `.chart-hint`/`.scope-note` pair under the chart; `.range-btn` is 32px
    (DEFERRED by Max 31 Jul as an OPEN accessibility item, not dropped);
    `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row.
-8. Supplier coverage is 18% of used products — the concentration family stays
+10. Supplier coverage is 18% of used products — the concentration family stays
    silent by design until ~50%.
-9. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
+11. **Max clears the six orphaned `"Document No:"` taught packs** (Settings →
    Remembered items) then imports one Bidfood invoice to re-teach. Only one is a
    real loss. Not urgent.
 
 **Open, NOT bugs to fix on sight:** "Menu item" survives as a fifth noun in the
-Edit-menu-item modal (its own brief); `GET /api/parse-invoice?probe=1` must be
-**gated or removed before multi-tenant**. Per-batch detail lives in
-`handovers/HANDOVER-vNN.md`; its README records the gaps in that history.
+Edit-menu-item modal (its own brief). **`GET /api/parse-invoice?probe=1` was
+already REMOVED in v70** — the previous snapshot listed it as an open
+multi-tenant gate and that was stale; only a key-free `?health=1` check remains,
+which reports the model name and whether a key is configured, never the key.
+Per-batch detail lives in `handovers/HANDOVER-vNN.md`; its README records the
+gaps in that history.

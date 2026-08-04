@@ -15,8 +15,10 @@ const path = require('path');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 
-// occ=1 is the first definition; occ=2 the second. renderAnalysis (and aRow) are defined TWICE —
-// the FIRST is dead, the SECOND is live (CLAUDE.md hard rule 3), so the live one must be occ=2.
+// v111: the occ machinery is retired along with CLAUDE.md hard rule 3. `renderAnalysis` and `aRow` were
+// each defined TWICE, the first dead and the second live, so the live one had to be selected by occ=2.
+// Both dead first definitions are now deleted and every name here is unique — LIVE_OCC is empty and the
+// parameter survives only so a future duplicate can be pinned deliberately rather than silently.
 function extractFn(src, name, occ = 1) {
   const sig = `function ${name}(`;
   let i = -1;
@@ -29,7 +31,7 @@ function extractFn(src, name, occ = 1) {
   }
   throw new Error(`empty-states: unbalanced braces for ${name}`);
 }
-const LIVE_OCC = { renderAnalysis: 2 };   // second definition is the live one
+const LIVE_OCC = {};   // v111: no name in app.js is defined twice any more
 
 // Run the real shipped builders in a sandbox (esc + the two helpers, nothing DOM-bound).
 const factory = new Function(`
@@ -94,7 +96,7 @@ test('copy pins: each true-empty names its OWN tab\'s primary action', () => {
   assert.ok(/\+ New product/.test(prod), 'Products true-empty references "+ New product"');
   assert.ok(!/\+ New ingredient/.test(prod), 'Products true-empty must NOT reference "+ New ingredient"');
 
-  const menu = extractFn(SRC, 'renderAnalysis', 2);   // live definition
+  const menu = extractFn(SRC, 'renderAnalysis');   // v111: only one definition exists now
   assert.ok(/Publish a plate from the Plates tab/.test(menu), 'Menu true-empty points at the Plates tab (not the removed Builder)');
   assert.ok(!/in the Builder/.test(menu), 'stale "Builder" copy gone');
 });

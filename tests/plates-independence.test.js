@@ -39,8 +39,7 @@ function makeResolver(menusList, savedPlates, dishes) {
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'dishesOfPlate')}
     ${extractFn(SRC, 'menusOfPlate')}
-    ${extractFn(SRC, 'isPublishedPlate')}
-    return { plateIdOf, plateForMenuItem, dishesOfPlate, menusOfPlate, isPublishedPlate };
+    return { plateIdOf, plateForMenuItem, dishesOfPlate, menusOfPlate };
   `);
   return factory(menusList, savedPlates, dishes);
 }
@@ -66,7 +65,6 @@ test('v55: a plate can be on MANY menus — menusOfPlate lists them all with per
   const on = r.menusOfPlate(plates[0]);
   assert.deepStrictEqual(on.map(o => o.name).sort(), ['Original', 'Winter'], 'both menus, once each');
   assert.deepStrictEqual(on.map(o => o.price).sort(), [18, 21], 'each entry keeps its own price');
-  assert.strictEqual(r.isPublishedPlate(plates[0]), true);
   assert.strictEqual(r.dishesOfPlate(plates[0]).length, 2, 'two dishes back this plate');
   assert.strictEqual(r.plateForMenuItem(dishes[0]).id, 'SP1', 'the dish resolves to its plate');
 });

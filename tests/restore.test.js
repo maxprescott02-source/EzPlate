@@ -316,10 +316,12 @@ test('a plate line with a kid that no ingredient defines is soft, and counted on
    nothing, with an opaque foreign-key error instead of a sentence. -------------------------------- */
 
 test('CONDITION: a restored plate carries NO menu_id — the plates/menu_items FK is CIRCULAR', () => {
-  // plates.menu_id -> menu_items.id is still live (20 of 78 plates use it as of 3 Aug 2026, despite
-  // CLAUDE.md hard rule 6 having said it was gone). Plates insert BEFORE dishes, so a plate carrying
-  // a dish reference cannot be inserted at all. plateToRow already omits the column — this pins that
-  // it must keep omitting it. Verified against production: stripping menu_id was mandatory.
+  // plates.menu_id -> menu_items.id is still live as a CONSTRAINT. The 20-of-78 plates that carried a
+  // value on 3 Aug 2026 are now 0 (checked through the MCP, 4 Aug): v110's own restore nulled them,
+  // because plateToRow omits the column and the restore reinserts every plate. Nothing resolved
+  // through those values — the one dish with no plate link had no plate pointing back at it — so no
+  // link was lost. The FK is what matters here, not the data: plates insert BEFORE dishes, so a plate
+  // carrying a dish reference cannot be inserted at all. This pins that plateToRow keeps omitting it.
   const p = backupToPayload(fixture());
   for (const plate of p.plates) {
     assert.ok(!('menu_id' in plate), 'a restored plate must not reference a dish that does not exist yet');
