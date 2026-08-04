@@ -39,6 +39,7 @@ test('v111: removeMenuItem still deletes the server row after dropping its saveC
     "use strict";
     var customMenu = S.menu;
     function dbDeleteMenu(id){ S.deleted.push(id); }
+    ${extractFn('forgetMenuItems')}   /* v112: removeMenuItem's in-memory half, split out for the sequenced delete paths */
     ${extractFn('removeMenuItem')}
     removeMenuItem(S.id);
     return customMenu;
@@ -56,6 +57,7 @@ test('v111: removeMenuItem deletes the server row even when the dish was not in 
     "use strict";
     var customMenu = S.menu;
     function dbDeleteMenu(id){ S.deleted.push(id); }
+    ${extractFn('forgetMenuItems')}   /* v112: removeMenuItem's in-memory half, split out for the sequenced delete paths */
     ${extractFn('removeMenuItem')}
     removeMenuItem(S.id);
     return customMenu;

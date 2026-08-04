@@ -230,7 +230,9 @@ function dbUpsertMenuRecord(m){ return pushWrite(function(){ return SUPA.from('m
 // out of the write — the legacy column keeps whatever it had and is never read. category (§J) is the plate
 // library's own grouping (independent of per-menu sections).
 function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite(function(){ return SUPA.from('plates').upsert(plateToRow(sp)); }, 'plate'); }
-function dbDeletePlate(id){ pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
+// v112: returns its promise. It could not be sequenced before, which is exactly why the plate delete
+// used to race the dish deletes that must precede it — see dbDeletePlateAfterDishes.
+function dbDeletePlate(id){ return pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 // v108 (D3): products are really deleted now — the tombstone list that used to hide them is gone.
 function dbDeleteIngredient(id){ return pushWrite(function(){ return SUPA.from('ingredients').delete().eq('id',id); }, 'product delete'); }
 function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
@@ -1077,14 +1079,16 @@ function saveFromBuilder(){ if(saveCurrentPlate(false)) closeBuilder(); }
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 /* menu analysis */
 function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=lineProduct(l);if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
-/* v55 (many-to-many): a dish links to its plate via dish.plateId; source_plate_id is a legacy fallback,
-   and a stale local plate.menuId (pre-v55) is the last resort for un-synced local rows. One plate can back
-   MANY dishes (one per menu it's published to). These helpers are the single resolution path — call sites
-   never poke the raw fields. */
+/* v55 (many-to-many): a dish links to its plate via dish.plateId; source_plate_id is a legacy fallback.
+   One plate can back MANY dishes (one per menu it's published to). These helpers are the single
+   resolution path — call sites never poke the raw fields.
+   v112: the third branch (a stale local plate.menuId) is GONE. It could never fire: the only writer of
+   `sp.menuId` in the whole app was savePlateRestore — itself unreachable, and removed this batch — while
+   `rowToPlate` does not read `menu_id` at all, so a server-loaded plate never carries `.menuId`. A
+   fallback that cannot fire reads as a safety net and is not one. */
 function plateIdOf(d){ if(!d) return null;
   if(d.plateId) return d.plateId;
-  if(d.sourcePlateId) return d.sourcePlateId;
-  var sp=savedPlates.find(function(s){return s.menuId===d.id;}); return sp?sp.id:null;   // legacy local-only fallback
+  return d.sourcePlateId || null;
 }
 function plateForMenuItem(m){ if(!m) return null; var pid=plateIdOf(m); return pid?(savedPlates.find(function(s){return s.id===pid;})||null):null; }
 function dishesOfPlate(sp){ if(!sp) return []; return MENU.filter(function(d){ return plateIdOf(d)===sp.id; }); }   // every menu entry backed by this plate
@@ -3626,7 +3630,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v111';
+var APP_VERSION='v112';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4446,13 +4450,35 @@ function deletePlate(id){
     ? ('Delete “'+nm+'”? It’s on '+on.map(function(o){return o.name;}).join(', ')+' — the plate and those menu entries are removed. Your products and ingredients are untouched.')
     : ('Delete “'+nm+'”? The plate is removed. Your products and ingredients are untouched.');
   askConfirm('Delete plate?', msg, 'Delete', function(){
-    dishesOfPlate(sp).forEach(function(d){ removeMenuItem(d.id); });   // drop every menu entry that used this plate
+    var dishes=dishesOfPlate(sp).slice();                            // every menu entry that used this plate
+    var dishIds=dishes.map(function(d){ return d.id; });
+    var wasLoaded=(loadedPlateId===id);
+    var repaint=function(){ rebuildMenu(); buildMenuOptions(); buildMenuSelector(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); };
+    forgetMenuItems(dishIds);
     savedPlates=savedPlates.filter(function(s){return s.id!==id;});
-    if(loadedPlateId===id) loadedPlateId=null;
-    dbDeletePlate(id);
-    rebuildMenu(); buildMenuOptions(); buildMenuSelector(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab();
-    toast('“'+nm+'” deleted');
+    if(wasLoaded) loadedPlateId=null;
+    repaint();                                                       // the screen keeps up; the WORDS wait for the server
+    dbDeletePlateAfterDishes(dishIds, id).then(function(r){
+      if(r.dishesOk && r.plateOk){ toast('“'+nm+'” deleted'); return; }
+      rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
+    });
   });
+}
+/* v112 — honest failure. pushWrite has already named the underlying error; this puts the UI back to the
+   state the SERVER is actually in, so the screen can never show a delete that did not happen. A dish
+   whose delete FAILED is restored; one that succeeded stays gone. The plate comes back only if it is
+   still on the server, which it is in both failure shapes: a dish failure means we never tried it. */
+function rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm){
+  if(!r.dishesOk){
+    var back={}; r.failedDishIds.forEach(function(id){ back[id]=1; });
+    dishes.forEach(function(d){ if(back[d.id]) customMenu.push(d); });
+  }
+  savedPlates.push(sp);
+  if(wasLoaded) loadedPlateId=sp.id;
+  repaint();
+  toast(r.dishesOk
+    ? '“'+nm+'” was removed from the menu, but the plate couldn’t be deleted — it’s still in your Plates library.'
+    : 'Couldn’t delete “'+nm+'” — it has NOT been deleted.');
 }
 /* ---- Manage menus: a plate can be published to any number of menus, each its own price/category ---- */
 var manageMenusPid=null;
@@ -4508,6 +4534,39 @@ function dbPushMenuAfterPlate(item, sp){
   var platePush = sp ? dbPushPlate(sp) : null;
   if(!platePush) return dbPushMenu(item);
   return Promise.resolve(platePush).then(function(res){ if(!res || res.error){ return null; } return dbPushMenu(item); });
+}
+/* v112 — the DELETE-side twin, and the same fragile-area rule read backwards.
+   `menu_items.plate_id -> plates.id` carries NO delete action, so Postgres rejects (SQLSTATE 23503) any
+   attempt to remove a plates row while a dish still points at it. deletePlate and doDeleteEverything used
+   to fire the dish deletes and the plate delete as unawaited pushWrites in one synchronous burst: the
+   DISPATCH order was right, the COMMIT order was not, so the plate delete could land first and be
+   rejected — intermittently, which is why it presented as "sometimes broken" rather than as a bug.
+   Deletes run in the mirror image of writes: on the way IN the referenced row lands first (plate, then
+   dish); on the way OUT the referencing rows go first (dishes, then plate).
+   Reports per-dish outcomes because the caller has to roll back to the state the SERVER is actually in,
+   and a partial failure across N dishes is a real outcome, not a binary one.
+
+   The rejection handlers are deliberate belt-and-braces. `pushWrite` catches its own errors and always
+   RESOLVES, so today nothing here can reject — but if one ever did, this function would reject, the
+   caller's `.then` would never run, and the UI would sit in the optimistic "deleted" state with no
+   rollback and no word to the user. That is precisely the silent failure v108 removed from the app, so
+   the honest-failure guarantee is made unconditional rather than left resting on pushWrite's internals. */
+function dbDeletePlateAfterDishes(dishIds, plateId){
+  var ids=dishIds||[];
+  var killPlate=function(){
+    return Promise.resolve(dbDeletePlate(plateId)).then(function(r){
+      return {dishesOk:true, failedDishIds:[], plateOk:!!(r && !r.error)};
+    }, function(){ return {dishesOk:true, failedDishIds:[], plateOk:false}; });
+  };
+  if(!ids.length) return killPlate();
+  return Promise.all(ids.map(function(id){
+    return Promise.resolve(dbDeleteMenu(id)).then(function(r){ return {id:id, ok:!!(r && !r.error)}; },
+                                                 function(){ return {id:id, ok:false}; });
+  })).then(function(res){
+    var failed=res.filter(function(x){ return !x.ok; }).map(function(x){ return x.id; });
+    if(failed.length) return {dishesOk:false, failedDishIds:failed, plateOk:false};   // the plate is NOT touched
+    return killPlate();
+  });
 }
 var pubPlateId=null;
 function openPublishModal(plateId, presetMenuId){
@@ -5975,12 +6034,14 @@ function costRangeCell(m, cost){                                     // ITEM 3: 
   if(r.max-r.min < 0.005) return '';
   return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
 }
-function aRow(name,a,m,actions,pid){
-  // v52 (LIVE definition \u2014 the earlier aRow is dead): rows are tap-to-edit cards. The tr carries
-  // data-mid/data-pid for the row-click delegate, an lt-* class for the margin stripe, and the
-  // name is a real <button> so keyboard users get the same edit path the tap gives fingers.
+function aRow(name,a,m,actions){
+  // v52: rows are tap-to-edit cards. The tr carries data-mid for the row-click delegate, an lt-* class
+  // for the margin stripe, and the name is a real <button> so keyboard users get the same edit path the
+  // tap gives fingers.
+  // v112: the 5th `pid` param and its data-pid branch are gone. No call site ever passed it, so the
+  // attribute was never emitted and the openPlateEdit delegate it fed could never fire.
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
-  var ref=m?(' data-mid="'+esc(m.id)+'"'):(pid?(' data-pid="'+esc(pid)+'"'):'');
+  var ref=m?(' data-mid="'+esc(m.id)+'"'):'';
   return '<tr class="mi-row lt-'+(a.light||'none')+'"'+ref+'><td><button type="button" class="mi-name">'+esc(name)+'</button>'+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
@@ -6039,7 +6100,7 @@ function renderAnalysis(){
   // v52 tap-to-edit (replaces the per-card Edit button): the whole card/row opens the edit
   // modal; .tip and .mi-btn clicks stopPropagation so they never fall through to the row.
   tb.querySelectorAll('tr.mi-row').forEach(function(tr){
-    tr.onclick=function(){ var pid=tr.getAttribute('data-pid'); if(pid){ openPlateEdit(pid); } else { var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); } };
+    tr.onclick=function(){ var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); };   // v112: the data-pid/openPlateEdit branch is gone with the orphan-plate editor
   });
   // v90: nothing insight-related runs here any more — the Menu tab has no suggestions UI at all.
 }
@@ -6160,7 +6221,7 @@ function submitNewMenu(){
 }
 
 /* ===== Menu Analysis: split "/" items + safe delete ===== */
-function dbDeleteMenu(id){ pushWrite(function(){ return SUPA.from('menu_items').delete().eq('id',id); }, 'menu delete'); }
+function dbDeleteMenu(id){ return pushWrite(function(){ return SUPA.from('menu_items').delete().eq('id',id); }, 'menu delete'); }   // v112: returns its promise so a plate delete can be chained after it
 /* v108: isBaseMenuId was `BASE_MENU.some(...)` and is deleted with the literal. There are no built-in
    dishes any more, so removeMenuItem's tombstone branch is unreachable by construction — a deleted
    dish is a deleted ROW, which is the whole point of D3. */
@@ -6170,9 +6231,15 @@ function menuActions(m){
   // tab (tap the card \u2192 Edit plate); the Menu-tab row stays tap-to-edit for price/category/menu only.
   return '';
 }
+// v112: the in-memory half, split out so a caller that must SEQUENCE the server deletes (deletePlate /
+// doDeleteEverything) can drop the rows locally and drive the writes itself, instead of firing them here.
+function forgetMenuItems(ids){
+  var kill={}; (ids||[]).forEach(function(id){ kill[id]=1; });
+  customMenu=customMenu.filter(function(c){ return !kill[c.id]; });
+}
 function removeMenuItem(id){
-  customMenu=customMenu.filter(function(c){ return c.id!==id; });
-  dbDeleteMenu(id);                                   // remove server row (harmless if none)
+  forgetMenuItems([id]);
+  return dbDeleteMenu(id);                            // remove server row (harmless if none)
   // v108: the tombstone branch is gone with BASE_MENU. Deleting the row IS the deletion now.
 }
 /* two-tap confirm dialog */
@@ -6190,7 +6257,8 @@ function askConfirm(title,msg,okLabel,fn,cancelLabel,cancelFn){
 function closeConfirm(){ hide('confirmModal'); __confirmFn=null; __confirmCancelFn=null; }
 
 /* ===== Menu item edit modal ===== */
-var editTargetId=null, edDelArmed=false, edCatState={chosen:null,chosenIsNew:false}, edCat=null, editKind='menu', edRestoreMode=false, delChoiceId=null;
+// v112: editKind/edRestoreMode are gone with the orphan-plate editor — the modal only ever edited a menu item.
+var editTargetId=null, edDelArmed=false, edCatState={chosen:null,chosenIsNew:false}, edCat=null, delChoiceId=null;
 function makeCatCombo(inpId, dropId, newId, state){
   var inp=document.getElementById(inpId); if(!inp) return null;
   function render(){
@@ -6217,7 +6285,7 @@ function makeCatCombo(inpId, dropId, newId, state){
 }
 function openMenuEdit(id){
   var m=menuById[id]; if(!m) return;
-  editTargetId=id; edDelArmed=false; setEditMode('menu');
+  editTargetId=id; edDelArmed=false; setEditMode();
   document.getElementById('ed_name').value=m.name||'';
   document.getElementById('ed_price').value=(m.price!=null)?m.price:'';
   document.getElementById('ed_cat').value=m.section||'';
@@ -6229,7 +6297,7 @@ function openMenuEdit(id){
   var del=document.getElementById('ed_delete'); if(del) del.textContent='Delete item';
   show('editModal');
 }
-function closeEdit(){ hide('editModal'); editTargetId=null; edDelArmed=false; edRestoreMode=false; editKind='menu'; }
+function closeEdit(){ hide('editModal'); editTargetId=null; edDelArmed=false; }
 function resolveEditCat(){
   var typedCat=document.getElementById('ed_cat').value.trim();
   var allCats=menuCats();
@@ -6263,84 +6331,32 @@ function editDeleteTap(){
   var nm=menuById[id].name; closeEdit(); openDelChoice(id, nm);
 }
 
-/* ===== orphan-plate edit + delete-choice ===== */
-function setEditMode(mode){
-  editKind=mode; edRestoreMode=false;
+/* ===== menu-item edit modal setup =====
+   v112: this modal had a SECOND mode — an "orphan plate" editor (openPlateEdit / savePlateRename /
+   editRestoreToMenu / savePlateRestore / editPermDeletePlate) reached by clicking a Menu-tab row that
+   carried `data-pid`. Nothing ever emitted that attribute: aRow's 5th `pid` argument was never passed by
+   its one call site, so the whole branch was unreachable from v55 onward (HANDOVER-v55 recorded it as
+   "dead post-v55, left for later cleanup" and it outlived v111's sweep because the functions ARE
+   name-referenced from live code — only the DATA flow showed they were dead).
+   Two of those functions were genuinely broken, which is why this is a fix and not tidying:
+     - savePlateRestore linked the new dish to its plate through `sp.menuId` only. plateToRow omits
+       menu_id (deliberately — v110's restore depends on it), so the link died on reload and costing the
+       dish afterwards would mint a SECOND empty plate, orphaning the first. Compounding, and silent.
+     - editPermDeletePlate deleted a plate with NO dish cleanup at all, which the
+       menu_items.plate_id -> plates.id FK (no delete action) rejects outright.
+   Publishing an unpublished plate is unaffected: the live path is the Plates tab -> Publish ->
+   openManageMenus -> submitMenuItem, which sets a real plateId and already sequences the writes. */
+function setEditMode(){
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
   var mf=document.getElementById('ed_menuField');
-  var pa=document.getElementById('ed_plateActions'), dr=document.getElementById('ed_deleteRow');
+  var dr=document.getElementById('ed_deleteRow');
   var save=document.getElementById('editSave'), title=document.getElementById('editTitle');
   var nlab=document.querySelector('label[for="ed_name"]');
-  if(mode==='menu'){
-    if(cf)cf.style.display=''; if(pf)pf.style.display=''; if(mf)mf.style.display='';
-    if(pa)pa.style.display='none'; if(dr)dr.style.display='';
-    if(save)save.textContent='Save changes'; if(title)title.textContent='Edit menu item'; if(nlab)nlab.textContent='Menu item name *';
-  } else {                                   // orphan custom plate
-    if(cf)cf.style.display='none'; if(pf)pf.style.display='none'; if(mf)mf.style.display='none';
-    if(pa)pa.style.display=''; if(dr)dr.style.display='none';
-    if(save)save.textContent='Save name'; if(title)title.textContent='Edit plate'; if(nlab)nlab.textContent='Plate name *';
-  }
+  if(cf)cf.style.display=''; if(pf)pf.style.display=''; if(mf)mf.style.display='';
+  if(dr)dr.style.display='';
+  if(save)save.textContent='Save changes'; if(title)title.textContent='Edit menu item'; if(nlab)nlab.textContent='Menu item name *';
 }
-function openPlateEdit(pid){
-  var sp=savedPlates.find(function(s){return s.id===pid;}); if(!sp) return;
-  editTargetId=pid; edDelArmed=false; setEditMode('plate');
-  document.getElementById('ed_name').value=sp.name||'';
-  document.getElementById('ed_price').value=''; document.getElementById('ed_cat').value='';
-  edCatState.chosen=null; edCatState.chosenIsNew=false;
-  var d=document.getElementById('ed_catDrop'); if(d)d.style.display='none';
-  var nn=document.getElementById('ed_catNew'); if(nn)nn.style.display='none';
-  document.getElementById('ed_err').style.display='none';
-  show('editModal');
-}
-function onEditSave(){
-  if(editKind==='plate'){ if(edRestoreMode) savePlateRestore(); else savePlateRename(); return; }
-  saveMenuEdit();
-}
-function savePlateRename(){
-  var id=editTargetId, err=document.getElementById('ed_err');
-  var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
-  var name=document.getElementById('ed_name').value.trim();
-  if(!name){ err.textContent='Enter a plate name.'; err.style.display='block'; return; }
-  sp.name=name; dbPushPlate(sp);
-  if(loadedPlateId===id) document.getElementById('plateName').value=name;
-  renderPlate(); renderAnalysis(); closeEdit(); toast('Plate renamed');
-}
-function editRestoreToMenu(){
-  if(editKind!=='plate') return;
-  edRestoreMode=true;
-  var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
-  if(cf)cf.style.display=''; if(pf)pf.style.display='';
-  var pa=document.getElementById('ed_plateActions'); if(pa)pa.style.display='none';
-  var save=document.getElementById('editSave'); if(save)save.textContent='Restore to menu';
-  var title=document.getElementById('editTitle'); if(title)title.textContent='Restore plate to menu';
-  var err=document.getElementById('ed_err'); if(err){ err.textContent='Choose a category and sell price, then Restore to menu.'; err.style.display='block'; }
-}
-function savePlateRestore(){
-  var id=editTargetId, err=document.getElementById('ed_err');
-  var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
-  var name=document.getElementById('ed_name').value.trim();
-  if(!name){ err.textContent='Enter a menu item name.'; err.style.display='block'; return; }
-  var priceV=document.getElementById('ed_price').value;
-  if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){ err.textContent='Enter a valid sell price.'; err.style.display='block'; return; }
-  var cat=resolveEditCat();
-  if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
-  var newId='um'+Date.now().toString(36);
-  upsertCustomMenu({id:newId, section:cat, name:name, price:parseFloat(priceV), notes:'', custom:true});
-  sp.name=name; sp.menuId=newId; dbPushPlate(sp);
-  rebuildMenu(); buildMenuOptions(); renderPlate(); renderAnalysis(); closeEdit();
-  toast('\u201c'+name+'\u201d restored to the menu');
-}
-function editPermDeletePlate(){
-  var id=editTargetId; var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
-  var nm=sp.name||'plate'; closeEdit();
-  askConfirm('Permanently delete','Permanently delete \u201c'+nm+'\u201d? This removes the plate and its ingredients everywhere and cannot be undone.','Delete', function(){
-    savedPlates=savedPlates.filter(function(s){return s.id!==id;});
-    if(loadedPlateId===id){ loadedPlateId=null; }
-    dbDeletePlate(id);
-    updateEditTag(); renderPlate(); renderAnalysis();
-    toast('\u201c'+nm+'\u201d permanently deleted');
-  });
-}
+function onEditSave(){ saveMenuEdit(); }
 function openDelChoice(id,nm){
   delChoiceId=id;
   var msg=document.getElementById('delChoiceMsg'); if(msg)msg.textContent='Delete \u201c'+nm+'\u201d from the menu. Keep its saved plate for reuse, or delete everything?';
@@ -6359,10 +6375,33 @@ function doDeleteMenuOnly(){
 function doDeleteEverything(){
   var id=delChoiceId; if(!id||!menuById[id]){ closeDelChoice(); return; }
   var nm=menuById[id].name; var sp=plateForMenuItem(menuById[id]);
-  if(sp){ dishesOfPlate(sp).forEach(function(d){ removeMenuItem(d.id); }); savedPlates=savedPlates.filter(function(s){return s.id!==sp.id;}); if(loadedPlateId===sp.id) loadedPlateId=null; dbDeletePlate(sp.id); }
-  else { removeMenuItem(id); }
-  rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); closeDelChoice();
-  toast('\u201c'+nm+'\u201d and its plate deleted');
+  var repaint=function(){ rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); };
+  closeDelChoice();
+  if(!sp){                                                // nothing references anything \u2014 no sequencing needed
+    // v112: no FK to order, but the same honesty rule as the branch below \u2014 the word "deleted" waits for
+    // the server, and a dish the server kept is put back rather than left missing until the next reload.
+    var only=menuById[id];
+    forgetMenuItems([id]); repaint();
+    Promise.resolve(dbDeleteMenu(id)).then(function(r){ return !!(r && !r.error); }, function(){ return false; })
+      .then(function(ok){
+        if(ok){ toast('\u201c'+nm+'\u201d deleted'); return; }
+        customMenu.push(only); repaint();
+        toast('Couldn\u2019t delete \u201c'+nm+'\u201d \u2014 it has NOT been deleted.');
+      });
+    return;
+  }
+  // v112: same FK ordering as deletePlate \u2014 the dishes must be gone before the plate row can be.
+  var dishes=dishesOfPlate(sp).slice();
+  var dishIds=dishes.map(function(d){ return d.id; });
+  var wasLoaded=(loadedPlateId===sp.id);
+  forgetMenuItems(dishIds);
+  savedPlates=savedPlates.filter(function(s){return s.id!==sp.id;});
+  if(wasLoaded) loadedPlateId=null;
+  repaint();
+  dbDeletePlateAfterDishes(dishIds, sp.id).then(function(r){
+    if(r.dishesOk && r.plateOk){ toast('\u201c'+nm+'\u201d and its plate deleted'); return; }
+    rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
+  });
 }
 
 /* ---- wiring ---- */
@@ -6396,8 +6435,7 @@ document.getElementById('editCancel').addEventListener('click',closeEdit);
 document.getElementById('editSave').addEventListener('click',onEditSave);
 /* §D2: ed_openBuilder removed — a dish's recipe is edited from its plate in the Plates tab. */
 document.getElementById('ed_delete').addEventListener('click',function(e){e.preventDefault();editDeleteTap();});
-document.getElementById('ed_restore').addEventListener('click',editRestoreToMenu);
-document.getElementById('ed_permDelete').addEventListener('click',function(e){e.preventDefault();editPermDeletePlate();});
+/* v112: ed_restore / ed_permDelete are gone with the unreachable orphan-plate editor. */
 document.getElementById('delChoiceClose').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceCancel').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceMenuOnly').addEventListener('click',doDeleteMenuOnly);
