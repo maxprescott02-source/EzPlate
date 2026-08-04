@@ -44,13 +44,20 @@ function makeResolver(menusList, savedPlates, dishes) {
   return factory(menusList, savedPlates, dishes);
 }
 
-test('v55: plateIdOf resolves plateId first, then legacy source_plate_id, then a stale local plate.menuId', () => {
+/* v112: the third branch (a stale local plate.menuId) is REMOVED, and this test changes with it —
+   deliberately, per the pinned-contract rule. It could never fire in the shipped app: the only writer of
+   `sp.menuId` anywhere was savePlateRestore, itself unreachable and deleted this batch, and `rowToPlate`
+   never reads `menu_id`, so a server-loaded plate carries no `.menuId` at all. The assertion below is
+   now the inversion guard: a plate whose menuId names the dish must NOT resolve, or the dead fallback
+   has been reintroduced. */
+test('v112: plateIdOf resolves plateId first, then legacy source_plate_id — and NOTHING else', () => {
   const plates = [{ id: 'SP_legacy', menuId: 'D3', lines: [] }];
   const r = makeResolver([], plates, []);
   assert.strictEqual(r.plateIdOf({ id: 'D1', plateId: 'SPx', sourcePlateId: 'SPy' }), 'SPx', 'plateId wins');
   assert.strictEqual(r.plateIdOf({ id: 'D2', sourcePlateId: 'SPy' }), 'SPy', 'source_plate_id is the fallback');
-  assert.strictEqual(r.plateIdOf({ id: 'D3' }), 'SP_legacy', 'a stale local plate.menuId is the last resort');
+  assert.strictEqual(r.plateIdOf({ id: 'D3' }), null, 'a stale local plate.menuId is NOT a fallback any more');
   assert.strictEqual(r.plateIdOf({ id: 'D9' }), null, 'nothing to resolve -> null');
+  assert.strictEqual(r.plateIdOf(null), null, 'no dish -> null');
 });
 
 test('v55: a plate can be on MANY menus — menusOfPlate lists them all with per-menu price', () => {
@@ -236,6 +243,85 @@ test('v55 §B: ensurePlateForDish is idempotent — a dish that already has a pl
   const again = run('D1');
   assert.strictEqual(again.sp.id, first.sp.id, 'no second plate is created');
   assert.strictEqual(again.savedPlates.length, 1);
+});
+
+/* ---- 5. v112: the plate link must survive a RELOAD, not just the session ----
+   The orphan-plate editor deleted this batch linked a dish to its plate through `sp.menuId` alone. That
+   reads correctly the moment you do it — plateIdOf had a third branch for exactly that shape — and then
+   dies, because `plateToRow` omits menu_id (deliberately: v110's restore depends on it) so the value
+   never reaches the server. The dish comes back uncosted, and costing it mints a SECOND empty plate.
+   These tests assert the RESOLVED link across a real round trip through the shipped row mappers, which
+   is the only thing that distinguishes the two shapes — an in-memory check passes for both. */
+function roundTrip(dish) {
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('D', `
+    "use strict";
+    ${extractFn(SRC, 'menuToRow')}
+    ${extractFn(SRC, 'rowToMenu')}
+    return rowToMenu(menuToRow(D));            // in-memory dish -> menu_items row -> back, as a reload does
+  `);
+  return factory(dish);
+}
+
+test('v112: a dish published the live way still resolves to its plate after a reload', () => {
+  const plate = { id: 'SP1', name: 'Toastie', lines: [{ kid: 'K1', qty: 100 }] };
+  const dish = { id: 'um1', name: 'Toastie', price: 9, section: 'Lunch', menuId: 'MENU_ORIGINAL', plateId: 'SP1', custom: true };
+  const reloaded = roundTrip(dish);
+  assert.strictEqual(reloaded.plateId, 'SP1', 'plate_id survived the row boundary');
+  const r = makeResolver([], [plate], [reloaded]);
+  assert.strictEqual(r.plateForMenuItem(reloaded).id, 'SP1', 'and it still RESOLVES to the plate — the dish reads as costed');
+});
+
+test('v112: the deleted editor\'s shape (linked only by plate.menuId) does NOT survive a reload', () => {
+  // This is what savePlateRestore produced. Pinned so the shape can never be reintroduced as "a link".
+  const plate = { id: 'SP1', name: 'Toastie', lines: [{ kid: 'K1', qty: 100 }], menuId: 'um1' };
+  const dish = { id: 'um1', name: 'Toastie', price: 9, section: 'Lunch', menuId: 'MENU_ORIGINAL', custom: true };
+  const reloaded = roundTrip(dish);
+  assert.strictEqual(reloaded.plateId, null, 'nothing was ever written to plate_id');
+  const r = makeResolver([], [plate], [reloaded]);
+  assert.strictEqual(r.plateForMenuItem(reloaded), null, 'after a reload the dish resolves to NO plate — it reads as uncosted');
+});
+
+test('v112: costing a reloaded, properly-linked dish does NOT mint a second plate', () => {
+  const S = { savedPlates: [{ id: 'SP1', name: 'Toastie', lines: [{ kid: 'K1', qty: 100 }] }], calls: [] };
+  S.customMenu = [roundTrip({ id: 'um1', name: 'Toastie', price: 9, menuId: 'MENU_ORIGINAL', plateId: 'SP1', custom: true })];
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('S', `
+    "use strict";
+    var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
+    function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'ensurePlateForDish')}
+    var sp=ensurePlateForDish(customMenu[0]);
+    return { sp:sp, savedPlates:savedPlates, calls:S.calls };
+  `);
+  const out = factory(S);
+  assert.strictEqual(out.sp.id, 'SP1', 'it finds the EXISTING plate');
+  assert.strictEqual(out.savedPlates.length, 1, 'no second plate was created');
+  assert.deepStrictEqual(out.calls, [], 'and no write was needed at all');
+  assert.deepStrictEqual(out.sp.lines, [{ kid: 'K1', qty: 100 }], 'the recipe is intact — the dish is costed');
+});
+
+test('v112: the deleted editor\'s shape WOULD have compounded — costing it mints a second, empty plate', () => {
+  // The failure this batch removed at the source: one orphaned plate per pass, silently, after reload.
+  const S = { savedPlates: [{ id: 'SP1', name: 'Toastie', lines: [{ kid: 'K1', qty: 100 }], menuId: 'um1' }], calls: [] };
+  S.customMenu = [roundTrip({ id: 'um1', name: 'Toastie', price: 9, menuId: 'MENU_ORIGINAL', custom: true })];
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('S', `
+    "use strict";
+    var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
+    function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'ensurePlateForDish')}
+    var sp=ensurePlateForDish(customMenu[0]);
+    return { sp:sp, savedPlates:savedPlates };
+  `);
+  const out = factory(S);
+  assert.notStrictEqual(out.sp.id, 'SP1', 'it does NOT find the real plate');
+  assert.strictEqual(out.savedPlates.length, 2, 'a SECOND plate now exists');
+  assert.deepStrictEqual(out.sp.lines, [], 'and it is empty — the real recipe is orphaned');
 });
 
 test('v55: deleting the last menu is allowed; plates survive with no dishes', () => {
