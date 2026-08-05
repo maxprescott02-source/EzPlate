@@ -1093,6 +1093,27 @@ function plateIdOf(d){ if(!d) return null;
 function plateForMenuItem(m){ if(!m) return null; var pid=plateIdOf(m); return pid?(savedPlates.find(function(s){return s.id===pid;})||null):null; }
 function dishesOfPlate(sp){ if(!sp) return []; return MENU.filter(function(d){ return plateIdOf(d)===sp.id; }); }   // every menu entry backed by this plate
 function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(function(d){ var mid=d.menuId||'MENU_ORIGINAL'; if(seen[mid])return; seen[mid]=1; var m=menusList.find(function(x){return x.id===mid;}); if(m) out.push({menuId:m.id, name:m.name, dishId:d.id, price:d.price, section:d.section}); }); return out; }
+/* v113 — THE PUBLISH GUARD'S BLIND SPOT. "One entry per (plate, menu)" was decided by dishesOfPlate,
+   which resolves through plateIdOf — so a dish with NO plate link is invisible to it. Publishing the very
+   plate an orphaned dish should have been using could not heal it; it silently added a SECOND row of the
+   same name, one costed and one not. That is exactly how the v112 orphan surfaced: Max published the
+   plate to test the delete flow, got two rows, and reported a publish bug that was not one.
+   BOTH dish-creating paths (submitMenuItem, submitAddDish) now share this ONE decision, so the second
+   cannot drift away from the first — it had the identical hole and nobody had noticed.
+   No auto-heal and no name matching, by decision: linking means guessing which dish belongs to this
+   plate, and the v112 repair needed the section, the price and the price history in front of a human
+   before the call could be made. The app surfaces the choice; it does not make it. */
+function unlinkedDishesOn(dishes, menuId){
+  return (dishes||[]).filter(function(d){ return d && !plateIdOf(d) && (d.menuId||'MENU_ORIGINAL')===menuId; });
+}
+function publishPlan(dishes, plateId, menuId){
+  // The `plateId ?` is load-bearing: plateIdOf(an unlinked row) is null, so a bare `===plateId`
+  // comparison against a null id would read that row as "this plate is already here" and quietly
+  // update it — an auto-heal by accident, which is the one thing this was decided against.
+  var existing=plateId ? (dishes||[]).find(function(d){ return d && plateIdOf(d)===plateId && (d.menuId||'MENU_ORIGINAL')===menuId; }) : null;
+  if(existing) return {action:'update', existingId:existing.id, unlinked:[]};   // already on this menu — updating it duplicates nothing, so there is nothing to ask
+  return {action:'create', existingId:null, unlinked:unlinkedDishesOn(dishes, menuId)};
+}
 // v55: every dish should own a plate (its recipe). If one is missing (a pre-v55 uncosted dish, or a fresh
 // legacy row), create an empty plate and link the dish to it via plateId. §B backfills this at the DB level;
 // this is the app-side guarantee. The dish write is sequenced after the plate (menu_items.plate_id FK).
@@ -3630,7 +3651,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v112';
+var APP_VERSION='v113';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4584,8 +4605,20 @@ function openPublishModal(plateId, presetMenuId){
   var titleEl=document.getElementById('menuModalTitle'), saveEl=document.getElementById('menuSave');
   if(titleEl) titleEl.textContent='Add to menu'; if(saveEl) saveEl.textContent='Add to menu';
   renderMenuMarginPreview();                                        // v82 item 3: show cost + suggested price up front
+  renderPubUnlinked();                                              // v113: only draws if the chosen menu holds an unlinked dish
   show('menuModal');
 }
+/* v113: the prompt is about the CHOSEN menu, so it follows the picker. buildMenuPickers only rewrites the
+   select's innerHTML, never the element, so this listener survives every rebuild. */
+function renderPubUnlinked(){
+  var miMenu=document.getElementById('mi_menu');
+  var mid=(miMenu&&miMenu.value)?miMenu.value:currentMenuId;
+  renderUnlinkedPrompt('mi_unlinked', pubPlateId, mid, function(d){
+    var sp=savedPlates.find(function(s){return s.id===pubPlateId;}); if(!sp) return;
+    linkDishToPlate(d, sp); closeMenuModal();
+  });
+}
+(function(){ var mm=document.getElementById('mi_menu'); if(mm) mm.addEventListener('change', renderPubUnlinked); })();
 (function(){ var mp=document.getElementById('mi_price'); if(mp) mp.addEventListener('input', renderMenuMarginPreview); })();   // v82 item 3: live margin as the price is typed
 function closeMenuModal(){hide('menuModal');}
 /* v82 item 3 — live margin at the point of pricing. The Add-to-menu dialog used to demand a sell price
@@ -4614,6 +4647,61 @@ function renderMenuMarginPreview(){
   box.className='margin-preview mp-'+mp.light;
   box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+mp.pct+'% food cost</b> · '+marginLightWord(mp.light);
 }
+/* v113 — one inline prompt, shared by both dish-creating modals. Deliberately NOT a new screen or modal:
+   this fires for zero dishes in production today and is a guard against silent recurrence, not a feature.
+   Both options are visible and neither is preselected — a Link button per unlinked dish, and the modal's
+   own primary button, which still adds a new entry exactly as before. When the menu holds no unlinked
+   dish (the normal case) nothing renders and the user sees nothing at all. */
+function renderUnlinkedPrompt(boxId, plateId, menuId, onLink){
+  var box=document.getElementById(boxId); if(!box) return;
+  box.innerHTML=''; box.style.display='none';
+  // Read the list off the SAME decision the submit path uses, never a second computation of it — that is
+  // the whole reason publishPlan exists. It also settles the case a browser check turned up: when this
+  // plate is already on this menu the button UPDATES that entry rather than duplicating anything, so
+  // there is no question to put, however many unlinked rows the menu happens to hold.
+  var list=publishPlan(MENU, plateId, menuId).unlinked;
+  if(!list.length) return;
+  // NB: "dish" is not a UI noun here (CLAUDE.md — a plate on a menu is still a plate), so this copy
+  // describes the menu row without naming a fifth object. tests/terminology.test.js pins it.
+  var html='<p class="up-lead">'+(list.length===1
+      ? 'One entry on this menu isn’t linked to a plate, so it shows no cost. If that’s what you’re adding here, link it rather than creating a second one.'
+      : list.length+' entries on this menu aren’t linked to a plate, so they show no cost. If one of them is what you’re adding here, link it rather than creating a second one.')+'</p>';
+  list.forEach(function(d,n){
+    html+='<div class="up-row"><span><span class="up-name">'+esc(d.name||'Untitled')+'</span> '
+        + '<span class="up-meta">'+esc(d.section||'Uncategorised')+' · '+fmt2(d.price||0)+'</span></span>'
+        // NOT .ghost: that is a transparent background AND a transparent border, which on this amber
+        // field renders as a line of centred text rather than a control. Seen at 380px, not guessed.
+        + '<button class="btn small up-link" type="button" data-n="'+n+'">Link to this one</button></div>';
+  });
+  html+='<p class="up-foot">Or ignore this and add a new entry as usual.</p>';
+  box.innerHTML=html; box.style.display='block';
+  box.querySelectorAll('.up-link').forEach(function(b){
+    b.onclick=function(){ var d=list[parseInt(b.getAttribute('data-n'),10)]; if(d) onLink(d); };
+  });
+}
+/* Link an existing, unlinked dish to this plate. The dish keeps its OWN name, price and section: it is
+   already priced on that menu, and repricing it from whatever happens to be typed in the modal would be
+   the app deciding something it was not asked to. The dish REFERENCES the plate, so the write is
+   sequenced after it (menu_items.plate_id → plates.id — see dbPushMenuAfterPlate). */
+function linkDishToPlate(dish, sp){
+  if(!dish||!sp) return null;
+  var i=customMenu.findIndex(function(c){return c.id===dish.id;});
+  var item=Object.assign({}, (i>=0?customMenu[i]:dish), {plateId:sp.id});
+  if(i>=0) customMenu[i]=item; else customMenu.push(item);
+  dbPushMenuAfterPlate(item, sp);
+  rebuildMenu(); buildMenuOptions();
+  // Follow the menu we just acted on, exactly as submitMenuItem does. The Publish modal can target a
+  // menu other than the one on screen, so without this the user links a row and is left looking at a
+  // different menu, with nothing visibly changed. (CodeRabbit, v113.)
+  setCurrentMenuId(item.menuId||'MENU_ORIGINAL'); buildMenuSelector();
+  logHistory();                                                   // the dish now has a cost — the menu average and its price log move
+  renderAnalysis(); renderPlatesTab();
+  // openPublishModal is often reached FROM Manage menus, which would otherwise sit behind this showing
+  // the pre-link state. Same refresh submitMenuItem does, and a no-op when that modal isn't open.
+  var mm=document.getElementById('manageMenusModal'); if(mm && mm.classList.contains('open')) renderManageMenus();
+  toast('“'+(item.name||'Untitled')+'” is now costed from this plate — its menu price is unchanged.');
+  return item;
+}
 function submitMenuItem(){
   var sp=savedPlates.find(function(s){return s.id===pubPlateId;});
   var err=document.getElementById('mi_err');
@@ -4633,16 +4721,16 @@ function submitMenuItem(){
   if(!name){err.textContent='Enter a menu item name.';err.style.display='block';return;}
   if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){err.textContent='Enter a valid sell price.';err.style.display='block';return;}
   // one entry per (plate, menu): re-adding to a menu it's already on updates that entry rather than duplicating.
-  var existing=dishesOfPlate(sp).find(function(d){ return (d.menuId||'MENU_ORIGINAL')===chosenMenu; });
-  var targetId=existing?existing.id:('um'+Date.now().toString(36));
+  var plan=publishPlan(MENU, sp.id, chosenMenu);                   // v113: shared with submitAddDish — see publishPlan
+  var targetId=plan.existingId||('um'+Date.now().toString(36));
   var item={id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,plateId:sp.id};
-  if(existing){ upsertCustomMenu(item); }
+  if(plan.action==='update'){ upsertCustomMenu(item); }
   else { customMenu.push(item); dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
   rebuildMenu(); buildMenuOptions(); setCurrentMenuId(chosenMenu); buildMenuSelector();
   logHistory();   // v90: publishing a plate at a sell price changes the menu average and seeds that dish's price log
   renderAnalysis(); renderPlatesTab(); closeMenuModal();
   var mm=document.getElementById('manageMenusModal'); if(mm && mm.classList.contains('open')) renderManageMenus();
-  toast('“'+name+'” '+(existing?'updated on':'added to')+' the menu');
+  toast('“'+name+'” '+(plan.action==='update'?'updated on':'added to')+' the menu');
 }
 
 /* ---- invoice import ---- */
@@ -5549,7 +5637,9 @@ function renderInvReview(){
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
     // v72: the form panel moved INTO the row's Match cell (.ni-slot, see matchCell above) — no separate row.
   });
-  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint">Only ticked rows are saved.</span></div>';
+  // v113: applying waits for the referee (see invConfirmState). The rows above are already readable.
+  var cst=invConfirmState(gemStatus, aiInvoiceCheck);
+  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button"'+(cst.disabled?' disabled':'')+'>Confirm All</button> <span class="hint'+(cst.unverified?' hint-unverified':'')+'" aria-live="polite">'+esc(cst.hint)+'</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
   box.querySelectorAll('.invPrice').forEach(function(inp){                 // ITEM 7 root cause: editing the price never recomputed needs-attention, so a clearly-different price failed to turn red
@@ -5649,6 +5739,21 @@ function gemSettle(token, fn){
   var go=function(){ if(token!==gemToken || gemApplied) return; fn(); };
   if(wait<=0) go(); else setTimeout(go, wait);
 }
+/* v113 — THE CONFIRM GATE. Reader 2 can only ever DEMOTE a row: gemPriceReview / gemMatchReview /
+   gemReview each push invRowState from 'matched' to 'review', which un-ticks it. So a user who pressed
+   Confirm All inside the checking window committed precisely the rows the referee was about to flag,
+   and applyInvoice's gemApplied=true then discarded the verdict — the check ran and ruled on nothing.
+   The ROWS still render immediately (they are useful to read while waiting); only APPLYING waits.
+   PURE, and the whole condition lives here so a test pins the state rather than a flag. Note there is
+   no per-row variant to build: ONE request covers the whole invoice, so every row is equally unchecked
+   until the payload lands and they all flip together. Per-row spinners would fake a granularity this
+   pipeline does not have. */
+function invConfirmState(status, aiOn){
+  if(aiOn && status==='checking') return {disabled:true,  unverified:false, hint:'Waiting for the AI check — usually a few seconds.'};
+  if(status==='unavailable')      return {disabled:false, unverified:true,  hint:'The AI check didn’t finish — these lines haven’t been double-checked.'};
+  return {disabled:false, unverified:false, hint:'Only ticked rows are saved.'};
+}
+function gemPending(){ return invConfirmState(gemStatus, aiInvoiceCheck).disabled; }
 function gemStatusHtml(){                                          // appended to the .inv-sum summary line
   if(gemStatus==='checking')    return ' <span class="ai-status ai-checking">AI double-checking…</span>';
   if(gemStatus==='checked')     return ' <span class="ai-status ai-ok">✓ AI checked</span>';   // CSS fades this out after a beat
@@ -5662,8 +5767,21 @@ function gemFireSecondReader(text){
   var token=(++gemToken);                                          // this request's identity; a newer parse/openInv invalidates it
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);   // client-side ~20s; late = discarded
+  /* v113: the gate needs a floor of its own. The abort above only happens where AbortController exists,
+     so a hung socket (or an environment without it) leaves gemStatus 'checking' FOREVER — harmless before
+     the confirm gate, a permanent lock after it. Budgets this sits outside: api/parse-invoice.js caps
+     Gemini at 15s and always answers, the client aborts at 20s. This fires only when neither terminated,
+     and lands on exactly the state the abort path would have — so racing it is harmless. */
+  var guard=setTimeout(function(){
+    if(token!==gemToken || gemApplied || gemStatus!=='checking') return;
+    gemStatus='unavailable';
+    gemToken++;              // VOID this request, exactly as a fresh parse would. Without it a response that
+                             // arrives after the gate has already released would still be merged — and "a late
+                             // response after a timeout is discarded" is the rule the whole referee rests on.
+    renderInvReview();
+  },20000);
   var done=function(payload){
-    clearTimeout(timer);
+    clearTimeout(timer); clearTimeout(guard);
     if(token!==gemToken || gemApplied) return;                    // late/stale response loses — human ruling & fresh parses win
     gemSettle(token, function(){                                  // v63: hold the "checking" note visible long enough to read before flipping
       if(payload && payload.status==='ok'){ gemApplyReadings(payload); }
@@ -5671,7 +5789,7 @@ function gemFireSecondReader(text){
     });
   };
   try{
-    if(typeof fetch!=='function'){ clearTimeout(timer); gemSettle(token, function(){ gemStatus='unavailable'; renderInvReview(); }); return; }
+    if(typeof fetch!=='function'){ clearTimeout(timer); clearTimeout(guard); gemSettle(token, function(){ gemStatus='unavailable'; renderInvReview(); }); return; }
     fetch('/api/parse-invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text, categories:prodCategories()}),signal:ctrl?ctrl.signal:undefined})   // v73: send existing categories so the model reuses one rather than inventing a near-duplicate
       .then(function(res){ return res.ok?res.json():null; })
       .then(function(payload){ done(payload); })
@@ -5874,6 +5992,7 @@ function invSelChanged(tr){
   renderInvReview();                                              // repaint the row (and its pack-teach) fresh for the new product
 }
 function confirmApplyInvoice(){                                   // last chance: show what WON'T be applied before finishing
+  if(gemPending()){ toast('Still double-checking this invoice — one moment'); return; }   // v113: the button is disabled too, but this is the one choke point every apply passes through
   var boxEl=document.getElementById('invReview'); if(!boxEl){ applyInvoice(); return; }
   var un=[];
   invRows.forEach(function(r,i){
@@ -6173,7 +6292,18 @@ function renderDishPicker(filter){
     var sel=(sp.id===adSelectedPlateId)?' sel':'';
     return '<button type="button" class="ad-item'+sel+'" data-pid="'+esc(sp.id)+'"><span class="ad-nm">'+esc(sp.name||'Plate')+'</span><span class="ad-meta">'+esc(on?('On '+on):'Library')+' · cost '+fmt2(c)+'</span></button>';
   }).join('');
-  box.querySelectorAll('.ad-item').forEach(function(b){ b.onclick=function(){ adSelectedPlateId=b.getAttribute('data-pid'); renderDishPicker(document.getElementById('ad_search').value); }; });
+  box.querySelectorAll('.ad-item').forEach(function(b){ b.onclick=function(){ adSelectedPlateId=b.getAttribute('data-pid'); renderDishPicker(document.getElementById('ad_search').value); renderAddDishUnlinked(); }; });
+}
+/* v113: the prompt follows the SELECTION here, because the plate is chosen inside this modal rather
+   than before it. Picking a plate already on this menu withdraws the question — and it must, or its
+   Link button would put a second row for the same (plate, menu) on the board, which is the very
+   invariant the guard exists to hold. */
+function renderAddDishUnlinked(){
+  renderUnlinkedPrompt('ad_unlinked', adSelectedPlateId, currentMenuId, function(d){
+    var sp=savedPlates.find(function(s){return s.id===adSelectedPlateId;});
+    if(!sp){ var e2=document.getElementById('ad_err'); if(e2){ e2.textContent='Pick a plate from the list first.'; e2.style.display='block'; } return; }
+    linkDishToPlate(d, sp); closeAddDishModal();
+  });
 }
 function menuNameForPlate(sp){ return plateMenuSummary(sp)||(sp.name||''); }
 function openAddDishModal(){
@@ -6182,7 +6312,9 @@ function openAddDishModal(){
   var s=document.getElementById('ad_search'); if(s) s.value='';
   var p=document.getElementById('ad_price'); if(p) p.value='';
   var e=document.getElementById('ad_err'); if(e) e.style.display='none';
-  renderDishPicker(''); show('addDishModal');
+  renderDishPicker('');
+  renderAddDishUnlinked();                                        // v113: no plate picked yet, so every unlinked row is still a candidate
+  show('addDishModal');
 }
 function closeAddDishModal(){ hide('addDishModal'); }
 function submitAddDish(){
@@ -6191,7 +6323,8 @@ function submitAddDish(){
   if(!sp){ if(err){err.textContent='Pick a plate from the list first.';err.style.display='block';} return; }
   var pv=document.getElementById('ad_price').value;
   if(pv===''||isNaN(parseFloat(pv))||parseFloat(pv)<0){ if(err){err.textContent='Enter a sell price for this menu.';err.style.display='block';} return; }
-  if(dishesOfPlate(sp).some(function(d){return (d.menuId||'MENU_ORIGINAL')===currentMenuId;})){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
+  var plan=publishPlan(MENU, sp.id, currentMenuId);                // v113: the SAME decision submitMenuItem uses — this path had the identical blind spot
+  if(plan.action==='update'){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
   var id='um'+Date.now().toString(36);
   var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Plate', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
   customMenu.push(item); dbPushMenuAfterPlate(item, sp);

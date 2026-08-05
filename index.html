@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=112">
+<link rel="stylesheet" href="css/style.css?v=113">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -341,6 +341,7 @@
     <div class="mhead"><h3 id="menuModalTitle">Add to menu</h3><button class="x" id="menuClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
       <div class="ferr" id="mi_err" style="display:none"></div>
+      <div class="unlinked-prompt" id="mi_unlinked" style="display:none"></div>
       <div class="grid">
         <div class="field full"><label for="mi_name">Menu item name *</label><input id="mi_name" type="text"></div>
         <div class="field full"><label for="mi_menu">Menu</label><select id="mi_menu"></select></div>
@@ -412,6 +413,7 @@
     <div class="mhead"><h3 id="addDishTitle">Add existing plate</h3><button class="x" id="addDishClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
       <div class="ferr" id="ad_err" style="display:none"></div>
+      <div class="unlinked-prompt" id="ad_unlinked" style="display:none"></div>
       <p class="hint" style="margin:0 0 8px">Adds to <b id="ad_menuName">this menu</b> at its own price — the plate stays shared.</p>
       <div class="menu-search ad-search-wrap">
         <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed plates…" autocomplete="off">
@@ -781,7 +783,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=112"></script>
+<script src="js/app.js?v=113"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

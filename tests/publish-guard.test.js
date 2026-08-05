@@ -1,0 +1,321 @@
+/*
+ * publish-guard.test.js — v113.
+ *
+ * "One entry per (plate, menu)" was decided by `dishesOfPlate(sp).find(...)`, which resolves through
+ * plateIdOf. A menu row with NO plate link is therefore invisible to it, so publishing the very plate
+ * that row should have been using could not heal it — it silently added a SECOND row of the same name,
+ * one costed and one not. That is how the v112 production orphan surfaced: Max published the plate to
+ * test the delete flow, got two rows of "Cheese & Ham Toastie GF" in different sections, and reported a
+ * publish bug that was not a publish bug.
+ *
+ * The enumeration behind v113 found TWO paths that create a menu row, not one — `submitMenuItem`
+ * (Plates -> Publish) and `submitAddDish` (Menu tab -> Add existing plate) — carrying the identical
+ * guard and the identical hole. Both now route through publishPlan, so the decision cannot drift
+ * between them; the tests below pin the decision, and then pin that each path's OUTCOME matches it.
+ *
+ * The settled product decision this encodes: DETECT AND OFFER, never auto-heal, and never name-match.
+ * Linking means guessing which row belongs to this plate, and the v112 repair needed the section, the
+ * price and the price history in front of a human first.
+ */
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const { publishPlan, unlinkedDishesOn, plateIdOf } = require('./_extract');
+
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+
+function extractFn(name) {
+  const sig = `function ${name}(`;
+  const i = SRC.indexOf(sig);
+  if (i < 0) throw new Error(`publish-guard: function not found -> ${name}. app.js changed; update this test`);
+  const start = SRC.indexOf('{', i);
+  let depth = 0;
+  for (let n = start; n < SRC.length; n++) {
+    if (SRC[n] === '{') depth++;
+    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
+  }
+  throw new Error(`publish-guard: unbalanced braces for ${name}`);
+}
+
+const ORPHAN = { id: 'ummrq8xbur', name: 'Cheese & Ham Toastie GF', section: 'Sandwiches', price: 8, menuId: 'MENU_ORIGINAL' };
+const LINKED = { id: 'um1', name: 'Chips', section: 'Sides', price: 6, menuId: 'MENU_ORIGINAL', plateId: 'SP1' };
+const OTHER_MENU = { id: 'um2', name: 'Soup', section: 'Mains', price: 9, menuId: 'MENU_WINTER' };
+
+/* ---------------------------------------------------------------------------
+   1. The decision.
+   --------------------------------------------------------------------------- */
+
+test('an unlinked row is found on its own menu, and only there', () => {
+  const dishes = [LINKED, ORPHAN, OTHER_MENU];
+  assert.deepEqual(unlinkedDishesOn(dishes, 'MENU_ORIGINAL').map(d => d.id), ['ummrq8xbur']);
+  assert.deepEqual(unlinkedDishesOn(dishes, 'MENU_WINTER').map(d => d.id), ['um2']);
+});
+
+test('a row with no menuId belongs to Original, matching every other resolver in the app', () => {
+  assert.deepEqual(unlinkedDishesOn([{ id: 'x', name: 'x' }], 'MENU_ORIGINAL').map(d => d.id), ['x']);
+});
+
+test('the legacy sourcePlateId link counts as linked — plateIdOf is the only resolver', () => {
+  const legacy = { id: 'um9', name: 'Legacy', menuId: 'MENU_ORIGINAL', sourcePlateId: 'SP9' };
+  assert.equal(plateIdOf(legacy), 'SP9');
+  assert.deepEqual(unlinkedDishesOn([legacy], 'MENU_ORIGINAL'), [], 'a legacy-linked row is not an orphan');
+});
+
+test('publishing onto a clean menu asks nothing and creates — the normal case, and production today', () => {
+  const plan = publishPlan([LINKED], 'SP_NEW', 'MENU_ORIGINAL');
+  assert.equal(plan.action, 'create');
+  assert.deepEqual(plan.unlinked, [], 'the user must see nothing when there is nothing to warn about');
+});
+
+test('publishing onto a menu holding an unlinked row surfaces the choice', () => {
+  const plan = publishPlan([LINKED, ORPHAN], 'SP_NEW', 'MENU_ORIGINAL');
+  assert.equal(plan.action, 'create');
+  assert.deepEqual(plan.unlinked.map(d => d.id), ['ummrq8xbur']);
+});
+
+test('re-publishing a plate already on that menu still UPDATES, and asks nothing', () => {
+  // Updating an existing entry duplicates nothing, so there is no question to put to the user even
+  // though an unlinked row is sitting right there.
+  const plan = publishPlan([LINKED, ORPHAN], 'SP1', 'MENU_ORIGINAL');
+  assert.equal(plan.action, 'update');
+  assert.equal(plan.existingId, 'um1');
+  assert.deepEqual(plan.unlinked, []);
+});
+
+test('a null plate id can never match an unlinked row\'s null link', () => {
+  // plateIdOf(orphan) is null, so a bare `plateIdOf(d)===plateId` comparison would read the orphan as
+  // "this plate is already on the menu" and silently update it — an auto-heal by accident, which is
+  // exactly what was decided against.
+  const plan = publishPlan([ORPHAN], null, 'MENU_ORIGINAL');
+  assert.equal(plan.action, 'create');
+  assert.equal(plan.existingId, null);
+  assert.deepEqual(plan.unlinked.map(d => d.id), ['ummrq8xbur'],
+    'but the row is still surfaced — the Add-existing-plate modal asks before a plate has been picked');
+});
+
+test('an unlinked row on a DIFFERENT menu is not this menu\'s problem', () => {
+  const plan = publishPlan([ORPHAN], 'SP_NEW', 'MENU_WINTER');
+  assert.deepEqual(plan.unlinked, []);
+});
+
+/* ---------------------------------------------------------------------------
+   2. Both creating paths obey it.
+   --------------------------------------------------------------------------- */
+
+function makeHarness(opts) {
+  opts = opts || {};
+  const S = {
+    customMenu: JSON.parse(JSON.stringify(opts.customMenu || [])),
+    savedPlates: opts.savedPlates || [{ id: 'SP_NEW', name: 'Toastie', category: 'Sandwiches', lines: [] }],
+    writes: [], toasts: [], errs: [], closed: 0, boxes: {},
+  };
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('S', 'opts', `
+    "use strict";
+    var customMenu=S.customMenu, savedPlates=S.savedPlates, MENU=[], menuById={};
+    var currentMenuId='MENU_ORIGINAL', adSelectedPlateId=(opts.selected===undefined?'SP_NEW':opts.selected);
+    function rebuildMenu(){ MENU=customMenu.map(function(m){return Object.assign({},m);}); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
+    function dbPushMenuAfterPlate(item, sp){ S.writes.push({item:item, plate:sp.id}); return Promise.resolve({}); }
+    function buildMenuOptions(){} function logHistory(){} function renderAnalysis(){} function renderPlatesTab(){}
+    function buildMenuSelector(){} function renderManageMenus(){ S.manageRerendered=true; }
+    function setCurrentMenuId(id){ currentMenuId=id; S.currentMenu=id; }
+    function renderDishPicker(){} function show(){} function buildMenuPickers(){}
+    function closeAddDishModal(){ S.closed++; }
+    function toast(m){ S.toasts.push(m); }
+    function menuNameById(){ return 'Original menu'; }
+    /* the app's OWN escaper and formatter — a passthrough stub would hide a real escaping bug in copy
+       that interpolates a user-typed name */
+    ${extractFn('esc')}
+    ${extractFn('fmt2')}
+    /* Element stubs. querySelectorAll returns a stand-in per rendered .up-link, built from the html the
+       renderer just wrote, so the REAL wiring runs: renderer -> onclick -> onLink -> linkDishToPlate.
+       Returning [] here would leave the one action a user actually performs untested. */
+    var els={};
+    function el(id){
+      if(!els[id]) els[id]={ id:id, value:'', textContent:'', innerHTML:'', style:{display:''},
+        classList:{ contains:function(){ return false; } },   /* no modal is "open" in the harness */
+        querySelectorAll:function(sel){
+          if(sel!=='.up-link') return [];
+          var out=[], re=/class="btn small up-link" type="button" data-n="(\\d+)"/g, m;
+          while((m=re.exec(this.innerHTML))!==null){
+            (function(n){ out.push({ getAttribute:function(a){ return a==='data-n'?n:null; }, onclick:null }); })(m[1]);
+          }
+          this._links=out; return out;
+        } };
+      return els[id];
+    }
+    var document={ getElementById:function(id){ return el(id); } };
+    ${extractFn('plateIdOf')}
+    ${extractFn('unlinkedDishesOn')}
+    ${extractFn('publishPlan')}
+    ${extractFn('renderUnlinkedPrompt')}
+    ${extractFn('renderAddDishUnlinked')}
+    ${extractFn('linkDishToPlate')}
+    ${extractFn('openAddDishModal')}
+    ${extractFn('submitAddDish')}
+    rebuildMenu();
+    return {
+      addDish: function(price){ el('ad_price').value=String(price); submitAddDish(); S.errs=[el('ad_err').textContent]; },
+      openAdd: function(){ openAddDishModal(); },
+      pick: function(pid){ adSelectedPlateId=pid; renderAddDishUnlinked(); },
+      clickLink: function(n){ var b=el('ad_unlinked')._links[n]; b.onclick(); },   // the real button wiring
+      link: function(dishId){
+        var d=MENU.filter(function(x){return x.id===dishId;})[0];
+        return linkDishToPlate(d, savedPlates[0]);
+      },
+      box: function(id){ return el(id); },
+      menu: function(){ return MENU; },
+      rows: function(){ return customMenu; }
+    };
+  `);
+  return { S, h: factory(S, opts) };
+}
+
+test('choosing "new entry" on a menu with an unlinked row still produces exactly ONE new row', () => {
+  const { S, h } = makeHarness({ customMenu: [ORPHAN] });
+  h.addDish(12);
+  assert.equal(S.customMenu.length, 2, 'the orphan stays and one new row is added — nothing is merged behind the user');
+  assert.equal(S.writes.length, 1);
+  const added = S.customMenu.filter(d => d.id !== ORPHAN.id);
+  assert.equal(added.length, 1);
+  assert.equal(added[0].plateId, 'SP_NEW');
+  assert.equal(S.customMenu.filter(d => d.id === ORPHAN.id)[0].plateId, undefined, 'the orphan is untouched');
+});
+
+test('choosing "link" produces NO new row — it links the one that was already there', () => {
+  const { S, h } = makeHarness({ customMenu: [ORPHAN] });
+  const before = S.customMenu.length;
+  h.link('ummrq8xbur');
+  assert.equal(S.customMenu.length, before, 'linking must never add a row');
+  assert.equal(S.customMenu[0].plateId, 'SP_NEW');
+  assert.equal(plateIdOf(S.customMenu[0]), 'SP_NEW', 'and it must RESOLVE — a set field that does not resolve is the v110 trap');
+});
+
+test('linking keeps the row\'s own name, price and section — the app does not reprice it', () => {
+  const { S, h } = makeHarness({ customMenu: [ORPHAN] });
+  h.link('ummrq8xbur');
+  const d = S.customMenu[0];
+  assert.equal(d.name, 'Cheese & Ham Toastie GF');
+  assert.equal(d.price, 8, 'it is already priced on this menu; silently repricing it would be the app deciding');
+  assert.equal(d.section, 'Sandwiches');
+  assert.match(S.toasts[0], /price is unchanged/);
+});
+
+test('pressing the rendered Link button actually links, and adds no row', () => {
+  // End to end through the shipped wiring: renderer -> onclick -> onLink -> linkDishToPlate.
+  const { S, h } = makeHarness({ customMenu: [ORPHAN] });
+  h.openAdd();
+  h.pick('SP_NEW');
+  h.clickLink(0);
+  assert.equal(S.customMenu.length, 1, 'still one row');
+  assert.equal(plateIdOf(S.customMenu[0]), 'SP_NEW');
+  assert.equal(S.closed, 1, 'and the modal closes — the job is done');
+});
+
+test('pressing Link with no plate picked says so instead of failing silently', () => {
+  const { S, h } = makeHarness({ customMenu: [ORPHAN], selected: null });
+  h.openAdd();                                   // openAddDishModal nulls the selection itself
+  h.clickLink(0);
+  assert.equal(plateIdOf(S.customMenu[0]), null, 'nothing was linked');
+  assert.equal(S.closed, 0);
+  assert.match(h.box('ad_err').textContent, /Pick a plate from the list first/);
+});
+
+test('linking follows the menu it just acted on, as publishing does', () => {
+  // The Publish modal can target a menu other than the one on screen. Without this the user links a
+  // row and is left looking at a different menu with nothing visibly changed. (CodeRabbit, v113.)
+  const { S, h } = makeHarness({ customMenu: [{ ...ORPHAN, menuId: 'MENU_WINTER' }] });
+  h.link('ummrq8xbur');
+  assert.equal(S.currentMenu, 'MENU_WINTER');
+});
+
+test('linking sequences the write AFTER the plate — the row references it (menu_items.plate_id -> plates.id)', () => {
+  const { S, h } = makeHarness({ customMenu: [ORPHAN] });
+  h.link('ummrq8xbur');
+  assert.equal(S.writes.length, 1);
+  assert.equal(S.writes[0].plate, 'SP_NEW', 'must go through dbPushMenuAfterPlate, not a bare dbPushMenu');
+});
+
+test('the Add-existing-plate path refuses a duplicate through the SAME decision', () => {
+  const { S, h } = makeHarness({ customMenu: [{ ...LINKED, plateId: 'SP_NEW' }] });
+  h.addDish(12);
+  assert.equal(S.customMenu.length, 1, 'one entry per (plate, menu) still holds');
+  assert.match(S.errs[0], /already on this menu/);
+});
+
+test('opening Add-existing-plate on a menu with an unlinked row surfaces the choice', () => {
+  const { h } = makeHarness({ customMenu: [ORPHAN] });
+  h.openAdd();
+  const box = h.box('ad_unlinked');
+  assert.equal(box.style.display, 'block');
+  assert.match(box.innerHTML, /Cheese &amp; Ham Toastie GF/, 'it names the row, escaped');
+  assert.match(box.innerHTML, /Sandwiches/);
+  assert.match(box.innerHTML, /\$8\.00/, 'section and price are what let a human tell rows apart');
+  assert.match(box.innerHTML, /Link to this one/);
+});
+
+test('opening it on a clean menu shows nothing at all', () => {
+  const { h } = makeHarness({ customMenu: [{ ...LINKED, plateId: 'SP1' }] });
+  h.openAdd();
+  const box = h.box('ad_unlinked');
+  assert.equal(box.style.display, 'none');
+  assert.equal(box.innerHTML, '', 'this fires for zero rows in production — it must be invisible there');
+});
+
+test('neither option is preselected, and the prompt offers no automatic anything', () => {
+  const { h } = makeHarness({ customMenu: [ORPHAN] });
+  h.openAdd();
+  const html = h.box('ad_unlinked').innerHTML;
+  assert.ok(!/checked|selected|autofocus/i.test(html), 'the user chooses; the app does not lean');
+  assert.match(html, /add a new entry as usual/i, 'the other option is stated in words, not just implied');
+});
+
+/* ---------------------------------------------------------------------------
+   3. The two creating paths cannot drift apart again.
+   --------------------------------------------------------------------------- */
+
+test('BOTH row-creating paths route through publishPlan', () => {
+  // The hole existed twice. If a third path appears, or one of these reverts to its own
+  // dishesOfPlate(...) test, this fails and names it.
+  ['submitMenuItem', 'submitAddDish'].forEach((name) => {
+    const fn = extractFn(name);
+    assert.match(fn, /publishPlan\(/, `${name} must use the shared decision`);
+    assert.ok(!/dishesOfPlate\([^)]*\)\s*\.(find|some)\(/.test(fn),
+      `${name} still has its own guard — that is the bug this batch closed`);
+  });
+});
+
+test('the prompt is rendered by both modals from one renderer', () => {
+  assert.match(extractFn('openPublishModal'), /renderPubUnlinked\(\)/);
+  assert.match(extractFn('renderPubUnlinked'), /renderUnlinkedPrompt\('mi_unlinked'/);
+  assert.match(extractFn('openAddDishModal'), /renderAddDishUnlinked\(\)/);
+  assert.match(extractFn('renderAddDishUnlinked'), /renderUnlinkedPrompt\('ad_unlinked'/);
+});
+
+test('the prompt reads its list off publishPlan, never a second computation of it', () => {
+  // Found in the browser, not in a unit test: the renderer originally called unlinkedDishesOn directly,
+  // so it offered the choice even where the button would UPDATE an existing entry rather than duplicate
+  // anything. Two computations of "should we ask?" is two chances to disagree.
+  const fn = extractFn('renderUnlinkedPrompt');
+  assert.match(fn, /publishPlan\(MENU, plateId, menuId\)\.unlinked/);
+  assert.ok(!/unlinkedDishesOn\(/.test(fn), 'the renderer must not re-derive the list');
+});
+
+test('picking a plate already on this menu WITHDRAWS the question', () => {
+  // Its Link button would otherwise put a second row for the same (plate, menu) on the board — the
+  // exact invariant the guard exists to hold.
+  const { h } = makeHarness({ customMenu: [ORPHAN, { ...LINKED, plateId: 'SP_NEW' }] });
+  h.openAdd();
+  assert.equal(h.box('ad_unlinked').style.display, 'block', 'nothing picked yet — every unlinked row is a candidate');
+  h.pick('SP_NEW');
+  assert.equal(h.box('ad_unlinked').style.display, 'none');
+  h.pick('SP_OTHER');
+  assert.equal(h.box('ad_unlinked').style.display, 'block', 'a plate not yet on this menu brings it back');
+});
+
+test('the publish modal asks nothing when the plate is already on the chosen menu', () => {
+  const plan = publishPlan([ORPHAN, { ...LINKED, plateId: 'SP_NEW' }], 'SP_NEW', 'MENU_ORIGINAL');
+  assert.equal(plan.action, 'update');
+  assert.deepEqual(plan.unlinked, []);
+});
