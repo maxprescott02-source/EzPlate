@@ -570,22 +570,39 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   a format-1 restore needs (hard rule 9).
 - **⚠️ v113 GATED TWO COMMIT-BEFORE-CHECK PATHS.** Read `HANDOVER-v113.md`
   before touching the invoice confirm or either publish path.
-  - **Invoice `Confirm All` now WAITS for the AI referee; the rows never do.**
-    `invConfirmState(status, aiOn)` is the single pure decision (pending →
-    disabled; `checked` → enabled; `unavailable` → **enabled** and says the check
-    didn't finish; AI switched off → never gated). `gemPending()` reads it and
-    `confirmApplyInvoice` refuses on it, because `applyInvoice` is also reachable
-    through `askConfirm`'s callback. The screen is deliberately NOT blocked —
-    a test asserts the gate is applied AFTER the table is built, never around it.
+  - **⚠️ THE INVOICE REVIEW DOES NOT RENDER AT ALL UNTIL THE AI REFEREE HAS
+    SPOKEN.** `renderInvReview` early-returns to `renderInvWaiting` while
+    `gemPending()`. **Gating only `Confirm All` — the first cut of this batch —
+    is NOT enough, and the reason is `gemRowLocked`:** a match picked
+    (`manualPick`), an add-new ticked (`newItem.approved`) or a pack taught
+    (`packTaught`/`taughtQty`) during the window makes `gemApplyReadings` SKIP
+    that row entirely (or `gemMergeLine` rule 1 keep it), and `invSelChanged`
+    clears `gemMatchReview`/`gemPriceReview` on top. **The referee does not
+    arrive too late to matter — it DEFERS to a ruling made without it and treats
+    it as informed.** So there must be nothing to pick, tick or teach.
+    Max caught this on review, 6 Aug; it **overrides the brief's "do not block
+    the whole review"**, a decision taken without knowing about `gemRowLocked`.
+    Pinned by a test that runs the real `gemApplyReadings` against a `manualPick`
+    row and asserts the referee touched nothing — and against the same row
+    unruled, where it does.
+  - **`invConfirmState(status, aiOn)` is the pure decision** (pending → disabled;
+    `checked`/`unavailable` → not, with `unavailable` carrying the "didn't
+    finish" hint). `gemPending()` reads it, and it is used in exactly TWO places:
+    the early return above, and `confirmApplyInvoice` (the choke point, since
+    `applyInvoice` is also reachable via `askConfirm`'s callback). The Confirm
+    All button carries **no `disabled` binding** — reaching that line means
+    `gemPending()` was false, so it could only render enabled, and an attribute
+    that cannot fire reads as a second gate and is not one.
   - **There is no per-row "checking" state, and that is not a shortcut.** ONE
     request covers the whole invoice, so every row is equally unchecked until the
     payload lands and they all flip together. Per-row spinners would fake a
-    granularity the pipeline does not have.
+    granularity the pipeline does not have. The panel shows **no counts** either
+    — the referee changes them, so a summary then would silently rewrite itself.
   - **The referee can only ever DEMOTE a row** (`gemPriceReview` /
-    `gemMatchReview` / `gemReview` → `invRowState` `'review'` → un-ticked). That
-    is exactly why the old window was harmful: a row about to be flagged rendered
-    green and PRE-TICKED, and `applyInvoice`'s `gemApplied=true` then discarded
-    the verdict.
+    `gemMatchReview` / `gemReview` → `invRowState` `'review'` → un-ticked).
+  - **Three `tests/smoke.js` assertions changed deliberately** — they pinned the
+    old contract that the "double-checking" note shows beside LIVE rows. That
+    contract was the bug.
   - **The 20 s watchdog MUST bump `gemToken`.** Without it a response arriving
     after the gate released would still be merged, breaking "a late response after
     a timeout is discarded". This was shipped broken into the first draft and
@@ -779,16 +796,16 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   runs against fixtures. **Both times these specs went red in v108, the app was
   right and the harness assumption had expired** — but the v100 rule stands:
   treat a failure as real until you have proved otherwise.
-- **Suite:** `npm test` **678 green** · jsdom smoke green · Playwright **94/94**
-  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (643 → 678 is v113's
-  `tests/invoice-gate.test.js` (11) and `tests/publish-guard.test.js` (24).)
+- **Suite:** `npm test` **680 green** · jsdom smoke green · Playwright **94/94**
+  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (643 → 680 is v113's
+  `tests/invoice-gate.test.js` (13) and `tests/publish-guard.test.js` (24).)
   **There is no known-failing test.**
 - **Playwright is 94 tests across NINE specs in `tests/visual/`.** The old "45
   tests across three specs" figure counted only the pre-v89 three
   (`fresh-states` 31 + `layout-consistency` 2 + `screenshots` 12 = 45). Of those,
   only `screenshots.spec.js` is genuinely untouched since v82.
-- **Sizes (measured 5 Aug, after v113):** `js/app.js` **6,745 lines / 488 KB** ·
-  `css/style.css` **2,827 lines** · `index.html` **819 lines**.
+- **Sizes (measured 5 Aug, after v113):** `js/app.js` **6,769 lines / 492 KB** ·
+  `css/style.css` **2,845 lines** · `index.html` **819 lines**.
 - **Supabase, re-verified 5 Aug 2026 through the MCP — which connects as
   `postgres`, NOT as the client's role (hard rule 10).** Row counts and schema
   facts are role-independent and safe to read here; anything about whether a

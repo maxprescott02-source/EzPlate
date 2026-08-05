@@ -5540,7 +5540,28 @@ function invPackPreviewText(r, q, u){
   var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
   return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit');
 }
+/* v113 — THE WAITING PANEL, AND WHY THE GATE HAD TO MOVE HERE.
+   The first cut of this batch only disabled Confirm All. That is the wrong point, because the referee
+   does not merely arrive too late to matter — it DEFERS to whatever the human already decided:
+     · picking a match sets r.manualPick        -> gemRowLocked -> gemApplyReadings SKIPS the row whole
+     · ticking an add-new sets newItem.approved -> same total skip
+     · teaching a pack sets packTaught/taughtQty-> T is true    -> gemMergeLine rule 1, no adjudication
+   and invSelChanged additionally clears gemMatchReview/gemPriceReview. So a ruling made in the window
+   is not just a ruling on unchecked data, it SILENCES the check for that line and is then treated as
+   informed. Gating the last step left every step before it exposed. (Max, 6 Aug 2026 — this overrides
+   the brief's "do not block the whole review", a decision made without knowing about gemRowLocked.)
+   The counts are deliberately NOT shown here: the referee changes them (it demotes rows and appends
+   its own), so a summary now would be a number that silently rewrites itself. */
+function renderInvWaiting(box){
+  var n=invRows.length;
+  box.innerHTML='<div class="inv-wait" role="status" aria-live="polite">'
+    +'<span class="inv-wait-spin" aria-hidden="true"></span>'
+    +'<div><div class="inv-wait-t">Double-checking '+n+' line'+(n===1?'':'s')+' with the AI reader…</div>'
+    +'<div class="inv-wait-s">Nothing has been saved. The lines appear once the check is done.</div></div></div>';
+  box.style.display='block';
+}
 function renderInvReview(){
+  if(gemPending()){ var wbox=document.getElementById('invReview'); if(wbox) renderInvWaiting(wbox); return; }   // v113: nothing actionable exists until the referee has spoken
   invRows.forEach(function(r,i){ if(r&&r.addNew&&r.newItem){ var s=niSnapshot(i); if(s) r.newItem=s; } });   // v50 item 1: capture an OPEN new-item form before innerHTML wipes it. Guarded on r.newItem so a fresh addNew row (newItem:null) can't absorb a stale form left in the DOM by a previous invRows/import — only a form THIS row actually opened is re-captured.
   invRows.forEach(flagNeedsAttention);                              // ensure needsAttention is current for EVERY row before we count
   var states=invRows.map(invRowState);
@@ -5637,9 +5658,12 @@ function renderInvReview(){
       '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
     // v72: the form panel moved INTO the row's Match cell (.ni-slot, see matchCell above) — no separate row.
   });
-  // v113: applying waits for the referee (see invConfirmState). The rows above are already readable.
+  // v113: no `disabled` binding here on purpose. Reaching this line means gemPending() was false, so it
+  // could only ever render as enabled — an attribute that cannot fire reads as a second gate and is not
+  // one. The real gate is the early return above; invConfirmState still supplies the HINT, which is how
+  // the user learns the lines were never AI-checked when the referee timed out.
   var cst=invConfirmState(gemStatus, aiInvoiceCheck);
-  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button"'+(cst.disabled?' disabled':'')+'>Confirm All</button> <span class="hint'+(cst.unverified?' hint-unverified':'')+'" aria-live="polite">'+esc(cst.hint)+'</span></div>';
+  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint'+(cst.unverified?' hint-unverified':'')+'" aria-live="polite">'+esc(cst.hint)+'</span></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
   box.querySelectorAll('.invPrice').forEach(function(inp){                 // ITEM 7 root cause: editing the price never recomputed needs-attention, so a clearly-different price failed to turn red
@@ -5992,7 +6016,10 @@ function invSelChanged(tr){
   renderInvReview();                                              // repaint the row (and its pack-teach) fresh for the new product
 }
 function confirmApplyInvoice(){                                   // last chance: show what WON'T be applied before finishing
-  if(gemPending()){ toast('Still double-checking this invoice — one moment'); return; }   // v113: the button is disabled too, but this is the one choke point every apply passes through
+  // v113: the review does not even render while pending, so this cannot normally be reached — it is the
+  // choke point every apply passes through (applyInvoice is also reachable via askConfirm's callback),
+  // and it borrows invConfirmState's own wording so there is one source for it rather than two.
+  if(gemPending()){ toast(invConfirmState(gemStatus, aiInvoiceCheck).hint); return; }
   var boxEl=document.getElementById('invReview'); if(!boxEl){ applyInvoice(); return; }
   var un=[];
   invRows.forEach(function(r,i){

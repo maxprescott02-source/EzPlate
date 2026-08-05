@@ -73,17 +73,76 @@ test('with the AI check switched off there is nothing to wait for, so confirm st
   assert.equal(invConfirmState(null, true).disabled, false);   // no parse yet / manual entry
 });
 
-test('the gate is a function of the referee only — it never blocks the ROWS', () => {
-  // The decision recorded in the brief: parsed rows are useful to read while waiting, so the screen is
-  // never blocked. renderInvReview builds the table unconditionally and applies the state to the
-  // BUTTON alone. If a future change wraps the table in the gate, this fails.
+/* ---------------------------------------------------------------------------
+   1b. WHY the gate sits before the table and not on the button.
+   --------------------------------------------------------------------------- */
+
+test('ROOT CAUSE: a match picked before the referee answers SILENCES it for that row', () => {
+  // This is the test that justifies blocking the review rather than just the confirm. It runs the real
+  // gemApplyReadings against a row the user has already ruled on, with a Gemini payload that names a
+  // DIFFERENT product at a different price. Nothing happens to it — gemRowLocked skips the row whole.
+  // So a ruling made in the waiting window is not merely uninformed; it is treated as final.
+  const S = { rows: null };
+  // eslint-disable-next-line no-new-func
+  const run = new Function('S', `
+    "use strict";
+    var gemStatus=null, GEM_BAND=0.5;
+    var byId={ P1:{id:'P1', base_unit:'g', cost_per_base_unit:0.01} };
+    var invRows=S.rows;
+    function renderInvReview(){}
+    function rankCandidates(){ return [{id:'P2', coverage:0.9}]; }
+    function packCount(){ return null; }
+    function cpbu(p){ return p&&p.cost_per_base_unit; }
+    function normalizePhrase(s){ return String(s||'').toLowerCase().trim(); }
+    function gemDiag(){}
+    ${extractFn('gemCanon')}
+    ${extractFn('gemHist')}
+    ${extractFn('gemPackEq')}
+    ${extractFn('gemMergeLine')}
+    ${extractFn('gemMatchSuspect')}
+    ${extractFn('gemRowLocked')}
+    ${extractFn('gemNormKey')}
+    ${extractFn('gemCleanFields')}
+    ${extractFn('gemApplyReadings')}
+    gemApplyReadings({status:'ok', lines:[{rawText:'CHIPS 10KG', description:'CHIPS 10KG',
+      derivedUnitPrice:99, unitType:'kg', packCount:null}]});
+    return gemStatus;
+  `);
+  const ruled = { name: 'CHIPS 10KG', raw: 'CHIPS 10KG', unitPrice: 2.5, unit: 'kg',
+    bestId: 'P1', conf: 0.9, tier: 'hi', cands: [], manualPick: true };
+  S.rows = [ruled];
+  run(S);
+  assert.equal(ruled.gemMatchReview, undefined, 'the wrong-match check never ran on a human-ruled row');
+  assert.equal(ruled.gemPriceReview, undefined, 'nor did the price-history check');
+  assert.equal(ruled.bestId, 'P1', 'and the row is left exactly as the user left it');
+
+  // The same row, NOT ruled on, does get refereed — proving the skip above is the manualPick, not the fixture.
+  const unruled = { name: 'CHIPS 10KG', raw: 'CHIPS 10KG', unitPrice: 2.5, unit: 'kg',
+    bestId: 'P1', conf: 0.9, tier: 'hi', cands: [] };
+  S.rows = [unruled];
+  run(S);
+  assert.ok(unruled.gemMatchReview || unruled.gemPriceReview,
+    'an unruled row IS refereed — so the window is exactly what the ruling costs');
+});
+
+test('while the referee is outstanding there is nothing to pick, tick or teach', () => {
+  // The consequence of the test above: the review must not RENDER actionable controls in the window.
+  // Disabling Confirm All alone left every per-row ruling exposed, and those are the rulings that
+  // silence the check.
   const render = extractFn('renderInvReview');
-  const gateUse = render.indexOf('invConfirmState');
+  const gate = render.indexOf('gemPending()');
   const tableBuild = render.indexOf("<table class=\"invtable\">");
-  assert.ok(tableBuild >= 0, 'renderInvReview no longer builds the review table — update this test');
-  assert.ok(gateUse > tableBuild, 'the gate must be applied after the rows are built, never around them');
-  assert.ok(/id="invApply"[^]*?cst\.disabled/.test(render) || /cst\.disabled[^]*?id="invApply"/.test(render),
-    'the gate must land on the Confirm All button');
+  assert.ok(gate >= 0, 'renderInvReview must gate on the referee');
+  assert.ok(tableBuild < 0 || gate < tableBuild, 'the gate must come BEFORE the table is built');
+  assert.match(render, /gemPending\(\)\s*\)\s*\{[^}]*renderInvWaiting[^}]*return/,
+    'and it must return without building anything actionable');
+});
+
+test('the waiting panel offers no control of any kind', () => {
+  const wait = extractFn('renderInvWaiting');
+  ['invSel', 'invAppr', 'invApply', 'invPrice', 'pack-teach', 'ni-add-btn', 'cand-chip', '<button', '<select', '<input']
+    .forEach((frag) => assert.ok(!wait.includes(frag), `the waiting panel must not render ${frag}`));
+  assert.match(wait, /Nothing has been saved/, 'and it says where the user stands');
 });
 
 /* ---------------------------------------------------------------------------

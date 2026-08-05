@@ -2825,3 +2825,21 @@ html{scrollbar-gutter:stable}
   .unlinked-prompt .up-row{flex-direction:column;align-items:stretch}
   .unlinked-prompt .up-row .btn{min-height:44px}
 }
+
+/* v113 — the invoice waiting panel. The review table does not exist until the AI referee has spoken
+   (see renderInvWaiting): a match picked, a new item ticked or a pack taught during that window
+   SILENCES the referee for that line, so there must be nothing to pick, tick or teach. */
+.inv-wait{
+  display:flex;align-items:center;gap:var(--sp-3);
+  padding:var(--sp-4);margin-top:var(--sp-3);
+  border:1px solid var(--line);border-radius:12px;background:var(--surface2,var(--surface));
+}
+.inv-wait-t{font-weight:600;color:var(--text)}
+.inv-wait-s{font-size:var(--fs-sm);color:var(--muted2);margin-top:2px}
+.inv-wait-spin{
+  flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+  border:2.5px solid var(--line);border-top-color:var(--text2);
+  animation:bgspin .8s linear infinite;
+}
+/* The message carries the meaning; the spinner is decoration. */
+@media (prefers-reduced-motion: reduce){ .inv-wait-spin{animation:none;border-top-color:var(--line)} }

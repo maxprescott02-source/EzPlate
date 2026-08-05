@@ -6,7 +6,7 @@ landed v112 — the v112 snapshot said `96c648f` and was already stale, the four
 **Brief:** `~/Downloads/ezplate-opus-batch-a.md` — two defects, one shape: the app lets a user commit
 something before the check that would have caught it has run.
 
-**Suite:** `npm test` **678 green** (643 → 678: +11 `invoice-gate`, +24 `publish-guard`) · jsdom smoke
+**Suite:** `npm test` **680 green** (643 → 680: +13 `invoice-gate`, +24 `publish-guard`) · jsdom smoke
 green · Playwright **94/94** · `node -c` clean on `js/app.js`, `sw.js` and all four `api/*`.
 
 ## A note on the Playwright run — read this before diagnosing a red suite
@@ -64,14 +64,42 @@ pipeline first. It was accurate, and the sequence is worth writing down because 
 So the harm was exact: **a row the referee was about to flag was, during the window, rendered green
 and pre-ticked, and Confirm All wrote it.** The check ran and ruled on nothing.
 
-### Two things the brief did not know
+### ⚠️ THE FIRST FIX WAS AIMED AT THE WRONG POINT — Max caught it (6 Aug)
 
-**Per-row progress is not expensive — it is fictional.** The brief offered per-row state as the better
-option and invited a cheaper counter-proposal if the pipeline's shape made it costly. The real reason
-to decline it is different and stronger: there is **one request for the whole invoice**. Until the
-payload lands every row is equally unchecked, and they all flip in the same instant. Per-row spinners
-would fake a granularity this pipeline does not have. The state therefore lives on the **button**,
-which is where the user's attention is at the moment they want to act, plus the existing summary chip.
+The first cut of this batch only disabled `Confirm All`. **Max rejected it, correctly:** a user can act
+on every row long before they reach that button, and by the time the referee lands the rulings are
+already made. He was right, and the mechanism is worse than "they acted on stale output" —
+**a ruling made in the window SILENCES the referee for that line:**
+
+| User action in the window | Sets | Effect on the referee |
+|---|---|---|
+| Picks a match (dropdown or chip) | `r.manualPick` | `gemRowLocked` → `gemApplyReadings` **skips the row whole** (`app.js:5913`) |
+| Ticks an add-new row | `r.newItem.approved` | same total skip |
+| Teaches a pack | `r.packTaught` / `r.taughtQty` | `T` true → `gemMergeLine` rule 1 `keep`, no adjudication at all |
+
+and `invSelChanged` additionally clears `gemMatchReview` / `gemPriceReview`.
+
+So the referee does not merely arrive too late to matter. **It defers to a human decision made without
+it, and treats it as informed.** Gating the last step left every step before it exposed. The gate
+therefore moved to `renderInvReview`, which now renders a **waiting panel and nothing actionable**
+until the referee has spoken.
+
+**This overrides the brief's "Do not block the whole review", which it listed as made and not to be
+re-opened.** Justified on two grounds: the decision was taken without knowledge of `gemRowLocked`, and
+Max — whose app it is — ruled the other way when shown the behaviour. CLAUDE.md's own recorded
+principle points the same way: *"One occasional user on mobile data can wait for a fetch, and would
+rather be told a thing did not save than discover it next week."*
+
+**What it costs.** The user no longer sees rows instantly; they see a progress panel for the referee's
+latency (typically a few seconds, server-capped at 15 s, watchdog at 20 s). That is the price of the
+rulings being informed, and it is bounded and honest.
+
+**Per-row progress is not expensive — it is fictional**, which is why the panel is one panel. There is
+**one request for the whole invoice**; until the payload lands every row is equally unchecked and they
+all flip in the same instant. Per-row spinners would fake a granularity this pipeline does not have.
+The panel also deliberately **does not show the matched/new/review counts** — the referee changes them
+(it demotes rows and appends its own), so a summary shown then would be a number that silently
+rewrites itself.
 
 **There was a real trap path already.** `gemFireSecondReader` only aborts where `AbortController`
 exists, so a hung socket left `gemStatus==='checking'` forever. Harmless before this batch — the chip
@@ -82,15 +110,23 @@ belt-and-braces.
 
 - **`invConfirmState(status, aiOn)`** — pure, returns `{disabled, unverified, hint}`. The whole
   condition lives in one place so tests pin the state rather than a flag.
-  - referee outstanding → disabled, "Waiting for the AI check — usually a few seconds."
+  - referee outstanding → `disabled`, which is what `gemPending()` reads. Its hint ("Waiting for the
+    AI check — usually a few seconds.") is no longer rendered anywhere, since the review does not
+    draw at all in that state — so `confirmApplyInvoice` uses it as its toast rather than carrying a
+    second copy of the wording.
   - `checked` → enabled, "Only ticked rows are saved." (unchanged wording)
   - `unavailable` → **enabled**, and "The AI check didn't finish — these lines haven't been
     double-checked."
   - AI check switched off (v81) → never gated. Gating on a check that never runs would lock the
     import forever.
-- **`gemPending()`** reads that same decision, and `confirmApplyInvoice` refuses on it. The button is
-  disabled too, but `applyInvoice` is also reachable through `askConfirm`'s callback, so the guard
-  sits where every path meets.
+- **`gemPending()`** reads that same decision, and it is used in exactly two places: the early return in
+  `renderInvReview` (the real gate) and `confirmApplyInvoice` (the choke point every apply passes
+  through, since `applyInvoice` is also reachable via `askConfirm`'s callback).
+- **`renderInvWaiting`** — the panel. It renders no `<button>`, `<select>` or `<input>` at all; a test
+  asserts that by name for each control class, because "nothing to act on" is the entire contract.
+- **The Confirm All button carries NO `disabled` binding.** Reaching that line means `gemPending()` was
+  false, so it could only ever render enabled — an attribute that cannot fire reads as a second gate
+  and is not one (the v112 lesson about fallbacks that cannot fire). One gate, not a decorative pair.
 - **A 20 s watchdog** in `gemFireSecondReader`, token-guarded.
 
 **Timeout value, and what it is based on.** 20 s, measured from `gemCheckStart`. It sits outside both
@@ -111,12 +147,22 @@ The fix is `gemToken++` in the watchdog — voiding the request exactly as a fre
 the mechanism already documented at the token's declaration. **Verified red**: with the bump removed,
 `a late response AFTER the timeout is discarded` fails and the other ten pass.
 
+### Three smoke assertions were deliberately changed
+
+`tests/smoke.js` pinned the OLD contract — that the "AI double-checking…" note shows *beside live rows*,
+and that the rows are byte-identical while checking and after a timeout. That contract was the bug.
+Updated in the same commit (CLAUDE.md's rule): while checking, the waiting panel shows and `tbody` is
+empty with no `#invApply`; the degradation check now compares the two states that both render rows
+(`unavailable` vs `checked`), which is where "a failed AI check must not alter the deterministic rows"
+actually lives. The flicker guard now holds up the *panel* rather than a note — same contract in
+substance, and it gained an assertion that the rows appear only once it settles.
+
 ### What was deliberately NOT changed
 
-The screen is never blocked — the parsed rows are useful to read while waiting, and a test asserts the
-gate is applied *after* the table is built, never around it. The parser, the matching algorithm, the
-referee's rules, the model and the prompt are all untouched. `gemApplied` still discards a late
-response after a human ruling (v62), unchanged.
+The parser, the matching algorithm, the referee's rules, the model and the prompt are all untouched.
+`gemApplied` still discards a late response after a human ruling (v62), unchanged. With the AI check
+switched off (v81) nothing is gated and nothing waits — the deterministic review renders immediately,
+exactly as today.
 
 ---
 
