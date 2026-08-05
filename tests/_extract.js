@@ -131,6 +131,13 @@ function build() {
   const esc = extractFn(src, 'esc');                           // v83: the app's own escaper, so extracted HTML builders escape exactly as they ship
   const builderNoMatchHtml = extractFn(src, 'builderNoMatchHtml');   // v83 item 7: pure builder-search no-match copy
   const dropPlace = extractFn(src, 'dropPlace');               // v86: pure combobox placement decision (side + max height) inside a bounding box
+  // v113: the two commit-before-check decisions, both pure so the CONDITION is what a test pins.
+  // invConfirmState decides whether the invoice Confirm All may be pressed yet; publishPlan /
+  // unlinkedDishesOn decide whether publishing this plate onto this menu duplicates an unlinked row.
+  // (plateIdOf is already in insightPipeline above — publishPlan resolves through it, never raw fields.)
+  const invConfirmState = extractFn(src, 'invConfirmState');
+  const unlinkedDishesOn = extractFn(src, 'unlinkedDishesOn');
+  const publishPlan = extractFn(src, 'publishPlan');
 
   // eslint-disable-next-line no-new-func
   const factory = new Function(`
@@ -181,8 +188,11 @@ function build() {
     ${esc}
     ${builderNoMatchHtml}
     ${dropPlace}
+    ${invConfirmState}
+    ${unlinkedDishesOn}
+    ${publishPlan}
     ${insightPipeline}
-    return { setAppState, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace };
+    return { setAppState, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }

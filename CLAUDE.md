@@ -554,10 +554,10 @@ merge to `main` as a production deploy.
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
 append. Per-batch history belongs in `handovers/`, nowhere else.
 
-- **Version: v112, on branch `fix/v112-write-sequencing` — NOT yet merged.**
-  `origin/main` is at **`96c648f`** (the PR #52 merge, which landed v111).
-  The v111 snapshot said `53c4778` and was correct when written; it went stale
-  the moment #52 merged. That is three batches running where the recorded
+- **Version: v113, on branch `fix/v113-commit-before-check` — NOT yet merged.**
+  `origin/main` is at **`3985d9c`** (the PR #53 merge, which landed v112).
+  The v112 snapshot said `96c648f` and was correct when written; it went stale
+  the moment #53 merged. That is FOUR batches running where the recorded
   `origin/main` was stale by the time it was read — `git fetch` and read
   `origin/main` yourself ([[verify-origin-main-before-trusting-local]]).
   **Production is `https://scoopyscosting.vercel.app`** — the stable alias, and
@@ -568,6 +568,63 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   PREVIEW).
   **`aa16387` is the last commit containing the `BASE_PRODUCTS` literal**, which
   a format-1 restore needs (hard rule 9).
+- **⚠️ v113 GATED TWO COMMIT-BEFORE-CHECK PATHS.** Read `HANDOVER-v113.md`
+  before touching the invoice confirm or either publish path.
+  - **⚠️ THE INVOICE REVIEW DOES NOT RENDER AT ALL UNTIL THE AI REFEREE HAS
+    SPOKEN.** `renderInvReview` early-returns to `renderInvWaiting` while
+    `gemPending()`. **Gating only `Confirm All` — the first cut of this batch —
+    is NOT enough, and the reason is `gemRowLocked`:** a match picked
+    (`manualPick`), an add-new ticked (`newItem.approved`) or a pack taught
+    (`packTaught`/`taughtQty`) during the window makes `gemApplyReadings` SKIP
+    that row entirely (or `gemMergeLine` rule 1 keep it), and `invSelChanged`
+    clears `gemMatchReview`/`gemPriceReview` on top. **The referee does not
+    arrive too late to matter — it DEFERS to a ruling made without it and treats
+    it as informed.** So there must be nothing to pick, tick or teach.
+    Max caught this on review, 6 Aug; it **overrides the brief's "do not block
+    the whole review"**, a decision taken without knowing about `gemRowLocked`.
+    Pinned by a test that runs the real `gemApplyReadings` against a `manualPick`
+    row and asserts the referee touched nothing — and against the same row
+    unruled, where it does.
+  - **`invConfirmState(status, aiOn)` is the pure decision** (pending → disabled;
+    `checked`/`unavailable` → not, with `unavailable` carrying the "didn't
+    finish" hint). `gemPending()` reads it, and it is used in exactly TWO places:
+    the early return above, and `confirmApplyInvoice` (the choke point, since
+    `applyInvoice` is also reachable via `askConfirm`'s callback). The Confirm
+    All button carries **no `disabled` binding** — reaching that line means
+    `gemPending()` was false, so it could only render enabled, and an attribute
+    that cannot fire reads as a second gate and is not one.
+  - **There is no per-row "checking" state, and that is not a shortcut.** ONE
+    request covers the whole invoice, so every row is equally unchecked until the
+    payload lands and they all flip together. Per-row spinners would fake a
+    granularity the pipeline does not have. The panel shows **no counts** either
+    — the referee changes them, so a summary then would silently rewrite itself.
+  - **The referee can only ever DEMOTE a row** (`gemPriceReview` /
+    `gemMatchReview` / `gemReview` → `invRowState` `'review'` → un-ticked).
+  - **Three `tests/smoke.js` assertions changed deliberately** — they pinned the
+    old contract that the "double-checking" note shows beside LIVE rows. That
+    contract was the bug.
+  - **The 20 s watchdog MUST bump `gemToken`.** Without it a response arriving
+    after the gate released would still be merged, breaking "a late response after
+    a timeout is discarded". This was shipped broken into the first draft and
+    caught by its own test; verified red. 20 s sits outside both real budgets —
+    `api/parse-invoice.js` caps Gemini at 15 s, the client aborts at 20 s — so it
+    fires only where neither terminated (no `AbortController`, or a hung socket,
+    which used to leave `gemStatus` `'checking'` forever).
+  - **`publishPlan(dishes, plateId, menuId)` is now the ONE publish decision**,
+    shared by `submitMenuItem` AND `submitAddDish`. There were **TWO** row-creating
+    paths with the identical blind guard, not one — the brief named only the first.
+    Its `plateId ? … : null` is load-bearing: `plateIdOf(an unlinked row)` is null,
+    so a bare `===plateId` against a null id reads that row as "already here" and
+    quietly updates it — an auto-heal by accident, the one thing decided against.
+  - **`renderUnlinkedPrompt` reads `publishPlan(...).unlinked`, never its own
+    computation.** It originally re-derived the list and so offered the choice even
+    where the button would UPDATE rather than duplicate. **Found by opening the
+    modal in Chromium, not by any test.** In the Add-existing-plate modal the
+    prompt follows the SELECTION — picking a plate already on that menu withdraws
+    the question, or its Link button would create a second row for the same
+    (plate, menu).
+  - **Linking keeps the row's own name, price and section** (Max's yes). It is
+    already priced on that menu. Sequenced via `dbPushMenuAfterPlate`.
 - **⚠️ v112 FIXED THE DELETE-SIDE SEQUENCING AND DELETED AN UNREACHABLE EDITOR.**
   Read `HANDOVER-v112.md` before touching plate/dish deletes. What a future
   session needs from it:
@@ -739,16 +796,16 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   runs against fixtures. **Both times these specs went red in v108, the app was
   right and the harness assumption had expired** — but the v100 rule stands:
   treat a failure as real until you have proved otherwise.
-- **Suite:** `npm test` **643 green** · jsdom smoke green · Playwright **94/94**
-  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (626 → 643 is v112's
-  `tests/delete-sequencing.test.js` plus five new `plates-independence` tests.)
+- **Suite:** `npm test` **680 green** · jsdom smoke green · Playwright **94/94**
+  · `node -c` clean (`js/app.js`, `sw.js`, four `api/*`). (643 → 680 is v113's
+  `tests/invoice-gate.test.js` (13) and `tests/publish-guard.test.js` (24).)
   **There is no known-failing test.**
 - **Playwright is 94 tests across NINE specs in `tests/visual/`.** The old "45
   tests across three specs" figure counted only the pre-v89 three
   (`fresh-states` 31 + `layout-consistency` 2 + `screenshots` 12 = 45). Of those,
   only `screenshots.spec.js` is genuinely untouched since v82.
-- **Sizes (measured 5 Aug):** `js/app.js` **6,612 lines / 480 KB** ·
-  `css/style.css` **2,804 lines** · `index.html` **817 lines**.
+- **Sizes (measured 5 Aug, after v113):** `js/app.js` **6,769 lines / 492 KB** ·
+  `css/style.css` **2,845 lines** · `index.html` **819 lines**.
 - **Supabase, re-verified 5 Aug 2026 through the MCP — which connects as
   `postgres`, NOT as the client's role (hard rule 10).** Row counts and schema
   facts are role-independent and safe to read here; anything about whether a
@@ -798,22 +855,36 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    it stays gone. And Plates tab → Publish → reload → the dish still reads as
    costed. (The brief's "restore a plate to a menu" check no longer applies —
    that path was the unreachable editor v112 deleted.)
+2a. **v113's own device check, and item 1 of it is the batch's one real risk.**
+   **Import an invoice and watch the wait**: `Confirm All` is now disabled until
+   the AI referee answers, and on mobile data after a week idle the cold-start
+   penalty (item 0) lands BEFORE the referee even starts. It must read as
+   progress, not as the app being stuck. Then: **publish a plate normally** and
+   confirm the unlinked-row prompt stays invisible — production has 0 orphans, so
+   seeing nothing IS the pass. The prompt itself can only be reached by creating
+   an orphan, which is not worth doing on real data; it was checked at 380px in
+   Chromium (no overflow, Link button clears 44px).
 3. ~~"Restore to menu" links the dish in memory only~~ — **CLOSED in v112.** It
    was unreachable dead code; removed rather than repaired.
 4. ~~`deletePlate`/`doDeleteEverything` don't await their dish deletes~~ —
    **CLOSED in v112.** See `dbDeletePlateAfterDishes`.
 5. ~~Repair the one production orphan~~ — **DONE 5 Aug**, on Max's explicit yes.
    0 orphan dishes remain. See the snapshot above for what it exposed.
-5a. **⚠️ Publishing a plate cannot heal an orphaned dish — it silently duplicates
-   it.** `submitMenuItem`'s "one entry per (plate, menu)" guard is
-   `dishesOfPlate(sp).find(...)`, which resolves through `plateIdOf`. A dish with
-   NO plate link is therefore invisible to it, so publishing the plate that dish
-   should have been using adds a SECOND row of the same name — one costed, one
-   not. This is exactly how the orphan above surfaced. Fixing it means matching on
-   something other than the plate link (name + menu is the obvious candidate) and
-   deciding whether to heal or to warn — a real UX call, so it needs its own brief
-   and Max's yes. **Not urgent now that the orphan count is 0**, but it is the
-   mechanism that would let one recur unnoticed.
+5a. ~~Publishing a plate cannot heal an orphaned dish — it silently duplicates
+   it~~ — **CLOSED in v113**, by DETECT AND OFFER rather than by matching on
+   anything. Both row-creating paths share `publishPlan`; an unlinked row on the
+   target menu surfaces an inline prompt naming it with its section and price, and
+   the user chooses to link or to add a new entry. No auto-heal, no name matching.
+5c. **⚠️ `ensurePlateForDish` is the OTHER door onto an orphan, and it answers
+   wrongly.** Reached from the builder's "load menu item" (`loadMenuItemBlank`),
+   it gives an unlinked row a **brand-new EMPTY plate**. Correct for a genuinely
+   uncosted row; for the v112 toastie it would have linked an empty plate and left
+   the real recipe unreferenced, making the loss look permanent. Found during
+   v113's enumeration, **not built** — the right behaviour depends on which case
+   you are in and the app cannot tell, so it needs its own brief and Max's yes.
+   Related: **no path CREATES an unlinked row** (both set `plateId` from a real
+   plate), so the class can only arrive from history or from a backup restore
+   (`rowToMenu` maps a null `plate_id` straight through).
 5b. **⚠️ `Ham Leg Sliced 2Mm (App 1Kg)` (`P0182`) is stored at $0.0003/g —
    30 c/kg.** Almost certainly wrong by a factor of ~46 (≈$13.90/kg would be
    normal). Spotted 5 Aug while costing the toastie; it makes that plate read

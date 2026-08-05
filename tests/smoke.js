@@ -419,16 +419,25 @@ const matchedRow = () => ({
 const invSumText = () => ($('invReview').querySelector('.inv-sum') || {}).textContent || '';
 const tbodyHtml = () => ($('invReview').querySelector('.invtable tbody') || {}).innerHTML || '';
 
-// (a) the summary status note, three states
+// (a) the three states. v113 CHANGED THE FIRST ONE DELIBERATELY: while a check is in flight the review
+// renders a waiting panel and NO rows at all. Until v113 the rows rendered and were fully actionable,
+// and that was the bug — picking a match / ticking a new item / teaching a pack in that window sets
+// manualPick / newItem.approved / packTaught, and gemApplyReadings then SKIPS the row entirely. The
+// referee did not arrive too late to matter; it deferred to a ruling made without it.
 window.invRows = [matchedRow()];
 window.gemStatus = 'checking'; window.renderInvReview();
-ok('summary shows "AI double-checking…" while a check is in flight', /AI double-checking/.test(invSumText()));
-const rowsWhileChecking = tbodyHtml();
+ok('a check in flight shows the waiting panel, not the summary', /Double-checking 1 line/.test($('invReview').textContent));
+ok('…and renders NO rows to act on', tbodyHtml() === '');
+ok('…and no Confirm All', !$('invReview').querySelector('#invApply'));
 window.gemStatus = 'unavailable'; window.renderInvReview();
 ok('unavailable shows "AI check unavailable"', /AI check unavailable/.test(invSumText()));
-ok('TIMEOUT/UNAVAILABLE degrades to IDENTICAL rows — only the summary note differs', tbodyHtml() === rowsWhileChecking);
+ok('…and the rows are now there to act on', tbodyHtml() !== '');
+const rowsWhenUnavailable = tbodyHtml();
 window.gemStatus = 'checked'; window.renderInvReview();
 ok('success shows "✓ AI checked"', /AI checked/.test(invSumText()));
+// The degradation contract, re-pointed at the two states that now both render rows: a failed AI check
+// must leave the deterministic rows byte-identical to a successful one. Only the note differs.
+ok('TIMEOUT/UNAVAILABLE degrades to IDENTICAL rows — only the summary note differs', tbodyHtml() === rowsWhenUnavailable);
 
 // (b) v66: parser HAS a price and Gemini disagrees — the AI must NEVER overrule the parser's money.
 //   b1: both readings far from history → history can't arbitrate → parser stands, no change, no flag.
@@ -513,9 +522,14 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
     { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
-  ok('FLICKER GUARD: a fast result does NOT flip the note instantly — "checking" is still up', /AI double-checking/.test(invSumText()));
+  // v113: what the guard holds up is now the WAITING PANEL, not a note beside live rows — the rows do
+  // not exist yet. The contract is unchanged in substance: a fast response may not blink the state past
+  // reading, and until it settles nothing is actionable.
+  ok('FLICKER GUARD: a fast result does NOT flip instantly — the waiting panel is still up', /Double-checking/.test($('invReview').textContent));
+  ok('FLICKER GUARD: …so there is still nothing to act on', !$('invReview').querySelector('#invApply'));
   await wait(window.GEM_MIN_VISIBLE + 80);
   ok('FLICKER GUARD: once the minimum-visible window passes, the note flips to checked', /AI checked/.test(invSumText()));
+  ok('FLICKER GUARD: …and only then do the rows appear', !!$('invReview').querySelector('#invApply'));
 
   // (b) item 2 — a suspected wrong-match row renders unticked, flagged "check match", AI product ranked first
   window.invRows = [{ name: 'MAPLE SYRUP 1L', raw: 'MAPLE SYRUP 1L', bestId: 'P0108', unitPrice: 12, unit: 'l', conf: 0.4, tier: 'mid',
