@@ -629,6 +629,49 @@ or explained as intentional, or noted as considered and skipped. Silence is not
 a pass. Neither review overrides CLAUDE.md's rules or the tests — those remain
 authoritative.
 
+### ⚠️ WHERE A FINDING GETS FIXED — the rule that stops the review eating the batch
+
+**Fix it in the SAME branch, before merge. A finding does NOT get its own PR
+unless it is wrong data or silent loss.** Everything else — a missing test, a
+stale comment, a nit, a real-but-not-urgent improvement — goes on the outstanding
+list in the snapshot and rides the NEXT batch.
+
+**Why this rule exists (Max, 6 Aug 2026).** v114 merged before its review was
+readable, so every finding afterwards needed a *new* PR to fix it, and each new PR
+drew its own review, which found its own smaller thing: #58 → #59 → #61, with the
+severity decaying each round but the cost not. Max stopped it and was right. The
+chain was an artifact of merging un-reviewed, not the normal flow — but nothing
+was written down to stop it recurring, so here it is.
+
+Two things make the normal flow safe, and both matter:
+- **`synchronize` is gone** (above), so pushing fixes to an open PR does not
+  re-trigger a review. Fixes land in the same branch and merge with it. One PR,
+  one review, no chain.
+- **Only the top severity earns its own PR.** A finding worth acting on is not
+  automatically a finding worth acting on *today*. Treating every one as urgent is
+  what made the chain feel endless.
+
+**A DOCS-ONLY PR IS FREE** (`paths-ignore: '**.md'`), so moving something to the
+outstanding list costs nothing and loses nothing.
+
+### The two reviewers have not earned their keep equally — know which is which
+
+Measured on v114, the first batch to run both:
+
+- **The pre-push `code-review` agent found FOUR real defects**, including
+  `backupToPayload` sending `format: 3` unconditionally, which would have broken
+  **every restore** between the deploy and the migration — the only recovery path
+  there is. It costs nothing extra and its findings are fixed in the same branch,
+  so it creates no churn at all. **Do not skip it**, whatever the rule above says
+  about it being optional.
+- **The PR workflow found three items across two PRs: two missing tests and a
+  documentation gap. Zero bugs.**
+
+That is not an argument for removing the workflow — it reviews code the pre-push
+agent has already cleaned, it is a different model, and it is the only reader that
+cannot be skipped. It IS an argument for spending your attention on the pre-push
+review first, and for not treating a PR-review finding as more urgent than it is.
+
 ## State as of 6 Aug 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
