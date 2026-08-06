@@ -321,7 +321,7 @@ function dbPushChange(e){
 
    `bootReady` is what index.html's splash polls (window.__ezReady) — kept so the two cannot disagree
    about whether the app is usable. */
-var _bootGateDone=false, _bootRetrying=false;
+var _bootGateDone=false, _bootRetrying=false, _bootSlowTimer=null;
 function bootGate(state, msg){
   var g=document.getElementById('bootGate'); if(!g) return;
   var showing=!g.hidden;
@@ -331,8 +331,20 @@ function bootGate(state, msg){
      says it failed. (CodeRabbit — my own test missed this because it never reached 'ok' first.) */
   if(_bootGateDone && state!=='error' && !showing) return;
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
-  if(state==='loading'){ g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…'; return; }
-  if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); return; }
+  if(state==='loading'){
+    g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
+    /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
+       of the fetch) — and week-long gaps are the normal case here, so the patient message is the
+       honest one. Swapped in place after 4s rather than shown up front: a warm boot (200–300ms)
+       never sees it. The timer dies with the gate ('ok'/'error' both clear it). */
+    if(_bootSlowTimer) clearTimeout(_bootSlowTimer);
+    _bootSlowTimer=setTimeout(function(){
+      var g2=document.getElementById('bootGate'), m2=document.getElementById('bootGateMsg');
+      if(g2 && !g2.hidden && !g2.classList.contains('is-error') && m2) m2.textContent='Still loading — the first open after a break takes a little longer.';
+    }, 4000);
+    return;
+  }
+  if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return; }
   // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
   g.hidden=false; g.classList.add('is-error'); _bootRetrying=false;
   if(m) m.textContent=msg||'Couldn’t load your data.';
@@ -1236,15 +1248,20 @@ function rerenderCurrentTab(){                                         // re-run
   try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
 function showTab(t){
+  var _retap=(currentTab()===t);                                       // v115: re-tapping the active tab is a "take me to the top" gesture, not a navigation
   try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  /* v115 (v60 item 5 reworked): the jump used to fire AFTER the render, so a heavy innerHTML rebuild
+     landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
+     SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
+  if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
   ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   if(t==='analysis')renderAnalysis();
   if(t==='ingredients')renderIngredients();
   if(t==='dashboard')renderDashboard();
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
   if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
-  try{ window.scrollTo(0,0); }catch(e){}   // v60 item 5: switching tabs (or re-tapping the current one — showTab runs on every nav click) starts at the top
+  if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
@@ -3647,16 +3664,28 @@ function gemPhraseInsights(insights, scopeKey){
       c2[mk]={period:period, sig:sig, lines:lines, refined:refined};
       Object.keys(c2).forEach(function(k){ if(!c2[k] || c2[k].period<period-1) delete c2[k]; });   // prune stale periods
       insightCacheWrite(c2);
-      applyPhrasedInsights(lines, insights, refined);
+      applyPhrasedInsights(lines, insights, refined, true);         // v115: the network path is the only one that lands AFTER paint — it alone animates
     })
     .catch(function(){ clearTimeout(timer); release(); });          // any failure → templates already shown; free the key so a later render may retry
 }
-function applyPhrasedInsights(lines, insights, refined){
+/* v115 — the swap reads as COMPLETION, not replacement. Three mechanisms made it flash: the
+   post-paint textContent rewrite, the credit line appearing (a whole new line box shifted the
+   panel and every panel below it), and the resulting grid reflow. The credit's space is now
+   RESERVED in CSS (visibility, the .scope-note precedent), and the network path alone fades its
+   rewritten lines in (`animate` — the cache/session paths run synchronously before paint, where a
+   fade would just make every dashboard render blink). The local pass still renders first and
+   unchanged: it is the offline/failure state, and its content is correct — only its transition
+   was the glitch. */
+function applyPhrasedInsights(lines, insights, refined, animate){
   try{
     var host=document.getElementById('dashInsBody'); if(!host) return;
     if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // the scope moved on → don't overwrite
-    lines.forEach(function(t,ix){ var el=host.querySelector('.ins-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
-    if(refined){ var c=host.querySelector('.ins-credit'); if(c) c.hidden=false; }   // v68: reveal the credit ONLY when Gemini truly phrased a shown line
+    lines.forEach(function(t,ix){
+      var el=host.querySelector('.ins-line[data-ix="'+ix+'"]'); if(!el) return;
+      if(animate && el.textContent!==t){ el.classList.remove('ins-swap'); void el.offsetWidth; el.classList.add('ins-swap'); }
+      el.textContent=t;
+    });
+    if(refined){ var c=host.querySelector('.ins-credit'); if(c){ c.hidden=false; if(animate) c.classList.add('ins-swap'); } }   // v68: reveal the credit ONLY when Gemini truly phrased a shown line
   }catch(e){}
 }
 /* ===== v90: insights live on the DASHBOARD, inline ==========================================
@@ -7171,11 +7200,13 @@ function chooseCat(name,isNew){
     return false;
   }
   function contentOffset(rawDy){ return Math.min(HOLD, rawDy*0.5); }  // content follows the finger at half-speed (rubber-band feel)
+  // v115: release/settle uses the motion tokens (--t-med/--ease) — the only ad-hoc duration left in
+  // the app, and the settle read as abrupt against every other tokened transition.
   function setContent(y, animate){
-    if(main){ main.style.transition = animate?'transform .2s ease':''; main.style.transform = y?('translateY('+y+'px)'):''; }
+    if(main){ main.style.transition = animate?'transform var(--t-med) var(--ease)':''; main.style.transform = y?('translateY('+y+'px)'):''; }
   }
   function setInd(y, animate){
-    ind.style.transition = animate?'transform .2s ease, opacity .2s ease':'';
+    ind.style.transition = animate?'transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease)':'';
     ind.style.transform='translateX(-50%) translateY('+y+'px)';
     ind.style.opacity=String(Math.min(1, y/HOLD));
   }

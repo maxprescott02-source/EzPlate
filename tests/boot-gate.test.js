@@ -59,7 +59,11 @@ function makeGate(present) {
     "use strict";
     var document = { getElementById: function(id){ return D[id] || null; } };
     var bootstrapSync = function(){ C.bootstrapSync++; };
-    var _bootGateDone = false, _bootRetrying = false;
+    var _bootGateDone = false, _bootRetrying = false, _bootSlowTimer = null;
+    // v115: the patient-message timer. Captured rather than run — these tests are about gate STATES;
+    // the 4s swap itself is exercised in the browser (it needs real elapsed time to mean anything).
+    var setTimeout = function(fn, ms){ C.slowTimerMs = ms; return 1; };
+    var clearTimeout = function(){ C.slowTimerCleared = (C.slowTimerCleared||0)+1; };
     ${extractFn('bootGate')}
     return { bootGate: bootGate };
   `)(nodes, calls);
@@ -157,4 +161,16 @@ test('a missing gate element is a no-op, never a throw', () => {
   const g = makeGate(false);
   assert.doesNotThrow(() => { g.run('loading'); g.run('error', 'x'); g.run('ok'); },
     'a JS failure must not be able to trap the app behind an overlay it cannot clear');
+});
+
+/* v115: the patient message. Week-long idle gaps are the NORMAL case here, and the first request
+   after one pays Supabase's cold start (~1.1s measured) — so 'loading' arms a 4s message swap that
+   a warm boot never sees. The swap's wording is exercised in the browser; what is pinned here is
+   the CONDITION: loading arms it, success disarms it. */
+test('loading arms the 4s patient-message timer; ok clears it', () => {
+  const g = makeGate(true);
+  g.run('loading');
+  assert.strictEqual(g.calls.slowTimerMs, 4000, 'armed at 4s — late enough that a warm boot (≤333ms) never sees it');
+  g.run('ok');
+  assert.ok(g.calls.slowTimerCleared >= 1, 'a finished boot must kill the pending swap');
 });

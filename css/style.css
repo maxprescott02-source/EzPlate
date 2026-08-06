@@ -2005,11 +2005,14 @@ body{overflow-x:clip}
 .ptr-ind{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%) translateY(0);z-index:83;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--elev);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
 .ptr-spin{position:relative;width:26px;height:26px;display:block}
 .ptr-ring,.ptr-arc{position:absolute;inset:0;width:100%;height:100%;display:block}
-.ptr-ring{color:var(--brand)}                       /* faint full ring — static, currentColor works in both themes */
+.ptr-ring{color:var(--line)}                        /* v115: the TRACK is --line everywhere a ring waits on Supabase (was --brand) — one ring language with #bootGate and .inv-wait-spin, which run the same fetch */
 .ptr-arc path{stroke:var(--accent)}                 /* orange arc — theme-aware via CSS (SVG presentation attrs can't read a CSS var) */
 .ptr-ind.ready{box-shadow:0 0 0 2px var(--accent-weak), var(--elev-cast)}   /* ring is functional (release affordance) — must survive dark, hence --elev-cast not --elev */
 .ptr-ind.spinning .ptr-arc{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}   /* ONLY the arc spins; the faint ring stays put */
 @keyframes ptr-rot{to{transform:rotate(360deg)}}
+/* v115: §22's blanket reduced-motion rule already catches ptr-rot, but every other Supabase ring is
+   individually guarded — the explicit guard keeps the contract visible where the animation lives. */
+@media (prefers-reduced-motion:reduce){ .ptr-ind.spinning .ptr-arc{animation:none} }
 /* Item 15: while a pull-refresh runs, the spinner owns the top-centre — hide the sync banner so the two don't stack there */
 body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important}
 @media (min-width:701px){ .ptr-ind{display:none} }
@@ -2603,7 +2606,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* Honest AI credit: hidden until applyPhrasedInsights proves Gemini phrased a line that is on
    screen. Template fallback keeps the sparkle (the feature IS AI-assisted) but never this. */
 .ins-credit{display:block;margin:var(--sp-3) 0 0;text-align:right;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:.02em}
-.ins-credit[hidden]{display:none}
+/* v115: the credit's line box is RESERVED (visibility, the .scope-note precedent) — revealing it
+   used to add a whole line to the panel after paint, shifting every panel below. */
+.ins-credit[hidden]{display:block;visibility:hidden}
 
 /* ----- Dig in ----- */
 .dig-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
@@ -2794,7 +2799,7 @@ html{scrollbar-gutter:stable}
 #bootGate.is-error .bg-msg{color:var(--text)}
 #bootGate .bg-spin{
   width:28px; height:28px; border-radius:50%;
-  border:2.5px solid var(--line); border-top-color:var(--text2);
+  border:2.5px solid var(--line); border-top-color:var(--accent);   /* v115: --accent head (was --text2) — one ring language across boot, pull-to-refresh and the invoice wait, which all wait on the same Supabase */
   animation:bgspin .8s linear infinite;
 }
 @keyframes bgspin{to{transform:rotate(360deg)}}
@@ -2838,7 +2843,7 @@ html{scrollbar-gutter:stable}
 .inv-wait-s{font-size:var(--fs-sm);color:var(--muted2);margin-top:2px}
 .inv-wait-spin{
   flex:0 0 auto;width:22px;height:22px;border-radius:50%;
-  border:2.5px solid var(--line);border-top-color:var(--text2);
+  border:2.5px solid var(--line);border-top-color:var(--accent);   /* v115: one ring language (see #bootGate .bg-spin) */
   animation:bgspin .8s linear infinite;
 }
 /* The message carries the meaning; the spinner is decoration. */
@@ -2861,3 +2866,9 @@ html{scrollbar-gutter:stable}
 /* The caption's marker key and the scrub tooltip's marker sentence. */
 .chart-hint .mk-dot{color:var(--accent);font-size:9px;vertical-align:1px}
 .tp-tip .tp-mk{display:block;font-size:10px;color:var(--accent);white-space:nowrap}
+/* Strand 3: the Gemini arrival fades in rather than snapping — completion, not replacement. Only
+   the network path adds .ins-swap (see applyPhrasedInsights); cached phrasings land before paint
+   and must not blink on every render. */
+.ins-line.ins-swap,.ins-credit.ins-swap{animation:ins-arrive .28s var(--ease)}
+@keyframes ins-arrive{from{opacity:.15}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .ins-line.ins-swap,.ins-credit.ins-swap{animation:none} }
