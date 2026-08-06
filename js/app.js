@@ -510,7 +510,7 @@ async function bootstrapSync(){
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
-    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
+    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }   // v115: syncCogsRead gone with the .cogs-meta line
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
     // v81: AI feature toggles round-trip across devices (no row -> the load*() default of ON stands, unchanged behaviour)
@@ -738,17 +738,11 @@ dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o)r
   if(o.dataset.kid){ addKitchenLine(o.dataset.kid); }});   // v59: no create branch
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))closeDrop();});
 
-/* ---------- alternatives ---------- */
-function alternatives(p){
-  if(cpbu(p)==null) return {alts:[],cheapest:true};
-  const base=PRODUCTS.filter(x=>x.is_food&&cpbu(x)!=null&&x.base_unit===p.base_unit&&x.id!==p.id);
-  let pool;
-  if(p.item_type){const t=base.filter(x=>x.item_type===p.item_type);pool=t.length>=1?t:base.filter(x=>x.category===p.category);}
-  else pool=base.filter(x=>x.category===p.category);
-  pool.sort((a,b)=>cpbu(a)-cpbu(b));
-  const cheaper=pool.filter(x=>cpbu(x)<cpbu(p));
-  return {alts:pool.slice(0,3), cheapest:cheaper.length===0};
-}
+/* v115: alternatives() ("Cheaper like-for-like") is DELETED with its one call site in
+   renderKingAlts. Matching "like for like" honestly needs semantics this app does not have —
+   unit + category pooling produced confident bad suggestions (a cheaper WRONG product is a worse
+   outcome than no suggestion). The create-mode name suggestions (renderKingCreateSuggest, which
+   shares the #king_alts box) are a different, honest mechanism and STAY. */
 
 /* ---------- plate ---------- */
 let plate=[], uidc=1;
@@ -1050,7 +1044,8 @@ function setCogs(pct, persist){
   pct=Math.max(1,Math.min(99, Math.round(pct))); cogsPct=pct;
   if(persist) dbSetSetting('food_cost_target', pct);       // shared across devices
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+pct+'%)';
-  if(typeof syncCogsRead==='function') syncCogsRead();     // ITEM 6 (v35): the Menu tab's read-only display follows Settings
+  // v115: syncCogsRead (the Menu tab's read-only mirror) is gone with the .cogs-meta line — the
+  // Suggested column header below follows the target via renderAnalysis instead
   renderAnalysis();
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
@@ -2247,30 +2242,13 @@ function toggleKingWizard(){ kingWizOpen=!kingWizOpen; if(kingWizOpen) kingWizLi
 function closeKingWizard(){ if(!kingWizOpen) return; kingWizOpen=false; renderKingWizard(); }   // v61 item 4: the single close path — keeps kingWizOpen in sync with the modal (× / Escape / backdrop all route here)
 /* ---- create / change-product modal (Name + product search-select) ---- */
 var kingEditId=null, kingChosenPid=null, kingAddToPlateOnSave=false;
-function renderKingAlts(){                                            // "Cheaper like-for-like" — only in change-product (edit) mode, compared vs the CURRENT link
+function renderKingAlts(){
+  // v115: the edit-mode "Cheaper like-for-like" list is GONE (see the alternatives() tombstone
+  // above the plate section). Create mode keeps its name-based suggestions; edit mode now just
+  // clears the shared box.
   var box=document.getElementById('king_alts'); if(!box) return;
   if(!kingEditId){ renderKingCreateSuggest(); return; }              // ITEM 2b (v34): create mode reuses this box for name-based suggestions
-  var k=kById[kingEditId]; var base=k?byId[k.pid]:null;
-  if(!base){ box.style.display='none'; box.innerHTML=''; return; }
-  var res=alternatives(base);
-  if(res.cheapest || !res.alts.length){
-    box.innerHTML='<div class="ka-head">Cheaper like-for-like</div><div class="ka-cheapest">\u2713 Already the cheapest of its type</div>';
-    box.style.display='block'; return;
-  }
-  var rows=res.alts.map(function(a){
-    var sv=(cpbu(base)!=null&&cpbu(a)<cpbu(base))?Math.round((1-cpbu(a)/cpbu(base))*100):0;
-    return '<div class="ka-row"><span class="ka-name">'+esc(a.description)+(a.brand?' <span class="ca">'+esc(a.brand)+'</span>':'')+'</span>'
-      +'<span class="ka-price">'+esc(unitCostStr(a))+'</span>'+(sv>0?'<span class="save">\u2212'+sv+'%</span>':'')
-      +'<button class="use" type="button" data-pid="'+esc(a.id)+'">Use</button></div>';
-  }).join('');
-  box.innerHTML='<div class="ka-head">Cheaper like-for-like (by '+(base.base_unit==='ea'?'unit':base.base_unit==='ml'?'litre':'kg')+')</div>'+rows;
-  box.style.display='block';
-  box.querySelectorAll('.use').forEach(function(b){ b.addEventListener('click',function(){
-    var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
-    kingChosenPid=pid;                                               // behaves exactly like picking from search — Save + unit guard still apply
-    var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
-    kingSyncSave();
-  }); });
+  box.style.display='none'; box.innerHTML='';
 }
 /* ITEM 2b (v34): create mode — typing "Chips" immediately offers the top product matches, one tap links it.
    Reuses rankCandidates (the invoice matcher) read-only; nothing in the protected region is modified. */
@@ -4157,9 +4135,8 @@ function applyTidy(){
   renderTidyValues();
   toast((action==='clear'?'Cleared':action==='merge'?'Merged':'Renamed')+' '+field+' '+tidyBlast(plan));
 }
-function syncCogsRead(){                                              // the Menu tab's read-only mirror of the target
-  var r=document.getElementById('cogsTargetRead'); if(r) r.textContent=cogsPct;
-}
+/* v115: syncCogsRead is DELETED with its subject — the Menu tab's .cogs-meta line (and its
+   #cogsTargetRead mirror) is gone; the Suggested column header carries the live target %. */
 /* Export backup — client-side only, no server round-trip. Seven data groups, matching
    what bootstrapSync pulls: products, kitchen words, plates, menu items,
    the per-ingredient price log, supplier memory, settings. Deliberately a plain JSON dump:
@@ -4484,7 +4461,7 @@ function clearCacheAndRefresh(){
 (function(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
-  on('cogsToSettings',openSettings);                                // the Menu tab's "Change it in Settings"
+  // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
      Upload-PDF pattern. `value=''` before opening the picker so choosing the SAME file twice
@@ -4498,7 +4475,7 @@ function clearCacheAndRefresh(){
   var sp=document.getElementById('settingsPanel');
   if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
   var ci=document.getElementById('setCogsInput');
-  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
+  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs already re-renders every consumer (v115: syncCogsRead gone)
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: section nav (sidebar / drill-down) + the mobile back arrow
@@ -4537,7 +4514,6 @@ function clearCacheAndRefresh(){
     openTidyManage(s.dataset.tidyField||'category');
   }, true);
 })();
-syncCogsRead();
 
 /* ===== PWA: service worker registration ===== */
 if ('serviceWorker' in navigator) {
@@ -6645,12 +6621,13 @@ function aRow(name,a,m,actions){
   // attribute was never emitted and the openPlateEdit delegate it fed could never fire.
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
   var ref=m?(' data-mid="'+esc(m.id)+'"'):'';
+  // v115: the pip column is GONE \u2014 the row's left stripe (.lt-*) already carries the same light, so
+  // the dot restated what the surface said. Five columns now; the sec/empty rows' colspans match.
   return '<tr class="mi-row lt-'+(a.light||'none')+'"'+ref+'><td><button type="button" class="mi-name">'+esc(name)+'</button>'+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
-    '<td class="num">'+vbadge(a)+'</td>'+
-    '<td><span class="dot '+a.light+'"></span></td></tr>';
+    '<td class="num">'+vbadge(a)+'</td></tr>';
 }
 function renderAnalysis(){
   var tb=document.getElementById('aBody'); if(!tb) return;
@@ -6681,12 +6658,12 @@ function renderAnalysis(){
       })
       .filter(function(it){ return lightFilterPass(menuLightFilter, it.a.light); });   // v68: active chips narrow to those margin lights
     if(!items.length) return;
-    html+='<tr class="sec"><td colspan="6">'+esc(sec)+'</td></tr>';
+    html+='<tr class="sec"><td colspan="5">'+esc(sec)+'</td></tr>';
     items.forEach(function(it){
       shown++;
       if(it.costed){ html+=aRow(it.m.name||it.sp.name, it.a, it.m); }
       else{ var note=it.m.notes?' <span class="mi-note" title="'+esc(it.m.notes)+'">ⓘ</span>':'';
-        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
+        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num">not costed</td></tr>'; }
     });
   });
   // v55: unpublished plates are NOT dishes — they live only in the Plates tab, never on the Menu tab.
@@ -6695,7 +6672,7 @@ function renderAnalysis(){
     var es=dishesOnMenu
       ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
       : emptyStateHtml(ICON_MENU_BIG,'Nothing on this menu yet.','Publish a plate from the Plates tab to see it here.');
-    html='<tr class="es-row"><td colspan="6">'+es+'</td></tr>';
+    html='<tr class="es-row"><td colspan="5">'+es+'</td></tr>';
   }
   tb.innerHTML=html; bindTips();
   // v58: the empty-state clear action routes through clearMenuFilters() via onclick — no per-render binding.

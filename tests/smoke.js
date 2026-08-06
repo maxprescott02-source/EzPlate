@@ -90,14 +90,16 @@ ok('Done closes it', (() => { $('settingsDone').click(); return !$('settingsPane
 
 console.log('\n[3] item 6 — COGS moved to Settings and still drives the maths');
 ok('Menu tab has no editable #cogsTarget', !$('cogsTarget'));
-ok('Menu tab shows the read-only value', !!$('cogsTargetRead'));
+// v115: the .cogs-meta line (and #cogsTargetRead / #cogsToSettings with it) is REMOVED (Max) —
+// the Suggested column header is now the Menu tab's only statement of the target.
+ok('Menu tab has no cogs meta line', !$('cogsTargetRead') && !$('cogsToSettings'));
 const before = window.analyze(4, null).suggested;
 $('settingsBtn').click();
 $('setCogsInput').value = '25';
 $('setCogsInput').dispatchEvent(new window.Event('input'));
 ok('editing in Settings changes analyze()', window.analyze(4, null).suggested === 16, `was ${before}, now ${window.analyze(4,null).suggested}`);
-ok('and the Menu tab display follows', $('cogsTargetRead').textContent === '25', $('cogsTargetRead').textContent);
-ok('"Change it in Settings" opens the panel', (() => { $('settingsDone').click(); $('cogsToSettings').click(); return $('settingsPanel').classList.contains('open'); })());
+window.renderAnalysis();
+ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 'Suggested (25%)', $('aSuggestedTh').textContent);
 $('settingsDone').click();
 
 console.log('\n[3b] v81 — Settings sectioned surface (sidebar / drill-down + AI toggles + theme)');

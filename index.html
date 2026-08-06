@@ -146,18 +146,21 @@
           <!-- v68: margin-light filter — multi-select chips reusing the row colour-key dots; they double as the light key.
                Tap red for red only; tap amber too for amber+red (everything needing attention). Folds into Clear filters. -->
           <div class="mlf" id="menuLightChips" role="group" aria-label="Filter by margin light">
-            <button type="button" class="mlf-chip" data-light="green" aria-pressed="false"><span class="dot green" aria-hidden="true"></span>Healthy</button>
-            <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false"><span class="dot amber" aria-hidden="true"></span>Watch</button>
-            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Rework</button>
+            <!-- v115: the chip dots are gone — an active chip carries its light on its own border/text -->
+            <button type="button" class="mlf-chip" data-light="green" aria-pressed="false">Healthy</button>
+            <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false">Watch</button>
+            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false">Rework</button>
           </div>
           <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
         </div>
       </div>
-      <p class="hint panel-meta cogs-meta">Suggested prices use your <b class="cogs-inline"><span id="cogsTargetRead" class="cogs-read">40</span>%</b> target — <button type="button" class="linklike" id="cogsToSettings">change in Settings</button></p>
-      <!-- v59: the traffic-light key legend was removed (Max) — the row dots stay -->
+      <!-- v115: the .cogs-meta suggested-prices line is gone (Max) — the Suggested column header
+           already carries the live target %, and the target itself lives in Settings -->
+      <!-- v59: the traffic-light key legend was removed (Max); v115 removed the row dots too -->
       <div class="atable-wrap">
         <table class="atable">
-          <thead><tr><th>Plate</th><th>Ingredient cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Current menu price</th><th>Variance</th><th>Light</th></tr></thead>
+          <!-- v115: the Light column is gone — the row's left stripe carries the light -->
+          <thead><tr><th>Plate</th><th>Ingredient cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Current menu price</th><th>Variance</th></tr></thead>
           <tbody id="aBody"></tbody>
         </table>
       </div>

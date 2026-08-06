@@ -247,10 +247,13 @@ test('ITEM 6: the target stays clamped to a sane range from any entry point', ()
 /* ---------- the Menu tab actually gave up its editor ---------- */
 
 test('ITEM 6: the Menu tab no longer has a COGS input \u2014 editing really did move', () => {
-  assert.ok(HTML.indexOf('id="cogsTargetRead"') >= 0, 'the Menu tab shows a read-only value');
+  // v115: the .cogs-meta read-only line went too (Max) \u2014 the Suggested column header carries the
+  // live target, and the editor stays in Settings. The pin flips: the meta line must STAY deleted.
+  assert.ok(!/id="cogsTargetRead"/.test(HTML), 'the read-only meta line stays deleted');
   assert.ok(!/id="cogsTarget"/.test(HTML), 'the old editable input is gone, not just hidden');
-  assert.ok(HTML.indexOf('id="cogsToSettings"') >= 0, 'and points at Settings');
-  assert.ok(HTML.indexOf('id="setCogsInput"') >= 0, 'which is where the editor now lives');
+  assert.ok(!/id="cogsToSettings"/.test(HTML), 'the change-in-Settings link went with its line');
+  assert.ok(HTML.indexOf('id="setCogsInput"') >= 0, 'the editor lives in Settings');
+  assert.ok(HTML.indexOf('id="aSuggestedTh"') >= 0, 'the Suggested column header is the surviving statement of the target');
 });
 
 test('ITEM 6: Settings is a header gear, not a sixth nav tab', () => {

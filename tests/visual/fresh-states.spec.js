@@ -850,19 +850,20 @@ for (const size of SIZES) {
       const L = s => document.querySelector(s).getBoundingClientRect().left;
       const T = s => document.querySelector(s).getBoundingClientRect().top;
       return {
-        order: [T('.an-head'), T('.an-controls'), T('.cogs-meta'), T('.atable-wrap')],   // v59: .akey (traffic-light key) removed
-        edges: [L('.an-head .btn'), L('#menuSelect'), L('.cogs-meta')],
-        target: document.querySelector('.cogs-meta').textContent,
-        link: !!document.querySelector('.cogs-meta #cogsToSettings'),
-        val: document.getElementById('cogsTargetRead').textContent,
+        // v115: .cogs-meta (the suggested-prices line) is REMOVED (Max) — the live target moved to
+        // the Suggested column header, asserted below instead of the meta line's text.
+        order: [T('.an-head'), T('.an-controls'), T('.atable-wrap')],   // v59: .akey (traffic-light key) removed
+        edges: [L('.an-head .btn'), L('#menuSelect')],
+        meta: !!document.querySelector('.cogs-meta'),
+        suggestedTh: document.getElementById('aSuggestedTh').textContent,
       };
     });
     for (let k = 1; k < st.order.length; k++)
       expect(st.order[k], `header block ${k} sits below block ${k - 1}`).toBeGreaterThan(st.order[k - 1]);
     for (const e of st.edges.slice(1))
       expect(Math.abs(e - st.edges[0]), 'header blocks share ONE left edge').toBeLessThanOrEqual(1.5);
-    expect(st.target, 'the meta line reads the live target').toContain(st.val + '%');
-    expect(st.link, 'change-in-Settings link lives in the meta line').toBe(true);
+    expect(st.meta, 'v115: the suggested-prices meta line stays deleted').toBe(false);
+    expect(st.suggestedTh, 'the Suggested column header carries the live target').toMatch(/Suggested \(\d+(\.\d+)?%\)/);
     await page.locator('#tab-analysis .panel').screenshot({ path: `tests/visual/__shots__/v52-menu-header-${size.name}.png` });
   });
 
