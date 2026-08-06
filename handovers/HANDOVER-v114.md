@@ -10,21 +10,35 @@ untouched here.
 cases) · jsdom smoke green · Playwright **94/94** · `node -c` clean on `js/app.js`, `sw.js` and all four
 `api/*`.
 
-**⚠️ TWO MIGRATIONS TO APPLY BEFORE THIS CODE SHIPS, IN THIS ORDER:**
+**✅ BOTH MIGRATIONS ARE APPLIED** (6 Aug 2026, on Max's instruction — the brief said hand them over, he
+asked for them to be run):
 
-1. `supabase/migrations/20260806_menu_change_log.sql` — the new table.
-2. `supabase/migrations/20260806_restore_backup_v3.sql` — replaces `restore_backup(jsonb)`; it
-   references the table, so it must go second.
+1. `20260806_menu_change_log.sql` — 11 columns, RLS on, SELECT+INSERT policies, `recorded_at desc`
+   index, 0 rows.
+2. `20260806_restore_backup_v3.sql` — `restore_backup(jsonb)` replaced. Verified `SECURITY INVOKER`,
+   five deletes all carrying `where true`, accepts formats 2 and 3, `on conflict (id) do nothing`.
 
-Both are idempotent and each carries its own verify block. **Run the INSERT in the verify block** — a
-select alone cannot tell an empty table apart from an RLS-filtered one, which is the exact way v90's
-`menu_price_history` sat write-blocked for a day.
+**Applied through the MCP as `postgres`, then verified as `anon` from a real browser** — because those
+are different roles and hard rule 10 exists for exactly this. anon SELECT ok · anon INSERT **ok** (the
+check a select cannot make) · anon UPDATE and DELETE both affect zero rows · `rpc('restore_backup',
+{payload:{format:1}})` refused by name before any write. The verify row was cleaned up as `postgres`,
+since anon has no DELETE policy — which is the design, not an oversight.
 
-**The app is safe to ship before the migrations run**, and that was checked rather than assumed: booted
-against production Supabase with the table absent (`python3 -m http.server 8899`, real client, real
-data) — 412 products, 77 dishes, `changeLogSupported` false, no page errors, everything rendered. The
-boot read IS the probe, exactly as `menuHistSupported` (v89) and `menuPriceHistSupported` (v90). Until
-the migrations run, the app simply records nothing.
+**Two things the application turned up that the migration file had wrong, both now corrected in it:**
+
+- **The grant line narrows nothing.** This project grants ALL on new public tables by default, so anon
+  holds UPDATE/DELETE/TRUNCATE on `menu_change_log` exactly as it does on `plates` and
+  `ing_price_history`. The file claimed least privilege; **append-only rests on the RLS policies alone**.
+- **The refusal is silent.** An anon UPDATE or DELETE returns **204 with no error** and touches nothing,
+  because RLS filters rather than rejects. A caller checking only for an error would believe it had
+  edited the log. Same 200-with-no-rows ambiguity that hid the v90 RLS fault for a day.
+
+**The app was also safe to ship BEFORE the migrations ran**, and that was checked rather than assumed
+while the table was still absent: booted against production Supabase (`python3 -m http.server 8899`,
+real client, real data) — 412 products, 77 dishes, `changeLogSupported` false, no page errors. The boot
+read IS the probe, exactly as `menuHistSupported` (v89) and `menuPriceHistSupported` (v90). That
+ordering guarantee still matters: previews and production share one database, so any future schema
+dependency has to degrade the same way.
 
 ---
 

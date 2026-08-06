@@ -612,17 +612,27 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   PREVIEW).
   **`aa16387` is the last commit containing the `BASE_PRODUCTS` literal**, which
   a format-1 restore needs (hard rule 9).
-- **⚠️ v114 ADDED THE CHANGE LOG, AND ITS TWO MIGRATIONS ARE NOT YET APPLIED.**
+- **✅ v114 ADDED THE CHANGE LOG, AND BOTH MIGRATIONS ARE APPLIED** (6 Aug 2026,
+  through the MCP as `postgres`, then **verified as `anon` from a real browser**).
   Read `HANDOVER-v114.md` before touching any path that changes a plate, a link
-  or a menu. Apply **in this order**, in the SQL editor:
-  `20260806_menu_change_log.sql`, then `20260806_restore_backup_v3.sql` (which
-  replaces `restore_backup(jsonb)` and references the table). **Run the INSERT in
-  each verify block** — a select alone cannot tell an empty table from an
-  RLS-filtered one, which is how v90's `menu_price_history` sat write-blocked for
-  a day. **The code is safe to ship first**: booted against production with the
-  table absent (real client, real data — 412 products, 77 dishes, no errors) and
-  it simply records nothing, exactly as `menuHistSupported`/
-  `menuPriceHistSupported` degrade.
+  or a menu. `public.menu_change_log` exists: 11 columns, RLS on, SELECT+INSERT
+  policies, `recorded_at desc` index, **0 rows**. `restore_backup(jsonb)` is
+  replaced — `SECURITY INVOKER`, five deletes all carrying `where true`, accepts
+  formats **2 and 3**, `on conflict (id) do nothing` on the log.
+  **The client-role checks that the MCP could not make** (hard rule 10): anon
+  SELECT ok · anon INSERT **ok** · anon UPDATE and DELETE both affect **zero
+  rows** · `rpc('restore_backup', {payload:{format:1}})` refused by name before
+  any write. The verify row was removed as `postgres`, because anon cannot.
+  - **⚠️ THE GRANT LINE IN THAT MIGRATION NARROWS NOTHING.** This project grants
+    ALL on new public tables by default, so anon holds UPDATE/DELETE/TRUNCATE on
+    `menu_change_log` exactly as it does on `plates` and `ing_price_history`.
+    **Append-only rests on the RLS POLICIES alone** — no UPDATE or DELETE policy
+    means no rows match. The migration's first draft claimed least privilege and
+    was wrong; the file now says so.
+  - **⚠️ AND THE REFUSAL IS SILENT.** An anon UPDATE or DELETE returns **204 with
+    no error** and touches nothing. A caller checking only for an error would
+    believe it had edited the log. There is no update or delete helper and a test
+    pins their absence; if one is ever added it must verify by re-reading.
   - **⚠️ `public.menu_change_log` RECORDS WHAT MAX DID. Every other price-ish log
     records what a SUPPLIER did. A supplier price movement must NEVER reach it** —
     it is the thing being measured, and logging it would reset the "how long since
@@ -823,8 +833,10 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   5 Aug — one real deletion since) · `menus` **2** · `ing_price_history`
   **34 points / 34 products** · `price_history` **49** · `menu_price_history`
   **78** · `supplier_phrases` **7** · `app_settings` **10** · `plates` with
-  non-null `menu_id` **0** · **`menu_change_log` does not exist yet.**
-  **`public.restore_backup(jsonb)` is still the only function in the schema.**
+  non-null `menu_id` **0** · **`menu_change_log` 0** (applied 6 Aug, nothing
+  written yet — the code that writes it is on PR #56, not on `main`).
+  **`public.restore_backup(jsonb)` is still the only function in the schema**, now
+  at md5 `998ff34d…` of its definition (v114's replacement).
 - **⚠️ THERE IS A TENTH PUBLIC TABLE, `kitchen_items`** (`id`, `name`,
   `current_product_id`, `created_at`) — RLS on, one policy. **Nothing in
   `js/app.js` reads or writes it**; it looks like a relic from before kitchen
@@ -834,9 +846,8 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   has it enabled. Practically it changes nothing today — every existing policy is
   `ALL / true / true` for `public` — but it will flag in Supabase advisors and it
   **matters at the multi-tenant gate**. Not fixed: schema change, needs Max's yes.
-- **Migrations applied:** the four v108 ones and v110's
-  `20260803_restore_backup_fn.sql`. **v114's two are NOT applied yet** (top of
-  this section). `list_migrations` is empty — the files plus their commit messages
+- **Migrations applied:** the four v108 ones, v110's
+  `20260803_restore_backup_fn.sql`, and **v114's two** (6 Aug). `list_migrations` is empty — the files plus their commit messages
   ARE the audit trail ([[running-supabase-migrations-here]]).
 - **FOUR history series, deliberately separate — don't merge:** `priceHistory`
   (all-menus average), `menuHistory` (per menu, v89), `menuPriceLog` (each
@@ -858,10 +869,8 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
 
 **Outstanding, in priority order:**
 
-0. **Apply v114's two migrations** (top of this section), then confirm through the
-   app rather than the SQL editor — hard rule 10. The cheap client-role check is
-   `await SUPA.rpc('restore_backup', {payload:{format:1}})` from the browser
-   console, which every guard refuses before a single write.
+0. ~~Apply v114's two migrations~~ — **DONE 6 Aug**, and verified as `anon` from a
+   real browser rather than only through the MCP. See the top of this section.
 1. **Phone sign-off on v108, and it is a different KIND of sign-off.** Sharpest:
    **the cold-start penalty** — the first request after idle measured
    **~1,138 ms** against 79–152 ms warm, and with week-long gaps that is Max's

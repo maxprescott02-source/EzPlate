@@ -32,11 +32,25 @@
 --      survivable for a log whose entire value is that it can be trusted.
 -- So plate_id / dish_id / menu_ids are plain text, resolved in the client or not at all.
 --
--- APPEND-ONLY IS ENFORCED BY THE POLICIES, NOT BY CONVENTION.
--- SELECT and INSERT are granted; UPDATE and DELETE are not, to any role that reaches this through
--- PostgREST. An intervention that later proved wrong is still an intervention that happened, so there
--- is no legitimate caller for either. This mirrors ing_price_history's least-privilege grant, and it
--- is what lets the restore be additive without needing to trust the client.
+-- APPEND-ONLY IS ENFORCED BY THE RLS POLICIES, AND BY THOSE ALONE.
+-- Only SELECT and INSERT policies exist, so UPDATE and DELETE are refused for anon and authenticated:
+-- under RLS, no matching policy means no rows are affected. An intervention that later proved wrong is
+-- still an intervention that happened, so there is no legitimate caller for either.
+--
+-- ⚠️ THE GRANTS BELOW DO NOT NARROW ANYTHING, AND AN EARLIER DRAFT OF THIS COMMENT CLAIMED THEY DID.
+-- Measured after applying (6 Aug 2026): anon and authenticated hold DELETE, INSERT, REFERENCES, SELECT,
+-- TRIGGER, TRUNCATE and UPDATE on this table -- and on ing_price_history, menu_price_history and plates
+-- alike. This project grants ALL on new public tables by default, so `grant select, insert` ADDS two
+-- privileges that were already there and takes nothing away. Do not read the grant line as a control.
+-- The policies are the control. This is the same footing ing_price_history has always stood on; stated
+-- here because "least privilege" was asserted and was not true.
+--
+-- ⚠️ AND THE REFUSAL IS SILENT. Measured from the anon path after applying: an UPDATE and a DELETE both
+-- return 204 WITH NO ERROR and affect zero rows, because RLS filters them out rather than rejecting the
+-- statement. The row is genuinely untouched -- append-only holds -- but a caller that checked only for
+-- an error would believe it had edited the log. The app has no update or delete helper for this table
+-- and a test pins their absence; if one is ever added, it must verify by re-reading, never by the
+-- absence of an error. This is the same 200-with-no-rows ambiguity that hid the v90 RLS fault.
 --
 -- id IS CLIENT-GENERATED TEXT, not a bigserial, and that is what makes the restore idempotent.
 -- ing_price_history has to identify a point by (product_id, recorded_at) because its ids are server-
