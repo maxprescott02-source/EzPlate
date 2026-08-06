@@ -122,7 +122,7 @@ function harness(opts) {
       'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'avgFoodCostForScope', 'computeAvgFoodCost',
-      'ptMs', 'logHistory', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice',
+      'ptMs', 'logHistory', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',
       'saveKitchenIngredients',
       'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',

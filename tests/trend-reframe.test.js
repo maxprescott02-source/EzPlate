@@ -197,11 +197,29 @@ test('since-line: an old entry reads as "no changes for N weeks"', () => {
   assert.match(html, /Costs up 2\.1 pts since\./);
 });
 
-test('since-line: scoped to a menu via menuIds — an entry that never touched the menu is invisible to it', () => {
-  const other = entry({ t: now - 2 * DAY, avgBefore: 25, avgAfter: 23, menuIds: ['MW'] });
-  const app = chart({ log: [other] });
-  assert.strictEqual(app.sinceLineHtml('MENU_ORIGINAL', 22), '', 'wrong menu — nothing to say');
-  assert.match(app.sinceLineHtml('MW', 25.1), /cut 2\.0 pts/);
+test('since-line: a NARROWED scope renders nothing — its figures are the all-menus series', () => {
+  /* Pre-push review, v115: every entry's avgBefore/avgAfter IS computeAvgFoodCost() (all menus).
+     Subtracting that from a per-menu current fabricates drift out of the gap between two series —
+     all-menus 30, Winter 45 would read "up 15 pts" for a change that moved nothing. The honest
+     scoped since-line needs per-menu figures the log does not carry, so a narrowed dashboard shows
+     none (the v89 rule: a figure the app can't stand behind isn't shown). */
+  const e = entry({ t: now - 2 * DAY, avgBefore: 25, avgAfter: 23, menuIds: ['MW'] });
+  const app = chart({ log: [e] });
+  assert.strictEqual(app.sinceLineHtml('MW', 45), '', 'narrowed: no line, however tempting the arithmetic');
+  assert.match(app.sinceLineHtml('all', 25.1), /cut 2\.0 pts/, 'all-menus: same series, honest drift');
+});
+
+test('the marker for the change JUST made draws — an entry newer than every trend point clamps to the line\'s end', () => {
+  /* Pre-push review, v115: the entry is written when its server write settles, a beat AFTER
+     logHistory pushed the trend point — so an upper time bound excluded exactly the marker the
+     feature exists to show, until a future point arrived (typically the next session). */
+  const pts = series([24, 23, 21.5]);
+  const fresh = entry({ t: now + 900, avgBefore: 23, avgAfter: 21.5 });   // write settled ~1s after the last point
+  const app = chart({ pts, log: [fresh] });
+  const html = app.trendChart();
+  assert.strictEqual((html.match(/class="mk-pt"/g) || []).length, 1, 'the headline moment must mark immediately');
+  const g = app.geo();
+  assert.ok(Math.abs(g.marks[0].x - g.xs[g.xs.length - 1]) < 0.6, 'clamped to the newest reading');
 });
 
 test('since-line: no drift clause when costs have not moved since', () => {

@@ -346,6 +346,7 @@ function bootGate(state, msg){
   }
   if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return; }
   // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
+  if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }   // v115 (review): the patient message must never overwrite an error — cleared here, not just guarded
   g.hidden=false; g.classList.add('is-error'); _bootRetrying=false;
   if(m) m.textContent=msg||'Couldn’t load your data.';
   if(r){ r.hidden=false; r.onclick=function(){
@@ -1467,6 +1468,7 @@ function logChange(kind, o){
   changeLog.push(e);
   if(changeLog.length>500) changeLog=changeLog.slice(-500);   // the same window priceHistory keeps; the server holds the lot
   if(changeLogSupported) dbPushChange(e);
+  repaintDashboardIfVisible();   // v115 (pre-push review): the dashboard draws this log now, and the entry lands after logHistory's own repaint
   return e;
 }
 /* The success gate, in one place. `write` is whatever pushWrite handed back: a settled promise resolving
@@ -1659,8 +1661,14 @@ function logHistory(){
   }
   logMenuHistory();
   logAllMenuPrices();                                                 // v90: capture any sell price that moved (value-deduped, so this is free when none did)
-  var dash=document.getElementById('tab-dashboard');
-  if(dash && dash.style.display!=='none') renderDashboard();
+  repaintDashboardIfVisible();
+}
+/* v115: the visible-tab repaint, shared by logHistory and logChange. logChange needs it because the
+   dashboard now RENDERS the change log (markers + since-line), and an entry lands only when its
+   carrying write settles — a beat after logHistory's synchronous repaint — so a user sitting on the
+   Dashboard would otherwise see the surface one entry stale until their next navigation. */
+function repaintDashboardIfVisible(){
+  try{ var dash=document.getElementById('tab-dashboard'); if(dash && dash.style.display!=='none') renderDashboard(); }catch(_){ }
 }
 /* v89: the same point-logging contract as logHistory, once per menu that has costed, priced plates.
    Deduped per series (a menu whose figure hasn't moved doesn't stipple its own line), capped per series,
@@ -2615,7 +2623,12 @@ function trendMarkers(pts){
     if(!isFinite(e.avgBefore) || !isFinite(e.avgAfter)) return;
     var drop=e.avgBefore-e.avgAfter;
     if(!(drop>0.001)) return;
-    if(e.t<t0 || e.t>t1) return;
+    /* Lower bound only (pre-push review, v115): the entry for the change Max JUST made is written
+       when its server write settles, so its timestamp lands a beat AFTER the trend point logHistory
+       pushed synchronously — an upper bound of t1 excluded exactly the marker the feature exists to
+       show, until some future point arrived (typically next session). An entry newer than all data
+       is "now": mkX clamps it to the line's right end. */
+    if(e.t<t0) return;
     var d=new Date(e.t), key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
     if(!days[key]){ days[key]={t:e.t, drop:0, count:0}; out.push(days[key]); }
     if(e.t>days[key].t) days[key].t=e.t;
@@ -2624,16 +2637,13 @@ function trendMarkers(pts){
   out.sort(function(a,b){ return a.t-b.t; });
   return out;
 }
-/* The latest change-log entry with usable figures, scoped: an entry "reaches" a menu when its
-   menuIds names it — menuIds is written on every kind (a moved dish lists both menus), so this
-   never needs to consult `kind`. Used by the since-line, not the markers. */
-function lastChangeEntry(scope){
+/* The latest change-log entry with usable figures. Used by the since-line, not the markers. */
+function lastChangeEntry(){
   if(typeof changeLog==='undefined' || !changeLog) return null;
   var best=null;
   changeLog.forEach(function(e){
     if(!e || typeof e.avgBefore!=='number' || typeof e.avgAfter!=='number') return;
     if(!isFinite(e.avgBefore) || !isFinite(e.avgAfter)) return;
-    if(scope && scope!==DASH_ALL && !(e.menuIds||[]).some(function(id){ return id===scope; })) return;
     if(!best || e.t>best.t) best=e;
   });
   return best;
@@ -2641,9 +2651,16 @@ function lastChangeEntry(scope){
 /* v115 — the signature line: the achievement, then the gap. DELIBERATELY silent on the fix
    (portions, products, suppliers, prices are all Max's call — chefs reprice least of all, because
    reprints cost money; naming any one of them would be prescribing, which this app does not do).
-   Omitted entirely when the log has nothing usable — an empty state, not a fault. */
+   Omitted entirely when the log has nothing usable — an empty state, not a fault.
+   ⚠️ ALL-MENUS ONLY (pre-push review, v115): every entry's avgBefore/avgAfter IS
+   computeAvgFoodCost(), the all-menus series — subtracting it from a per-menu current would
+   fabricate drift out of the gap between two different series (all-menus 30, Winter 45 → a
+   phantom "up 15 pts"). The v89 scope-honesty rule: a figure the app can't stand behind isn't
+   shown. So a narrowed dashboard renders no since-line at all, same spirit as the chart's own
+   scope-note one tile below. */
 function sinceLineHtml(scope, current){
-  var e=lastChangeEntry(scope);
+  if(scope && scope!==DASH_ALL) return '';
+  var e=lastChangeEntry();
   if(!e || current==null) return '';
   var drop=e.avgBefore-e.avgAfter;
   var ageDays=(Date.now()-e.t)/86400000;

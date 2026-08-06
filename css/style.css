@@ -1044,8 +1044,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .menu-picker-row select{flex:1 1 auto;min-width:0;padding:9px 12px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
   .menu-new-btn{white-space:nowrap}   /* v52.1 (Max): size comes from .btn — same as + New ingredient / + New product */
   .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
-  .cogs-inline{font-weight:800;color:var(--text)}   /* v52: sizes with the meta line it sits in (the v39 one-size rule, now inherited) */
-  .cogs-read{font:inherit;color:inherit}          /* follows .cogs-inline — the number and the % are one size */
+  /* v115 tombstone: .cogs-inline / .cogs-read deleted — their markup (the .cogs-meta line) went this batch */
   .cogs-in{display:inline-flex;align-items:center;gap:2px}
   .cogs-in input{width:74px;padding:8px 10px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
   .cogs-in .pct{font-weight:700;color:var(--muted2)}
@@ -2418,7 +2417,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .an-controls{display:flex;flex-direction:column;gap:var(--sp-3);padding-bottom:0}
 .an-controls .menu-picker-row select{font-weight:700}
 .an-controls .ing-controls{padding:0}   /* .an-controls already supplies the gutter; without this the nested row's own sp-5/sp-4 padding double-indents it past the picker row's left edge */
-.cogs-meta{font-size:var(--fs-xs)}
+/* v115 tombstone: .cogs-meta rule deleted with its markup */
 
 /* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
 .atable tbody tr.mi-row{cursor:pointer;transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}

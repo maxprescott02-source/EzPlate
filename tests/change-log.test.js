@@ -112,6 +112,7 @@ function harness(opts) {
     function closeMenuModal(){} function closeAddDishModal(){} function closeEdit(){} function closeDelChoice(){}
     function closeKingModal(){} function renderDishPicker(){} function renderCatDrop(){}
     function logHistory(){} function menuNameById(){ return 'Original'; } function updateLine(){}
+    function repaintDashboardIfVisible(){}   // v115: the dashboard renders the log now; logChange repaints through this helper (the DOM census below stays honest — the helper owns the DOM touch)
     function updateTotals(){} function scheduleDraftSave(){} function parkRepointedProduct(){}
     function saveKingWizSkips(){} function unitCatWord(){ return 'weight'; }
     function menuCats(){ return ['Mains']; } function setCurrentMenuId(id){ currentMenuId=id; }
@@ -633,6 +634,10 @@ test('the change log renders nothing: none of its own functions touch the DOM', 
   // grepped for `toast(` and read as a guarantee of silence, which it could not be: every write in the
   // app goes through pushWrite, and the toast lives THERE. A body that delegates could not contain a
   // toast even if the feature shouted. What silence there is is enforced by the latch below, not here.
+  // v115: the dashboard now RENDERS the log (markers + since-line), so "invisible to the user"
+  // expired — what survives is the boundary: the log's own functions still hold no DOM code.
+  // logChange repaints via repaintDashboardIfVisible, the same helper logHistory uses; the DOM
+  // touch lives there, on the rendering side of the line.
   for (const fn of ['changeEntry', 'logChange', 'logChangeIfSaved', 'dbPushChange', 'rowToChange',
                     'changeToRow', 'nextChangeId', 'mergeChangeLog', 'platesUsingKid', 'menuIdsForPlates']) {
     const body = extractFn(fn);
