@@ -319,6 +319,11 @@ test('moving a plate to another menu at the SAME price is `dish_moved`, and name
   const log = api.changeLog();
   assert.strictEqual(log.length, 1);
   assert.strictEqual(log[0].kind, 'dish_moved');
+  // The OTHER half of the "written on both kinds" promise. Without these two, suppressing menuFrom/
+  // menuTo on dish_moved entries is invisible to the whole suite — the combined-case test below has
+  // _priceMoved true, so it would not notice. (PR review, #61.)
+  assert.strictEqual(log[0].detail.menuFrom, 'MENU_ORIGINAL');
+  assert.strictEqual(log[0].detail.menuTo, 'MW');
   assert.deepStrictEqual(log[0].menuIds.sort(), ['MENU_ORIGINAL', 'MW'], 'it left one menu and joined another');
 });
 
