@@ -146,10 +146,10 @@
           <!-- v68: margin-light filter — multi-select chips reusing the row colour-key dots; they double as the light key.
                Tap red for red only; tap amber too for amber+red (everything needing attention). Folds into Clear filters. -->
           <div class="mlf" id="menuLightChips" role="group" aria-label="Filter by margin light">
-            <!-- v115: the chip dots are gone — an active chip carries its light on its own border/text -->
-            <button type="button" class="mlf-chip" data-light="green" aria-pressed="false">Healthy</button>
-            <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false">Watch</button>
-            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false">Rework</button>
+            <!-- v115 (Max): dots STAY — they are the colour key tying the chips to the card stripes; the active chip additionally tints with its own light -->
+            <button type="button" class="mlf-chip" data-light="green" aria-pressed="false"><span class="dot green" aria-hidden="true"></span>Healthy</button>
+            <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false"><span class="dot amber" aria-hidden="true"></span>Watch</button>
+            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Rework</button>
           </div>
           <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
         </div>

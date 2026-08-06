@@ -41,12 +41,13 @@ function extractFn(name) {
 function chart(opts) {
   opts = opts || {};
   // eslint-disable-next-line no-new-func
-  const factory = new Function('PTS', 'LOG', 'TARGET', `
+  const factory = new Function('PTS', 'LOG', 'TARGET', 'MH', `
     "use strict";
     var priceHistory=PTS.slice(), changeLog=LOG, cogsPct=TARGET, TREND_GEO=null, AX_CHW=6.6;
+    var menuHistory=MH||{};
     var DASH_ALL='all', TICK_STEPS=[1,2,5,10,20,50];
     function axCharW(){ return 6.6; }
-    function dashRangePts(){ return PTS; }
+    function dashRangePts(series){ return series ? series.slice() : PTS; }   // v115: the scoped chart passes the menu's own series
     function esc(s){ return (s==null?'':String(s)); }
     ${extractFn('ptMs')}
     ${extractFn('fmtTargetPct')}
@@ -64,7 +65,7 @@ function chart(opts) {
     return { trendChart: trendChart, trendMarkers: trendMarkers, sinceLineHtml: sinceLineHtml,
              geo: function(){ return TREND_GEO; } };
   `);
-  return factory(opts.pts || [], opts.log || [], opts.target == null ? 30 : opts.target);
+  return factory(opts.pts || [], opts.log || [], opts.target == null ? 30 : opts.target, opts.menuHistory || {});
 }
 
 const DAY = 86400000;
@@ -246,4 +247,48 @@ test('sparkline colour is target-anchored: rising-but-under is good, falling-but
   assert.match(risingUnder, /mcmp-spark good/, 'rising under target must NOT be red — same failure as the old chart');
   const fallingOver = spark([{ t: 1, v: 40 }, { t: 2, v: 38 }, { t: 3, v: 36 }]);
   assert.match(fallingOver, /mcmp-spark bad/, 'improving-but-over is still over');
+});
+
+/* =============================================================================================
+ * 5. The scoped chart — the v89 "stage 2" promise, kept in v115
+ * ========================================================================================== */
+
+test('a narrowed scope with enough per-menu history draws the MENU\'S OWN line', () => {
+  // All-menus runs under target; the menu runs OVER it. Only the scoped series being drawn can
+  // produce a red stroke here — an all-menus draw would be green, which is exactly the silent
+  // wrong-series failure this pins against.
+  const app = chart({
+    pts: series([20, 21, 22]), target: 30,
+    menuHistory: { MW: series([34, 35, 36]) },
+  });
+  const html = app.trendChart('MW');
+  assert.match(html, /stroke="var\(--bad\)"/, 'the menu is over target — its own line must say so');
+  assert.match(html, /This menu · over your 30% target/);
+  assert.doesNotMatch(html, /All menus/, 'the all-menus prefix belongs to the all-menus series alone');
+  assert.doesNotMatch(html, /scope-note/, 'no correction needed — the line IS the menu');
+});
+
+test('a narrowed scope whose history is still building falls back to all-menus WITH the scope-note', () => {
+  const app = chart({
+    pts: series([20, 21, 22]), target: 30,
+    menuHistory: { MW: [{ t: now, v: 34 }] },   // one point — not a line yet
+  });
+  const html = app.trendChart('MW');
+  assert.match(html, /stroke="var\(--good\)"/, 'the drawn line is the all-menus series');
+  assert.match(html, /All menus · under your 30% target/);
+  assert.match(html, /scope-note/, 'the v89 honesty correction: the line under a menu\'s name covers every menu');
+});
+
+test('a scoped draw shows NO markers, however droppy the log — their figures are the all-menus series', () => {
+  const mh = { MW: series([24, 23, 21, 21, 21]) };
+  const drop = entry({ t: now - 2 * DAY, avgBefore: 23, avgAfter: 21, menuIds: ['MW'] });
+  const app = chart({ pts: series([24, 23, 21, 21, 21]), log: [drop], menuHistory: mh });
+  assert.doesNotMatch(app.trendChart('MW'), /mk-pt/,
+    'an all-menus magnitude on a per-menu line would mix two series — same rule that scoped the since-line');
+  assert.match(app.trendChart('all'), /mk-pt/, 'the same log marks normally on the all-menus line');
+});
+
+test('the all-menus chart is byte-identical whether called with no scope or DASH_ALL', () => {
+  const opts = { pts: series([20, 21, 22]), target: 30 };
+  assert.strictEqual(chart(opts).trendChart(), chart(opts).trendChart('all'));
 });

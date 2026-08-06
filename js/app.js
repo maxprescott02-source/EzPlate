@@ -1321,13 +1321,14 @@ var menuHistSupported=true;
 
 var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')||'3m'; }catch(e){ return '3m'; } })();
 function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
-function dashRangePts(){                                           // the points inside the chosen window (capped for sanity)
+function dashRangePts(series){                                     // the points inside the chosen window (capped for sanity)
+  var src=series||priceHistory;                                    // v115: callable on a per-menu series too (the scoped chart)
   var days={'1w':7,'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
   var cutoff=Date.now()-days*86400000;
-  var pts=days?priceHistory.filter(function(p){
+  var pts=days?src.filter(function(p){
     var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;   // Supabase points arrive as ISO strings; a string is never >= a number
     return tt>=cutoff;
-  }):priceHistory.slice();
+  }):src.slice();
   return pts.slice(-60);
 }
 function rangeBarHtml(){
@@ -2674,8 +2675,20 @@ function sinceLineHtml(scope, current){
   var calm=drift<0.1;   // the warm tint marks accumulating drift; a line with no drift sits quiet
   return '<p class="since'+(calm?' calm':'')+'"><b>'+esc(lead)+'</b>'+esc(gap)+'</p>';
 }
-function trendChart(){
-  var pts=dashRangePts();
+function trendChart(scope){
+  /* v115 stage 2 — the promise the v89 comment made ("Stage 2 gives it the two-line chart once the
+     history exists"): per-menu history has been recording since v89 and now holds real points, so a
+     narrowed dashboard draws the MENU'S OWN line whenever that menu has two points in the chosen
+     range. The fallback — and ONLY the fallback — is the all-menus line with the scope-note; a menu
+     whose history is still building keeps the exact v94 behaviour. Markers and the "All menus ·"
+     caption prefix belong to the all-menus series alone: change-log figures ARE the all-menus
+     average (see sinceLineHtml), so a marker on a per-menu line would mix two series. */
+  var narrowed=!!(scope && scope!==DASH_ALL);
+  var scopedPts=narrowed?dashRangePts((typeof menuHistory!=='undefined'&&menuHistory&&menuHistory[scope])||[]):null;
+  var drawingScoped=!!(scopedPts && scopedPts.length>=2);
+  var pts=drawingScoped?scopedPts:dashRangePts();
+  var fellBack=narrowed&&!drawingScoped;
+  var scopeNote=fellBack?'<p class="hint scope-note">Per-menu history is still building — this line covers all menus.</p>':'';
   /* v52 GUTTER GEOMETRY — v51 removed the left gutter so the curve could start at the card's
      text column, but that drew the plot (fill dots, line) UNDERNEATH the y-axis labels (Max's
      screenshot: dots surrounding "10%"). The structural fix: ONE gutter constant that every
@@ -2697,7 +2710,7 @@ function trendChart(){
       ? 'No points in this range yet \u2014 try a longer range.'
       : 'The trend needs at least two logged points. A point is recorded only when a plate on a menu has been costed (so an average food cost exists) and a price then changes. Put a costed plate on a menu, then update a price, to start the line.';
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
-      +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
+      +'<p class="hint chart-hint">'+emptyHint+'</p>'+scopeNote+'</div>';
   }
   /* v60 item 1b: the DOMAIN fits the DATA (target excluded), so small margin moves read as movement.
      A minimum span (~5 pts, centred) stops a flat window from magnifying 0.x-pt noise. Ticks derive from
@@ -2754,7 +2767,7 @@ function trendChart(){
      magnitude label drops on any marker within 30 viewBox units of the previous label (several
      markers at 380px must not collide — the scrub tooltip still carries the full sentence), and
      labels sit in the empty padB strip below the plot where nothing can overlap them. */
-  var marks=trendMarkers(pts);
+  var marks=drawingScoped?[]:trendMarkers(pts);   // v115: markers carry all-menus figures — they draw only on the all-menus line (same honesty rule as the since-line)
   var ptsMs=pts.map(function(p){ return ptMs(p); });
   var mkX=function(t){
     if(t<=ptsMs[0]) return xs[0];
@@ -2824,9 +2837,12 @@ function trendChart(){
     :(overCount?('crosses your '+fmtTargetPct()+' target in this range')
     :('under your '+fmtTargetPct()+' target across this range'));
   var capMk=marks.length?(' <span class="mk-note"><span class="mk-dot">●</span> marks changes you made.</span>'):'';
+  // v115: "All menus" prefixes only the all-menus line. A scoped draw says "This menu" — a
+  // reference, not a restatement (the heading owns the NAME, v97's one-statement rule).
+  var capScope=drawingScoped?'This menu':'All menus';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<p class="hint chart-hint">All menus \u00b7 '+capPos+'.'+capMk+'</p></div>';
+    +'<p class="hint chart-hint">'+capScope+' \u00b7 '+capPos+'.'+capMk+'</p>'+scopeNote+'</div>';
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
    Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
@@ -3872,8 +3888,7 @@ function renderDashboard(){
     +sinceLineHtml(scope, pctNow)
     +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
-    +trendChart()
-    +(narrowed?'<p class="hint scope-note">Per-menu history is still building \u2014 this line covers all menus.</p>':'')   // v94: compressed to one hint line (density brief); the honesty is unchanged \u2014 a menu's own trend can't be drawn yet
+    +trendChart(scope)   // v115: the chart owns the scope decision now — it draws the menu's own line when the history exists, and emits the scope-note itself ONLY on the all-menus fallback (v89 honesty, v94 wording, unchanged)
     +'</div></div></div>';
   // v98 revision: the dp-stats tile ("how today's average compares", vs last week/month/year) is
   // DELETED on every width \u2014 it duplicated the chart, and its all-menus figures sat under a heading

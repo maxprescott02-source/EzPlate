@@ -492,14 +492,16 @@ input[type=checkbox]{
 .dot.green{background:var(--good)} .dot.amber{background:var(--warn)}
 .dot.red{background:var(--bad)}   .dot.none{background:var(--border2)}
 /* v68: margin-light filter chips (Menu tab); multi-select toggle buttons.
-   v115: the chip DOTS are gone (they restated the row stripes) — an ACTIVE chip carries its own
-   light on border/text/tint instead of the generic accent, so the colour key survives exactly
-   where it is being used. Idle chips stay neutral: three permanently-coloured chips would shout. */
+   v115 (Max's call, reversing this batch's first draft): the DOTS STAY — they are the only colour
+   key tying Healthy/Watch/Rework to the card stripes, coloured with the same --good/--warn/--bad
+   the cards use. What v115 adds is the ACTIVE state tinting with the chip's own light instead of
+   the generic accent, so a pressed chip and its matching rows read as one system. */
 .mlf{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center}
 .mlf-chip{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:36px;padding:var(--sp-2) var(--sp-3);
   border:1px solid var(--border2);background:var(--surface);color:var(--text2);border-radius:var(--radius-pill);
   font-size:var(--fs-sm);font-weight:600;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
+.mlf-chip .dot{margin:0}
 .mlf-chip:hover{background:var(--hover);color:var(--text)}
 .mlf-chip:active{transform:scale(.96)}
 .mlf-chip.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
@@ -2849,3 +2851,8 @@ html{scrollbar-gutter:stable}
   .line .costs .priceline{flex:0 0 106px}
   .line .costs .leader{min-width:10px}   /* the fresh-states spec holds the leader to ≥10px of visible dots */
 }
+/* v115 (Max): no splash on desktop. The stroke-draw logo earns its moment on a phone's first
+   open; on a desktop window it is a second full-screen gate in front of the boot gate that
+   already reports honestly. The loader script still runs (ez_seen etc.) — the overlay is simply
+   never painted at desktop widths, and its self-removal is unaffected. */
+@media (min-width:701px){ #splash{display:none} }

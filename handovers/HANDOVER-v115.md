@@ -218,6 +218,32 @@ rAF in background tabs**, so the re-tap smooth scroll appears inert when driven 
 unfocused tab. Artifact of the harness, not the app — the switch-path jump (synchronous,
 pre-render) verified working. The phone's active tab always runs rAF.
 
+## Max's same-day additions (same PR, on his instruction)
+
+Four items, sent while the PR waited out a GitHub Actions outage:
+
+1. **No splash on desktop** — one CSS rule (`min-width:701px` hides `#splash`); the loader script
+   and phone behaviour are untouched.
+2. **The chip dots are BACK** (reversing this batch's first-draft removal — Max's call): they are
+   the colour key tying Healthy/Watch/Rework to the card stripes, same `--good/--warn/--bad`. The
+   new light-tinted active state stays on top.
+3+4. **The scoped chart — v89's "stage 2" promise, kept.** "Changing something on a menu doesn't
+   store a change for that menu" was DISPLAY, not storage (his 21:09 dish removal wrote a perfect
+   `dish_removed` row — verified in the table): the chart always drew the all-menus line, where a
+   per-menu move is invisible. Now a narrowed dashboard draws the MENU'S OWN line whenever that
+   menu has ≥2 points in the chosen range (production has 8 per menu since 30 Jul); the fallback —
+   and only the fallback — is the all-menus line with the scope-note, exactly the old behaviour.
+   Caption says "This menu ·" on a scoped draw (a reference, not a restatement — the heading owns
+   the name, v97). **Markers and the since-line stay all-menus-only**: change-log figures ARE the
+   all-menus average, and an all-menus magnitude on a per-menu line would mix two series — the
+   same honesty rule the pre-push review enforced on the since-line. Verified against production:
+   specials draws its own 22.2% line beside the all-menus 21.7%.
+
+   Testing note that cost a few minutes: the SW serves `app.js?v=115` cache-first, so re-serving
+   the working tree under the SAME version number hands the browser the stale build — clear the SW
+   cache when re-testing an unmerged tree. (This is the six-spots discipline seen from the other
+   side.)
+
 ## Needs Max's phone
 
 - **The chart with markers and the since-line at 380px in both themes** — do the drops read as
