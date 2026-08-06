@@ -287,3 +287,20 @@ a fresh open of the app but never on a refresh. Rebuilt as such:
 
 v115 in all six spots (`sw.js` ×3, `index.html` ×2, `APP_VERSION`), pinned by settings.test.js
 and smoke.
+
+## Final state at close (7 Aug 2026, Max's sign-off)
+
+- **Merged as `76f458d` (#67) and verified live on the stable alias**: `ezplate-v115`,
+  `APP_VERSION='v115'`, `?v=115` — all three agree.
+- **The mandatory PR workflow review DID NOT RUN, and this is the recorded exception.** GitHub
+  Actions had a major outage the whole evening (webhooks throttled to ~15%; the PR-opened and
+  ready-for-review events were dropped, along with even the free tests workflow). Max merged on
+  his explicit instruction with that known, then ordered branch cleanup and sign-off — accepting
+  the skipped second reader for this batch. Mitigation that DID happen: the pre-push adversarial
+  review ran on the full diff and its two major findings were fixed and pinned before merge; the
+  suite closed at 756 green, Playwright 100/100, smoke green, plus a real-browser pass against
+  production in both themes. If a retrospective read is ever wanted, the shipped diff is
+  `a735e77..76f458d` — the #58 review-only-PR pattern works on it at any time.
+- Every merged branch deleted, local and remote, after content checks; `main` is the only branch.
+- Max's four same-day additions and the splash rebuild (round two) are in the shipped diff, each
+  verified live against production before push.
