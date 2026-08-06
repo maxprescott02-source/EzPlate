@@ -595,7 +595,10 @@ their commit messages ARE the audit trail ([[running-supabase-migrations-here]])
 - **FIVE history series, deliberately separate — don't merge:** `priceHistory`,
   `menuHistory`, `menuPriceLog`, `ingPriceLog`, and `changeLog`, which is not a
   price series at all: it records decisions, not observations. **Check the writer,
-  not just the reader.**
+  not just the reader.** As of v115 `logHistory` fires on ALL twelve change paths
+  (paths 11's three delete sites are the only SUCCESS-GATED calls — an optimistic
+  point would survive the rollback as a phantom; paths 10/12 must stay AFTER
+  `rebuildMenu()`). `tests/history-paths.test.js` pins the point that lands.
 - **⚠️ `setProduct` is the ONE writer of `ing_price_history`** — nothing else calls
   `logIngPrice`, and the only code touching `productsById` directly is `applyTidy`
   (guarded to `TIDY_COLS`) and `bootstrapSync`. **The condition is the PREVIOUS
@@ -612,8 +615,22 @@ their commit messages ARE the audit trail ([[running-supabase-migrations-here]])
   - **`kind` alone does not answer "did this move menus"** — a save that changes
     the price AND the menu logs `dish_price`; the move is in `detail.menuFrom`/
     `detail.menuTo`, written on both kinds. **Read `detail`, never `kind` alone;**
-  - figures are STORED, not derived: there is no recipe history to reconstruct a
-    plate's build from, so `avg_before`/`avg_after` cannot be recovered later.
+  - figures are STORED, not derived — and they are the ALL-MENUS average. That is
+    why the since-line renders at all-menus scope only, and why the v115 review
+    killed a scoped drift clause that subtracted an all-menus `avgAfter` from a
+    per-menu current: **arithmetic across two series fabricates movement.**
+- **⚠️ The chart now RENDERS the change log** (v115): markers filter on the
+  `avgBefore`/`avgAfter` PRIMITIVES (never `kind`), cluster one-per-day, and have
+  a **LOWER time bound only** — the entry for the change just made lands a beat
+  AFTER `logHistory`'s synchronous trend point (it waits for the carrying write),
+  so an upper bound excludes the feature's headline moment until the next session.
+  `logChange` repaints a visible dashboard via `repaintDashboardIfVisible` — the
+  log's own functions still hold no DOM code (census in change-log.test.js).
+- **⚠️ Chart colour is anchored to the TARGET, not direction** (green = at/under,
+  the Menu-Analysis meaning; sparklines match). The old "green = improving" rule
+  made the chart permanently red during ordinary trading. `tests/trend-reframe.test.js`
+  holds the pair that catches the old condition: rising-under stays green AND
+  falling-over stays red.
 - **⚠️ Gating the last committing action is not a gate.** The invoice review does
   not render at all until the AI referee answers, because a match picked, an
   add-new ticked or a pack taught during the window makes `gemApplyReadings` skip
@@ -636,15 +653,22 @@ their commit messages ARE the audit trail ([[running-supabase-migrations-here]])
 
 **Outstanding, in priority order:**
 
-1. **Phone sign-off on a long run of UX work, none of it device-verified.**
-   Sharpest is the **cold-start penalty** — ~1,138 ms for the first request after
-   idle against 79–152 ms warm, and week-long gaps are Max's NORMAL case. Does the
-   boot gate read as honest or as broken? Does the offline message arrive when the
-   signal drops? Does a refused product delete explain itself? Does the wait for
-   the invoice referee read as progress rather than as a stuck app?
-2. **⚠️ `logHistory` fires on only six of the twelve change paths**, so an
-   ingredient repoint — the cheapest real intervention in the app — puts no point
-   on the food-cost trend line. Pre-existing, not fixed; its own brief.
+1. **Phone sign-off — now including v115's dashboard reframe, none of it
+   device-verified.** The chart with markers and the since-line at 380px in both
+   themes (production currently shows the EMPTY state — green line, no markers —
+   until Max's first save/repoint writes the first change-log entry); the unified
+   loading ring; the 4s patient boot message after a week idle; the re-tap smooth
+   scroll on iOS Safari; the dotless Healthy/Watch/Rework chips; builder rows at
+   380px. Plus the standing items: the cold-start penalty (~1,138 ms first request
+   after idle vs 79–152 ms warm — Supabase waking, NOT app latency; boot is one
+   Promise.all), the offline message, the refused product delete, the invoice
+   referee wait.
+2. **⚠️ A look-only builder visit plants a draft that resurfaces next session** (found
+   by the v115 flow test; v82 machinery, pre-existing). Open a plate, change nothing,
+   close with × → next open greets the user with "Unfinished plate — resume or
+   discard?", and a Resume against a plate that changed elsewhere since could
+   reintroduce stale lines. Wants a "dirty" check before `savePlateDraft` arms.
+   Its own small brief.
 3. **⚠️ `ensurePlateForDish` gives an unlinked row a brand-new EMPTY plate.**
    Correct for a genuinely uncosted row; for one whose real recipe exists it
    leaves that recipe unreferenced. Needs a brief and Max's yes. Note **no path
@@ -666,10 +690,11 @@ their commit messages ARE the audit trail ([[running-supabase-migrations-here]])
    unknown.
 9. Small, each needing a yes: `edDelArmed` is dead (written thrice, never read) ·
    **`ingredients.updated_at` is stale and means nothing — it is NOT history and
-   must never be read as such** · the stale target-line comment in `trendChart` ·
-   the `.chart-hint`/`.scope-note` pair · `.range-btn` is 32px (DEFERRED by Max
-   31 Jul as an OPEN accessibility item, not dropped) · `avgFoodCostForScope`
-   counts dishes whose `menuId` has no By-menu row.
+   must never be read as such** · `.range-btn` is 32px (DEFERRED by Max 31 Jul as
+   an OPEN accessibility item, not dropped) · `avgFoodCostForScope` counts dishes
+   whose `menuId` has no By-menu row · the `priceHistory` wholesale-replace
+   asymmetry at boot (menuHistory merges; priceHistory replaces — a point logged
+   offline is lost at next sync).
 10. Supplier coverage is 18% of used products — the concentration family stays
    silent by design until ~50%. And Max clears the six orphaned `"Document No:"`
    taught packs, then imports one Bidfood invoice to re-teach.

@@ -240,7 +240,7 @@ function withRows(MENU, menusList) {
     function costFromLines(lines){ return Number(lines) || 0; }
     function esc(s){ return (s==null?'':String(s)); }
     var DASH_ALL='all';
-    var menuHistory = {}, priceHistory = [];
+    var menuHistory = {}, priceHistory = [], cogsPct = 30;   // v115: sparklines colour by target now
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
@@ -378,8 +378,6 @@ function withComparisons(MENU, priceHistory) {
     ${extractFn(SRC, 'histInRange')}
     ${extractFn(SRC, 'dashComparisons')}
     ${extractFn(SRC, 'fmtTargetPct')}
-    ${extractFn(SRC, 'scopeHistory')}
-    ${extractFn(SRC, 'scopeTrend')}
     ${extractFn(SRC, 'dashScopeLabel')}
     ${extractFn(SRC, 'verdictHtml')}
     return {

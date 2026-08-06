@@ -306,7 +306,7 @@ input[type=checkbox]{
 }
 .btn:hover{background:var(--hover)}
 .btn:active{transform:scale(.98)}
-.btn.ghost{background:transparent;color:var(--text2);border-color:transparent}
+.btn.ghost{background:transparent;color:var(--text2);border-color:var(--border2)}   /* v115: a ghost keeps its EDGE (was transparent) — on any tinted surface a borderless ghost renders as centred text, not a control (v113, the Link button) */
 .btn.ghost:hover{background:var(--hover);color:var(--text)}
 .btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .btn.primary:hover{background:var(--accent-press);border-color:var(--accent-press)}
@@ -441,21 +441,9 @@ input[type=checkbox]{
 }
 .leader{flex:1;border-bottom:1px dotted var(--border2);transform:translateY(-4px);margin:0 4px}
 .row2{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-3)}
-.alt-btn{
-  border:1px solid var(--border2);background:var(--surface);color:var(--text2);
-  font-size:var(--fs-sm);font-weight:600;padding:7px 13px;border-radius:var(--radius-pill);cursor:pointer;
-  transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease);
-}
-.alt-btn:hover{background:var(--hover);color:var(--text)}
-.cheapest{font-size:var(--fs-sm);color:var(--good);font-weight:700}
-.alts{margin-top:var(--sp-3);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-chip);display:none}
-.alts.open{display:block}
-.alts .ah{font-size:var(--fs-xs);letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);padding:9px 13px;border-bottom:1px solid var(--border);font-weight:700}
-.alt{display:flex;align-items:center;gap:var(--sp-2);padding:10px 13px;border-bottom:1px solid var(--border)}
-.alt:last-child{border-bottom:0}
-.alt .an{flex:1;font-size:13px}
-.alt .au{font-family:var(--mono);font-size:var(--fs-sm);color:var(--text2);white-space:nowrap}
-.save{font-size:var(--fs-xs);color:var(--good);font-weight:700}
+/* v115 tombstone: .alt-btn / .cheapest / .alts / .alt / .save are DELETED — the pre-v34
+   alternatives UI they styled was already dead, and the "Cheaper like-for-like" list that kept
+   .save alive went this batch (see alternatives() in app.js). */
 .use{
   border:0;background:var(--good-bg);color:var(--good);font-weight:700;font-size:12px;
   padding:8px 13px;border-radius:var(--radius-chip);cursor:pointer;min-height:36px;
@@ -503,7 +491,11 @@ input[type=checkbox]{
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:7px;flex:0 0 auto}
 .dot.green{background:var(--good)} .dot.amber{background:var(--warn)}
 .dot.red{background:var(--bad)}   .dot.none{background:var(--border2)}
-/* v68: margin-light filter chips (Menu tab). Reuse the .dot colour-key; multi-select toggle buttons. */
+/* v68: margin-light filter chips (Menu tab); multi-select toggle buttons.
+   v115 (Max's call, reversing this batch's first draft): the DOTS STAY — they are the only colour
+   key tying Healthy/Watch/Rework to the card stripes, coloured with the same --good/--warn/--bad
+   the cards use. What v115 adds is the ACTIVE state tinting with the chip's own light instead of
+   the generic accent, so a pressed chip and its matching rows read as one system. */
 .mlf{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center}
 .mlf-chip{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:36px;padding:var(--sp-2) var(--sp-3);
   border:1px solid var(--border2);background:var(--surface);color:var(--text2);border-radius:var(--radius-pill);
@@ -513,6 +505,9 @@ input[type=checkbox]{
 .mlf-chip:hover{background:var(--hover);color:var(--text)}
 .mlf-chip:active{transform:scale(.96)}
 .mlf-chip.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
+.mlf-chip[data-light="green"].on{background:var(--good-bg);border-color:var(--good);color:var(--good)}
+.mlf-chip[data-light="amber"].on{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.mlf-chip[data-light="red"].on{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
 .mlf-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .vbadge{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap}
 .vbadge.vgood,.vbadge.inrange{color:var(--good)}
@@ -572,11 +567,8 @@ input[type=checkbox]{
 .atable:not(.invtable) td:nth-child(3)::before{content:"Suggested"}
 .atable:not(.invtable) td:nth-child(4)::before{content:"Menu price"}
 .atable:not(.invtable) td:nth-child(5)::before{content:"Variance"}
-/* traffic light pinned to the card corner */
-.atable:not(.invtable) tbody tr:not(.sec) td:nth-child(6){
-  position:absolute;top:14px;right:14px;padding:0;
-}
-.atable:not(.invtable) td:nth-child(6)::before{content:none}
+/* v115: the pip column (td:nth-child(6), the corner-pinned traffic light) is GONE — the row's
+   left stripe (.lt-*) already carried the same light. Tombstone for the deleted rules. */
 
 /* ---- desktop: same markup as a table ---- */
 @media (min-width:640px){
@@ -736,7 +728,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-touch-callout:none;transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}   /* touch-callout:none keeps a long-press from firing the iOS selection menu on this tappable chip. v72: motion on the .sel state change + tap press. */
 .cand-chip:hover{border-color:var(--accent)}
 .cand-chip:active{transform:scale(.96)}
-.cand-chip.sel{background:rgba(184,78,12,.12);border-color:var(--accent);color:var(--accent-ink);font-weight:800}
+.cand-chip.sel{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink);font-weight:800}   /* v115: --accent-weak (was a hardcoded light-theme rgba — dark mode never saw its tint) */
 .cand-chip .cc-pct{font-weight:400;color:var(--muted2);margin-left:2px}
 .cand-chip.sel .cc-pct{color:var(--accent-ink)}
 /* v72 (Max): on mobile the match name was cut off (…) and needed a jarring white toast to read. There's
@@ -1054,8 +1046,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .menu-picker-row select{flex:1 1 auto;min-width:0;padding:9px 12px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
   .menu-new-btn{white-space:nowrap}   /* v52.1 (Max): size comes from .btn — same as + New ingredient / + New product */
   .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
-  .cogs-inline{font-weight:800;color:var(--text)}   /* v52: sizes with the meta line it sits in (the v39 one-size rule, now inherited) */
-  .cogs-read{font:inherit;color:inherit}          /* follows .cogs-inline — the number and the % are one size */
+  /* v115 tombstone: .cogs-inline / .cogs-read deleted — their markup (the .cogs-meta line) went this batch */
   .cogs-in{display:inline-flex;align-items:center;gap:2px}
   .cogs-in input{width:74px;padding:8px 10px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
   .cogs-in .pct{font-weight:700;color:var(--muted2)}
@@ -1087,54 +1078,50 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @media print{#lines .empty::before{display:none}}
 
 /* ----------------------------------------------------------------------
-   24. SPLASH — shown instantly, hidden by the inline loader script
+   24. SPLASH — v115 rebuild (Max): ONE first-open screen that holds until the
+   data has actually arrived from Supabase, replacing the old decorative 3s
+   espresso card that gave up mid-load and handed off to the boot gate (two
+   different screens for one wait). Theme-aware — the old hardcoded #3E2C26
+   flashed dark over a light app. Shows once per SESSION (a same-tab refresh
+   skips it — the inline loader's sessionStorage gate); its status line
+   MIRRORS #bootGateMsg, so the 4s patient message and any error handoff come
+   from one source of truth. The spinner is the v115 unified Supabase ring.
    ---------------------------------------------------------------------- */
 #splash{
-  position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:24px;background:#3E2C26;
-  transition:opacity .35s var(--ease);
+  position:fixed;inset:0;z-index:200;display:flex;
+  align-items:center;justify-content:center;background:var(--bg);
+  transition:opacity .3s var(--ease);
 }
 #splash.hide{opacity:0;pointer-events:none}
-#splash .sp-mark{width:88px;height:88px}
+#splash .sp-card{display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);text-align:center;padding:var(--sp-5)}
+#splash .sp-mark{width:56px;height:56px;color:var(--brand)}
+#splash .sp-mark .track{opacity:.16}
 #splash .sp-mark .arc{
   stroke-dasharray:36.4;stroke-dashoffset:36.4;
-  animation:ez-draw 1.1s var(--ease) .2s forwards;
+  animation:ez-draw 1.1s var(--ease) .15s forwards;
 }
-#splash .sp-word{width:150px}
-#splash .sp-word svg{width:100%;height:auto;display:block}
+#splash .sp-name{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--text)}
+#splash .sp-name .ez{color:var(--accent)}
+#splash .sp-spin{
+  width:22px;height:22px;border-radius:50%;margin-top:var(--sp-2);
+  border:2.5px solid var(--line);border-top-color:var(--accent);
+  animation:bgspin .8s linear infinite;
+}
+#splash .sp-status{margin:0;font-size:var(--fs-sm);color:var(--text2);line-height:1.45;max-width:34ch}
 #splash .sp-tag{
-  margin:0;font-family:var(--ui);font-size:12px;font-weight:600;
-  letter-spacing:.14em;text-transform:uppercase;color:rgba(243,237,229,.55);
+  margin:var(--sp-2) 0 0;font-family:var(--ui);font-size:11px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);
 }
 @keyframes ez-draw{to{stroke-dashoffset:0}}
-@media (prefers-reduced-motion:reduce){#splash .sp-mark .arc{animation:none;stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){
+  #splash .sp-mark .arc{animation:none;stroke-dashoffset:0}
+  #splash .sp-spin{animation:none;border-top-color:var(--line)}
+}
 
-/* ----------------------------------------------------------------------
-   25. EZPLATE DESIGN-SYSTEM ALIASES
-   New component classes for future markup; existing app selectors
-   (.btn.primary, .navbtn, .modal…) are bridged to the same styles above.
-   ---------------------------------------------------------------------- */
-.btn-primary{background:var(--accent);color:var(--on-accent);border:1.5px solid var(--accent);
-  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
-.btn-primary:hover{background:var(--accent-press);border-color:var(--accent-press)}
-.btn-secondary{background:var(--surface);color:var(--text);border:1.5px solid var(--border2);
-  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
-.btn-secondary:hover{background:var(--hover)}
-.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid transparent;
-  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
-.btn-ghost:hover{background:var(--hover);color:var(--text)}
-.btn-danger{background:transparent;color:var(--bad);border:1.5px solid var(--bad);
-  border-radius:var(--radius-ctl);min-height:44px;padding:11px 18px;font-weight:600;cursor:pointer}
-.btn-danger:hover{background:var(--bad);color:#fff}
-.badge{display:inline-flex;align-items:center;gap:var(--sp-2);padding:4px 12px;border-radius:var(--radius-pill);
-  font-size:var(--fs-xs);font-weight:600;background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
-.badge-success{background:var(--good-bg);color:var(--good);border-color:transparent}
-.badge-warning{background:var(--warn-bg);color:var(--warn);border-color:transparent}
-.badge-danger{background:var(--bad-bg);color:var(--bad);border-color:transparent}
-.badge-accent{background:var(--accent-weak);color:var(--accent-ink);border-color:transparent}
-.toast-success{background:var(--good);color:#fff}
-.toast-error{background:var(--bad);color:#fff}
-.toast-warning{background:var(--warn);color:#fff}
+/* v115 tombstone: §25 "design-system aliases" (.btn-primary/.btn-secondary/.btn-ghost/.btn-danger,
+   .badge/.badge-*, .toast-success/-error/-warning) are DELETED — written "for future markup" and
+   referenced by zero markup ever since, a parallel button system that had already drifted (its
+   .btn-ghost carried the same invisible-border defect v113 hit on .btn.ghost). */
 
 /* ============ Ingredients page ============ */
 /* v49: .ing-tools layout retired — it carries the shared .panel-actions class now (v49 batch) */
@@ -1765,8 +1752,7 @@ svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 /* item 4: delete button styling + footer layout */
 .mfoot.ig-foot{display:flex;align-items:center;gap:8px}
 .mfoot.ig-foot .mfoot-spacer{flex:1}
-.btn.danger{color:#b23b2e;border-color:#e6c3bd}
-.btn.danger:hover{background:#b23b2e;color:#fff;border-color:#b23b2e}
+/* v115: the v22 hardcoded .btn.danger pair is deleted — the tokened pair below is the live one */
 
 /* ===== batch 3 / design pass (v24) ===== */
 /* item 2+dark: axis labels live in their own gutter; halo + colour from tokens (both themes) */
@@ -1792,7 +1778,7 @@ svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 /* skill audit: aligned numerals wherever money/percentages column up */
 .num,.total .amt,.lc,.invPrice,.ing-price b,.qtybox input{font-variant-numeric:tabular-nums}
 /* skill audit: pressed feedback + visible keyboard focus (was missing) */
-.btn:active{transform:translateY(1px)}
+/* v115: the translateY(1px) press is gone — .btn:active scale(.98) (§6) is the ONE press language, matching .mlf-chip/.ing-card/.dig-card */
 button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* ===== dashboard+features batch (v25) ===== */
@@ -1907,13 +1893,11 @@ body{overflow-x:clip}
 .range-bar{display:flex;justify-content:flex-end;gap:2px;margin:0 0 6px;padding:2px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:max-content;margin-left:auto}
 .range-btn{border:0;background:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:6px;color:var(--muted2);cursor:pointer}
 .range-btn:hover{color:var(--text)}
-.range-btn.act{background:var(--text);color:var(--bg)}
-/* item 5: headers align with their columns; the key and the row light are pixel-identical */
+.range-btn.act{background:var(--accent-weak);color:var(--accent-ink)}   /* v115: the chip selected-state language (was inverted --text/--bg, the only such highlight in the app) */
+/* item 5: headers align with their columns (v115: the col-6 pip rules are gone with the column) */
 @media (min-width:640px){
   .atable:not(.invtable) th:nth-child(2),.atable:not(.invtable) th:nth-child(3),
   .atable:not(.invtable) th:nth-child(4),.atable:not(.invtable) th:nth-child(5){text-align:right}
-  .atable:not(.invtable) th:nth-child(6),.atable:not(.invtable) tbody td:nth-child(6){text-align:center}
-  .atable:not(.invtable) tbody td:nth-child(6) .dot{margin-right:0}
 }
 .legend .dot,.atable .dot{width:11px;height:11px;border-radius:50%;box-shadow:none;border:0}
 
@@ -1980,12 +1964,12 @@ body{overflow-x:clip}
 /* ===== v31: ingredient-popup alternatives + builder dropdown create affordance (Item 2) ===== */
 .king-alts{margin-top:var(--sp-4);border-top:1px solid var(--border);padding-top:12px}
 .ka-head{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px}
-.ka-cheapest{font-size:var(--fs-sm);color:var(--good,#2E7D32)}
+/* v115: .ka-cheapest and .ka-row .save deleted with the like-for-like list; the .ka-* row kit
+   below stays — renderKingCreateSuggest still builds with it. */
 .ka-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
 .ka-row:first-of-type{border-top:0}
 .ka-name{flex:1;min-width:0;font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis}
 .ka-price{font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--text2)}
-.ka-row .save{font-size:11px;font-weight:700;color:var(--good,#2E7D32);background:rgba(46,125,50,.12);border-radius:5px;padding:1px 6px}
 .ka-row .use{flex:0 0 auto}
 .opt-msg{color:var(--muted2);font-size:var(--fs-sm)}
 .opt-create{color:var(--accent-ink);font-weight:600;cursor:pointer}
@@ -2005,11 +1989,14 @@ body{overflow-x:clip}
 .ptr-ind{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%) translateY(0);z-index:83;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--elev);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
 .ptr-spin{position:relative;width:26px;height:26px;display:block}
 .ptr-ring,.ptr-arc{position:absolute;inset:0;width:100%;height:100%;display:block}
-.ptr-ring{color:var(--brand)}                       /* faint full ring — static, currentColor works in both themes */
+.ptr-ring{color:var(--line)}                        /* v115: the TRACK is --line everywhere a ring waits on Supabase (was --brand) — one ring language with #bootGate and .inv-wait-spin, which run the same fetch */
 .ptr-arc path{stroke:var(--accent)}                 /* orange arc — theme-aware via CSS (SVG presentation attrs can't read a CSS var) */
 .ptr-ind.ready{box-shadow:0 0 0 2px var(--accent-weak), var(--elev-cast)}   /* ring is functional (release affordance) — must survive dark, hence --elev-cast not --elev */
 .ptr-ind.spinning .ptr-arc{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}   /* ONLY the arc spins; the faint ring stays put */
 @keyframes ptr-rot{to{transform:rotate(360deg)}}
+/* v115: §22's blanket reduced-motion rule already catches ptr-rot, but every other Supabase ring is
+   individually guarded — the explicit guard keeps the contract visible where the animation lives. */
+@media (prefers-reduced-motion:reduce){ .ptr-ind.spinning .ptr-arc{animation:none} }
 /* Item 15: while a pull-refresh runs, the spinner owns the top-centre — hide the sync banner so the two don't stack there */
 body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important}
 @media (min-width:701px){ .ptr-ind{display:none} }
@@ -2301,7 +2288,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
 .king-row{cursor:pointer}
 .king-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#kingModalRemove{margin-right:auto;color:var(--bad);border-color:transparent}
+#kingModalRemove{margin-right:auto;color:var(--bad);border-color:var(--bad-bg)}   /* v115: visible edge at rest (same fix as .btn.ghost) */
 #kingModalRemove:hover{border-color:var(--bad)}
 /* item 1: the unified pack control's red required mood — same control, mismatch state */
 .pack-teach.pt-required .pt-group{border-color:var(--bad)}
@@ -2450,7 +2437,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .an-controls{display:flex;flex-direction:column;gap:var(--sp-3);padding-bottom:0}
 .an-controls .menu-picker-row select{font-weight:700}
 .an-controls .ing-controls{padding:0}   /* .an-controls already supplies the gutter; without this the nested row's own sp-5/sp-4 padding double-indents it past the picker row's left edge */
-.cogs-meta{font-size:var(--fs-xs)}
+/* v115 tombstone: .cogs-meta rule deleted with its markup */
 
 /* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
 .atable tbody tr.mi-row{cursor:pointer;transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}
@@ -2514,7 +2501,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    danger hover fill back to the resting outline. Resting styling and desktop (real-hover) fill unchanged. */
 @media (hover:none){
   .btn.danger:hover{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
-  .btn-danger:hover{background:transparent;color:var(--bad);border-color:var(--bad)}
 }
 /* item 6: the always-visible × clear affordance reaches the two modal SEARCH boxes that lacked it —
    the ingredient modal's product-link search (Max's report) and the "add existing dish" picker. Both
@@ -2603,7 +2589,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* Honest AI credit: hidden until applyPhrasedInsights proves Gemini phrased a line that is on
    screen. Template fallback keeps the sparkle (the feature IS AI-assisted) but never this. */
 .ins-credit{display:block;margin:var(--sp-3) 0 0;text-align:right;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:.02em}
-.ins-credit[hidden]{display:none}
+/* v115: the credit's line box is RESERVED (visibility, the .scope-note precedent) — revealing it
+   used to add a whole line to the panel after paint, shifting every panel below. */
+.ins-credit[hidden]{display:block;visibility:hidden}
 
 /* ----- Dig in ----- */
 .dig-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
@@ -2794,7 +2782,7 @@ html{scrollbar-gutter:stable}
 #bootGate.is-error .bg-msg{color:var(--text)}
 #bootGate .bg-spin{
   width:28px; height:28px; border-radius:50%;
-  border:2.5px solid var(--line); border-top-color:var(--text2);
+  border:2.5px solid var(--line); border-top-color:var(--accent);   /* v115: --accent head (was --text2) — one ring language across boot, pull-to-refresh and the invoice wait, which all wait on the same Supabase */
   animation:bgspin .8s linear infinite;
 }
 @keyframes bgspin{to{transform:rotate(360deg)}}
@@ -2838,8 +2826,48 @@ html{scrollbar-gutter:stable}
 .inv-wait-s{font-size:var(--fs-sm);color:var(--muted2);margin-top:2px}
 .inv-wait-spin{
   flex:0 0 auto;width:22px;height:22px;border-radius:50%;
-  border:2.5px solid var(--line);border-top-color:var(--text2);
+  border:2.5px solid var(--line);border-top-color:var(--accent);   /* v115: one ring language (see #bootGate .bg-spin) */
   animation:bgspin .8s linear infinite;
 }
 /* The message carries the meaning; the spinner is decoration. */
 @media (prefers-reduced-motion: reduce){ .inv-wait-spin{animation:none;border-top-color:var(--line)} }
+
+/* ===== batch (v115) — the dashboard the app has been building toward ===== */
+/* Strand 2: the chart reframed. The hero figure grows toward the approved mockup's weight — one
+   deliberate size for the one number the dashboard exists to answer; everything else keeps the
+   token scale. */
+#dashBody .verdict-num{font-size:34px}
+/* The since-line: the achievement, then the gap. The warm tint marks accumulating drift (the thing
+   worth glancing at); .calm drops the tint when there is no drift to report. Deliberately NOT a
+   traffic-light colour — drift is normal trading, not failure (that judgement lives on the chart's
+   over-target band alone). */
+.since{display:block;margin:var(--sp-3) 0 0;padding:9px 12px;
+  border-radius:9px;border-left:2px solid var(--warn);background:var(--warn-bg);
+  font-size:var(--fs-sm);line-height:1.45;color:var(--text)}
+.since b{font-weight:600}
+.since.calm{border-left-color:var(--border2);background:var(--surface2)}
+/* The caption's marker key and the scrub tooltip's marker sentence. */
+.chart-hint .mk-dot{color:var(--accent);font-size:9px;vertical-align:1px}
+.chart-hint .mk-note{display:inline-block}   /* the marker key wraps as one unit, never mid-sentence */
+.tp-tip .tp-mk{display:block;font-size:10px;color:var(--accent);white-space:nowrap}
+/* Strand 3: the Gemini arrival fades in rather than snapping — completion, not replacement. Only
+   the network path adds .ins-swap (see applyPhrasedInsights); cached phrasings land before paint
+   and must not blink on every render. */
+.ins-line.ins-swap,.ins-credit.ins-swap{animation:ins-arrive .28s var(--ease)}
+@keyframes ins-arrive{from{opacity:.15}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .ins-line.ins-swap,.ins-credit.ins-swap{animation:none} }
+/* Strand 4: builder ingredient rows at 380px. Measured, not guessed: the .costs row needs ~328px
+   (qtybox 76+8+32 + priceline 116 + leader 14 + cost ~58 + three 8px gaps) against ~310px of card
+   at a 380px viewport, and neither .qtybox (flex:0 0 auto) nor .priceline (flex:0 0 116px) can
+   shrink — so the price chip and cost escaped the card (Max's screenshot). Every fixed width gives
+   a little back; no wrapping, the dotted-leader line stays one line. */
+@media (max-width:380px){
+  .line{padding:12px}
+  .line .costs{gap:6px}
+  .line .costs .qtybox input{width:64px}
+  .qtybox .u{width:26px}
+  .line .costs .priceline{flex:0 0 106px}
+  .line .costs .leader{min-width:10px}   /* the fresh-states spec holds the leader to ≥10px of visible dots */
+}
+/* v115: the earlier same-batch desktop-hide of #splash was REVERSED by Max the same day — the
+   splash was rebuilt instead (see §24) as the one first-open loading screen on every width. */

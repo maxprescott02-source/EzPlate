@@ -321,7 +321,7 @@ function dbPushChange(e){
 
    `bootReady` is what index.html's splash polls (window.__ezReady) — kept so the two cannot disagree
    about whether the app is usable. */
-var _bootGateDone=false, _bootRetrying=false;
+var _bootGateDone=false, _bootRetrying=false, _bootSlowTimer=null;
 function bootGate(state, msg){
   var g=document.getElementById('bootGate'); if(!g) return;
   var showing=!g.hidden;
@@ -331,9 +331,22 @@ function bootGate(state, msg){
      says it failed. (CodeRabbit — my own test missed this because it never reached 'ok' first.) */
   if(_bootGateDone && state!=='error' && !showing) return;
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
-  if(state==='loading'){ g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…'; return; }
-  if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); return; }
+  if(state==='loading'){
+    g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
+    /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
+       of the fetch) — and week-long gaps are the normal case here, so the patient message is the
+       honest one. Swapped in place after 4s rather than shown up front: a warm boot (200–300ms)
+       never sees it. The timer dies with the gate ('ok'/'error' both clear it). */
+    if(_bootSlowTimer) clearTimeout(_bootSlowTimer);
+    _bootSlowTimer=setTimeout(function(){
+      var g2=document.getElementById('bootGate'), m2=document.getElementById('bootGateMsg');
+      if(g2 && !g2.hidden && !g2.classList.contains('is-error') && m2) m2.textContent='Still loading — the first open after a break takes a little longer.';
+    }, 4000);
+    return;
+  }
+  if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return; }
   // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
+  if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }   // v115 (review): the patient message must never overwrite an error — cleared here, not just guarded
   g.hidden=false; g.classList.add('is-error'); _bootRetrying=false;
   if(m) m.textContent=msg||'Couldn’t load your data.';
   if(r){ r.hidden=false; r.onclick=function(){
@@ -498,7 +511,7 @@ async function bootstrapSync(){
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
-    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; if(typeof syncCogsRead==='function') syncCogsRead(); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }
+    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }   // v115: syncCogsRead gone with the .cogs-meta line
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
     // v81: AI feature toggles round-trip across devices (no row -> the load*() default of ON stands, unchanged behaviour)
@@ -726,17 +739,11 @@ dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o)r
   if(o.dataset.kid){ addKitchenLine(o.dataset.kid); }});   // v59: no create branch
 document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))closeDrop();});
 
-/* ---------- alternatives ---------- */
-function alternatives(p){
-  if(cpbu(p)==null) return {alts:[],cheapest:true};
-  const base=PRODUCTS.filter(x=>x.is_food&&cpbu(x)!=null&&x.base_unit===p.base_unit&&x.id!==p.id);
-  let pool;
-  if(p.item_type){const t=base.filter(x=>x.item_type===p.item_type);pool=t.length>=1?t:base.filter(x=>x.category===p.category);}
-  else pool=base.filter(x=>x.category===p.category);
-  pool.sort((a,b)=>cpbu(a)-cpbu(b));
-  const cheaper=pool.filter(x=>cpbu(x)<cpbu(p));
-  return {alts:pool.slice(0,3), cheapest:cheaper.length===0};
-}
+/* v115: alternatives() ("Cheaper like-for-like") is DELETED with its one call site in
+   renderKingAlts. Matching "like for like" honestly needs semantics this app does not have —
+   unit + category pooling produced confident bad suggestions (a cheaper WRONG product is a worse
+   outcome than no suggestion). The create-mode name suggestions (renderKingCreateSuggest, which
+   shares the #king_alts box) are a different, honest mechanism and STAY. */
 
 /* ---------- plate ---------- */
 let plate=[], uidc=1;
@@ -1038,7 +1045,8 @@ function setCogs(pct, persist){
   pct=Math.max(1,Math.min(99, Math.round(pct))); cogsPct=pct;
   if(persist) dbSetSetting('food_cost_target', pct);       // shared across devices
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+pct+'%)';
-  if(typeof syncCogsRead==='function') syncCogsRead();     // ITEM 6 (v35): the Menu tab's read-only display follows Settings
+  // v115: syncCogsRead (the Menu tab's read-only mirror) is gone with the .cogs-meta line — the
+  // Suggested column header below follows the target via renderAnalysis instead
   renderAnalysis();
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
@@ -1236,15 +1244,20 @@ function rerenderCurrentTab(){                                         // re-run
   try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
 function showTab(t){
+  var _retap=(currentTab()===t);                                       // v115: re-tapping the active tab is a "take me to the top" gesture, not a navigation
   try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  /* v115 (v60 item 5 reworked): the jump used to fire AFTER the render, so a heavy innerHTML rebuild
+     landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
+     SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
+  if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
   ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   if(t==='analysis')renderAnalysis();
   if(t==='ingredients')renderIngredients();
   if(t==='dashboard')renderDashboard();
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
   if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
-  try{ window.scrollTo(0,0); }catch(e){}   // v60 item 5: switching tabs (or re-tapping the current one — showTab runs on every nav click) starts at the top
+  if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
@@ -1308,13 +1321,14 @@ var menuHistSupported=true;
 
 var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')||'3m'; }catch(e){ return '3m'; } })();
 function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
-function dashRangePts(){                                           // the points inside the chosen window (capped for sanity)
+function dashRangePts(series){                                     // the points inside the chosen window (capped for sanity)
+  var src=series||priceHistory;                                    // v115: callable on a per-menu series too (the scoped chart)
   var days={'1w':7,'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
   var cutoff=Date.now()-days*86400000;
-  var pts=days?priceHistory.filter(function(p){
+  var pts=days?src.filter(function(p){
     var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;   // Supabase points arrive as ISO strings; a string is never >= a number
     return tt>=cutoff;
-  }):priceHistory.slice();
+  }):src.slice();
   return pts.slice(-60);
 }
 function rangeBarHtml(){
@@ -1455,6 +1469,7 @@ function logChange(kind, o){
   changeLog.push(e);
   if(changeLog.length>500) changeLog=changeLog.slice(-500);   // the same window priceHistory keeps; the server holds the lot
   if(changeLogSupported) dbPushChange(e);
+  repaintDashboardIfVisible();   // v115 (pre-push review): the dashboard draws this log now, and the entry lands after logHistory's own repaint
   return e;
 }
 /* The success gate, in one place. `write` is whatever pushWrite handed back: a settled promise resolving
@@ -1647,8 +1662,14 @@ function logHistory(){
   }
   logMenuHistory();
   logAllMenuPrices();                                                 // v90: capture any sell price that moved (value-deduped, so this is free when none did)
-  var dash=document.getElementById('tab-dashboard');
-  if(dash && dash.style.display!=='none') renderDashboard();
+  repaintDashboardIfVisible();
+}
+/* v115: the visible-tab repaint, shared by logHistory and logChange. logChange needs it because the
+   dashboard now RENDERS the change log (markers + since-line), and an entry lands only when its
+   carrying write settles — a beat after logHistory's synchronous repaint — so a user sitting on the
+   Dashboard would otherwise see the surface one entry stale until their next navigation. */
+function repaintDashboardIfVisible(){
+  try{ var dash=document.getElementById('tab-dashboard'); if(dash && dash.style.display!=='none') renderDashboard(); }catch(_){ }
 }
 /* v89: the same point-logging contract as logHistory, once per menu that has costed, priced plates.
    Deduped per series (a menu whose figure hasn't moved doesn't stipple its own line), capped per series,
@@ -2230,30 +2251,13 @@ function toggleKingWizard(){ kingWizOpen=!kingWizOpen; if(kingWizOpen) kingWizLi
 function closeKingWizard(){ if(!kingWizOpen) return; kingWizOpen=false; renderKingWizard(); }   // v61 item 4: the single close path — keeps kingWizOpen in sync with the modal (× / Escape / backdrop all route here)
 /* ---- create / change-product modal (Name + product search-select) ---- */
 var kingEditId=null, kingChosenPid=null, kingAddToPlateOnSave=false;
-function renderKingAlts(){                                            // "Cheaper like-for-like" — only in change-product (edit) mode, compared vs the CURRENT link
+function renderKingAlts(){
+  // v115: the edit-mode "Cheaper like-for-like" list is GONE (see the alternatives() tombstone
+  // above the plate section). Create mode keeps its name-based suggestions; edit mode now just
+  // clears the shared box.
   var box=document.getElementById('king_alts'); if(!box) return;
   if(!kingEditId){ renderKingCreateSuggest(); return; }              // ITEM 2b (v34): create mode reuses this box for name-based suggestions
-  var k=kById[kingEditId]; var base=k?byId[k.pid]:null;
-  if(!base){ box.style.display='none'; box.innerHTML=''; return; }
-  var res=alternatives(base);
-  if(res.cheapest || !res.alts.length){
-    box.innerHTML='<div class="ka-head">Cheaper like-for-like</div><div class="ka-cheapest">\u2713 Already the cheapest of its type</div>';
-    box.style.display='block'; return;
-  }
-  var rows=res.alts.map(function(a){
-    var sv=(cpbu(base)!=null&&cpbu(a)<cpbu(base))?Math.round((1-cpbu(a)/cpbu(base))*100):0;
-    return '<div class="ka-row"><span class="ka-name">'+esc(a.description)+(a.brand?' <span class="ca">'+esc(a.brand)+'</span>':'')+'</span>'
-      +'<span class="ka-price">'+esc(unitCostStr(a))+'</span>'+(sv>0?'<span class="save">\u2212'+sv+'%</span>':'')
-      +'<button class="use" type="button" data-pid="'+esc(a.id)+'">Use</button></div>';
-  }).join('');
-  box.innerHTML='<div class="ka-head">Cheaper like-for-like (by '+(base.base_unit==='ea'?'unit':base.base_unit==='ml'?'litre':'kg')+')</div>'+rows;
-  box.style.display='block';
-  box.querySelectorAll('.use').forEach(function(b){ b.addEventListener('click',function(){
-    var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
-    kingChosenPid=pid;                                               // behaves exactly like picking from search — Save + unit guard still apply
-    var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
-    kingSyncSave();
-  }); });
+  box.style.display='none'; box.innerHTML='';
 }
 /* ITEM 2b (v34): create mode — typing "Chips" immediately offers the top product matches, one tap links it.
    Reuses rankCandidates (the invoice matcher) read-only; nothing in the protected region is modified. */
@@ -2375,6 +2379,7 @@ function saveKingModal(){
       var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
       if(moved) logChangeIfSaved(write, 'ingredient_repointed', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
         detail:{name:chk.name, from:(byId[oldPid]||{}).description||null, to:(np||{}).description||null, plates:hit.length}});
+      if(moved) logHistory();   // v115 path 2: a repoint moves every plate that cooks with it — the trend line must move too. Inside if(moved): a rename is display-only and must not stipple the line.
       toast(moved?(renamed?'Ingredient updated':'Product changed'):'Ingredient renamed'); };
     if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
       closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
@@ -2420,6 +2425,7 @@ function deleteKitchenIngredient(kid){
     var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Ingredient removed');
     logChangeIfSaved(write, 'ingredient_deleted', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
       detail:{name:k.name||null, plates:hit.length}});
+    logHistory();   // v115 path 5: the drop this records is real but has no saving behind it (see the comment above) — the change-log entry is what explains it later
   });
 }
 (function(){
@@ -2592,8 +2598,97 @@ function axCharW(){
   }catch(e){ AX_CHW=6.6; }                                       // no canvas (jsdom): a Menlo-ish estimate
   return AX_CHW;
 }
-function trendChart(){
-  var pts=dashRangePts();
+/* ===== v115: the chart reframed — colour anchored to TARGET, drops marked as Max's own work =====
+   The line was permanently red: ingredient prices drift up continuously and the number only falls
+   when the user intervenes, so colouring by direction reported failure during the ordinary running
+   of a café. Colour now means what it means on Menu Analysis — at or under target is green — and
+   the sawtooth's drops are labelled as the user's interventions, drawn from the change log. */
+/* Markers are DISPLAY decisions over a complete log (the data keeps everything):
+   - only entries whose avgBefore/avgAfter PRIMITIVES show a fall get a marker — never keyed on
+     `kind`, because a combined price-and-menu edit logs `dish_price` and a kind filter would miss
+     it (v114: read detail/primitives, never kind alone). Cost-RAISING interventions stay in the
+     log, off the chart.
+   - ONE marker per calendar day: the invoice repoint loop writes one entry per ingredient in a
+     single confirm, and the line itself dedups within the hour — per-entry markers would draw a
+     picket fence under one decision. The day's magnitude is the summed fall.
+   - an entry naming a DELETED plate draws like any other (markers aggregate by day and never name
+     plates; the movement was real), and entries describing a state a restore rolled back draw too
+     — a restore does not un-happen an intervention (v114). */
+function trendMarkers(pts){
+  if(!pts || pts.length<2) return [];
+  if(typeof changeLog==='undefined' || !changeLog || !changeLog.length) return [];
+  var t0=ptMs(pts[0]), t1=ptMs(pts[pts.length-1]);
+  var days={}, out=[];
+  changeLog.forEach(function(e){
+    if(!e || typeof e.avgBefore!=='number' || typeof e.avgAfter!=='number') return;
+    if(!isFinite(e.avgBefore) || !isFinite(e.avgAfter)) return;
+    var drop=e.avgBefore-e.avgAfter;
+    if(!(drop>0.001)) return;
+    /* Lower bound only (pre-push review, v115): the entry for the change Max JUST made is written
+       when its server write settles, so its timestamp lands a beat AFTER the trend point logHistory
+       pushed synchronously — an upper bound of t1 excluded exactly the marker the feature exists to
+       show, until some future point arrived (typically next session). An entry newer than all data
+       is "now": mkX clamps it to the line's right end. */
+    if(e.t<t0) return;
+    var d=new Date(e.t), key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+    if(!days[key]){ days[key]={t:e.t, drop:0, count:0}; out.push(days[key]); }
+    if(e.t>days[key].t) days[key].t=e.t;
+    days[key].drop+=drop; days[key].count++;
+  });
+  out.sort(function(a,b){ return a.t-b.t; });
+  return out;
+}
+/* The latest change-log entry with usable figures. Used by the since-line, not the markers. */
+function lastChangeEntry(){
+  if(typeof changeLog==='undefined' || !changeLog) return null;
+  var best=null;
+  changeLog.forEach(function(e){
+    if(!e || typeof e.avgBefore!=='number' || typeof e.avgAfter!=='number') return;
+    if(!isFinite(e.avgBefore) || !isFinite(e.avgAfter)) return;
+    if(!best || e.t>best.t) best=e;
+  });
+  return best;
+}
+/* v115 — the signature line: the achievement, then the gap. DELIBERATELY silent on the fix
+   (portions, products, suppliers, prices are all Max's call — chefs reprice least of all, because
+   reprints cost money; naming any one of them would be prescribing, which this app does not do).
+   Omitted entirely when the log has nothing usable — an empty state, not a fault.
+   ⚠️ ALL-MENUS ONLY (pre-push review, v115): every entry's avgBefore/avgAfter IS
+   computeAvgFoodCost(), the all-menus series — subtracting it from a per-menu current would
+   fabricate drift out of the gap between two different series (all-menus 30, Winter 45 → a
+   phantom "up 15 pts"). The v89 scope-honesty rule: a figure the app can't stand behind isn't
+   shown. So a narrowed dashboard renders no since-line at all, same spirit as the chart's own
+   scope-note one tile below. */
+function sinceLineHtml(scope, current){
+  if(scope && scope!==DASH_ALL) return '';
+  var e=lastChangeEntry();
+  if(!e || current==null) return '';
+  var drop=e.avgBefore-e.avgAfter;
+  var ageDays=(Date.now()-e.t)/86400000;
+  var lead;
+  if(ageDays>=14){ var wks=Math.round(ageDays/7); lead='No changes for '+wks+' week'+(wks===1?'':'s')+'.'; }
+  else if(drop>0.05) lead='Your last change cut '+drop.toFixed(1)+' pts.';   // same figure style as the anchor line above it
+  else lead='Your last change was '+(ageDays<1.5?'today':Math.round(ageDays)+' days ago')+'.';
+  var drift=current-e.avgAfter, gap='';
+  if(drift>=0.1) gap=' Costs up '+drift.toFixed(1)+' pts since.';
+  else if(drift<=-0.1) gap=' Costs down '+(-drift).toFixed(1)+' pts since.';
+  var calm=drift<0.1;   // the warm tint marks accumulating drift; a line with no drift sits quiet
+  return '<p class="since'+(calm?' calm':'')+'"><b>'+esc(lead)+'</b>'+esc(gap)+'</p>';
+}
+function trendChart(scope){
+  /* v115 stage 2 — the promise the v89 comment made ("Stage 2 gives it the two-line chart once the
+     history exists"): per-menu history has been recording since v89 and now holds real points, so a
+     narrowed dashboard draws the MENU'S OWN line whenever that menu has two points in the chosen
+     range. The fallback — and ONLY the fallback — is the all-menus line with the scope-note; a menu
+     whose history is still building keeps the exact v94 behaviour. Markers and the "All menus ·"
+     caption prefix belong to the all-menus series alone: change-log figures ARE the all-menus
+     average (see sinceLineHtml), so a marker on a per-menu line would mix two series. */
+  var narrowed=!!(scope && scope!==DASH_ALL);
+  var scopedPts=narrowed?dashRangePts((typeof menuHistory!=='undefined'&&menuHistory&&menuHistory[scope])||[]):null;
+  var drawingScoped=!!(scopedPts && scopedPts.length>=2);
+  var pts=drawingScoped?scopedPts:dashRangePts();
+  var fellBack=narrowed&&!drawingScoped;
+  var scopeNote=fellBack?'<p class="hint scope-note">Per-menu history is still building — this line covers all menus.</p>':'';
   /* v52 GUTTER GEOMETRY — v51 removed the left gutter so the curve could start at the card's
      text column, but that drew the plot (fill dots, line) UNDERNEATH the y-axis labels (Max's
      screenshot: dots surrounding "10%"). The structural fix: ONE gutter constant that every
@@ -2615,7 +2710,7 @@ function trendChart(){
       ? 'No points in this range yet \u2014 try a longer range.'
       : 'The trend needs at least two logged points. A point is recorded only when a plate on a menu has been costed (so an average food cost exists) and a price then changes. Put a costed plate on a menu, then update a price, to start the line.';
     return '<div class="dash-chart empty"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Food cost trend"></svg>'
-      +'<p class="hint chart-hint">'+emptyHint+'</p></div>';
+      +'<p class="hint chart-hint">'+emptyHint+'</p>'+scopeNote+'</div>';
   }
   /* v60 item 1b: the DOMAIN fits the DATA (target excluded), so small margin moves read as movement.
      A minimum span (~5 pts, centred) stops a flat window from magnifying 0.x-pt noise. Ticks derive from
@@ -2644,17 +2739,58 @@ function trendChart(){
   pts.forEach(function(p,i){ xs.push(x(i)); ys.push(y(p.v)); });
   var tan=tcTangents(xs,ys);
   var d=tcPath(xs,ys,tan);                                       // v47: smooth monotone curve (was straight polyline segments)
-  var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
-  var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
-  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
+  /* v115 — colour is anchored to the TARGET, not to direction (supersedes the v47 "green = improving"
+     semantic and its never-change note, deliberately: direction-colouring made the chart permanently
+     red, because prices only drift up between interventions — it told the user he was failing during
+     the ordinary running of a café). Green now means what it has always meant on Menu Analysis: at or
+     under target. Rising-but-under stays green; the judgement about drift lives in the over-target
+     band and the since-line, not in the line's slope. */
+  var latest=pts[pts.length-1].v;
+  var overNow=latest>cogsPct+0.05;
+  var stroke=overNow?'var(--bad)':'var(--good)';
   // v61 item 6 (SUPERSEDES v60's edge-annotation half): the dashed target rule renders only when the target
   // is inside the domain (or within one tick, per targetInView). When it's outside, NOTHING is drawn — no edge
   // marker, no arrow. The user knows their own target; the line's only job is to warn as costs approach it.
-  var refLine='';
+  var refLine='', band='';
   if(targetShown){
-    var refY=y(cogsPct).toFixed(1);
-    refLine='<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
+    var refYn=y(cogsPct);
+    refLine='<line class="ref-line" x1="'+padL+'" y1="'+refYn.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+refYn.toFixed(1)+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
+    // v115: the over-target zone — a faint wash above the target line, so the red has somewhere to
+    // live and the line itself stops carrying the judgement. Clamped to the plot; absent when the
+    // target sits above the domain (nothing over target to shade).
+    var bandBot=Math.min(Math.max(refYn,padT),H-padB);
+    if(bandBot>padT+1) band='<rect class="over-band" x="'+padL+'" y="'+padT+'" width="'+(W-padL-padR)+'" height="'+(bandBot-padT).toFixed(1)+'" fill="var(--bad)" opacity="0.07"/>';
   }
+  /* v115 — the intervention markers (see trendMarkers above for the display rules). The x-axis is
+     INDEX-spaced, not time-scaled, so a marker's time is interpolated between its neighbouring
+     readings; y rides the rendered curve via tcYAt, same as the scrub dot. Dots always draw; the
+     magnitude label drops on any marker within 30 viewBox units of the previous label (several
+     markers at 380px must not collide — the scrub tooltip still carries the full sentence), and
+     labels sit in the empty padB strip below the plot where nothing can overlap them. */
+  var marks=drawingScoped?[]:trendMarkers(pts);   // v115: markers carry all-menus figures — they draw only on the all-menus line (same honesty rule as the since-line)
+  var ptsMs=pts.map(function(p){ return ptMs(p); });
+  var mkX=function(t){
+    if(t<=ptsMs[0]) return xs[0];
+    for(var i=1;i<ptsMs.length;i++){
+      if(t<=ptsMs[i]){
+        var f=(ptsMs[i]===ptsMs[i-1])?1:(t-ptsMs[i-1])/(ptsMs[i]-ptsMs[i-1]);
+        return xs[i-1]+(xs[i]-xs[i-1])*f;
+      }
+    }
+    return xs[xs.length-1];
+  };
+  var mkGuides='', mkDots='', mkLabels='', mkGeo=[], lastLblX=-1e9;
+  marks.forEach(function(mk){
+    var mx=mkX(mk.t), my=tcYAt(xs,ys,tan,mx);
+    mkGuides+='<line x1="'+mx.toFixed(1)+'" y1="'+padT+'" x2="'+mx.toFixed(1)+'" y2="'+(H-padB)+'" stroke="var(--border)" stroke-width="1"/>';
+    mkDots+='<circle class="mk-pt" cx="'+mx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>';
+    var mag=Math.round(mk.drop*10)/10;
+    if(mag>=0.1 && mx-lastLblX>=30){
+      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+'</text>';
+      lastLblX=mx;
+    }
+    mkGeo.push({x:mx, drop:mk.drop, count:mk.count});
+  });
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   /* v94 polish (SUPERSEDES the v47 dotted texture, its v94 opacity tweak and the fade mask — do
      not restore them): the area under the curve is a smooth translucent gradient of the semantic
@@ -2668,8 +2804,10 @@ function trendChart(){
   // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
   // value so the target tick sits exactly on the dashed rule (v48 invariant, pinned).
   var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-axGap)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmtTick(v)+'</text>'; }).join('');
-  var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
-  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
+  // v115: the words follow the colour — position against target, plus the markers, not direction.
+  var posWord=overNow?('over your '+fmtTargetPct()+' target'):('under your '+fmtTargetPct()+' target');
+  var ariaMk=marks.length?(', with '+marks.length+' marked change'+(marks.length===1?'':'s')+' you made'):'';
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, currently '+posWord+ariaMk+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
     // v94 polish: the area gradient — semantic line colour at 18% under the curve, transparent at
     // the plot floor. Anchored to the plot's Y extents (userSpaceOnUse) so it reads identically on
@@ -2679,20 +2817,32 @@ function trendChart(){
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'
+    +band      // v115: under everything — the wash is context, never chrome
     +refLine   // v60 item 1b: present only when the target is inside the domain
+    +mkGuides  // v115: marker hairlines sit behind the curve, like gridlines
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +mkDots+mkLabels   // v115: marker dots ride the curve OUTSIDE the scrub clip groups (they must not dim), labels live in the empty padB strip
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
     +'</svg>';
-  TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB};
+  TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB, marks:mkGeo};
+  /* v115 caption — states the position against the TARGET, never a direction verdict ("trending up"
+     told the user he was failing while prices did what prices do). "All menus" stays: the v89 scope
+     honesty is unchanged — this series covers every menu. The marker sentence appears once, here,
+     so the marks themselves need no per-marker wording (they carry only a magnitude). */
+  var overCount=0; pts.forEach(function(p){ if(p.v>cogsPct+0.05) overCount++; });
+  var capPos=(overCount===pts.length)?('over your '+fmtTargetPct()+' target across this range')
+    :(overCount?('crosses your '+fmtTargetPct()+' target in this range')
+    :('under your '+fmtTargetPct()+' target across this range'));
+  var capMk=marks.length?(' <span class="mk-note"><span class="mk-dot">●</span> marks changes you made.</span>'):'';
+  // v115: "All menus" prefixes only the all-menus line. A scoped draw says "This menu" — a
+  // reference, not a restatement (the heading owns the NAME, v97's one-statement rule).
+  var capScope=drawingScoped?'This menu':'All menus';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    // v89 COPY ONLY (no geometry touched): "across the menu" said the singular when the app has always
-    // allowed several, and now that a scope selector sits above this line the ambiguity actively misleads
-    // \u2014 it reads as though it describes the selected menu. The series is, and always was, every menu.
-    +'<p class="hint chart-hint">All menus \u00b7 '+trendWord+'.</p></div>';   // v94: one compact hint line (density brief), same meaning kept \u2014 the series covers every menu (v89 scope honesty) + the direction. v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
+    +'<p class="hint chart-hint">'+capScope+' \u00b7 '+capPos+'.'+capMk+'</p>'+scopeNote+'</div>';
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
    Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
@@ -3525,16 +3675,28 @@ function gemPhraseInsights(insights, scopeKey){
       c2[mk]={period:period, sig:sig, lines:lines, refined:refined};
       Object.keys(c2).forEach(function(k){ if(!c2[k] || c2[k].period<period-1) delete c2[k]; });   // prune stale periods
       insightCacheWrite(c2);
-      applyPhrasedInsights(lines, insights, refined);
+      applyPhrasedInsights(lines, insights, refined, true);         // v115: the network path is the only one that lands AFTER paint — it alone animates
     })
     .catch(function(){ clearTimeout(timer); release(); });          // any failure → templates already shown; free the key so a later render may retry
 }
-function applyPhrasedInsights(lines, insights, refined){
+/* v115 — the swap reads as COMPLETION, not replacement. Three mechanisms made it flash: the
+   post-paint textContent rewrite, the credit line appearing (a whole new line box shifted the
+   panel and every panel below it), and the resulting grid reflow. The credit's space is now
+   RESERVED in CSS (visibility, the .scope-note precedent), and the network path alone fades its
+   rewritten lines in (`animate` — the cache/session paths run synchronously before paint, where a
+   fade would just make every dashboard render blink). The local pass still renders first and
+   unchanged: it is the offline/failure state, and its content is correct — only its transition
+   was the glitch. */
+function applyPhrasedInsights(lines, insights, refined, animate){
   try{
     var host=document.getElementById('dashInsBody'); if(!host) return;
     if(insightSig(insights)!==host.getAttribute('data-sig')) return;   // the scope moved on → don't overwrite
-    lines.forEach(function(t,ix){ var el=host.querySelector('.ins-line[data-ix="'+ix+'"]'); if(el) el.textContent=t; });
-    if(refined){ var c=host.querySelector('.ins-credit'); if(c) c.hidden=false; }   // v68: reveal the credit ONLY when Gemini truly phrased a shown line
+    lines.forEach(function(t,ix){
+      var el=host.querySelector('.ins-line[data-ix="'+ix+'"]'); if(!el) return;
+      if(animate && el.textContent!==t){ el.classList.remove('ins-swap'); void el.offsetWidth; el.classList.add('ins-swap'); }
+      el.textContent=t;
+    });
+    if(refined){ var c=host.querySelector('.ins-credit'); if(c){ c.hidden=false; if(animate) c.classList.add('ins-swap'); } }   // v68: reveal the credit ONLY when Gemini truly phrased a shown line
   }catch(e){}
 }
 /* ===== v90: insights live on the DASHBOARD, inline ==========================================
@@ -3582,22 +3744,12 @@ function dashInsightsHtml(scope){
    The Dashboard is the manager's surface — "am I OK?" — where every other tab serves the chef
    building things. These three pieces answer it for a chosen scope. */
 function fmtTargetPct(){ return (cogsPct%1?cogsPct.toFixed(1):cogsPct.toFixed(0))+'%'; }
-function scopeHistory(scope){ return (scope===DASH_ALL)?priceHistory:((menuHistory&&menuHistory[scope])||[]); }
-/* Trend direction for the verdict line: today vs the last 7 days' average of the same series. (Until the
-   v98 revision this was deliberately the same comparison the vs-last-week stat card used, so the two could
-   never disagree; the compares block is gone but the definition stays — it is the honest short horizon.)
-   Returns null when that scope has no history to compare against — the clause is then omitted rather
-   than shown flat, because "→ steady" against no data is a claim we can't make. */
-function scopeTrend(scope, current){
-  if(current==null) return null;
-  var from=Date.now()-7*86400000;
-  var vals=scopeHistory(scope).filter(function(h){ return ptMs(h)>=from; }).map(function(h){return h.v;});
-  var base=avgOf(vals);
-  if(base==null) return null;
-  var d=current-base;                                                // food cost down = good
-  if(Math.abs(d)<0.05) return {cls:'flat', arrow:'→', word:'holding steady'};
-  return (d<0)?{cls:'good', arrow:'↓', word:'improving'}:{cls:'bad', arrow:'↑', word:'creeping up'};
-}
+/* v115: scopeTrend AND scopeHistory (its only feeder) are DELETED, not hidden (tombstone so the
+   names stay greppable). scopeTrend coloured a
+   direction verdict — "↑ creeping up" in red — onto the headline, which is the same failure the
+   chart's direction-colouring had: rising is the ordinary state of ingredient prices, so the clause
+   reported failure during normal trading. Position-vs-target lives in the verdict number and the
+   anchor line; drift is carried by the since-line (sinceLineHtml), which is neutral about the fix. */
 /* v97: .verdict-cap is GONE — the scope now lives in this card's heading (see renderDashboard), stated once.
    dashScopeLabel itself stays: the Dig-in cards still subtitle themselves with it, and they are a separate
    panel from the card that owns the number and the chart.
@@ -3614,10 +3766,9 @@ function verdictHtml(scope, cmp){
   var vs=(Math.abs(d)<0.05)
     ? ('bang on your '+fmtTargetPct()+' target')
     : (Math.abs(d).toFixed(1)+' pts '+(d<0?'under':'over')+' your '+fmtTargetPct()+' target');
-  var tr=scopeTrend(scope, pct);
+  // v115: the direction clause (scopeTrend) is gone — see the tombstone above scopeHistory.
   return '<div class="verdict"><span class="verdict-num '+cls+'">'+pct.toFixed(1)+'%</span></div>'
-    +'<p class="verdict-line">'+esc(vs)
-    +(tr?(' · <b class="verdict-trend '+tr.cls+'">'+tr.arrow+' '+esc(tr.word)+'</b>'):'')+'</p>';
+    +'<p class="verdict-line">'+esc(vs)+'</p>';
 }
 /* v96: dashScopeSelectorHtml is DELETED, not hidden. It was a native <select> in a .menu-picker-row
    that set dashScope — the same value the By-menu rows below it already set. The list is now the only
@@ -3644,8 +3795,10 @@ function mcmpSparkSeries(h){
   var xy=pts.map(function(p,i){
     return (P+(W-2*P)*(i/(pts.length-1))).toFixed(1)+','+(P+(H-2*P)*(1-(p.v-mn)/(mx-mn))).toFixed(1);
   }).join(' ');
-  var d=vs[vs.length-1]-vs[0];
-  var cls=(d<-0.05)?'good':(d>0.05)?'bad':'flat';
+  // v115: colour anchored to TARGET, matching the chart above (was direction: fell = good). A menu
+  // whose latest average sits at or under target is green however it got there — otherwise the
+  // By-menu list contradicts the chart it sits beside.
+  var cls=(vs[vs.length-1]<=cogsPct+0.05)?'good':'bad';
   return '<svg class="mcmp-spark '+cls+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" focusable="false">'
     +'<polyline points="'+xy+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
@@ -3726,13 +3879,16 @@ function renderDashboard(){
      reading order (verdict \u2192 chart \u2192 compares); desktop CSS reorders the card to the grid
      brief's number \u2192 compares \u2192 trend via `order`, so the phone stack is untouched. TILE
      COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
+  // v115: the since-line renders HERE rather than inside verdictHtml so the pure verdict block (and
+  // its extraction sandbox) stays free of the change log's globals.
+  var pctNow=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
   var html='<div class="panel dash-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
     +verdictHtml(scope, cmp)
+    +sinceLineHtml(scope, pctNow)
     +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
-    +trendChart()
-    +(narrowed?'<p class="hint scope-note">Per-menu history is still building \u2014 this line covers all menus.</p>':'')   // v94: compressed to one hint line (density brief); the honesty is unchanged \u2014 a menu's own trend can't be drawn yet
+    +trendChart(scope)   // v115: the chart owns the scope decision now — it draws the menu's own line when the history exists, and emits the scope-note itself ONLY on the all-menus fallback (v89 honesty, v94 wording, unchanged)
     +'</div></div></div>';
   // v98 revision: the dp-stats tile ("how today's average compares", vs last week/month/year) is
   // DELETED on every width \u2014 it duplicated the chart, and its all-menus figures sat under a heading
@@ -3764,7 +3920,7 @@ function renderDashboard(){
     var cross=svg.querySelector('#tcCross'), dot=svg.querySelector('#tcDot'),
         rb=svg.querySelector('#tcRectB'), rd=svg.querySelector('#tcRectD');
     if(!cross||!dot||!rb||!rd) return;
-    var n=g.xs.length, stepW=(g.W-g.padL-g.padR)/(n-1), lastIdx=-1, raf=0, pending=null, active=false;
+    var n=g.xs.length, stepW=(g.W-g.padL-g.padR)/(n-1), lastIdx=-1, lastMk=-1, raf=0, pending=null, active=false;
     function showAt(vx){                                             // vx in viewBox units, already clamped to the plot
       active=true;
       var vy=tcYAt(g.xs,g.ys,g.tan,vx);                              // the dot rides the RENDERED curve continuously…
@@ -3773,11 +3929,17 @@ function renderDashboard(){
       rb.setAttribute('width',Math.max(0,vx).toFixed(1));            // bright behind the cursor…
       rd.setAttribute('x',vx.toFixed(1)); rd.setAttribute('width',Math.max(0,g.W-vx).toFixed(1));   // …dimmed ahead of it
       var idx=Math.max(0,Math.min(n-1,Math.round((vx-g.padL)/stepW)));
-      if(idx!==lastIdx){                                             // …but the REPORTED value snaps to the nearest real reading
-        lastIdx=idx;
+      // v115: scrubbing near a marker carries the full sentence the marker's bare dot cannot — this
+      // is what lets the magnitude labels thin out at 380px without losing anything.
+      var mkNear=null, mi;
+      if(g.marks) for(mi=0; mi<g.marks.length; mi++){ if(Math.abs(vx-g.marks[mi].x)<=12){ mkNear=g.marks[mi]; break; } }
+      var mkKey=mkNear?Math.round(mkNear.x):-1;
+      if(idx!==lastIdx || mkKey!==lastMk){                           // …but the REPORTED value snaps to the nearest real reading
+        lastIdx=idx; lastMk=mkKey;
         var p=g.pts[idx];
         var when=p.t?new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):('reading #'+(idx+1));
-        tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>';
+        tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>'
+          +(mkNear?('<span class="tp-mk">You made '+(mkNear.count>1?mkNear.count+' changes':'a change')+' — down '+(Math.round(mkNear.drop*10)/10)+' pts</span>'):'');
       }
       tip.classList.add('show'); tip.setAttribute('aria-hidden','false');
       var rect=svg.getBoundingClientRect(), sx=rect.width/g.W, sy=rect.height/g.H;
@@ -3856,7 +4018,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v114';
+var APP_VERSION='v115';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4005,9 +4167,8 @@ function applyTidy(){
   renderTidyValues();
   toast((action==='clear'?'Cleared':action==='merge'?'Merged':'Renamed')+' '+field+' '+tidyBlast(plan));
 }
-function syncCogsRead(){                                              // the Menu tab's read-only mirror of the target
-  var r=document.getElementById('cogsTargetRead'); if(r) r.textContent=cogsPct;
-}
+/* v115: syncCogsRead is DELETED with its subject — the Menu tab's .cogs-meta line (and its
+   #cogsTargetRead mirror) is gone; the Suggested column header carries the live target %. */
 /* Export backup — client-side only, no server round-trip. Seven data groups, matching
    what bootstrapSync pulls: products, kitchen words, plates, menu items,
    the per-ingredient price log, supplier memory, settings. Deliberately a plain JSON dump:
@@ -4332,7 +4493,7 @@ function clearCacheAndRefresh(){
 (function(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
-  on('cogsToSettings',openSettings);                                // the Menu tab's "Change it in Settings"
+  // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
      Upload-PDF pattern. `value=''` before opening the picker so choosing the SAME file twice
@@ -4346,7 +4507,7 @@ function clearCacheAndRefresh(){
   var sp=document.getElementById('settingsPanel');
   if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
   var ci=document.getElementById('setCogsInput');
-  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); syncCogsRead(); } });   // setCogs already re-renders every consumer
+  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs already re-renders every consumer (v115: syncCogsRead gone)
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: section nav (sidebar / drill-down) + the mobile back arrow
@@ -4385,7 +4546,6 @@ function clearCacheAndRefresh(){
     openTidyManage(s.dataset.tidyField||'category');
   }, true);
 })();
-syncCogsRead();
 
 /* ===== PWA: service worker registration ===== */
 if ('serviceWorker' in navigator) {
@@ -4730,6 +4890,7 @@ function deletePlate(id){
       if(r.dishesOk && r.plateOk){
         logChange('plate_deleted', {plateId:id, menuIds:menuIds, avgBefore:avgBefore,
           detail:{name:nm, dishes:dishIds.length, lines:lineCount}});
+        logHistory();   // v115 path 11: success-gated, unlike the optimistic call sites — the in-memory delete precedes the await (the avg is already the AFTER figure), and an optimistic point would survive rollbackPlateDelete as a phantom drop
         toast('“'+nm+'” deleted'); return;
       }
       rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
@@ -4783,6 +4944,7 @@ function mmRemove(dishId){
   rebuildMenu(); buildMenuOptions(); buildMenuSelector(); renderAnalysis(); renderPlatesTab(); renderManageMenus();
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:dishId, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:m.price, via:'manage-menus'}});
+  logHistory();   // v115 path 10: after rebuildMenu() — computeAvgFoodCost reads MENU, which is stale until then
   toast('Removed from the menu — plate kept');
 }
 (function(){                                                         // Plates-tab + popup wiring
@@ -6436,6 +6598,7 @@ function confirmGuardedRepoints(list){
       if(done){
         var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
         entries.forEach(function(o){ logChangeIfSaved(write, 'ingredient_repointed', o); });
+        logHistory();   // v115 path 3: once for the whole confirm, after every repoint has landed — the invoice's own logHistory (applyInvoice) fired before these were applied, so its point does not reflect them
       }
       toast(done+' ingredient'+(done===1?'':'s')+' re-linked');
     });
@@ -6490,12 +6653,13 @@ function aRow(name,a,m,actions){
   // attribute was never emitted and the openPlateEdit delegate it fed could never fire.
   var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
   var ref=m?(' data-mid="'+esc(m.id)+'"'):'';
+  // v115: the pip column is GONE \u2014 the row's left stripe (.lt-*) already carries the same light, so
+  // the dot restated what the surface said. Five columns now; the sec/empty rows' colspans match.
   return '<tr class="mi-row lt-'+(a.light||'none')+'"'+ref+'><td><button type="button" class="mi-name">'+esc(name)+'</button>'+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
     '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
     '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
     '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
-    '<td class="num">'+vbadge(a)+'</td>'+
-    '<td><span class="dot '+a.light+'"></span></td></tr>';
+    '<td class="num">'+vbadge(a)+'</td></tr>';
 }
 function renderAnalysis(){
   var tb=document.getElementById('aBody'); if(!tb) return;
@@ -6526,12 +6690,12 @@ function renderAnalysis(){
       })
       .filter(function(it){ return lightFilterPass(menuLightFilter, it.a.light); });   // v68: active chips narrow to those margin lights
     if(!items.length) return;
-    html+='<tr class="sec"><td colspan="6">'+esc(sec)+'</td></tr>';
+    html+='<tr class="sec"><td colspan="5">'+esc(sec)+'</td></tr>';
     items.forEach(function(it){
       shown++;
       if(it.costed){ html+=aRow(it.m.name||it.sp.name, it.a, it.m); }
       else{ var note=it.m.notes?' <span class="mi-note" title="'+esc(it.m.notes)+'">ⓘ</span>':'';
-        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num">not costed</td><td><span class="dot none"></span></td></tr>'; }
+        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num">not costed</td></tr>'; }
     });
   });
   // v55: unpublished plates are NOT dishes — they live only in the Plates tab, never on the Menu tab.
@@ -6540,7 +6704,7 @@ function renderAnalysis(){
     var es=dishesOnMenu
       ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
       : emptyStateHtml(ICON_MENU_BIG,'Nothing on this menu yet.','Publish a plate from the Plates tab to see it here.');
-    html='<tr class="es-row"><td colspan="6">'+es+'</td></tr>';
+    html='<tr class="es-row"><td colspan="5">'+es+'</td></tr>';
   }
   tb.innerHTML=html; bindTips();
   // v58: the empty-state clear action routes through clearMenuFilters() via onclick — no per-render binding.
@@ -6598,6 +6762,7 @@ function doDeleteMenu(id, name){
     detail:{name:name||null, dishes:affected.length}});
   setCurrentMenuId(fallbackMenuId());
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  logHistory();   // v115 path 12: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then
   toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
 }
 // v55: single confirm. Deleting a menu removes only that menu's dishes; every plate stays in the Plates
@@ -6876,6 +7041,7 @@ function doDeleteMenuOnly(){
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:id, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:price, via:'menu-tab'}});
   rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); closeDelChoice();
+  logHistory();   // v115 path 10: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then (NOT beside the logChangeIfSaved above, which would log the pre-delete average)
   toast('\u201c'+nm+'\u201d removed from this menu \u2014 plate kept');
 }
 // v55: "delete everything" deletes the plate AND every menu entry backed by it (across all menus).
@@ -6899,6 +7065,7 @@ function doDeleteEverything(){
           // would put a plate deletion in the log with no plate.
           logChange('dish_removed', {dishId:id, menuIds:[onlyMid], avgBefore:avgBefore,
             detail:{name:nm||null, price:onlyPrice, via:'delete-everything', unlinked:true}});
+          logHistory();   // v115 path 11: success-gated \u2014 the forget preceded the await, and a failed delete puts the row back
           toast('\u201c'+nm+'\u201d deleted'); return;
         }
         customMenu.push(only); repaint();
@@ -6921,6 +7088,7 @@ function doDeleteEverything(){
       // that distinguished them would be recording which button was pressed rather than what happened.
       logChange('plate_deleted', {plateId:sp.id, menuIds:menuIds, avgBefore:avgBefore,
         detail:{name:plateName, dishes:dishIds.length, lines:lineCount}});
+      logHistory();   // v115 path 11: success-gated for the same reason as deletePlate \u2014 an optimistic point would survive rollbackPlateDelete as a phantom drop
       toast('\u201c'+nm+'\u201d and its plate deleted'); return;
     }
     rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
@@ -7041,11 +7209,13 @@ function chooseCat(name,isNew){
     return false;
   }
   function contentOffset(rawDy){ return Math.min(HOLD, rawDy*0.5); }  // content follows the finger at half-speed (rubber-band feel)
+  // v115: release/settle uses the motion tokens (--t-med/--ease) — the only ad-hoc duration left in
+  // the app, and the settle read as abrupt against every other tokened transition.
   function setContent(y, animate){
-    if(main){ main.style.transition = animate?'transform .2s ease':''; main.style.transform = y?('translateY('+y+'px)'):''; }
+    if(main){ main.style.transition = animate?'transform var(--t-med) var(--ease)':''; main.style.transform = y?('translateY('+y+'px)'):''; }
   }
   function setInd(y, animate){
-    ind.style.transition = animate?'transform .2s ease, opacity .2s ease':'';
+    ind.style.transition = animate?'transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease)':'';
     ind.style.transform='translateX(-50%) translateY('+y+'px)';
     ind.style.opacity=String(Math.min(1, y/HOLD));
   }

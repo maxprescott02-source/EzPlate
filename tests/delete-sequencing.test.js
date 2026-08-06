@@ -74,6 +74,7 @@ function makeHarness(opts) {
        but recorded, because "a rolled-back delete writes NO entry" is an honest-failure contract and
        this is the only file that can exercise every failure shape. */
     function computeAvgFoodCost(){ return 30; }
+    function logHistory(){}   // v115: path 11 logs a trend point in the success branch — stubbed silent here because these tests compare S.log EXACTLY; the point that lands is owned by tests/history-paths.test.js
     function logChange(kind,o){ S.changes.push(kind); return o; }
     function logChangeIfSaved(w,kind,o){
       return Promise.resolve(w).then(function(r){ if(!r||r.error) return null; return logChange(kind,o); }, function(){ return null; });

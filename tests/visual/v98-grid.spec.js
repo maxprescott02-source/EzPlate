@@ -158,7 +158,10 @@ test('scope change moves zero row-1 geometry @ 1280', async ({ page }) => {
   const before = await gridGeo(page);
   await page.locator('.mcmp-row[data-scope="M2"]').click();
   await page.waitForTimeout(300);
-  await expect(page.locator('.scope-note')).toBeVisible();
+  // v115: M2 has >=2 per-menu points, so the chart draws the MENU'S OWN line — the scope-note (the
+  // "still covers all menus" correction) is correctly ABSENT, and the caption says so instead.
+  await expect(page.locator('.scope-note')).toHaveCount(0);
+  await expect(page.locator('.chart-hint')).toContainText('This menu');
   const after = await gridGeo(page);
   for (const k of ['panel', 'cmp']) {
     expect(Math.abs(after[k].top - before[k].top), `${k}.top unmoved by scope`).toBeLessThanOrEqual(1);
