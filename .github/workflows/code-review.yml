@@ -1,0 +1,123 @@
+name: Code review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Deliberately a different model from the one that writes the batches.
+          # Same family, so blind spots overlap — but not entirely.
+          claude_args: "--model claude-sonnet-4-6"
+          prompt: |
+            Review the diff of this pull request against the base branch.
+
+            You did not write this code. Your job is to find what is wrong with
+            it, not to confirm it is fine. You have no stake in it being correct.
+            Do not read it charitably. Do not assume something works because it
+            is written confidently or because tests pass.
+
+            You have not been told what this change was supposed to do, and you
+            should not go looking. Judge whether the code is correct, not
+            whether it matches an intent.
+
+            If you find nothing, say so in one line. Do not manufacture findings.
+            Do not approve to be agreeable.
+
+            Read the changed lines AND the code they call into and are called
+            from. Several of this repo's worst bugs lived in the interaction
+            between changed and unchanged code, not in the diff itself.
+
+            PRIORITY ORDER — findings below the line are noise:
+
+            1. WRONG CONDITIONS. A guard that runs but tests the wrong thing.
+               Highest value category here. Precedent: a delete guard walked one
+               of two reference paths and passed every test written for it; a
+               settings write reset the food-cost target to a default on error,
+               silently moving every suggested price on the menu.
+
+            2. WRITES THAT DO NOT LAND WHERE CLAIMED. A value assigned in memory
+               but never persisted; a link made through a field no xToRow writes.
+               Precedent: a dish linked via sp.menuId, which plateToRow omits —
+               correct in memory, broken after reload.
+
+            3. SEQUENCING. Cross-referencing writes and deletes are a sequence.
+               A row must exist before something references it; dependants go
+               before the row they reference. Fire-and-forget in either
+               direction is a finding.
+
+            4. SILENT FAILURE. Errors swallowed, failures reporting success,
+               empty results indistinguishable from filtered ones. RLS with no
+               matching policy returns 200 and an empty array, not an error.
+
+            5. TESTS THAT CANNOT FAIL. A test asserting a function was called,
+               where the body could be empty or the condition inverted and it
+               would still pass. Found in this repo already. For every guard in
+               the diff: does a test fail if the guard's CONDITION is wrong, not
+               merely if the guard is absent?
+
+            6. DEAD OR UNREACHABLE CODE. Name-reachability is not enough — a
+               function referenced from live code can still be unreachable if
+               the argument that triggers it is never passed. Follow the data,
+               not the name.
+
+            7. Everything else. Style, naming, formatting. Briefly or not at all.
+
+            THIS REPO'S SPECIFIC TRAPS — check the diff against each:
+
+            - THE NAMING INVERSION. data-tab="ingredients" is the PRODUCTS UI;
+              data-tab="pantry" is the INGREDIENTS UI. Code that looks backwards
+              is correct; code that looks correct may be backwards.
+            - DUPLICATE DEFINITIONS ARE FORBIDDEN. aRow and renderAnalysis were
+              each defined twice until v111, and editing the dead first copy
+              shipped real bugs. Top-level declarations in one scope, so
+              hoisting makes the LAST definition win everywhere, before any
+              statement runs — a duplicate is never "dead until reached". Both
+              dead copies are deleted and tests/housekeeping.test.js now fails
+              if any name in app.js is defined twice. A new duplicate in the
+              diff is a finding, not the norm.
+            - isFinite('') is TRUE, because Number('') is 0. Gate on
+              typeof x !== 'number'. Found twice already.
+            - 0 IS A LEGITIMATE PRICE. Never gate on falsiness.
+            - THE ROW BOUNDARY. In-memory is camelCase, tables are snake_case
+              (plateId vs plate_id). No code outside xToRow/rowToX may name a
+              column. A missed field arrives undefined and reads as a missing
+              relationship, not an error.
+            - THE PARSER REGION in app.js, between `var INV_EXCLUDE=` and
+              `function unitLabelFor(`, must stay contiguous and hold only
+              extractable pure functions, or the suite cannot reach them.
+            - updated_at IS NOT HISTORY. Restore rewrites every timestamp.
+            - SIX CACHE-VERSION SPOTS must all agree. Check the count.
+            - MIGRATIONS ARE NEVER BUNDLED with the code depending on them. A
+              diff assuming a schema change is a finding.
+
+            HOW TO REPORT:
+
+            Post inline comments on the lines you object to, plus one summary.
+            For each finding give: severity (critical = wrong data or silent
+            loss / major / minor / nit), what breaks as a concrete sequence of
+            events, and the check that would settle whether you are right.
+
+            State your confidence in the MECHANISM separately from the finding.
+            A finding whose stated cause is wrong can still point at a real bug —
+            that has happened twice in this repo and both were worth acting on.
+            If you are unsure why something is wrong but confident something is,
+            say exactly that.
+
+            Do not rewrite code. Do not modify or re-run tests — read them. Do
+            not summarise what the diff does; the author knows. Do not soften a
+            critical finding to be diplomatic.
