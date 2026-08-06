@@ -6,9 +6,13 @@ the code-review workflow). **Date:** 6 Aug 2026.
 suppliers did. Prerequisite for the COGS trend reframe; the chart itself is a separate batch and is
 untouched here.
 
-**Suite:** `npm test` **720 green** (680 → 720: +33 `change-log`, plus seven new `restore`/`settings`
-cases) · jsdom smoke green · Playwright **94/94** · `node -c` clean on `js/app.js`, `sw.js` and all four
-`api/*`.
+**Suite at close:** `npm test` **722 green** (680 → 722: +35 `change-log`, plus seven new
+`restore`/`settings` cases) · jsdom smoke green · Playwright **94/94** · `node -c` clean on `js/app.js`,
+`sw.js` and all four `api/*`.
+
+**Shipped across SEVEN PRs, not one** — #56 (the batch), then #57, #59, #60, #61, #62, #63, #64. That is
+the most important thing on this page and the rest of it is downstream of the reason: **#56 merged before
+its review was readable.** See the last section.
 
 **✅ BOTH MIGRATIONS ARE APPLIED** (6 Aug 2026, on Max's instruction — the brief said hand them over, he
 asked for them to be run):
@@ -342,3 +346,81 @@ save now fires one extra INSERT.** On mobile data after a week idle, the cold-st
 item 0) already lands on the first request; this adds a second small write behind it. It is fire-and-
 forget and never blocks the UI, but if a plate save feels slower than it did, that is the thing to look
 at first.
+
+---
+
+## ⚠️ THE BATCH DID NOT END WHEN THE CODE MERGED — read this before the next one
+
+v114's code was finished and green well before the batch was. What followed cost **six extra PRs and ten
+review runs (~$20 of plan usage)**, and every one of them traces to a single mistake:
+
+**#56 merged before its review was readable.** Once code is on `main` a finding cannot be fixed in the PR
+that carried it, so each one needed a NEW PR — which drew its own review, which found its own smaller
+thing. #58 → #59 → #61 → #63. Severity decayed each round. Cost did not.
+
+Max stopped it **twice**, and was right both times. What came out of it:
+
+### The reviewer was running and throwing its findings away
+
+The workflow ran on #56 **twice** — 34 turns then 24, `is_error: false`,
+`permission_denials_count: 0` — and posted **nothing** either time. The log said only
+`Running Claude Code via SDK (full output hidden for security)`. Nothing was configured to publish.
+
+**This is a SECOND failure shape, and the existing rule did not catch it.** CLAUDE.md already said a
+*skipped* review exits green — and told you to open the log. That does not help here, because the log was
+empty too. A green check has now been wrong in two different ways.
+Fixed in **#57** (`track_progress` + `show_full_output`), proven in **#58**.
+**`gh run rerun --debug` is NOT a substitute** — it adds the runner's `##[debug]` lines and leaves the SDK
+output hidden. I tried it on Max's recommendation-by-my-own-suggestion; it cost $2.23 and surfaced
+nothing. That was my error, from taking the action's own hint at face value.
+
+### It cost ~$2 a push, and now it does not
+
+`synchronize` re-reviewed the whole diff on **every** push to an open PR. **#60** removed it:
+`types: [opened, ready_for_review]`, `paths-ignore: '**.md'`, plus `cancel-in-progress`.
+**That narrowed the guarantee and CLAUDE.md says so** — fixes pushed after a PR opens are no longer
+re-reviewed. `ready_for_review` is the escape hatch: open as a draft, mark ready when the diff is final;
+toggle draft→ready to re-request a review after fixes.
+
+### A finding does not get its own PR unless it is wrong data or silent loss
+
+**#62** wrote the rule. **I broke it within the hour** — #63, for two test assertions, justified as
+"recovering an orphaned commit" rather than "acting on a finding". Max caught that too. **#64** therefore
+names the three rationalisations explicitly: *the work is already written*, *it's small*, *a commit needs
+re-landing*. None of them qualify.
+
+**The steady state is one batch, one PR, one review (~$2).** A day in double figures means something
+upstream went wrong — find that, rather than trimming the reviewer.
+
+### Which reviewer actually earned its keep
+
+| | found on v114 |
+|---|---|
+| **pre-push `code-review` agent** (free, fixes land in the same branch) | **4 real defects**, incl. `format: 3` on the wire — would have broken **every restore** between deploy and migration |
+| **PR workflow** (~$2/run) | 3 items across 3 PRs: two missing tests, one doc gap. **0 bugs** |
+
+Not an argument for removing the workflow — it reviews already-cleaned code, it is a different model, and
+it cannot be skipped. It **is** an argument for spending attention on the pre-push review first.
+
+### The three follow-up findings, and what they were
+
+- **#59** — `doDeleteMenu`'s failure branch had no test. Mechanism was already right; coverage was not.
+- **#61** — the combined price-and-menu edit was unpinned, so `CLAUDE.md`'s "read `detail`, not `kind`"
+  promise had nothing behind it.
+- **#63** — and #61 closed only *half* of it; the `dish_moved` side asserted `menuIds` only.
+
+All three verified red. **The red-verify on #61 was wrong on the first attempt** and that is worth
+carrying: conditioning `menuFrom`/`menuTo` on `_menuMoved` does NOT break the combined-case test, because
+`_menuMoved` is true there. The realistic mistake is conditioning on the **kind**. A mutation that does
+not fail proves nothing about the test — pick the mutation someone would actually make.
+
+## Final state at close (7 Aug 2026)
+
+- `main` at **`7aecbb0`**, the only branch left local or remote; every merged branch deleted after
+  confirming its content was on `main` (squash merges make ancestry checks lie — check content).
+- **Production serves v114**, verified on the stable alias: `APP_VERSION='v114'`, `ezplate-v114`,
+  `?v=114`. All three agree.
+- **Both migrations applied and verified as `anon`**, not just through the MCP.
+- **`menu_change_log` holds 0 rows** — correct: nothing has been saved since it shipped. Max's next plate
+  save, price edit or repoint writes the first entry. **Nothing renders it yet**, so a wrong `kind` or
+  figure stays invisible until the chart batch. That is this batch's real residual risk.
