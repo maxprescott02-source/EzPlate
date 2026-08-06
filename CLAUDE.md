@@ -663,33 +663,39 @@ their commit messages ARE the audit trail ([[running-supabase-migrations-here]])
    after idle vs 79–152 ms warm — Supabase waking, NOT app latency; boot is one
    Promise.all), the offline message, the refused product delete, the invoice
    referee wait.
-2. **⚠️ `ensurePlateForDish` gives an unlinked row a brand-new EMPTY plate.**
+2. **⚠️ A look-only builder visit plants a draft that resurfaces next session** (found
+   by the v115 flow test; v82 machinery, pre-existing). Open a plate, change nothing,
+   close with × → next open greets the user with "Unfinished plate — resume or
+   discard?", and a Resume against a plate that changed elsewhere since could
+   reintroduce stale lines. Wants a "dirty" check before `savePlateDraft` arms.
+   Its own small brief.
+3. **⚠️ `ensurePlateForDish` gives an unlinked row a brand-new EMPTY plate.**
    Correct for a genuinely uncosted row; for one whose real recipe exists it
    leaves that recipe unreferenced. Needs a brief and Max's yes. Note **no path
    CREATES an unlinked row** — the class arrives only from history or a restore.
-3. **`Ham Leg Sliced 2Mm (App 1Kg)` (`P0182`) is stored at $0.0003/g — 30 c/kg**,
+4. **`Ham Leg Sliced 2Mm (App 1Kg)` (`P0182`) is stored at $0.0003/g — 30 c/kg**,
    almost certainly out by ~46×. Not changed: prices are Max's call.
-4. **`public.menus` has RLS DISABLED** — harmless today (every policy is
+5. **`public.menus` has RLS DISABLED** — harmless today (every policy is
    `ALL / true / true`) but it flags in advisors and **matters at the multi-tenant
    gate**. **`public.kitchen_items` looks dead** — nothing reads or writes it.
    Both are schema changes needing Max's yes.
-5. **Upgrade pdf.js past CVE-2024-4367** — mitigated with `isEvalSupported:false`,
+6. **Upgrade pdf.js past CVE-2024-4367** — mitigated with `isEvalSupported:false`,
    not fixed. Its own brief.
-6. **Audit the older Playwright specs for MEANING, not for green** —
+7. **Audit the older Playwright specs for MEANING, not for green** —
    `screenshots.spec.js` is capture-only, and four `fresh-states` setups build a
    plate through a door no user has.
-7. **The restore's full-wipe step** — optional, ONLY on an explicit go with a
+8. **The restore's full-wipe step** — optional, ONLY on an explicit go with a
    fresh export taken minutes before. More useful: **none of the restore UI has
    been seen on a phone**; the iOS Safari file picker with a `.json` filter is the
    unknown.
-8. Small, each needing a yes: `edDelArmed` is dead (written thrice, never read) ·
+9. Small, each needing a yes: `edDelArmed` is dead (written thrice, never read) ·
    **`ingredients.updated_at` is stale and means nothing — it is NOT history and
    must never be read as such** · `.range-btn` is 32px (DEFERRED by Max 31 Jul as
    an OPEN accessibility item, not dropped) · `avgFoodCostForScope` counts dishes
    whose `menuId` has no By-menu row · the `priceHistory` wholesale-replace
    asymmetry at boot (menuHistory merges; priceHistory replaces — a point logged
    offline is lost at next sync).
-9. Supplier coverage is 18% of used products — the concentration family stays
+10. Supplier coverage is 18% of used products — the concentration family stays
    silent by design until ~50%. And Max clears the six orphaned `"Document No:"`
    taught packs, then imports one Bidfood invoice to re-teach.
 

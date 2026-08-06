@@ -198,6 +198,26 @@ change complete; deleted CSS reference-free.
 
 Suite after fixes: **752 green** · smoke green · Playwright **100/100**.
 
+## The flow-test pass (real browser, production data, read-only)
+
+Two runs: the first stalled on an environment quirk (Chrome window resize doesn't take effect
+under the automation bridge — narrow-viewport geometry is Playwright's job anyway); the rerun
+completed everything else. Console clean throughout; every popup/settings surface opened and
+closed cleanly; ghost buttons read as controls in both themes; the chart scrub, all six ranges,
+and the insight panel behaved with no visible flash.
+
+**One defect found — PRE-EXISTING (v82 draft machinery, zero lines of it in this diff), so per
+the triage rule it rides the next batch, not this PR:** opening the builder to LOOK at a plate
+and closing it with × plants an autosaved draft that resurfaces as an "Unfinished plate —
+resume or discard?" prompt on the next visit — possibly a week later. Discard clears it, but a
+Resume against a plate that has since changed elsewhere could reintroduce stale lines. Added to
+the outstanding list.
+
+Also noted while testing scroll behaviour: **smooth scrolling is rAF-driven and Chrome pauses
+rAF in background tabs**, so the re-tap smooth scroll appears inert when driven from an
+unfocused tab. Artifact of the harness, not the app — the switch-path jump (synchronous,
+pre-render) verified working. The phone's active tab always runs rAF.
+
 ## Needs Max's phone
 
 - **The chart with markers and the since-line at 380px in both themes** — do the drops read as
