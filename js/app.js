@@ -2375,6 +2375,7 @@ function saveKingModal(){
       var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
       if(moved) logChangeIfSaved(write, 'ingredient_repointed', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
         detail:{name:chk.name, from:(byId[oldPid]||{}).description||null, to:(np||{}).description||null, plates:hit.length}});
+      if(moved) logHistory();   // v115 path 2: a repoint moves every plate that cooks with it — the trend line must move too. Inside if(moved): a rename is display-only and must not stipple the line.
       toast(moved?(renamed?'Ingredient updated':'Product changed'):'Ingredient renamed'); };
     if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
       closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
@@ -2420,6 +2421,7 @@ function deleteKitchenIngredient(kid){
     var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Ingredient removed');
     logChangeIfSaved(write, 'ingredient_deleted', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
       detail:{name:k.name||null, plates:hit.length}});
+    logHistory();   // v115 path 5: the drop this records is real but has no saving behind it (see the comment above) — the change-log entry is what explains it later
   });
 }
 (function(){
@@ -4730,6 +4732,7 @@ function deletePlate(id){
       if(r.dishesOk && r.plateOk){
         logChange('plate_deleted', {plateId:id, menuIds:menuIds, avgBefore:avgBefore,
           detail:{name:nm, dishes:dishIds.length, lines:lineCount}});
+        logHistory();   // v115 path 11: success-gated, unlike the optimistic call sites — the in-memory delete precedes the await (the avg is already the AFTER figure), and an optimistic point would survive rollbackPlateDelete as a phantom drop
         toast('“'+nm+'” deleted'); return;
       }
       rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
@@ -4783,6 +4786,7 @@ function mmRemove(dishId){
   rebuildMenu(); buildMenuOptions(); buildMenuSelector(); renderAnalysis(); renderPlatesTab(); renderManageMenus();
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:dishId, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:m.price, via:'manage-menus'}});
+  logHistory();   // v115 path 10: after rebuildMenu() — computeAvgFoodCost reads MENU, which is stale until then
   toast('Removed from the menu — plate kept');
 }
 (function(){                                                         // Plates-tab + popup wiring
@@ -6436,6 +6440,7 @@ function confirmGuardedRepoints(list){
       if(done){
         var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
         entries.forEach(function(o){ logChangeIfSaved(write, 'ingredient_repointed', o); });
+        logHistory();   // v115 path 3: once for the whole confirm, after every repoint has landed — the invoice's own logHistory (applyInvoice) fired before these were applied, so its point does not reflect them
       }
       toast(done+' ingredient'+(done===1?'':'s')+' re-linked');
     });
@@ -6598,6 +6603,7 @@ function doDeleteMenu(id, name){
     detail:{name:name||null, dishes:affected.length}});
   setCurrentMenuId(fallbackMenuId());
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
+  logHistory();   // v115 path 12: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then
   toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
 }
 // v55: single confirm. Deleting a menu removes only that menu's dishes; every plate stays in the Plates
@@ -6876,6 +6882,7 @@ function doDeleteMenuOnly(){
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:id, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:price, via:'menu-tab'}});
   rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); closeDelChoice();
+  logHistory();   // v115 path 10: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then (NOT beside the logChangeIfSaved above, which would log the pre-delete average)
   toast('\u201c'+nm+'\u201d removed from this menu \u2014 plate kept');
 }
 // v55: "delete everything" deletes the plate AND every menu entry backed by it (across all menus).
@@ -6899,6 +6906,7 @@ function doDeleteEverything(){
           // would put a plate deletion in the log with no plate.
           logChange('dish_removed', {dishId:id, menuIds:[onlyMid], avgBefore:avgBefore,
             detail:{name:nm||null, price:onlyPrice, via:'delete-everything', unlinked:true}});
+          logHistory();   // v115 path 11: success-gated \u2014 the forget preceded the await, and a failed delete puts the row back
           toast('\u201c'+nm+'\u201d deleted'); return;
         }
         customMenu.push(only); repaint();
@@ -6921,6 +6929,7 @@ function doDeleteEverything(){
       // that distinguished them would be recording which button was pressed rather than what happened.
       logChange('plate_deleted', {plateId:sp.id, menuIds:menuIds, avgBefore:avgBefore,
         detail:{name:plateName, dishes:dishIds.length, lines:lineCount}});
+      logHistory();   // v115 path 11: success-gated for the same reason as deletePlate \u2014 an optimistic point would survive rollbackPlateDelete as a phantom drop
       toast('\u201c'+nm+'\u201d and its plate deleted'); return;
     }
     rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);

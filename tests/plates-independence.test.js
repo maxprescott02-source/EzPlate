@@ -186,6 +186,7 @@ function makeDeleteHarness(opts) {
     function dbDeleteMenuRecord(){ return Promise.resolve({}); }   // v114: returns its write now
     function computeAvgFoodCost(){ return 30; }
     function logChangeIfSaved(){ return Promise.resolve(null); }
+    function logHistory(){}   // v115: path 12 logs a trend point; the point's shape is owned by tests/history-paths.test.js
     function setCurrentMenuId(v){ currentMenuId=v; }
     function buildMenuSelector(){}
     function renderAnalysis(){}
