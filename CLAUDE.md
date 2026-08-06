@@ -571,6 +571,18 @@ There are TWO, doing different jobs — don't treat either as the other:
   and faster than finding the same thing on the PR. Skipping it is a judgement
   call; skipping the workflow is not available.
 
+**⚠️ A SKIPPED REVIEW REPORTS SUCCESS — the one trap in this setup, and it is
+the exact failure class the reviewer is told to hunt for.** The action refuses
+to run when `code-review.yml` on the PR differs from the copy on `main` — a
+security measure, since otherwise a PR could rewrite its own reviewer to wave
+itself through. When it refuses it **exits GREEN**, posts nothing, and states
+the reason only in the job log. So **any PR that touches the workflow file is
+NOT reviewed, and the check still passes.** Measured on PR #55 — the PR that
+added the workflow, which could not be reviewed by it. **A green "Code review"
+check is not evidence that a review happened.** No comment plus no findings is
+the shape of a review that never ran; open the log and confirm it actually
+reviewed before reading silence as approval.
+
 **⚠️ NEVER DISMISS A FINDING BECAUSE ITS STATED CAUSE IS WRONG.** A finding
 whose *mechanism* is wrong may still be pointing at a real bug. That happened
 **twice** with the previous reviewer and **both were worth acting on**. The
