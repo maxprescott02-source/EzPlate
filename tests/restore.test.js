@@ -60,6 +60,7 @@ function extractFn(src, name) {
 const NAMES = [
   'parseBackupFile', 'backupRefCheck', 'backupToPayload', 'backupSummary',
   'ingredientToRow', 'menuToRow', 'plateToRow', 'menuRecordToRow', 'supplierPhraseToRow', 'pointToRow',
+  'changeToRow',   // v114
 ];
 // eslint-disable-next-line no-new-func
 const API = new Function(`"use strict";
@@ -133,10 +134,36 @@ test('a malformed stamp is refused', () => {
   }
 });
 
+// v114: format 3 became REAL (it is what this version exports), so the unknown-format case moved to 4.
 test('an unknown format is refused and quotes what it saw', () => {
-  const r = parseBackupFile(json(fixture({ stamp: { format: 3 } })));
+  const r = parseBackupFile(json(fixture({ stamp: { format: 4 } })));
   assert.strictEqual(r.ok, false);
-  assert.match(r.reason, /3/);
+  assert.match(r.reason, /4/);
+});
+
+/* v114 — BOTH live formats restore, and this is the pin that matters most in this file.
+   Refusing format 2 would have made ~/Downloads/ezplate-PRE-STEP2.json unrestorable: it is the newest
+   backup in existence and the only recovery path there is. A format-2 file simply predates the change
+   log, which is a true statement about the file rather than a guess about it. */
+test('v114: a format-3 file is accepted, and format 2 still is', () => {
+  const three = fixture({ stamp: { format: 3, app_version: 'v114' }, change_log: [
+    { id: 'CL1', t: 1754179200000, kind: 'plate_edited', plateId: 'PL1', dishId: null,
+      menuIds: ['MENU_ORIGINAL'], avgBefore: 34, avgAfter: 31, costBefore: 5, costAfter: 4.5, detail: {} },
+  ] });
+  assert.strictEqual(parseBackupFile(json(three)).ok, true, 'the format this version writes must restore');
+  assert.strictEqual(parseBackupFile(json(fixture())).ok, true, 'the newest REAL backup Max holds is format 2');
+});
+
+/* The change log is the ONE group the restore never deletes, so a missing one cannot destroy anything —
+   which is exactly why it is exempt from the "missing group = damaged file" rule the other seven carry.
+   A present-but-wrong-typed one is still a damaged file and must be named as such. */
+test('v114: an ABSENT change log is fine; a malformed one is refused', () => {
+  const noLog = fixture({ stamp: { format: 3, app_version: 'v114' } });
+  assert.strictEqual(parseBackupFile(json(noLog)).ok, true, 'absent means "no log existed then", not "damaged"');
+  for (const bad of [{}, 'nope', 7]) {
+    assert.strictEqual(parseBackupFile(json(fixture({ change_log: bad }))).ok, false,
+      `change_log ${json(bad)} is present and wrong — that IS damage`);
+  }
 });
 
 test('a file that is not JSON at all is refused without throwing', () => {
@@ -171,10 +198,51 @@ test('a clean format-2 file is ACCEPTED', () => {
 
 test('a format-2 file maps every group into the payload', () => {
   const p = backupToPayload(fixture());
-  for (const g of ['ingredients', 'menus', 'plates', 'menu_items', 'supplier_phrases', 'ing_price_history', 'app_settings']) {
+  for (const g of ['ingredients', 'menus', 'plates', 'menu_items', 'supplier_phrases', 'ing_price_history',
+                   'menu_change_log', 'app_settings']) {
     assert.ok(Array.isArray(p[g]), `group ${g} must reach the payload as an array`);
   }
-  assert.strictEqual(p.format, 2, 'the payload carries its own stamp so the server can refuse independently');
+  assert.deepStrictEqual(p.menu_change_log, [], 'a format-2 file maps to an empty log, not to a missing key');
+});
+
+/* v114 — THE WIRE FORMAT DECLARES WHAT THE PAYLOAD CONTAINS, NOT WHICH VERSION BUILT IT, and this is
+   the pin that stops disaster recovery breaking during a rollout. The deployed function is whatever was
+   last applied by hand; v110's refuses format 3 outright. Sending 3 unconditionally would mean that
+   between this code reaching Vercel and the v3 migration being run, EVERY restore fails — including a
+   restore of the format-2 file that is the only recovery path there is. A payload with no change log
+   genuinely IS a format-2 payload, so it says so and the old function takes it. */
+test('v114: a payload with no change log declares format 2; one WITH entries declares 3', () => {
+  assert.strictEqual(backupToPayload(fixture()).format, 2,
+    'nothing in this payload needs a format-3 reader — an old deployed function must still restore it');
+  const withLog = backupToPayload(fixture({ change_log: [
+    { id: 'CL1', t: 1754179200000, kind: 'plate_edited', plateId: 'PL1', dishId: null,
+      menuIds: ['MENU_ORIGINAL'], avgBefore: 34, avgAfter: 31, costBefore: 5, costAfter: 4.5, detail: {} },
+  ] }));
+  assert.strictEqual(withLog.format, 3, 'once there IS a log to carry, only a format-3 reader will do');
+  assert.strictEqual(withLog.menu_change_log.length, 1);
+});
+
+/* v114 — hard rule 8 read forwards: the log crosses the row boundary through changeToRow like every
+   other group, so the camelCase trap that silently unlinked 76 of 77 dishes has nowhere to happen here. */
+test('v114: change-log entries cross the boundary as ROWS, not as in-memory objects', () => {
+  const p = backupToPayload(fixture({ change_log: [
+    { id: 'CL1', t: 1754179200000, kind: 'dish_price', plateId: 'PL1', dishId: 'D1',
+      menuIds: ['MENU_ORIGINAL'], avgBefore: 34, avgAfter: 31, costBefore: null, costAfter: null,
+      detail: { name: 'Fish & Chips' } },
+  ] }));
+  const row = p.menu_change_log[0];
+  assert.strictEqual(row.recorded_at, new Date(1754179200000).toISOString(),
+    'epoch ms becomes an ISO timestamptz at the boundary — the one conversion changeToRow owns');
+  assert.strictEqual(row.plate_id, 'PL1');
+  assert.strictEqual(row.dish_id, 'D1');
+  assert.deepStrictEqual(row.menu_ids, ['MENU_ORIGINAL']);
+  assert.strictEqual(row.avg_before, 34);
+  for (const k of ['plateId', 'dishId', 'menuIds', 'avgBefore', 'costAfter', 't']) {
+    assert.strictEqual(row[k], undefined, `camelCase ${k} must not survive into a row`);
+  }
+  // It must RESOLVE inside the payload it travels in — the same test the dish rows get, for the same
+  // reason: row counts pass happily with every reference pointing at nothing.
+  assert.ok(new Set(p.plates.map((x) => x.id)).has(row.plate_id), 'the entry names a plate in this payload');
 });
 
 test('THE camelCase TRAP: a restored dish resolves to its plate AND its menu through snake_case', () => {
@@ -362,7 +430,8 @@ test('CONDITION: the restore is ONE payload — nothing may split it into separa
   // not there, margins still green. That promise holds only while every group travels in a single
   // rpc. If a future change fans these out into per-table calls, this fails.
   const p = backupToPayload(fixture());
-  const groups = ['ingredients', 'menus', 'plates', 'menu_items', 'supplier_phrases', 'ing_price_history', 'app_settings'];
+  const groups = ['ingredients', 'menus', 'plates', 'menu_items', 'supplier_phrases', 'ing_price_history',
+                  'menu_change_log', 'app_settings'];
   assert.deepStrictEqual(Object.keys(p).sort(), ['format'].concat(groups).sort());
   assert.ok(SRC.includes("SUPA.rpc('restore_backup'"), 'the restore must go through the single rpc');
   assert.strictEqual((SRC.match(/rpc\('restore_backup'/g) || []).length, 1, 'exactly one call site');
@@ -379,8 +448,12 @@ test('CONDITION: the restore repaints from the SERVER, never from the file', () 
    These pin SQL, which the rest of this suite cannot execute. They exist because both facts are
    invisible to every test that runs as a privileged role, and both were found the hard way. ---- */
 
+/* v114: this reads the CURRENT definition, not v110's. 20260806_restore_backup_v3.sql replaces the
+   function 20260803_restore_backup_fn.sql created; the older file stays in the repo as the record of
+   what ran that day, but pinning conditions against a superseded definition would assert facts about
+   SQL nobody executes any more. If a later batch replaces the function again, move this path with it. */
 const MIGRATION_RAW = fs.readFileSync(
-  path.join(__dirname, '..', 'supabase', 'migrations', '20260803_restore_backup_fn.sql'), 'utf8');
+  path.join(__dirname, '..', 'supabase', 'migrations', '20260806_restore_backup_v3.sql'), 'utf8');
 // Strip `--` comments before matching. The comments in that file discuss both "DELETE" and
 // "SECURITY DEFINER" at length — explaining why the latter is NOT used — so matching raw text
 // asserts against prose rather than SQL. (My first version of these three tests did exactly that
@@ -409,6 +482,30 @@ test('CONDITION: ing_price_history is never deleted — the additive exception',
   assert.match(MIGRATION, /not exists\s*\(select 1 from ing_price_history/i, 'inserted only where absent');
   assert.match(MIGRATION, /distinct on \(p\.product_id, p\.recorded_at\)/i,
     'DISTINCT ON guards duplicates WITHIN the payload — not-exists only sees the table');
+});
+
+/* v114 — the change log is the SECOND additive exception, and for a sharper reason than the first.
+   A replace here would mean that restoring last month's backup ERASES every intervention made since:
+   the silent loss of the record of what was done, while the trend line it annotates survives. That is
+   the exact failure that ruled out plates.updated_at and made this table necessary at all. */
+test('CONDITION: menu_change_log is never deleted, and re-restoring the same file adds nothing', () => {
+  const deletedTables = (MIGRATION.match(/delete\s+from\s+(\w+)/gi) || [])
+    .map((d) => d.split(/\s+/).pop().toLowerCase());
+  assert.ok(!deletedTables.includes('menu_change_log'), 'the change log must never be deleted by a restore');
+  assert.match(MIGRATION, /insert into menu_change_log/i);
+  assert.match(MIGRATION, /on conflict \(id\) do nothing/i,
+    'the client-generated id is what makes a repeated restore idempotent');
+  // Absent is not an error for this group precisely BECAUSE nothing is deleted — a format-2 file has no
+  // such group, and the `required` list must not have grown to include it.
+  assert.ok(!/'menu_change_log'/.test((MIGRATION.match(/required\s+text\[\]\s*:=[^;]*/i) || [''])[0]),
+    'menu_change_log must stay OUT of the required list — it is never deleted, so it cannot destroy anything');
+  assert.match(MIGRATION, /coalesce\(payload->'menu_change_log'/i, 'an absent group restores as empty, not as a failure');
+});
+
+test('CONDITION: both live backup formats are accepted by the server, not just the newest', () => {
+  // The client refuses a bad file with an explanation; the server refuses anything that reaches it
+  // without one. Both must agree on WHICH formats are live, or Max's newest real backup is unrestorable.
+  assert.match(MIGRATION, /not in \('2','3'\)/, 'formats 2 and 3 both restore');
 });
 
 test('CONDITION: the function stays SECURITY INVOKER — it must grant no new privilege', () => {

@@ -118,6 +118,12 @@ function makeHarness(opts) {
     function rebuildMenu(){ MENU=customMenu.map(function(m){return Object.assign({},m);}); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
     function dbPushMenuAfterPlate(item, sp){ S.writes.push({item:item, plate:sp.id}); return Promise.resolve({}); }
     function buildMenuOptions(){} function logHistory(){} function renderAnalysis(){} function renderPlatesTab(){}
+    /* v114: the change log rides these paths too. Stubbed here — this file pins publishing/deleting
+       behaviour, and tests/change-log.test.js owns the log's own contract. */
+    function computeAvgFoodCost(){ return 30; }
+    function costFromLines(){ return 0; }
+    function logChange(){ return null; }
+    function logChangeIfSaved(){ return Promise.resolve(null); }
     function buildMenuSelector(){} function renderManageMenus(){ S.manageRerendered=true; }
     function setCurrentMenuId(id){ currentMenuId=id; S.currentMenu=id; }
     function renderDishPicker(){} function show(){} function buildMenuPickers(){}

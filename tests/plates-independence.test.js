@@ -98,6 +98,13 @@ function makeSaveHarness(opts) {
     function dbPushPlate(sp){ S.calls.push('push:'+sp.id); }
     function clearPlateDraft(){ S.calls.push('cleardraft'); }   // v82 D1: a saved plate is no longer a draft
     function logHistory(){}   // v60 item 1a: saveCurrentPlate now refreshes the dashboard on re-cost
+    /* v114: the change log rides these paths too. Stubbed here — this file pins publishing/deleting
+       behaviour, and tests/change-log.test.js owns the log's own contract. */
+    function computeAvgFoodCost(){ return 30; }
+    function costFromLines(){ return 0; }
+    function logChange(){ return null; }
+    function logChangeIfSaved(){ return Promise.resolve(null); }
+    function menusOfPlate(){ return []; }   // v114: saveCurrentPlate names the menus its re-cost reached
     ${extractFn(SRC, 'saveCurrentPlate')}
     return function(){ var ok=saveCurrentPlate(false); return { ok:ok, savedPlates: savedPlates, calls:S.calls }; };
   `);
@@ -176,7 +183,9 @@ function makeDeleteHarness(opts) {
     function rebuildMenu(){ MENU=customMenu.slice(); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
     function removeMenuItem(id){ customMenu=customMenu.filter(function(c){return c.id!==id;}); rebuildMenu(); }
     function saveMenus(){}
-    function dbDeleteMenuRecord(){}
+    function dbDeleteMenuRecord(){ return Promise.resolve({}); }   // v114: returns its write now
+    function computeAvgFoodCost(){ return 30; }
+    function logChangeIfSaved(){ return Promise.resolve(null); }
     function setCurrentMenuId(v){ currentMenuId=v; }
     function buildMenuSelector(){}
     function renderAnalysis(){}

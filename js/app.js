@@ -180,6 +180,34 @@ function plateToRow(sp){ return {id:sp.id, name:sp.name, lines:sp.lines||[], cat
 function rowToMenuRecord(r){ return {id:r.id, name:r.name, season:(r.season||null)}; }
 function menuRecordToRow(m){ return {id:m.id, name:m.name, season:m.season||null}; }
 
+/* --- the change log (table `menu_change_log`, v114) — what MAX DID, as opposed to what the suppliers
+   did. Supplier price movements live in `ing_price_history` and must never reach this table; the line
+   is drawn at a function rather than at a list, because every product-price write in the app funnels
+   through `setProduct` and nothing else. See 20260806_menu_change_log.sql for the full reasoning.
+   `t` is epoch MILLISECONDS in memory (matching the three history logs) and timestamptz on the server.
+   menuIds is always an ARRAY — one user action is one entry, listing every menu it touched. --- */
+function rowToChange(r){
+  if(!r || !r.id) return null;
+  var t=new Date(r.recorded_at).getTime();
+  // Same rule as rowToPoint: an unparseable timestamp is DROPPED, never admitted as NaN. A NaN `t`
+  // sorts unpredictably, and this series exists to be placed against a chart's time axis.
+  if(!isFinite(t)) return null;
+  // Finite-or-null, matching changeEntry rather than merely coercing: Number('rubbish') is NaN, and a NaN
+  // in this series is the same hazard the timestamp check above guards against.
+  var num=function(x){ var n=(x==null||x==='')?null:Number(x); return (typeof n==='number' && isFinite(n))?n:null; };
+  return {id:r.id, t:t, kind:r.kind||'', plateId:r.plate_id||null, dishId:r.dish_id||null,
+    menuIds:Array.isArray(r.menu_ids)?r.menu_ids:[],
+    avgBefore:num(r.avg_before), avgAfter:num(r.avg_after),
+    costBefore:num(r.cost_before), costAfter:num(r.cost_after),
+    detail:(r.detail&&typeof r.detail==='object')?r.detail:{}};
+}
+function changeToRow(e){ return {
+  id:e.id, recorded_at:(typeof e.t==='string'?e.t:new Date(e.t).toISOString()), kind:e.kind,
+  plate_id:e.plateId||null, dish_id:e.dishId||null, menu_ids:Array.isArray(e.menuIds)?e.menuIds:[],
+  avg_before:e.avgBefore==null?null:e.avgBefore, avg_after:e.avgAfter==null?null:e.avgAfter,
+  cost_before:e.costBefore==null?null:e.costBefore, cost_after:e.costAfter==null?null:e.costAfter,
+  detail:e.detail||{} }; }
+
 /* --- supplier memory (table `supplier_phrases`) --- */
 function rowToSupplierPhrase(r){ return {id:r.id, supplier:r.supplier, phrase_norm:r.phrase_norm, qty:Number(r.qty), unit:r.unit}; }
 function supplierPhraseToRow(e){ return {id:e.id, supplier:e.supplier, phrase_norm:e.phrase_norm, qty:e.qty, unit:e.unit, updated_at:new Date().toISOString()}; }
@@ -235,7 +263,25 @@ function dbPushPlate(sp){ if(!sp) return Promise.resolve(null); return pushWrite
 function dbDeletePlate(id){ return pushWrite(function(){ return SUPA.from('plates').delete().eq('id',id); }, 'plate delete'); }
 // v108 (D3): products are really deleted now — the tombstone list that used to hide them is gone.
 function dbDeleteIngredient(id){ return pushWrite(function(){ return SUPA.from('ingredients').delete().eq('id',id); }, 'product delete'); }
-function dbSetSetting(key,val){ pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
+// v114: RETURNS its pushWrite, where it used to drop it. Same one-word gap v112 closed on dbDeleteMenu /
+// dbDeletePlate: a helper that swallows its promise cannot be sequenced by anyone, however much a caller
+// wants to. The ingredient paths need it — a change-log entry must not be written for a change the
+// server refused. Existing callers ignore the return and are unaffected.
+function dbSetSetting(key,val){ return pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
+/* v114: the change log is INSERT-only by policy as well as by intent — there is no dbUpdateChange or
+   dbDeleteChange, and the table grants neither to the app's role.
+   ⚠️ THE LATCH IS THE POINT, AND THE BOOT PROBE IS NOT ENOUGH ON ITS OWN. The probe is a SELECT; what it
+   authorises is an INSERT, and those fail independently. The migration creates the table, the grants, RLS
+   and then two policies as separate statements — so a half-applied run (an editor session that stops on
+   an error, someone pasting only the create block) leaves a table that READS 200-with-no-rows and REFUSES
+   every insert with 42501. That is the exact shape v90's menu_price_history came up in. Without this,
+   `changeLogSupported` would latch true and every plate save, dish edit, repoint and delete would fire a
+   doomed insert and a red toast, once per action, forever. One failure is enough to stop trying. */
+function dbPushChange(e){
+  return Promise.resolve(pushWrite(function(){ return SUPA.from('menu_change_log').insert(changeToRow(e)); }, 'your change history'))
+    .then(function(r){ if(!r || r.error) changeLogSupported=false; return r; },
+          function(){ changeLogSupported=false; return null; });
+}
 
 /* v108: seedIfEmpty is DELETED. It pushed BASE_PRODUCTS / BASE_MENU into empty tables on first run;
    both literals are gone, so it had nothing left to seed from — an empty database now stays empty,
@@ -336,10 +382,14 @@ async function bootstrapSync(){
       soft(SUPA.from('price_history').select('recorded_at,avg_food_cost_pct,menu_id').order('recorded_at',{ascending:true})),
       soft(SUPA.from('menu_price_history').select('recorded_at,price,menu_item_id').order('recorded_at',{ascending:true})),
       soft(SUPA.from('supplier_phrases').select('*')),
-      soft(SUPA.from('ing_price_history').select('recorded_at,cost_per_base_unit,product_id').order('recorded_at',{ascending:true}))
+      soft(SUPA.from('ing_price_history').select('recorded_at,cost_per_base_unit,product_id').order('recorded_at',{ascending:true})),
+      // v114: DESCENDING + limit, unlike every read above it. The others are bounded by the data (412
+      // products, 78 dishes); this one grows for as long as the app is used, and it is on the boot
+      // critical path. Newest-500 is the window the chart can draw; the server keeps the lot.
+      soft(SUPA.from('menu_change_log').select('*').order('recorded_at',{ascending:false}).limit(500))
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
-    var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7], _ipl=results[8];
+    var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7], _ipl=results[8], _chg=results[9];
     // v108: setg.error belongs here and was missing (CodeRabbit). app_settings is not a nice-to-have —
     // it carries `kitchen_ingredients`, so a failed read empties every kitchen word AND silently drops
     // the food-cost target back to its 40% default, which moves every suggested price on the Menu tab.
@@ -348,6 +398,25 @@ async function bootstrapSync(){
     if(ing.error||men.error||pla.error||setg.error) throw (ing.error||men.error||pla.error||setg.error);
     menuHistSupported = !(_h && _h.error);                 // the query IS the probe now
     menuPriceHistSupported = !(_mp2 && _mp2.error);
+    /* v114: probe-by-query, so an unapplied migration records nothing rather than toasting on every
+       save. This covers the table being ABSENT only — a table that reads but refuses writes is caught by
+       dbPushChange's latch instead, and both are needed. */
+    changeLogSupported = !(_chg && _chg.error);
+    /* MERGE, not replace — the same reason menuHistory and menuPriceLog merge.
+       An earlier draft replaced wholesale, on the reasoning that "the log is written only after the
+       server confirmed the change, so a local-only entry is one for something that did not happen".
+       THAT REASONING IS WRONG and it is worth stating why, because it reads as airtight:
+       logChangeIfSaved confirms the write that CARRIES the change — the plate row, the dish row, the
+       settings blob. It says nothing about whether the log's own insert landed. So a local-only entry is
+       an entry for something that DID happen whose insert failed, and replacing would delete the one
+       record this table exists to keep, at the next reload, silently. (pushWrite still has no queue and
+       no retry — CLAUDE.md's known gap.)
+       Server wins on a shared id; a local-only entry survives; the newest 500 are kept. Reversed first
+       because the query is newest-first, while memory keeps the same ascending order as every other
+       series, so a chart never has to ask which way round this one runs. */
+    if(changeLogSupported && _chg && _chg.data){
+      changeLog=mergeChangeLog(_chg.data.map(rowToChange).filter(Boolean).reverse(), changeLog);
+    }
     // v108: through the boundary, not the raw row. Was `ov[r.id]=r` — see rowToIngredient on why that
     // worked by luck rather than design.
     var ov={}; (ing.data||[]).forEach(function(r){ ov[r.id]=rowToIngredient(r); }); productsById=ov; rebuild();
@@ -555,7 +624,9 @@ var kitchenIngredients=[];
 var kById={};
 function rebuildKById(){ kById={}; (kitchenIngredients||[]).forEach(function(k){ if(k&&k.id) kById[k.id]=k; }); }
 rebuildKById();
-function saveKitchenIngredients(){ rebuildKById(); if(typeof dbSetSetting==='function') dbSetSetting('kitchen_ingredients', kitchenIngredients); }
+// v114: returns the write, so a caller that must know whether the server took the change can chain off
+// it (see logChangeIfSaved). Callers that ignore the return are unaffected.
+function saveKitchenIngredients(){ rebuildKById(); return (typeof dbSetSetting==='function') ? dbSetSetting('kitchen_ingredients', kitchenIngredients) : null; }
 function nextKid(){                                                   // 'K0001' + zero-padded, stable across the store
   var max=0; (kitchenIngredients||[]).forEach(function(k){ var n=parseInt(String(k.id||'').replace(/^K/,''),10); if(isFinite(n)&&n>max)max=n; });
   return 'K'+String(max+1).padStart(4,'0');
@@ -1065,11 +1136,22 @@ function saveCurrentPlate(asNew){
   var name=rawName;
   var cat=(typeof builderCategoryValue==='function')?builderCategoryValue():null;   // §J: category combo; null before §J
   var lines=plate.map(function(l){ return l.misc?{misc:true,label:l.label||'',cost:Number(l.cost)||0}:(l.kid?{kid:l.kid,qty:l.qty}:{pid:l.pid,qty:l.qty}); });
+  /* v114 — THE ONE PLACE A PLATE'S RECIPE CHANGES. A line added, removed, re-portioned or re-pointed,
+     a misc cost line edited, a rename, a recategorisation: all of it arrives here and nowhere else,
+     because `plate.lines` has exactly one writer. The change log's whole first kind is this function.
+     Both "before" figures must be read BEFORE the mutation two lines down — sp.lines is replaced in
+     place, so a cost taken afterwards would compare the new recipe with itself. */
+  var _prev=(!asNew && loadedPlateId)?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
+  var _avgBefore=computeAvgFoodCost(), _costBefore=_prev?costFromLines(_prev.lines):null;
   var sp;
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
-  dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
+  var _isNew=(_costBefore==null);
+  var _write=dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
+  logChangeIfSaved(_write, _isNew?'plate_created':'plate_edited', {plateId:sp.id,
+    menuIds:menusOfPlate(sp).map(function(o){ return o.menuId; }),                 // every menu this re-cost moved; empty for an unpublished plate, which is a real state
+    avgBefore:_avgBefore, costBefore:_costBefore, costAfter:costFromLines(sp.lines), detail:{name:sp.name}});
   return true;
 }
 // v54: the builder's one primary action. Save writes the plate to the library (menu link unchanged) and,
@@ -1288,6 +1370,103 @@ function ingPriceBand(pid){                                          // {min,max
   var vals=(a||[]).map(function(x){return x.v;}); if(cur!=null) vals.push(cur);
   vals=vals.filter(function(v){return v!=null&&isFinite(v);}); if(!vals.length) return null;
   return {min:Math.min.apply(null,vals), max:Math.max.apply(null,vals)};
+}
+/* ---- v114: THE CHANGE LOG — the counterpart to everything above, and the OPPOSITE of it. ------------
+   Every log above this line records what a SUPPLIER did. This one records what MAX did. The dashboard's
+   food-cost trend is permanently red because ingredient prices drift up continuously and the number only
+   falls when somebody acts; a later batch reframes the chart around "where you sit against target" and
+   "what you last did about it, and how far it has moved since", and the second half of that has never
+   been recorded anywhere.
+
+   ⚠️ WHAT MUST NEVER REACH THIS LOG: a supplier price movement. It is the thing being MEASURED, not an
+   intervention — and if it wrote here, the "how long since you last acted" clock would reset every time
+   a supplier raised a price, which is the exact event the drift counter exists to accumulate.
+   Self-defeating. THE LINE IS A FUNCTION, NOT A LIST: every product-price write in the app funnels
+   through `setProduct` (v109), which is ing_price_history's sole writer. If setProduct wrote it, it is
+   drift and it belongs there. Twelve paths change a RECIPE, a LINK, a PRICE or a MENU without going
+   through setProduct, and those — all of them — write here.
+
+   NOT plates.updated_at, which is the obvious candidate and fails twice: v110's restore rewrites every
+   plates row, so ONE restore would erase the whole history of interventions while the trend line it
+   annotates survives; and it records that a row was WRITTEN, not that a decision was MADE.
+
+   ⚠️ NO ENTRY IS EVER WRITTEN FOR A CHANGE THE SERVER DID NOT TAKE. The log is append-only — there is no
+   update and no delete, at the policy level as well as in this file — so an entry cannot be corrected
+   afterwards. Every call site therefore logs in its SUCCESS branch, after the write that carries the
+   change has resolved. That is why dbSetSetting now returns its pushWrite. ---------------------------*/
+var changeLog = [];
+/* Schema-can-lag guard, exactly as menuHistSupported (v89) and menuPriceHistSupported (v90): the boot
+   read IS the probe, and an unapplied migration degrades to "record nothing" rather than firing a failed
+   write — and a red toast — on every plate save. The migration is applied by hand before this code
+   ships, so in practice this never fires; it exists because previews and production share one database
+   and a preview can be newer than the schema. */
+var changeLogSupported = true;
+/* The closed set of kinds. A typo in a call site must not quietly mint a twelfth category that the chart
+   will never draw and nobody will notice is missing — changeEntry REFUSES an unknown kind outright. */
+var CHANGE_KINDS = ['plate_created','plate_edited','plate_deleted',
+                    'ingredient_repointed','ingredient_deleted',
+                    'dish_added','dish_linked','dish_price','dish_moved','dish_removed','menu_deleted'];
+/* Client-generated, like every other id in this app (SP*, um*, MENU*, K*). That is what makes a restore
+   exactly idempotent: an entry carries its own identity into the backup file and back out, so the server
+   can `on conflict (id) do nothing` rather than guess at a natural key. The counter breaks ties within a
+   millisecond, which is real here — the invoice import can write several entries in one pass. */
+var _changeSeq=0;
+/* The per-load token is not decoration: the counter resets to 0 on every page load, so two tabs acting
+   in the same millisecond would otherwise mint the SAME id — a 23505 on insert and a red toast, on the
+   value the restore's idempotency turns on. */
+var _changeTok=Math.floor(Math.random()*1296).toString(36);
+function nextChangeId(){ _changeSeq=(_changeSeq+1)%1296; return 'CL'+Date.now().toString(36)+_changeTok+_changeSeq.toString(36); }
+/* Server rows win on a shared id; entries that exist only here survive. See the call site in
+   bootstrapSync for why replacing would lose exactly the entries worth keeping. */
+function mergeChangeLog(server, local){
+  var seen={}, out=[];
+  (server||[]).forEach(function(e){ if(e && !seen[e.id]){ seen[e.id]=1; out.push(e); } });
+  (local||[]).forEach(function(e){ if(e && !seen[e.id]){ seen[e.id]=1; out.push(e); } });
+  out.sort(function(a,b){ return a.t-b.t; });
+  return out.length>500 ? out.slice(-500) : out;
+}
+/* PURE, and total: same input, same entry, no globals and no clock. Returns null for an unknown kind or
+   a missing id/time, so a bad call site produces nothing rather than a malformed row. Normalisation is
+   the point — menuIds is always an array of unique non-empty strings, the four figures are a finite
+   number or null (never NaN, never ''), and detail is always an object. */
+function changeEntry(kind, o){
+  o=o||{};
+  if(CHANGE_KINDS.indexOf(kind)<0) return null;
+  if(!o.id || !isFinite(o.t)) return null;
+  var num=function(x){ return (typeof x==='number' && isFinite(x)) ? x : null; };
+  var seen={}, ids=[];
+  (Array.isArray(o.menuIds)?o.menuIds:(o.menuIds?[o.menuIds]:[])).forEach(function(m){
+    if(!m || seen[m]) return; seen[m]=1; ids.push(String(m));
+  });
+  return {id:String(o.id), t:o.t, kind:kind, plateId:o.plateId||null, dishId:o.dishId||null, menuIds:ids,
+    avgBefore:num(o.avgBefore), avgAfter:num(o.avgAfter),
+    costBefore:num(o.costBefore), costAfter:num(o.costAfter),
+    detail:(o.detail && typeof o.detail==='object' && !Array.isArray(o.detail))?o.detail:{}};
+}
+/* Record one intervention. `avgBefore` must be captured by the caller BEFORE it mutates anything;
+   `avgAfter` defaults to the figure as it stands now, which is why this is called after the repaint.
+   Both may legitimately be null — an unpublished plate moves no average at all, and saying so honestly
+   beats inventing a zero. Returns the entry, or null when nothing was recorded. */
+function logChange(kind, o){
+  o=o||{};
+  if(o.avgAfter===undefined) o.avgAfter=computeAvgFoodCost();
+  var e=changeEntry(kind, Object.assign({id:nextChangeId(), t:Date.now()}, o));
+  if(!e) return null;
+  changeLog.push(e);
+  if(changeLog.length>500) changeLog=changeLog.slice(-500);   // the same window priceHistory keeps; the server holds the lot
+  if(changeLogSupported) dbPushChange(e);
+  return e;
+}
+/* The success gate, in one place. `write` is whatever pushWrite handed back: a settled promise resolving
+   to the result, to {error}, or to null when there is no client. pushWrite has ALREADY surfaced the real
+   error to a toast, so there is nothing to say here — the only decision is whether the intervention
+   happened. The rejection handler is belt-and-braces for the same reason dbDeletePlateAfterDishes has
+   one: pushWrite always resolves today, and if that ever changed this would silently stop logging. */
+function logChangeIfSaved(write, kind, o){
+  return Promise.resolve(write).then(function(r){
+    if(!r || r.error) return null;
+    return logChange(kind, o);
+  }, function(){ return null; });
 }
 // v90: ingMovePct (v74) was removed with dishDriver, its only caller. The movement families now read
 // ingPriceAt against a fixed reference moment instead of "the last logged step", which is what lets
@@ -2185,9 +2364,17 @@ function saveKingModal(){
     if(!renamed && !moved){ closeKingModal(); return; }              // clean no-op: no write, no toast, no confirm
     var oldP=byId[k.pid];
     var g=kingRepointGuard(oldP?oldP.base_unit:null, np.base_unit);  // ITEM 5 (v35): one guard, shared with the invoice repoint path
-    var commit=function(){ var oldPid=k.pid; k.name=chk.name; k.pid=pid;
+    var commit=function(){
+      // v114: the blast radius and the average must be read BEFORE the pid moves — computeAvgFoodCost()
+      // is live, so one line later it would already be the AFTER figure and the entry would record no
+      // movement at all. Only a MOVE is an intervention: a rename is display-only (plates persist
+      // {kid, qty}), so it cannot change a single cost and must not reset the "since you last acted" clock.
+      var hit=platesUsingKid(kingEditId), avgBefore=computeAvgFoodCost();
+      var oldPid=k.pid; k.name=chk.name; k.pid=pid;
       if(moved) parkRepointedProduct(oldPid);   // v55 §H: a repointed-away product is auto-parked in the wizard's "Skipped (N)" list, not re-proposed as unlinked
-      saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
+      var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
+      if(moved) logChangeIfSaved(write, 'ingredient_repointed', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
+        detail:{name:chk.name, from:(byId[oldPid]||{}).description||null, to:(np||{}).description||null, plates:hit.length}});
       toast(moved?(renamed?'Ingredient updated':'Product changed'):'Ingredient renamed'); };
     if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
       closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
@@ -2207,14 +2394,32 @@ function saveKingModal(){
   if(toPlate && typeof addKitchenLine==='function'){ addKitchenLine(id); }   // create-from-builder: drop it straight onto the plate
   else rerenderCurrentTab();
 }
+/* v114 — an ingredient is shared, so a change to one moves EVERY plate that cooks with it. That is the
+   whole point of the kitchen-word layer, and it is what makes a repoint the cheapest real intervention
+   in the app: swap "Chips" to a cheaper supplier product once and every plate re-costs. These two
+   helpers name the blast radius so the change log can record which menus an ingredient-level change
+   actually reached. (The first also replaces the inline filter deleteKitchenIngredient used to carry.) */
+function platesUsingKid(kid){ return (savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kid; }); }); }
+function menuIdsForPlates(list){
+  var seen={}, out=[];
+  (list||[]).forEach(function(sp){ menusOfPlate(sp).forEach(function(o){ if(!seen[o.menuId]){ seen[o.menuId]=1; out.push(o.menuId); } }); });
+  return out;
+}
 function deleteKitchenIngredient(kid){
   var k=kById[kid]; if(!k) return;
-  var used=(savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kid; }); }).length;
+  var used=platesUsingKid(kid).length;
   var msg='Remove \u201c'+(k.name||'this ingredient')+'\u201d?';
   if(used) msg+=' It\u2019s used in '+used+' saved plate'+(used===1?'':'s')+' \u2014 those lines will show as \u201cproduct missing\u201d until you point them somewhere else.';
   askConfirm('Remove ingredient?', msg, 'Remove', function(){
+    // v114: this LOWERS every affected plate's cost, because a line whose ingredient is gone stops
+    // costing anything (lineProduct returns null and costFromLines counts it as missing, not as zero
+    // dollars of a real ingredient). That is a fall in the number with no saving behind it, which is
+    // precisely the kind of movement the log has to be able to explain later.
+    var hit=platesUsingKid(kid), avgBefore=computeAvgFoodCost();
     kitchenIngredients=kitchenIngredients.filter(function(x){return x.id!==kid;});
-    saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Ingredient removed');
+    var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Ingredient removed');
+    logChangeIfSaved(write, 'ingredient_deleted', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
+      detail:{name:k.name||null, plates:hit.length}});
   });
 }
 (function(){
@@ -3651,7 +3856,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v113';
+var APP_VERSION='v114';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -3826,7 +4031,13 @@ function buildBackup(){
   return {
     app:'EzPlate', version:APP_VERSION, exported_at:new Date().toISOString(),
     stamp:{
-      format:2,                                                       // shape of this file, not the app
+      /* v114: 2 -> 3. Hard rule 9's general law is that a change to what bootstrapSync puts in memory
+         IS a change to the backup format and must bump the stamp — and this adds a whole group.
+         Nothing about the seven existing groups changed, which is why BOTH formats stay restorable:
+         parseBackupFile accepts 2 and 3, and a format-2 file simply carries no change log, because
+         none existed when it was written. That is a true statement about the file, not a guess about
+         it — the distinction rule 9 exists to protect. */
+      format:3,                                                       // shape of this file, not the app
       app_version:APP_VERSION
     },
     products:productsById,
@@ -3834,6 +4045,7 @@ function buildBackup(){
     plates:savedPlates,
     menu_items:customMenu,
     ing_price_log:ingPriceLog,
+    change_log:changeLog,
     supplier_mem:supplierMem,
     settings:{
       food_cost_target:cogsPct,
@@ -3900,10 +4112,19 @@ function parseBackupFile(text){
      which is the exact failure rule 9 was written to prevent. */
   if(f===1)
     return {ok:false, reason:'This is a format 1 backup (v107 or earlier). Some of those hold every product and some hold only the ones you’d edited — and EzPlate can no longer tell which, because the built-in product list it would have to compare against was removed in v108. It survives only in commit aa16387. Restoring blind could leave 295 products with silently wrong prices, so EzPlate won’t do it.'};
-  if(f!==2)
+  /* v114 — TWO formats are accepted, and refusing format 2 would have been the more dangerous choice.
+     v114 adds the change log as an eighth group, which under rule 9's general law is a format change.
+     But ~/Downloads/ezplate-PRE-STEP2.json is format 2 and is the newest backup in existence — the only
+     recovery path there is. Refusing it would cost a real disaster; accepting it costs nothing, because
+     the only thing it lacks is a log that did not exist when it was written. Contrast format 1, which is
+     refused precisely because the app can no longer tell a complete one from an incomplete one. */
+  if(f!==2 && f!==3)
     return {ok:false, reason:'This backup is marked format “'+String(f)+'”, which this version of EzPlate doesn’t know how to read. It may have been made by a newer version.'};
-  /* A format-2 file must carry every group. A missing one is a damaged file, not an empty dataset —
-     and the difference matters, because the server would happily replace a table with nothing. */
+  /* Every REPLACED group must be present. A missing one is a damaged file, not an empty dataset — and
+     the difference matters, because the server would happily replace a table with nothing.
+     change_log is NOT in this list, and that is the same distinction the SQL function draws: it is the
+     one group the restore never deletes, so a missing one can destroy exactly nothing. It is checked
+     below only for TYPE, when it is present at all. */
   var groups=[
     ['products','object','products'], ['kitchen_ingredients','array','ingredients'],
     ['plates','array','plates'], ['menu_items','array','menus'],
@@ -3916,6 +4137,8 @@ function parseBackupFile(text){
     if(groups[i][1]==='array' ? !isArr : !isObj)
       return {ok:false, reason:'This backup is damaged — its '+want+' are missing or unreadable. Nothing has been changed.'};
   }
+  if(b.change_log!==undefined && !Array.isArray(b.change_log))
+    return {ok:false, reason:'This backup is damaged — its record of your changes is unreadable. Nothing has been changed.'};
   if(!Array.isArray(b.settings.menus))
     return {ok:false, reason:'This backup is damaged — its menus are missing or unreadable. Nothing has been changed.'};
   return {ok:true, data:b};
@@ -3984,14 +4207,33 @@ function backupToPayload(b){
   if(s.food_cost_target!=null) settings.push({key:'food_cost_target', value:s.food_cost_target});
   if(s.gst_default!=null) settings.push({key:'gst_default', value:s.gst_default});
   if(Array.isArray(s.king_wiz_skips)) settings.push({key:'king_wiz_skips', value:s.king_wiz_skips});
+  /* ⚠️ THE WIRE FORMAT DECLARES WHAT THE PAYLOAD CONTAINS, NOT WHICH VERSION BUILT IT — and getting
+     that wrong would have broken disaster recovery for exactly as long as it took to notice.
+     An earlier draft sent `format:3` unconditionally, reasoning that this object is built here and now.
+     But the deployed function is whatever Max last applied by hand, and v110's refuses format 3 outright.
+     So between this code reaching Vercel and the v3 migration being run, EVERY restore would have failed
+     — including a restore of ~/Downloads/ezplate-PRE-STEP2.json, which is the only recovery path there
+     is. The batch takes care to keep format 2 restorable and would have removed the one thing that made
+     the WIRE backward-compatible.
+     A payload with no change log genuinely IS a format-2 payload: there is nothing in it that a format-2
+     reader cannot handle. So it says so, and the old function accepts it. The moment there is a log to
+     carry, it says 3 — and by then the table exists, which means migration 1 has been run. */
+  var chg=(b.change_log||[]).map(changeToRow);
   return {
-    format:2,
+    format:chg.length?3:2,
     ingredients:Object.keys(b.products).map(function(id){ return ingredientToRow(b.products[id]); }),
     menus:s.menus.map(menuRecordToRow),
     plates:b.plates.map(plateToRow),
     menu_items:b.menu_items.map(menuToRow),
     supplier_phrases:Object.keys(b.supplier_mem||{}).map(function(id){ return supplierPhraseToRow(b.supplier_mem[id]); }),
     ing_price_history:ipl,
+    /* Mapped through changeToRow like every other group — hard rule 8 is obeyed structurally rather
+       than by care: this function names no column of its own, so the camelCase/snake_case trap that
+       silently unlinked 76 of 77 dishes on the 1 Aug file has nowhere to happen. Sent even when empty,
+       and harmless either way: the v3 function treats an absent group as empty, and v110's ignores a
+       key it does not know. An absent group is never an error for this table, because the server never
+       deletes it (see 20260806_restore_backup_v3.sql). */
+    menu_change_log:chg,
     app_settings:settings
   };
 }
@@ -4475,12 +4717,21 @@ function deletePlate(id){
     var dishIds=dishes.map(function(d){ return d.id; });
     var wasLoaded=(loadedPlateId===id);
     var repaint=function(){ rebuildMenu(); buildMenuOptions(); buildMenuSelector(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); };
+    /* v114 — the log entry goes in the SUCCESS branch, and on this path that is not a stylistic
+       preference. A partial failure here rolls the delete back (v112), and the log is append-only with
+       no update and no delete at the policy level, so an entry written optimistically could never be
+       retracted: the log would permanently record a plate deletion that did not happen. */
+    var avgBefore=computeAvgFoodCost(), menuIds=on.map(function(o){ return o.menuId; }), lineCount=(sp.lines||[]).length;
     forgetMenuItems(dishIds);
     savedPlates=savedPlates.filter(function(s){return s.id!==id;});
     if(wasLoaded) loadedPlateId=null;
     repaint();                                                       // the screen keeps up; the WORDS wait for the server
     dbDeletePlateAfterDishes(dishIds, id).then(function(r){
-      if(r.dishesOk && r.plateOk){ toast('“'+nm+'” deleted'); return; }
+      if(r.dishesOk && r.plateOk){
+        logChange('plate_deleted', {plateId:id, menuIds:menuIds, avgBefore:avgBefore,
+          detail:{name:nm, dishes:dishIds.length, lines:lineCount}});
+        toast('“'+nm+'” deleted'); return;
+      }
       rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
     });
   });
@@ -4527,8 +4778,11 @@ function renderManageMenus(){
 }
 function mmRemove(dishId){
   var m=menuById[dishId]; if(!m) return;
-  removeMenuItem(dishId);
+  var avgBefore=computeAvgFoodCost(), plateId=plateIdOf(m), mid=(m.menuId||'MENU_ORIGINAL'), nm=m.name;
+  var write=removeMenuItem(dishId);
   rebuildMenu(); buildMenuOptions(); buildMenuSelector(); renderAnalysis(); renderPlatesTab(); renderManageMenus();
+  logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:dishId, menuIds:[mid], avgBefore:avgBefore,
+    detail:{name:nm||null, price:m.price, via:'manage-menus'}});
   toast('Removed from the menu — plate kept');
 }
 (function(){                                                         // Plates-tab + popup wiring
@@ -4687,9 +4941,16 @@ function linkDishToPlate(dish, sp){
   if(!dish||!sp) return null;
   var i=customMenu.findIndex(function(c){return c.id===dish.id;});
   var item=Object.assign({}, (i>=0?customMenu[i]:dish), {plateId:sp.id});
+  // v114: an uncosted row becoming costed is the single largest one-step move the food-cost average can
+  // make, and nothing about it is a supplier price. Its own kind, because it is not a new entry on the
+  // menu — the row was already there, already priced — and a chart that read it as one would show a
+  // plate arriving on a menu it had been on for months.
+  var avgBefore=computeAvgFoodCost();
   if(i>=0) customMenu[i]=item; else customMenu.push(item);
-  dbPushMenuAfterPlate(item, sp);
+  var write=dbPushMenuAfterPlate(item, sp);
   rebuildMenu(); buildMenuOptions();
+  logChangeIfSaved(write, 'dish_linked', {plateId:sp.id, dishId:item.id, menuIds:[item.menuId||'MENU_ORIGINAL'],
+    avgBefore:avgBefore, costAfter:costFromLines(sp.lines), detail:{name:item.name||null, price:item.price, plate:sp.name||null}});
   // Follow the menu we just acted on, exactly as submitMenuItem does. The Publish modal can target a
   // menu other than the one on screen, so without this the user links a row and is left looking at a
   // different menu, with nothing visibly changed. (CodeRabbit, v113.)
@@ -4724,10 +4985,23 @@ function submitMenuItem(){
   var plan=publishPlan(MENU, sp.id, chosenMenu);                   // v113: shared with submitAddDish — see publishPlan
   var targetId=plan.existingId||('um'+Date.now().toString(36));
   var item={id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,plateId:sp.id};
-  if(plan.action==='update'){ upsertCustomMenu(item); }
-  else { customMenu.push(item); dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
+  /* v114 — this button does TWO different things and the log has to tell them apart. On the create
+     branch a plate reaches a menu; on the update branch it is already there and the only thing that can
+     have moved is its sell price (publishPlan's `update` means same plate, same menu). Re-publishing at
+     the SAME price is neither, and logs nothing — a save that changed no number is not an intervention. */
+  var _avgBefore=computeAvgFoodCost(), _priceBefore=(plan.action==='update' && menuById[targetId])?menuById[targetId].price:null;
+  var _write;
+  if(plan.action==='update'){ _write=upsertCustomMenu(item); }
+  else { customMenu.push(item); _write=dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
   rebuildMenu(); buildMenuOptions(); setCurrentMenuId(chosenMenu); buildMenuSelector();
   logHistory();   // v90: publishing a plate at a sell price changes the menu average and seeds that dish's price log
+  if(plan.action!=='update'){
+    logChangeIfSaved(_write, 'dish_added', {plateId:sp.id, dishId:targetId, menuIds:[chosenMenu], avgBefore:_avgBefore,
+      costAfter:costFromLines(sp.lines), detail:{name:name, price:item.price, section:cat}});
+  }else if(_priceBefore==null || Math.abs(_priceBefore-item.price)>=0.005){
+    logChangeIfSaved(_write, 'dish_price', {plateId:sp.id, dishId:targetId, menuIds:[chosenMenu], avgBefore:_avgBefore,
+      costAfter:costFromLines(sp.lines), detail:{name:name, priceFrom:_priceBefore, priceTo:item.price}});
+  }
   renderAnalysis(); renderPlatesTab(); closeMenuModal();
   var mm=document.getElementById('manageMenusModal'); if(mm && mm.classList.contains('open')) renderManageMenus();
   toast('“'+name+'” '+(plan.action==='update'?'updated on':'added to')+' the menu');
@@ -6100,15 +6374,31 @@ function applyInvoice(){
   // saveKingModal uses. The ask is batched into one confirm rather than chained per-item:
   // askConfirm has no cancel hook, so a chain would silently drop everything after a
   // cancel — which is the exact failure this item exists to remove.
-  var relinked=0, guarded=[];
+  var relinked=0, guarded=[], repointLog=[];
   kingRepoints.forEach(function(rp){
     var k=kById[rp.kid]; if(!k) return;
     var oldP=byId[k.pid], newP=byId[rp.pid];
     if(kingRepointGuard(oldP?oldP.base_unit:null, newP?newP.base_unit:null).needsConfirm){ guarded.push(rp); return; }
+    /* v114 — A REPOINT INSIDE THE INVOICE IMPORT IS STILL AN INTERVENTION, and this path is the one the
+       brief's enumeration missed. Every price this function wrote went through setProduct and belongs to
+       ing_price_history; this line does not, and it is the same "swap to a cheaper product" decision the
+       Ingredients tab makes. One entry PER INGREDIENT, not one for the batch: they are independent
+       decisions about different ingredients that happen to share a confirm. The before/after pair is
+       measured across this ingredient's own mutation, so the entries compose in sequence rather than
+       each claiming the whole batch's movement. */
+    var hit=platesUsingKid(rp.kid), avgBefore=computeAvgFoodCost();
     k.pid=rp.pid; relinked++;
+    repointLog.push({menuIds:menuIdsForPlates(hit), avgBefore:avgBefore, avgAfter:computeAvgFoodCost(),
+      detail:{name:k.name||rp.name||null, from:(oldP||{}).description||null, to:(newP||{}).description||null, plates:hit.length, via:'invoice'}});
   });
   var kingsTouched=(kingsMade||relinked);
-  if(kingsTouched){ saveKitchenIngredients(); renderKitchenPanel(); }
+  // A kitchen word CREATED here is not logged, and nor is one created on the Ingredients tab: nothing
+  // references it yet, so no plate's cost moves. It becomes an intervention the moment a plate uses it,
+  // and that is a plate save.
+  if(kingsTouched){
+    var kingWrite=saveKitchenIngredients(); renderKitchenPanel();
+    repointLog.forEach(function(o){ logChangeIfSaved(kingWrite, 'ingredient_repointed', o); });
+  }
   if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
   var overAfter=dishesOverTarget();
@@ -6132,9 +6422,21 @@ function confirmGuardedRepoints(list){
       +(list.length===1?'it':'them')+'.\n\nThe new products were still added either way.',
     'Re-link anyway',
     function(){
-      var done=0;
-      list.forEach(function(rp){ var k=kById[rp.kid]; if(k){ k.pid=rp.pid; done++; } });
-      if(done){ saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); }
+      var done=0, entries=[];
+      list.forEach(function(rp){
+        var k=kById[rp.kid]; if(!k) return;
+        // v114: the third repoint site, and it logs exactly as the other two do — same kind, same
+        // per-ingredient before/after pair. A user who confirms here has made the same decision as one
+        // who confirmed in the modal; the log must not be able to tell them apart.
+        var hit=platesUsingKid(rp.kid), avgBefore=computeAvgFoodCost(), oldP=byId[k.pid];
+        k.pid=rp.pid; done++;
+        entries.push({menuIds:menuIdsForPlates(hit), avgBefore:avgBefore, avgAfter:computeAvgFoodCost(),
+          detail:{name:k.name||rp.name||null, from:(oldP||{}).description||null, to:(byId[rp.pid]||{}).description||null, plates:hit.length, via:'invoice'}});
+      });
+      if(done){
+        var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
+        entries.forEach(function(o){ logChangeIfSaved(write, 'ingredient_repointed', o); });
+      }
       toast(done+' ingredient'+(done===1?'':'s')+' re-linked');
     });
 }
@@ -6276,14 +6578,24 @@ function onMenuSelectChange(){
   // varies per menu on its own — no per-switch bump needed (that would have defeated the cache).
   setCurrentMenuId(sel.value); updateMenuDelBtn(); renderAnalysis();
 }
-function dbDeleteMenuRecord(id){ pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
+// v114: returns its write, for the same reason dbDeleteMenu and dbDeletePlate were given theirs in v112 —
+// a helper that swallows its promise cannot be sequenced or confirmed by any caller.
+function dbDeleteMenuRecord(id){ return pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
 // v54: delete a menu \u2014 its dishes (menu_items rows) are removed and their plates are UNLINKED (menu_id \u2192 null),
 // so every plate survives in the Plates library, just unpublished. No reassignment, no holding area. Dishes go
 // first, then the menu row (dishes already gone, so the menu_items.menu_id FK can never be violated).
 function doDeleteMenu(id, name){
   var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
+  var avgBefore=computeAvgFoodCost();                               // v114: before anything comes off the menu
   affected.forEach(function(c){ removeMenuItem(c.id); });           // v55: remove only THIS menu's entries; plates (and any other menus they're on) survive
-  menusList=menusList.filter(function(x){return x.id!==id;}); dbDeleteMenuRecord(id);
+  menusList=menusList.filter(function(x){return x.id!==id;});
+  /* v114: ONE entry for the whole menu, chained off the MENUS row delete rather than the dishes'.
+     That is the write that decides whether the menu is gone; the dish deletes are fired above without
+     being awaited, which is pre-existing behaviour this batch is not in scope to change (the FK
+     menu_items.menu_id -> menus.id is ON DELETE SET NULL, so unlike the plate case there is nothing to
+     sequence against). Flagged in the handover rather than fixed. */
+  logChangeIfSaved(dbDeleteMenuRecord(id), 'menu_deleted', {menuIds:[id], avgBefore:avgBefore,
+    detail:{name:name||null, dishes:affected.length}});
   setCurrentMenuId(fallbackMenuId());
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
   toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
@@ -6354,9 +6666,14 @@ function submitAddDish(){
   if(plan.action==='update'){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
   var id='um'+Date.now().toString(36);
   var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Plate', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
-  customMenu.push(item); dbPushMenuAfterPlate(item, sp);
+  var avgBefore=computeAvgFoodCost();                              // v114: before the push, for the same reason everywhere else — computeAvgFoodCost is live
+  customMenu.push(item); var write=dbPushMenuAfterPlate(item, sp);
   rebuildMenu(); buildMenuOptions();
   logHistory();   // v90: as above — a new priced dish moves the menu average and seeds its price log
+  // v114: the SECOND path that puts a plate on a menu. v113 found this pair the hard way — both carried
+  // the identical publish guard and only one was in the brief — so they log the identical kind.
+  logChangeIfSaved(write, 'dish_added', {plateId:sp.id, dishId:id, menuIds:[currentMenuId], avgBefore:avgBefore,
+    costAfter:costFromLines(sp.lines), detail:{name:item.name, price:item.price, section:item.section}});
   renderAnalysis(); renderPlatesTab(); closeAddDishModal();
   toast('\u201c'+item.name+'\u201d added to '+menuNameById(currentMenuId));
 }
@@ -6397,6 +6714,13 @@ function forgetMenuItems(ids){
   var kill={}; (ids||[]).forEach(function(id){ kill[id]=1; });
   customMenu=customMenu.filter(function(c){ return !kill[c.id]; });
 }
+/* v114 — THE CHANGE LOG IS DELIBERATELY WRITTEN BY THIS FUNCTION'S CALLERS, NOT BY THIS FUNCTION.
+   Three callers, two meanings: mmRemove and doDeleteMenuOnly are a user taking ONE plate off ONE menu
+   (`dish_removed` each); doDeleteMenu calls this once per dish while deleting the whole menu, which is
+   ONE decision and logs ONE `menu_deleted`. Logging here would turn a menu deletion into N+1 entries and
+   report a burst of interventions that never happened. The cost of that choice is that a FOURTH caller
+   could be added without a log entry, so tests/change-log.test.js asserts the call sites by name — if
+   this list ever grows, that test fails and names the newcomer. */
 function removeMenuItem(id){
   forgetMenuItems([id]);
   return dbDeleteMenu(id);                            // remove server row (harmless if none)
@@ -6478,10 +6802,24 @@ function saveMenuEdit(){
   if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d from the list to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
   var price=parseFloat(priceV);
   var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:(m.menuId||'MENU_ORIGINAL');
+  /* v114 \u2014 ONE user action is ONE entry, so this picks a single kind even when the save moved both the
+     price and the menu: price wins, and the move is recorded in `detail`. Renaming a row or moving it
+     between sections logs NOTHING \u2014 neither changes what the plate costs or what it sells for, and a
+     log that fires on a typo correction cannot be read as "what you last did about food cost".
+     `_priceMoved` is measured to the cent, matching logMenuPrice's own dedupe: re-saving an unchanged
+     price hands back a value differing in the eighteenth decimal, which is a keystroke, not a decision. */
+  var _avgBefore=computeAvgFoodCost(), _wasMenu=(m.menuId||'MENU_ORIGINAL'), _wasPrice=(m.price==null?null:Number(m.price));
+  var _priceMoved=(_wasPrice==null || Math.abs(_wasPrice-price)>=0.005), _menuMoved=(chosenMenu!==_wasMenu);
+  var _plateId=(m.plateId||m.sourcePlateId||null);
   // v55: a dish keeps its own name/price/category per menu \u2014 editing it never renames the shared plate.
-  upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, plateId:(m.plateId||m.sourcePlateId||null)});   // saves all edits at once
+  var _write=upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, plateId:_plateId});   // saves all edits at once
   rebuildMenu(); buildMenuOptions();
   logHistory();   // v90: a sell-price edit moves the menu average AND is the event the sell-price log exists to catch. This path never logged either (the v60 item 1a liveness rule, missed here).
+  if(_priceMoved || _menuMoved){
+    logChangeIfSaved(_write, _priceMoved?'dish_price':'dish_moved',
+      {plateId:_plateId, dishId:id, menuIds:_menuMoved?[_wasMenu, chosenMenu]:[chosenMenu], avgBefore:_avgBefore,
+       detail:{name:name, priceFrom:_wasPrice, priceTo:price, menuFrom:_wasMenu, menuTo:chosenMenu}});
+  }
   if(chosenMenu!==currentMenuId){ setCurrentMenuId(chosenMenu); buildMenuSelector(); }   // follow the dish if it was moved to another menu
   renderPlate(); renderAnalysis(); renderPlatesTab(); closeEdit();
   toast('\u201c'+name+'\u201d updated');
@@ -6526,8 +6864,11 @@ function closeDelChoice(){ hide('delChoiceModal'); delChoiceId=null; }
 // v55: "remove from menu" drops just this menu entry; the plate stays in the library (and on any other menus).
 function doDeleteMenuOnly(){
   var id=delChoiceId; if(!id||!menuById[id]){ closeDelChoice(); return; }
-  var nm=menuById[id].name;
-  removeMenuItem(id);
+  var m=menuById[id], nm=m.name;
+  var avgBefore=computeAvgFoodCost(), plateId=plateIdOf(m), mid=(m.menuId||'MENU_ORIGINAL'), price=m.price;
+  var write=removeMenuItem(id);
+  logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:id, menuIds:[mid], avgBefore:avgBefore,
+    detail:{name:nm||null, price:price, via:'menu-tab'}});
   rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); closeDelChoice();
   toast('\u201c'+nm+'\u201d removed from this menu \u2014 plate kept');
 }
@@ -6537,14 +6878,23 @@ function doDeleteEverything(){
   var nm=menuById[id].name; var sp=plateForMenuItem(menuById[id]);
   var repaint=function(){ rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); };
   closeDelChoice();
+  var avgBefore=computeAvgFoodCost();                     // v114: before anything is forgotten
   if(!sp){                                                // nothing references anything \u2014 no sequencing needed
     // v112: no FK to order, but the same honesty rule as the branch below \u2014 the word "deleted" waits for
     // the server, and a dish the server kept is put back rather than left missing until the next reload.
     var only=menuById[id];
+    var onlyMid=(only.menuId||'MENU_ORIGINAL'), onlyPrice=only.price;
     forgetMenuItems([id]); repaint();
     Promise.resolve(dbDeleteMenu(id)).then(function(r){ return !!(r && !r.error); }, function(){ return false; })
       .then(function(ok){
-        if(ok){ toast('\u201c'+nm+'\u201d deleted'); return; }
+        if(ok){
+          // v114: an unlinked row has no plate to delete, so what actually happened is a removal from
+          // the menu \u2014 `dish_removed`, not `plate_deleted`. Naming it after the button the user pressed
+          // would put a plate deletion in the log with no plate.
+          logChange('dish_removed', {dishId:id, menuIds:[onlyMid], avgBefore:avgBefore,
+            detail:{name:nm||null, price:onlyPrice, via:'delete-everything', unlinked:true}});
+          toast('\u201c'+nm+'\u201d deleted'); return;
+        }
         customMenu.push(only); repaint();
         toast('Couldn\u2019t delete \u201c'+nm+'\u201d \u2014 it has NOT been deleted.');
       });
@@ -6554,12 +6904,19 @@ function doDeleteEverything(){
   var dishes=dishesOfPlate(sp).slice();
   var dishIds=dishes.map(function(d){ return d.id; });
   var wasLoaded=(loadedPlateId===sp.id);
+  var menuIds=menusOfPlate(sp).map(function(o){ return o.menuId; }), lineCount=(sp.lines||[]).length, plateName=sp.name||nm;
   forgetMenuItems(dishIds);
   savedPlates=savedPlates.filter(function(s){return s.id!==sp.id;});
   if(wasLoaded) loadedPlateId=null;
   repaint();
   dbDeletePlateAfterDishes(dishIds, sp.id).then(function(r){
-    if(r.dishesOk && r.plateOk){ toast('\u201c'+nm+'\u201d and its plate deleted'); return; }
+    if(r.dishesOk && r.plateOk){
+      // v114: the same kind deletePlate writes \u2014 it is the same outcome by a different door, and a log
+      // that distinguished them would be recording which button was pressed rather than what happened.
+      logChange('plate_deleted', {plateId:sp.id, menuIds:menuIds, avgBefore:avgBefore,
+        detail:{name:plateName, dishes:dishIds.length, lines:lineCount}});
+      toast('\u201c'+nm+'\u201d and its plate deleted'); return;
+    }
     rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm);
   });
 }
