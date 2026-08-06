@@ -6803,7 +6803,13 @@ function saveMenuEdit(){
   var price=parseFloat(priceV);
   var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:(m.menuId||'MENU_ORIGINAL');
   /* v114 \u2014 ONE user action is ONE entry, so this picks a single kind even when the save moved both the
-     price and the menu: price wins, and the move is recorded in `detail`. Renaming a row or moving it
+     price and the menu: price wins, and the move is recorded in `detail`.
+     \u26a0\ufe0f WHAT THAT COSTS A LATER READER, and it is not obvious from here (PR review, #58): a query
+     filtering on `kind === 'dish_moved'` to find "everything that changed menus" MISSES every edit where
+     the price moved in the same save, because those are `dish_price`. The menu change is still recorded
+     \u2014 in `detail.menuFrom`/`detail.menuTo`, which are written on BOTH kinds precisely so this is
+     recoverable. Any consumer asking "did this move menus" must read `detail`, never `kind` alone.
+     Renaming a row or moving it
      between sections logs NOTHING \u2014 neither changes what the plate costs or what it sells for, and a
      log that fires on a typo correction cannot be read as "what you last did about food cost".
      `_priceMoved` is measured to the cent, matching logMenuPrice's own dedupe: re-saving an unchanged

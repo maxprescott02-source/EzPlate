@@ -273,6 +273,44 @@ the feature ships write-only and a wrong `kind` or figure is undetectable in the
 batch lands. That is true and is the batch's real risk — it is why the enumeration and the behavioural
 tests carry the weight here rather than a device check.
 
+## The PR review — it finally published, and what it said
+
+**#56 merged before the reviewer could publish anything.** It ran twice and discarded both verdicts; #57
+fixed that (`track_progress` + `show_full_output`) and **#58** — a review-only PR whose diff is exactly
+what shipped as v114 — is the first run that published. Recovered retrospectively, against code that was
+already in production.
+
+It read the diff, the changed sections in context, both migrations and the new tests, and returned three
+findings. Two were actionable and both are fixed on `chore/v114-review-followups`:
+
+**1. `doDeleteMenu`'s failure branch had no test — FIXED.** The mechanism was right: `menu_deleted`
+chains off `dbDeleteMenuRecord`, so a failed menu-row delete already suppressed the entry. But this is
+the only path where that write is the deciding one, and nothing exercised it. "The mechanism is used
+elsewhere and works" is an argument, not coverage — and this file exists because arguments have been
+wrong here before. `a failed menu-row delete logs NOTHING` added and **verified red**.
+
+The review also restated the two-sided race in that function: dish deletes are fire-and-forget, so the
+log can say `dishes: N` while those rows are still on the server (their `menu_id` nulled by the FK), or
+stay silent when they are genuinely gone. It was explicit that this is pre-existing and not a new bug —
+but correctly notes that **the log now attaches meaning to a race that previously had none.** Still not
+fixed under hard rule 5; it is outstanding item 6's neighbour and belongs in that brief.
+
+**2. `kind` alone cannot answer "did this move menus" — DOCUMENTED at the site and in `CLAUDE.md`.** A
+save that changes the price and the menu logs `dish_price`, not `dish_moved`, so a later query filtering
+on `kind === 'dish_moved'` misses every combined edit. The move IS recorded — `detail.menuFrom`/
+`detail.menuTo` are written on both kinds precisely so it stays recoverable — but nothing said so. **The
+chart batch must read `detail`, never `kind` alone.**
+
+**3. The six version spots — confirmed consistent.** No action.
+
+**What it examined and cleared**, worth recording because these are the parts most likely to be
+re-litigated: the `changeToRow`/`rowToChange` round trip and its NaN handling; `_costBefore` being
+captured before `sp.lines` is replaced; the per-repoint before/after pair inside `applyInvoice`'s loop;
+`doDeleteEverything`'s unlinked branch using `logChange` inside `if(ok)`; `mmRemove` and
+`doDeleteMenuOnly` reading `m` before `forgetMenuItems` swaps the array; the format-2/3 wire decision;
+the three helpers that now return their writes; the closed `CHANGE_KINDS` set; and both migrations,
+including the named columns and not-null filter on the change-log insert.
+
 ## Deliberately NOT built (hard rule 5)
 
 - **`logHistory` does not fire on six of the twelve paths** (above). Real, pre-existing, its own brief.

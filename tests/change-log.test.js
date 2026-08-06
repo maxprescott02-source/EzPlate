@@ -360,6 +360,19 @@ test('deleting a MENU is ONE entry, not one per plate that came off it', async (
   assert.strictEqual(log[0].detail.dishes, 2, 'the count of what came off it belongs in detail, not in extra rows');
 });
 
+/* The one path whose failure branch had no test, found by the PR review. The MECHANISM is the same
+   logChangeIfSaved every other path uses, and it was right — but "the mechanism is used elsewhere and
+   works" is an argument, not coverage, and this file exists because arguments have been wrong here
+   before. `menu_deleted` chains off the MENUS row delete specifically, so this is the only path where
+   dbDeleteMenuRecord is the deciding write. */
+test('a failed menu-row delete logs NOTHING', async () => {
+  const { api } = harness(Object.assign(twoMenus(), { fail: { menurec: true } }));
+  api.doDeleteMenu('MENU_ORIGINAL', 'Original');
+  await flush();
+  assert.deepStrictEqual(api.changeLog(), [],
+    'the menu is still on the server — an append-only entry saying otherwise could never be retracted');
+});
+
 test('deleting a plate is ONE `plate_deleted` naming every menu it was on', async () => {
   const { api } = harness(twoMenus());
   api.deletePlate('SP1');
