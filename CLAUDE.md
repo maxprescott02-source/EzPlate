@@ -571,8 +571,11 @@ There are TWO, doing different jobs — don't treat either as the other:
   and faster than finding the same thing on the PR. Skipping it is a judgement
   call; skipping the workflow is not available.
 
-**⚠️ A SKIPPED REVIEW REPORTS SUCCESS — the one trap in this setup, and it is
-the exact failure class the reviewer is told to hunt for.** The action refuses
+**⚠️ A GREEN "Code review" CHECK HAS NOW BEEN WRONG IN TWO DIFFERENT WAYS. Both
+look identical from the checks list.**
+
+**(1) A SKIPPED REVIEW REPORTS SUCCESS — the original trap, and the exact failure
+class the reviewer is told to hunt for.** The action refuses
 to run when `code-review.yml` on the PR differs from the copy on `main` — a
 security measure, since otherwise a PR could rewrite its own reviewer to wave
 itself through. When it refuses it **exits GREEN**, posts nothing, and states
@@ -582,6 +585,22 @@ added the workflow, which could not be reviewed by it. **A green "Code review"
 check is not evidence that a review happened.** No comment plus no findings is
 the shape of a review that never ran; open the log and confirm it actually
 reviewed before reading silence as approval.
+
+**(2) A REVIEW THAT RAN AND THREW ITS FINDINGS AWAY — found on PR #56, 6 Aug
+2026, and NOT caught by the rule above.** The action ran **twice** — 34 turns then
+24, ~$4.30 of plan usage, 30 minutes of wall clock, `is_error: false`,
+`permission_denials_count: 0` — and posted nothing either time. Opening the log
+did not help: it said only `Running Claude Code via SDK (full output hidden for
+security)`. The prompt told it to post inline comments plus a summary, but
+**nothing was configured to publish**, so its output went to suppressed stdout.
+`gh run rerun --debug` does NOT recover it — that adds the runner's own
+`##[debug]` lines and leaves the SDK output hidden ($2.23, nothing surfaced).
+**Fixed in PR #57** with `track_progress: true` (posts to the PR) and
+`show_full_output: true` (fallback into the job log). **Proven working on PR #58**,
+which published a full review. If a future run goes quiet again, check those two
+inputs are still on the workflow BEFORE spending anything on a re-run.
+**v114 itself merged before this was fixed**, so its two workflow verdicts were
+lost; #58 recovered one retrospectively against the already-shipped diff.
 
 **⚠️ NEVER DISMISS A FINDING BECAUSE ITS STATED CAUSE IS WRONG.** A finding
 whose *mechanism* is wrong may still be pointing at a real bug. That happened
@@ -675,6 +694,11 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
     The log is written by **`removeMenuItem`'s callers**, not by `removeMenuItem`,
     because `doDeleteMenu` calls it once per dish for ONE decision; a census test
     fails and names a fourth caller if one appears.
+  - **⚠️ `kind` ALONE DOES NOT ANSWER "DID THIS MOVE MENUS".** A save that changes
+    the price AND the menu logs `dish_price`, not `dish_moved` — one action, one
+    entry, price wins. The move is still recorded, in `detail.menuFrom`/
+    `detail.menuTo`, which are written on BOTH kinds so it stays recoverable.
+    **The chart batch must read `detail`, never `kind` alone** (PR #58 review).
   - **Figures are STORED, and they are primitives, not a percentage.**
     `avg_before`/`avg_after` in the chart's own units plus plate cost in dollars.
     Deriving is not merely expensive here, it is **unavailable** — there is no
