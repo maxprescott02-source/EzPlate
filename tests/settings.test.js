@@ -68,7 +68,7 @@ function buildBackupIn(state) {
     var APP_VERSION = S.APP_VERSION;
     var productsById = S.productsById, kitchenIngredients = S.kitchenIngredients,
         savedPlates = S.savedPlates, customMenu = S.customMenu,
-        ingPriceLog = S.ingPriceLog, supplierMem = S.supplierMem,
+        ingPriceLog = S.ingPriceLog, changeLog = S.changeLog, supplierMem = S.supplierMem,
         cogsPct = S.cogsPct, gstDefault = S.gstDefault,
         deletedMenuIds = S.deletedMenuIds, deletedProdIds = S.deletedProdIds,
         menusList = S.menusList, currentMenuId = S.currentMenuId;
@@ -90,6 +90,9 @@ const STATE = {
   savedPlates: [{ id: 'SP1', name: 'Cod & Chips', lines: [{ kid: 'K0001', qty: 250 }] }],
   customMenu: [{ id: 'M1', section: 'FISH PACKS', name: 'Cod & Chips', price: 16 }],
   ingPriceLog: { P0108: [{ t: 1750000000000, v: 0.0029 }, { t: 1751000000000, v: 0.0031 }] },
+  changeLog: [{ id: 'CL1', t: 1752000000000, kind: 'plate_edited', plateId: 'SP1', dishId: null,
+                menuIds: ['MENU_ORIGINAL'], avgBefore: 34.2, avgAfter: 31.8,
+                costBefore: 5.1, costAfter: 4.7, detail: { name: 'Cod & Chips' } }],
   supplierMem: { SM1: { id: 'SM1', supplier: 'Bidfood', phrase_norm: 'chips straight cut', qty: 2.5, unit: 'kg' } },
   cogsPct: 38, gstDefault: 'inc',
   kingWizSkip: { P0005: 1 },
@@ -99,10 +102,13 @@ const STATE = {
                   { id: 'P0108', description: 'Chips', cost_per_base_unit: 0.0029 }]
 };
 
-test('ITEM 6: the backup serialises to real JSON and carries all seven data groups', () => {
+// v114: seven groups became EIGHT — `change_log` joined them. The count is in the title on purpose; if
+// a ninth ever arrives without this test being updated, the number in the name is the thing that reads
+// as wrong to the next person.
+test('ITEM 6: the backup serialises to real JSON and carries all eight data groups', () => {
   const parsed = JSON.parse(JSON.stringify(buildBackupIn(STATE)));   // must survive a real round-trip
   ['products', 'kitchen_ingredients', 'plates', 'menu_items',
-   'ing_price_log', 'supplier_mem', 'settings'].forEach(k => {
+   'ing_price_log', 'change_log', 'supplier_mem', 'settings'].forEach(k => {
     assert.ok(k in parsed, `backup is missing the "${k}" group`);
   });
   assert.equal(parsed.app, 'EzPlate');
@@ -142,11 +148,24 @@ test('v106: the backup carries supplier memory, populated', () => {
    hash would be actively worse than dropping them \u2014 a naive restore comparison reads null == null as a
    MATCH, converting the guard into a rubber stamp, which is the exact failure the stamp existed to
    prevent. What replaces them is the format bump, which is what tells a restore which shape it holds. */
-test('v108: the export declares format 2 and stays self-describing', () => {
+/* v114: the stamp moved 2 -> 3 because the file gained a group, which hard rule 9's general law makes a
+   format change. What did NOT change is any of the seven existing groups, which is why parseBackupFile
+   still accepts format 2 (pinned in restore.test.js) \u2014 Max's newest real backup is one. */
+test('v108/v114: the export declares format 3 and stays self-describing', () => {
   const s = JSON.parse(JSON.stringify(buildBackupIn(STATE))).stamp;
   assert.ok(s, 'a file with no stamp cannot be told apart from a format-1 delta');
-  assert.equal(s.format, 2, 'format 2 == complete snapshot; format 1 == delta against a literal');
+  assert.equal(s.format, 3, 'format 3 == complete snapshot WITH the change log; 2 == without it; 1 == delta against a literal');
   assert.equal(s.app_version, 'v35', 'the stamp is self-contained \u2014 a restore reads it without hunting the top level');
+});
+
+/* v114: the log is what a later batch's chart annotates its markers from. If the export drops it, one
+   restore silently erases the entire record of what Max has done about food cost while the trend line it
+   explains survives intact \u2014 the exact failure that ruled out plates.updated_at in the first place. */
+test('v114: the backup carries the change log, populated and unflattened', () => {
+  const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
+  assert.deepEqual(b.change_log, STATE.changeLog);
+  assert.equal(b.change_log[0].avgBefore, 34.2, 'the before/after pair is what makes an entry mean anything');
+  assert.deepEqual(b.change_log[0].menuIds, ['MENU_ORIGINAL'], 'menuIds is an ARRAY \u2014 one action, every menu it touched');
 });
 
 test('v108: the retired fingerprint fields are ABSENT, not null', () => {

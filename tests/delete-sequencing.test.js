@@ -49,6 +49,7 @@ function makeHarness(opts) {
     failPlate: !!opts.failPlate,
     holdDishes: !!opts.holdDishes,
     toasts: [],
+    changes: [],                               // v114: change-log kinds actually written
     savedPlates: opts.savedPlates,
     customMenu: opts.customMenu,
     menusList: opts.menusList || [{ id: 'MENU_ORIGINAL', name: 'Original' }],
@@ -68,6 +69,15 @@ function makeHarness(opts) {
     function buildMenuOptions(){} function buildMenuSelector(){} function updateEditTag(){}
     function renderPlate(){} function renderAnalysis(){} function renderPlatesTab(){}
     function closeDelChoice(){ S.log.push('closeDelChoice'); }
+    /* v114: the change log rides these paths. Stubbed rather than extracted — this file is about the
+       ORDER of the server calls, not about the log's own shape (tests/change-log.test.js owns that) —
+       but recorded, because "a rolled-back delete writes NO entry" is an honest-failure contract and
+       this is the only file that can exercise every failure shape. */
+    function computeAvgFoodCost(){ return 30; }
+    function logChange(kind,o){ S.changes.push(kind); return o; }
+    function logChangeIfSaved(w,kind,o){
+      return Promise.resolve(w).then(function(r){ if(!r||r.error) return null; return logChange(kind,o); }, function(){ return null; });
+    }
     function dbDeleteMenu(id){
       S.log.push('dish:'+id);
       var bad=S.failDish.indexOf(id)>=0;

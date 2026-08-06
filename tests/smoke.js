@@ -157,7 +157,12 @@ ok('cold boot: supplier_mem is EMPTY — it is server data now, not a local stor
 /* v108 (D2): the export is a COMPLETE SNAPSHOT, so the two base_products_* fields are gone with the
    literal they fingerprinted. Asserting they are ABSENT rather than null is the point — a null hash
    compares equal to a null hash, which would read as a matching build. */
-ok('stamp declares format 2 and names the build', !!(backup.stamp && backup.stamp.format === 2 && backup.stamp.app_version === swVer), JSON.stringify(backup.stamp));
+/* v114: the stamp moved 2 -> 3, because the file gained the change-log group and hard rule 9's general
+   law makes that a format change. Format 2 stays RESTORABLE (parseBackupFile accepts both) — Max's
+   newest real backup is one — but it is no longer what this app WRITES. */
+ok('stamp declares format 3 and names the build', !!(backup.stamp && backup.stamp.format === 3 && backup.stamp.app_version === swVer), JSON.stringify(backup.stamp));
+ok('cold boot: change_log is EMPTY — it is server data, and a boot that has not synced has none',
+   Array.isArray(backup.change_log) && backup.change_log.length === 0, JSON.stringify(backup.change_log));
 ok('the retired fingerprint fields are absent, not null',
    !('base_products_hash' in backup.stamp) && !('base_products_count' in backup.stamp), JSON.stringify(backup.stamp));
 ok('cold boot: products come from the local cache, not a literal', Object.keys(backup.products || {}).length === 393, String(Object.keys(backup.products || {}).length));
