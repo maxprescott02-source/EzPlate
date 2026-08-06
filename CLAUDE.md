@@ -557,10 +557,26 @@ reviewer, so this is the only second reader the code gets.
 There are TWO, doing different jobs — don't treat either as the other:
 
 - **`.github/workflows/code-review.yml` — MANDATORY, and it is the one that
-  matters.** `anthropics/claude-code-action@v1` on every `pull_request`
-  (`opened`, `synchronize`). There is no trigger phrase and no opt-out: it
-  **cannot be skipped**, which is the whole point of putting it there rather
-  than in a skill. It runs on a **different model** from the one writing the
+  matters.** `anthropics/claude-code-action@v1`, on `pull_request`
+  (`opened`, `ready_for_review`). There is no trigger phrase and no opt-out for
+  the PR itself: **every PR is reviewed once, at open**, which is the whole point
+  of putting it there rather than in a skill.
+  **⚠️ `synchronize` WAS REMOVED ON 6 AUG 2026, AND THAT NARROWED THE
+  GUARANTEE.** It used to re-review on every push to an open PR, which cost ~$2
+  and ~15 minutes of Max's plan EACH — a batch with four fixup commits cost four
+  full reviews, and 6 Aug came to roughly $8–9. So **fixes pushed after the PR is
+  opened are NOT re-reviewed automatically**, and a PR opened with trivial code
+  and then pushed to is reviewed only in its original state. Max chose this trade
+  knowing it. Two consequences for how to work:
+  - **Open the PR when the diff is FINAL**, or open it as a **draft** and mark it
+    ready — `ready_for_review` fires exactly one review, of the finished work.
+  - **To re-request a review after fixes**, toggle the PR back to draft and ready
+    again. No code push, no workflow edit, one run.
+  A **docs-only** change (`paths-ignore: '**.md'`) does not trigger it at all —
+  the reviewer has nothing to say about prose, and it must not cost $2 to push a
+  handover. `paths-ignore` skips only when EVERY changed file matches, so a batch
+  touching `js/app.js` AND its handover is still reviewed in full.
+  It runs on a **different model** from the one writing the
   batch, deliberately — same family, so the blind spots overlap, but not
   entirely. It is **blind to the brief**: it sees the diff and nothing else, and
   judges whether the code is CORRECT, not whether it matches what was asked
