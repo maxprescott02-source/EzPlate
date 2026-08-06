@@ -23,6 +23,29 @@ jobs:
           # Deliberately a different model from the one that writes the batches.
           # Same family, so blind spots overlap — but not entirely.
           claude_args: "--model claude-sonnet-4-6"
+          # ⚠️ WITHOUT THESE THE REVIEW RUNS AND NOBODY EVER READS IT.
+          # Measured on PR #56 (6 Aug 2026): the job ran TWICE — 34 turns then 24,
+          # ~$4.30 of plan usage, 30 minutes of wall clock, is_error false,
+          # permission_denials_count 0 — and posted nothing. No PR comment, no
+          # review, no inline comments, and the log said only
+          # "Running Claude Code via SDK (full output hidden for security)".
+          # The prompt below tells it to post inline comments plus a summary, but
+          # nothing was configured to publish, so its findings went to suppressed
+          # stdout and were discarded.
+          #
+          # This is a DIFFERENT failure from the documented one. A review that is
+          # skipped exits green in seconds having done nothing; this one exits
+          # green having done the work and thrown it away. Both look identical
+          # from the checks list, which is why the rule is to open the log.
+          #
+          # track_progress puts the result on the PR, where it belongs.
+          # show_full_output is the fallback: if the comment ever fails to post,
+          # the findings are still in the job log rather than gone. Re-running
+          # with `gh run rerun --debug` does NOT substitute for it — that adds the
+          # runner's own ##[debug] lines and leaves the SDK output hidden. Tried;
+          # it cost $2.23 and told us nothing.
+          track_progress: true
+          show_full_output: true
           prompt: |
             Review the diff of this pull request against the base branch.
 
