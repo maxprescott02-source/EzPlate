@@ -1,8 +1,38 @@
 name: Code review
 
+# ⚠️ THIS REVIEW COSTS REAL MONEY — ~$2 and ~15 minutes of Max's plan PER RUN, measured from the job
+# logs on PR #56 ($2.08 and $2.23). Seven runs on 6 Aug 2026 came to roughly $8-9, mostly from `synchronize`
+# re-reviewing the whole diff on every fixup commit. The triggers below are chosen to bound that.
 on:
   pull_request:
-    types: [opened, synchronize]
+    # `synchronize` is DELIBERATELY ABSENT, and this is a real reduction in the guarantee, not a tidy-up.
+    # It used to re-review on EVERY push to an open PR, so a batch with four fixup commits cost four full
+    # reviews. It now reviews the PR as OPENED. Fixes pushed afterwards are NOT re-reviewed automatically.
+    #
+    # ⚠️ SO THE OLD CLAIM "it cannot be skipped" IS NOW NARROWER: every PR is reviewed once, at open, and
+    # nothing that happens after that is looked at unless someone asks. A PR opened with trivial code and
+    # then pushed to is reviewed only in its original state. Max chose this trade on 6 Aug, knowing it.
+    #
+    # `ready_for_review` is the escape hatch that makes it survivable, and it is why dropping
+    # `synchronize` is not simply "less review": open the PR as a DRAFT while iterating, then mark it
+    # ready when the diff is final — that fires exactly one review, of the finished work. Toggling an
+    # open PR back to draft and ready again is also the way to re-request a review after fixes, with no
+    # code push and no workflow edit.
+    types: [opened, ready_for_review]
+    # A docs-only push must not cost $2. Handovers and CLAUDE.md are a large share of what gets pushed
+    # here, and the reviewer has nothing to say about prose. `paths-ignore` only skips when EVERY changed
+    # file matches, so a batch touching app.js AND its handover is still reviewed in full.
+    # Safe because `main` has no branch protection (not available on free private repos), so a workflow
+    # that does not run cannot block a merge. If protection is ever added, a skipped run may appear as a
+    # missing required check — revisit this line then.
+    paths-ignore:
+      - '**.md'
+
+# If two runs are ever triggered close together, only the newest survives. Cheap insurance rather than a
+# fix for anything: with `synchronize` gone the triggers above rarely overlap.
+concurrency:
+  group: code-review-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
