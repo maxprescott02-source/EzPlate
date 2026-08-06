@@ -2594,6 +2594,74 @@ function axCharW(){
   }catch(e){ AX_CHW=6.6; }                                       // no canvas (jsdom): a Menlo-ish estimate
   return AX_CHW;
 }
+/* ===== v115: the chart reframed — colour anchored to TARGET, drops marked as Max's own work =====
+   The line was permanently red: ingredient prices drift up continuously and the number only falls
+   when the user intervenes, so colouring by direction reported failure during the ordinary running
+   of a café. Colour now means what it means on Menu Analysis — at or under target is green — and
+   the sawtooth's drops are labelled as the user's interventions, drawn from the change log. */
+/* Markers are DISPLAY decisions over a complete log (the data keeps everything):
+   - only entries whose avgBefore/avgAfter PRIMITIVES show a fall get a marker — never keyed on
+     `kind`, because a combined price-and-menu edit logs `dish_price` and a kind filter would miss
+     it (v114: read detail/primitives, never kind alone). Cost-RAISING interventions stay in the
+     log, off the chart.
+   - ONE marker per calendar day: the invoice repoint loop writes one entry per ingredient in a
+     single confirm, and the line itself dedups within the hour — per-entry markers would draw a
+     picket fence under one decision. The day's magnitude is the summed fall.
+   - an entry naming a DELETED plate draws like any other (markers aggregate by day and never name
+     plates; the movement was real), and entries describing a state a restore rolled back draw too
+     — a restore does not un-happen an intervention (v114). */
+function trendMarkers(pts){
+  if(!pts || pts.length<2) return [];
+  if(typeof changeLog==='undefined' || !changeLog || !changeLog.length) return [];
+  var t0=ptMs(pts[0]), t1=ptMs(pts[pts.length-1]);
+  var days={}, out=[];
+  changeLog.forEach(function(e){
+    if(!e || typeof e.avgBefore!=='number' || typeof e.avgAfter!=='number') return;
+    if(!isFinite(e.avgBefore) || !isFinite(e.avgAfter)) return;
+    var drop=e.avgBefore-e.avgAfter;
+    if(!(drop>0.001)) return;
+    if(e.t<t0 || e.t>t1) return;
+    var d=new Date(e.t), key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+    if(!days[key]){ days[key]={t:e.t, drop:0, count:0}; out.push(days[key]); }
+    if(e.t>days[key].t) days[key].t=e.t;
+    days[key].drop+=drop; days[key].count++;
+  });
+  out.sort(function(a,b){ return a.t-b.t; });
+  return out;
+}
+/* The latest change-log entry with usable figures, scoped: an entry "reaches" a menu when its
+   menuIds names it — menuIds is written on every kind (a moved dish lists both menus), so this
+   never needs to consult `kind`. Used by the since-line, not the markers. */
+function lastChangeEntry(scope){
+  if(typeof changeLog==='undefined' || !changeLog) return null;
+  var best=null;
+  changeLog.forEach(function(e){
+    if(!e || typeof e.avgBefore!=='number' || typeof e.avgAfter!=='number') return;
+    if(!isFinite(e.avgBefore) || !isFinite(e.avgAfter)) return;
+    if(scope && scope!==DASH_ALL && !(e.menuIds||[]).some(function(id){ return id===scope; })) return;
+    if(!best || e.t>best.t) best=e;
+  });
+  return best;
+}
+/* v115 — the signature line: the achievement, then the gap. DELIBERATELY silent on the fix
+   (portions, products, suppliers, prices are all Max's call — chefs reprice least of all, because
+   reprints cost money; naming any one of them would be prescribing, which this app does not do).
+   Omitted entirely when the log has nothing usable — an empty state, not a fault. */
+function sinceLineHtml(scope, current){
+  var e=lastChangeEntry(scope);
+  if(!e || current==null) return '';
+  var drop=e.avgBefore-e.avgAfter;
+  var ageDays=(Date.now()-e.t)/86400000;
+  var lead;
+  if(ageDays>=14){ var wks=Math.round(ageDays/7); lead='No changes for '+wks+' week'+(wks===1?'':'s')+'.'; }
+  else if(drop>0.05) lead='Your last change cut '+(Math.round(drop*10)/10)+' pts.';
+  else lead='Your last change was '+(ageDays<1.5?'today':Math.round(ageDays)+' days ago')+'.';
+  var drift=current-e.avgAfter, gap='';
+  if(drift>=0.1) gap=' Costs up '+(Math.round(drift*10)/10)+' pts since.';
+  else if(drift<=-0.1) gap=' Costs down '+(Math.round(-drift*10)/10)+' pts since.';
+  var calm=drift<0.1;   // the warm tint marks accumulating drift; a line with no drift sits quiet
+  return '<p class="since'+(calm?' calm':'')+'"><b>'+esc(lead)+'</b>'+esc(gap)+'</p>';
+}
 function trendChart(){
   var pts=dashRangePts();
   /* v52 GUTTER GEOMETRY — v51 removed the left gutter so the curve could start at the card's
@@ -2646,17 +2714,58 @@ function trendChart(){
   pts.forEach(function(p,i){ xs.push(x(i)); ys.push(y(p.v)); });
   var tan=tcTangents(xs,ys);
   var d=tcPath(xs,ys,tan);                                       // v47: smooth monotone curve (was straight polyline segments)
-  var trendUp=pts[pts.length-1].v > pts[0].v + 0.05;
-  var trendDown=pts[pts.length-1].v < pts[0].v - 0.05;
-  var stroke=trendUp?'var(--bad)':trendDown?'var(--good)':'var(--muted2)';   // semantic: green = improving, red = worsening — never change
+  /* v115 — colour is anchored to the TARGET, not to direction (supersedes the v47 "green = improving"
+     semantic and its never-change note, deliberately: direction-colouring made the chart permanently
+     red, because prices only drift up between interventions — it told the user he was failing during
+     the ordinary running of a café). Green now means what it has always meant on Menu Analysis: at or
+     under target. Rising-but-under stays green; the judgement about drift lives in the over-target
+     band and the since-line, not in the line's slope. */
+  var latest=pts[pts.length-1].v;
+  var overNow=latest>cogsPct+0.05;
+  var stroke=overNow?'var(--bad)':'var(--good)';
   // v61 item 6 (SUPERSEDES v60's edge-annotation half): the dashed target rule renders only when the target
   // is inside the domain (or within one tick, per targetInView). When it's outside, NOTHING is drawn — no edge
   // marker, no arrow. The user knows their own target; the line's only job is to warn as costs approach it.
-  var refLine='';
+  var refLine='', band='';
   if(targetShown){
-    var refY=y(cogsPct).toFixed(1);
-    refLine='<line class="ref-line" x1="'+padL+'" y1="'+refY+'" x2="'+(W-padR)+'" y2="'+refY+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
+    var refYn=y(cogsPct);
+    refLine='<line class="ref-line" x1="'+padL+'" y1="'+refYn.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+refYn.toFixed(1)+'" stroke="var(--muted2)" stroke-dasharray="4 4" stroke-width="1"/>';
+    // v115: the over-target zone — a faint wash above the target line, so the red has somewhere to
+    // live and the line itself stops carrying the judgement. Clamped to the plot; absent when the
+    // target sits above the domain (nothing over target to shade).
+    var bandBot=Math.min(Math.max(refYn,padT),H-padB);
+    if(bandBot>padT+1) band='<rect class="over-band" x="'+padL+'" y="'+padT+'" width="'+(W-padL-padR)+'" height="'+(bandBot-padT).toFixed(1)+'" fill="var(--bad)" opacity="0.07"/>';
   }
+  /* v115 — the intervention markers (see trendMarkers above for the display rules). The x-axis is
+     INDEX-spaced, not time-scaled, so a marker's time is interpolated between its neighbouring
+     readings; y rides the rendered curve via tcYAt, same as the scrub dot. Dots always draw; the
+     magnitude label drops on any marker within 30 viewBox units of the previous label (several
+     markers at 380px must not collide — the scrub tooltip still carries the full sentence), and
+     labels sit in the empty padB strip below the plot where nothing can overlap them. */
+  var marks=trendMarkers(pts);
+  var ptsMs=pts.map(function(p){ return ptMs(p); });
+  var mkX=function(t){
+    if(t<=ptsMs[0]) return xs[0];
+    for(var i=1;i<ptsMs.length;i++){
+      if(t<=ptsMs[i]){
+        var f=(ptsMs[i]===ptsMs[i-1])?1:(t-ptsMs[i-1])/(ptsMs[i]-ptsMs[i-1]);
+        return xs[i-1]+(xs[i]-xs[i-1])*f;
+      }
+    }
+    return xs[xs.length-1];
+  };
+  var mkGuides='', mkDots='', mkLabels='', mkGeo=[], lastLblX=-1e9;
+  marks.forEach(function(mk){
+    var mx=mkX(mk.t), my=tcYAt(xs,ys,tan,mx);
+    mkGuides+='<line x1="'+mx.toFixed(1)+'" y1="'+padT+'" x2="'+mx.toFixed(1)+'" y2="'+(H-padB)+'" stroke="var(--border)" stroke-width="1"/>';
+    mkDots+='<circle class="mk-pt" cx="'+mx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>';
+    var mag=Math.round(mk.drop*10)/10;
+    if(mag>=0.1 && mx-lastLblX>=30){
+      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+'</text>';
+      lastLblX=mx;
+    }
+    mkGeo.push({x:mx, drop:mk.drop, count:mk.count});
+  });
   var area=d+' L'+xs[xs.length-1].toFixed(1)+' '+(H-padB)+' L'+xs[0].toFixed(1)+' '+(H-padB)+' Z';
   /* v94 polish (SUPERSEDES the v47 dotted texture, its v94 opacity tweak and the fade mask — do
      not restore them): the area under the curve is a smooth translucent gradient of the semantic
@@ -2670,8 +2779,10 @@ function trendChart(){
   // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
   // value so the target tick sits exactly on the dashed rule (v48 invariant, pinned).
   var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-axGap)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmtTick(v)+'</text>'; }).join('');
-  var trendWord=trendUp?'trending up (food cost rising)':trendDown?'trending down (margins improving)':'holding steady';
-  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, '+trendWord+'. Use the left and right arrow keys to step through readings.">'
+  // v115: the words follow the colour — position against target, plus the markers, not direction.
+  var posWord=overNow?('over your '+fmtTargetPct()+' target'):('under your '+fmtTargetPct()+' target');
+  var ariaMk=marks.length?(', with '+marks.length+' marked change'+(marks.length===1?'':'s')+' you made'):'';
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" aria-label="Average food cost trend, currently '+posWord+ariaMk+'. Use the left and right arrow keys to step through readings.">'
     +'<defs>'
     // v94 polish: the area gradient — semantic line colour at 18% under the curve, transparent at
     // the plot floor. Anchored to the plot's Y extents (userSpaceOnUse) so it reads identically on
@@ -2681,20 +2792,29 @@ function trendChart(){
     +'<clipPath id="tcClipB"><rect id="tcRectB" x="0" y="0" width="'+W+'" height="'+H+'"/></clipPath>'
     +'<clipPath id="tcClipD"><rect id="tcRectD" x="'+W+'" y="0" width="0" height="'+H+'"/></clipPath>'
     +'</defs>'
+    +band      // v115: under everything — the wash is context, never chrome
     +refLine   // v60 item 1b: present only when the target is inside the domain
+    +mkGuides  // v115: marker hairlines sit behind the curve, like gridlines
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +mkDots+mkLabels   // v115: marker dots ride the curve OUTSIDE the scrub clip groups (they must not dim), labels live in the empty padB strip
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
     +'</svg>';
-  TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB};
+  TREND_GEO={xs:xs, ys:ys, tan:tan, pts:pts, W:W, H:H, padL:padL, padR:padR, padT:padT, padB:padB, marks:mkGeo};
+  /* v115 caption — states the position against the TARGET, never a direction verdict ("trending up"
+     told the user he was failing while prices did what prices do). "All menus" stays: the v89 scope
+     honesty is unchanged — this series covers every menu. The marker sentence appears once, here,
+     so the marks themselves need no per-marker wording (they carry only a magnitude). */
+  var overCount=0; pts.forEach(function(p){ if(p.v>cogsPct+0.05) overCount++; });
+  var capPos=(overCount===pts.length)?('over your '+fmtTargetPct()+' target across this range')
+    :(overCount?('crosses your '+fmtTargetPct()+' target in this range')
+    :('under your '+fmtTargetPct()+' target across this range'));
+  var capMk=marks.length?(' <span class="mk-dot">●</span> marks changes you made.'):'';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    // v89 COPY ONLY (no geometry touched): "across the menu" said the singular when the app has always
-    // allowed several, and now that a scope selector sits above this line the ambiguity actively misleads
-    // \u2014 it reads as though it describes the selected menu. The series is, and always was, every menu.
-    +'<p class="hint chart-hint">All menus \u00b7 '+trendWord+'.</p></div>';   // v94: one compact hint line (density brief), same meaning kept \u2014 the series covers every menu (v89 scope honesty) + the direction. v47: "Tap a point for its date" dropped — the scrub interaction teaches itself
+    +'<p class="hint chart-hint">All menus \u00b7 '+capPos+'.'+capMk+'</p></div>';
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
    Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
@@ -3584,22 +3704,12 @@ function dashInsightsHtml(scope){
    The Dashboard is the manager's surface — "am I OK?" — where every other tab serves the chef
    building things. These three pieces answer it for a chosen scope. */
 function fmtTargetPct(){ return (cogsPct%1?cogsPct.toFixed(1):cogsPct.toFixed(0))+'%'; }
-function scopeHistory(scope){ return (scope===DASH_ALL)?priceHistory:((menuHistory&&menuHistory[scope])||[]); }
-/* Trend direction for the verdict line: today vs the last 7 days' average of the same series. (Until the
-   v98 revision this was deliberately the same comparison the vs-last-week stat card used, so the two could
-   never disagree; the compares block is gone but the definition stays — it is the honest short horizon.)
-   Returns null when that scope has no history to compare against — the clause is then omitted rather
-   than shown flat, because "→ steady" against no data is a claim we can't make. */
-function scopeTrend(scope, current){
-  if(current==null) return null;
-  var from=Date.now()-7*86400000;
-  var vals=scopeHistory(scope).filter(function(h){ return ptMs(h)>=from; }).map(function(h){return h.v;});
-  var base=avgOf(vals);
-  if(base==null) return null;
-  var d=current-base;                                                // food cost down = good
-  if(Math.abs(d)<0.05) return {cls:'flat', arrow:'→', word:'holding steady'};
-  return (d<0)?{cls:'good', arrow:'↓', word:'improving'}:{cls:'bad', arrow:'↑', word:'creeping up'};
-}
+/* v115: scopeTrend AND scopeHistory (its only feeder) are DELETED, not hidden (tombstone so the
+   names stay greppable). scopeTrend coloured a
+   direction verdict — "↑ creeping up" in red — onto the headline, which is the same failure the
+   chart's direction-colouring had: rising is the ordinary state of ingredient prices, so the clause
+   reported failure during normal trading. Position-vs-target lives in the verdict number and the
+   anchor line; drift is carried by the since-line (sinceLineHtml), which is neutral about the fix. */
 /* v97: .verdict-cap is GONE — the scope now lives in this card's heading (see renderDashboard), stated once.
    dashScopeLabel itself stays: the Dig-in cards still subtitle themselves with it, and they are a separate
    panel from the card that owns the number and the chart.
@@ -3616,10 +3726,9 @@ function verdictHtml(scope, cmp){
   var vs=(Math.abs(d)<0.05)
     ? ('bang on your '+fmtTargetPct()+' target')
     : (Math.abs(d).toFixed(1)+' pts '+(d<0?'under':'over')+' your '+fmtTargetPct()+' target');
-  var tr=scopeTrend(scope, pct);
+  // v115: the direction clause (scopeTrend) is gone — see the tombstone above scopeHistory.
   return '<div class="verdict"><span class="verdict-num '+cls+'">'+pct.toFixed(1)+'%</span></div>'
-    +'<p class="verdict-line">'+esc(vs)
-    +(tr?(' · <b class="verdict-trend '+tr.cls+'">'+tr.arrow+' '+esc(tr.word)+'</b>'):'')+'</p>';
+    +'<p class="verdict-line">'+esc(vs)+'</p>';
 }
 /* v96: dashScopeSelectorHtml is DELETED, not hidden. It was a native <select> in a .menu-picker-row
    that set dashScope — the same value the By-menu rows below it already set. The list is now the only
@@ -3646,8 +3755,10 @@ function mcmpSparkSeries(h){
   var xy=pts.map(function(p,i){
     return (P+(W-2*P)*(i/(pts.length-1))).toFixed(1)+','+(P+(H-2*P)*(1-(p.v-mn)/(mx-mn))).toFixed(1);
   }).join(' ');
-  var d=vs[vs.length-1]-vs[0];
-  var cls=(d<-0.05)?'good':(d>0.05)?'bad':'flat';
+  // v115: colour anchored to TARGET, matching the chart above (was direction: fell = good). A menu
+  // whose latest average sits at or under target is green however it got there — otherwise the
+  // By-menu list contradicts the chart it sits beside.
+  var cls=(vs[vs.length-1]<=cogsPct+0.05)?'good':'bad';
   return '<svg class="mcmp-spark '+cls+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" focusable="false">'
     +'<polyline points="'+xy+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
@@ -3728,9 +3839,13 @@ function renderDashboard(){
      reading order (verdict \u2192 chart \u2192 compares); desktop CSS reorders the card to the grid
      brief's number \u2192 compares \u2192 trend via `order`, so the phone stack is untouched. TILE
      COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
+  // v115: the since-line renders HERE rather than inside verdictHtml so the pure verdict block (and
+  // its extraction sandbox) stays free of the change log's globals.
+  var pctNow=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
   var html='<div class="panel dash-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
     +verdictHtml(scope, cmp)
+    +sinceLineHtml(scope, pctNow)
     +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart()
@@ -3766,7 +3881,7 @@ function renderDashboard(){
     var cross=svg.querySelector('#tcCross'), dot=svg.querySelector('#tcDot'),
         rb=svg.querySelector('#tcRectB'), rd=svg.querySelector('#tcRectD');
     if(!cross||!dot||!rb||!rd) return;
-    var n=g.xs.length, stepW=(g.W-g.padL-g.padR)/(n-1), lastIdx=-1, raf=0, pending=null, active=false;
+    var n=g.xs.length, stepW=(g.W-g.padL-g.padR)/(n-1), lastIdx=-1, lastMk=-1, raf=0, pending=null, active=false;
     function showAt(vx){                                             // vx in viewBox units, already clamped to the plot
       active=true;
       var vy=tcYAt(g.xs,g.ys,g.tan,vx);                              // the dot rides the RENDERED curve continuously…
@@ -3775,11 +3890,17 @@ function renderDashboard(){
       rb.setAttribute('width',Math.max(0,vx).toFixed(1));            // bright behind the cursor…
       rd.setAttribute('x',vx.toFixed(1)); rd.setAttribute('width',Math.max(0,g.W-vx).toFixed(1));   // …dimmed ahead of it
       var idx=Math.max(0,Math.min(n-1,Math.round((vx-g.padL)/stepW)));
-      if(idx!==lastIdx){                                             // …but the REPORTED value snaps to the nearest real reading
-        lastIdx=idx;
+      // v115: scrubbing near a marker carries the full sentence the marker's bare dot cannot — this
+      // is what lets the magnitude labels thin out at 380px without losing anything.
+      var mkNear=null, mi;
+      if(g.marks) for(mi=0; mi<g.marks.length; mi++){ if(Math.abs(vx-g.marks[mi].x)<=12){ mkNear=g.marks[mi]; break; } }
+      var mkKey=mkNear?Math.round(mkNear.x):-1;
+      if(idx!==lastIdx || mkKey!==lastMk){                           // …but the REPORTED value snaps to the nearest real reading
+        lastIdx=idx; lastMk=mkKey;
         var p=g.pts[idx];
         var when=p.t?new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):('reading #'+(idx+1));
-        tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>';
+        tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>'
+          +(mkNear?('<span class="tp-mk">You made '+(mkNear.count>1?mkNear.count+' changes':'a change')+' — down '+(Math.round(mkNear.drop*10)/10)+' pts</span>'):'');
       }
       tip.classList.add('show'); tip.setAttribute('aria-hidden','false');
       var rect=svg.getBoundingClientRect(), sx=rect.width/g.W, sy=rect.height/g.H;

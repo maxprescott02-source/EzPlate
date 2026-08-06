@@ -2843,3 +2843,21 @@ html{scrollbar-gutter:stable}
 }
 /* The message carries the meaning; the spinner is decoration. */
 @media (prefers-reduced-motion: reduce){ .inv-wait-spin{animation:none;border-top-color:var(--line)} }
+
+/* ===== batch (v115) — the dashboard the app has been building toward ===== */
+/* Strand 2: the chart reframed. The hero figure grows toward the approved mockup's weight — one
+   deliberate size for the one number the dashboard exists to answer; everything else keeps the
+   token scale. */
+#dashBody .verdict-num{font-size:34px}
+/* The since-line: the achievement, then the gap. The warm tint marks accumulating drift (the thing
+   worth glancing at); .calm drops the tint when there is no drift to report. Deliberately NOT a
+   traffic-light colour — drift is normal trading, not failure (that judgement lives on the chart's
+   over-target band alone). */
+.since{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-3) 0 0;padding:9px 12px;
+  border-radius:9px;border-left:2px solid var(--warn);background:var(--warn-bg);
+  font-size:var(--fs-sm);line-height:1.45;color:var(--text)}
+.since b{font-weight:600}
+.since.calm{border-left-color:var(--border2);background:var(--surface2)}
+/* The caption's marker key and the scrub tooltip's marker sentence. */
+.chart-hint .mk-dot{color:var(--accent);font-size:9px;vertical-align:1px}
+.tp-tip .tp-mk{display:block;font-size:10px;color:var(--accent);white-space:nowrap}
