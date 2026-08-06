@@ -322,6 +322,30 @@ test('moving a plate to another menu at the SAME price is `dish_moved`, and name
   assert.deepStrictEqual(log[0].menuIds.sort(), ['MENU_ORIGINAL', 'MW'], 'it left one menu and joined another');
 });
 
+/* ⚠️ THE COMBINED CASE, AND THE ONLY THING STANDING BEHIND A PROMISE CLAUDE.md NOW MAKES.
+   One action is one entry, so a save that moves the price AND the menu resolves to `dish_price` —
+   the menu movement survives only in `detail`. CLAUDE.md tells the chart batch to read `detail` rather
+   than `kind` for "did this move menus", on the strength of menuFrom/menuTo being written on BOTH kinds.
+   Nothing pinned that. The two tests above pass with only one of the pair changing, so making
+   menuFrom/menuTo conditional on `_menuMoved` would break the documented promise silently, with every
+   existing test still green. Found by the PR review on #59; this is the loop closed. */
+test('price AND menu in one save: kind is `dish_price`, and the move survives in detail', async () => {
+  const { api } = harness(Object.assign(twoMenus(), {
+    editTargetId: 'D1', fields: { ed_name: 'F&C', ed_price: '25', ed_cat: 'Mains', ed_menu: 'MW' },
+  }));
+  api.saveMenuEdit();
+  await flush();
+  const log = api.changeLog();
+  assert.strictEqual(log.length, 1, 'one action, one entry — never one per thing that moved');
+  assert.strictEqual(log[0].kind, 'dish_price', 'price wins the kind');
+  assert.strictEqual(log[0].detail.menuFrom, 'MENU_ORIGINAL',
+    'a query filtering kind===dish_moved misses this edit, so detail is the ONLY record that it moved');
+  assert.strictEqual(log[0].detail.menuTo, 'MW');
+  assert.strictEqual(log[0].detail.priceFrom, 20);
+  assert.strictEqual(log[0].detail.priceTo, 25);
+  assert.deepStrictEqual(log[0].menuIds.sort(), ['MENU_ORIGINAL', 'MW'], 'both menus are named, as on a plain move');
+});
+
 test('renaming a menu row changes no number and writes NOTHING', async () => {
   // The log answers "what did you last do about food cost". A typo correction is not an answer, and an
   // entry for one would push the real last intervention off the top of the chart.
