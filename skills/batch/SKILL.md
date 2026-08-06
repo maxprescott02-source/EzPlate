@@ -5,21 +5,21 @@ description: Run a queued item end to end without stopping for approval - invest
 
 # Batch
 
-Take the next unblocked item from `QUEUE.md` and carry it all the way to merged, then take the next one.
+Take the next unblocked item from `docs/QUEUE.md` and carry it all the way to merged, then take the next one.
 **Do not stop for approval between steps.** Max's time is the scarce resource; yours is not.
 
 Continue until the queue is empty or a stop condition fires.
 
 **Why this doesn't contradict `CLAUDE.md`'s "plan first, get a yes".** The trigger is where the work came from.
-**An item in `QUEUE.md` is already approved** - Max said yes when he queued it, so re-asking spends the one resource this skill exists to protect.
+**An item in `docs/QUEUE.md` is already approved** - Max said yes when he queued it, so re-asking spends the one resource this skill exists to protect.
 **Work arriving from chat, a brief or a screenshot is not approved**, and briefs about this repo have been wrong repeatedly; that is the case that plans first.
 If you are running `/batch`, you are in the first case.
 
 ## The loop
 
-1. **Take the top unblocked item.** Mark it in progress in `QUEUE.md`.
+1. **Take the top unblocked item.** Mark it in progress in `docs/QUEUE.md`.
 2. **Decide whether to investigate.** If the item rests on a claim about the code that its author could not see, run `/investigate` first - read-only, no branch.
-   If the investigation contradicts the item, **the code wins**: rewrite the item in `QUEUE.md` to match reality and say what changed.
+   If the investigation contradicts the item, **the code wins**: rewrite the item in `docs/QUEUE.md` to match reality and say what changed.
    Reproduce before you fix: a misdiagnosed dead-code path was once briefed as a live compounding bug because nobody drove it.
 3. **Plan.** Write it down.
    Do not wait for it to be read.
@@ -38,7 +38,7 @@ If you are running `/batch`, you are in the first case.
 11. **Next item.**
 
 **Bump the cache version** as part of step 4 whenever the batch ships a client asset - the `cache-version` skill has the six spots.
-`CLAUDE.md` has no snapshot section to update; current state lives in git, `QUEUE.md` and `PHONE.md`.
+`CLAUDE.md` has no snapshot section to update; current state lives in git, `docs/QUEUE.md` and `docs/PHONE.md`.
 
 ## Stop conditions - the only times to come back to Max
 
@@ -60,7 +60,7 @@ Stop, say plainly which condition fired and what you need, then take the next un
 
 ## The queue
 
-`QUEUE.md` at the repo root.
+`docs/QUEUE.md`.
 One item per heading, in priority order:
 
 ```
@@ -80,7 +80,7 @@ Do not let findings live only in handovers.
 ## Phone checks accumulate
 
 Do not stop for one.
-Append to `PHONE.md` - the item, why only a device can settle it, and what a failure would look like.
+Append to `docs/PHONE.md` - the item, why only a device can settle it, and what a failure would look like.
 Max works through it in one session.
 
 If something can only be judged on a phone **and** shipping it wrong would be costly, that is a stop condition.

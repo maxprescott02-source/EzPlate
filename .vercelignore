@@ -1,0 +1,38 @@
+# Vercel serves this repo's root as static files, so anything committed here is
+# publicly fetchable unless it is listed below. This is belt and braces alongside
+# moving the process docs into docs/ - the move is what keeps them off the origin,
+# this file is what stops the next one being served by accident.
+#
+# Verified 7 Aug 2026 against https://scoopyscosting.vercel.app: before this file
+# existed, CLAUDE.md, handovers/, briefs/, tests/, supabase/migrations/*.sql,
+# .claude/settings.json and .github/workflows/*.yml all answered 200.
+#
+# What the app actually needs at the origin: index.html, sw.js, manifest.json,
+# js/, css/, icons/, api/. Everything else is tooling.
+
+# Process docs - the reason this file exists
+docs/
+
+# Agent tooling and instructions
+CLAUDE.md
+skills/
+.claude/
+.agents/
+.mcp.json
+
+# Tests and their harnesses
+tests/
+test-results/
+playwright.config.js
+playwright-report/
+
+# Database - schema and the restore RPC's definition
+supabase/
+
+# CI
+.github/
+
+# Repo housekeeping that has no business on the origin
+gitignore
+README.md
+skills-lock.json

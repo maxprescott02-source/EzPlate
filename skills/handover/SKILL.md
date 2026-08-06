@@ -5,13 +5,13 @@ description: Write the end-of-batch handover for EzPlate. Use at the end of ever
 
 # Handover
 
-Every batch ends with `handovers/HANDOVER-vNN.md`.
+Every batch ends with `docs/handovers/HANDOVER-vNN.md`.
 It is a dated diary entry for ONE batch, and it is the audit trail - several rules in `CLAUDE.md` exist only because a handover recorded why something was done.
 
 **Write-once.** A handover is evidence of what was believed at the time, so it is never edited after the fact.
 If it turns out to be wrong, the correction goes in the NEXT handover, which is itself the record of finding the error.
 
-`handovers/README.md` documents the numbering gaps and the follow-up convention.
+`docs/handovers/README.md` documents the numbering gaps and the follow-up convention.
 Read it before adding a file that is not the next integer.
 
 **Style:** follow `~/.claude/AGENTS.md` - no em dashes, one sentence per line.
@@ -43,7 +43,7 @@ A call with no alternative stated reads as the only option, which is how a decis
 
 ## Deliberately NOT built
 Scope discipline is a hard rule, so what you declined is part of the record, each with a reason.
-**Anything real here also becomes a `QUEUE.md` item** - a finding that lives only in a handover is a finding nobody will action.
+**Anything real here also becomes a `docs/QUEUE.md` item** - a finding that lives only in a handover is a finding nobody will action.
 
 ## Verification
 Suite, `node -c`, smoke, Playwright, real browser, database checks.
@@ -53,14 +53,14 @@ Say which claims are measured and which are assumed.
 ## Needs Max's phone
 Anything about feel - touch, spacing, animation, keyboard, iOS Safari.
 Each with what a failure would look like.
-**Also append these to `PHONE.md`**; the handover is the record, `PHONE.md` is the working list.
+**Also append these to `docs/PHONE.md`**; the handover is the record, `docs/PHONE.md` is the working list.
 ```
 
 ## Where findings go, and where they do not
 
-- A **real, unfixed problem** → a `QUEUE.md` item with enough context to act on cold, plus a line in the handover.
+- A **real, unfixed problem** → a `docs/QUEUE.md` item with enough context to act on cold, plus a line in the handover.
   Never only the handover.
-- A **device question** → `PHONE.md`, plus a line in the handover.
+- A **device question** → `docs/PHONE.md`, plus a line in the handover.
 - A **new durable rule** discovered the hard way → propose it for `CLAUDE.md` and **wait for Max's yes**.
   Do not add it yourself.
   Rules there exist because a mistake already happened once, and the file is short on purpose.

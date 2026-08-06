@@ -110,7 +110,7 @@ Real defects have been invisible to a green suite and obvious within seconds her
 
 ### A device
 
-**A narrow viewport is still not a device.** Anything about *feel* - touch targets, spacing, animation, keyboard, pull-to-refresh, iOS Safari specifically - goes on `PHONE.md` and the handover's phone list.
+**A narrow viewport is still not a device.** Anything about *feel* - touch targets, spacing, animation, keyboard, pull-to-refresh, iOS Safari specifically - goes on `docs/PHONE.md` and the handover's phone list.
 Never claim it verified.
 
 The browser tells you whether the pixels are right.

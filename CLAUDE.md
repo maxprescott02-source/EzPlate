@@ -15,14 +15,19 @@ If a line here disagrees with the code, **the code is right and this file is a f
 
 | | |
 |---|---|
-| Outstanding work | `QUEUE.md` |
-| Device checks | `PHONE.md` |
-| Per-batch history | `handovers/` (write-once; `README.md` explains the gaps) |
+| Outstanding work | `docs/QUEUE.md` |
+| Device checks | `docs/PHONE.md` |
+| Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
 | Version bumps, handovers, running the checks | `skills/` - invoke them |
 | Current state | git, the repo, the Supabase MCP. Not this file. |
 
 Global working preferences live in `~/.claude/AGENTS.md` and are not repeated here.
 This file wins wherever the two disagree.
+
+**Process docs live in `docs/` because Vercel serves the repo root**, so anything left there is publicly fetchable.
+`CLAUDE.md` is the exception and stays at root - it is only auto-loaded from the project root, so moving it would silently stop it loading.
+`.vercelignore` keeps it, and everything else non-user-facing, off the origin.
+**Anything new that is process rather than product goes in `docs/`.**
 
 `git fetch` and read `origin/main` yourself before trusting local `main` - Max merges via GitHub PR, so local goes stale.
 
@@ -263,7 +268,7 @@ Changing a version means recomputing its `sha384` in the same commit; a stale ha
 **Adding a third needs Max's yes, not a judgement call.**
 
 No analytics, no tracking.
-**Implement what was agreed, nothing more.** If you spot extra work worth doing, put it in `QUEUE.md` - don't build it.
+**Implement what was agreed, nothing more.** If you spot extra work worth doing, put it in `docs/QUEUE.md` - don't build it.
 
 ## Server-side (`api/`)
 
@@ -326,7 +331,7 @@ Its highest-value output is "this is the wrong question": one request asked whic
   Real examples beat abstract descriptions - **ask for a screenshot when unsure.**
 - **Plan first - when the work is not already approved.** The trigger is where it came from.
   Work arriving from **chat, a brief or a screenshot** is unapproved and the brief may be wrong: restate it as a scoped, root-cause-framed plan and get a yes before editing, asking any clarifying questions up front with your recommended answer for each.
-  An item **already in `QUEUE.md` is approved** - Max said yes when he queued it, so `/batch` runs it without stopping.
+  An item **already in `docs/QUEUE.md` is approved** - Max said yes when he queued it, so `/batch` runs it without stopping.
   Re-asking there spends the only resource that is actually scarce.
 - **Rollbacks happen.** If Max says the baseline is X, believe him - then verify it yourself and report discrepancies before working.
 - **Keep commentary in the PR and the handover - never in user-visible app copy.**
@@ -377,7 +382,7 @@ Every finding gets a decision Max can see: fixed, or explained as intentional, o
 ### Where a finding gets fixed
 
 **Fix it in the SAME branch, before merge.
-A finding does NOT get its own PR unless it is wrong data or silent loss.** Everything else - a missing test, a stale comment, a nit, a real-but-not-urgent improvement - goes in `QUEUE.md` and rides the next batch.
+A finding does NOT get its own PR unless it is wrong data or silent loss.** Everything else - a missing test, a stale comment, a nit, a real-but-not-urgent improvement - goes in `docs/QUEUE.md` and rides the next batch.
 
 **⚠️ And it does not become PR-worthy because the work is already written, because it is small, or because a commit needs re-landing.** Those are the three ways the rule gets rationalised around, and they are named here because the rule above did not stop the assistant that wrote it.
 **If you catch yourself explaining why this particular small PR is different, stop and add it to the queue instead.**

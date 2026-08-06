@@ -51,5 +51,5 @@ If you are mid-batch and the version is already bumped, leave it alone.
 ## When NOT to bump
 
 A change that ships no client asset.
-A docs-only PR (a handover, `QUEUE.md`, `PHONE.md`, `CLAUDE.md`), a test-only change, or a change confined to `api/*.js`
+A docs-only PR (a handover, `docs/QUEUE.md`, `docs/PHONE.md`, `CLAUDE.md`), a test-only change, or a change confined to `api/*.js`
 - Vercel serves those routes directly and the service worker never caches them.

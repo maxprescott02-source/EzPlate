@@ -150,6 +150,9 @@ Out of scope: restructuring anything the deleted rules sat next to.
 - **`saveIngLog`'s `_ingLogPending` buffer** (`app.js:1347–1379`) has exactly one producer and one consumer on adjacent lines, so it holds at most one point.
   Real simplification, but it sits on the price-log path - not housekeeping.
 - The stale v60 target-line comment in `trendChart` (`app.js:2821`) - v61 item 6 superseded the half it describes.
+- **Two source comments point at the old handover path.** `index.html` names `handovers/HANDOVER-v88.md` and `js/app.js` names `handovers/HANDOVER-v62.md`; both are now under `docs/`.
+  Deliberately NOT fixed when the docs moved: editing `js/app.js` even for a comment makes it a shipped change, which forces the six-spot cache bump for zero user benefit.
+  Fix them free, with no extra bump, in the next batch that touches those files anyway.
 - "Menu item" survives as a fifth object noun in the Edit-menu-item modal.
 - The `.chart-hint` / `.scope-note` "all menus" pair under the chart.
 - `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row - latent, zero such dishes on current data.
