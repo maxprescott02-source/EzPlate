@@ -2822,13 +2822,14 @@ html{scrollbar-gutter:stable}
    worth glancing at); .calm drops the tint when there is no drift to report. Deliberately NOT a
    traffic-light colour — drift is normal trading, not failure (that judgement lives on the chart's
    over-target band alone). */
-.since{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-3) 0 0;padding:9px 12px;
+.since{display:block;margin:var(--sp-3) 0 0;padding:9px 12px;
   border-radius:9px;border-left:2px solid var(--warn);background:var(--warn-bg);
   font-size:var(--fs-sm);line-height:1.45;color:var(--text)}
 .since b{font-weight:600}
 .since.calm{border-left-color:var(--border2);background:var(--surface2)}
 /* The caption's marker key and the scrub tooltip's marker sentence. */
 .chart-hint .mk-dot{color:var(--accent);font-size:9px;vertical-align:1px}
+.chart-hint .mk-note{display:inline-block}   /* the marker key wraps as one unit, never mid-sentence */
 .tp-tip .tp-mk{display:block;font-size:10px;color:var(--accent);white-space:nowrap}
 /* Strand 3: the Gemini arrival fades in rather than snapping — completion, not replacement. Only
    the network path adds .ins-swap (see applyPhrasedInsights); cached phrasings land before paint
@@ -2847,5 +2848,5 @@ html{scrollbar-gutter:stable}
   .line .costs .qtybox input{width:64px}
   .qtybox .u{width:26px}
   .line .costs .priceline{flex:0 0 106px}
-  .line .costs .leader{min-width:8px}
+  .line .costs .leader{min-width:10px}   /* the fresh-states spec holds the leader to ≥10px of visible dots */
 }

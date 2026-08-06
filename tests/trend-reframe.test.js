@@ -201,7 +201,7 @@ test('since-line: scoped to a menu via menuIds — an entry that never touched t
   const other = entry({ t: now - 2 * DAY, avgBefore: 25, avgAfter: 23, menuIds: ['MW'] });
   const app = chart({ log: [other] });
   assert.strictEqual(app.sinceLineHtml('MENU_ORIGINAL', 22), '', 'wrong menu — nothing to say');
-  assert.match(app.sinceLineHtml('MW', 25.1), /cut 2 pts/);
+  assert.match(app.sinceLineHtml('MW', 25.1), /cut 2\.0 pts/);
 });
 
 test('since-line: no drift clause when costs have not moved since', () => {

@@ -2649,11 +2649,11 @@ function sinceLineHtml(scope, current){
   var ageDays=(Date.now()-e.t)/86400000;
   var lead;
   if(ageDays>=14){ var wks=Math.round(ageDays/7); lead='No changes for '+wks+' week'+(wks===1?'':'s')+'.'; }
-  else if(drop>0.05) lead='Your last change cut '+(Math.round(drop*10)/10)+' pts.';
+  else if(drop>0.05) lead='Your last change cut '+drop.toFixed(1)+' pts.';   // same figure style as the anchor line above it
   else lead='Your last change was '+(ageDays<1.5?'today':Math.round(ageDays)+' days ago')+'.';
   var drift=current-e.avgAfter, gap='';
-  if(drift>=0.1) gap=' Costs up '+(Math.round(drift*10)/10)+' pts since.';
-  else if(drift<=-0.1) gap=' Costs down '+(Math.round(-drift*10)/10)+' pts since.';
+  if(drift>=0.1) gap=' Costs up '+drift.toFixed(1)+' pts since.';
+  else if(drift<=-0.1) gap=' Costs down '+(-drift).toFixed(1)+' pts since.';
   var calm=drift<0.1;   // the warm tint marks accumulating drift; a line with no drift sits quiet
   return '<p class="since'+(calm?' calm':'')+'"><b>'+esc(lead)+'</b>'+esc(gap)+'</p>';
 }
@@ -2806,7 +2806,7 @@ function trendChart(){
   var capPos=(overCount===pts.length)?('over your '+fmtTargetPct()+' target across this range')
     :(overCount?('crosses your '+fmtTargetPct()+' target in this range')
     :('under your '+fmtTargetPct()+' target across this range'));
-  var capMk=marks.length?(' <span class="mk-dot">●</span> marks changes you made.'):'';
+  var capMk=marks.length?(' <span class="mk-note"><span class="mk-dot">●</span> marks changes you made.</span>'):'';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
     +'<p class="hint chart-hint">All menus \u00b7 '+capPos+'.'+capMk+'</p></div>';

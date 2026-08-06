@@ -733,7 +733,10 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
   expect(two.ok, '2 points → a single valid cubic segment').toBe(true);
   expect(two.nonPct, 'v48: no date labels, no Target word — % ticks are the only text').toBe(0);
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-2pts.png' });
-  // dark theme with the red (worsening) line
+  // dark theme render. v115: colour is anchored to the TARGET now, not direction — this rising
+  // series tops out at 30.9% against the fixture's 40% target, so it is GREEN (the old semantic
+  // called any rise red; that is the condition this batch removed). The over-target red case is
+  // pinned in tests/trend-reframe.test.js.
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.evaluate(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -748,7 +751,7 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
   await page.waitForTimeout(150);
   const darkStroke = await page.evaluate(() =>
     document.querySelector('#trendWrap svg g[clip-path] path[stroke]').getAttribute('stroke'));
-  expect(darkStroke, 'semantic colour survives: rising cost = red (--bad)').toBe('var(--bad)');
+  expect(darkStroke, 'target-anchored colour survives dark: under target = green (--good)').toBe('var(--good)');
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-dark-scrub.png' });
 });
 
