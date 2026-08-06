@@ -244,6 +244,32 @@ Four items, sent while the PR waited out a GitHub Actions outage:
    cache when re-testing an unmerged tree. (This is the six-spots discipline seen from the other
    side.)
 
+## The splash, round two (Max, same day — supersedes both the removal and the original)
+
+The desktop-hide lasted an hour: what Max actually wanted was a **new splash that IS the
+first-open loading screen** — holding until the data has genuinely arrived from Supabase, shown on
+a fresh open of the app but never on a refresh. Rebuilt as such:
+
+- **One screen for one wait.** The old splash was decorative, capped at 3s, and handed off to the
+  boot gate mid-load — two different screens for the same fetch. The new one holds until
+  `__ezReady` (no design cap; a 20s safety valve guards the only unreachable case, app.js itself
+  never running), and its status line **mirrors `#bootGateMsg`** — one source of truth for the
+  wording, including the 4s patient swap. On a boot ERROR it steps aside immediately; the gate
+  owns the error UI and Try again.
+- **Once per session**, via the existing sessionStorage gate: a fresh open (new tab, new PWA
+  launch) shows it; a same-tab refresh and the post-SW-update reload skip it. This was already the
+  mechanism — the requirement matched the code.
+- **Theme-aware**: tokens throughout (the old card was hardcoded espresso and flashed dark over a
+  light app). Composition: arc mark (draw-on kept), text wordmark, the v115 unified Supabase ring,
+  live status, tagline. Reduced-motion guards on both animations.
+- **A bug the suites could not see, caught in the browser:** the first draft SET the session flag
+  before READING it, so `warm()` was always true and the splash never showed at all. Playwright
+  and the unit suite were green throughout — only loading the page and looking caught it. (The
+  "Open it in a browser" rule earns its place again.)
+- Verified live: fresh open → splash holds → fades into the loaded dashboard; refresh → straight
+  to the boot gate; console clean. And under it, Max's own change-log entries from today drew as
+  markers with real magnitudes — the first production render of the feature.
+
 ## Needs Max's phone
 
 - **The chart with markers and the since-line at 380px in both themes** — do the drops read as

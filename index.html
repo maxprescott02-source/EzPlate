@@ -53,14 +53,20 @@
   </linearGradient>
 </defs></svg>
 <!-- EzPlate splash: visible instantly, hidden by the loader script at the end of <body> -->
-<div id="splash" aria-hidden="true">
-  <svg class="sp-mark" viewBox="0 0 64 64" role="img" aria-label="EzPlate is loading">
-    <circle cx="32" cy="32" r="26" fill="none" stroke="#F3EDE5" stroke-width="6"/>
-    <path class="arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#F08A3C" stroke-width="6" stroke-linecap="round"/>
+<!-- v115 (Max): the splash IS the first-open loading screen now — it holds until the data has
+     arrived from Supabase (no 3s cap), mirrors the boot gate's status line, and shows once per
+     session (the loader's sessionStorage gate skips it on a same-tab refresh). -->
+<div id="splash" role="status" aria-label="EzPlate is loading">
+  <div class="sp-card">
+  <svg class="sp-mark" viewBox="0 0 64 64" aria-hidden="true">
+    <circle class="track" cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/>
+    <path class="arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"/>
   </svg>
-  <div class="sp-word"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 46" role="img" aria-label="EzPlate">
-    <path d="M4.992 40.0H22.459999999999997V34.236000000000004H11.02V26.668H21.976V20.904H11.02V13.248000000000001H22.459999999999997V7.484000000000002H4.992Z M24.704 40.0H43.272000000000006V34.764H31.700000000000003L42.436 20.86V15.624000000000002H25.936V20.86H35.44L24.704 34.764Z" fill="#F08A3C"/><path d="M47.056 40.0H53.084V27.636000000000003H55.019999999999996C59.64 27.636000000000003 61.751999999999995 27.284 63.556 26.184C66.196 24.556 67.824 21.256 67.824 17.516000000000002C67.824 13.776 66.24 10.696000000000002 63.424 8.98C61.576 7.880000000000003 59.42 7.484000000000002 55.108 7.484000000000002H47.056ZM53.084 21.872V13.248000000000001H55.108C59.728 13.248000000000001 61.751999999999995 14.172 61.751999999999995 17.604000000000003C61.751999999999995 20.42 60.256 21.872 54.844 21.872Z M70.11200000000001 40.0H75.964V7.484000000000002H70.11200000000001Z M78.868 27.9C78.868 35.248 84.016 40.572 91.144 40.572C94.576 40.572 96.908 39.472 99.24000000000001 36.832V40.0H104.608V15.624000000000002H99.24000000000001V18.880000000000003C97.21600000000001 16.196 94.79599999999999 15.052000000000003 91.276 15.052000000000003C84.06 15.052000000000003 78.868 20.464000000000002 78.868 27.9ZM84.764 28.032C84.764 23.588 87.712 20.42 91.892 20.42C96.072 20.42 99.064 23.544 99.064 27.988C99.064 32.036 96.424 35.204 91.98 35.204C87.712 35.204 84.764 32.3 84.764 28.032Z M106.236 20.948H109.096V40.0H114.94800000000001V20.948H118.468V15.624000000000002H114.94800000000001V7.484000000000002H109.096V15.624000000000002H106.236Z M119.47999999999999 27.9C119.47999999999999 35.028 125.244 40.572 132.68 40.572C137.608 40.572 142.668 37.8 144.296 32.784H137.916C136.42 34.544 134.968 35.204 132.548 35.204C129.072 35.204 126.52 33.356 125.816 30.408H144.692C144.868 29.572000000000003 144.912 29.044 144.912 28.164C144.912 20.596 139.588 15.052000000000003 132.328 15.052000000000003C125.15599999999999 15.052000000000003 119.47999999999999 20.728 119.47999999999999 27.9ZM125.64 25.26C126.564 22.136000000000003 128.94 20.42 132.416 20.42C136.024 20.42 138.4 22.136000000000003 139.148 25.26Z" fill="#F3EDE5"/></svg></div>
+  <p class="sp-name"><b><span class="ez">Ez</span>Plate</b></p>
+  <div class="sp-spin" aria-hidden="true"></div>
+  <p class="sp-status" id="splashStatus">Loading your data…</p>
   <p class="sp-tag">Plate costing made easy</p>
+  </div>
 </div>
 <header><div class="wrap">
   <div class="brand" id="brandHome" role="button" tabindex="0" aria-label="Go to dashboard">
@@ -80,9 +86,11 @@
 <!-- v108 — the boot gate. Supabase is the source of truth, so until the first fetch lands there is
      genuinely nothing to show. This covers the tabs with an honest loading state rather than letting
      an empty app paint and look like a café with no products in it.
-     It is NOT the splash: the splash is a brand moment that a same-session refresh skips and that
-     gives up after 3s. This is keyed to the DATA, so a warm refresh gets it too, and it never
-     reveals an unpopulated app. Live region so a screen reader hears the outcome, not just sighted
+     It is NOT the splash: the splash (v115) is the once-per-session first-open face of this same
+     wait — it sits on top and mirrors this gate's message. The gate remains the thing keyed to the
+     DATA on every load: a warm refresh (which skips the splash) still gets it, it owns the error
+     UI and Try again, and it never reveals an unpopulated app. Live region so a screen reader
+     hears the outcome, not just sighted
      users. Hidden by default — app.js opens it at boot, so a JS failure cannot trap the app behind it. -->
 <div id="bootGate" hidden role="status" aria-live="polite">
   <div class="bg-inner">
@@ -802,20 +810,38 @@
 })();
 </script>
 <script>
+/* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
+   arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
+   the old 3s cap made it give up mid-load and hand off to the boot gate, two different screens for
+   one wait. Its status line mirrors #bootGateMsg so there is ONE source of truth for the wording
+   (including the 4s "first open after a break" patient swap). If boot ERRORS, the splash steps
+   aside immediately — the gate owns the error UI and the Try again button. */
 (function(){
   var s=document.getElementById('splash'); if(!s) return;
   var gone=false;
   function remove(delay){ setTimeout(function(){ if(s&&s.parentNode) s.remove(); }, delay); }
-  function done(){ if(gone) return; gone=true; try{sessionStorage.setItem('ez_seen','1');}catch(e){} s.classList.add('hide'); remove(450); }
+  function done(){ if(gone) return; gone=true; s.classList.add('hide'); remove(400); }
   function warm(){ try{ return sessionStorage.getItem('ez_seen')==='1' || sessionStorage.getItem('ez_swReload')==='1'; }catch(e){ return false; } }
-  /* A same-session refresh, or the one-off reload after a service-worker update, should NOT replay
-     the splash — just show the app the user was already on. First visit of the session still gets it. */
-  if(warm()){ try{ sessionStorage.removeItem('ez_swReload'); }catch(e){} gone=true; s.classList.add('hide'); remove(50); return; }
-  /* First visit this session: hold the splash until the page has loaded AND the database has loaded. */
+  /* Once per SESSION: a same-tab refresh (sessionStorage survives reloads) and the one-off reload
+     after a service-worker update skip it; a fresh open of the app — new tab, new PWA launch —
+     shows it. READ the flag before SETTING it (setting first made warm() always true and the
+     splash never showed — caught in the browser, not by any suite); setting it immediately after
+     means a refresh during a slow first load also skips the replay. */
+  var wasWarm=warm();
+  try{ sessionStorage.setItem('ez_seen','1'); }catch(e){}
+  if(wasWarm){ try{ sessionStorage.removeItem('ez_swReload'); }catch(e){} gone=true; s.classList.add('hide'); remove(50); return; }
   var loaded=(document.readyState==='complete');
   if(!loaded){ window.addEventListener('load', function(){ loaded=true; }); }
-  var poll=setInterval(function(){ if(loaded && window.__ezReady){ clearInterval(poll); done(); } }, 120);
-  setTimeout(function(){ clearInterval(poll); done(); }, 3000);  /* cap: splash never holds more than ~3s */
+  var poll=setInterval(function(){
+    var gate=document.getElementById('bootGate');
+    if(gate && gate.classList.contains('is-error')){ clearInterval(poll); done(); return; }   // reveal the gate's error + retry
+    var gm=document.getElementById('bootGateMsg'), sm=document.getElementById('splashStatus');
+    if(gm && sm && gm.textContent && sm.textContent!==gm.textContent) sm.textContent=gm.textContent;
+    if(loaded && window.__ezReady){ clearInterval(poll); done(); }
+  }, 120);
+  /* Safety valve only — NOT a design cap: if app.js itself never runs (a hung CDN script), nothing
+     else can ever hide this overlay. bootstrapSync always settles ok/error well inside this. */
+  setTimeout(function(){ clearInterval(poll); done(); }, 20000);
 })();
 </script>
 </body>

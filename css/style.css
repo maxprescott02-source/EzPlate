@@ -1078,27 +1078,45 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @media print{#lines .empty::before{display:none}}
 
 /* ----------------------------------------------------------------------
-   24. SPLASH — shown instantly, hidden by the inline loader script
+   24. SPLASH — v115 rebuild (Max): ONE first-open screen that holds until the
+   data has actually arrived from Supabase, replacing the old decorative 3s
+   espresso card that gave up mid-load and handed off to the boot gate (two
+   different screens for one wait). Theme-aware — the old hardcoded #3E2C26
+   flashed dark over a light app. Shows once per SESSION (a same-tab refresh
+   skips it — the inline loader's sessionStorage gate); its status line
+   MIRRORS #bootGateMsg, so the 4s patient message and any error handoff come
+   from one source of truth. The spinner is the v115 unified Supabase ring.
    ---------------------------------------------------------------------- */
 #splash{
-  position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:24px;background:#3E2C26;
-  transition:opacity .35s var(--ease);
+  position:fixed;inset:0;z-index:200;display:flex;
+  align-items:center;justify-content:center;background:var(--bg);
+  transition:opacity .3s var(--ease);
 }
 #splash.hide{opacity:0;pointer-events:none}
-#splash .sp-mark{width:88px;height:88px}
+#splash .sp-card{display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);text-align:center;padding:var(--sp-5)}
+#splash .sp-mark{width:56px;height:56px;color:var(--brand)}
+#splash .sp-mark .track{opacity:.16}
 #splash .sp-mark .arc{
   stroke-dasharray:36.4;stroke-dashoffset:36.4;
-  animation:ez-draw 1.1s var(--ease) .2s forwards;
+  animation:ez-draw 1.1s var(--ease) .15s forwards;
 }
-#splash .sp-word{width:150px}
-#splash .sp-word svg{width:100%;height:auto;display:block}
+#splash .sp-name{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--text)}
+#splash .sp-name .ez{color:var(--accent)}
+#splash .sp-spin{
+  width:22px;height:22px;border-radius:50%;margin-top:var(--sp-2);
+  border:2.5px solid var(--line);border-top-color:var(--accent);
+  animation:bgspin .8s linear infinite;
+}
+#splash .sp-status{margin:0;font-size:var(--fs-sm);color:var(--text2);line-height:1.45;max-width:34ch}
 #splash .sp-tag{
-  margin:0;font-family:var(--ui);font-size:12px;font-weight:600;
-  letter-spacing:.14em;text-transform:uppercase;color:rgba(243,237,229,.55);
+  margin:var(--sp-2) 0 0;font-family:var(--ui);font-size:11px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);
 }
 @keyframes ez-draw{to{stroke-dashoffset:0}}
-@media (prefers-reduced-motion:reduce){#splash .sp-mark .arc{animation:none;stroke-dashoffset:0}}
+@media (prefers-reduced-motion:reduce){
+  #splash .sp-mark .arc{animation:none;stroke-dashoffset:0}
+  #splash .sp-spin{animation:none;border-top-color:var(--line)}
+}
 
 /* v115 tombstone: §25 "design-system aliases" (.btn-primary/.btn-secondary/.btn-ghost/.btn-danger,
    .badge/.badge-*, .toast-success/-error/-warning) are DELETED — written "for future markup" and
@@ -2851,8 +2869,5 @@ html{scrollbar-gutter:stable}
   .line .costs .priceline{flex:0 0 106px}
   .line .costs .leader{min-width:10px}   /* the fresh-states spec holds the leader to ≥10px of visible dots */
 }
-/* v115 (Max): no splash on desktop. The stroke-draw logo earns its moment on a phone's first
-   open; on a desktop window it is a second full-screen gate in front of the boot gate that
-   already reports honestly. The loader script still runs (ez_seen etc.) — the overlay is simply
-   never painted at desktop widths, and its self-removal is unaffected. */
-@media (min-width:701px){ #splash{display:none} }
+/* v115: the earlier same-batch desktop-hide of #splash was REVERSED by Max the same day — the
+   splash was rebuilt instead (see §24) as the one first-open loading screen on every width. */
