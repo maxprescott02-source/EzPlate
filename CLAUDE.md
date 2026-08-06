@@ -549,6 +549,39 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the
 network-first service worker (hence the cache-version discipline). Treat every
 merge to `main` as a production deploy.
 
+## Independent review before merge (replaces the CodeRabbit rule)
+
+**Every batch gets an independent review before it merges.** Max has no human
+reviewer, so this is the only second reader the code gets.
+
+There are TWO, doing different jobs — don't treat either as the other:
+
+- **`.github/workflows/code-review.yml` — MANDATORY, and it is the one that
+  matters.** `anthropics/claude-code-action@v1` on every `pull_request`
+  (`opened`, `synchronize`). There is no trigger phrase and no opt-out: it
+  **cannot be skipped**, which is the whole point of putting it there rather
+  than in a skill. It runs on a **different model** from the one writing the
+  batch, deliberately — same family, so the blind spots overlap, but not
+  entirely. It is **blind to the brief**: it sees the diff and nothing else, and
+  judges whether the code is CORRECT, not whether it matches what was asked
+  for. Don't "help" it by pasting the brief into the PR body as context for it;
+  that removes the only thing that makes it independent.
+- **The `code-review` agent — OPTIONAL, and runs BEFORE push.** Adversarial
+  review of the branch diff against `main`, after the suite is green. Cheaper
+  and faster than finding the same thing on the PR. Skipping it is a judgement
+  call; skipping the workflow is not available.
+
+**⚠️ NEVER DISMISS A FINDING BECAUSE ITS STATED CAUSE IS WRONG.** A finding
+whose *mechanism* is wrong may still be pointing at a real bug. That happened
+**twice** with the previous reviewer and **both were worth acting on**. The
+finding and the explanation are separate claims — disprove the explanation and
+you have disproved nothing. Go and look at what it was pointing at.
+
+Every finding gets a decision Max can see: fixed (re-run `npm test` + `node -c`),
+or explained as intentional, or noted as considered and skipped. Silence is not
+a pass. Neither review overrides CLAUDE.md's rules or the tests — those remain
+authoritative.
+
 ## State as of 5 Aug 2026 (verify, don't trust)
 
 **This section is a SNAPSHOT, not a log.** Overwrite it every batch — never
@@ -835,6 +868,18 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
   D and E probably belong above the snapshot line — still needs Max's yes.
 - **Third-party scripts:** supabase-js **2.110.8**, pdfjs-dist **3.11.174** —
   pinned, SRI-checked except the pdf.js worker (hard rule 4).
+- **⚠️ CODE REVIEW MOVED OFF CODERABBIT (6 Aug 2026) — the trial expired and it
+  is not being paid for.** Everything CodeRabbit is removed: the CLI and its
+  credentials, the Claude Code plugin, and every reference in this file and in
+  the `new-branch` skill. **The `coderabbitai[bot]` GitHub App may still be
+  installed on the repo** — it is an account-level install, so it can only be
+  removed from github.com/settings/installations. If it still comments on a PR,
+  that is why; it is not paid for and its findings are no longer part of the
+  routine. Replaced per "Independent review before merge" above.
+  **Reviews now draw on Max's own Max plan via `CLAUDE_CODE_OAUTH_TOKEN`
+  (a repo Actions secret), not a paid third-party service** — so a review costs
+  plan usage rather than a subscription, and a missing or expired token makes
+  the PR workflow fail rather than silently skip.
 
 **Outstanding, in priority order:**
 
@@ -906,8 +951,8 @@ append. Per-batch history belongs in `handovers/`, nowhere else.
    database. **Separately, and more useful: none of the restore UI has been seen
    on a real phone.** The file picker on iOS Safari with a `.json` filter is the
    specific unknown.
-10. **A unique index on `ing_price_history (product_id, recorded_at)`** — raised by
-   CodeRabbit on PR #50 and deliberately NOT built under hard rule 5. It is a real
+10. **A unique index on `ing_price_history (product_id, recorded_at)`** — raised in
+   review on PR #50 and deliberately NOT built under hard rule 5. It is a real
    improvement: the restore's additive insert guards duplicates with `not exists`
    + `DISTINCT ON`, correct for a single writer but not race-safe, and the
    constraint would let both collapse into `on conflict do nothing`. **0 duplicate
