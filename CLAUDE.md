@@ -636,12 +636,28 @@ unless it is wrong data or silent loss.** Everything else — a missing test, a
 stale comment, a nit, a real-but-not-urgent improvement — goes on the outstanding
 list in the snapshot and rides the NEXT batch.
 
+**⚠️ AND IT DOES NOT BECOME PR-WORTHY BECAUSE THE WORK IS ALREADY WRITTEN, because
+it is small, or because a commit needs re-landing. Those are the three ways it gets
+rationalised, and they are named here because the rule above did not stop the
+assistant that wrote it.** Within the hour, #63 was opened for two test assertions
+— justified as *recovering an orphaned commit* rather than *acting on a finding*.
+Same PR, same review, same ~$2. **If you catch yourself explaining why this
+particular small PR is different, that is the signal to stop and add it to the
+outstanding list instead.** A finished diff is not an argument; it costs nothing
+to leave it on a branch and land it with the next batch.
+
 **Why this rule exists (Max, 6 Aug 2026).** v114 merged before its review was
 readable, so every finding afterwards needed a *new* PR to fix it, and each new PR
-drew its own review, which found its own smaller thing: #58 → #59 → #61, with the
-severity decaying each round but the cost not. Max stopped it and was right. The
-chain was an artifact of merging un-reviewed, not the normal flow — but nothing
-was written down to stop it recurring, so here it is.
+drew its own review, which found its own smaller thing: #58 → #59 → #61 → #63,
+with the severity decaying each round but the cost not. **Six PRs and ten review
+runs came out of ONE mistake — merging before the review was readable.** Max
+stopped it twice, and was right both times. The chain was an artifact of that
+mistake rather than the normal flow, but nothing was written down to stop it
+recurring, so here it is.
+
+**The steady state is ONE batch, ONE PR, ONE review (~$2).** If a day's run count
+is in double figures, something upstream went wrong — look for the root cause
+rather than trimming the reviewer.
 
 Two things make the normal flow safe, and both matter:
 - **`synchronize` is gone** (above), so pushing fixes to an open PR does not
