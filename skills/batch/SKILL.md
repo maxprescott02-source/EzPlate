@@ -31,7 +31,9 @@ If you are running `/batch`, you are in the first case.
    Pin conditions, not structure.
 6. **Drive it in a real browser**, both themes, 380px and desktop, if the item touches anything a user can reach.
    Two real defects in v113 and three in v115 were invisible to a green suite and visible immediately here.
-7. **Pre-push `code-review` agent - MANDATORY.** It is the review this batch gets; the workflow no longer runs on its own.
+7. **Pre-push `code-review` agent - MANDATORY** whenever the diff changes **what runs**: app code, tests, CI workflows, the harness.
+   Skip it only for **pure prose** - handovers, queue entries, briefs.
+   It is the review this batch gets; the workflow no longer runs on its own.
    **Run it on a DIFFERENT model from the one you are running as**, and **don't show it the brief** - both are what make it independent.
    Fix every finding or record why not.
 8. **Open the PR.** There is **no automatic workflow review to wait for** - it is on demand now, by manual run or the `deep-review` label.

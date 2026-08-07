@@ -358,7 +358,12 @@ Max has no human reviewer, so this is the only second reader the code gets.
 
 - **The `code-review` agent - MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green.
   **Force it onto a DIFFERENT model from the one running the batch** - a model reviewing its own work is not a second reader - and **never show it the brief**: it judges whether the code is CORRECT, not whether it matches what was asked.
-  It is free at the margin and has the better record - four real defects on v114 alone, one of which would have broken every restore.
+  It has the better record - four real defects on v114 alone, one of which would have broken every restore.
+  It is not free: it spends the same Claude subscription capacity the workflow did, just far less of it - **~116k tokens** on the 8 Aug batch, against the workflow's ~$2.
+  **Mandatory whenever the diff changes WHAT RUNS** - app code, tests, CI workflows, the harness.
+  **Skip it only for pure prose**: handovers, queue entries, briefs.
+  **The line is deliberately not code-versus-docs.** It was nearly written that way on 8 Aug, and the review of the batch that wrote it - a diff of nothing but YAML and Markdown - found a CI change that would have silently run the live-production-database spec in a job documented as hermetic.
+  A rule that skipped "config and prose" would have shipped it.
 - **`.github/workflows/code-review.yml` - ON DEMAND only.** It no longer fires on every PR: run it manually, or apply the **`deep-review`** label to a PR.
   **Don't paste the brief into the PR body** - that removes the only thing making it independent.
   **Why it was demoted (8 Aug 2026), recorded because this is the kind of thing that gets re-litigated:** across its whole life it ran 11 times, **5 were silent skips that did no work**, and the runs that did work found **ZERO bugs** - its 3 findings were two missing tests and a doc gap.
