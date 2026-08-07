@@ -162,8 +162,28 @@ jobs:
       #                    layout regressions these specs exist to catch. retain-on-failure
       #                    keeps the trace (with DOM snapshots) only for tests that failed.
       #                    Measured cost of tracing everything: 2.2 min vs 2.1 min.
+      # ⚠️ THE EMPTY-LIST CASE MUST FAIL CLOSED, and the obvious one-liner fails OPEN.
+      # Inlining `$(ls ... | grep -v ...)` directly as arguments looks fine and is a trap: if the
+      # pipeline ever matches nothing, it expands to an EMPTY STRING, and neither `set -e` nor
+      # `pipefail` aborts, because the failing pipeline is inside another command's argument list
+      # rather than being a statement of its own. `npx playwright test` with no file arguments then
+      # falls back to playwright.config.js's own `testDir: './tests/visual'`, which matches EVERY
+      # spec in that directory - INCLUDING screenshots.spec.js, the one spec excluded above because
+      # it reads the cafe's live production database. So the failure mode is not "runs nothing and
+      # goes green"; it is "silently runs the non-hermetic spec in a job documented as hermetic".
+      # Latent today (9 specs, 8 survive the filter) - pinned here so it stays that way.
       - name: Run hermetic browser specs
-        run: npx playwright test --forbid-only --workers=2 --trace=retain-on-failure --reporter=github,html $(ls tests/visual/*.spec.js | grep -v screenshots.spec.js)
+        run: |
+          set -euo pipefail
+          SPECS=$(ls tests/visual/*.spec.js | grep -v screenshots.spec.js || true)
+          if [ -z "$SPECS" ]; then
+            echo "::error::No hermetic browser specs matched. Refusing to run: with no file"
+            echo "::error::arguments Playwright would fall back to testDir and pick up"
+            echo "::error::screenshots.spec.js, which reads the live production database."
+            exit 1
+          fi
+          echo "Running these specs:"; echo "$SPECS"
+          npx playwright test --forbid-only --workers=2 --trace=retain-on-failure --reporter=github,html $SPECS
 
       # Only on failure - a green run's report is megabytes of nothing. On a red run this
       # is the difference between "something broke" and opening the trace at the failing

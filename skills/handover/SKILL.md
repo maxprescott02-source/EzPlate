@@ -76,6 +76,8 @@ The point of the section is that it was ASKED.
 ## After writing it
 
 - Copy it to `~/Downloads/` - Max reads handovers from there.
-- A handover-only PR is free: `code-review.yml` has `paths-ignore: '**.md'`, so a docs-only change triggers no review run.
+- A handover-only PR is free, and so is every other PR: since 8 Aug 2026 **no PR is reviewed automatically at all**.
+  `paths-ignore` is gone - the workflow runs only on a manual run or the `deep-review` label.
   That is why moving something to the outstanding list costs nothing.
-- `paths-ignore` skips only when EVERY changed file matches, so a batch touching `js/app.js` and its handover in one PR is still reviewed in full.
+- **The corollary is the part to remember:** a batch touching `js/app.js` is no longer "still reviewed in full" either.
+  Nothing reviews it unless the pre-push `code-review` agent did, or someone applies the label.
