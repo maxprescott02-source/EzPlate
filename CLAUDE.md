@@ -353,23 +353,28 @@ Fetch the alias, and check WHICH build answered before concluding anything from 
 ## Independent review before merge
 
 Max has no human reviewer, so this is the only second reader the code gets.
-Two of them, doing different jobs:
 
-- **`.github/workflows/code-review.yml` - MANDATORY.** Fires once per PR, at `opened` or `ready_for_review`.
-  It runs on a **different model** and is **blind to the brief**: it sees the diff and judges whether the code is CORRECT, not whether it matches what was asked.
+**Nothing can actually BLOCK a merge.** Branch protection and rulesets need GitHub Pro on a private repo - the API returns 403 - so "mandatory" below is a convention you keep, not a mechanism that stops you.
+
+- **The `code-review` agent - MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green.
+  **Force it onto a DIFFERENT model from the one running the batch** - a model reviewing its own work is not a second reader - and **never show it the brief**: it judges whether the code is CORRECT, not whether it matches what was asked.
+  It is free at the margin and has the better record - four real defects on v114 alone, one of which would have broken every restore.
+- **`.github/workflows/code-review.yml` - ON DEMAND only.** It no longer fires on every PR: run it manually, or apply the **`deep-review`** label to a PR.
   **Don't paste the brief into the PR body** - that removes the only thing making it independent.
-- **The `code-review` agent - runs BEFORE push**, adversarially, on the branch diff, after the suite is green.
-  Nominally optional; **don't skip it.** It has caught real defects the workflow did not.
+  **Why it was demoted (8 Aug 2026), recorded because this is the kind of thing that gets re-litigated:** across its whole life it ran 11 times, **5 were silent skips that did no work**, and the runs that did work found **ZERO bugs** - its 3 findings were two missing tests and a doc gap.
+  It authenticates by OAuth against **Max's personal Claude subscription**, so it competes with his own coding sessions: roughly **$20 of capacity and ~15 minutes of waiting per batch.**
 
-**⚠️ A GREEN "Code review" CHECK HAS BEEN WRONG IN TWO WAYS**, and both look identical from the checks list:
+**⚠️ WHEN THE WORKFLOW DOES RUN, A GREEN CHECK HAS BEEN WRONG - and so has an ABSENT one.** Three ways, all indistinguishable from approval in the checks list:
 
-1. **A skipped review reports SUCCESS.** The action refuses to run when `code-review.yml` on the PR differs from the copy on `main` - otherwise a PR could rewrite its own reviewer.
-   When it refuses it **exits GREEN**, posts nothing, and says why only in the job log.
-   **Any PR touching the workflow file is not reviewed, and the check still passes.** No comment plus no findings is the shape of a review that never ran - open the log before reading silence as approval.
+1. **A skipped review used to report SUCCESS.** The action refuses to run when `code-review.yml` on the PR differs from the copy on `main` - otherwise a PR could rewrite its own reviewer.
+   It used to **exit GREEN** on that refusal, posting nothing and saying why only in the job log.
+   **Now caught automatically: a refusal FAILS the job.** A red X on a PR that touches the workflow file is that, not a finding.
 2. **A review that ran and threw its findings away.** It completed cleanly, twice, and posted nothing, because nothing was configured to publish.
    `gh run rerun --debug` does NOT recover it.
    The fix is `track_progress: true` and `show_full_output: true`.
    **If a run goes quiet, check those two inputs are still on the workflow BEFORE paying for a re-run.**
+3. **No run at all.** A GitHub Actions outage during v115 meant nothing fired - no red, no comment, no job.
+   **An ABSENT check looks exactly like a passing one.** Confirm the run EXISTS before reading its silence as anything.
 
 **⚠️ NEVER DISMISS A FINDING BECAUSE ITS STATED CAUSE IS WRONG.** A finding whose *mechanism* is wrong may still point at a real bug.
 That has happened twice and both were worth acting on.

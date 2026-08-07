@@ -1,15 +1,42 @@
-# Runs the checks automatically on every push and pull request.
-# Free, no API key, no cost. If a change breaks the parser, pricing maths, or
-# even just app.js syntax, GitHub shows a red X on the commit/PR before it can
-# reach production. Mirrors what you run locally: `node -c js/app.js` + `npm test`.
+# Runs the checks automatically on every pull request, and on every push to main.
+# Free, no API key, no model. If a change breaks the parser, pricing maths, the DOM
+# wiring or the dashboard layout, GitHub shows a red X on the PR before it can reach
+# production. Mirrors what you run locally.
+#
+# THREE JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke without
+# opening a log:
+#   unit        node -c js/app.js + `npm test`        - logic, no browser, no deps
+#   smoke       node tests/smoke.js                   - the real index.html + app.js in jsdom
+#   playwright  the hermetic tests/visual specs       - the real app in real Chromium
+#
+# WHY `push` IS SCOPED TO main (changed 8 Aug 2026). The old file had a bare `push:`
+# alongside `pull_request:`, so every commit on a PR branch ran the whole workflow
+# TWICE - once for the push event, once for the pull_request event - on identical code.
+# Adding Playwright made that duplication expensive. PR branches are covered by the
+# `pull_request` trigger; main is covered here because a merge to main is a production
+# deploy. The one thing you lose is CI on a branch with no PR open yet.
 name: tests
 
 on:
   push:
+    branches: [main]
   pull_request:
 
+# Superseding a run cancels the older one. Pushing three fixes in five minutes used to
+# pay for three full Playwright runs; now only the newest survives. main is exempt -
+# every commit that reaches production gets its own recorded result.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
-  test:
+  # ---------------------------------------------------------------------------
+  # Unchanged from the original workflow, deliberately: no npm install, no cache,
+  # nothing to go stale. `npm test` is `node --test tests/*.test.js` and needs no
+  # dependencies at all, which is why this job finishes in seconds.
+  # ---------------------------------------------------------------------------
+  unit:
+    name: unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,3 +47,134 @@ jobs:
         run: node -c js/app.js
       - name: Run test suite
         run: npm test
+
+  # ---------------------------------------------------------------------------
+  # `node -c` proves app.js PARSES. This proves it RUNS: the script reaches the end
+  # of the file against the real index.html, every id the wiring reaches for exists,
+  # and the surfaces open and respond.
+  #
+  # jsdom is installed here rather than added to package.json on purpose - it is a
+  # dev-only tool, the header of tests/smoke.js documents exactly this command, and
+  # the client ships no new dependencies. --no-save keeps package.json untouched.
+  # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD stops npm resolving the existing devDependency
+  # and pulling ~400MB of browsers this job will never open.
+  # ---------------------------------------------------------------------------
+  smoke:
+    name: smoke (jsdom)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Unpinned on purpose, so this matches the command in tests/smoke.js's header
+      # exactly and a red run here reproduces locally with one copy-paste. The cost of
+      # that choice: a breaking jsdom release turns this job red on a PR that changed
+      # nothing. If that ever happens, the tell is that the failure is in jsdom's DOM
+      # behaviour rather than in a check the diff touched - pin the version here (it
+      # was 30.0.1 on 8 Aug 2026) and queue the real fix.
+      - name: Install jsdom (dev-only, not saved)
+        run: npm install jsdom --no-save
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Run smoke test
+        run: node tests/smoke.js
+
+  # ---------------------------------------------------------------------------
+  # The browser specs. These catch the layout and geometry regressions the unit
+  # suite cannot see - touch-target floors, grid geometry, chart rendering, the
+  # boot gate - because they measure computed styles in real Chromium.
+  #
+  # WHAT RUNS: every spec in tests/visual EXCEPT screenshots.spec.js. The list is
+  # computed from the directory rather than written out, so a new spec is picked up
+  # without editing this file.
+  #
+  # WHY screenshots.spec.js IS EXCLUDED - and must stay excluded:
+  #   It is the only spec that does NOT install tests/visual/_boot.js. Every other
+  #   spec installs a fake window.supabase serving tests/fixtures/base-products.json
+  #   and aborts every off-origin request, so it is hermetic. screenshots.spec.js
+  #   instead loads supabase-js from the CDN and reads the cafe's LIVE production
+  #   database, so what it renders depends on Max's real data and on the network
+  #   being up. It also asserts nothing beyond `body` being visible - its output is
+  #   the PNGs in tests/visual/__shots__/, which a human is meant to open and LOOK at.
+  #   In CI it would be a slow, network-dependent check that cannot fail usefully and
+  #   can fail uselessly. It stays a local tool: `npm run shots`.
+  #
+  # THE SERVER: playwright.config.js already declares a webServer (python3's built-in
+  # http.server on 5173) with a `url`, so Playwright polls that URL and starts the
+  # specs the moment it answers. No sleep, and nothing to add here. We do NOT use the
+  # `npm run serve` script for this - it shells out to `npx serve@14`, which is one
+  # more network fetch on every run for no benefit. python3 is on the runner image.
+  # ---------------------------------------------------------------------------
+  playwright:
+    name: browser specs (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # Do not let the postinstall pull browsers - the cache step below owns that,
+          # and it must fetch Chromium ONLY, not Firefox and WebKit as well.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      # Key the browser cache on the exact resolved Playwright version, not on the
+      # lockfile hash: a lockfile change that does not move Playwright should still
+      # hit the cache, and a Playwright bump must always miss it (the browser build
+      # is version-locked to the client).
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ steps.pw.outputs.version }}
+
+      # Chromium only. The config declares no `projects`, so Playwright runs the
+      # default chromium project and Firefox/WebKit would be pure download cost.
+      - name: Install Chromium + system deps
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      # The browser binary is cached; the apt packages it links against are not, so
+      # they have to be reinstalled even on a cache hit. This is the official
+      # Playwright pattern and is much cheaper than re-downloading the browser.
+      - name: Install system deps only (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Every flag here is set on the COMMAND LINE rather than in playwright.config.js,
+      # so `npm run shots` and a local `npx playwright test` behave exactly as they did:
+      #
+      #   --forbid-only    a `test.only` left in a spec would otherwise run ONE test and
+      #                    report the job green - the exact failure mode this exists to stop.
+      #   --workers=2      the runner has 2 cores and these specs spend most of their time
+      #                    waiting on the page, not on CPU. Measured locally: 2.1 min at 2
+      #                    workers vs 3.9 min at 1, for 88 tests.
+      #   --trace          the config sets no trace and no screenshot, so without this a red
+      #                    run gives you a stack and nothing to look at - useless for the
+      #                    layout regressions these specs exist to catch. retain-on-failure
+      #                    keeps the trace (with DOM snapshots) only for tests that failed.
+      #                    Measured cost of tracing everything: 2.2 min vs 2.1 min.
+      - name: Run hermetic browser specs
+        run: npx playwright test --forbid-only --workers=2 --trace=retain-on-failure --reporter=github,html $(ls tests/visual/*.spec.js | grep -v screenshots.spec.js)
+
+      # Only on failure - a green run's report is megabytes of nothing. On a red run this
+      # is the difference between "something broke" and opening the trace at the failing
+      # assertion. Download it and run: npx playwright show-trace <the .zip inside>.
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

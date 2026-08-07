@@ -60,6 +60,36 @@ Pre-existing v89 behaviour, flagged in v96, unchanged.
 Requirements: decide what the headline says when there is nothing to average.
 Blocked on: Max - it moves the headline number in a state that has shipped for seven versions, so it is not a judgement call.
 
+## blocked  CodeRabbit free tier as the independent second reader
+Problem: the GitHub Actions "Code review" workflow was demoted to on-demand on 8 Aug 2026 - 11 runs, 5 silent skips, zero bugs found, ~$20 of Max's personal Claude subscription capacity and ~15 min per batch.
+That leaves the pre-push `code-review` agent as the only reviewer, and it runs on the same machine as the batch.
+CodeRabbit is now **free for private repos, unlimited**, and has the measured record here: **two criticals in v108 alone**, plus real bugs in v102, v111 and v113.
+It was dropped only because a trial expired, not because it underperformed.
+Requirements: it reviews every PR, and its findings follow the same rule as any other - fixed, explained, or queued, in the same branch.
+Known problems, documented in this repo's own handovers: **the CLI times out**, and **it skips untracked files** - so a brand-new file can pass review by never being read.
+Blocked on: **Max.** It needs a GitHub App installed against his account, which no agent can do.
+
+## blocked  Mutation testing (Stryker) - measure the tests that cannot fail
+Problem: `CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke.
+A test that passes against broken code is worse than no test, because it is trusted.
+The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not to do this does not apply here.
+Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
+Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
+
+## blocked  Re-pin claude-code-action to a release tag
+Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
+Forced, not a preference: at the current release (v1.0.187) `validateTrackProgressEvent` THROWS on the `labeled` action, so the label trigger - the primary way a review is now requested - could not work at all with `track_progress: true`.
+Dropping `track_progress` was the alternative and it is the worse one: that is exactly the "runs, finds things, publishes nothing" failure this repo has already paid for twice.
+A commit pin is immutable, so this is safe rather than floating - but it is **unreleased third-party code**, and an unreleased pin that nobody revisits is how a temporary decision becomes permanent.
+Requirements: once a release ≥ v1.0.188 contains upstream `d573b167`, pin back to `@v1` - one line. The check is in a comment above the pin:
+`gh api repos/anthropics/claude-code-action/contents/src/modes/detector.ts?ref=v1 -H 'Accept: application/vnd.github.raw' | grep -A6 'const validActions'` - if `labeled` appears, re-pin.
+Blocked on: upstream, not Max. Nothing to decide; check it when a batch next touches the workflow.
+
+## blocked  GitHub Pro at $4/month - so a check can actually gate `main`
+Problem: branch protection and rulesets require Pro on a private repo (the API returns **403**), so today **nothing can block a merge** - "mandatory review" is a convention, not a mechanism.
+$4/month buys the mechanism: a required check that stops a merge with a red review or a failing suite.
+Blocked on: **Max.** A spending decision, not a task - there is nothing to build until he says yes.
+
 ---
 
 ## next  Staging Supabase
