@@ -18,6 +18,9 @@ If you are running `/batch`, you are in the first case.
 ## The loop
 
 1. **Take the top unblocked item.** Mark it in progress in `docs/QUEUE.md`.
+   **First, check whether a blocked item has been answered.** Read the recorded decisions in `CLAUDE.md` - the dated `(Max, …)` lines - against the `Blocked on:` of every `blocked` item.
+   If the question has since been answered, unblock the item, note in the item which decision unblocked it, and it competes for the top slot like any other.
+   **Never re-ask something already decided.** A decision that has to be made twice was not recorded properly - if the answer is in `CLAUDE.md` or a prior handover it is a lookup, not a decision.
 2. **Decide whether to investigate.** If the item rests on a claim about the code that its author could not see, run `/investigate` first - read-only, no branch.
    If the investigation contradicts the item, **the code wins**: rewrite the item in `docs/QUEUE.md` to match reality and say what changed.
    Reproduce before you fix: a misdiagnosed dead-code path was once briefed as a live compounding bug because nobody drove it.
@@ -28,11 +31,15 @@ If you are running `/batch`, you are in the first case.
    Pin conditions, not structure.
 6. **Drive it in a real browser**, both themes, 380px and desktop, if the item touches anything a user can reach.
    Two real defects in v113 and three in v115 were invisible to a green suite and visible immediately here.
-7. **Pre-push `code-review` agent.** Fix every finding or record why not.
-   This has found the sharpest defect in each of the last three batches.
-8. **Open the PR.** Wait for the workflow review.
-   **Read it before merging** - a finding on `main` cannot be fixed in the PR that carried it, which once cost six extra PRs.
-9. **Merge** if everything is green and no stop condition applies.
+7. **Pre-push `code-review` agent - MANDATORY** whenever the diff changes **what runs**: app code, tests, CI workflows, the harness.
+   Skip it only for **pure prose** - handovers, queue entries, briefs.
+   It is the review this batch gets; the workflow no longer runs on its own.
+   **Run it on a DIFFERENT model from the one you are running as**, and **don't show it the brief** - both are what make it independent.
+   Fix every finding or record why not.
+8. **Open the PR.** There is **no automatic workflow review to wait for** - it is on demand now, by manual run or the `deep-review` label.
+   If you do request one, **read it before merging**: a finding on `main` cannot be fixed in the PR that carried it, which once cost six extra PRs.
+   And confirm the run exists - an absent check and a passing one look the same.
+9. **Merge** if the suite is green, step 7 is done, and no stop condition applies.
 10. **Hand over.** Use the `handover` skill.
     Tick the queue, and add anything found-not-fixed as a new queue item - a finding that lives only in a handover is a finding nobody will action.
     **Then check the audit counter.** The newest `docs/audits/AUDIT-vNN.md` is the version the last audit ran at; `sw.js` has the version you just shipped.
@@ -45,6 +52,31 @@ If you are running `/batch`, you are in the first case.
 **Bump the cache version** as part of step 4 whenever the batch ships a client asset - the `cache-version` skill has the six spots.
 `CLAUDE.md` has no snapshot section to update; current state lives in git, `docs/QUEUE.md` and `docs/PHONE.md`.
 
+## A decision only Max can make DEFERS the item - it does not stop the loop
+
+The test is unchanged: **does the answer depend on the café, the trade, or his history rather than on the code?**
+"Do chefs reprice or reformulate" is his.
+"Which of two implementations is cleaner" is yours - decide it, and keep it out of the file.
+
+When one of his comes up:
+
+1. Mark the item `blocked` in `docs/QUEUE.md` with the question written into `Blocked on:`, in plain language.
+2. **Take the next unblocked item.** Don't stop, and don't ask him now.
+
+**The blocked items ARE the pending decisions list** - there is no second place to keep it, and nothing to remember between sessions.
+
+Run the `decide` skill when either is true:
+
+- **Three or more items are blocked on a decision** (migrations don't count - those are their own stop condition).
+- **The queue has nothing unblocked left**, whatever the count. One pending decision holding up everything is worth a file of one.
+
+Then tell Max the file is ready and give its path, and carry on if there is anything left to work on.
+
+**Three is a starting number, not a rule.** It trades his attention against the queue stalling.
+If files sit unanswered because a batch of them reads as homework, lower it.
+If he is answering them one at a time anyway, raise it.
+**Say in the handover which way it felt** - that is the only signal the number ever gets.
+
 ## Stop conditions - the only times to come back to Max
 
 Stop, say plainly which condition fired and what you need, then take the next unblocked item if there is one.
@@ -52,9 +84,6 @@ Stop, say plainly which condition fired and what you need, then take the next un
 
 - **A migration is needed.** Never bundled, never applied by you.
   Write it, put it in the item, mark the item blocked.
-- **A product decision only Max can make.** The test: does the answer depend on the café, the trade, or his history rather than on the code?
-  "Do chefs reprice or reformulate" is his.
-  "Which of two implementations is cleaner" is yours - decide it.
 - **Data loss is possible** and not fully reversible from the current backup.
 - **The item is wrong in a way you cannot repair.** Rewriting a mis-stated premise is yours.
   Discovering the item solves the wrong problem is his.
@@ -62,6 +91,7 @@ Stop, say plainly which condition fired and what you need, then take the next un
 - **The batch would exceed what one PR can be reviewed as.** Split it, do the first half, queue the rest.
 
 **Not stop conditions:** the plan being long, the diff being large, a decision between two reasonable implementations, uncertainty about taste where the item states a requirement, or anything that has already been decided in `CLAUDE.md` or a prior handover.
+**A product decision only Max can make is no longer one either** - it defers the item and the loop carries on, per the section above.
 
 ## The queue
 

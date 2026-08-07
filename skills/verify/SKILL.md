@@ -120,5 +120,6 @@ Only the phone tells you whether it feels right.
 
 Suite green · `node -c` clean · smoke if anything renders · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
 
-Open the PR when the diff is **final**, or open it as a draft and mark it ready.
-The workflow review fires once, at open or at ready - `synchronize` is deliberately not a trigger, so fixes pushed afterwards are not re-reviewed.
+Open the PR when the diff is **final**.
+**No review fires on its own** - the workflow is on demand since 8 Aug 2026, by manual run or the `deep-review` label.
+So the `code-review` agent above is the review this branch gets, and waiting after opening the PR waits for nothing.

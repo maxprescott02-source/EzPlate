@@ -60,6 +60,44 @@ Pre-existing v89 behaviour, flagged in v96, unchanged.
 Requirements: decide what the headline says when there is nothing to average.
 Blocked on: Max - it moves the headline number in a state that has shipped for seven versions, so it is not a judgement call.
 
+## blocked  CodeRabbit free tier as the independent second reader
+Problem: the GitHub Actions "Code review" workflow was demoted to on-demand on 8 Aug 2026 - 11 runs, 5 silent skips, zero bugs found, ~$20 of Max's personal Claude subscription capacity and ~15 min per batch.
+That leaves the pre-push `code-review` agent as the only reviewer, and it runs on the same machine as the batch.
+CodeRabbit is now **free for private repos, unlimited**, and has the measured record here: **two criticals in v108 alone**, plus real bugs in v102, v111 and v113.
+It was dropped only because a trial expired, not because it underperformed.
+Requirements: it reviews every PR, and its findings follow the same rule as any other - fixed, explained, or queued, in the same branch.
+Known problems, documented in this repo's own handovers: **the CLI times out**, and **it skips untracked files** - so a brand-new file can pass review by never being read.
+Blocked on: **Max.** It needs a GitHub App installed against his account, which no agent can do.
+
+## blocked  Mutation testing (Stryker) - measure the tests that cannot fail
+Problem: `CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke.
+A test that passes against broken code is worse than no test, because it is trusted.
+The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not to do this does not apply here.
+Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
+Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
+
+## next  Two browser specs cannot run in CI - find out why, don't widen the tolerance
+Problem: the Playwright job added 8 Aug 2026 runs 86 of 88 tests. Two are `test.skip`ped when `CI` is set, and the skip is a holding position, not a fix.
+Both pass on a Mac and fail on CI's Linux Chromium, and **these specs had never run on any machine but Max's before this**, so the assumptions are years old.
+1. `tests/visual/v108-boot.spec.js` - "the gate never paints an empty app underneath itself". `expect(box.width).toBeGreaterThanOrEqual(vp.width - 1)` failed at **1270 against 1280**. The obvious cause is the scrollbar - macOS draws overlay scrollbars at 0px, Linux draws a classic one - **but measuring `documentElement.clientWidth` instead of `page.viewportSize()` did NOT fix it**, so that theory is wrong or incomplete and the real cause is unknown.
+2. `tests/visual/fresh-states.spec.js:792` - "v48: tap highlight killed, keyboard focus ring kept". The click times out after 30s with `waiting for locator('#trendWrap svg')`, **even though an explicit `toBeVisible` on the same locator passed immediately before it.** That shape means the svg existed and then stopped existing - a re-render replacing the element. **If the chart really does swap its svg out from under a pointer, that is an app behaviour, not a test artefact** - check that before touching the test.
+Requirements: reproduce on Linux Chromium (a container, or push a branch and read the artefact - the job uploads the HTML report and traces on failure), fix the real cause, remove both `test.skip` lines.
+Out of scope: widening the tolerance or lengthening a timeout to get a green tick. Two CI runs were already spent guessing from logs; the next attempt should start from a trace, not a theory.
+
+## blocked  Re-pin claude-code-action to a release tag
+Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
+Forced, not a preference: at the current release (v1.0.187) `validateTrackProgressEvent` THROWS on the `labeled` action, so the label trigger - the primary way a review is now requested - could not work at all with `track_progress: true`.
+Dropping `track_progress` was the alternative and it is the worse one: that is exactly the "runs, finds things, publishes nothing" failure this repo has already paid for twice.
+A commit pin is immutable, so this is safe rather than floating - but it is **unreleased third-party code**, and an unreleased pin that nobody revisits is how a temporary decision becomes permanent.
+Requirements: once a release ≥ v1.0.188 contains upstream `d573b167`, pin back to `@v1` - one line. The check is in a comment above the pin:
+`gh api repos/anthropics/claude-code-action/contents/src/modes/detector.ts?ref=v1 -H 'Accept: application/vnd.github.raw' | grep -A6 'const validActions'` - if `labeled` appears, re-pin.
+Blocked on: upstream, not Max. Nothing to decide; check it when a batch next touches the workflow.
+
+## blocked  GitHub Pro at $4/month - so a check can actually gate `main`
+Problem: branch protection and rulesets require Pro on a private repo (the API returns **403**), so today **nothing can block a merge** - "mandatory review" is a convention, not a mechanism.
+$4/month buys the mechanism: a required check that stops a merge with a red review or a failing suite.
+Blocked on: **Max.** A spending decision, not a task - there is nothing to build until he says yes.
+
 ---
 
 ## next  Staging Supabase

@@ -33,6 +33,9 @@ supabase/
 .github/
 
 # Repo housekeeping that has no business on the origin
+# BOTH are needed: patterns match by exact name, so `gitignore` catches only the stray
+# dot-less file of that name (tracked since 15 Jul) and leaves the REAL `.gitignore` served.
 gitignore
+.gitignore
 README.md
 skills-lock.json
