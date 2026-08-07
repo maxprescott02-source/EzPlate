@@ -49,7 +49,15 @@ test('the gate never paints an empty app underneath itself', async ({ page }) =>
   await expect(gate).toBeVisible();      // boundingBox() returns null on a hidden node, which would
                                          // throw on .width and read as a crash rather than a failure
   const box = await gate.boundingBox();
-  const vp = page.viewportSize();
+  // ⚠️ NOT page.viewportSize(). That is the WINDOW size and includes the scrollbar; a full-bleed
+  // fixed element only ever covers the LAYOUT viewport. macOS draws overlay scrollbars at 0px so
+  // the two agree locally, but CI's Linux Chromium draws a classic one and they differ by ~10px -
+  // this assertion failed in CI at 1270 vs 1280 while passing on every developer machine.
+  // clientWidth/clientHeight is the area the gate is actually supposed to cover, on both.
+  const vp = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    height: document.documentElement.clientHeight,
+  }));
   expect(box.width).toBeGreaterThanOrEqual(vp.width - 1);
   expect(box.height).toBeGreaterThanOrEqual(vp.height - 1);
 });

@@ -800,8 +800,12 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
     window.priceHistory = pts.sort((a, b) => a.t - b.t);
   });
   await page.locator('.navbtn[data-tab="dashboard"]').click();
-  await page.waitForTimeout(400);
   const svg = page.locator('#trendWrap svg');
+  // ⚠️ WAIT ON THE CHART, NOT ON A CLOCK. This was `waitForTimeout(400)` and it timed out in CI
+  // after 30s on the click below: the runner is slower than any developer machine, the chart had
+  // not been drawn yet, and the click then waited for an element that was not there. A fixed sleep
+  // that is long enough locally is not evidence it is long enough anywhere.
+  await expect(svg).toBeVisible({ timeout: 15000 });
   // pointer focus: no ring, no tap flash
   await svg.click({ position: { x: 150, y: 100 } });
   const afterTap = await page.evaluate(() => {
