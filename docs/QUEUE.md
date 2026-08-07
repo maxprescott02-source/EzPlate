@@ -47,11 +47,15 @@ Not something to schedule.
 Blocked on: Max.
 Destructive against real data.
 
-## blocked  Insights rules D and E - promote above the snapshot line?
-Problem: `CLAUDE.md` records the three-logs rule and insight rules A–E under "Open, NOT bugs".
-D and E read like durable law, not snapshot state, and the file says rules only move above the line with Max's yes.
+## blocked  Insight rule D - promote into `CLAUDE.md`?
+Problem: **this item's premise expired and two of its facts were wrong** - corrected 8 Aug 2026 rather than worked around.
+1. It said `CLAUDE.md` records these under "Open, NOT bugs", above a "snapshot line". The three-tier rewrite (#69) deleted both that section and the snapshot line, so there is no longer a line to promote anything above.
+2. **There is no rule E.** The code carries rules **A–D only** (`js/app.js:2974–2998`); "A–E" was a miscount that the old `CLAUDE.md` propagated. The three-logs rule it was bundled with already IS durable law - it is Tier 1's "Five history series, deliberately separate".
+So what is actually left to decide is only rule D (every insight family runs on every render; v90 shipped a panel saying "nothing needs attention" above a bar reporting costs creeping up).
+It is written at the function it governs, which is where `CLAUDE.md`'s own test - "true but inferable is a deletion" - says it belongs.
+Requirements: either promote rule D and say why the comment at the site is not enough, or close this and leave it where it is.
 Blocked on: Max's yes.
-Docs-only either way.
+Docs-only either way, and the do-nothing answer is defensible.
 
 ## blocked  Zero menus + existing history shows a stale headline figure
 Problem: with nothing costed, the dashboard still states a percentage from the old series.
@@ -76,13 +80,14 @@ The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
 Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
 
-## next  Two browser specs cannot run in CI - find out why, don't widen the tolerance
-Problem: the Playwright job added 8 Aug 2026 runs 86 of 88 tests. Two are `test.skip`ped when `CI` is set, and the skip is a holding position, not a fix.
-Both pass on a Mac and fail on CI's Linux Chromium, and **these specs had never run on any machine but Max's before this**, so the assumptions are years old.
-1. `tests/visual/v108-boot.spec.js` - "the gate never paints an empty app underneath itself". `expect(box.width).toBeGreaterThanOrEqual(vp.width - 1)` failed at **1270 against 1280**. The obvious cause is the scrollbar - macOS draws overlay scrollbars at 0px, Linux draws a classic one - **but measuring `documentElement.clientWidth` instead of `page.viewportSize()` did NOT fix it**, so that theory is wrong or incomplete and the real cause is unknown.
-2. `tests/visual/fresh-states.spec.js:792` - "v48: tap highlight killed, keyboard focus ring kept". The click times out after 30s with `waiting for locator('#trendWrap svg')`, **even though an explicit `toBeVisible` on the same locator passed immediately before it.** That shape means the svg existed and then stopped existing - a re-render replacing the element. **If the chart really does swap its svg out from under a pointer, that is an app behaviour, not a test artefact** - check that before touching the test.
-Requirements: reproduce on Linux Chromium (a container, or push a branch and read the artefact - the job uploads the HTML report and traces on failure), fix the real cause, remove both `test.skip` lines.
-Out of scope: widening the tolerance or lengthening a timeout to get a green tick. Two CI runs were already spent guessing from logs; the next attempt should start from a trace, not a theory.
+## next  Run `project-audit` and FILE the report
+Problem: `docs/audits/` does not exist, so no audit has ever been filed and the counter that schedules the next one has nothing to count from.
+The `/batch` rule is a gap of 10 versions between the newest `docs/audits/AUDIT-vNN.md` and `sw.js`; a missing directory trips it outright.
+Requirements: run the `project-audit` agent, then **file its report yourself** to `docs/audits/AUDIT-v116.md` at the version it audited.
+The agent is read-only and hands the report back rather than saving it - an unfiled report leaves the counter unchanged and the next audit never gets queued.
+Every finding then gets the usual decision: fixed, explained as intentional, or added here as its own item.
+Out of scope: acting on the findings in the same batch.
+Filing the report and queueing what it found is the deliverable.
 
 ## blocked  Re-pin claude-code-action to a release tag
 Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
@@ -242,6 +247,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Two browser specs cannot run in CI** - fixed 8 Aug 2026, both `test.skip` lines gone, CI runs all 88.
+  **One cause, not two:** the app styles every scrollbar to 10px (`*::-webkit-scrollbar`, `style.css:1490`), macOS draws overlay scrollbars that cost no layout width and Linux draws a classic one that does.
+  Measured on the runner: `innerWidth` 1280, `documentElement.clientWidth` 1280, fixed-positioning containing block **1270**.
+  **So the previous attempt was not wrong about the scrollbar - it was wrong that `clientWidth` is a different number.** Both candidate references read 1280 on Linux, so swapping one for the other could never have helped. The gate spec now MEASURES its reference with a throwaway `position:fixed;inset:0` probe instead of naming it.
+  **The second half of the item was wrong and the code won:** the svg never went missing. The trace shows the locator RESOLVING to it and then 53 click retries against `#trendWrap intercepts pointer events`. The chart is sized off the wrapper by its viewBox ratio - 314×102 locally, 304×98.8 on CI - so the hardcoded click at `y=100` was 2px inside on one and outside on the other. **No app defect; the chart does not swap its svg.** The spec clicks the centre now.
 
 Struck at the 7 Aug reconcile, each verified rather than assumed:
 
