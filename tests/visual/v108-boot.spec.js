@@ -41,14 +41,6 @@ test('data cannot load: the gate says so, in words, with one way forward', async
 });
 
 test('the gate never paints an empty app underneath itself', async ({ page }) => {
-  // ⚠️ RUNS LOCALLY, SKIPPED IN CI - and the skip is the honest state, not a fix.
-  // The width assertion below fails on CI's Linux Chromium and passes on every Mac. Measuring the
-  // LAYOUT viewport instead of the window (the scrollbar theory) did not fix it, so the cause is
-  // something else and guessing at it from a log has already cost two CI runs. Queued with the
-  // evidence: `docs/QUEUE.md` → "Two browser specs cannot run in CI".
-  // Do NOT "fix" this by widening the tolerance until someone has seen the real numbers.
-  test.skip(!!process.env.CI, 'fails on Linux Chromium for reasons not yet established - see docs/QUEUE.md');
-
   // The failure this batch exists to remove: rendering zeroes that look like real data.
   await installBoot(page, { noClient: true });
   await page.goto('/');
@@ -57,15 +49,30 @@ test('the gate never paints an empty app underneath itself', async ({ page }) =>
   await expect(gate).toBeVisible();      // boundingBox() returns null on a hidden node, which would
                                          // throw on .width and read as a crash rather than a failure
   const box = await gate.boundingBox();
-  // ⚠️ NOT page.viewportSize(). That is the WINDOW size and includes the scrollbar; a full-bleed
-  // fixed element only ever covers the LAYOUT viewport. macOS draws overlay scrollbars at 0px so
-  // the two agree locally, but CI's Linux Chromium draws a classic one and they differ by ~10px -
-  // this assertion failed in CI at 1270 vs 1280 while passing on every developer machine.
-  // clientWidth/clientHeight is the area the gate is actually supposed to cover, on both.
-  const vp = await page.evaluate(() => ({
-    width: document.documentElement.clientWidth,
-    height: document.documentElement.clientHeight,
-  }));
-  expect(box.width).toBeGreaterThanOrEqual(vp.width - 1);
-  expect(box.height).toBeGreaterThanOrEqual(vp.height - 1);
+
+  // ⚠️ MEASURE THE REFERENCE, DO NOT NAME IT. Two earlier attempts asserted against a number the
+  // test chose - page.viewportSize() (the WINDOW, scrollbar included) and then
+  // documentElement.clientWidth (the ROOT BOX). Both are 1280 on a Mac and both were wrong in CI,
+  // where the gate measured 1270: the app styles every scrollbar to 10px (`*::-webkit-scrollbar`,
+  // css/style.css), macOS draws overlay scrollbars that cost no layout width, and Linux draws a
+  // classic one that does. So on Linux a full-bleed fixed element is exactly 10px narrower than
+  // both of those numbers, and NEITHER is the containing block it actually gets.
+  //
+  // The only portable way to name that area is to measure something that lives in it. This probe
+  // is a full-bleed fixed element and nothing else, so its rect IS the fixed-positioning
+  // containing block on whatever platform is running - 1280 on a Mac, 1270 on CI, correct on both.
+  //
+  // What this therefore pins is the APP's property (the gate spans its whole containing block -
+  // it is not absolutely positioned, not inset by padding, not capped by a max-width) and not the
+  // browser's (that inset:0 covers the viewport), which was never ours to test.
+  const ref = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    const r = probe.getBoundingClientRect();
+    probe.remove();
+    return { width: r.width, height: r.height };
+  });
+  expect(box.width).toBeGreaterThanOrEqual(ref.width - 1);
+  expect(box.height).toBeGreaterThanOrEqual(ref.height - 1);
 });
