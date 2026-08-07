@@ -25,8 +25,32 @@ on:
     # Safe because `main` has no branch protection (not available on free private repos), so a workflow
     # that does not run cannot block a merge. If protection is ever added, a skipped run may appear as a
     # missing required check — revisit this line then.
+    #
+    # ⚠️ THIS IS A BLOCKLIST ON PURPOSE, not an allowlist of source paths. Get a blocklist wrong and you
+    # pay $2 to review something harmless. Get an allowlist wrong and product code merges unreviewed
+    # under a green check, which is the failure this repo already documents twice. Fail toward reviewing
+    # too much.
+    #
+    # `**.md` alone was written when every non-source file was Markdown at the repo root. It stopped
+    # being true on 8 Aug 2026: process docs moved to `docs/`, agent instructions live in `skills/`, and
+    # `.vercelignore` arrived — so a pure-prose batch started tripping a full review on one stray file.
+    # Everything listed here is incapable of changing what the app does at runtime.
     paths-ignore:
       - '**.md'
+      - 'docs/**'        # process docs: queue, phone list, handovers, briefs, mockups
+      - 'skills/**'      # agent instructions, not shipped
+      - '.claude/**'     # agent config, not shipped
+      - '.vercelignore'  # see below — deploy config, deliberately included
+      - '.gitignore'
+      - 'gitignore'
+    #
+    # `.vercelignore` is the one judgement call in that list: it CAN break production, by excluding a
+    # path the app needs. It is here anyway because it changes roughly never, and because the pre-push
+    # `code-review` agent covers it at no cost. If it starts changing often, take it back out.
+    #
+    # NOT ignored, deliberately: `.github/**`. A PR touching a workflow makes the action refuse to run
+    # and exit GREEN, which is already the repo's nastiest trap — adding it here would remove even the
+    # job log that says why.
 
 # If two runs are ever triggered close together, only the newest survives. Cheap insurance rather than a
 # fix for anything: with `synchronize` gone the triggers above rarely overlap.
