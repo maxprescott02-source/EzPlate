@@ -811,10 +811,13 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
   // out in CI after 30s - not because the svg was missing (the trace shows the locator resolving to
   // it) but because the click point landed OUTSIDE it and #trendWrap swallowed the pointer, 53
   // retries deep. The chart is sized by its viewBox aspect ratio off the wrapper's width, so at 380px
-  // it is 314x102 on a Mac and ~304x99 on CI, where the app's 10px scrollbar (`*::-webkit-scrollbar`,
-  // css/style.css) takes real layout width. y=100 sits 2px inside the element on one and 1px outside
-  // it on the other. Nothing here needs a specific point - this asserts what a pointer press does to
-  // focus and tap highlight - so click the centre and let Playwright find it on any layout.
+  // it measures 314x102.0 on a Mac and 304x98.8 on CI, where the app's scrollbar takes real layout
+  // width (`*::-webkit-scrollbar{width:10px}` at css/style.css:1490, reserved on every page by
+  // `html{scrollbar-gutter:stable}` at :2693 - overlay-scrollbar platforms reserve nothing).
+  // y=100 therefore sits 2px inside the element on one and just outside it on the other, and
+  // elementFromPoint at that spot returns DIV#trendWrap on CI - the same words the trace used.
+  // Nothing here needs a specific point - this asserts what a pointer press does to focus and tap
+  // highlight - so click the centre and let Playwright find it on any layout.
   await svg.click();
   const afterTap = await page.evaluate(() => {
     const el = document.querySelector('#trendWrap svg');
