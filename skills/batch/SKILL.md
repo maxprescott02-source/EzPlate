@@ -35,6 +35,11 @@ If you are running `/batch`, you are in the first case.
 9. **Merge** if everything is green and no stop condition applies.
 10. **Hand over.** Use the `handover` skill.
     Tick the queue, and add anything found-not-fixed as a new queue item - a finding that lives only in a handover is a finding nobody will action.
+    **Then check the audit counter.** The newest `docs/audits/AUDIT-vNN.md` is the version the last audit ran at; `sw.js` has the version you just shipped.
+    At a gap of **10 or more** - or if `docs/audits/` is empty or missing - put `project-audit` into `docs/QUEUE.md` as the next item, above every unblocked one.
+    Nothing to remember and no calendar: the version increments once per batch, so it already is the counter.
+    **When you later run that item, YOU file the report** to `docs/audits/AUDIT-vNN.md` at the version it audited.
+    The agent is read-only and hands the report back rather than saving it, so an unfiled report leaves the counter unchanged and the next audit never gets queued.
 11. **Next item.**
 
 **Bump the cache version** as part of step 4 whenever the batch ships a client asset - the `cache-version` skill has the six spots.
