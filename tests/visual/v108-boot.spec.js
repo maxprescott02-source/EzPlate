@@ -51,12 +51,14 @@ test('the gate never paints an empty app underneath itself', async ({ page }) =>
   const box = await gate.boundingBox();
 
   // ⚠️ MEASURE THE REFERENCE, DO NOT NAME IT. Two earlier attempts asserted against a number the
-  // test chose - page.viewportSize() (the WINDOW, scrollbar included) and then
-  // documentElement.clientWidth (the ROOT BOX). Both are 1280 on a Mac and both were wrong in CI,
-  // where the gate measured 1270: the app styles every scrollbar to 10px (`*::-webkit-scrollbar`,
-  // css/style.css), macOS draws overlay scrollbars that cost no layout width, and Linux draws a
-  // classic one that does. So on Linux a full-bleed fixed element is exactly 10px narrower than
-  // both of those numbers, and NEITHER is the containing block it actually gets.
+  // test chose - page.viewportSize() (the WINDOW) and then documentElement.clientWidth (the ROOT
+  // BOX) - and the second one is why the scrollbar theory looked disproved when it was right.
+  // MEASURED on the CI runner, not inferred: innerWidth 1280, documentElement.clientWidth 1280,
+  // and a full-bleed fixed element 1270. Both candidate references report 1280 on Linux exactly as
+  // they do on a Mac, so swapping one for the other could never have helped. The 10px is the app's
+  // own scrollbar (`*::-webkit-scrollbar{width:10px}`, css/style.css) - macOS draws overlay
+  // scrollbars that cost no layout width, Linux draws a classic one that does, and it comes out of
+  // the fixed-positioning containing block WITHOUT being subtracted from either of those numbers.
   //
   // The only portable way to name that area is to measure something that lives in it. This probe
   // is a full-bleed fixed element and nothing else, so its rect IS the fixed-positioning
