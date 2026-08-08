@@ -1386,6 +1386,7 @@ function showTab(t){
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
   ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  var _fab=document.getElementById('prodFab'); if(_fab) _fab.style.display=(t==='ingredients' && (typeof PRODUCTS==='undefined' || PRODUCTS.length))?'':'none';   // Q7 (v126): body-level (transform ancestors capture fixed children); hidden on the zero-products empty state, whose card already offers the same action
   if(t==='analysis')renderAnalysis();
   if(t==='ingredients')renderIngredients();
   if(t==='dashboard')renderDashboard();
@@ -1994,6 +1995,7 @@ function fillFilter(sel, list, label){
 }
 function renderIngredients(){
   var wrap=document.getElementById('ingList'); if(!wrap) return;
+  applyProdDensity();                                                 // Q7 (v126): BEFORE the early returns — the toggle must read its state on the empty and no-match screens too
   var cntEl=document.getElementById('ingCount');
   if(!PRODUCTS.length){                                               // brand-new user: no products at all -> full empty state (gate on the store, not the filtered rows)
     if(cntEl) cntEl.textContent='';
@@ -2018,6 +2020,17 @@ function renderIngredients(){
   if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
   if(!items.length){ wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(p){
+    /* Q7 (v126): the Change column — drift from the last LOGGED move, by the same ingLastMovePct
+       rule the Ingredients rows and the What-moved panel use, "—" when untouched. Semantic colour:
+       up is bad. Everything else in the row is the same markup; the columns are CSS. */
+    var pct=ingLastMovePct(p.id);
+    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">—</span>'
+      :('<span class="ing-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
+    /* v99's rule survives Q7 by DEDUPING, not hiding: dispPrice's figure carries the basis for the
+       normal units ("$3.45/kg"), so the label only renders when it ADDS information — an unknown/dim
+       base_unit or a missing cost, exactly the rows where the label is the correctness flag the v20
+       eggs bug made law. */
+    var basisKnown=(['g','ml','ea'].indexOf(p.base_unit)>=0) && (cpbu(p)!=null);
     return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</div>'
@@ -2025,10 +2038,31 @@ function renderIngredients(){
       +(p.category?'<span class="ing-tag">'+esc(p.category)+'</span>':'')
       +(p.supplier?'<span class="ing-tag sup">'+esc(p.supplier)+'</span>':'')
       +'</div>'
-      +'<div class="ing-price"><b>'+dispPrice(p)+'</b><span class="ing-per">'+ingUnitLabel(p)+'</span></div>'
+      +'<div class="ing-price"><b>'+dispPrice(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</div>'
+      +drift
       +'</button>';
   }).join('');
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openIngEdit(b.getAttribute('data-id')); }; });
+}
+/* Q7 (v126): the density toggle — THE one legal new localStorage key, and it is a VIEW PREFERENCE
+   (CLAUDE.md: localStorage holds view preferences and derived caches only; this holds no data).
+   Compact drops the sub-lines only — never the figure column. */
+var PROD_DENSITY_KEY='cafeDB_prodDensity';
+var _prodDensity=null;                                                // in-memory FIRST (the setDashRange pattern) — a blocked localStorage write must not make the toggle silently inert
+function prodDensity(){
+  if(_prodDensity) return _prodDensity;
+  try{ _prodDensity=(localStorage.getItem(PROD_DENSITY_KEY)==='compact')?'compact':'comfortable'; }catch(e){ _prodDensity='comfortable'; }
+  return _prodDensity;
+}
+function setProdDensity(d){ _prodDensity=(d==='compact')?'compact':'comfortable'; try{ localStorage.setItem(PROD_DENSITY_KEY, _prodDensity); }catch(e){} applyProdDensity(); }
+function applyProdDensity(){
+  var wrap=document.getElementById('ingList'); if(!wrap) return;
+  var compact=prodDensity()==='compact';
+  wrap.classList.toggle('density-compact', compact);
+  document.querySelectorAll('#tab-ingredients .segd').forEach(function(b){
+    var on=(b.getAttribute('data-density')==='compact')===compact;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false');
+  });
 }
 var ingEditId=null;
 function openIngEdit(id){
@@ -4255,6 +4289,9 @@ function renderDashboard(){
 (function(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
+  // Q7 (v126): density toggle + mobile floating add
+  document.querySelectorAll('#tab-ingredients .segd').forEach(function(b){ b.addEventListener('click',function(){ setProdDensity(b.getAttribute('data-density')); }); });
+  var pf=document.getElementById('prodFab'); if(pf) pf.addEventListener('click',function(){ openModal(); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
   var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',clearProductFilters);   // v58: same helper the empty-state action uses
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
@@ -4288,7 +4325,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v125';
+var APP_VERSION='v126';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
