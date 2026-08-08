@@ -68,16 +68,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Q8 - Invoice import redesign
-Implement `Redesign - Invoice Import.dc.html`. Stop after.
-> **Plan. This is the app's most fragile surface - read `CLAUDE.md`'s invoice rules and the existing tests BEFORE editing, and diagnose with a truth table.**
-> `renderInvReview` only. Adds the verdict sentence up front ("11 matched and ready · 2 need your eye · 1 new product") and row tints, and a footer "Confirm N changes" counting ticked rows.
-> Three invariants must survive, each from a real regression: **full-row re-render only** (per-cell patching left stale cells) · **`.muted-row` hiding stays scoped to `.is-new`** · **tint derives from `invRowState` via `st-*` classes** so the card and the summary can never disagree.
-> **Auto-tick rule is unchanged and the design agrees**: only a `'matched'` row is ever pre-ticked, by the renderer AND by every handler.
-> Note the queued bug "Invoice ticks are lost on any re-render" lives on this exact code - **fix it in this batch or explicitly not, but decide it, because this batch rewrites the renderer that causes it.**
-> **Harness note (HANDOVER-128, via the v125 audit's dropped-threads sweep):** jsdom does not compile inline `oninput=` handlers on innerHTML-created nodes - and this renderer is full of them. Smoke pins must call the handler functions directly.
-> **Free rider carried from Q7 (still unfixed after seven touching batches):** the two stale handover-path comments - `index.html` names `handovers/HANDOVER-v88.md`, `js/app.js` names `handovers/HANDOVER-v62.md`; both live under `docs/` now. Fix them IN THIS BATCH - it touches both files.
-
 ## next  Q9 - Settings redesign
 Implement `Redesign - Settings.dc.html`. Stop after.
 > **Plan.** Sectioned modal, markup in `index.html`: left nav with `--accent-weak` active fill, setting rows as label+help left / control right.
@@ -221,18 +211,6 @@ One placement implementation.
 **The old prose sequencing here was WRONG and is the reason `Do after:` exists.** It said this waited on "the builder-as-modal conversion landing" - a conversion that had already shipped in **v54**, so the item sat behind a satisfied dependency for two years of versions with nothing able to notice.
 Q6 is a real, checkable prerequisite; that one was not.
 
-## next  Invoice ticks are lost on any re-render
-Problem: `renderInvReview()` is a full-row rebuild, and it re-derives every tick from `invRowState` - `checked = (state === 'matched')`.
-So a tick the USER put on a review or price-change row is discarded whenever anything else on the sheet re-renders: teaching a pack (`.pt-done`), adding a new item (`.ni-add-btn`), picking a match from a chip.
-Only the new-item FORM state is rehydrated across a rebuild (v50 item 1); the ticks are not.
-Flagged as a known parallel in v50 and v52, verified still true 7 Aug at `app.js:6130`, `:6146`, `:6157`.
-Requirements: a tick the user placed survives a re-render.
-The auto-tick rule is untouched - only `matched` rows are ever *pre*-ticked; this is about not throwing away a decision the user already made.
-Do with: **Q8** - the bug is IN `renderInvReview`, which is the one function Q8 rewrites. Two batches on one renderer, or one; and fixing it first means fixing it into markup Q8 replaces.
-Q8's plan already says to decide this explicitly rather than let it ride.
-Note: fragile area.
-Truth-table diagnosis first, regression test mandatory.
-
 ## next  pdf.js 4.2.67+
 Problem: 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed.
 Theoretical while Max controls the PDFs, real once strangers upload them.
@@ -276,6 +254,7 @@ Out of scope: restructuring anything the deleted rules sat next to.
 Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
 
 ## next  Small, each independently shippable
+- **Ticking a never-opened add-new form stores the tick nowhere** (v127 review, pre-existing): an AI-appended add-new row ticked before its form is opened keeps the tick only in the DOM; Confirm then fails against a form that does not exist with a toast pointing at no highlight, blocking the import. Decide: either opening the form on first tick, or refusing the tick with copy. Lives on `renderInvReview`'s add-new path.
 - ⚠️ **Every line number in this block predates the redesign** (v125 audit: ~290 lines moved in `js/app.js`, ~255 in `css/style.css`). The audit re-measured every claim - all still true in substance; the corrected numbers are in `docs/audits/AUDIT-v125.md` §5. Re-grep by NAME, never by the number.
 - **The publish dialog and the Menu row print the same food-cost ratio at different precision** (whole-number % vs one decimal; HANDOVER-125, landed by the v125 audit). Same `cost/price` ratio, two displays - align them or record the split as deliberate at both sites.
 - **Builder cost panel: the design's "+ Add to another menu" shortcut was deferred out of Q6** (9 Aug 2026). It needs the manage-menus modal to stack over the open builder and the cost panel to refresh when menus change underneath - both untested territory that was not riding a redesign batch. The panel's "On menus" list ships without it; publishing still lives one tap away on the plate card.
@@ -358,6 +337,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q8 - Invoice review redesign + the ticks bug** - shipped 9 Aug 2026 as **`ezplate-v127`** (PR #96), handover `HANDOVER-132-invoice.md`.
+  Scoped as planned (verdict sentence · warn tints · live "Confirm N changes" footer · THE ticks fix); the mock's structural rebuild was not taken - it omits the pack-teach/chips/price machinery.
+  **The ticks bug (flagged v50, v52, verified 7 Aug) is fixed**: user decisions survive re-renders caused elsewhere; every self-edit to a row's basis resets its own tick to the state default; auto-tick law unchanged. Five clearing sites count-pinned in npm test; the re-render and blanked-price sequences driven in `q8-invoice.spec.js`.
+  **The review's second major found the tint had NEVER derived from invRowState in substance** - the old needs-attention duplicate outranked the st-* rules on specificity and owned the paint; invisible while both declared identical values. The duplicate is retired; st-* is the one authority.
 
 - **Q7 - Products redesign** - shipped 9 Aug 2026 as **`ezplate-v126`** (PR #94), handover `HANDOVER-131-products.md`.
   One surface of rows with a Change (drift) column via the shared `ingLastMovePct` rule; the density preference on the ONE legal new localStorage key (in-memory-first so a blocked write cannot mute the toggle); the mobile floating add, BODY-level after the review measured it parked below the fold inside the transform-animating tab; v99's price-basis rule kept by DEDUPE (the label renders exactly when the figure lacks the basis).
