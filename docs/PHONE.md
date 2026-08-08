@@ -11,6 +11,18 @@ Production state below is measured, not assumed.
 
 ---
 
+## v119 - the builder takeover goes edge-to-edge
+
+- **Open any plate in the builder and look at the two side edges.**
+  Until now the phone got a full-height, square-cornered sheet that was **24px too narrow** - a 12px strip of dimmed backdrop down each side. It has been that way since v54 and nobody named it; it was found by measuring, not by looking.
+  Chromium at 380px now reports the sheet at the full viewport width in both themes, so this is a **confirmation**, not a diagnosis.
+  Failure: a visible gutter remains on either side; or the opposite direction - content now runs under the rounded display corners, or the × / Save bar collides with the notch or the home indicator.
+- **Why only a device settles it:** the sheet is `min-height:100dvh` and the overlay uses `env(safe-area-inset-*)` padding, and both were previously masked by the 12px inset. `dvh` and the safe-area insets are exactly what a desktop browser cannot reproduce - iOS Safari changes `dvh` as the URL bar retracts.
+  Check it **scrolled to the top and again after scrolling the docket**, and in landscape, where the insets move to the sides.
+- **Same rule covers the ingredient wizard** (`.modal-wiz`). Open it once and check the same two edges.
+
+---
+
 ## v118 - the plate draft
 
 - **Open a plate, look, close with ×. Then open a different plate.**

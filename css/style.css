@@ -670,6 +670,13 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @media (max-width:560px){
   .builder-overlay,.wiz-overlay{padding:0}                                  /* v61 item 4: the wizard takes over full-screen at mobile like the builder */
   .modal-builder,.modal-wiz{width:100%;max-width:none;min-height:100dvh;max-height:none;border:0;border-radius:0}
+  /* v119: the `width:100%` above was silently losing. `.modal{width:min(640px,calc(100vw - 24px))}`
+     in §"margins locked — modals pinned centre" is LATER in this file and the same specificity
+     (0,1,0), so it won: the takeover kept its square corners and 100dvh height but sat 24px narrow,
+     a 12px gutter down each side. Re-asserted with a descendant selector (0,2,0) so the takeover is
+     genuinely edge-to-edge. Do not "tidy" this back to a bare class — that is the losing form.
+     tests/builder-modal.test.js pins the ordering that makes it necessary. */
+  .builder-overlay .modal-builder,.wiz-overlay .modal-wiz{width:100%}
 }
 /* published / unpublished badge on a plate card — reuses .ing-tag; accent echoes .ing-tag.sup */
 .ing-tag.pub-on{color:var(--accent)}
