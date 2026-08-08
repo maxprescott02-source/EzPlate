@@ -883,7 +883,61 @@ function updateTotals(){
   document.getElementById('total').textContent=money(tot);
   const flag=document.getElementById('flag');
   if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+' have no cost data and are not in the total.';}else flag.style.display='none';
+  renderBuilderCost(tot);                                     // Q6 (v125): the cost panel + mobile footer render from the SAME total this function just displayed
   scheduleDraftSave();                                        // v82 D1: qty / misc / price edits funnel through here
+}
+/* Q6 (v125): the builder's cost panel (desktop) and footer summary (mobile). One renderer, one
+   truth: the total is the figure updateTotals just computed, the per-menu verdicts come from
+   menuMarginPreview — analyze()'s light — so the builder, the publish dialog and the Menu row can
+   never disagree. "On menus" reads menusOfPlate for the LOADED plate; a new unsaved plate has no
+   menus and shows the suggested price alone. The shortfall wording mirrors the Menu tab's cell:
+   cents under a dollar, dollars from there. */
+function renderBuilderCost(tot){
+  var tEl=document.getElementById('bTotal'); if(!tEl) return;
+  var cost=Number(tot)||0;
+  tEl.textContent=money(cost);
+  var tp=document.getElementById('bTargetPct'); if(tp) tp.textContent='('+cogsPct+'% target)';
+  var sEl=document.getElementById('bSuggest'); if(sEl) sEl.textContent=(cost>0)?money(cost/foodTarget()):'—';
+  var sp=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
+  var on=sp?menusOfPlate(sp):[];
+  function shortStr(mp){                                      // "— 90c under suggested" | "" when at/over
+    if(mp.pct==null) return '';
+    var c=Math.round((mp.suggested-mp.price)*100);
+    if(c<1) return '';
+    return ' — '+(c<100?(c+'c'):('$'+(c/100).toFixed(2)))+' under suggested';
+  }
+  var box=document.getElementById('bMenus');
+  if(box){
+    if(!on.length){ box.style.display='none'; box.innerHTML=''; }
+    else{
+      box.style.display='';
+      box.innerHTML='<div class="bcost-cap2">On menus</div>'+on.map(function(m){
+        var mp=menuMarginPreview(cost, m.price);
+        var v=(mp.pct==null)?'':'<div class="bverdict bv-'+mp.light+'"><b>'+mp.pct+'% food cost</b>'+esc(shortStr(mp))+'</div>';
+        return '<div class="bcost-menu"><span class="bm-name">'+esc(m.name)+'</span><span class="bm-price">'+fmt2(m.price)+'</span></div>'+v;
+      }).join('');
+    }
+  }
+  var foot=document.getElementById('bFootSum');
+  if(foot){
+    if(!(cost>0)){ foot.innerHTML=''; }
+    else{
+      var line;
+      if(on.length){
+        // the WORST menu leads — red before amber before green — because that is the one to act on
+        var rank={red:0,amber:1,green:2,none:3};
+        var worst=on.map(function(m){ return {m:m, mp:menuMarginPreview(cost, m.price)}; })
+          .sort(function(a,b){ return (rank[a.mp.light]||3)-(rank[b.mp.light]||3); })[0];
+        line=(worst.mp.pct==null)
+          ? ('suggested '+money(cost/foodTarget())+' at '+cogsPct+'%')
+          : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price)+' — suggested '+fmt2(cost/foodTarget()));
+      } else {
+        line='suggested '+money(cost/foodTarget())+' at a '+cogsPct+'% food cost';
+      }
+      foot.innerHTML='<div class="bfs-top"><span class="bfs-lbl">Total plate cost</span><span class="bfs-total">'+money(cost)+'</span></div>'
+        +'<div class="bfs-line">'+line+'</div>';
+    }
+  }
 }
 
 document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();clearPlateDraft();renderPlate();});   // v82: explicit discard clears the draft
@@ -4231,7 +4285,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v124';
+var APP_VERSION='v125';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

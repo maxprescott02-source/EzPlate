@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=124">
+<link rel="stylesheet" href="css/style.css?v=125">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -286,6 +286,14 @@
       </div>
 
       <div class="panel" id="platePanel">
+        <!-- Q6 (v125): the cost panel — total, suggested and per-menu verdicts lead the save column.
+             Filled by renderBuilderCost() (called from updateTotals on every change). At <900px the
+             sticky footer's #bFootSum carries the same answer; both render from the same call. -->
+        <div class="bcost" id="bCost">
+          <div class="bcost-head"><span class="bcost-lbl">Total plate cost</span><span class="bcost-total" id="bTotal">$0.00</span></div>
+          <div class="bcost-row"><span class="bcost-cap">Suggested price <span class="bcost-target" id="bTargetPct"></span></span><span class="bcost-suggest" id="bSuggest">—</span></div>
+          <div class="bcost-menus" id="bMenus" style="display:none"></div>
+        </div>
         <h2>Name &amp; save</h2>
         <div class="pad">
           <label class="f" for="plateName">Plate name</label>
@@ -308,7 +316,10 @@
     </div>
     <!-- v82 item 4: Save pinned to a sticky footer so it's always reachable without scrolling past the
          docket + name/category (the name & save section stays; only the button relocates to the pinned bar). -->
-    <div class="mfoot builder-foot"><button class="btn primary" id="saveBtn" type="button">Save plate</button></div>
+    <!-- Q6 (v125): the mobile footer carries the answer with the action — total + verdict + Save
+         together (the design's mobile frame). #bFootSum is display:none at ≥900px, where the sticky
+         cost panel says the same thing. -->
+    <div class="mfoot builder-foot"><div class="bfoot-sum" id="bFootSum" aria-live="polite"></div><button class="btn primary" id="saveBtn" type="button">Save plate</button></div>
   </div>
 </div>
 
@@ -798,7 +809,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=124"></script>
+<script src="js/app.js?v=125"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';

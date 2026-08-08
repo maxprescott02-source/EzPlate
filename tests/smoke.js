@@ -350,6 +350,7 @@ $('plateName').value = 'Smoke Plate';
 ok('the builder has a category field (§J)', !!$('plateCat'));
 $('plateCat').value = 'Breakfast';                      // §J: the plate's library category
 window.addMiscCost();                                   // a misc line makes the plate non-empty
+ok('the cost panel mirrors the docket total (Q6)', $('bTotal').textContent === $('total').textContent, $('bTotal').textContent + ' vs ' + $('total').textContent);
 $('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
 ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
 let libCard = window.document.querySelector('#plateList .ing-card');

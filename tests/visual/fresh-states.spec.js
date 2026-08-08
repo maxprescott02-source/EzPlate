@@ -507,13 +507,34 @@ for (const size of SIZES) {
       return out;
     });
     expect(rows.length, 'builder ingredient lines rendered').toBeGreaterThanOrEqual(2);
-    for (const row of rows) {
-      // the dotted rule sits at the total's BASELINE: below the text's vertical centre
-      // (never strikethrough) and above its descender bottom
-      const centre = (row.textTop + row.textBottom) / 2;
-      expect(row.rule, 'rule below the text centre').toBeGreaterThan(centre);
-      expect(row.textBottom - row.rule, 'rule within the descent band').toBeGreaterThanOrEqual(2);
-      expect(row.textBottom - row.rule, 'rule not sunk under the text').toBeLessThanOrEqual(6);
+    if (size.name === 'desktop') {
+      /* Q6 (v125): at ≥900px the docket lines are COLUMNS (name/qty/price/cost/×) and the dotted
+         leader is display:none — there is no rule to sit on a baseline. The stacked layout, and
+         this spec's original baseline check, live on under 900px. Assert the new premise. */
+      const cols = await page.evaluate(() => {
+        const line = document.querySelector('#lines .line:not(.misc-line)');
+        const leader = line.querySelector('.leader'), lc = line.querySelector('.lc'),
+              qty = line.querySelector('.qtybox');
+        return {
+          leaderHidden: getComputedStyle(leader).display === 'none',
+          lcW: lc.getBoundingClientRect().width,
+          lcRightOfQty: lc.getBoundingClientRect().left >= qty.getBoundingClientRect().right,
+          oneRow: Math.abs(lc.getBoundingClientRect().top - qty.getBoundingClientRect().top) < 12,
+        };
+      });
+      expect(cols.leaderHidden, 'the dotted leader belongs to the stacked layout').toBe(true);
+      expect(cols.lcW, 'the line cost renders').toBeGreaterThan(10);
+      expect(cols.lcRightOfQty, 'cost column sits right of qty').toBe(true);
+      expect(cols.oneRow, 'name/qty/cost share one row').toBe(true);
+    } else {
+      for (const row of rows) {
+        // the dotted rule sits at the total's BASELINE: below the text's vertical centre
+        // (never strikethrough) and above its descender bottom
+        const centre = (row.textTop + row.textBottom) / 2;
+        expect(row.rule, 'rule below the text centre').toBeGreaterThan(centre);
+        expect(row.textBottom - row.rule, 'rule within the descent band').toBeGreaterThanOrEqual(2);
+        expect(row.textBottom - row.rule, 'rule not sunk under the text').toBeLessThanOrEqual(6);
+      }
     }
     await page.locator('#lines').screenshot({ path: `tests/visual/__shots__/v46-builder-baseline-${size.name}.png` });
   });
