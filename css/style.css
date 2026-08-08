@@ -2336,9 +2336,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v54: empty/no-match states span the whole grid on every card list, so the centred empty-state icon
    sits in the middle instead of being pinned to column 1 (fixes the Products "padded left" icon; also
    covers the new Plates grid). */
-#ingList > .empty-state,#ingList > .ing-empty{grid-column:1 / -1}
-/* Q4 (v123): the #plateList pair is retired — the list is display:block now (§26), so grid-column
-   was inert there. Q5 (v124): the #kingList pair went the same way (§27). Tombstones. */
+/* Q4 (v123)/Q5 (v124)/Q7 (v126): the #plateList, #kingList and #ingList empty-state grid-column
+   rules are all retired — each list is display:block now (§26/§27/§29). Tombstones. */
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -3154,16 +3153,21 @@ html{scrollbar-gutter:stable}
 .ing-drift.none{color:var(--muted2);font-weight:normal}
 /* mobile (<900): name+brand / "category · supplier" sub-line, price with drift stacked right */
 #ingList > .ing-card{grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3)}
-#ingList .ing-meta{grid-column:1;gap:0 var(--sp-1)}
+#ingList .ing-meta{grid-column:1;gap:2px var(--sp-1)}
 #ingList .ing-meta .ing-tag + .ing-tag::before{content:"· ";color:var(--muted2)}
 #ingList .ing-price{grid-column:2;grid-row:1;text-align:right}
-#ingList .ing-price .ing-per{display:none}   /* dispPrice's figure already ends "/kg" — inline, the v99 "per kg" label became a stutter ("$24.78/kg per kg"); the basis stays visible in the figure itself */
+#ingList .ing-price .ing-per{display:inline;margin-left:4px;color:var(--warn)}   /* v99's rule survives by DEDUPE in the renderer: the label only renders when the figure does NOT carry the basis (unknown/dim unit, missing cost) — exactly when it is the correctness flag, so it renders loud */
 #ingList .ing-drift{grid-column:2;grid-row:2;justify-self:end}
 /* density: compact drops the sub-lines ONLY — the figure column always survives */
 #ingList.density-compact > .ing-card{padding-top:var(--sp-2);padding-bottom:var(--sp-2)}
 #ingList.density-compact .ing-brand,#ingList.density-compact .ing-meta{display:none}
+@media (max-width:899px){   /* compact = ONE line: with the sub-line gone, the drift joins the row instead of sitting orphaned under the price */
+  #ingList.density-compact > .ing-card{grid-template-columns:minmax(0,1fr) max-content 64px}
+  #ingList.density-compact .ing-price{grid-column:2;grid-row:1}
+  #ingList.density-compact .ing-drift{grid-column:3;grid-row:1;align-self:center}
+}
 .seg-density{display:inline-flex;border:1.5px solid var(--border);border-radius:var(--radius-ctl);overflow:hidden}
-.segd{border:0;background:none;padding:8px 12px;font-size:var(--fs-sm);font-weight:700;color:var(--text2);cursor:pointer;min-height:36px}
+.segd{border:0;background:none;padding:8px 12px;font-size:var(--fs-sm);font-weight:700;color:var(--text2);cursor:pointer;min-height:44px}   /* the global touch floor — a 36px override sat shorter than every row-mate on the very screen adding thumb reach */
 .segd + .segd{border-left:1px solid var(--border)}
 .segd.on{background:var(--accent-weak);color:var(--accent-ink)}
 .segd:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
@@ -3173,13 +3177,18 @@ html{scrollbar-gutter:stable}
   .fab{display:flex;position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:40;
     width:52px;height:52px;border-radius:50%;border:0;background:var(--accent);color:var(--on-accent);
     align-items:center;justify-content:center;font-size:26px;font-weight:700;box-shadow:var(--shadow-lg);cursor:pointer}
-  /* only while its tab is showing — #tab-ingredients is display:none otherwise, which hides position:fixed children with it */
+  #tab-ingredients #ingList{margin-bottom:calc(76px + env(safe-area-inset-bottom))}   /* the last row scrolls clear of the floating add — it must never cover a price */
+}
+@media (min-width:640px) and (max-width:899px){   /* the §26/§27 band: single-line rows — name+sub stacked / price / change (5 columns need ≥900) */
+  #ingList > .ing-card{grid-template-columns:minmax(0,1fr) max-content 72px;column-gap:var(--sp-4)}
+  #ingList .ing-price{grid-column:2;grid-row:1 / span 2;align-self:center}
+  #ingList .ing-drift{grid-column:3;grid-row:1 / span 2;align-self:center;justify-self:end}
 }
 @media (min-width:900px){   /* desktop: the mock's five columns — product / category / supplier / price / change */
   #ingList > .ing-card{grid-template-columns:minmax(0,1fr) 150px 130px 130px 80px;column-gap:var(--sp-4)}
   #ingList .ing-meta{display:contents}
   #ingList .ing-meta .ing-tag + .ing-tag::before{content:none}
-  #ingList .ing-tag{grid-column:2;grid-row:1}
+  #ingList .ing-tag{grid-column:2;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #ingList .ing-tag.sup{grid-column:3;grid-row:1}
   #ingList .ing-price{grid-column:4;grid-row:1}
   #ingList .ing-drift{grid-column:5;grid-row:1;justify-self:end;align-self:center}

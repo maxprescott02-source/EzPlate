@@ -228,9 +228,6 @@
       </div>
       <p class="hint ing-count panel-meta" id="ingCount"></p>
       <div id="ingList" class="ing-list"></div>
-      <!-- Q7 (v126): the mobile floating add — the same + New product action, within thumb reach on
-           the app's most-scrolled list. Hidden at ≥640px, where the header button is at hand. -->
-      <button class="fab" id="prodFab" type="button" aria-label="New product">+</button>
     </div>
   </div><!-- /tab-ingredients (LABEL: Products) -->
 
@@ -792,6 +789,13 @@
 </div>
 
 <!-- Bottom navigation -->
+<!-- Q7 (v126): the Products tab's floating add. BODY-level on purpose: the tabs animate transform
+     on entry (tabIn), and a transform ancestor becomes the containing block for fixed descendants —
+     inside the tab the button spent every entry parked thousands of px below the fold (the v126
+     review measured it). showTab shows it only while the Products tab is active; CSS keeps it
+     mobile-only. -->
+<button class="fab" id="prodFab" type="button" aria-label="New product" style="display:none">+</button>
+
 <nav class="bottomnav" aria-label="Main sections">
   <!-- NEW: sidebar brand — visible only on desktop (≥1024px); bottom bar unchanged on mobile -->
   <div class="side-brand" id="sideBrandHome" role="button" tabindex="0" aria-label="Go to dashboard">
