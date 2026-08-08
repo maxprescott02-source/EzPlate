@@ -66,7 +66,7 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Remove the density toggle (Max, 9 Aug 2026)
+## doing  Remove the density toggle (Max, 9 Aug 2026)
 Problem: Q7 (v126) shipped Comfortable/Compact on Products, on the one legal localStorage key. Max reversed it 9 Aug 2026: it changes too little to earn a control a chef has to understand.
 Verified live: `PROD_DENSITY_KEY='cafeDB_prodDensity'` (`js/app.js:2050`) with the in-memory-first plumbing at `:2051-2055`, `.seg-density` (`css/style.css:3175`), and `tests/visual/q7-products.spec.js` pins compact + persistence.
 Requirements: control gone, one row height everywhere, the key and its in-memory-first plumbing removed, the specs pinning the toggle retired on purpose. Design Package §13 records the cut.

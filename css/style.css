@@ -3153,9 +3153,9 @@ html{scrollbar-gutter:stable}
 
 /* ----------------------------------------------------------------------
    29. Q7 (v126) — THE PRODUCTS LIST: card grid becomes ONE surface of rows,
-   with a Change (drift) column, a density preference and a mobile floating
-   add. #ingList-scoped like §26/§27; markup classes and the openIngEdit
-   wiring are untouched.
+   with a Change (drift) column and a mobile floating add (its density
+   preference was deleted in v130). #ingList-scoped like §26/§27; markup
+   classes and the openIngEdit wiring are untouched.
    ---------------------------------------------------------------------- */
 #ingList{display:block;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-card);overflow:hidden;padding:0;margin:var(--sp-2) var(--sp-4) var(--sp-3)}
@@ -3183,19 +3183,8 @@ html{scrollbar-gutter:stable}
 #ingList .ing-price{grid-column:2;grid-row:1;text-align:right}
 #ingList .ing-price .ing-per{display:inline;margin-left:4px;color:var(--warn)}   /* v99's rule survives by DEDUPE in the renderer: the label only renders when the figure does NOT carry the basis (unknown/dim unit, missing cost) — exactly when it is the correctness flag, so it renders loud */
 #ingList .ing-drift{grid-column:2;grid-row:2;justify-self:end}
-/* density: compact drops the sub-lines ONLY — the figure column always survives */
-#ingList.density-compact > .ing-card{padding-top:var(--sp-2);padding-bottom:var(--sp-2)}
-#ingList.density-compact .ing-brand,#ingList.density-compact .ing-meta{display:none}
-@media (max-width:899px){   /* compact = ONE line: with the sub-line gone, the drift joins the row instead of sitting orphaned under the price */
-  #ingList.density-compact > .ing-card{grid-template-columns:minmax(0,1fr) max-content 64px}
-  #ingList.density-compact .ing-price{grid-column:2;grid-row:1}
-  #ingList.density-compact .ing-drift{grid-column:3;grid-row:1;align-self:center}
-}
-.seg-density{display:inline-flex;border:1.5px solid var(--border);border-radius:var(--radius-ctl);overflow:hidden}
-.segd{border:0;background:none;padding:8px 12px;font-size:var(--fs-sm);font-weight:700;color:var(--text2);cursor:pointer;min-height:44px}   /* the global touch floor — a 36px override sat shorter than every row-mate on the very screen adding thumb reach */
-.segd + .segd{border-left:1px solid var(--border)}
-.segd.on{background:var(--accent-weak);color:var(--accent-ink)}
-.segd:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* v130: the density-compact and .seg-density/.segd rules are DELETED with the toggle (Max,
+   9 Aug 2026) — one row height everywhere, the comfortable one the control defaulted to. */
 /* the floating add — mobile only, clear of the bottom nav */
 .fab{display:none}
 @media (max-width:639px){
@@ -3217,6 +3206,4 @@ html{scrollbar-gutter:stable}
   #ingList .ing-tag.sup{grid-column:3;grid-row:1}
   #ingList .ing-price{grid-column:4;grid-row:1}
   #ingList .ing-drift{grid-column:5;grid-row:1;justify-self:end;align-self:center}
-  #ingList.density-compact .ing-meta{display:contents}   /* the columns ARE the sub-lines' desktop form — compact keeps them and only tightens padding */
-  #ingList.density-compact .ing-brand{display:inline}
 }
