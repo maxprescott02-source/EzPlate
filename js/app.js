@@ -3957,13 +3957,15 @@ function whatMovedHtml(){
     : '<p class="hint">No price moves logged yet.</p>';
   return '<div class="panel dash-moved"><h2>What moved</h2><div class="pad">'+body+'</div></div>';
 }
-function menuCompareHtml(scope, only){
-  /* v120: `only` is the chips' disclosure list — the menus that did NOT get a chip. Called with no
-     argument it behaves exactly as before (every costed menu, All menus leading), which is what the
-     mobile layout and every existing test still use. */
-  var rows=only||menuComparisonRows();
-  if(!only && rows.length<2) return '';                              // fewer than two costed menus: nothing to compare, and dashScopeValid collapses the scope to match
-  var allPct=computeAvgFoodCost();                                   // non-null whenever two menus are costed; the '—' is belt-and-braces, not an expected state
+/* v120: this renders the chips' DISCLOSURE LIST and nothing else — `rows` is the set of menus that
+   did not get a chip, and dashChipsHtml is its one caller.
+   The standalone "By menu" card it used to render is GONE, not optional: the chips are the scope
+   control now, every `.dash-compare` rule was deleted with it, and a no-argument branch would have
+   been unreachable code that still looked live. The v120 pre-push review caught exactly that — the
+   first cut kept the branch "for the tests", which meant the honesty note and the All-menus rule
+   were pinned on a path the app can no longer run, so either could have been deleted from the live
+   chips with the suite still green. The tests now assert against dashChipsHtml. */
+function menuCompareHtml(scope, rows){
   function row(id, name, pct){
     var on=(id===scope);
     return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(id)+'"'
@@ -3972,22 +3974,13 @@ function menuCompareHtml(scope, only){
       +mcmpSparkHtml(id)
       +'<span class="mcmp-pct">'+(pct==null?'—':pct.toFixed(1)+'%')+'</span></button></li>';
   }
-  /* v120: as a disclosure list it is a popover, not a panel, and it drops the leading All-menus row
-     and the note — the chip row above already carries both. Standalone it is unchanged. */
-  if(only){
-    return '<div class="dash-menus-pop" role="group" aria-label="All menus ranked by food cost">'
-      +'<p class="dmp-head">All menus · ranked by food cost %</p>'
-      +'<ul class="mcmp-list">'+rows.map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
-      +'</div>';
-  }
-  return '<div class="panel dash-compare"><h2>By menu</h2><div class="pad">'
-    +'<ul class="mcmp-list">'
-    +row(DASH_ALL, 'All menus', allPct)
-    +rows.map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
-    // v94: one compact hint line (density brief). The standing honesty rule survives compression:
-    // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
-    +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
-    +'</div></div>';
+  /* A popover, not a panel: no leading All-menus row and no honesty note, because the chip row
+     above carries both. Both still exist — they moved to dashChipsHtml, which is where
+     dash-scope.test.js now asserts them. */
+  return '<div class="dash-menus-pop" role="group" aria-label="All menus ranked by food cost">'
+    +'<p class="dmp-head">All menus · ranked by food cost %</p>'
+    +'<ul class="mcmp-list">'+(rows||[]).map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
+    +'</div>';
 }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;

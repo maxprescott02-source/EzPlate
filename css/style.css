@@ -2549,10 +2549,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dash-verdict-panel h2{font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .dash-verdict-row{display:flex;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap}
 .dash-verdict-main{min-width:0}
-.dash-verdict-panel .verdict-num{font-size:40px;line-height:1}
+.dash-verdict-panel .verdict-num{line-height:1}   /* size is set once, under #dashBody below */
 .dash-verdict-panel .verdict-line{font-size:var(--fs-sm);font-weight:600}
 @media (min-width:700px){
-  .dash-verdict-panel .verdict-num{font-size:44px}
   .dash-verdict-panel .verdict-line{font-size:var(--fs-base)}
   /* the target sentence sits on the figure's baseline at desktop, per the mock */
   .dash-verdict-panel .verdict{align-items:baseline;gap:var(--sp-3)}
@@ -2605,11 +2604,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dash-row2{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4)}
 @media (min-width:900px){ .dash-row2{grid-template-columns:repeat(2,minmax(0,1fr))} .dash-row2.is-open{grid-template-columns:minmax(0,1fr)} }
 .dash-row2 > .panel{margin:0;min-width:0}
-/* Dig in is half-width now, so its four tiles cannot stay on one line — the 4-track rule at 640px
-   was written when it had the page to itself. Two-up inside the row, four-up only when the
-   drill-down opens and the panel takes the full width back. */
-.dash-row2 .dig-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-@media (min-width:900px){ .dash-row2.is-open .dig-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+/* Dig in is half-width ONLY where the row actually splits, so the two-up override is gated to the
+   same 900px breakpoint. Ungated it also fired at 640-899px, where the row is still stacked and
+   Dig in has the full width it had before — measured on this branch: 2 tracks at 700px against 4
+   on main. Caught by the v120 pre-push review.
+   There is deliberately no `.is-open` variant: digInHtml emits .dig-grid only when the drill-down
+   is CLOSED and .dash-row2 only gets .is-open when it is OPEN, so the two can never co-occur. */
+@media (min-width:900px){ .dash-row2:not(.is-open) .dig-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .dash-row2 .dig-card{min-width:0}
 .mv-list{list-style:none;margin:0;padding:0}
 .mv-row{display:flex;align-items:center;gap:var(--sp-3);min-height:44px;padding:var(--sp-2) 0}
@@ -2925,10 +2926,11 @@ html{scrollbar-gutter:stable}
 /* Strand 2: the chart reframed. The hero figure grows toward the approved mockup's weight — one
    deliberate size for the one number the dashboard exists to answer; everything else keeps the
    token scale. */
-/* v120: 34px was v115's step toward the approved mockup; the Q2 redesign lands on its final pair
-   (40px phone / 44px desktop), set in the v120 block above. Kept here as the id-specificity owner
-   so there is ONE rule deciding this size — the class rule above could not outrank an id, and
-   escalating specificity to win against your own stylesheet is how this file bred repeat breakages. */
+/* v120: 34px was v115's step toward the approved mockup; the Q2 redesign lands on its final pair,
+   40px phone / 44px desktop. THIS is the only place the size is set. The v120 block above styles
+   the same element but cannot outrank an id, so duplicating the size there just created two rules
+   that happened to agree — the pre-push review flagged it, and the loser has been removed rather
+   than left to drift. That block keeps only line-height, which nothing here sets. */
 #dashBody .dash-verdict-panel .verdict-num{font-size:40px}
 @media(min-width:700px){ #dashBody .dash-verdict-panel .verdict-num{font-size:44px} }
 /* The since-line: the achievement, then the gap. The warm tint marks accumulating drift (the thing

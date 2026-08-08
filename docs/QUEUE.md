@@ -63,14 +63,13 @@ The redesign restructures the layout of every screen a dropdown opens over, so d
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
 ## doing  Q2 - Dashboard redesign
-**Branch `feature/q2-dashboard-redesign`, commit 391f4cd, pushed and NOT merged.** Cache already bumped to v120 on the branch.
-**Done:** the whole screen — verdict eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and the ranked disclosure, chart as its own card, What moved, the two-column second row, and the v98 desktop grid rewritten in place. Driven in a real browser at 380px and 1280px in both themes. Unit suite **782 green** (+9 in `tests/dash-chips.test.js`), `node -c` and smoke clean. The design package is committed to `docs/design_handoff_ezplate_redesign/`.
-**Left to do, and the ONLY thing standing between this and a PR: 21 dashboard Playwright specs are red** because the screen deliberately changed shape.
-They need rewriting one at a time to the new layout - **not a snapshot bless**, which is what the package and `CLAUDE.md` both warn against.
-- `v98-grid.spec.js` (10) is the big one and is largely **obsolete by design**: it tests a two-column row 1 and a `.dash-compare` card that no longer exist. Decide per test whether it retires or moves to the new map.
-- `v89-dash.spec.js` (5), `v115-reframe.spec.js` (4), `v96-menu-select.spec.js` (1), `v90-flows.spec.js` (1) are mostly screenshot and geometry pins that need re-pointing.
-⚠️ **One of these already earned its keep**: `v96-menu-select.spec.js:245` caught a real 44px touch-floor regression the mock's 6px chip padding introduced. Treat the rest as potentially doing the same - read what each was protecting before changing it.
-Then: pre-push `code-review` agent (mandatory, different model), PR, merge, handover.
+**Branch `feature/q2-dashboard-redesign`, pushed. Cache bumped to v120 on the branch.**
+**Done — the whole screen and its specs.** Verdict eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and the ranked disclosure, chart as its own card, What moved, the two-column second row, and the v98 desktop grid rewritten in place. Driven in a real browser at 380px and 1280px in both themes. The design package is committed to `docs/design_handoff_ezplate_redesign/`.
+**Suite: 782 unit green** (+9 in `tests/dash-chips.test.js`) **and all 102 Playwright green**, `node -c` and smoke clean.
+The five dashboard spec files were **re-pointed to what each was protecting, not blessed** - `v98-grid.spec.js` was rewritten because its subject (a By-menu selector card beside the chart) no longer exists, and its real contracts were carried over: the grid holds at 2/6/12 menus, a too-long list scrolls inside its own layer without pushing the page, selection keeps its sparkline, one elevation token.
+⚠️ **The specs earned their keep**: `v96-menu-select.spec.js:245` caught a real 44px touch-floor regression that the mock's 6px chip padding introduced. The design contradicts itself there - its own §15 asks for 52px mobile targets.
+**Deviations from the mock, both deliberate and both recorded at the code:** the promoted chips are the two WORST menus, not "two most-used" (no sales volume exists - Rule C); and What moved says "this month", never "last invoice" (the log has one writer used by both the invoice path and a hand edit, so the source is not knowable).
+Remaining: pre-push `code-review` findings, PR, merge, handover.
 
 
 Implement `Redesign - Dashboard v2 Desktop.dc.html` + the Dashboard frame of `Redesign - Mobile States.dc.html`, inside the existing `renderDashboard()` path. Both themes, 380px and desktop.
