@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EzPlate — decisions, 8 Aug 2026</title>
+<style>
+:root{
+  --bg:#F7F3EC; --surface:#FFFDF9; --surface2:#F2EADF;
+  --text:#2A1F1A; --text2:#6B5D54; --muted2:#756759;
+  --border:#E8DFD3; --border2:#D9CDBD;
+  --brand:#3E2C26; --accent:#B84E0C; --accent-weak:rgba(184,78,12,.10); --on-accent:#fff;
+  --good:#2E6B44; --good-bg:rgba(46,107,68,.12);
+  --warn:#A96206; --warn-bg:rgba(169,98,6,.12);
+  --bad:#B03A2E;  --bad-bg:rgba(176,58,46,.10);
+  --ui:'Nunito Sans',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --radius-card:16px; --radius-ctl:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#191412; --surface:#241E1B; --surface2:#2C2521;
+    --text:#F3EDE5; --text2:#C9BBAF; --muted2:#97897E;
+    --border:#392F2A; --border2:#4A3E37;
+    --brand:#F3EDE5; --accent:#F08A3C; --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+    --good:#6FBE8F; --good-bg:rgba(111,190,143,.16);
+    --warn:#E2A54B; --warn-bg:rgba(226,165,75,.16);
+    --bad:#E76D5C;  --bad-bg:rgba(231,109,92,.16);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ui);font-size:15px;line-height:1.5;
+  padding:20px 16px 64px;max-width:760px;margin-inline:auto;-webkit-text-size-adjust:100%}
+h1{font-size:24px;color:var(--brand);margin:0 0 4px}
+.sub{color:var(--text2);font-size:13px;margin:0 0 8px}
+.intro{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-ctl);
+  padding:12px 14px;font-size:14px;color:var(--text2);margin:16px 0 24px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:16px;margin:0 0 20px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin:0 0 6px}
+h2{font-size:18px;margin:0 0 10px;color:var(--brand);line-height:1.3}
+.why{background:var(--warn-bg);border-left:3px solid var(--warn);padding:9px 12px;border-radius:8px;
+  font-size:14px;margin:0 0 14px}
+.opt{display:block;border:1px solid var(--border2);border-radius:var(--radius-ctl);padding:12px 14px;
+  margin:0 0 8px;cursor:pointer;background:var(--surface)}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-weak)}
+.opt input{margin-right:8px}
+.opt b{font-size:15px}
+.opt .cost{display:block;color:var(--text2);font-size:13.5px;margin-top:4px;padding-left:24px}
+.rec{display:inline-block;background:var(--good-bg);color:var(--good);font-size:11px;font-weight:800;
+  padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;letter-spacing:.03em}
+.because{font-size:13.5px;color:var(--text2);margin:10px 0 0;padding-left:2px}
+.because b{color:var(--text)}
+.overrule{font-size:13.5px;background:var(--surface2);border-radius:8px;padding:9px 12px;margin:10px 0 0;color:var(--text2)}
+.overrule b{color:var(--text)}
+/* 16px, not 14: iOS Safari zooms the viewport on focus for any text input under 16px, and the
+   viewport meta deliberately allows scaling (no user-scalable=no), so nothing suppresses it. */
+textarea{width:100%;min-height:60px;margin-top:10px;padding:9px 11px;border:1px solid var(--border2);
+  border-radius:10px;background:var(--surface);color:var(--text);font-family:var(--ui);font-size:16px;resize:vertical}
+button{background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--radius-ctl);
+  padding:14px 20px;font-size:16px;font-weight:700;font-family:var(--ui);cursor:pointer;width:100%;min-height:48px}
+button:active{transform:scale(.99)}
+#out{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:12px;display:none;overflow-x:auto}
+.done{color:var(--good);font-weight:700;text-align:center;margin-top:10px;min-height:20px}
+</style>
+</head>
+<body>
+
+<h1>Decisions</h1>
+<p class="sub">EzPlate · 8 August 2026 · five questions</p>
+
+<div class="intro">
+Thirteen queue items are waiting on you. These are the five that unblock the most — the rest can keep.
+<br><br>
+Answer whatever you like, skip the rest, then tap <b>Copy answers</b> at the bottom and paste it back to me. Partial is genuinely useful.
+</div>
+
+<div class="card" data-q="staging">
+  <p class="eyebrow">Blocks the most work</p>
+  <h2>A second Supabase project for testing?</h2>
+  <div class="why">Right now every batch runs against your <b>live café data</b>. I can't rehearse a migration, can't test anything destructive, and can't test what a brand-new empty account looks like — because your database is never empty. This is the single most common reason the loop stops and waits for you.</div>
+
+  <label class="opt"><input type="radio" name="staging" value="Free second project"><b>Create a second free Supabase project<span class="rec">Recommended</span></b>
+    <span class="cost">Costs £0 and about ten minutes of your time, once. You make the project and paste me its reference; I do the rest. Free tier limits are far above what a test database needs.</span></label>
+  <label class="opt"><input type="radio" name="staging" value="Paid branching"><b>Pay for Supabase branching</b>
+    <span class="cost">Tidier — it clones your real schema automatically. But it is a paid add-on, and it is a recurring cost for something the free option does well enough.</span></label>
+  <label class="opt"><input type="radio" name="staging" value="Neither, carry on"><b>Neither — carry on against live</b>
+    <span class="cost">Free, and nothing changes. But migrations stay hand-run and unrehearsed, and empty-state work (onboarding, a new customer's first login) stays untestable.</span></label>
+
+  <p class="because"><b>Why I'd pick the free project:</b> it removes the loop's most common stop condition for nothing but ten minutes, and you can always upgrade later.</p>
+  <p class="overrule"><b>What would change my mind:</b> if you'd rather not manage a second project at all, say so — "neither" is a legitimate answer and I'll stop proposing it.</p>
+  <textarea name="staging_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="builder">
+  <p class="eyebrow">Blocks the dropdown fixes</p>
+  <h2>Should the plate builder be a pop-up instead of a full page?</h2>
+  <div class="why">You've reported that dropdowns cover the search bar and can't be scrolled on your phone. Fixing that properly means settling how these layers are positioned — and if the builder becomes a pop-up, the whole positioning context changes, so doing the dropdowns first means doing them twice.</div>
+
+  <label class="opt"><input type="radio" name="builder" value="Keep it a full page"><b>Keep it a full page, fix the dropdowns now<span class="rec">Recommended</span></b>
+    <span class="cost">The dropdown pain gets fixed sooner. Commits you to the current builder layout, which you have been using without complaint — the complaints have all been about the dropdowns.</span></label>
+  <label class="opt"><input type="radio" name="builder" value="Make it a modal first"><b>Make it a pop-up first, then fix dropdowns</b>
+    <span class="cost">One consistent layer system at the end. But it is a big visual change to the screen you use most, and the dropdown pain continues until it lands.</span></label>
+  <label class="opt"><input type="radio" name="builder" value="Undecided - show me"><b>Show me what a pop-up would look like first</b>
+    <span class="cost">I build a throwaway mock-up for you to look at on your phone. Costs a batch, decides nothing yet, but you would be choosing with your eyes instead of from a description.</span></label>
+
+  <p class="because"><b>Why I'd keep the full page:</b> every complaint you've raised is about dropdowns, not about the builder being a page. Fixing the actual complaint beats a redesign nobody asked for.</p>
+  <p class="overrule"><b>What would change my mind:</b> if the builder feels cramped or hard to get out of on the phone — that's a layout problem I can't see from here, and it would make the pop-up worth it.</p>
+  <textarea name="builder_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="reader">
+  <p class="eyebrow">Affects every batch from now on</p>
+  <h2>How should the code get a second reader?</h2>
+  <div class="why">You have no human reviewer, so this is the only second reader the code gets — and it matters: today's review caught a bug in my own fix that would have <b>silently deleted your work</b>, and every test was passing at the time. Right now the only reviewer runs on the same machine as the batch that wrote the code.</div>
+
+  <label class="opt"><input type="radio" name="reader" value="CodeRabbit"><b>Turn CodeRabbit back on<span class="rec">Recommended</span></b>
+    <span class="cost">Now free for private repos, unlimited. It found two critical bugs in v108 alone, plus real ones in v102, v111 and v113 — it was only dropped because a trial expired. Costs you one GitHub install, five minutes. Known flaws: it skips brand-new files, so it can miss something entirely.</span></label>
+  <label class="opt"><input type="radio" name="reader" value="GitHub Pro"><b>Pay £4/month for GitHub Pro</b>
+    <span class="cost">Buys the ability to actually <i>block</i> a merge on a failed check. Today "mandatory review" is a convention I keep, not a mechanism — nothing stops a merge. £4/month, forever.</span></label>
+  <label class="opt"><input type="radio" name="reader" value="Both"><b>Both</b>
+    <span class="cost">A free second opinion, plus the power to enforce it. £4/month and two setup jobs.</span></label>
+  <label class="opt"><input type="radio" name="reader" value="Neither"><b>Neither — the current pre-push review is enough</b>
+    <span class="cost">Free, nothing to set up. But the only reviewer stays one that runs alongside the code it is reviewing.</span></label>
+
+  <p class="because"><b>Why CodeRabbit alone:</b> it is free and has a measured record here. The £4 buys enforcement, not better reading — and enforcement matters less while I'm the only one merging.</p>
+  <p class="overrule"><b>What would change my mind:</b> if you ever want to merge things yourself without reading my summary, the £4 becomes worth it — that's when a convention stops being enough.</p>
+  <textarea name="reader_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="rls">
+  <p class="eyebrow">Security — harmless today</p>
+  <h2>Lock down the <code>menus</code> table now, or when you have customers?</h2>
+  <div class="why">Ten of your eleven database tables have row-level security switched on. <b><code>menus</code> does not</b>, and has no policies at all. With one café it changes nothing. The moment there are two accounts it is a real hole — anyone could read anyone's menus.</div>
+
+  <label class="opt"><input type="radio" name="rls" value="At the multi-tenant gate"><b>Leave it until multi-tenant work starts<span class="rec">Recommended</span></b>
+    <span class="cost">Costs nothing now. The whole table set needs policies at that point anyway, so it gets done properly and tested as one job rather than piecemeal.</span></label>
+  <label class="opt"><input type="radio" name="rls" value="Fix it now"><b>Fix it now</b>
+    <span class="cost">One less thing to forget, and it can't be missed later. But it needs a hand-run migration from you, and a policy mistake makes data look <i>missing</i> rather than throwing an error — so it costs a careful batch to do safely for zero present benefit.</span></label>
+
+  <p class="because"><b>Why wait:</b> it's genuinely harmless with one account, and doing it alone risks a silent "no data" bug for no gain.</p>
+  <p class="overrule"><b>What would change my mind:</b> if anyone else — even a friend testing — is going to get a login before the full multi-tenant work, it should be done first.</p>
+  <textarea name="rls_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="headline">
+  <p class="eyebrow">Your call on what's honest</p>
+  <h2>What should the dashboard say when nothing is costed?</h2>
+  <div class="why">If you delete every menu but old history still exists, the dashboard keeps showing a food-cost percentage from that old data. There is nothing behind it any more. This has shipped this way for seven versions, so changing it moves a number you may have got used to.</div>
+
+  <label class="opt"><input type="radio" name="headline" value="Show a dash"><b>Show "—" and say why<span class="rec">Recommended</span></b>
+    <span class="cost">Honest: no costed plates, no number. Matches what the app already does elsewhere when there's nothing to show. You would lose the at-a-glance last-known figure.</span></label>
+  <label class="opt"><input type="radio" name="headline" value="Keep it, label it"><b>Keep the number but label it as old</b>
+    <span class="cost">"32% — from your last costed menu". Keeps the information, admits what it is. Slightly wordier on a small screen.</span></label>
+  <label class="opt"><input type="radio" name="headline" value="Leave as is"><b>Leave it exactly as it is</b>
+    <span class="cost">Free, and nothing moves. But the headline states a current figure that isn't current.</span></label>
+
+  <p class="because"><b>Why the dash:</b> a number with nothing behind it is the kind of thing that gets trusted and then drives a real pricing decision.</p>
+  <p class="overrule"><b>What would change my mind:</b> if you'd actually find the last-known figure useful there, option two keeps it without the app lying.</p>
+  <textarea name="headline_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<button id="copy">Copy answers</button>
+<p class="done" id="done"></p>
+<pre id="out"></pre>
+
+<script>
+var TITLES = {
+  staging:  'A second Supabase project for testing',
+  builder:  'Plate builder as a pop-up',
+  reader:   'How code gets a second reader',
+  rls:      'menus table row-level security',
+  headline: 'Dashboard headline when nothing is costed'
+};
+document.getElementById('copy').addEventListener('click', function(){
+  var out = ['# EzPlate decisions — 8 Aug 2026', ''];
+  Object.keys(TITLES).forEach(function(k){
+    var picked = document.querySelector('input[name="' + k + '"]:checked');
+    var note = (document.querySelector('textarea[name="' + k + '_note"]').value || '').trim();
+    out.push('## ' + TITLES[k]);
+    out.push(picked ? '**' + picked.value + '**' : '_(skipped)_');
+    if (note) out.push('Note: ' + note);
+    out.push('');
+  });
+  var text = out.join('\n');
+  document.getElementById('out').textContent = text;
+  document.getElementById('out').style.display = 'block';
+  var say = function(m){ document.getElementById('done').textContent = m; };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ say('Copied — paste it back to Claude'); },
+                                            function(){ say('Select the text below and copy it'); });
+  } else { say('Select the text below and copy it'); }
+});
+</script>
+</body>
+</html>

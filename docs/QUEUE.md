@@ -6,6 +6,11 @@ Ordering is priority - move an item up to change what happens next.
 Max adds problems here, not briefs: what is wrong, and what must be true when it is fixed.
 How is Claude Code's call.
 
+**⚠️ 12 of the 13 blocked items below are waiting on Max** - the exception is "Re-pin claude-code-action", which waits on upstream and needs no decision.
+**The five that unblock the most are in `docs/decisions/2026-08-08.html`** (also in `~/Downloads`) - open it on a phone, answer what you like, tap Copy answers, paste back.
+Answering it releases: Staging Supabase, Builder as modal (which gates the dropdown work), CodeRabbit, GitHub Pro, `public.menus` RLS, and the zero-menus headline.
+The rest stay blocked on purpose - they are cheap to defer and a longer file goes unanswered.
+
 **Reconciled 7 Aug 2026** against `CLAUDE.md`'s outstanding list, the "Deliberately NOT built" / "Found, not fixed" / "Follow-ups" sections of all 66 handovers, and the Batch 0 audit.
 Every item below was checked against the code or production before it was kept or added - line numbers and counts are measured, not quoted.
 Suite green (0 fail) at reconcile time.
@@ -87,16 +92,6 @@ The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
 Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
 
-## blocked  The three foreign keys are Tier 1 law that the repo cannot check
-Problem: found by the v115 audit.
-`CLAUDE.md` Tier 1 states three FKs with specific ON DELETE behaviours, and Tier 3 states that **the migration files plus their commit messages ARE the audit trail**.
-Grepping `supabase/migrations/` for `references` / `foreign key` / `on delete` returns **only negative statements** - none of the three is defined in any migration, because they predate the directory.
-So a hard rule that constrains every restore and every delete path rests on nothing the repo can verify, and the one FK the app can actually hit (`menu_items.plate_id → plates.id`, NO ACTION, raises 23503) is the one most expensive to be wrong about.
-Requirements: query `pg_constraint` through the Supabase MCP, confirm all three names and ON DELETE behaviours, and record the result where the repo can see it - a migration file that documents existing state, or a line in the audit.
-If any differs from Tier 1, the code wins and `CLAUDE.md` is the finding.
-Blocked on: a session with the Supabase MCP.
-Read-only, nothing destructive, no migration to apply - it just could not be done in the audit's own session.
-
 ## next  Threads that never reached any landing place
 Problem: found by the v115 audit, which checked `QUEUE.md`, `PHONE.md`, `CLAUDE.md` **and all 68 handovers** for each.
 These are not deferred - they were dropped, and nothing anywhere records them.
@@ -160,7 +155,9 @@ Until it exists, "autonomous" means halting every second batch to wait for a han
 
 ## next  Floating layers and mobile dropdowns
 Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying.
-Underneath: five independent placement implementations, five separate breakages.
+⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** - flagged by the v119 review, 8 Aug 2026.
+`anchorDrop` / `dropPlace` / `dropBox` (`app.js:5783–5813`) is ONE shared engine reused across several call sites, not five separate ones; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely.
+**Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
 Blocked on: the builder-as-modal decision above.
@@ -285,6 +282,10 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **The three foreign keys are Tier 1 law that the repo cannot check** - verified 8 Aug 2026 against production via `pg_constraint`, recorded as an addendum in `docs/audits/AUDIT-v115.md`.
+  **All three match `CLAUDE.md` exactly, and there is no fourth FK in `public`**: `menu_items.plate_id → plates.id` NO ACTION, `plates.menu_id → menu_items.id` SET NULL, `menu_items.menu_id → menus.id` SET NULL.
+  So the circularity Tier 1 describes and the restore's delete-dishes-first ordering both rest on verified constraints. `CLAUDE.md` was right; the gap was only that nothing in the repo could show it.
 
 - **Builder plants a draft just from looking** - fixed 8 Aug 2026, shipped in **v118**.
   `savePlateDraft` gated on `draftHasContent` alone, which cannot tell unsaved work from a visit: a loaded plate has content by definition. It now asks `isBuilderDirty()`.
