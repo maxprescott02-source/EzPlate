@@ -509,7 +509,7 @@ input[type=checkbox]{
 .mlf-chip[data-light="amber"].on{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
 .mlf-chip[data-light="red"].on{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
 .mlf-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.vbadge{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap}
+.vbadge{font-family:var(--mono);font-size:var(--fs-sm);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}   /* Q3 (v122): was 12px — the coloured figure is now the row's verdict and reads at table size */
 .vbadge.vgood,.vbadge.inrange{color:var(--good)}
 .vbadge.vwarn,.vbadge.over{color:var(--warn)}
 .vbadge.vbad,.vbadge.under{color:var(--bad)}
@@ -562,11 +562,9 @@ input[type=checkbox]{
 .atable tbody tr > td:first-child{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text);padding:0 28px 6px 0}
 .atable tr.muted > td:first-child{color:var(--text2);font-weight:600}
 
-/* generated labels — analysis table columns */
-.atable:not(.invtable) td:nth-child(2)::before{content:"Plate cost"}
-.atable:not(.invtable) td:nth-child(3)::before{content:"Suggested"}
-.atable:not(.invtable) td:nth-child(4)::before{content:"Menu price"}
-.atable:not(.invtable) td:nth-child(5)::before{content:"Variance"}
+/* Q3 (v122): the per-cell "Plate cost / Suggested / Menu price / Variance" labels are GONE — the
+   mobile row is now one line (name · verdict figure) with a "$x cost · $y on menu" sub-line built
+   by the ::after rules in the menu-row section near the end of this file. Tombstone. */
 /* v115: the pip column (td:nth-child(6), the corner-pinned traffic light) is GONE — the row's
    left stripe (.lt-*) already carried the same light. Tombstone for the deleted rules. */
 
@@ -2451,30 +2449,47 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mi-name{display:inline;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .mi-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 
-/* the margin light as a card stripe — health readable while scrolling, not just a 11px dot.
-   `:not(.invtable)` is for SPECIFICITY, not scoping: the base card rule
-   (.atable tbody tr:not(.sec):not(.ni-row)) is (0,3,2) and its border SHORTHAND would
-   silently win over a (0,2,2) border-left here. */
-.atable:not(.invtable) tbody tr.mi-row{border-left:3px solid var(--border2)}
-.atable:not(.invtable) tbody tr.lt-green{border-left-color:var(--good)}
-.atable:not(.invtable) tbody tr.lt-amber{border-left-color:var(--warn)}
-.atable:not(.invtable) tbody tr.lt-red{border-left-color:var(--bad)}
+/* Q3 (v122): the lt-* stripe paint is RETIRED — the coloured Margin figure is now the row's verdict,
+   so the stripe restated it (the same reason v115 removed the pip). The lt-* classes stay in the
+   markup: they are pinned wiring, and the mlf filter chips still key off the same lights.
+   Tombstone for the border-left / inset-box-shadow stripe rules. */
+.mi-uncosted{font-size:var(--fs-xs);font-weight:600;color:var(--muted2);margin-left:var(--sp-1)}
 
-@media (max-width:639px){   /* phones: the four numbers as a 2×2 grid — the card is half as tall */
-  .atable tbody tr.mi-row{display:grid;grid-template-columns:1fr 1fr;column-gap:var(--sp-3)}
-  .atable tbody tr.mi-row > td:first-child{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2)}
+/* Q3 (v122) phones: ONE surface of one-line rows (was: a card per plate with a 2×2 labelled grid).
+   The tbody is the card; section eyebrows sit inside it; each row is name + coloured verdict with a
+   "$x cost · $y on menu" sub-line. Same 5-td markup as desktop — layout is all grid placement here.
+   `:not(.invtable)` below is SPECIFICITY (to out-rank the shared card rule), not scoping — the
+   invoice table is .invtable, not .atable, and none of this touches it. */
+@media (max-width:639px){
+  #tab-analysis .atable tbody{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden}
+  .atable:not(.invtable) tbody tr:not(.sec):not(.ni-row){position:static;background:none;border:0;border-radius:0;margin:0;padding:var(--sp-3) var(--sp-4)}
+  .atable:not(.invtable) tbody tr.sec{margin:0;padding:var(--sp-3) var(--sp-4) var(--sp-1)}
+  .atable:not(.invtable) tbody tr.mi-row + tr.mi-row,
+  .atable:not(.invtable) tbody tr.mi-row + tr.sec{border-top:1px solid var(--border)}
+  .atable:not(.invtable) tbody tr.mi-row{display:grid;grid-template-columns:max-content max-content 1fr auto;column-gap:var(--sp-1);align-items:center}
+  .atable:not(.invtable) tbody tr.mi-row td{border:0;padding:0}
+  .atable:not(.invtable) tbody tr.mi-row > td:first-child{grid-area:1/1/2/4;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:var(--sp-1) var(--sp-2);padding:0 0 2px;font-size:var(--fs-base);font-weight:700}   /* flex-start: the base td rule's space-between would fling "· not costed yet" to the far edge */
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(2){grid-area:2/1}
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(3){display:none}   /* Suggested is a desktop column; the verdict already carries the target */
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(4){grid-area:2/2}
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(2),
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(4){display:block;font-size:var(--fs-xs);color:var(--text2);font-weight:normal}
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(2)::after{content:" cost ·";font-family:var(--ui);color:var(--muted2)}
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(4)::after{content:" on menu";font-family:var(--ui);color:var(--muted2)}
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(5){grid-area:1/4/3/5;align-self:center;display:block;text-align:right}   /* display:block, or the cell keeps the base flex and text-align is inert */
+  .atable:not(.invtable) tbody tr.mi-row td:nth-child(5) .vbadge{white-space:normal}   /* a pathological verdict (price far under cost) wraps inside the card instead of clipping at its edge */
+  .atable:not(.invtable) tbody tr.mi-row .cost-range{display:none}   /* the min–max band is a desktop detail; the one-line row has no room for it */
+  .atable:not(.invtable) tbody tr.muted td:nth-child(2){display:none}   /* uncosted: "· not costed yet" already rides the name — a bare "— cost" would say it worse */
+  .atable:not(.invtable) tbody tr.muted td:nth-child(4){grid-area:2/1/3/3}   /* with the cost cell hidden, the price takes the sub-line's left edge (no phantom first-column gap) */
   .atable tbody tr.mi-row .mi-act{margin-top:0;margin-left:auto}   /* the chip rides the name line instead of costing a row */
 }
-@media (min-width:640px){   /* desktop rows: stripe on the first cell, hover invite */
-  .atable:not(.invtable) tbody tr.mi-row{border-left:0}   /* (0,3,2) to actually beat the mobile stripe rule above */
+@media (min-width:640px){   /* Q3 (v122) desktop: quiet figures, loud price, verdict in the Margin cell */
   .atable tbody tr.mi-row .mi-act{display:inline-flex;margin:0 0 0 var(--sp-2);vertical-align:middle}   /* chip inline with the name — keeps rows one line tall */
-  /* v52.1 (Max): the stripe is an INSET box-shadow, not a border — a 3px collapsed-table
-     border widened data rows ~1.5px past the section banner's edge, showing a white sliver
-     on the banner's left. A shadow paints inside the cell and moves no geometry. */
-  .atable tbody tr.mi-row > td:first-child{box-shadow:inset 3px 0 0 var(--border2)}
-  .atable tbody tr.lt-green > td:first-child{box-shadow:inset 3px 0 0 var(--good)}
-  .atable tbody tr.lt-amber > td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
-  .atable tbody tr.lt-red > td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+  .atable:not(.invtable) tbody tr.mi-row td:first-child{font-weight:700}   /* .mi-row, not tr:not(.sec) — the wider selector bolded the empty-state row's body copy */
+  .atable:not(.invtable) tbody tr:not(.sec):not(.muted) td:nth-child(2),
+  .atable:not(.invtable) tbody tr:not(.sec):not(.muted) td:nth-child(3){color:var(--text2)}
+  .atable:not(.invtable) tbody tr:not(.sec) td:nth-child(4){font-size:var(--fs-md);font-weight:700}
+  .atable:not(.invtable) tbody tr:not(.sec):not(.muted) td:nth-child(4){color:var(--text)}
   .atable tbody tr.mi-row:hover td{background:var(--hover)}
 }
 

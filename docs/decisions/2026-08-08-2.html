@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EzPlate — decisions #2, 8 Aug 2026</title>
+<style>
+:root{
+  --bg:#F7F3EC; --surface:#FFFDF9; --surface2:#F2EADF;
+  --text:#2A1F1A; --text2:#6B5D54; --muted2:#756759;
+  --border:#E8DFD3; --border2:#D9CDBD;
+  --brand:#3E2C26; --accent:#B84E0C; --accent-weak:rgba(184,78,12,.10); --on-accent:#fff;
+  --good:#2E6B44; --good-bg:rgba(46,107,68,.12);
+  --warn:#A96206; --warn-bg:rgba(169,98,6,.12);
+  --bad:#B03A2E;  --bad-bg:rgba(176,58,46,.10);
+  --ui:'Nunito Sans',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --radius-card:16px; --radius-ctl:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#191412; --surface:#241E1B; --surface2:#2C2521;
+    --text:#F3EDE5; --text2:#C9BBAF; --muted2:#97897E;
+    --border:#392F2A; --border2:#4A3E37;
+    --brand:#F3EDE5; --accent:#F08A3C; --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+    --good:#6FBE8F; --good-bg:rgba(111,190,143,.16);
+    --warn:#E2A54B; --warn-bg:rgba(226,165,75,.16);
+    --bad:#E76D5C;  --bad-bg:rgba(231,109,92,.16);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ui);font-size:15px;line-height:1.5;
+  padding:20px 16px 64px;max-width:760px;margin-inline:auto;-webkit-text-size-adjust:100%}
+h1{font-size:24px;color:var(--brand);margin:0 0 4px}
+.sub{color:var(--text2);font-size:13px;margin:0 0 8px}
+.intro{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-ctl);
+  padding:12px 14px;font-size:14px;color:var(--text2);margin:16px 0 24px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:16px;margin:0 0 20px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin:0 0 6px}
+h2{font-size:18px;margin:0 0 10px;color:var(--brand);line-height:1.3}
+.why{background:var(--warn-bg);border-left:3px solid var(--warn);padding:9px 12px;border-radius:8px;
+  font-size:14px;margin:0 0 14px}
+.opt{display:block;border:1px solid var(--border2);border-radius:var(--radius-ctl);padding:12px 14px;
+  margin:0 0 8px;cursor:pointer;background:var(--surface)}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-weak)}
+.opt input{margin-right:8px}
+.opt b{font-size:15px}
+.opt .cost{display:block;color:var(--text2);font-size:13.5px;margin-top:4px;padding-left:24px}
+.rec{display:inline-block;background:var(--good-bg);color:var(--good);font-size:11px;font-weight:800;
+  padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;letter-spacing:.03em}
+.because{font-size:13.5px;color:var(--text2);margin:10px 0 0;padding-left:2px}
+.because b{color:var(--text)}
+.overrule{font-size:13.5px;background:var(--surface2);border-radius:8px;padding:9px 12px;margin:10px 0 0;color:var(--text2)}
+.overrule b{color:var(--text)}
+/* 16px, not 14: iOS Safari zooms the viewport on focus for any text input under 16px, and the
+   viewport meta deliberately allows scaling (no user-scalable=no), so nothing suppresses it. */
+textarea{width:100%;min-height:60px;margin-top:10px;padding:9px 11px;border:1px solid var(--border2);
+  border-radius:10px;background:var(--surface);color:var(--text);font-family:var(--ui);font-size:16px;resize:vertical}
+button{background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--radius-ctl);
+  padding:14px 20px;font-size:16px;font-weight:700;font-family:var(--ui);cursor:pointer;width:100%;min-height:48px}
+button:active{transform:scale(.99)}
+#out{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:12px;display:none;overflow-x:auto}
+.done{color:var(--good);font-weight:700;text-align:center;margin-top:10px;min-height:20px}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.92em;background:var(--surface2);padding:1px 5px;border-radius:6px}
+</style>
+</head>
+<body>
+
+<h1>Decisions #2</h1>
+<p class="sub">EzPlate · 8 August 2026 · five questions (second batch — the morning's five are all answered)</p>
+
+<div class="intro">
+Five queue items are parked waiting on you. None of them is urgent — the redesign work keeps moving either way — but each one stays parked until you answer.
+<br><br>
+Answer whatever you like, skip the rest, then tap <b>Copy answers</b> at the bottom and paste it back to me. Partial is genuinely useful.
+</div>
+
+<div class="card" data-q="kitchentable">
+  <p class="eyebrow">Housekeeping — one tap</p>
+  <h2>Delete the unused <code>kitchen_items</code> database table?</h2>
+  <div class="why">Your database has eleven tables. One of them — <code>kitchen_items</code> — is <b>completely empty and nothing in the app reads or writes it</b> (checked 7 Aug). It costs nothing to keep, but every future security job and every restore has to step around a table that does nothing.</div>
+
+  <label class="opt"><input type="radio" name="kitchentable" value="Yes, drop it"><b>Yes — delete it<span class="rec">Recommended</span></b>
+    <span class="cost">It has zero rows, so nothing can be lost. If it ever turned out to be needed, recreating an empty table is one statement.</span></label>
+  <label class="opt"><input type="radio" name="kitchentable" value="No, keep it"><b>No — leave it there</b>
+    <span class="cost">Costs nothing today. The clutter stays, and it gets asked about again at the multi-tenant security pass.</span></label>
+
+  <p class="because"><b>Why delete:</b> an empty table nothing uses is pure clutter, and deleting clutter while it's provably empty is the cheap moment to do it.</p>
+  <p class="overrule"><b>What would change my mind:</b> if you remember creating it for a reason — a plan that never got built — tell me what it was and I'll check whether that plan still wants it.</p>
+  <textarea name="kitchentable_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="orphandish">
+  <p class="eyebrow">Data safety — edge case from restores</p>
+  <h2>When a menu dish has lost its recipe link, should the app go looking for the recipe?</h2>
+  <div class="why">Very rare case: a dish on a menu whose link to its plate is missing (this can only come from an old backup being restored — <b>you have zero of these today</b>). Right now the app quietly gives such a dish a brand-new <i>empty</i> plate — so its real costing sits stranded in your library while the dish reads as "not costed", and nothing tells you.</div>
+
+  <label class="opt"><input type="radio" name="orphandish" value="Heal when one match, ask when several"><b>Look for the plate first — relink if there's exactly one match, ask me if there are several<span class="rec">Recommended</span></b>
+    <span class="cost">The dish gets its real costing back automatically in the clear case, and you decide the ambiguous one. Costs a small batch to build carefully, for a case that today has zero real rows.</span></label>
+  <label class="opt"><input type="radio" name="orphandish" value="Just tell me, never auto-fix"><b>Never relink automatically — just show me a warning</b>
+    <span class="cost">Nothing ever happens without you. You do the relinking by hand each time it comes up.</span></label>
+  <label class="opt"><input type="radio" name="orphandish" value="Leave it as is"><b>Leave it as it is</b>
+    <span class="cost">Free. The current behaviour stays: a restored dish with a lost link silently starts from an empty plate, and you'd discover it when a costed dish reads as uncosted.</span></label>
+
+  <p class="because"><b>Why heal-with-a-question:</b> the one real incident of this class cost 76 of 77 dishes their links — when it happens, it happens at scale, and hand-relinking 76 dishes is a bad afternoon.</p>
+  <p class="overrule"><b>What would change my mind:</b> if you'd rather restores never touch your data beyond what the file says — "just warn me" is the conservative answer and it's entirely reasonable.</p>
+  <textarea name="orphandish_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="claudemd">
+  <p class="eyebrow">Paperwork — my rulebook, your sign-off</p>
+  <h2>Fix three misleading sentences in my own rulebook?</h2>
+  <div class="why">Three lines in <code>CLAUDE.md</code> (the instructions file I read every session) point at the wrong place. None affects the app — but <b>one of them already cost a full batch</b>: it said the plate builder still needed converting to a pop-up, when that shipped two years of versions ago, so a whole work session went looking for something that didn't exist. The file's own rule is that it only changes with your yes.</div>
+
+  <label class="opt"><input type="radio" name="claudemd" value="Yes, fix all three"><b>Yes — fix all three<span class="rec">Recommended</span></b>
+    <span class="cost">Docs-only, changes nothing the app does. Your decisions stay recorded exactly as decided — only the stale directions get corrected.</span></label>
+  <label class="opt"><input type="radio" name="claudemd" value="Show me the wording first"><b>Show me the exact before/after wording first</b>
+    <span class="cost">One more round-trip; you read three small diffs before they land.</span></label>
+  <label class="opt"><input type="radio" name="claudemd" value="Leave them"><b>Leave them as they are</b>
+    <span class="cost">Free, but the builder sentence stays pointing future batches at work that's already done.</span></label>
+
+  <p class="because"><b>Why fix all three:</b> a stale instruction is worse than none — it gets trusted, and one of these has already burned a batch proving it.</p>
+  <p class="overrule"><b>What would change my mind:</b> nothing here — the only question is whether you want to read the wording yourself first.</p>
+  <textarea name="claudemd_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="ruled">
+  <p class="eyebrow">Paperwork — smallest one here</p>
+  <h2>One dashboard rule: promote it to the rulebook, or leave it written at the code?</h2>
+  <div class="why">The dashboard has a rule (from a real v90 bug): <b>every insight check runs on every refresh</b> — otherwise the panel can say "nothing needs attention" right above a chart showing costs creeping up. The rule is currently written as a comment at the exact function it governs. The open question is just whether it ALSO belongs in <code>CLAUDE.md</code>, or whether the queue item asking that should simply be closed.</div>
+
+  <label class="opt"><input type="radio" name="ruled" value="Close it, leave the rule at the code"><b>Close the item — the comment at the code is the right home<span class="rec">Recommended</span></b>
+    <span class="cost">Nothing changes. The rule stays where anyone touching that function must read it.</span></label>
+  <label class="opt"><input type="radio" name="ruled" value="Promote it to CLAUDE.md"><b>Also add it to <code>CLAUDE.md</code></b>
+    <span class="cost">Slightly more visible, but the rulebook's own standard is to delete anything readable from the code — this would be the only entry that breaks that standard.</span></label>
+
+  <p class="because"><b>Why close it:</b> the rulebook's test is "would a competent reader of the code get this wrong?" — and the comment sits at the only place the mistake could be made.</p>
+  <p class="overrule"><b>What would change my mind:</b> if this rule ever gets broken <i>despite</i> the comment, it earns its rulebook line that day.</p>
+  <textarea name="ruled_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<div class="card" data-q="stryker">
+  <p class="eyebrow">Test quality — needs your yes on principle</p>
+  <h2>Add a dev-only tool that checks whether the tests can actually fail?</h2>
+  <div class="why">The app has ~790 tests guarding its fragile areas. What nothing checks: <b>would those tests actually go red if the code broke?</b> A test that stays green against broken code is worse than no test, because it gets trusted. There's a standard tool for this (it deliberately breaks the code in hundreds of small ways and checks the tests catch it). The catch: it's a new dependency, and your rulebook says new dependencies are your call — <b>that rule exists to protect the app your customers load</b>, and this tool never touches that app; it runs only on this laptop during development.</div>
+
+  <label class="opt"><input type="radio" name="stryker" value="Yes, dev-only"><b>Yes — add it, dev-only<span class="rec">Recommended</span></b>
+    <span class="cost">Nothing ships to the café or any phone; the four client files are untouched. Costs some laptop time per run and a one-off setup batch. Result: a measured answer for the fragile areas instead of an assumed one.</span></label>
+  <label class="opt"><input type="radio" name="stryker" value="No"><b>No — the tests are enough as they are</b>
+    <span class="cost">Free. The fragile-area tests stay unmeasured — trusted on faith that they'd catch a break.</span></label>
+
+  <p class="because"><b>Why yes:</b> the suite runs in under a second, so measuring it is unusually cheap here — and the fragile areas are exactly where a silently useless test costs real money.</p>
+  <p class="overrule"><b>What would change my mind:</b> if you want the no-new-dependencies line to stay absolute — one rule with zero exceptions is itself worth something, and I'd close this and not re-raise it.</p>
+  <textarea name="stryker_note" placeholder="Anything to add (optional)"></textarea>
+</div>
+
+<button id="copy">Copy answers</button>
+<p class="done" id="done"></p>
+<pre id="out"></pre>
+
+<script>
+var TITLES = {
+  kitchentable: 'Drop the empty kitchen_items table',
+  orphandish:   'Dish with a lost recipe link — heal or warn',
+  claudemd:     'Fix three stale CLAUDE.md sentences',
+  ruled:        'Insight rule D — promote or close',
+  stryker:      'Mutation testing (dev-only dependency)'
+};
+document.getElementById('copy').addEventListener('click', function(){
+  var out = ['# EzPlate decisions #2 — 8 Aug 2026', ''];
+  Object.keys(TITLES).forEach(function(k){
+    var picked = document.querySelector('input[name="' + k + '"]:checked');
+    var note = (document.querySelector('textarea[name="' + k + '_note"]').value || '').trim();
+    out.push('## ' + TITLES[k]);
+    out.push(picked ? '**' + picked.value + '**' : '_(skipped)_');
+    if (note) out.push('Note: ' + note);
+    out.push('');
+  });
+  var text = out.join('\n');
+  document.getElementById('out').textContent = text;
+  document.getElementById('out').style.display = 'block';
+  var say = function(m){ document.getElementById('done').textContent = m; };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ say('Copied — paste it back to Claude'); },
+                                            function(){ say('Select the text below and copy it'); });
+  } else { say('Select the text below and copy it'); }
+});
+</script>
+</body>
+</html>

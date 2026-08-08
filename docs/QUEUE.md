@@ -21,7 +21,9 @@ A line naming a finished item is stale by construction, so it gets noticed; a pa
 Three items left the queue entirely (CodeRabbit **NO**, GitHub Pro **NO**, and the zero-menus headline, which turned out to be **already fixed in v97**).
 A fourth - the builder modal - has since closed the same way: **already built, in v54.** See the done entry.
 
-**No live asks for Max.** Both of the previous two are closed: the `menus` RLS migration was written, applied to production and verified as the client on 8 Aug 2026, and the staging project ref arrived the same day.
+**One live ask for Max: `docs/decisions/2026-08-08-2.html`** (written during the v122 batch) covers the five decision-blocked items below - `kitchen_items`, the `ensurePlateForDish` heal, the three stale `CLAUDE.md` sentences, insight rule D, and mutation testing. Answer it whenever; nothing in the redesign phase waits on it.
+
+**No other live asks.** Both of the previous two are closed: the `menus` RLS migration was written, applied to production and verified as the client on 8 Aug 2026, and the staging project ref arrived the same day.
 Migrations are no longer a stop condition at all; `CLAUDE.md` Tier 3 records the reversal.
 ⚠️ **But staging is still not usable** - the ref is in `.mcp.json` and the server does not load. That is a diagnosis job, not a question for Max; see the item.
 
@@ -66,13 +68,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
-
-## next  Q3 - Menu redesign
-Implement `Redesign - Menu.dc.html` + its mobile frame. Same rules. Stop after.
-> **Plan.** `renderAnalysis` / `aRow` only. Desktop becomes a real table inside one surface - sections as small-caps eyebrows (max one per panel), columns Plate / Cost (min–max range beneath) / Suggested / Menu price / Margin.
-> The Margin cell composes the verdict in words + figure ("27.2% ✓", "42.2% · +90c", "45.5% · +$2.60", muted "cost it →" when uncosted). **Uncosted is muted, never red** - that is a Design Package rule and also the app's existing meaning.
-> Colour stays anchored to the TARGET, not to direction - `tests/trend-reframe.test.js` holds the pair that catches a revert.
-> Mobile is one line per plate with the coloured figure carrying the verdict. Keep `data-mid` and the `.mi-row` delegate exactly; the filter toolbar wraps below ~1130px.
 
 ## next  Q4 - Plates redesign
 Implement `Redesign - Plates.dc.html`. Stop after.
@@ -121,6 +116,7 @@ Apply Design Package §11–15 app-wide: five interaction states per control, sk
 > Five states on every interactive element (rest/hover/pressed/focus-visible/disabled), **focus ring never removed**. Skeleton bars for waiting regions, never a spinner in a card, never layout shift.
 > Empty states are already gold-standard per the package - **carry them over unchanged**, two variants only (A: filters matched nothing; B: true empty). Do not redesign them.
 > Contrast floors: `--muted` only ≥12px and only for dispensable text; anything needed to act uses `--text2` or better.
+> **From the Q3 review (8 Aug 2026): on phones the Menu tab's amber and red verdicts now differ ONLY by hue** - the old cell printed "12% under" / "29% under", which was the amber/red discriminator in text; the new cell prints food-cost % + dollar gap, and neither derives the boundary. The `aria-label` covers screen readers but not colour-blind sighted users. Decide a non-colour discriminator here, where the contrast rules land - not as a one-screen patch.
 > Fold in the queued **unstyled zero-ingredients link** here if it has not shipped by then - the sheet still has no anchor colour rule at all.
 > ⚠️ Verify `prefers-reduced-motion` genuinely disables motion; the app already has a reduced-motion early return in `closeOverlay` that a sweep could easily break.
 
@@ -303,6 +299,7 @@ Out of scope: restructuring anything the deleted rules sat next to.
 Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
 
 ## next  Small, each independently shippable
+- **`analyze().absPct` lost its last reader in v122** - the Q3 redesign replaced the "`32% under`" Variance cell (its only consumer) with the food-cost % composition. It is three lines inside `analyze` and part of that pure function's tested shape, so it was kept rather than trimmed mid-batch. Trim it (and its `Math.round`) the next time `analyze` is touched, or keep it deliberately - either way say so at the site. Found by the v122 pre-push review.
 - **`edDelArmed` is dead** - declared at `app.js:6910`, written at `:6937` and `:6949`, read nowhere.
   Verified 7 Aug. Delete it.
 - **The zero-ingredients builder hint is an UNSTYLED link** - `app.js:820` emits `No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>`, and `style.css` has **no anchor colour rule anywhere**, so it renders browser-default blue: near-illegible on the dark surface, and wrong in light too.
@@ -380,6 +377,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q3 - Menu redesign** - shipped 8 Aug 2026 as **`ezplate-v122`**, handover `HANDOVER-125-menu.md`.
+  Desktop: quiet Cost/Suggested, 16px bold Menu price, and the verdict cell composing food-cost % + shortfall ("20.0% ✓", "42.2% · +90c"), light from `analyze()` so preview/chips/row cannot disagree. Mobile: the 2×2 labelled card per plate became one surface of one-line rows. Stripe paint retired; `lt-*` classes stay as wiring.
+  **Three deliberate deviations from the mock, all found by the pre-push review:** the column header is **"Food cost", not "Margin"** (the mock needed a footnote to admit its "Margin" number is food-cost % - 27.2% food cost is a 72.8% margin, and the footnote wasn't taken); **"cost it →" was dropped** (the row tap opens the price/category editor, which has no route to the builder since v55 - the arrow promised navigation that doesn't exist; an honest muted dash instead); and the mock's red Seafood row is **amber** here (the light is `analyze()`'s price-shortfall rule, pinned).
+  Review also added: `aria-label` on the verdict span (on phones the thead is `display:none`, so it is the cell's only announced meaning), an es-row bold-bleed fix, and wrap containment for pathological verdicts at 320px. Two findings queued instead of fixed: `absPct` (Small) and the amber/red hue-only mobile discrimination (folded into Q10).
 
 - **Q2 - Dashboard redesign** - shipped 8 Aug 2026 as **`ezplate-v120`** (PR #79), handover `HANDOVER-123-dashboard.md`.
   The screen is the design's: eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and a ranked disclosure, chart as its own card, What moved, and the two-column second row. 782 unit and 102 Playwright green.
