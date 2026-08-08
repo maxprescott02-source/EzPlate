@@ -7,25 +7,19 @@ Max adds problems here, not briefs: what is wrong, and what must be true when it
 How is Claude Code's call.
 
 **All five questions in `docs/decisions/2026-08-08.html` were ANSWERED on 8 Aug 2026.** The answers are recorded in `docs/decisions/2026-08-08-ANSWERS.md` - read that before re-proposing anything it covers.
-Three items left the queue entirely (CodeRabbit **NO**, GitHub Pro **NO**, and the zero-menus headline, which turned out to be **already fixed in v97**), one became the top unblocked item (the builder modal), and two are now blocked on a concrete thing rather than a decision: Max running the `menus` RLS migration, and the staging project ref.
+Three items left the queue entirely (CodeRabbit **NO**, GitHub Pro **NO**, and the zero-menus headline, which turned out to be **already fixed in v97**).
+A fourth - the builder modal - has since closed the same way: **already built, in v54.** See the done entry.
 
-**Two live asks for Max, both small:**
-1. **Run `supabase/migrations/20260808_menus_rls.sql`** - verification steps are at the bottom of the file.
-2. **Create the free staging Supabase project and send the ref.**
+**No live asks for Max.** Both of the previous two are closed: the `menus` RLS migration was written, applied to production and verified as the client on 8 Aug 2026, and the staging project ref arrived the same day.
+Migrations are no longer a stop condition at all; `CLAUDE.md` Tier 3 records the reversal.
+⚠️ **But staging is still not usable** - the ref is in `.mcp.json` and the server does not load. That is a diagnosis job, not a question for Max; see the item.
 
 **Reconciled 7 Aug 2026** against `CLAUDE.md`'s outstanding list, the "Deliberately NOT built" / "Found, not fixed" / "Follow-ups" sections of all 66 handovers, and the Batch 0 audit.
 Every item below was checked against the code or production before it was kept or added - line numbers and counts are measured, not quoted.
+⚠️ **Treat that last sentence with suspicion.** Three items that survived this reconcile (the zero-menus headline, abbreviation search, the builder modal) each described something as missing that had already shipped. **Check an item against the code before working it, however confidently it is written.**
 Suite green (0 fail) at reconcile time.
 
 ---
-
-## next  Convert the builder to a modal
-**DECIDED 8 Aug 2026 (Max): make it a modal first.** Against the recommendation, which was to leave it a page - recorded in `docs/decisions/2026-08-08-ANSWERS.md` and in `CLAUDE.md` Tier 2.
-Problem: the builder is a full page, and the dropdown work below cannot sensibly start until this lands - the positioning context every dropdown resolves against changes with it, so doing dropdowns first means doing them twice.
-Requirements: the builder opens as a modal on mobile and desktop, and everything it does today still works - the draft machinery (v118), `guardUnfinishedPlate` on every entry, the unfinished-plate prompt, and the plate-name suggest.
-One primary CTA per screen; surgical, not a density pass.
-Out of scope: the dropdown placement work itself, which is the NEXT item and must not be folded in.
-⚠️ **This is big enough to be its own batch and probably its own PR.** Do not bundle it with the dropdowns - that is explicitly the "would exceed what one PR can be reviewed as" stop condition.
 
 ## blocked  Drop `kitchen_items`
 Problem: a tenth table nothing reads.
@@ -49,12 +43,16 @@ Not something to schedule.
 Blocked on: Max.
 Destructive against real data.
 
-## blocked  Two `CLAUDE.md` lines point a batch at the wrong file
-Problem: found by the v115 audit. Both are wording, not code - but `CLAUDE.md` says its rules only change with Max's yes.
+## blocked  Three `CLAUDE.md` lines point a batch at the wrong file
+Problem: the first two were found by the v115 audit, the third by the v119 batch. All are wording, not code - but `CLAUDE.md` says its rules only change with Max's yes.
+⚠️ **Item 3 is the one that actually costs something** - it is why a whole batch was spent discovering the builder was already a modal.
 1. **Tier 2 → Menus** says *"`ensureDefaultMenu` seeds "Original" only when the `menus` table did not answer at all."* The function (`js/app.js:1016`) does no such thing - it seeds whenever the array is empty. The gating is at the **call site** (`js/app.js:457–459`). A batch grepping the function name finds code that looks like it contradicts the rule, and the safe-looking fix is a guard inside the function, which is the wrong place. (The code does defend itself: `:1014–1015` says "The caller decides; this function must never guess".) Also the seeded name is `'Original menu'`, not `"Original"`.
 2. **Tier 1 → the `where true` rule** is filed under *"The one that bites while editing code"*, but there is no such code to edit: all five `.delete()` calls in `js/app.js` are `.eq()`-scoped. The `where true` lines are SQL, in migrations that Tier 3 says are applied by hand and never bundled into a batch. The hazard is real; the framing sends a batch to the wrong file.
-Requirements: rule 1 names the call site; rule 2 says it is a MIGRATION-authoring trap.
-Blocked on: Max's yes. Docs-only, and neither changes what the code does.
+3. **Tier 2 → Fragile areas** says *"**The builder becomes a MODAL (Max, 8 Aug 2026)** … the builder is converted first, the dropdown placement work second"*, which reads as work still to do. **The builder has been a modal since v54** (verified 8 Aug 2026 in a real browser at 380px and 1280px - see the done entry). A batch reading this line goes looking for a conversion that happened two years of versions ago, and the sentence also holds the dropdown item hostage to it.
+   Max's DECISION is not in question and must not be softened - he chose the modal and the app is a modal. What is wrong is only the tense.
+   Suggested replacement: *"The builder is a MODAL and has been since v54; Max confirmed this shape on 8 Aug 2026 against a recommendation to change it. The dropdown placement work is therefore unblocked - the positioning context is already final."*
+Requirements: rule 1 names the call site; rule 2 says it is a MIGRATION-authoring trap; rule 3 puts the builder in the past tense without weakening the decision.
+Blocked on: Max's yes. Docs-only, and none of the three changes what the code does.
 
 ## blocked  Insight rule D - promote into `CLAUDE.md`?
 Problem: **this item's premise expired and two of its facts were wrong** - corrected 8 Aug 2026 rather than worked around.
@@ -115,10 +113,15 @@ Requirements: once a release ≥ v1.0.188 contains upstream `d573b167`, pin back
 `gh api repos/anthropics/claude-code-action/contents/src/modes/detector.ts?ref=v1 -H 'Accept: application/vnd.github.raw' | grep -A6 'const validActions'` - if `labeled` appears, re-pin.
 Blocked on: upstream, not Max. Nothing to decide; check it when a batch next touches the workflow.
 
-## blocked  Staging Supabase - waiting on the project ref
+## blocked  Staging Supabase - configured but not reachable from a session
 **DECIDED 8 Aug 2026 (Max): a free second Supabase project**, not paid branching - he confirmed separately he does NOT need Supabase Pro.
-Blocked on: **the project ref.** Max creates the project in the Supabase dashboard and sends the ref; it goes in `.mcp.json` and everything below can start.
-Accepted at decision time: free projects pause after about a week idle, and staging will sit idle exactly that long between batches, so it will often need an unpause click first.
+**Max's part is DONE.** He created the project and sent the ref during the v121 batch; `.mcp.json` has carried `supabase-staging` → `pboidoxjghntalovzrke` since. **Nothing is waiting on him here** - do not re-ask.
+
+Blocked on: **the staging MCP server does not load.** Verified 8 Aug 2026, in a session AFTER the one that added it - `.mcp.json` lists both servers, but only the production namespace (`mcp__supabase__*`) exists at runtime and `get_project_url` returns the PRODUCTION ref (`izrnptxhdylllodvglla`). There is no `mcp__supabase-staging__*` tool to call.
+v121 predicted it would be "reachable once the MCP reconnects next session". **It was not**, so that prediction is now disproved rather than pending.
+Most likely cause, untested: the free project has **paused** after a week idle, which was explicitly accepted as friction at decision time - a paused project would fail to connect and the server would be dropped. Second candidate: the second server needs approval that only the first received.
+Next step is diagnosis, not a decision: unpause the project in the dashboard, restart the session, and check whether `mcp__supabase-staging__*` appears. If it does, this item is unblocked and everything below can start.
+⚠️ **Until it resolves, every migration still goes straight to production with no rehearsal** - which `CLAUDE.md` Tier 3 names as the safeguard that replaced the hand-run rule. That safeguard is currently not available, and a batch should say so out loud before applying anything that is not a behavioural no-op.
 
 Problem: `.mcp.json` points at production.
 Every batch since v89 has run against live data.
@@ -135,7 +138,8 @@ Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce anim
 **Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
-**Sequenced, not blocked:** the builder-as-modal decision was made 8 Aug 2026, so this waits on that CONVERSION landing rather than on an answer. Start it the batch after.
+**No longer sequenced behind anything - START THIS NEXT.** It waited on "the builder-as-modal conversion landing"; that conversion landed in **v54** and was verified 8 Aug 2026 (see the done entry below).
+The positioning context every dropdown resolves against is therefore already in its final shape, so there is no longer a reason to do this twice - and no reason to wait.
 
 ## next  Invoice ticks are lost on any re-render
 Problem: `renderInvReview()` is a full-row rebuild, and it re-derives every tick from `invRowState` - `checked = (state === 'matched')`.
@@ -190,6 +194,9 @@ Out of scope: restructuring anything the deleted rules sat next to.
 ## next  Small, each independently shippable
 - **`edDelArmed` is dead** - declared at `app.js:6910`, written at `:6937` and `:6949`, read nowhere.
   Verified 7 Aug. Delete it.
+- **The zero-ingredients builder hint is an UNSTYLED link** - `app.js:820` emits `No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>`, and `style.css` has **no anchor colour rule anywhere**, so it renders browser-default blue: near-illegible on the dark surface, and wrong in light too.
+  Found 8 Aug 2026 driving the builder at 380px in both themes. Only reachable with **zero kitchen ingredients**, so Scoopy's never sees it - but it is the first thing a brand-new café sees, inside the modal it is being told to use.
+  One rule fixes it. Related to the multi-tenant **Onboarding and empty states** item, but independently shippable, so it sits here rather than waiting for that phase.
 - **`.invAppr` (the invoice Apply checkbox) is 26×26px** - the app's last sub-44px touch target, and the one on the highest-stakes screen. v46 skipped it as "inside the protected invoice review area"; **that is not true** - the rule is `style.css:829` and the markup `app.js:6094`, while the protected region runs `app.js:5344–5570`.
   The `::after` hit-area technique already used for `.ms-clear` and `.range-btn` fixes it in one rule with no visual change.
 - **`.range-btn` - visual size only, NOT an accessibility item.** The chip is 32px tall (`style.css:2180`) but `style.css:2374–2375` give it a `::after` extending 6px top and bottom, so the tappable area is already 44px.
@@ -261,6 +268,13 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Convert the builder to a modal** - closed 8 Aug 2026. **The builder has BEEN a modal since v54**; the item's premise was wrong, and so was the question that produced it.
+  ⚠️ **Max's decision is SATISFIED, not reversed.** He answered "make it a pop-up first" and the app is a pop-up - the outcome he chose is the outcome he has. Nobody has quietly undone an against-advice decision, which is the thing `docs/decisions/2026-08-08-ANSWERS.md` warns will happen to exactly this decision. Read that sentence before re-opening this.
+  **The question itself was unanswerable as put.** All three options in `docs/decisions/2026-08-08.html` - including the *recommended* "Keep it a full page, fix the dropdowns now" - described a full-page builder that has not existed since v54. Max was asked to choose between two states, one of which was fictional.
+  Verified before closing, four ways: `openBuilder()` calls `show('builderModal')`; `#tab-builder` contains **no** builder markup (it is the plates card library); measured in a real browser at 380px and 1280px - centred 600px modal with a 16px radius on desktop, full-height square-cornered takeover on mobile, one visible primary CTA (`saveBtn`) at both, 44×44 close, Save inside the viewport without scrolling.
+  **This is the third stale queue item in three batches** (after the zero-menus headline and abbreviation search). All three claimed something was missing that had shipped; all three survived a reconcile without being checked against the code. The 7 Aug reconcile says every item "was checked against the code or production before it was kept" - for these three that was not true.
+  **Driving it found a real defect, which is what shipped:** the mobile takeover was never edge-to-edge. `.modal{width:min(640px,calc(100vw - 24px))}` in §"margins locked" sits later in `style.css` than the `@media (max-width:560px)` block's `.modal-builder{width:100%}`, at the same specificity - so it won, and the phone got a square-cornered, 100dvh sheet 24px too narrow, with a 12px gutter down each side. Fixed with a descendant selector; `tests/builder-modal.test.js` resolves the cascade and pins the winner, and was verified failing against the pre-fix sheet.
 
 - **The five decisions of 8 Aug 2026** - all answered, recorded in `docs/decisions/2026-08-08-ANSWERS.md`.
   Two went **against the recommendation** and are flagged there as such, because a decision taken against advice is the one most likely to be quietly reversed later by someone who only sees the advice.
