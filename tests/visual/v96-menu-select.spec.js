@@ -230,8 +230,24 @@ test('v97: the menu name is full strength while the metric stays muted, and scop
   expect(seen.name, 'the exception must WIN over #dashBody .panel h2').not.toBe(seen.metric);
   expect(seen.name, 'and land on the full-strength text colour').toBe(seen.body);
 
-  // …and the scope appears exactly once in the card that owns the number and the chart.
-  const card = await page.locator('#dashBody .dash-panel').innerText();
+  /* …and the scope appears exactly once across the region that owns the number and the chart.
+     v120 split that region into two cards (verdict, then chart), so the check reads BOTH — the
+     rule is "stated once", and satisfying it by moving the second mention into a sibling card
+     would be exactly the redundancy v97 removed. */
+  const card = await page.evaluate(() => {
+    /* The SCOPE CONTROL is excluded, exactly as it was before v120 — it used to be a separate
+       By-menu card that this selector never reached, and it is now a chip row inside the verdict
+       card. A control naming its own options is not a restatement: the v97 rule this pins is
+       about DESCRIPTIVE mentions (the highlighted row, "on <menu>" beside the number, "— ALL
+       MENUS" on the chart title), and counting the control would make the rule unsatisfiable. */
+    const txt = (sel) => {
+      const el = document.querySelector(sel); if (!el) return '';
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('.dash-chips-wrap').forEach((n) => n.remove());
+      return clone.innerText;
+    };
+    return txt('#dashBody .dash-verdict-panel') + '\n' + txt('#dashBody .dash-chart-panel');
+  });
   // case-insensitive: innerText returns CSS-TRANSFORMED text, and dashboard headings are uppercased
   expect(card.match(/winter/gi), 'scope stated once in this card').toHaveLength(1);
   await expect(page.locator('.verdict-cap')).toHaveCount(0);

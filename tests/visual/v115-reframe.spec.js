@@ -73,7 +73,10 @@ for (const theme of ['light', 'dark']) {
       expect(st.caption, 'the caption keys the marker once').toContain('marks changes you made');
       expect(st.caption).toContain('under your 30% target');
       expect(st.chartRight, 'chart stays inside the viewport').toBeLessThanOrEqual(size.width);
-      await page.locator('.dash-panel').screenshot({ path: `tests/visual/__shots__/v115-reframe-${theme}-${size.name}.png` });
+      /* v120: this shot's subject — the since-line and the chart's markers/target colour — used to
+         live in ONE .dash-panel. The redesign splits them across the verdict and chart cards, so
+         the capture is the region that holds both. Every assertion above is unchanged. */
+      await page.locator('#dashBody').screenshot({ path: `tests/visual/__shots__/v115-reframe-${theme}-${size.name}.png` });
     });
   }
 }
