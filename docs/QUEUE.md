@@ -81,6 +81,7 @@ Apply Design Package §11–15 app-wide: five interaction states per control, sk
 > **From the v125 audit's dropped-threads sweep:** (a) the trend chart was never diffed against the mock pixel-by-pixel (HANDOVER-123 said "if they differ it belongs in Q10") - do that diff here; (b) list-row `aria-label`s announce neither drift nor unit cost (HANDOVER-127) - the screen-wide row-labelling question lands here.
 > **From the Q3 review (8 Aug 2026): on phones the Menu tab's amber and red verdicts now differ ONLY by hue** - the old cell printed "12% under" / "29% under", which was the amber/red discriminator in text; the new cell prints food-cost % + dollar gap, and neither derives the boundary. The `aria-label` covers screen readers but not colour-blind sighted users. Decide a non-colour discriminator here, where the contrast rules land - not as a one-screen patch.
 > Fold in the queued **unstyled zero-ingredients link** here if it has not shipped by then - the sheet still has no anchor colour rule at all.
+> **From the Q9 review (9 Aug 2026): the selected-state pair `--accent-ink` on `--accent-weak` is 3.74:1 over `--surface2` at 15px/800** - below the 4.5:1 AA floor for non-large text, and it is the app's standard selected idiom (`.set-navitem[aria-current]`, `.mlf-chip.on`, others). Q9 made the Settings nav highlight the pane's ONLY visible section cue (the duplicate title is sr-only'd on desktop), which raises the stakes. Decide the pair once, app-wide, here - Q9 deliberately did not fork the idiom on one control.
 > ⚠️ Verify `prefers-reduced-motion` genuinely disables motion; the app already has a reduced-motion early return in `closeOverlay` that a sweep could easily break.
 
 ---
@@ -116,14 +117,6 @@ Requirements: a set of real invoices with expected line/price/pack outcomes, and
 It must run offline against stored model responses - re-calling Gemini per run would make the score non-deterministic and cost money.
 Out of scope: changing the parser or the prompt. This is measurement; acting on what it measures is separate.
 Note: this needs Max's real invoice set, and those invoices are commercial data - decide where the corpus lives before collecting it.
-
-## next  The one surviving `TODO(Max)`: absolute social-sharing URLs
-Problem: triaged out of the v115 audit, 8 Aug 2026. `index.html:11` says to set an absolute production URL for `og:url` + `<link rel="canonical"/>` and absolute `og:image`/`twitter:image` **"once the Vercel domain is fixed"**.
-**The domain IS fixed** - `CLAUDE.md` names `https://scoopyscosting.vercel.app` the stable alias - so the condition this was waiting on has been met and nobody noticed.
-Today `og:image` and `twitter:image` are relative (`icons/icon-512.png`, `index.html:16` and `:20`) and there is no `og:url` or canonical at all, so a link pasted into a message thread previews inconsistently or not at all.
-Requirements: absolute URLs on all four, the TODO comment removed.
-Out of scope: any other head metadata.
-Note: touches `index.html`, so it needs the six-spot cache bump - worth folding into a batch already shipping a client asset rather than paying a bump for a preview image.
 
 ## next  `isBuilderDirty` compares against the raw saved lines, not what was loaded
 Problem: found by the v118 pre-push review and **considered, not fixed** - it is an asymmetry rather than a reproducible bug, and the fix belongs with the orphan-line work rather than bolted onto a draft fix.
@@ -248,9 +241,6 @@ Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and wi
 - **`saveIngLog`'s `_ingLogPending` buffer** (`app.js:1347–1379`) has exactly one producer and one consumer on adjacent lines, so it holds at most one point.
   Real simplification, but it sits on the price-log path - not housekeeping.
 - The stale v60 target-line comment in `trendChart` (`app.js:2821`) - v61 item 6 superseded the half it describes.
-- **Two source comments point at the old handover path.** `index.html` names `handovers/HANDOVER-v88.md` and `js/app.js` names `handovers/HANDOVER-v62.md`; both are now under `docs/`.
-  Deliberately NOT fixed when the docs moved: editing `js/app.js` even for a comment makes it a shipped change, which forces the six-spot cache bump for zero user benefit.
-  Fix them free, with no extra bump, in the next batch that touches those files anyway.
 - "Menu item" survives as a fifth object noun in the Edit-menu-item modal.
 - The `.chart-hint` / `.scope-note` "all menus" pair under the chart.
 - `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row - latent, zero such dishes on current data.

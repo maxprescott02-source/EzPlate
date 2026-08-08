@@ -17,18 +17,44 @@ async function boot(page, width) {
   await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
 }
 
-test('desktop: section title is in the DOM for AT but takes no visible space', async ({ page }) => {
-  await boot(page, 1280);
+// 640 is the LOWER EDGE of the two-pane layout (the mobile media is max-width:639) — testing it as
+// well as 1280 pins that the hide-title rule shares the layout's boundary; a drifted breakpoint
+// (say min-width:900) would show sidebar + duplicate title at 640–899 and fail here.
+for (const width of [640, 1280]) {
+  test(`desktop ${width}px: section title is in the DOM for AT but takes no visible space`, async ({ page }) => {
+    await boot(page, width);
+    await page.click('#settingsBtn');
+    await page.waitForTimeout(400);
+    const title = page.locator('#setSec-general .set-sec-title');
+    await expect(title).toHaveText('General');
+    const box = await title.boundingBox();
+    expect(box, 'title must stay rendered (sr-only clip), not display:none — AT still announces it').not.toBeNull();
+    expect(box.width).toBeLessThanOrEqual(1);
+    // and the first row starts the pane: its top is at the content pane's padding edge, not below a heading
+    const row = await page.locator('#setSec-general .set-item').first().boundingBox();
+    const pane = await page.locator('.set-content').boundingBox();
+    expect(row.y - pane.y).toBeLessThan(40);
+  });
+}
+
+test('mobile list after back: no persistent selection — all nav items render identically', async ({ page }) => {
+  // The v128 review caught the desktop active styling (weight 800 / accent colour) leaking into the
+  // mobile list: settingsBack removes .detail-open but leaves aria-current, so anything the mobile
+  // override fails to neutralise marks the last-visited section as "selected" in a list documented
+  // to have no persistent selection.
+  await boot(page, 380);
   await page.click('#settingsBtn');
-  await page.waitForTimeout(400);
-  const title = page.locator('#setSec-general .set-sec-title');
-  await expect(title).toHaveText('General');
-  const box = await title.boundingBox();
-  expect(box.width).toBeLessThanOrEqual(1);   // sr-only clip, not display:none — AT still announces it
-  // and the first row starts the pane: its top is at the content pane's padding edge, not below a heading
-  const row = await page.locator('#setSec-general .set-item').first().boundingBox();
-  const pane = await page.locator('.set-content').boundingBox();
-  expect(row.y - pane.y).toBeLessThan(40);
+  await page.waitForTimeout(300);
+  await page.click('.set-navitem[data-goto="data"]');
+  await page.waitForTimeout(300);
+  await page.click('#settingsBack');
+  await page.waitForTimeout(300);
+  const styles = await page.evaluate(() =>
+    [...document.querySelectorAll('#settingsPanel .set-navitem')].map(b => {
+      const s = getComputedStyle(b);
+      return s.fontWeight + '|' + s.color + '|' + s.backgroundColor;
+    }));
+  expect(new Set(styles).size).toBe(1);
 });
 
 test('mobile detail: section title is the visible section label', async ({ page }) => {
