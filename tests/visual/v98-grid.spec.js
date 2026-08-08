@@ -21,11 +21,12 @@
  *   - the sparkle's light/dark gradients,
  *   - an empty Dig-in tile reads quieter than a populated one.
  *
- * Geometry contract (one desktop composition, every width >=1024):
- *   row 1  .dash-verdict-panel — full width: headline figure + scope chips
- *   row 2  .dash-chart-panel   — full width: the trend
- *   row 3  .dash-ins           — full width
- *   row 4  .dash-row2          — full width, itself two columns: What moved | Dig in
+ * Geometry contract (one desktop composition, every width >=1024) — v121, after Max called the
+ * v120 two-full-width-cards cut janky from a production screenshot:
+ *   row 1  .dash-panel (1/8: verdict + chips + since + chart, ONE surface) | .dash-moved (8/13,
+ *          top-aligned, ends at its content — the column the By-menu selector card used to earn)
+ *   row 2  .dash-ins  — full width
+ *   row 3  .dash-dig  — full width, four tiles (.dash-row2 dissolves at this width)
  *
  * Run: npx playwright test tests/visual/v98-grid.spec.js
  */
@@ -80,32 +81,33 @@ async function gridGeo(page) {
   return page.evaluate(() => {
     const r = (sel) => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
     return {
-      verdict: r('#dashBody .dash-verdict-panel'), chart: r('#dashBody .dash-chart-panel'),
-      ins: r('#dashBody .dash-ins'), row2: r('#dashBody .dash-row2'),
+      panel: r('#dashBody .dash-panel'), chartSvg: r('#trendWrap svg'),
+      ins: r('#dashBody .dash-ins'),
       moved: r('#dashBody .dash-moved'), dig: r('#dashBody .dash-dig')
     };
   });
 }
 
 function expectGridContract(geo) {
-  for (const k of ['verdict', 'chart', 'ins', 'row2', 'moved', 'dig']) {
+  for (const k of ['panel', 'chartSvg', 'ins', 'moved', 'dig']) {
     expect(geo[k], `${k} renders (non-vacuous placement check)`).not.toBeNull();
   }
-  // every row is full width — same left and right edge as the verdict card above it
-  for (const k of ['chart', 'ins', 'row2']) {
-    expect(Math.abs(geo[k].left - geo.verdict.left), `${k} starts at the page column edge`).toBeLessThanOrEqual(1);
-    expect(Math.abs(geo[k].right - geo.verdict.right), `${k} ends at the page column edge`).toBeLessThanOrEqual(1);
-  }
-  // reading order top to bottom, no overlap (the first cut of this redesign put two cards in ONE
-  // grid cell and the verdict rendered invisibly underneath the chart — that is what this catches)
-  expect(geo.chart.top, 'chart below the verdict').toBeGreaterThanOrEqual(geo.verdict.bottom - 1);
-  expect(geo.ins.top, 'insights below the chart').toBeGreaterThanOrEqual(geo.chart.bottom - 1);
-  expect(geo.row2.top, 'the two-column row is last').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
-  // What moved | Dig in are SIDE BY SIDE and top-aligned, each about half the row
-  expect(geo.dig.left, 'Dig in is the right-hand card').toBeGreaterThanOrEqual(geo.moved.right - 1);
-  expect(Math.abs(geo.moved.top - geo.dig.top), 'the two second-row cards top-align').toBeLessThanOrEqual(2);
-  expect(Math.abs(geo.moved.width - geo.dig.width), 'the row splits in half, not by content')
-    .toBeLessThanOrEqual(2);
+  // row 1: What moved is the right-hand card, top-aligned with the top card, ending at its content
+  expect(geo.moved.left, 'What moved is the right-hand card').toBeGreaterThanOrEqual(geo.panel.right - 1);
+  expect(Math.abs(geo.moved.top - geo.panel.top), 'row-1 cards top-aligned').toBeLessThanOrEqual(2);
+  expect(geo.moved.bottom, 'What moved ends at its content, never below the top card')
+    .toBeLessThanOrEqual(geo.panel.bottom + 2);
+  // the chart FILLS the top card rather than swimming in a full-width one — this is the exact
+  // jank Max reported on v120: a 540px-capped chart centred in a 1000px card
+  expect(geo.chartSvg.width, 'the chart fills most of its card')
+    .toBeGreaterThanOrEqual((geo.panel.width - 90));
+  // full-width rows below, edge-pinned (a width check could pass offset)
+  expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
+  expect(geo.ins.left, 'insights start at the top card edge').toBeLessThanOrEqual(geo.panel.left + 1);
+  expect(geo.ins.right, 'insights span through the What-moved edge').toBeGreaterThanOrEqual(geo.moved.right - 1);
+  expect(geo.dig.top, 'Dig in below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
+  expect(geo.dig.left, 'Dig in full width — left').toBeLessThanOrEqual(geo.panel.left + 1);
+  expect(geo.dig.right, 'Dig in full width — right').toBeGreaterThanOrEqual(geo.moved.right - 1);
 }
 
 async function noHorizontalOverflow(page) {
@@ -178,10 +180,11 @@ test('scope change moves zero verdict/chart geometry @ 1280', async ({ page }) =
   await expect(page.locator('.scope-note')).toHaveCount(0);
   await expect(page.locator('.chart-hint')).toContainText('This menu');
   const after = await gridGeo(page);
-  for (const k of ['verdict', 'chart']) {
-    expect(Math.abs(after[k].top - before[k].top), `${k}.top unmoved by scope`).toBeLessThanOrEqual(1);
-    expect(Math.abs(after[k].bottom - before[k].bottom), `${k}.bottom unmoved by scope`).toBeLessThanOrEqual(1);
-  }
+  /* v121: the card under test is the single top panel. The chart svg is inside it, so pinning the
+     panel pins the chart; the svg's own rect is not compared because scoping to a menu with its
+     own history legitimately redraws the line (same geometry, new path). */
+  expect(Math.abs(after.panel.top - before.panel.top), 'panel.top unmoved by scope').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.panel.bottom - before.panel.bottom), 'panel.bottom unmoved by scope').toBeLessThanOrEqual(1);
 });
 
 // ---- v98: an empty Dig-in tile is QUIETER than a populated one — same card, quieter content.
@@ -255,20 +258,18 @@ test('percentages and sparklines share axes across the ranked list @ 1280', asyn
 // sweep the same card types so the dark check cannot go vacuous. ----
 test('one elevation token: cards share it in light, and it is none in dark @ 1280', async ({ page }) => {
   const read = () => ({
-    verdict: getComputedStyle(document.querySelector('#dashBody .dash-verdict-panel')).boxShadow,
-    chart: getComputedStyle(document.querySelector('#dashBody .dash-chart-panel')).boxShadow,
+    panel: getComputedStyle(document.querySelector('#dashBody .dash-panel')).boxShadow,
     moved: getComputedStyle(document.querySelector('#dashBody .dash-moved')).boxShadow,
     ins: getComputedStyle(document.querySelector('#dashBody .dash-ins')).boxShadow,
     dig: getComputedStyle(document.querySelector('#dashBody .dig-card')).boxShadow
   });
   await boot(page, 1280, 6, 'light');
   const light = await page.evaluate(read);
-  expect(light.verdict, 'light mode casts a real shadow').not.toBe('none');
+  expect(light.panel, 'light mode casts a real shadow').not.toBe('none');
   expect(new Set(Object.values(light)).size, 'every card shares ONE shadow value in light').toBe(1);
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
   const dark = await page.evaluate(read);
-  expect(dark.verdict, 'dark mode draws no cast shadow — the surface step is the depth').toBe('none');
-  expect(dark.chart, 'chart card included').toBe('none');
+  expect(dark.panel, 'dark mode draws no cast shadow — the surface step is the depth').toBe('none');
   expect(dark.moved, 'What moved included').toBe('none');
   expect(dark.ins, 'insights included').toBe('none');
   expect(dark.dig, 'dig tiles included').toBe('none');

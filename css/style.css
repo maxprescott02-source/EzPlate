@@ -2553,9 +2553,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dash-verdict-panel .verdict-line{font-size:var(--fs-sm);font-weight:600}
 @media (min-width:700px){
   .dash-verdict-panel .verdict-line{font-size:var(--fs-base)}
-  /* the target sentence sits on the figure's baseline at desktop, per the mock */
-  .dash-verdict-panel .verdict{align-items:baseline;gap:var(--sp-3)}
-  .dash-verdict-panel .verdict-line{display:inline;margin:0}
+  /* the target sentence sits on the FIGURE'S baseline, per the mock. v120 set display:inline on
+     the <p> — which does nothing, because it is a SIBLING of the .verdict div and an inline cannot
+     join another block's line box; Max's production screenshot showed the two stacked. Flex on the
+     container that holds both is what actually puts them on one line. */
+  .dash-verdict-main{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap}
+  .dash-verdict-main .verdict-line{margin:0}
 }
 /* scope chips — the By-menu control, restyled. .mcmp-row keeps every behaviour it had. */
 .dash-chips-wrap{position:relative;margin-left:auto;min-width:0}
@@ -2752,6 +2755,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 #dashBody .dash-panel h2 .dh-scope{color:var(--text);font-weight:inherit}
 #dashBody .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}   /* left/right stay sp-5: one text edge with the h2 title (pinned) */
 #dashBody .chart-controls{margin-bottom:var(--sp-1)}
+/* v121: the hairline between the verdict zone and the trend applies at EVERY width now, not just
+   desktop — with the chips and their note in the verdict zone, the two regions need the seam on a
+   phone too (Max's screenshot had the note running straight into FOOD COST TREND). */
+#dashBody .dp-chart{margin-top:var(--sp-3);border-top:1px solid var(--border);padding-top:var(--sp-3)}
 #dashBody .chart-hint{margin-top:var(--sp-1);font-size:var(--fs-xs)}
 #dashBody .scope-note{font-size:var(--fs-xs)}
 /* the comparison block attaches tight under the chart */
@@ -2808,27 +2815,40 @@ html{scrollbar-gutter:stable}
    width (the cards-in-cards fix). With the compares tile deleted (v98 revision) the DOM order
    verdict → chart IS the card order; the CSS `order` re-cut is gone. */
 @media(min-width:1024px){
-  /* v120 (Q2 redesign) REPLACES the row map above, in place — this block stays the ONE desktop
-     owner, because a second stacked layer is what the comment says bred repeat breakages.
-       row 1  .dash-verdict-panel  full width — headline figure + scope chips
-       row 2  .dash-chart-panel    full width — the trend
-       row 3  .dash-ins            full width
-       row 4  .dash-row2           full width, itself the design's two-column What moved | Dig in
-     .dash-compare is no longer a standing panel (the chips absorbed it, and it renders inside
-     their popover), so its row-1 placement and the :not(:has()) fallbacks below are retired with
-     it. .dash-dig is now a CHILD of .dash-row2, not of #dashBody, so it takes no placement here. */
+  /* v121 REPLACES the v120 row map, in place — this block stays the ONE desktop owner, because a
+     second stacked layer is what the comment above says bred repeat breakages.
+     v120 gave the verdict and the chart a full-width card each, and the chart — capped at 540px on
+     purpose, because rendering the 320-unit viewBox wider scales the axis type out of bounds —
+     floated in the middle of its card with dead space either side. Max called it janky from a
+     production screenshot, and the fix is the layout that was already proven: the v98 7/5 split,
+     with WHAT MOVED now sitting where the By-menu selector card used to, so the right column is
+     earning its keep again and the 540px chart fills its 7-track card instead of swimming.
+       row 1  .dash-panel (1/8) — verdict + chips + since + hairline + chart | .dash-moved (8/13),
+              top-aligned, ends at its content (align-self:start — What moved is ≤3 rows, so the
+              old selector card's abs-pos + internal-scroll machinery is not needed)
+       row 2  .dash-ins — full width
+       row 3  .dash-dig — full width, four tiles across again
+     .dash-row2 dissolves at this width (display:contents) so its children join THIS grid — the
+     wrapper is the under-1024 two-column layout's box, and keeping it here would mean a grid
+     inside a grid fighting over the same tracks. */
   #dashBody{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-2);padding:0 0 var(--sp-3)}
-  #dashBody .dash-panel{grid-column:1/13;min-height:0}
-  #dashBody .dash-verdict-panel{grid-row:1;margin:var(--sp-5) 0 0}
-  #dashBody .dash-chart-panel{grid-row:2;margin:0}
-  #dashBody .dash-row2{grid-column:1/13;grid-row:4;margin:0}
-  #dashBody .dash-ins{grid-column:1/13;grid-row:3;margin:0}
-  /* absent panel: the row closes up rather than leaving a gap (rows stay EXPLICIT — v89's lesson
-     was that auto-flow pushed a panel below the fold when a third child appeared). */
-  #dashBody:not(:has(.dash-ins)) .dash-row2{grid-row:3}
+  #dashBody .dash-panel{grid-column:1/8;grid-row:1;margin:var(--sp-5) 0 0;min-height:0}
+  #dashBody .dash-row2{display:contents}
+  #dashBody .dash-moved{grid-column:8/13;grid-row:1;align-self:start;margin:var(--sp-5) 0 0}
+  #dashBody .dash-ins{grid-column:1/13;grid-row:2;margin:0}
+  #dashBody .dash-dig{grid-column:1/13;grid-row:3;margin:0}
+  /* dig's tiles go four-across again now that the panel has the full row to itself (the 2-track
+     rule at 900px belongs to the under-1024 side-by-side layout, which no longer exists here) */
+  #dashBody .dig-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  /* absent panels: the row closes up / the neighbour takes the width (rows stay EXPLICIT — v89's
+     lesson was that auto-flow pushed a panel below the fold when a third child appeared).
+     .dash-moved is absent only while a Dig-in drill-down is open (whatMovedHtml always renders
+     its panel otherwise, empty state included); the top card then takes the full width. */
+  #dashBody:not(:has(.dash-moved)) .dash-panel{grid-column:1/13}
+  #dashBody:not(:has(.dash-ins)) .dash-dig{grid-row:2}
 
-  /* --- v120: verdict and trend are two cards now, so the hairline that separated them INSIDE one
-     card is gone with the card that owned it — a seam between two surfaces is the gap, not a rule. --- */
+  /* --- the top card: ONE surface again — number, chips, since, then the trend below a hairline.
+     The hairline itself is set once, in the density block (it applies at every width now). --- */
   #dashBody .dash-panel .pad{display:flex;flex-direction:column;padding:var(--sp-3) var(--sp-5) var(--sp-4)}
   /* the chart KEEPS its 540px cap and centred controls: rendering the 320-unit viewBox any
      wider scales the axis type with it (axis fonts are out of bounds for this batch). */

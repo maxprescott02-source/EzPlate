@@ -236,17 +236,14 @@ test('v97: the menu name is full strength while the metric stays muted, and scop
      would be exactly the redundancy v97 removed. */
   const card = await page.evaluate(() => {
     /* The SCOPE CONTROL is excluded, exactly as it was before v120 — it used to be a separate
-       By-menu card that this selector never reached, and it is now a chip row inside the verdict
-       card. A control naming its own options is not a restatement: the v97 rule this pins is
-       about DESCRIPTIVE mentions (the highlighted row, "on <menu>" beside the number, "— ALL
-       MENUS" on the chart title), and counting the control would make the rule unsatisfiable. */
-    const txt = (sel) => {
-      const el = document.querySelector(sel); if (!el) return '';
-      const clone = el.cloneNode(true);
-      clone.querySelectorAll('.dash-chips-wrap').forEach((n) => n.remove());
-      return clone.innerText;
-    };
-    return txt('#dashBody .dash-verdict-panel') + '\n' + txt('#dashBody .dash-chart-panel');
+       By-menu card that this selector never reached, and it is now a chip row inside the card.
+       A control naming its own options is not a restatement: the v97 rule this pins is about
+       DESCRIPTIVE mentions (the highlighted row, "on <menu>" beside the number, "— ALL MENUS"
+       on the chart title), and counting the control would make the rule unsatisfiable. */
+    const el = document.querySelector('#dashBody .dash-panel');
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('.dash-chips-wrap').forEach((n) => n.remove());
+    return clone.innerText;
   });
   // case-insensitive: innerText returns CSS-TRANSFORMED text, and dashboard headings are uppercased
   expect(card.match(/winter/gi), 'scope stated once in this card').toHaveLength(1);

@@ -167,8 +167,8 @@ test('changing the AI suggestions toggle adds and removes the insights panel', a
   await expect(page.locator('#dashBody .dash-ins'), 'suggestions off → no insights panel').toHaveCount(0);
   // the rest of the Dashboard is untouched by the toggle
   await expect(page.locator('#dashBody .dig-card')).toHaveCount(4);
-  // v120: the verdict and the chart are two .dash-panel cards now, not one
-  await expect(page.locator('#dashBody .dash-panel')).toHaveCount(2);
+  // v121: the verdict and the chart are ONE card again (the v120 two-card cut was reverted as janky)
+  await expect(page.locator('#dashBody .dash-panel')).toHaveCount(1);
 
   await page.locator('#settingsBtn').click();
   await page.waitForTimeout(300);
