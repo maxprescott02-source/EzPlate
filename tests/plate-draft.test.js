@@ -26,31 +26,47 @@ function extractFn(src, name) {
   throw new Error(`plate-draft: unbalanced braces for ${name}`);
 }
 
-function makeDraft({ plate = [], name = '', cat = '', loadedPlateId = null } = {}) {
+/* v118: savePlateDraft now asks isBuilderDirty() before writing anything, so the sandbox has to
+   carry the real dirt check and what it reads - savedPlates, lineSig, currentLinesSig. All are
+   extracted from app.js rather than restated here, so a change to the real comparison shows up as a
+   failure in these tests instead of passing against a private copy of the logic. */
+function makeDraft({ plate = [], name = '', cat = '', loadedPlateId = null, savedPlates = [] } = {}) {
   // eslint-disable-next-line no-new-func
-  const factory = new Function('PLATE', 'NAME', 'CAT', 'LID', `
+  const factory = new Function('PLATE', 'NAME', 'CAT', 'LID', 'SAVED', `
     "use strict";
     var DRAFTKEY='cafeDB_plateDraft';
     var store={};
     var localStorage={ getItem:function(k){return (k in store)?store[k]:null;},
                        setItem:function(k,v){store[k]=String(v);}, removeItem:function(k){delete store[k];} };
-    var plate=PLATE, loadedPlateId=LID, _name=NAME, _cat=CAT, _draftT=null;
+    var plate=PLATE, loadedPlateId=LID, _name=NAME, _cat=CAT, _draftT=null, savedPlates=SAVED;
     var document={ getElementById:function(id){
       if(id==='plateName') return {value:_name};
       if(id==='plateCat')  return {value:_cat};
       return null;
     }};
+    ${extractFn(SRC, 'lineSig')}
+    ${extractFn(SRC, 'currentLinesSig')}
+    ${extractFn(SRC, 'isBuilderDirty')}
     ${extractFn(SRC, 'draftHasContent')}
+    ${extractFn(SRC, 'draftBaseChanged')}
+    ${extractFn(SRC, 'readPlateDraft')}
     ${extractFn(SRC, 'savePlateDraft')}
     ${extractFn(SRC, 'clearPlateDraft')}
     return {
       draftHasContent: draftHasContent,
+      draftBaseChanged: draftBaseChanged,
+      isBuilderDirty: isBuilderDirty,
+      lineSig: lineSig,
       savePlateDraft: savePlateDraft,
       clearPlateDraft: clearPlateDraft,
-      read: function(){ var v=store[DRAFTKEY]; return v?JSON.parse(v):null; }
+      read: function(){ var v=store[DRAFTKEY]; return v?JSON.parse(v):null; },
+      // bootstrapSync reassigns savedPlates under an open builder; these let a test model that
+      // and a move to another plate, which is where the review found the baseline re-anchoring.
+      resync: function(next){ savedPlates=next; },
+      setLoaded: function(id){ loadedPlateId=id; }
     };
   `);
-  return factory(plate, name, cat, loadedPlateId);
+  return factory(plate, name, cat, loadedPlateId, savedPlates);
 }
 
 test('draftHasContent: lines OR a name make it worth resuming; nothing does not', () => {
@@ -96,6 +112,188 @@ test('a draft referencing a since-deleted ingredient still round-trips (graceful
   const saved = d.read();
   assert.equal(saved.lines[0].kid, 'K_GONE', 'the orphaned line survives serialization — restore never crashes on it');
   assert.equal(saved.name, 'Ghost plate');
+});
+
+/* ---------------------------------------------------------------------------
+ * v118 (found in v115 flow-testing): opening the builder to LOOK at a plate and
+ * closing it with × planted a draft, which resurfaced as "Unfinished plate —
+ * resume or discard?" on the next entry, possibly a week later.
+ *
+ * The truth table. What should a draft be written for?
+ *
+ *   loaded plate?  on-screen == saved?  draft?   why
+ *   -------------  -------------------  ------   ------------------------------
+ *   yes            yes                  NO       a visit, not work        <- the bug
+ *   yes            no                   YES      real unsaved edits
+ *   no (new)       n/a, has lines       YES      real unsaved work
+ *   no (new)       n/a, empty           NO       nothing worth resuming
+ *
+ * draftHasContent answers only the last row, so rows 1 and 2 were indistinguishable
+ * and row 1 got a draft it had not earned. isBuilderDirty() is the missing question.
+ * ------------------------------------------------------------------------- */
+/* Realistic ids: nextKid() makes 'K0001'-style kids, and lineSig prefixes another 'K' to mark a
+   kitchen line apart from a product line - so a real signature reads 'KK0001:100'. The tests build
+   expected baselines with the app's own lineSig rather than hardcoding that, because the format is
+   an opaque comparison key and pinning its spelling would be pinning the wrong thing. */
+const SP = (over = {}) => Object.assign(
+  { id: 'SP7', name: 'Big Breakfast', lines: [{ kid: 'K0001', qty: 100 }] }, over,
+);
+const sigOf = (d, lines) => lines.map(d.lineSig).join('|');
+
+test('v118: LOOKING at a saved plate writes no draft — the bug this fixes', () => {
+  // builder opened on SP7 and nothing touched: on-screen state === saved state
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 100 }], name: 'Big Breakfast',
+    loadedPlateId: 'SP7', savedPlates: [SP()] });
+  assert.equal(d.isBuilderDirty(), false, 'an untouched load is not dirty');
+  d.savePlateDraft();
+  assert.equal(d.read(), null, 'a look-only visit must leave NOTHING behind to prompt about later');
+});
+
+test('v118: editing a loaded plate STILL drafts — the fix must not disable the feature', () => {
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 250 }], name: 'Big Breakfast',   // qty moved 100 -> 250
+    loadedPlateId: 'SP7', savedPlates: [SP()] });
+  assert.equal(d.isBuilderDirty(), true);
+  const saved = (d.savePlateDraft(), d.read());
+  assert.ok(saved, 'real unsaved edits are still protected');
+  assert.equal(saved.lines[0].qty, 250);
+});
+
+test('v118: renaming a loaded plate counts as work worth drafting', () => {
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 100 }], name: 'Brunch',
+    loadedPlateId: 'SP7', savedPlates: [SP()] });
+  d.savePlateDraft();
+  assert.ok(d.read(), 'the name is part of the plate, so changing it is a change');
+});
+
+test('v118: a brand-new plate with lines drafts as it always did', () => {
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 50 }], name: 'New thing' });
+  d.savePlateDraft();
+  assert.ok(d.read(), 'nothing to be clean against — unsaved work by definition');
+});
+
+/* The second half of the item: a draft that DOES exist cannot silently overwrite newer state. */
+test('v118: a draft records the baseline it was taken against, not what is on screen', () => {
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 250 }], name: 'Big Breakfast',
+    loadedPlateId: 'SP7', savedPlates: [SP()] });
+  d.savePlateDraft();
+  const saved = d.read();
+  assert.equal(saved.baseSig, sigOf(d, [{ kid: 'K0001', qty: 100 }]), 'the SAVED plate at draft time');
+  assert.notEqual(saved.baseSig, sigOf(d, [{ kid: 'K0001', qty: 250 }]),
+    'if the baseline tracked the on-screen edit it could never detect a change');
+  assert.equal(saved.baseName, 'Big Breakfast');
+});
+
+test('v118: draftBaseChanged is TRUE when the plate moved under the draft', () => {
+  const d = makeDraft({ savedPlates: [SP({ lines: [{ kid: 'K0001', qty: 999 }] })] });
+  const base = sigOf(d, [{ kid: 'K0001', qty: 100 }]);
+  assert.equal(d.draftBaseChanged({ loadedPlateId: 'SP7', baseSig: base, baseName: 'Big Breakfast' }), true);
+});
+
+test('v118: draftBaseChanged catches a RENAME elsewhere, not just relines', () => {
+  const d = makeDraft({ savedPlates: [SP({ name: 'Renamed' })] });
+  const base = sigOf(d, [{ kid: 'K0001', qty: 100 }]);
+  assert.equal(d.draftBaseChanged({ loadedPlateId: 'SP7', baseSig: base, baseName: 'Big Breakfast' }), true);
+});
+
+test('v118: draftBaseChanged is FALSE when nothing moved — cannot-tell must not nag', () => {
+  const d = makeDraft({ savedPlates: [SP()] });
+  const base = sigOf(d, [{ kid: 'K0001', qty: 100 }]);
+  assert.equal(d.draftBaseChanged({ loadedPlateId: 'SP7', baseSig: base, baseName: 'Big Breakfast' }), false,
+    'unchanged plate');
+  assert.equal(d.draftBaseChanged({ loadedPlateId: 'SP7', baseName: 'Big Breakfast' }), false,
+    'a pre-v118 draft carries no baseSig — unknowable, so it must resume silently as before');
+  assert.equal(d.draftBaseChanged({ loadedPlateId: 'GONE', baseSig: base }), false,
+    'the plate was deleted — nothing to overwrite');
+  assert.equal(d.draftBaseChanged({ baseSig: base }), false, 'a new plate has no baseline');
+  assert.equal(d.draftBaseChanged(null), false);
+});
+
+/* ---------------------------------------------------------------------------
+ * v118, from the pre-push review. Three ways the first cut of this fix was wrong.
+ * ------------------------------------------------------------------------- */
+
+test('v118 review 1: a category-only edit is dirt — gating on a check blind to it was silent loss', () => {
+  // the plateCat input has scheduled draft saves since v82, so this IS unsaved work. Before the
+  // gate existed, draftHasContent kept it. A dirt check without category would drop it on x with
+  // no draft AND no "Unfinished plate" prompt — worse than the bug v118 set out to fix.
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 100 }], name: 'Big Breakfast',
+    cat: 'Specials', loadedPlateId: 'SP7', savedPlates: [SP({ category: 'Mains' })] });
+  assert.equal(d.isBuilderDirty(), true, 'changing only the category is still a change');
+  d.savePlateDraft();
+  const saved = d.read();
+  assert.ok(saved, 'the category edit must survive x');
+  assert.equal(saved.cat, 'Specials');
+});
+
+test('v118 review 1b: matching category is still not dirty — the look-only fix survives', () => {
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 100 }], name: 'Big Breakfast',
+    cat: 'Mains', loadedPlateId: 'SP7', savedPlates: [SP({ category: 'Mains' })] });
+  assert.equal(d.isBuilderDirty(), false);
+  d.savePlateDraft();
+  assert.equal(d.read(), null);
+});
+
+test('v118 review 2: the baseline is captured ONCE, not re-anchored on every save', () => {
+  // savedPlates is reassigned under an open builder whenever bootstrapSync reruns (online listener,
+  // pull-to-refresh). Recomputing the baseline would adopt the newer server state as "what I started
+  // from", the later comparison would match, and the stale draft would overwrite it in silence.
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 250 }], name: 'Big Breakfast',
+    loadedPlateId: 'SP7', savedPlates: [SP()] });
+  d.savePlateDraft();
+  const first = d.read().baseSig;
+
+  d.resync([SP({ lines: [{ kid: 'K0001', qty: 900 }], name: 'Renamed elsewhere' })]);   // the mid-draft resync
+  d.savePlateDraft();                                                                   // next keystroke
+  assert.equal(d.read().baseSig, first, 'the baseline must still be the state drafting STARTED from');
+  assert.equal(d.read().baseName, 'Big Breakfast');
+  assert.equal(d.draftBaseChanged(d.read()), true,
+    'and the guard must therefore still fire — this is the case it exists for');
+});
+
+test('v118 review 2b: a baseline is only carried for the SAME plate', () => {
+  const d = makeDraft({ plate: [{ kid: 'K0001', qty: 250 }], name: 'Big Breakfast',
+    loadedPlateId: 'SP7', savedPlates: [SP(), SP({ id: 'SP8', name: 'Other', lines: [{ kid: 'K0009', qty: 5 }] })] });
+  d.savePlateDraft();
+  d.setLoaded('SP8');                       // builder moved to a different plate
+  d.savePlateDraft();
+  assert.equal(d.read().baseSig, sigOf(d, [{ kid: 'K0009', qty: 5 }]),
+    'a different plate gets its own baseline, not the previous one carried over');
+});
+
+test('v118 review 3: the boot resume waits for the plates before it asks', () => {
+  // offerPlateDraftResume runs as the last statement in app.js, necessarily BEFORE bootstrapSync's
+  // await resolves — so savedPlates is [] there, guaranteed. The confirm modal outranks the boot
+  // gate in z-index, so Resume is tappable while the gate is still up, and draftBaseChanged would
+  // read "not loaded yet" as "deleted, nothing to overwrite" and skip the warning on the one path
+  // this feature is really for: a week-old draft resuming at boot.
+  const fn = extractFn(SRC, 'offerPlateDraftResume');
+  assert.match(fn, /if\(!window\.__ezReady && _draftOfferWaits\+\+ < 50\)\{ setTimeout\(offerPlateDraftResume, 200\); return; \}/,
+    'it defers until boot has CONCLUDED');
+  // ⚠️ __ezReady, not _bootGateDone. _bootGateDone flips only on success, so keying off it made a
+  // failed boot (no client, offline) wait the full timeout before asking — the state where the user
+  // most wants the draft back. bootReady sets __ezReady on both outcomes, after savedPlates on the
+  // ok path. The jsdom smoke test caught this and it is the reason the flag changed.
+  const cond = fn.split('\n').find((l) => l.includes('_draftOfferWaits++'));
+  assert.ok(!/_bootGateDone/.test(cond), 'must NOT key off the success-only flag');   // the CONDITION, not the comment explaining it
+  assert.match(extractFn(SRC, 'bootReady'), /window\.__ezReady=true/, 'the flag it waits on is real');
+  // bounded: a boot that never concludes must still eventually offer, not swallow the draft
+  assert.match(fn, /< 50/, 'the wait is capped (~10s)');
+  // and the call itself must stay last — the v83 __confirmFn ordering depends on it
+  const tail = SRC.trimEnd().split('\n').slice(-1)[0];
+  assert.match(tail, /offerPlateDraftResume\(\);/, 'still the last statement in app.js');
+});
+
+test('v118: resume ASKS before replacing newer lines, and both boot and guard go through it', () => {
+  const r = extractFn(SRC, 'resumePlateDraft');
+  assert.match(r, /if\(draftBaseChanged\(d\)\)\{/, 'the check gates the resume');
+  assert.match(r, /'Resume anyway', function\(\)\{ applyPlateDraft\(d\); \}, 'Discard draft', clearPlateDraft/,
+    'the user chooses; a stray dismiss does neither (v82 rule)');
+  assert.match(r, /applyPlateDraft\(d\);\s*\}$/m, 'the unchanged case still applies straight through');
+  // both entry points must inherit the guard rather than calling the applier directly
+  assert.match(extractFn(SRC, 'offerPlateDraftResume'), /resumePlateDraft\(d\)/, 'boot offer');
+  assert.match(extractFn(SRC, 'resumeUnfinishedPlate'), /resumePlateDraft\(d\)/, 'entry guard');
+  assert.ok(!/applyPlateDraft\(/.test(extractFn(SRC, 'offerPlateDraftResume')), 'boot must not bypass the check');
+  assert.ok(!/applyPlateDraft\(/.test(extractFn(SRC, 'resumeUnfinishedPlate')), 'the guard must not bypass it either');
 });
 
 /* ---------------------------------------------------------------------------

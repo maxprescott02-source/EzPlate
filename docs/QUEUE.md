@@ -109,6 +109,14 @@ Requirements: each either becomes its own item with a real problem statement, or
 Out of scope: building any of them.
 This item is a triage, not a batch.
 
+## next  `isBuilderDirty` compares against the raw saved lines, not what was loaded
+Problem: found by the v118 pre-push review and **considered, not fixed** - it is an asymmetry rather than a reproducible bug, and the fix belongs with the orphan-line work rather than bolted onto a draft fix.
+`loadPlateState` silently DROPS a `pid` line whose product is gone (a `kid` line degrades to "product missing" instead), but `isBuilderDirty` compares `currentLinesSig()` - built from the filtered `plate` - against `sp.lines` mapped straight through `lineSig`.
+So a plate carrying such an orphan reads as dirty the instant it loads, which would re-arm the very "Unfinished plate" prompt v118 removed, for that plate only.
+Believed unreachable today because `productRefs(pid)` refuses to delete a product any plate line still references - **that guard is the only thing holding it shut**, so this becomes live the moment a delete path stops checking, or a restore lands a line whose product did not come with it.
+Requirements: decide whether `loadPlateState` should degrade a `pid` line the way it degrades a `kid` line, or whether `isBuilderDirty` should compare like against like.
+Out of scope: the draft machinery, which is now correct either way.
+
 ## next  Menu / empty-state centring - four fixes, no root cause on record
 Problem: found by the v115 audit as **the strongest remaining candidate for an unfound root cause in this repo.**
 Fixed in `HANDOVER-v44`, `v49`, `v54` and `v70`, each as its own CSS correction.
@@ -133,7 +141,13 @@ Blocked on: **Max.** A spending decision, not a task - there is nothing to build
 
 ---
 
-## next  Staging Supabase
+## blocked  Staging Supabase
+**Stop condition fired 8 Aug 2026, and it is not something a batch can work around.**
+There is no staging project to build against and no agent can create one: the Supabase MCP is scoped to a single `project_ref` (`.mcp.json:5`, production) and exposes no project-creation tool.
+The alternative, Supabase's own branching (`create_branch` / `merge_branch`), is a **paid add-on**, so that is a spending decision as well as an account one.
+Blocked on: **Max.** Either create a second free-tier Supabase project and add its ref, or say yes to paid branching.
+Everything below is what to build once one of those exists, and none of it can start before then.
+
 Problem: `.mcp.json` points at production.
 Every batch since v89 has run against live data.
 Migrations cannot be rehearsed, nothing destructive is testable, and an empty account cannot be tested at all because production is never empty.
@@ -143,14 +157,6 @@ Empty, realistic and scale seeds (12 menus, several hundred products, plates on 
 Out of scope: multi-tenant, auth, RLS policy work.
 Note: this is the loop's most common stop condition.
 Until it exists, "autonomous" means halting every second batch to wait for a hand-run migration.
-
-## next  Builder plants a draft just from looking
-Problem: opening the builder to LOOK at a plate and closing it with × autosaves a draft, which resurfaces as "Unfinished plate — resume or discard?" on the next visit, possibly a week later.
-Resuming against a plate that changed elsewhere could reintroduce stale lines.
-Found in v115 flow-testing; pre-existing v82 draft machinery, now reached through `guardUnfinishedPlate` on every entry (`app.js:4844`), so a look-only visit arms the prompt for the next one.
-Requirements: looking at a plate leaves no draft.
-A draft that does exist cannot silently overwrite newer state.
-Out of scope: the builder's layout.
 
 ## next  Floating layers and mobile dropdowns
 Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying.
@@ -279,6 +285,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Builder plants a draft just from looking** - fixed 8 Aug 2026, shipped in **v118**.
+  `savePlateDraft` gated on `draftHasContent` alone, which cannot tell unsaved work from a visit: a loaded plate has content by definition. It now asks `isBuilderDirty()`.
+  **The sequencing is why it hid:** `loadPlate` renders BEFORE `openBuilder` arms draft saves, so the FIRST builder open of a session wrote nothing and the bug looked absent; `_draftArmed` then stays true, so the SECOND look-only visit planted the draft.
+  **A one-visit test passes against the broken code** - `tests/visual/v118-draft.spec.js` drives two, and was verified failing against the pre-fix condition at both widths before it was committed.
+  Second half done too: a draft records the baseline it was taken against, and resuming one whose plate moved since asks first. Cannot-tell cases (new plate, deleted plate, pre-v118 draft) resume silently rather than nagging.
 
 - **Run `project-audit` and FILE the report** - done 8 Aug 2026, filed to `docs/audits/AUDIT-v115.md`.
   **Filed as v115, not the v116 this item originally asked for**, and the audit was right to argue: the `/batch` counter compares the newest `AUDIT-vNN.md` against `sw.js`, which is `ezplate-v115` because v116 shipped no client asset. The item had conflated the handover diary number with the deploy number, so filing as v116 would have put the counter a version ahead of the thing it measures.

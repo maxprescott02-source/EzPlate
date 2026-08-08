@@ -11,6 +11,18 @@ Production state below is measured, not assumed.
 
 ---
 
+## v118 - the plate draft
+
+- **Open a plate, look, close with ×. Then open a different plate.**
+  The old build planted a draft on that second visit and met you with "Unfinished plate — resume or discard?" about a plate you never edited.
+  Chromium says it is fixed at 380px and 1280px, so this is a **confirmation on the real device**, not a diagnosis: it depends on the builder actually closing the way a thumb closes it.
+  Failure: the prompt still appears after a look-only visit, or - the worse direction - it stops appearing after **real** unsaved edits.
+- **The new "Plate changed since" dialog.** Only reachable by editing a plate on one device, leaving a draft, and changing that plate elsewhere before resuming.
+  Hard to stage deliberately; worth a look if it ever appears.
+  Failure: the wording does not make clear which version wins, or "Resume anyway" and "Discard draft" are the wrong way round under a thumb.
+
+---
+
 ## v115 - the dashboard reframe
 
 **Production now has ONE change-log entry** - a dish removal on 6 Aug ("Bacon & Egg Muffin", −0.17pp).
