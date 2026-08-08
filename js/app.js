@@ -1093,8 +1093,22 @@ function draftHasContent(d){ return !!(d && ((Array.isArray(d.lines)&&d.lines.le
 function savePlateDraft(){
   try{
     var pn=document.getElementById('plateName'), pc=document.getElementById('plateCat');
-    var d={lines:plate, name:(pn?pn.value:''), cat:(pc?pc.value:''), loadedPlateId:loadedPlateId, ts:Date.now()};
-    if(!draftHasContent(d)){ localStorage.removeItem(DRAFTKEY); return; }   // nothing worth resuming ⇒ no stale draft
+    /* v118 — the BASELINE this draft was taken against: what the saved plate looked like at the
+       moment we started drafting. Null for a brand-new plate, which has nothing to be stale against.
+       resumePlateDraft compares it to the plate as it stands NOW, so a draft can never quietly
+       reinstate old lines over newer ones. */
+    var base=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
+    var d={lines:plate, name:(pn?pn.value:''), cat:(pc?pc.value:''), loadedPlateId:loadedPlateId, ts:Date.now(),
+           baseSig:base?(base.lines||[]).map(lineSig).join('|'):null,
+           baseName:base?(base.name||''):null};
+    /* ⚠️ v118 — A DRAFT IS UNSAVED WORK, NOT A VISIT, and gating on draftHasContent alone could not
+       tell the two apart. Opening a saved plate just to LOOK at it arms draft saves (openBuilder),
+       and the very first renderPlate schedules a save; 250ms later the loaded plate's own lines were
+       written out as a "draft". Press ×, and the next builder entry - possibly a week later - met
+       "You were building X. Resume it, or discard?" about a plate nobody had touched.
+       isBuilderDirty() is the question actually being asked: does what is on screen differ from what
+       is saved. A look-only visit is not dirty, so it now leaves nothing behind. */
+    if(!isBuilderDirty() || !draftHasContent(d)){ localStorage.removeItem(DRAFTKEY); return; }   // nothing changed, or nothing worth resuming ⇒ no stale draft
     localStorage.setItem(DRAFTKEY, JSON.stringify(d));
   }catch(e){}
 }
@@ -1109,7 +1123,29 @@ var _draftArmed=false;
 function armDraftSaves(){ _draftArmed=true; }
 function scheduleDraftSave(){ if(!_draftArmed) return; clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }   // debounced: builder mutations funnel through renderPlate/updateTotals
 function clearPlateDraft(){ clearTimeout(_draftT); try{ localStorage.removeItem(DRAFTKEY); }catch(e){} }
+/* v118 — has the plate this draft was taken against MOVED since? A draft can sit for a week, and
+   resuming it reinstates its own lines under the same loadedPlateId, so anything edited elsewhere in
+   the meantime would be silently overwritten by the next save.
+   FALSE whenever there is nothing to compare - a brand-new plate (no loadedPlateId), a plate since
+   deleted, or a draft written before v118 and so carrying no baseline. Those are all "cannot tell",
+   and cannot-tell must not nag; the point is to catch the case we CAN prove. */
+function draftBaseChanged(d){
+  if(!d || !d.loadedPlateId || d.baseSig==null) return false;
+  var sp=savedPlates.find(function(s){return s.id===d.loadedPlateId;});
+  if(!sp) return false;
+  return (sp.lines||[]).map(lineSig).join('|')!==d.baseSig || (sp.name||'')!==(d.baseName||'');
+}
 function resumePlateDraft(d){
+  if(draftBaseChanged(d)){
+    var sp=savedPlates.find(function(s){return s.id===d.loadedPlateId;});
+    askConfirm('Plate changed since',
+      '“'+((sp&&sp.name)||'That plate')+'” has been edited since you left this draft. Resuming replaces those newer lines with your older ones.',
+      'Resume anyway', function(){ applyPlateDraft(d); }, 'Discard draft', clearPlateDraft);
+    return;
+  }
+  applyPlateDraft(d);
+}
+function applyPlateDraft(d){
   plate=(Array.isArray(d.lines)?d.lines:[]).map(function(l){ return Object.assign({}, l, {uid:uidc++}); });   // fresh uids, never trust stored ones
   loadedPlateId=d.loadedPlateId||null;
   var pn=document.getElementById('plateName'); if(pn) pn.value=d.name||'';
@@ -4018,7 +4054,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v115';
+var APP_VERSION='v118';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

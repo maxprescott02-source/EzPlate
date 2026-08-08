@@ -133,7 +133,13 @@ Blocked on: **Max.** A spending decision, not a task - there is nothing to build
 
 ---
 
-## next  Staging Supabase
+## blocked  Staging Supabase
+**Stop condition fired 8 Aug 2026, and it is not something a batch can work around.**
+There is no staging project to build against and no agent can create one: the Supabase MCP is scoped to a single `project_ref` (`.mcp.json:5`, production) and exposes no project-creation tool.
+The alternative, Supabase's own branching (`create_branch` / `merge_branch`), is a **paid add-on**, so that is a spending decision as well as an account one.
+Blocked on: **Max.** Either create a second free-tier Supabase project and add its ref, or say yes to paid branching.
+Everything below is what to build once one of those exists, and none of it can start before then.
+
 Problem: `.mcp.json` points at production.
 Every batch since v89 has run against live data.
 Migrations cannot be rehearsed, nothing destructive is testable, and an empty account cannot be tested at all because production is never empty.
