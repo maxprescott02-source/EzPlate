@@ -62,24 +62,6 @@ The redesign restructures the layout of every screen a dropdown opens over, so d
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
-## doing  Q2 - Dashboard redesign
-**Branch `feature/q2-dashboard-redesign`, pushed. Cache bumped to v120 on the branch.**
-**Done — the whole screen and its specs.** Verdict eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and the ranked disclosure, chart as its own card, What moved, the two-column second row, and the v98 desktop grid rewritten in place. Driven in a real browser at 380px and 1280px in both themes. The design package is committed to `docs/design_handoff_ezplate_redesign/`.
-**Suite: 782 unit green** (+9 in `tests/dash-chips.test.js`) **and all 102 Playwright green**, `node -c` and smoke clean.
-The five dashboard spec files were **re-pointed to what each was protecting, not blessed** - `v98-grid.spec.js` was rewritten because its subject (a By-menu selector card beside the chart) no longer exists, and its real contracts were carried over: the grid holds at 2/6/12 menus, a too-long list scrolls inside its own layer without pushing the page, selection keeps its sparkline, one elevation token.
-⚠️ **The specs earned their keep**: `v96-menu-select.spec.js:245` caught a real 44px touch-floor regression that the mock's 6px chip padding introduced. The design contradicts itself there - its own §15 asks for 52px mobile targets.
-**Deviations from the mock, both deliberate and both recorded at the code:** the promoted chips are the two WORST menus, not "two most-used" (no sales volume exists - Rule C); and What moved says "this month", never "last invoice" (the log has one writer used by both the invoice path and a hand edit, so the source is not knowable).
-Remaining: pre-push `code-review` findings, PR, merge, handover.
-
-
-Implement `Redesign - Dashboard v2 Desktop.dc.html` + the Dashboard frame of `Redesign - Mobile States.dc.html`, inside the existing `renderDashboard()` path. Both themes, 380px and desktop.
-Out of scope: every other screen. Stop after this one.
-> **Plan.** First commit the package to `docs/design/`. Then work outward from `renderDashboard()` and the four helpers it calls, changing only their emitted markup: `verdictHtml` gains the 44px mono semantic headline (one per screen); `trendChart` keeps its existing SVG maths and gains the over-target wash, dashed target line and accent change-markers; `menuCompareHtml` and `digInHtml` become two-column row lists on one surface with hairline separators, not card-per-row.
-> Scope chips are new markup around the existing `dashScope` state - **≤5 menus enumerate, 6+ collapse to All + two most-used + "N more ▾"** ranked worst-first with uncosted menus excluded. That ranking is new logic and needs its own unit test.
-> The AI panel is a restyle of the shipped insights block, not a rebuild: keep the deterministic-template-then-cross-fade path, the `#ezSparkGrad` reuse (the gradient must stay defined exactly once - `smoke [16]` pins this) and the mandatory credit line. **It must stay read-only** - no control in it may write.
-> ⚠️ **Do not touch the per-publication counting.** A plate on two menus counts twice; distinct-plate maths was built, tested and reverted by Max on his own data. The chips make scope more prominent, which makes this MORE tempting, not less.
-> Watch: `tests/dash-persist.test.js` pins the zero-state (`—` + "Nothing costed and priced yet") and scope restore; `v89-dash`, `v90-dash`, `v98-grid`, `v115-reframe` and `v96-menu-select` specs all cover this screen and will need honest updating, not wholesale snapshot blessing.
-
 ## next  Q3 - Menu redesign
 Implement `Redesign - Menu.dc.html` + its mobile frame. Same rules. Stop after.
 > **Plan.** `renderAnalysis` / `aRow` only. Desktop becomes a real table inside one surface - sections as small-caps eyebrows (max one per panel), columns Plate / Cost (min–max range beneath) / Suggested / Menu price / Margin.
@@ -393,6 +375,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q2 - Dashboard redesign** - shipped 8 Aug 2026 as **`ezplate-v120`** (PR #79), handover `HANDOVER-123-dashboard.md`.
+  The screen is the design's: eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and a ranked disclosure, chart as its own card, What moved, and the two-column second row. 782 unit and 102 Playwright green.
+  **Two deliberate deviations from the mock, both recorded at the code:** the promoted chips are the two WORST menus, not "two most-used" (no sales volume exists - Rule C); and What moved says "this month", never "last invoice" (one writer, used by both the invoice path and a hand edit).
+  **An existing spec caught a real 44px touch-floor regression** the mock's 6px chip padding introduced - the design contradicts itself, its own §15 asking for 52px mobile targets.
+  **The pre-push review found dead code carrying live test coverage:** `menuCompareHtml`'s standalone branch could not run, yet two test files pinned the honesty note and the All-menus rule through it. Removed; those tests now assert against `dashChipsHtml`.
 
 - **Convert the builder to a modal** - closed 8 Aug 2026. **The builder has BEEN a modal since v54**; the item's premise was wrong, and so was the question that produced it.
   ⚠️ **Max's decision is SATISFIED, not reversed.** He answered "make it a pop-up first" and the app is a pop-up - the outcome he chose is the outcome he has. Nobody has quietly undone an against-advice decision, which is the thing `docs/decisions/2026-08-08-ANSWERS.md` warns will happen to exactly this decision. Read that sentence before re-opening this.
