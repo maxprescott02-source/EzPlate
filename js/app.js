@@ -1471,7 +1471,8 @@ function ingPriceBand(pid){                                          // {min,max
 function ingLastMovePct(pid){
   var a=ingPriceLog[pid]; if(!a || a.length<2) return null;
   var prev=a[a.length-2].v, last=a[a.length-1].v;
-  if(!(prev>0) || last==null || !isFinite(last)) return null;
+  // typeof before isFinite — isFinite('') is TRUE (CLAUDE.md), and a '' point would render −100.0%
+  if(!(prev>0) || typeof last!=='number' || !isFinite(last)) return null;
   var pct=(last-prev)/prev*100;
   return Math.abs(pct)<1 ? null : pct;
 }
@@ -2113,7 +2114,7 @@ function kingSearchFilter(q, words, prods){
   return (words||[]).filter(function(k){
     if(!k) return false;
     var p=(prods||{})[k.pid];
-    var hay=((k.name||'')+' '+(p?((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')):'')).toLowerCase();
+    var hay=((k.name||'')+' '+(p?((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')):'')).toLowerCase();   // Q5 (v124): the row shows the supplier now, so the search six pixels above it must match it too (the Products filter already does)
     return matchTokens(toks,hay);
   });
 }
@@ -2148,20 +2149,22 @@ function renderKitchenPanel(){
        linked product. A broken link is loud now: the quiet "(product missing)" hid real risk, so
        the row says what is at stake, counted through BOTH line shapes (kingMissingImpact). */
     var kp=byId[k.pid];                                              // v103: price is a right-aligned figure column (the .ing-price idiom), not part of the sentence
-    var link, price;
+    var link, price, drift='';
     if(kp){
       var pct=ingLastMovePct(k.pid);
-      var drift=(pct==null)?'':(' <span class="king-drift '+(pct>0?'up':'down')+'">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
-      link='<span class="king-link">'+esc(kingProductLabel(k))+drift+'</span>';
+      // the drift rides the NAME line, not the link line — .king-link clamps to 2 lines and a long
+      // "description — brand · supplier" would silently ellipsise the one signal this row adds
+      drift=(pct==null)?'':(' <span class="king-drift '+(pct>0?'up':'down')+'">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
+      link='<span class="king-link">'+esc(kingProductLabel(k))+'</span>';
       price='<span class="king-price">'+esc(unitCostStr(kp))+'</span>';
     } else {
-      var n=kingMissingImpact(k);
+      var n=platesUsingKid(k.id).length;
       link='<span class="king-link king-missing">⚠ product missing — '
         +(n?('relink to keep '+n+' plate'+(n===1?'':'s')+' costed'):'relink to give it a cost')+'</span>';
       price='<span class="king-price notcosted">no cost</span>';
     }
-    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
-      +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
+    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+(kp?'':' — product missing')+'">'
+      +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+drift+'</span>'
       +link+'</div>'
       +price
       +'</div>';
@@ -2507,18 +2510,12 @@ function saveKingModal(){
    helpers name the blast radius so the change log can record which menus an ingredient-level change
    actually reached. (The first also replaces the inline filter deleteKitchenIngredient used to carry.) */
 function platesUsingKid(kid){ return (savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kid; }); }); }
-/* Q5 (v124): how many plates lose costing while this ingredient's product link is broken.
-   BOTH line shapes on purpose — plates persist {kid,qty}, but a legacy or restored line can carry a
-   bare pid, and the absence of a back-pointer is not evidence nothing was lost (CLAUDE.md). Counts
-   plates, not lines: one plate using it twice is one plate at risk. */
-function kingMissingImpact(k){
-  var n=0;
-  (savedPlates||[]).forEach(function(sp){
-    var hit=(sp.lines||[]).some(function(l){ return !!l && !l.misc && (l.kid===k.id || (k.pid!=null && l.pid===k.pid)); });
-    if(hit) n++;
-  });
-  return n;
-}
+/* Q5 (v124): the broken-link row's N is platesUsingKid — the KID arm only, ON PURPOSE, because the
+   copy promises "relink to keep N plates costed" and relinking mutates k.pid and nothing else. A
+   legacy bare-pid line resolves through byId directly (lineProduct), so a relink cannot heal it and
+   counting it would make the sentence a lie for exactly those plates — the v124 review caught the
+   first cut doing that. The both-sides law stays where it belongs: productRefs, where deleting a
+   PRODUCT really does break both paths. */
 function menuIdsForPlates(list){
   var seen={}, out=[];
   (list||[]).forEach(function(sp){ menusOfPlate(sp).forEach(function(o){ if(!seen[o.menuId]){ seen[o.menuId]=1; out.push(o.menuId); } }); });

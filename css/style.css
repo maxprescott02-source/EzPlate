@@ -1934,9 +1934,8 @@ body{overflow-x:clip}
 .king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
 .king-name{font-weight:700;line-height:1.2}
 .king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* v67 follow-up: the derived-category chip sits in a bottom meta row, mirroring the Products card
-   (.ing-main then .ing-meta) and reusing the .ing-tag chip so the two card types match. */
-.king-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
+/* Q5 (v124) tombstone: the v67 .king-meta category-chip row is no longer emitted — the redesign
+   dropped it from the row (category still drives the filter, derived from the linked product). */
 /* v59 item 6a: read-only category value in the edit modal (the card chip is .ing-tag now) */
 .king-cat-read{font-weight:600;color:var(--text);padding:2px 0}
 /* .king-acts removed v44 item 6b — the card itself opens Edit; Remove moved into the modal */
@@ -2332,21 +2331,19 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* item 3: ingredient cards join the Products card GRID — same column story as .ing-list at
    every breakpoint (stacked <640, 2-up ≥640, 3-up ≥1280; same gaps and padding). The grid gap
    owns the spacing, so the per-card side margins go; empty states span the full grid width. */
-#kingList{display:flex;flex-direction:column;gap:8px;padding:8px 16px 4px}
-#kingList .king-row{margin:0}
+/* Q5 (v124) tombstone: the #kingList flex/gap/padding base and its 2-up grid media rules below are
+   retired — §27 makes the list one display:block surface at every width. */
 /* v54: empty/no-match states span the whole grid on every card list, so the centred empty-state icon
    sits in the middle instead of being pinned to column 1 (fixes the Products "padded left" icon; also
    covers the new Plates grid). */
-#kingList > .empty,#kingList > .empty-state,
 #ingList > .empty-state,#ingList > .ing-empty{grid-column:1 / -1}
 /* Q4 (v123): the #plateList pair is retired — the list is display:block now (§26), so grid-column
-   was inert there. Tombstone. */
+   was inert there. Q5 (v124): the #kingList pair went the same way (§27). Tombstones. */
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-@media (min-width:640px){ #kingList{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)} }   /* v103: the 8px seam (was sp-3) */
-@media (min-width:1024px){ #kingList{gap:var(--sp-2);padding:var(--sp-2) var(--sp-5) var(--sp-2)} }   /* v103: seam + top edge on-scale; sp-5 sides stay (the tabs' edge scale) */
-@media (min-width:1280px){ #kingList{grid-template-columns:repeat(3,1fr)} }
+/* Q5 (v124) tombstone: the v103 2-up/3-up #kingList grid media rules are retired — §27 owns the
+   list at every width now (one display:block surface). */
 /* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
    (a) v44 made the title cell a baseline flex row, but justify-content:space-between leaked in
        from the generic .invtable td card rule (v44 never set justify-content), flinging the pill
@@ -3052,6 +3049,7 @@ html{scrollbar-gutter:stable}
 #kingList .king-row{background:none;border:0;border-radius:0;box-shadow:none;margin:0;
   padding:var(--sp-3) var(--sp-4);transition:background var(--t-fast) var(--ease)}
 #kingList .king-row + .king-row{border-top:1px solid var(--border)}
+#kingList .king-price{grid-row:1}   /* the base span-2 assumed the v67 meta row; unemitted now, and spanning into the empty track added ~4px of dead space per mobile row */
 #kingList .king-row:focus-visible{outline-offset:-2px}   /* the §26 lesson: an outward focus ring dies in the surface's overflow clip */
 @media (hover:hover) and (pointer:fine){ #kingList .king-row:hover{background:var(--hover)} }
 /* the link arrow is presentation, not content — and the missing-product row replaces it with its ⚠ */

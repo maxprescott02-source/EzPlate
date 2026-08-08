@@ -5,9 +5,9 @@
  * - ingLastMovePct: the inline drift %, THE SAME RULE as digData('movers') — two points minimum,
  *   prev>0, finite last, sub-1% is rounding noise — so the row and the Dashboard's What-moved
  *   panel can never disagree about whether a price moved.
- * - kingMissingImpact: how many plates lose costing while a link is broken, counted through BOTH
- *   line shapes (kid lines AND legacy/restored bare-pid lines) — the absence of a back-pointer is
- *   not evidence nothing was lost (CLAUDE.md).
+ * - the broken-link N: platesUsingKid's KID arm only, because the copy promises "relink to keep N
+ *   plates costed" and relinking mutates k.pid — a legacy bare-pid line resolves through byId and a
+ *   relink cannot heal it, so counting it would make the sentence false (the v124 review's finding).
  * - the row markup: a broken link is LOUD ("⚠ product missing — relink…", "no cost"), and the v67
  *   category chip row is gone from the row on purpose.
  */
@@ -44,6 +44,8 @@ test('drift: fewer than two points is silence, not zero', () => {
 test('drift: sub-1% is rounding noise — the same floor as the What-moved panel', () => {
   const f = driftWith({ P1: [{ t: 1, v: 100 }, { t: 2, v: 100.9 }] });
   assert.equal(f('P1'), null);
+  const just = driftWith({ P1: [{ t: 1, v: 100 }, { t: 2, v: 101.05 }] });
+  assert.ok(just('P1') != null, '1.05% is over the floor — pins the boundary at 1, not somewhere higher');
 });
 
 test('drift: a real move reports signed %, from the LAST two points only', () => {
@@ -53,30 +55,23 @@ test('drift: a real move reports signed %, from the LAST two points only', () =>
   assert.ok(down('P1') < 0, 'a price drop is negative');
 });
 
-test('drift: a zero or garbage previous point cannot fabricate a percentage', () => {
+test('drift: zero, garbage or STRING points cannot fabricate a percentage', () => {
   assert.equal(driftWith({ P1: [{ t: 1, v: 0 }, { t: 2, v: 5 }] })('P1'), null);
   assert.equal(driftWith({ P1: [{ t: 1, v: 2 }, { t: 2, v: NaN }] })('P1'), null);
+  // isFinite('') is TRUE (CLAUDE.md) — without the typeof guard this renders a confident −100.0%
+  assert.equal(driftWith({ P1: [{ t: 1, v: 2 }, { t: 2, v: '' }] })('P1'), null);
+  assert.equal(driftWith({ P1: [{ t: 1, v: 2 }, { t: 2, v: null }] })('P1'), null);
 });
 
-function impactWith(plates) {
+test('the broken-link N counts ONLY plates a relink would heal — the kid arm, never bare-pid lines', () => {
   // eslint-disable-next-line no-new-func
-  return new Function('SP', `"use strict"; var savedPlates=SP; ${extractFn(SRC, 'kingMissingImpact')} return kingMissingImpact;`)(plates);
-}
-
-test('missing-link impact counts BOTH line shapes — kid lines and legacy bare-pid lines', () => {
-  const f = impactWith([
-    { id: 'A', lines: [{ kid: 'K4', qty: 20 }] },                    // normal shape
-    { id: 'B', lines: [{ pid: 'P_GONE', qty: 30 }] },                // legacy/restored shape
+  const f = new Function('SP', `"use strict"; var savedPlates=SP; ${extractFn(SRC, 'platesUsingKid')} return platesUsingKid;`)([
+    { id: 'A', lines: [{ kid: 'K4', qty: 20 }] },                    // healed by a relink
+    { id: 'B', lines: [{ pid: 'P_GONE', qty: 30 }] },                // a relink CANNOT heal this (lineProduct resolves it via byId)
     { id: 'C', lines: [{ kid: 'K1', qty: 5 }] },                     // unrelated
-    { id: 'D', lines: [{ misc: true, name: 'x', cost: 1 }] },        // misc never counts
+    { id: 'D', lines: [{ kid: 'K4', qty: 1 }, { kid: 'K4', qty: 2 }] }, // plates, not lines
   ]);
-  assert.equal(f({ id: 'K4', pid: 'P_GONE' }), 2, 'one plate per side, both found');
-  assert.equal(f({ id: 'K4', pid: null }), 1, 'no pid to chase → only the kid side can match');
-});
-
-test('missing-link impact counts plates, not lines', () => {
-  const f = impactWith([{ id: 'A', lines: [{ kid: 'K4', qty: 1 }, { kid: 'K4', qty: 2 }] }]);
-  assert.equal(f({ id: 'K4', pid: null }), 1);
+  assert.equal(f('K4').length, 2, 'A and D — the bare-pid plate is not promised a fix it cannot get');
 });
 
 test('the row markup: broken links are loud, drift is classed, the category chip row is gone', () => {
@@ -84,7 +79,7 @@ test('the row markup: broken links are loud, drift is classed, the category chip
   assert.ok(body.includes('product missing'), 'the warning copy exists');
   assert.ok(body.includes('king-missing'), 'and carries the .king-missing class');
   assert.ok(body.includes('no cost'), 'the price cell says "no cost" rather than vanishing');
-  assert.ok(body.includes('kingMissingImpact'), 'the plates-at-risk count comes from the both-sides counter');
+  assert.ok(body.includes('platesUsingKid'), 'the plates-at-risk count is the kid arm — what a relink actually heals');
   assert.ok(body.includes('king-drift'), 'drift renders through .king-drift');
   assert.ok(body.includes('ingLastMovePct'), 'and its % comes from the shared movers rule');
   assert.ok(!body.includes('king-meta'), 'the v67 category chip row is no longer emitted (Q5 design)');
@@ -96,5 +91,7 @@ test('kingProductLabel carries description — brand · supplier, in that order'
     { P1: { description: 'Tartare Sauce 2.4L', brand: 'Masterfoods', supplier: 'Bidfood' }, P2: { description: 'Eggs' } });
   assert.equal(f({ pid: 'P1' }), 'Tartare Sauce 2.4L — Masterfoods · Bidfood');
   assert.equal(f({ pid: 'P2' }), 'Eggs', 'no brand, no supplier — no dangling separators');
+  // defensive fallback only — renderKitchenPanel's missing branch never calls this; pinned so a
+  // future caller that does cannot crash on a broken link
   assert.equal(f({ pid: 'P_GONE' }), '(product missing)');
 });
