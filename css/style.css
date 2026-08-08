@@ -2593,46 +2593,49 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .dash-verdict-main{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap}
   .dash-verdict-main .verdict-line{margin:0}
 }
-/* scope chips — the By-menu control, restyled. .mcmp-row keeps every behaviour it had. */
-.dash-chips-wrap{position:relative;margin-left:auto;min-width:0}
-.dash-chips{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
-/* DESCENDANT FORM ON PURPOSE. `.mcmp-row` is defined LATER in this file than this block, so a bare
-   `.dash-chip` ties it on specificity and loses on source order — the chips came out as full-width
-   borderless rows. Same cascade trap as v119's builder takeover, one screen over. Do not flatten
-   these to a single class; tests/dash-chips.test.js pins the ordering that makes it necessary. */
-.dash-chips .dash-chip{width:auto;min-height:0;gap:var(--sp-2);padding:6px 14px;border-radius:var(--radius-pill);
-  border:1.5px solid var(--border);background:none;color:var(--text2);font-weight:700;font-size:var(--fs-sm);
+/* v129: the scope DROPDOWN — the chips are reversed (Max, 9 Aug 2026). One button, right of the
+   verdict, carrying the current scope's name + food-cost %; the ranked list opens under it. */
+.dash-scope-wrap{position:relative;margin-left:auto;min-width:0}
+.dash-scope-btn{display:flex;align-items:center;gap:var(--sp-2);padding:8px 16px;border-radius:var(--radius-ctl);
+  border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font:inherit;
+  font-weight:700;font-size:var(--fs-sm);cursor:pointer;max-width:100%;
   transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
-.dash-chips .dash-chip .mcmp-name{flex:0 1 auto;font-size:var(--fs-sm);white-space:nowrap}
-.dash-chips .dash-chip .mcmp-pct{min-width:0;font-size:var(--fs-sm)}
+.dash-scope-btn .dsb-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-scope-btn .mcmp-pct{min-width:0;font-size:var(--fs-sm)}
+.dash-scope-btn .dsb-caret{color:var(--muted)}
 /* THE 44px FLOOR WINS OVER THE MOCK'S PADDING, and only where it means something. The mock's
-   6px/14px pill measures 37.5px; this app has a 44px TOUCH floor that v96-menu-select.spec.js
-   pins at 380px, and it caught this. The design is not so much wrong as internally inconsistent —
-   its own §15 asks for 52px mobile targets while §6 draws a 37.5px chip.
-   So: 44px below the desktop shell breakpoint, and the mock's tighter pill only at >=1024px,
+   8px/16px button measures ~41px; this app has a 44px TOUCH floor that v96-menu-select.spec.js
+   pins at 380px (it caught the chips the same way in v120).
+   So: 44px below the desktop shell breakpoint, and the mock's tighter button only at >=1024px,
    where the app is already a pointer layout.
-   TWO THINGS THAT DO NOT WORK, both tried: an ::after hit-area (the .ms-clear / .range-btn trick)
-   leaves boundingBox measuring 37.5 — green to a thumb, red to the spec, and worse than either
-   honest answer; and a `(pointer:fine)` query relaxes the floor in the exact case it must hold,
-   because the desktop Chromium the specs run in reports a fine pointer at 380px too. */
-.dash-chips .dash-chip,.dash-more{min-height:44px}
+   TWO THINGS THAT DO NOT WORK, both tried on the chips: an ::after hit-area (the .ms-clear /
+   .range-btn trick) leaves boundingBox measuring short — green to a thumb, red to the spec — and
+   a `(pointer:fine)` query relaxes the floor in the exact case it must hold, because the desktop
+   Chromium the specs run in reports a fine pointer at 380px too. */
+.dash-scope-btn{min-height:44px}
 @media (min-width:1024px){
-  .dash-chips .dash-chip,.dash-more{min-height:0}
+  .dash-scope-btn{min-height:0}
 }
-.dash-chips .dash-chip:hover{background:var(--field)}
-.dash-chips .dash-chip.act{background:var(--field);border-color:var(--border2);color:var(--text)}
-.dash-more{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;
-  border:1.5px solid var(--border);background:none;color:var(--text2);font-weight:700;font-size:var(--fs-sm);cursor:pointer}
-.dash-more:hover{background:var(--field)}
-.dash-more:focus-visible,.dash-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* --hover, not --field: light theme's --field equals --surface, which made hover a no-op on the
+   chips for two versions without anyone noticing — the primary control doesn't inherit that. */
+.dash-scope-btn:hover{background:var(--hover)}
+.dash-scope-btn:active{transform:scale(.985)}
+@media (prefers-reduced-motion:reduce){ .dash-scope-btn:active{transform:none} }
+.dash-scope-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dash-menus-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:20;width:280px;max-width:calc(100vw - 32px);
   background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg);padding:var(--sp-3);max-height:min(60vh,360px);overflow:auto;
   animation:fadeIn var(--t-med) var(--ease)}
-.dmp-head{margin:0 0 var(--sp-2);font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--muted2)}
-/* the disclosure list keeps the shipped row markup, so sparklines survive the redesign */
-.dash-menus-pop .mcmp-row{padding:var(--sp-2) 0}
+/* v129: .dmp-head is GONE — with the All-menus row inside the popover a "Ranked by…" heading was
+   false of its first row, and the honesty note below already states the basis once.
+   The dropdown list keeps the shipped row markup, so sparklines survive the redesign.
+   Row padding is #dashBody-qualified because the density block's `#dashBody .mcmp-row` (1,1,0)
+   out-specifies a bare descendant pair — the bare form that sat here was dead on arrival. */
+#dashBody .dash-menus-pop .mcmp-row{padding:var(--sp-2) var(--sp-2)}
+/* v129 selected row: tinted fill, text stays --text — deliberately NOT the --accent-ink-on-accent-weak
+   pair, which sits below the AA floor app-wide (queued for one decision in Q10). */
+.dash-menus-pop .mcmp-row.act{background:var(--accent-weak)}
+.dash-menus-pop .mcmp-note{margin:var(--sp-2) 0 0}
 /* second row — What moved | Dig in */
 /* minmax(0,1fr), not 1fr: the bare keyword is minmax(AUTO,1fr), so a long product name in What
    moved sizes its own column and the two stop being halves. Same reason .dash-row2's children
@@ -2678,6 +2681,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    "30.0%" — the figures and sparks now sit on shared axes across every row, All menus included.
    6ch fits "100.0%", the widest possible figure. */
 .mcmp-pct{flex:0 0 auto;min-width:6ch;text-align:right;font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+/* v129: the figure carries the v115 anchor-to-target pair — same meaning as the chart and sparks */
+.mcmp-pct.good{color:var(--good)}
+.mcmp-pct.bad{color:var(--bad)}
 .mcmp-note{margin:var(--sp-3) 0 0;color:var(--muted2)}
 @media (prefers-reduced-motion:reduce){ .mcmp-row:active{transform:none} }
 

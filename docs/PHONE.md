@@ -11,6 +11,17 @@ Production state below is measured, not assumed.
 
 ---
 
+## v129 - the dashboard scope dropdown
+
+- **Open the Dashboard and look at the verdict row: the big figure on the left, the "All menus 21.7 ▾" button on the right.**
+  Both state the same number, in the same semantic colour, a few centimetres apart — the mock draws it that way and the pre-push review flagged it as worth a real-screen judgement. On a 380px phone the button wraps under the figure, which may read better or worse than side-by-side.
+  This is a **taste call**, not a defect hunt: does the doubled number read as confirmation ("this is what you're scoped to") or as clutter?
+- **Why only a device settles it:** the duplication is deliberate and correct at desktop width; whether it feels heavy depends on the phone's actual line-wrap and how much the two numbers dominate the card together, which Chromium's 380px emulation renders but cannot judge.
+  Failure: it reads as the same stat shown twice for no reason. If so, say the word and the button can show the name + caret only.
+- **Tap the button, pick a menu, tap elsewhere to dismiss.** The popover should close on an outside tap and never re-open on its own after switching tabs.
+
+---
+
 ## v119 - the builder takeover goes edge-to-edge
 
 - **Open any plate in the builder and look at the two side edges.**

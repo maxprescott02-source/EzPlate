@@ -5,10 +5,9 @@
  * grew; this spec seeds the LOADED state first (6 menus), then checks the sparse floor (2 menus)
  * and the full ceiling (12 menus) — the two ends where a grid tuned to "today" breaks.
  *
- * REWRITTEN v120 (Q2 dashboard redesign). The composition it was written against — row 1 as a
- * chart card beside a By-menu SELECTOR CARD — no longer exists: the scope control is a chip row in
- * the verdict card, and the full ranked list moved behind its "N more" disclosure. Those geometry
- * pins are retired because their subject is gone, NOT because they were failing.
+ * REWRITTEN v120 (Q2 dashboard redesign), re-pointed v129: the chips were reversed (Max, 9 Aug
+ * 2026) for ONE dropdown button in the verdict card, opening the ranked list. Geometry pins whose
+ * subject is gone are retired, NOT because they were failing.
  *
  * What was worth keeping was kept, re-pointed at the new markup:
  *   - the grid holds at 2 / 6 / 12 menus with no horizontal overflow (the whole point of the spec),
@@ -23,7 +22,7 @@
  *
  * Geometry contract (one desktop composition, every width >=1024) — v121, after Max called the
  * v120 two-full-width-cards cut janky from a production screenshot:
- *   row 1  .dash-panel (1/8: verdict + chips + since + chart, ONE surface) | .dash-moved (8/13,
+ *   row 1  .dash-panel (1/8: verdict + scope dropdown + since + chart, ONE surface) | .dash-moved (8/13,
  *          top-aligned, ends at its content — the column the By-menu selector card used to earn)
  *   row 2  .dash-ins  — full width
  *   row 3  .dash-dig  — full width, four tiles (.dash-row2 dissolves at this width)
@@ -75,6 +74,12 @@ async function boot(page, width, menus, theme) {
   });
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(500);
+}
+
+/* v129: open the dropdown when it isn't already; picking a scope closes it. */
+async function openScope(page) {
+  const closed = page.locator('#dashScopeBtn[aria-expanded="false"]');
+  if (await closed.count()) { await closed.click(); await page.waitForTimeout(300); }
 }
 
 async function gridGeo(page) {
@@ -133,51 +138,49 @@ for (const width of [1280, 1600]) {
   }
 }
 
-// ---- the sparse floor: 2 menus. v120: with five or fewer costed menus the chips ENUMERATE, so
-// there is no disclosure at all — the old "the selector card ends at its content" concern (a card
-// interior asserting content that doesn't exist) is answered by there being no card. ----
-test('sparse state: 2 menus — every menu is a chip, no disclosure @ 1280', async ({ page }) => {
+// ---- the sparse floor: 2 menus. v129: one dropdown button whatever the count — the chips' ≤5/6+
+// collapse rule died with the chips. Closed, the list is not in the DOM at all. ----
+test('sparse state: 2 menus — one dropdown button, list closed until opened @ 1280', async ({ page }) => {
   await boot(page, 1280, 2, 'light');
   expectGridContract(await gridGeo(page));
-  await expect(page.locator('.dash-chip'), 'All menus + both menus').toHaveCount(3);
-  await expect(page.locator('.dash-more'), 'five or fewer must not collapse').toHaveCount(0);
+  await expect(page.locator('.dash-scope-btn'), 'one scope control').toHaveCount(1);
+  await expect(page.locator('.dash-menus-pop'), 'closed means absent, not hidden').toHaveCount(0);
+  await openScope(page);
+  await expect(page.locator('.dash-menus-pop .mcmp-row'), 'All menus + both menus').toHaveCount(3);
   await noHorizontalOverflow(page);
   await page.screenshot({ path: 'tests/visual/__shots__/v98-grid-2menus-1280-light.png', fullPage: true });
 });
 
-// ---- the full ceiling: 12 menus. The chips collapse, and the ranked list opens in a layer that
-// SCROLLS INTERNALLY rather than pushing the page — the same failure the old selector card's
-// internal scroll was protecting against, at the same content level. ----
-test('full state: 12 menus collapse, and the list scrolls inside its own layer @ 1280', async ({ page }) => {
+// ---- the full ceiling: 12 menus. The ranked list opens in a layer that SCROLLS INTERNALLY
+// rather than pushing the page — the same failure the old selector card's internal scroll was
+// protecting against, at the same content level. ----
+test('full state: 12 menus — the list scrolls inside its own layer @ 1280', async ({ page }) => {
   await boot(page, 1280, 12, 'light');
   expectGridContract(await gridGeo(page));
-  await expect(page.locator('.dash-chip'), 'All menus + the two worst').toHaveCount(3);
-  await expect(page.locator('.dash-more')).toContainText('10 more');
+  await expect(page.locator('.dash-scope-btn'), 'still one button at twelve menus').toHaveCount(1);
 
   const pageHeightBefore = await page.evaluate(() => document.documentElement.scrollHeight);
-  await page.locator('.dash-more').click();
-  await page.waitForTimeout(350);
+  await openScope(page);
   const pop = await page.evaluate(() => {
     const el = document.querySelector('.dash-menus-pop');
     return el ? { sh: el.scrollHeight, ch: el.clientHeight } : null;
   });
-  expect(pop, 'the disclosure opens').not.toBeNull();
-  expect(pop.sh, 'a ten-row list overflows its layer and scrolls internally').toBeGreaterThan(pop.ch + 2);
+  expect(pop, 'the dropdown opens').not.toBeNull();
+  expect(pop.sh, 'a thirteen-row list overflows its layer and scrolls internally').toBeGreaterThan(pop.ch + 2);
   expect(await page.evaluate(() => document.documentElement.scrollHeight),
     'and the page is NOT pushed taller by it').toBeLessThanOrEqual(pageHeightBefore + 1);
   await noHorizontalOverflow(page);
   await page.screenshot({ path: 'tests/visual/__shots__/v98-grid-12menus-1280-light.png', fullPage: true });
 });
 
-// ---- nothing above the chips moves on scope change. Rows below are deliberately NOT pinned: the
-// insight SET is scope-dependent by design (v90), so scoping can legitimately unrender the panel
-// and close its row up — pinning them asserts app behaviour, not grid. ----
+// ---- nothing above the dropdown moves on scope change. Rows below are deliberately NOT pinned:
+// the insight SET is scope-dependent by design (v90), so scoping can legitimately unrender the
+// panel and close its row up — pinning them asserts app behaviour, not grid. ----
 test('scope change moves zero verdict/chart geometry @ 1280', async ({ page }) => {
   await boot(page, 1280, 6, 'light');
-  const before = await gridGeo(page);
-  // M2 is the WORST menu under this seed (60%), so it is one of the two promoted chips — no need
-  // to open the disclosure to reach it. Chips are .mcmp-row too; that is the point of the redesign.
-  await page.locator('.dash-chip[data-scope="M2"]').click();
+  const before = await gridGeo(page);   // captured with the dropdown closed; picking closes it again
+  await openScope(page);
+  await page.locator('.mcmp-row[data-scope="M2"]').click();
   await page.waitForTimeout(300);
   // v115: M2 has >=2 per-menu points, so the chart draws the MENU'S OWN line — the scope-note (the
   // "still covers all menus" correction) is correctly ABSENT, and the caption says so instead.
@@ -212,17 +215,15 @@ test('an empty Dig-in tile reads quieter than a populated one @ 1280', async ({ 
 // additive property permanent, and also pins that the redesign did not quietly drop sparklines. ----
 test('selecting a row keeps every sparkline, including its own @ 1280', async ({ page }) => {
   await boot(page, 1280, 6, 'light');
-  await page.locator('.dash-more').click();
-  await page.waitForTimeout(300);
+  await openScope(page);
   const sparksBefore = await page.locator('.dash-menus-pop .mcmp-spark').count();
-  /* M1, not M2. The seed gives per-menu history to M1 and M2 only, and M2 is the worst menu (60%)
-     so it is promoted to a CHIP — chips carry no sparkline by design. M1 (30%) sits in the
-     disclosure, which is where the row markup and therefore the sparkline live. */
-  expect(sparksBefore, 'the seed puts a spark on M1, which sits in the disclosure').toBeGreaterThanOrEqual(1);
+  // the seed gives per-menu history to M1 and M2, and priceHistory feeds the All-menus row
+  expect(sparksBefore, 'the seed puts sparks in the list').toBeGreaterThanOrEqual(1);
   await expect(page.locator('.dash-menus-pop .mcmp-row[data-scope="M1"] .mcmp-spark')).toHaveCount(1);
   await page.locator('.dash-menus-pop .mcmp-row[data-scope="M1"]').click();
   await page.waitForTimeout(300);
-  // the list stays open across a scope change, so the tick moves rather than the panel vanishing
+  // v129: picking CLOSES the dropdown; re-open to read the marked row — selection stays additive
+  await openScope(page);
   await expect(page.locator('.dash-menus-pop .mcmp-row[data-scope="M1"].act .mcmp-spark'),
     'the now-selected row still draws its spark').toHaveCount(1);
   expect(await page.locator('.dash-menus-pop .mcmp-spark').count(),
@@ -231,12 +232,11 @@ test('selecting a row keeps every sparkline, including its own @ 1280', async ({
 
 // ---- v98 revision: the figure column is a shared axis. Percentages sit in a fixed-width,
 // right-aligned column, so figures AND the sparklines beside them align across every row —
-// including a narrow "8.5%" beside a wide "30.0%". v120: this is the disclosure list's contract
-// now; the chips are pills sized to their own content and deliberately do NOT share an axis. ----
+// including a narrow "8.5%" beside a wide "30.0%". v129: the whole selectable set lives in the
+// dropdown list now, All menus included. ----
 test('percentages and sparklines share axes across the ranked list @ 1280', async ({ page }) => {
   await boot(page, 1280, 6, 'light');
-  await page.locator('.dash-more').click();
-  await page.waitForTimeout(300);
+  await openScope(page);
   const cols = await page.evaluate(() => {
     const r = (el) => el.getBoundingClientRect();
     const q = (s) => [...document.querySelectorAll('.dash-menus-pop ' + s)];
@@ -247,7 +247,7 @@ test('percentages and sparklines share axes across the ranked list @ 1280', asyn
     };
   });
   const spread = a => Math.max(...a) - Math.min(...a);
-  expect(cols.pctL.length, 'the four menus that did not get a chip each render a figure').toBe(4);
+  expect(cols.pctL.length, 'All menus + six menus each render a figure').toBe(7);
   expect(spread(cols.pctL), 'figure column left edges align').toBeLessThanOrEqual(1);
   expect(spread(cols.pctR), 'figure column right edges align').toBeLessThanOrEqual(1);
   if (cols.sparkR.length > 1) {

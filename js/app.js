@@ -4041,46 +4041,60 @@ function mcmpSparkSeries(h){
    rows' range. That explanation only applied to the short-lived distinct-plate maths, which never
    shipped — with per-publication counting the headline is a weighted blend of the rows, so both the
    helper and the line are gone. Tombstone so the name stays greppable. */
-/* v120 (Q2 redesign): the scope chips. This is the SAME control the By-menu list was — it sets
-   dashScope through the same `.mcmp-row` + data-scope delegate — restyled as a chip row with the
-   full ranked list moved behind a "N more" disclosure. Two controls for one value is what v96
-   removed, and this does not reintroduce one: the chips and the list are one control in two states.
+/* v129 (Max, 9 Aug 2026): the v120 scope CHIPS are REVERSED — one dropdown button now, opening the
+   ranked list. Still the SAME control the By-menu list has been since v96: the popover rows set
+   dashScope through the same `.mcmp-row` + data-scope delegate. The chips' ≤5/6+ collapse rule and
+   the promoted-worst-two are gone WITH the chips; the popover ranking stays worst-first, which is
+   still Rule C's answer (no sales volume, so cost efficiency is the only honest ranking).
 
-   ≤5 costed menus enumerate; 6+ collapse to All + two + "N more ▾", per the design.
+   The button carries the CURRENT scope's name and its food-cost %, coloured by the v115 rule the
+   chart, sparklines and headline already share: at-or-under target = good, over = bad, anchored to
+   the TARGET. The mock shows a third amber tier here; the dashboard's colour language is binary on
+   purpose and one control does not fork it.
 
-   THE TWO PROMOTED CHIPS ARE THE WORST PERFORMERS, not the "two most-used" the design asks for.
-   EzPlate has no sales volume — deliberately, Rule C — so "most-used" could only be faked from a
-   proxy like dish count, and a proxy for usage on a cost dashboard is exactly the profit-impact
-   implication Rule C forbids. Worst-first is the ranking this panel already declares in its own
-   honesty note, so the chips and the list now agree instead of ordering by two different ideas. */
-var dashMenusOpen=false;                                             // view state only, not persisted — a disclosure, not a preference
+   The popover leads with a selectable All-menus ROW (it was a chip; the scope still needs a way
+   back), then the ranked menus. The honesty note lives INSIDE the popover now — the ranking it
+   qualifies is entirely behind the button, so the note belongs where the ranking is, not floating
+   beside a button that ranks nothing. */
+var dashMenusOpen=false;                                             // view state only, not persisted — a dropdown, not a preference
 function setDashMenusOpen(v){ dashMenusOpen=!!v; renderDashboard(); }
-function dashChipHtml(id, name, pct, scope){
-  var on=(id===scope);
-  return '<button type="button" class="mcmp-row dash-chip'+(on?' act':'')+'" data-scope="'+esc(id)+'"'
-    +(on?' aria-current="true"':'')+'>'
-    +'<span class="mcmp-name">'+esc(name)+'</span>'
-    +'<span class="mcmp-pct">'+(pct==null?'—':pct.toFixed(1))+'</span></button>';
-}
-function dashChipsHtml(scope){
-  var rows=menuComparisonRows();                                     // already worst-first, already excludes uncosted
-  if(rows.length<2) return '';                                       // one costed menu: the headline already says it, a chip row of one is noise
-  var allPct=computeAvgFoodCost();
-  var shown=(rows.length<=5)?rows:rows.slice(0,2);
-  var rest=(rows.length<=5)?[]:rows.slice(2);
-  var html='<div class="dash-chips-wrap"><div class="dash-chips" role="group" aria-label="Dashboard scope">'
-    +dashChipHtml(DASH_ALL,'All menus',allPct,scope)
-    +shown.map(function(r){ return dashChipHtml(r.id,r.name,r.pct,scope); }).join('');
-  if(rest.length){
-    html+='<button type="button" class="dash-more" id="dashMore" aria-expanded="'+(dashMenusOpen?'true':'false')+'">'
-      +rest.length+' more <span aria-hidden="true">▾</span></button>';
+/* v129 review: the dropdown dismisses like the app's other floating layers (the product search
+   drop has the same pair) — outside click and Escape. Both gate on dashMenusOpen so they are
+   inert whenever the layer is closed. The button's own click never lands here as "outside":
+   its wrap still ancestors the (by then detached) target, so closest() finds it either way.
+   Esc returns focus to the button — the control the popover belongs to. */
+document.addEventListener('click', function(e){
+  if(dashMenusOpen && !(e.target.closest && e.target.closest('.dash-scope-wrap'))) setDashMenusOpen(false);
+});
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && dashMenusOpen){
+    setDashMenusOpen(false);
+    var b=document.getElementById('dashScopeBtn'); if(b) b.focus();
   }
-  html+='</div>';
-  if(rest.length && dashMenusOpen) html+=menuCompareHtml(scope, rest);
-  /* The honesty note rides with the chips at every size. It is not decoration: it is the standing
-     "cost efficiency, not earnings" statement, and with the list behind a disclosure it would
-     otherwise disappear for anyone who never opens it. */
-  html+='<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>';
+});
+/* The v115 anchor-to-target pair. A missing figure gets NO class — neutral, never a verdict.
+   (Unreachable today: both callers only run with >=2 costed rows. Pinned anyway — an absent value
+   falling through to a real-looking verdict is the isFinite('') shape this app has paid for.) */
+function dashPctClass(pct){ if(pct==null) return ''; return (pct<=cogsPct+0.05)?'good':'bad'; }
+function dashScopeHtml(scope){
+  var rows=menuComparisonRows();                                     // already worst-first, already excludes uncosted
+  if(rows.length<2){ dashMenusOpen=false; return ''; }               // one costed menu: no control — and the open flag dies WITH the control, or the popover would render pre-opened when a second menu is costed later
+  var allPct=computeAvgFoodCost();
+  var isAll=(scope===DASH_ALL);
+  var name=isAll?'All menus':menuNameById(scope);
+  var pct=isAll?allPct:avgFoodCostForScope(scope);
+  // aria-label carries the figure the colour encodes; no aria-haspopup — the layer is a group of
+  // plain buttons, not a menu, so aria-expanded alone is the honest signal (the #dashMore precedent)
+  var html='<div class="dash-scope-wrap">'
+    +'<button type="button" class="dash-scope-btn" id="dashScopeBtn"'
+    +' aria-expanded="'+(dashMenusOpen?'true':'false')+'" aria-label="Dashboard scope: '+esc(name)
+    +(pct==null?'':', '+pct.toFixed(1)+'% food cost')+'">'
+    +'<span class="dsb-name">'+esc(name)+'</span>'
+    +'<span class="mcmp-pct '+dashPctClass(pct)+'">'+(pct==null?'—':pct.toFixed(1))+'</span>'
+    +'<span class="dsb-caret" aria-hidden="true">▾</span></button>';
+  if(dashMenusOpen){
+    html+=menuCompareHtml(scope, [{id:DASH_ALL,name:'All menus',pct:allPct}].concat(rows));
+  }
   return html+'</div>';
 }
 /* v120: the What-moved panel — the existing 'movers' computation (largest logged price step per
@@ -4097,14 +4111,12 @@ function whatMovedHtml(){
     : '<p class="hint">No price moves logged yet.</p>';
   return '<div class="panel dash-moved"><h2>What moved</h2><div class="pad">'+body+'</div></div>';
 }
-/* v120: this renders the chips' DISCLOSURE LIST and nothing else — `rows` is the set of menus that
-   did not get a chip, and dashChipsHtml is its one caller.
-   The standalone "By menu" card it used to render is GONE, not optional: the chips are the scope
-   control now, every `.dash-compare` rule was deleted with it, and a no-argument branch would have
-   been unreachable code that still looked live. The v120 pre-push review caught exactly that — the
-   first cut kept the branch "for the tests", which meant the honesty note and the All-menus rule
-   were pinned on a path the app can no longer run, so either could have been deleted from the live
-   chips with the suite still green. The tests now assert against dashChipsHtml. */
+/* v120 made this the chips' disclosure list; v129 makes it the DROPDOWN's popover — dashScopeHtml
+   is still its one caller, and now hands it the FULL selectable set: the All-menus row first (the
+   chip that carried it is gone, and without a row here the scope is a one-way door — the v96
+   lesson), then the ranked menus, worst-first.
+   The standalone "By menu" card is still GONE, not optional: a no-argument branch would be
+   unreachable code that still looked live, which the v120 pre-push review caught the first time. */
 function menuCompareHtml(scope, rows){
   function row(id, name, pct){
     var on=(id===scope);
@@ -4112,14 +4124,16 @@ function menuCompareHtml(scope, rows){
       +(on?' aria-current="true"':'')+'>'
       +'<span class="mcmp-name">'+esc(name)+'</span>'
       +mcmpSparkHtml(id)
-      +'<span class="mcmp-pct">'+(pct==null?'—':pct.toFixed(1)+'%')+'</span></button></li>';
+      +'<span class="mcmp-pct '+dashPctClass(pct)+'">'+(pct==null?'—':pct.toFixed(1)+'%')+'</span></button></li>';
   }
-  /* A popover, not a panel: no leading All-menus row and no honesty note, because the chip row
-     above carries both. Both still exist — they moved to dashChipsHtml, which is where
-     dash-scope.test.js now asserts them. */
-  return '<div class="dash-menus-pop" role="group" aria-label="All menus ranked by food cost">'
-    +'<p class="dmp-head">All menus · ranked by food cost %</p>'
+  /* No heading. The old "Ranked by food cost %" head became FALSE the moment the All-menus row
+     moved under it — All menus is the whole business, not a competitor in the ranking (the v96
+     rule, stated where the rows are built) — and the honesty note below already states the basis
+     once. The group's label says what the layer IS (the scope control), not a claim about order.
+     dash-dropdown.test.js pins the note's wording and placement. */
+  return '<div class="dash-menus-pop" role="group" aria-label="Dashboard scope">'
     +'<ul class="mcmp-list">'+(rows||[]).map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
+    +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
     +'</div>';
 }
 function renderDashboard(){
@@ -4177,7 +4191,7 @@ function renderDashboard(){
     +'<div class="dash-verdict-main">'
     +verdictHtml(scope, cmp)
     +'</div>'
-    +dashChipsHtml(scope)
+    +dashScopeHtml(scope)
     +'</div>'
     +sinceLineHtml(scope, pctNow)
     +'</div><div class="dp-tile dp-chart">'
@@ -4213,11 +4227,16 @@ function renderDashboard(){
   // v96: the By-menu rows are the ONLY thing that sets the scope now (the picker's onchange is gone).
   // Note what this does NOT touch: dashRange. Range and scope are orthogonal, and each setter
   // re-renders from the other's live module var rather than resetting it.
-  root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ setDashScope(b.getAttribute('data-scope')); }; });
-  // v120: the chips' "N more" disclosure. Picking a scope from inside it re-renders through
-  // setDashScope, which leaves dashMenusOpen alone — so the list stays open and the tick moves,
-  // rather than the panel closing under the finger that just used it.
-  var dm=root.querySelector('#dashMore'); if(dm) dm.onclick=function(){ setDashMenusOpen(!dashMenusOpen); };
+  // v129: picking a scope CLOSES the dropdown — the button's own label confirms the selection, so
+  // holding the list open (the chips-era disclosure behaviour) would leave a layer covering the
+  // number the pick just changed. dashMenusOpen is set directly; setDashScope's re-render carries it.
+  // Both handlers refocus the REBUILT button: innerHTML replacement drops focus to <body>, which
+  // strands a keyboard user mid-interaction (v129 review). Touch is unaffected — the ring is
+  // :focus-visible-gated. The outside-click close deliberately does NOT refocus: the user was
+  // leaving, and yanking focus back would hijack whatever they clicked toward.
+  function refocusScopeBtn(){ var nb=root.querySelector('#dashScopeBtn'); if(nb) nb.focus(); }
+  root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); refocusScopeBtn(); }; });
+  var dsb=root.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); refocusScopeBtn(); };
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
@@ -4325,7 +4344,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v128';
+var APP_VERSION='v129';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

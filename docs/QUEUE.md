@@ -66,7 +66,7 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Dashboard scope chips → one simple dropdown (Max, 9 Aug 2026)
+## doing  Dashboard scope chips → one simple dropdown (Max, 9 Aug 2026)
 Problem: Q2 (v120) shipped scope chips with the ≤5/6+ collapse and a ranked disclosure. Max reversed it 9 Aug 2026: chips out.
 Verified live before keeping (the queue's own rule): `dashChipsHtml` emits `.dash-chip` rows at `js/app.js:4065`/`:4060` with the `#dashMore` disclosure - real work, not already done.
 Requirements: one dropdown button right of the verdict ("All menus 41.2 ▾") opening the existing ranked disclosure (All menus first, then worst-first, food-cost % in semantic colour, uncosted excluded). No chips anywhere; 44px touch floor holds.
@@ -378,7 +378,7 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
   The screen is the design's: eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and a ranked disclosure, chart as its own card, What moved, and the two-column second row. 782 unit and 102 Playwright green.
   **Two deliberate deviations from the mock, both recorded at the code:** the promoted chips are the two WORST menus, not "two most-used" (no sales volume exists - Rule C); and What moved says "this month", never "last invoice" (one writer, used by both the invoice path and a hand edit).
   **An existing spec caught a real 44px touch-floor regression** the mock's 6px chip padding introduced - the design contradicts itself, its own §15 asking for 52px mobile targets.
-  **The pre-push review found dead code carrying live test coverage:** `menuCompareHtml`'s standalone branch could not run, yet two test files pinned the honesty note and the All-menus rule through it. Removed; those tests now assert against `dashChipsHtml`.
+  **The pre-push review found dead code carrying live test coverage:** `menuCompareHtml`'s standalone branch could not run, yet two test files pinned the honesty note and the All-menus rule through it. Removed; those tests then asserted against `dashChipsHtml` (itself replaced by `dashScopeHtml` when v129 reversed the chips).
 
 - **Convert the builder to a modal** - closed 8 Aug 2026. **The builder has BEEN a modal since v54**; the item's premise was wrong, and so was the question that produced it.
   ⚠️ **Max's decision is SATISFIED, not reversed.** He answered "make it a pop-up first" and the app is a pop-up - the outcome he chose is the outcome he has. Nobody has quietly undone an against-advice decision, which is the thing `docs/decisions/2026-08-08-ANSWERS.md` warns will happen to exactly this decision. Read that sentence before re-opening this.
