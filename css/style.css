@@ -2556,7 +2556,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   /* the target sentence sits on the FIGURE'S baseline, per the mock. v120 set display:inline on
      the <p> — which does nothing, because it is a SIBLING of the .verdict div and an inline cannot
      join another block's line box; Max's production screenshot showed the two stacked. Flex on the
-     container that holds both is what actually puts them on one line. */
+     container that holds both is what joins them — WHEN the sentence fits. flex-wrap is deliberate:
+     the empty state's long "Nothing costed and priced yet…" sentence drops below the dash at
+     700–820px rather than overflowing, which is the right degradation, not a failure of this fix. */
   .dash-verdict-main{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap}
   .dash-verdict-main .verdict-line{margin:0}
 }

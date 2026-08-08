@@ -98,9 +98,13 @@ function expectGridContract(geo) {
   expect(geo.moved.bottom, 'What moved ends at its content, never below the top card')
     .toBeLessThanOrEqual(geo.panel.bottom + 2);
   // the chart FILLS the top card rather than swimming in a full-width one — this is the exact
-  // jank Max reported on v120: a 540px-capped chart centred in a 1000px card
+  // jank Max reported on v120: a 540px-capped chart centred in a 1000px card, a ~460px gap.
+  // Tolerance 200, not 90: above ~1352px viewport .wrap's max-width caps the panel at 622px while
+  // the chart caps at 540px, leaving a fixed 82px of chrome — a 90px tolerance passed that by only
+  // 8px, close enough for a one-token padding change to flip it (v121 review). 200 still fails the
+  // real regression by hundreds of pixels while never tripping on spacing drift.
   expect(geo.chartSvg.width, 'the chart fills most of its card')
-    .toBeGreaterThanOrEqual((geo.panel.width - 90));
+    .toBeGreaterThanOrEqual((geo.panel.width - 200));
   // full-width rows below, edge-pinned (a width check could pass offset)
   expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
   expect(geo.ins.left, 'insights start at the top card edge').toBeLessThanOrEqual(geo.panel.left + 1);
