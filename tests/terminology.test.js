@@ -105,26 +105,39 @@ test('INVERSION GUARD: the crossed data-tab values still say pantry/ingredients'
 });
 
 /* v126 (audit T1): the guard above proves both attributes EXIST — it cannot catch the label SWAP,
-   which is the exact "fix" Tier 1 forbids. This one pins the CROSSING itself: the same button
-   carries the internal name and the crossed human label, attribute and text together, so swapping
-   the visible labels (or the aria-labels) goes red while the attributes still both exist. */
-test('INVERSION GUARD: the CROSSING itself — each data-tab carries its crossed label on the same button', () => {
+   which is the exact "fix" Tier 1 forbids. This one pins the CROSSING itself, both halves of it:
+   the nav button carries the internal name and the crossed human label on the same element, and
+   the PANEL each tab opens carries the same crossed heading (showTab binds data-tab straight to
+   tab-<name>, so the h2 is the label a user reads once inside — the review found the first cut
+   pinned only the nav half). Swapping either half goes red while both attributes still exist.
+   The exact-label positives make "never says the other word" negatives redundant — a swap flips
+   the positives — and a whole-button negative false-positived on legitimate attribute text. */
+test('INVERSION GUARD: the CROSSING itself — nav buttons AND panel headings carry the crossed labels', () => {
   const nav = (tab) => {
-    const m = html.match(new RegExp(`<button[^>]*data-tab="${tab}"[^>]*>[^]*?</button>`));
+    const m = html.match(new RegExp(`<button[^>]*data-tab="${tab}"[^>]*>[\\s\\S]*?</button>`));
     assert.ok(m, `nav button with data-tab="${tab}" exists`);
     return m[0];
   };
+  const label = (name) => new RegExp(`<span class="nl(?: [^"]*)?">${name}</span>`);   // tolerant of added classes, not of a different label
+
   const pantry = nav('pantry');
   assert.match(pantry, /aria-label="Ingredients"/, 'pantry announces as Ingredients');
-  assert.match(pantry, /<span class="nl">Ingredients<\/span>/, 'pantry is LABELLED Ingredients');
-  assert.ok(!/Products/.test(pantry), 'and never says Products');
+  assert.match(pantry, label('Ingredients'), 'pantry is LABELLED Ingredients');
 
   const ingredients = nav('ingredients');
   assert.match(ingredients, /aria-label="Products"/, 'ingredients announces as Products');
-  assert.match(ingredients, /<span class="nl">Products<\/span>/, 'ingredients is LABELLED Products');
-  assert.ok(!/>Ingredients</.test(ingredients), 'and never says Ingredients');
+  assert.match(ingredients, label('Products'), 'ingredients is LABELLED Products');
 
   const builder = nav('builder');
   assert.match(builder, /aria-label="Plates"/, 'builder announces as Plates');
-  assert.match(builder, /<span class="nl">Plates<\/span>/, 'builder is LABELLED Plates');
+  assert.match(builder, label('Plates'), 'builder is LABELLED Plates');
+
+  // the other half: the panel a tab opens says the same crossed word in its h2
+  const panel = (id) => {
+    const m = html.match(new RegExp(`<div id="tab-${id}"[\\s\\S]*?<h2>([^<]*)</h2>`));
+    assert.ok(m, `#tab-${id} exists with a leading h2`);
+    return m[1];
+  };
+  assert.equal(panel('pantry'), 'Ingredients', 'the pantry PANEL is headed Ingredients');
+  assert.equal(panel('ingredients'), 'Products', 'the ingredients PANEL is headed Products');
 });
