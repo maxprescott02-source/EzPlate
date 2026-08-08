@@ -103,3 +103,28 @@ test('INVERSION GUARD: the crossed data-tab values still say pantry/ingredients'
   assert.match(html, /data-tab="pantry"/, 'the tab LABELLED "Ingredients"');
   assert.match(html, /data-tab="ingredients"/, 'the tab LABELLED "Products"');
 });
+
+/* v126 (audit T1): the guard above proves both attributes EXIST — it cannot catch the label SWAP,
+   which is the exact "fix" Tier 1 forbids. This one pins the CROSSING itself: the same button
+   carries the internal name and the crossed human label, attribute and text together, so swapping
+   the visible labels (or the aria-labels) goes red while the attributes still both exist. */
+test('INVERSION GUARD: the CROSSING itself — each data-tab carries its crossed label on the same button', () => {
+  const nav = (tab) => {
+    const m = html.match(new RegExp(`<button[^>]*data-tab="${tab}"[^>]*>[^]*?</button>`));
+    assert.ok(m, `nav button with data-tab="${tab}" exists`);
+    return m[0];
+  };
+  const pantry = nav('pantry');
+  assert.match(pantry, /aria-label="Ingredients"/, 'pantry announces as Ingredients');
+  assert.match(pantry, /<span class="nl">Ingredients<\/span>/, 'pantry is LABELLED Ingredients');
+  assert.ok(!/Products/.test(pantry), 'and never says Products');
+
+  const ingredients = nav('ingredients');
+  assert.match(ingredients, /aria-label="Products"/, 'ingredients announces as Products');
+  assert.match(ingredients, /<span class="nl">Products<\/span>/, 'ingredients is LABELLED Products');
+  assert.ok(!/>Ingredients</.test(ingredients), 'and never says Ingredients');
+
+  const builder = nav('builder');
+  assert.match(builder, /aria-label="Plates"/, 'builder announces as Plates');
+  assert.match(builder, /<span class="nl">Plates<\/span>/, 'builder is LABELLED Plates');
+});
