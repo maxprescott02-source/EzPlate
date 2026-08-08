@@ -69,12 +69,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
-## next  Q4 - Plates redesign
-Implement `Redesign - Plates.dc.html`. Stop after.
-> **Plan.** `renderPlatesTab` only. Card grid becomes library rows on one surface: name·category / published-where (accent when on a menu, muted "Unpublished") / plate cost right-aligned in a fixed mono column.
-> Keep `data-pid` and the card click → `openPlateActions(pid)` wiring untouched; this changes what a row looks like, never how it is found.
-> Uncosted plates keep "not costed yet" and stay muted. `smoke [12]` asserts the grid, the badges and the cost cell - read it before editing.
-
 ## next  Q5 - Ingredients redesign
 Implement `Redesign - Ingredients.dc.html`. Stop after.
 > **Plan.** The `data-tab="pantry"` screen, UI label "Ingredients" - `renderIngredients`. Rows become ingredient / "→ linked product · brand · supplier" / unit cost, with inline drift % when the last invoice moved it.
@@ -299,6 +293,7 @@ Out of scope: restructuring anything the deleted rules sat next to.
 Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
 
 ## next  Small, each independently shippable
+- **`layout-consistency.spec.js` never measures the list BODY** - its comment claims it asserts "the shared left edge", but it stops at the actions row (`panelLeft`/`titleTextLeft`/`btnLeft`), so the v123 Plates surface sitting 4px proud at ≥1024 would have shipped silently; the review caught it, not the spec. Extend it to measure each tab's list-body left edge at both sizes. Found by the v123 pre-push review, 9 Aug 2026. (Also pre-existing and shared: at 561-1023px both Products and Plates sit 4px inside the h2 edge - decide once whether that is the design.)
 - **`analyze().absPct` lost its last reader in v122** - the Q3 redesign replaced the "`32% under`" Variance cell (its only consumer) with the food-cost % composition. It is three lines inside `analyze` and part of that pure function's tested shape, so it was kept rather than trimmed mid-batch. Trim it (and its `Math.round`) the next time `analyze` is touched, or keep it deliberately - either way say so at the site. Found by the v122 pre-push review.
 - **`edDelArmed` is dead** - declared at `app.js:6910`, written at `:6937` and `:6949`, read nowhere.
   Verified 7 Aug. Delete it.
@@ -377,6 +372,10 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q4 - Plates redesign** - shipped 9 Aug 2026 as **`ezplate-v123`** (PR #85), handover `HANDOVER-126-plates.md`.
+  CSS only, all `#plateList`-scoped - the card grid became one surface of library rows (name · category / published-where on a fixed column / cost right in mono); the Products tab shares the classes and is untouched until Q7. Zero JS changes; smoke [12]'s pins all hold.
+  **The review reproduced a real a11y defect in the first cut:** the row's border box coincided with the surface's padding box, so the shared +2px focus outline was entirely clipped by `overflow:hidden` - a keyboard user on a one-result list had NO focus indicator. Fixed with an inset outline; hover also gated behind `(hover:hover)` and the ≥1024 left edge aligned.
 
 - **Q3 - Menu redesign** - shipped 8 Aug 2026 as **`ezplate-v122`**, handover `HANDOVER-125-menu.md`.
   Desktop: quiet Cost/Suggested, 16px bold Menu price, and the verdict cell composing food-cost % + shortfall ("20.0% ✓", "42.2% · +90c"), light from `analyze()` so preview/chips/row cannot disagree. Mobile: the 2×2 labelled card per plate became one surface of one-line rows. Stripe paint retired; `lt-*` classes stay as wiring.
