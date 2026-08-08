@@ -109,6 +109,14 @@ Requirements: each either becomes its own item with a real problem statement, or
 Out of scope: building any of them.
 This item is a triage, not a batch.
 
+## next  `isBuilderDirty` compares against the raw saved lines, not what was loaded
+Problem: found by the v118 pre-push review and **considered, not fixed** - it is an asymmetry rather than a reproducible bug, and the fix belongs with the orphan-line work rather than bolted onto a draft fix.
+`loadPlateState` silently DROPS a `pid` line whose product is gone (a `kid` line degrades to "product missing" instead), but `isBuilderDirty` compares `currentLinesSig()` - built from the filtered `plate` - against `sp.lines` mapped straight through `lineSig`.
+So a plate carrying such an orphan reads as dirty the instant it loads, which would re-arm the very "Unfinished plate" prompt v118 removed, for that plate only.
+Believed unreachable today because `productRefs(pid)` refuses to delete a product any plate line still references - **that guard is the only thing holding it shut**, so this becomes live the moment a delete path stops checking, or a restore lands a line whose product did not come with it.
+Requirements: decide whether `loadPlateState` should degrade a `pid` line the way it degrades a `kid` line, or whether `isBuilderDirty` should compare like against like.
+Out of scope: the draft machinery, which is now correct either way.
+
 ## next  Menu / empty-state centring - four fixes, no root cause on record
 Problem: found by the v115 audit as **the strongest remaining candidate for an unfound root cause in this repo.**
 Fixed in `HANDOVER-v44`, `v49`, `v54` and `v70`, each as its own CSS correction.

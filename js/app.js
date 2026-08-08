@@ -1093,14 +1093,23 @@ function draftHasContent(d){ return !!(d && ((Array.isArray(d.lines)&&d.lines.le
 function savePlateDraft(){
   try{
     var pn=document.getElementById('plateName'), pc=document.getElementById('plateCat');
-    /* v118 — the BASELINE this draft was taken against: what the saved plate looked like at the
-       moment we started drafting. Null for a brand-new plate, which has nothing to be stale against.
+    /* v118 — the BASELINE this draft was taken against: what the saved plate looked like when
+       drafting STARTED. Null for a brand-new plate, which has nothing to be stale against.
        resumePlateDraft compares it to the plate as it stands NOW, so a draft can never quietly
-       reinstate old lines over newer ones. */
+       reinstate old lines over newer ones.
+       ⚠️ IT IS CAPTURED ONCE AND CARRIED, NOT RECOMPUTED. This runs on every keystroke (debounced),
+       and `savedPlates` is REASSIGNED under an open builder whenever bootstrapSync reruns - the
+       online listener and pull-to-refresh both do it. Recomputing would re-anchor the baseline to
+       the very edit it exists to detect: a resync mid-draft would quietly adopt the newer server
+       state as "what I started from", the later comparison would match, and the stale draft would
+       overwrite it with no warning. Carrying the first one through localStorage rather than a
+       variable also survives the reload this whole feature exists for. */
+    var prev=readPlateDraft();
+    var carry=(prev && prev.loadedPlateId===loadedPlateId && prev.baseSig!=null) ? prev : null;
     var base=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
     var d={lines:plate, name:(pn?pn.value:''), cat:(pc?pc.value:''), loadedPlateId:loadedPlateId, ts:Date.now(),
-           baseSig:base?(base.lines||[]).map(lineSig).join('|'):null,
-           baseName:base?(base.name||''):null};
+           baseSig:carry?carry.baseSig:(base?(base.lines||[]).map(lineSig).join('|'):null),
+           baseName:carry?carry.baseName:(base?(base.name||''):null)};
     /* ⚠️ v118 — A DRAFT IS UNSAVED WORK, NOT A VISIT, and gating on draftHasContent alone could not
        tell the two apart. Opening a saved plate just to LOOK at it arms draft saves (openBuilder),
        and the very first renderPlate schedules a save; 250ms later the loaded plate's own lines were
@@ -1153,8 +1162,25 @@ function applyPlateDraft(d){
   menuTouched=false; if(typeof updateEditTag==='function') updateEditTag();
   renderPlate(); openBuilder();
 }
+var _draftOfferWaits=0;
 function offerPlateDraftResume(){
   var d=_bootPlateDraft; if(!draftHasContent(d)) return;
+  /* ⚠️ v118 — WAIT FOR THE PLATES BEFORE ASKING. This runs as the last statement in app.js (see the
+     v83 note above), which is necessarily BEFORE bootstrapSync's await resolves, so `savedPlates` is
+     still [] here - guaranteed, not merely likely. The confirm modal outranks the boot gate in
+     z-index, so Resume is tappable while the gate is still up, and draftBaseChanged would then find
+     no plate for the draft's id and read "not loaded yet" as "deleted, nothing to overwrite" - the
+     one branch that must never be guessed. It would skip the warning on the boot path, which is the
+     PRIMARY path for this feature: a week-old draft is exactly what resumes at boot.
+     ⚠️ THE FLAG IS __ezReady, NOT _bootGateDone. _bootGateDone flips only on SUCCESS, so keying off
+     it made a boot that failed - no client, offline, a dead fetch - wait the full timeout before
+     asking, which is the state where the user most wants their draft back and the jsdom smoke test
+     caught immediately. bootReady sets __ezReady on BOTH outcomes, and on the ok path it is set
+     after savedPlates is assigned, so "ready" means "the answer is in, whatever it was".
+     Still bounded: if bootstrapSync never concludes at all we ask anyway rather than swallowing the
+     offer. The call site does not move - deferring further is strictly safer for the v83 __confirmFn
+     ordering, not less safe. */
+  if(!window.__ezReady && _draftOfferWaits++ < 50){ setTimeout(offerPlateDraftResume, 200); return; }
   var n=(Array.isArray(d.lines)?d.lines.filter(function(l){return l&&!l.misc;}).length:0);
   var what=(d.name&&d.name.trim())?('“'+d.name.trim()+'”'):(n+' ingredient'+(n===1?'':'s'));
   askConfirm('Unfinished plate', 'You were building '+what+'. Resume it, or discard?', 'Resume',
@@ -4775,12 +4801,20 @@ function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b
 function currentLinesSig(){ return plate.map(lineSig).join('|'); }
 function isBuilderDirty(){
   var name=(document.getElementById('plateName').value||'').trim();
+  var pcEl=document.getElementById('plateCat'), cat=(pcEl?pcEl.value:'')||'';
   if(plate.length===0 && !name) return false;
   if(loadedPlateId){
     var sp=savedPlates.find(function(s){return s.id===loadedPlateId;});
     if(!sp) return plate.length>0;
     var savedSig=(sp.lines||[]).map(lineSig).join('|');
-    return savedSig!==currentLinesSig() || (sp.name||'')!==name;
+    /* ⚠️ v118 — CATEGORY IS PART OF THE COMPARISON, and leaving it out became data loss the moment
+       savePlateDraft started gating on this function. The category input has scheduled draft saves
+       since v82 (see the plateCat listener), so a category-only edit is real unsaved work; while the
+       draft gate was draftHasContent alone it was still written. Reading dirt without category would
+       have made that edit vanish on × with no draft AND no "Unfinished plate" prompt - silent loss,
+       and worse than the bug v118 set out to fix. The other callers (requestLoadPlate,
+       requestLoadMenuItem, unfinishedPlateWaiting) all want it too: it is an unsaved change. */
+    return savedSig!==currentLinesSig() || (sp.name||'')!==name || (sp.category||'')!==cat;
   }
   return plate.length>0;                                   // a new, unsaved plate with ingredients
 }

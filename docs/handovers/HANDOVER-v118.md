@@ -6,7 +6,9 @@
 The v115 audit's top finding was about exactly that conflation, so this realigns them rather than widening the gap.
 From here, handover vNN and `sw.js` vNN mean the same thing again.
 
-**Suite at close:** `npm test` **765 green** (756 → 765, +9 `plate-draft`) · jsdom smoke green · Playwright **90** (88 + 2 new `v118-draft`) · `node -c` clean · driven in a real browser at 380px and 1280px.
+**Suite at close:** `npm test` **770 green** (756 → 770, +14 `plate-draft`) · jsdom smoke green · Playwright **102 local / 90 in CI** (+2 new `v118-draft`) · `node -c` clean · driven in a real browser at 380px and 1280px.
+
+**The pre-push review found three real defects in the first cut, one of them mine and worse than the bug being fixed.** All three are fixed in this branch with a regression test each, and each test was verified failing against its own unfixed code and only that one. Details under "Surprises".
 
 ## What changed
 
@@ -21,7 +23,9 @@ The trap here is `_draftArmed` living for the whole session while `loadPlate` re
 
 ## New docs/QUEUE.md items
 
-None. One item closed, one moved to blocked.
+- **`isBuilderDirty` compares against the raw saved lines, not what was loaded.** The fourth review finding, considered and NOT fixed. `loadPlateState` drops a `pid` line whose product is gone while `isBuilderDirty` compares against `sp.lines` unfiltered, so such a plate reads dirty the instant it loads. Held shut today only by `productRefs` refusing to delete a referenced product.
+
+One item closed, one moved to blocked.
 
 ## New docs/PHONE.md items
 
@@ -41,6 +45,10 @@ Not proposed, not built, and noted here because the latch is still there.
 
 ## Surprises
 
+- **The review found that my fix introduced worse data loss than the bug it fixed.** The category input has scheduled draft saves since v82, so a category-only edit is real unsaved work - but `isBuilderDirty` never compared category. While the draft gate was `draftHasContent` alone that edit was still written; the moment I gated on dirt, changing only a plate's category and pressing × dropped it with **no draft and no prompt**. Silent loss, on a path the old bug at least protected.
+  It is the clearest case yet for the pre-push review being mandatory rather than advisory: the change was four words long, every existing test passed, and I had driven it in a browser.
+- **Two more real ones, both "the guard fails open on its main path".** The baseline was recomputed on every debounced save from live `savedPlates`, which `bootstrapSync` reassigns under an open builder - so a resync mid-draft would adopt the newer server state as "what I started from" and the later comparison would match. And the boot resume offer ran before `savedPlates` was populated, so `draftBaseChanged` read "not loaded yet" as "deleted, nothing to overwrite" and skipped the warning on exactly the path this feature exists for - a week-old draft at boot.
+- **Fixing the boot one broke jsdom smoke, and smoke was right.** I first gated on `_bootGateDone`, which flips only on SUCCESS - so a boot that failed (no client, offline) waited the full 10s timeout before offering the draft back, which is the state where the user most wants it. `bootReady` sets `window.__ezReady` on both outcomes, and on the ok path after `savedPlates` is assigned, so that is the honest "the answer is in, whatever it was" flag. **Seven smoke failures caught it; the unit suite was green throughout.**
 - **My first browser check passed against the broken code, and I nearly kept it.** It opened the builder once. The first open of a session never wrote a draft, because `loadPlate` renders before `openBuilder` arms saves - so a one-visit test reproduces nothing. The committed spec drives two visits and was verified failing against the pre-fix condition at both widths.
   This is the `CLAUDE.md` warning about tests that pass against broken code, met in the wild: the unit test caught the fix, and the integration test I wrote to be thorough was the one that lied.
 - **The fix is smaller than the diagnosis.** One condition - `isBuilderDirty()` instead of `draftHasContent(d)` alone - because the question the code was asking ("is there content?") was never the question that mattered ("did anything change?"). A loaded plate has content by definition.
