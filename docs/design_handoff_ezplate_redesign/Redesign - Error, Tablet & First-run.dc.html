@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&amp;display=swap" rel="stylesheet">
+<style>
+:root, [data-theme="light"]{
+  --bg:#F7F3EC; --surface:#FFFDF9; --field:#F2EADF;
+  --text:#2A1F1A; --text2:#6B5D54; --muted:#756759; --border:#E8DFD3; --border2:#D9CDBD;
+  --brand:#3E2C26; --accent:#B84E0C; --accent-weak:rgba(184,78,12,.10); --on-accent:#FFFFFF;
+  --good:#2E6B44; --good-bg:rgba(46,107,68,.12);
+  --warn:#A96206; --warn-bg:rgba(169,98,6,.12);
+  --bad:#B03A2E; --bad-bg:rgba(176,58,46,.10);
+  --elev:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
+}
+[data-theme="dark"]{
+  --bg:#191412; --surface:#241E1B; --field:#221C19;
+  --text:#F3EDE5; --text2:#C9BBAF; --muted:#97897E; --border:#392F2A; --border2:#4A3E37;
+  --brand:#F3EDE5; --accent:#F08A3C; --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+  --good:#6FBE8F; --good-bg:rgba(111,190,143,.16);
+  --warn:#E2A54B; --warn-bg:rgba(226,165,75,.16);
+  --bad:#E76D5C; --bad-bg:rgba(231,109,92,.16);
+  --elev:none;
+}
+html,body{margin:0;background:var(--bg)}
+body{font:15px/1.6 'Nunito Sans',system-ui,sans-serif;color:var(--text)}
+a{color:var(--accent)}a:hover{color:var(--accent)}
+button{transition:background .14s cubic-bezier(.2,.7,.3,1),filter .14s cubic-bezier(.2,.7,.3,1),transform .1s}
+button:not([disabled]):active{transform:translateY(1px)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[style*="background:var(--accent)"]:not([disabled]):hover{filter:brightness(.92)}
+button[style*="border-radius:999px"]:hover{background:var(--field)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div data-screen-label="Gap closure — errors, tablet, first-run" style="max-width:880px; margin:0 auto; padding:40px 32px 80px">
+
+  <div style="display:flex; align-items:center; gap:12px">
+    <svg viewBox="0 0 64 64" style="width:32px;height:32px;color:var(--brand)" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"></circle><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path></svg>
+    <div>
+      <h1 style="margin:0; font-size:26px; font-weight:800; color:var(--brand)">Gap closure — errors · tablet · first-run</h1>
+      <p style="margin:2px 0 0; font-size:14px; color:var(--text2)">Addendum to the design package (§16–18). Everything here restyles mechanisms already shipped in prod — <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">toast()</code>, <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">#syncBanner</code>, the boot gate — nothing new is invented. <button type="button" onClick="{{ toggleTheme }}" style="border:1px solid var(--border2); border-radius:8px; background:none; color:var(--text); font-weight:700; font-size:13px; padding:4px 10px; cursor:pointer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path></svg> Toggle theme</button></p>
+    </div>
+  </div>
+
+  <!-- 16 Error states -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">16 · Error &amp; edge states</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Prod's rule stands: <b style="color:var(--text)">a failed write is never quiet</b>. The redesign keeps the shipped wording verbatim (it was fought for) and only restyles the vessels. Errors speak in words a chef reads — never a code, never jargon; every error offers exactly one action.</p>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px">
+    <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">Sync pill · #syncBanner states</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+      <span style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:700; color:var(--text2)"><span style="width:8px;height:8px;border-radius:999px;background:var(--muted)"></span>Loading latest data…</span>
+      <span style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:700; color:var(--text2)"><span style="width:8px;height:8px;border-radius:999px;background:var(--accent)"></span>Saving…</span>
+      <span style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:700; color:var(--good)"><span style="width:8px;height:8px;border-radius:999px;background:var(--good)"></span>Saved</span>
+      <span style="display:inline-flex; align-items:center; gap:7px; background:var(--warn-bg); border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:700; color:var(--warn)"><span style="width:8px;height:8px;border-radius:999px;background:var(--warn)"></span>Offline — changes won't save</span>
+      <span style="display:inline-flex; align-items:center; gap:7px; background:var(--bad-bg); border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:700; color:var(--bad)"><span style="width:8px;height:8px;border-radius:999px;background:var(--bad)"></span>Can't reach server — working offline</span>
+    </div>
+    <p style="margin:10px 0 0; font-size:13px; color:var(--muted)">Lives in the header (desktop: right of the page title; mobile: under the top bar). ok auto-hides after its existing timeout; offline/error persist until resolved. Never repositioned per screen.</p>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; margin-top:12px">
+    <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">Toast · #toast, 2.2s, bottom-centre</p>
+    <div style="display:grid; gap:8px; justify-items:start">
+      <span style="display:inline-flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--border2); border-radius:12px; box-shadow:var(--elev); padding:10px 16px; font-size:14px; font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><path d="M20 6 9 17l-5-5"></path></svg>Barramundi Fillet added</span>
+      <span style="display:inline-flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--bad); border-radius:12px; box-shadow:var(--elev); padding:10px 16px; font-size:14px; font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>Couldn't save plate: permission denied</span>
+      <span style="display:inline-flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--bad); border-radius:12px; box-shadow:var(--elev); padding:10px 16px; font-size:14px; font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>Couldn't save menu item — you're offline. It has NOT been saved.</span>
+    </div>
+    <p style="margin:10px 0 0; font-size:13px; color:var(--muted)">Failure toasts get the 1px --bad border + icon; wording is prod's, unedited. Failure toasts hold 5s (not 2.2s) — a chef mid-service must have time to read "NOT been saved". Success stays 2.2s. No stacking: newest replaces.</p>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; margin-top:12px">
+    <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">Boot gate · error + retry</p>
+    <div style="border:1px solid var(--border); border-radius:12px; background:var(--bg); padding:44px 24px; display:grid; justify-items:center; gap:10px; text-align:center">
+      <svg viewBox="0 0 64 64" style="width:40px;height:40px;color:var(--brand);opacity:.5" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"></circle><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path></svg>
+      <p style="margin:0; font-size:16px; font-weight:700; max-width:400px">You're offline. EzPlate needs a connection to load your products, plates and menus.</p>
+      <button type="button" style="border:0; border-radius:12px; padding:11px 20px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:14px; cursor:pointer">Try again</button>
+    </div>
+    <p style="margin:10px 0 0; font-size:13px; color:var(--muted)">Existing states kept as-is: loading message, the 4s patient swap ("Still loading — the first open after a break takes a little longer."), error with the one retry. Redesign centres it in the content column, chrome stays usable.</p>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; margin-top:12px">
+    <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">Invoice file failed</p>
+    <div style="border:1.5px dashed var(--border2); border-radius:12px; padding:16px; display:flex; align-items:center; gap:12px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M9.5 12.5l5 5M14.5 12.5l-5 5"></path></svg>
+      <div style="flex:1; min-width:0">
+        <p style="margin:0; font-size:14px; font-weight:700">Couldn't read that file</p>
+        <p style="margin:0; font-size:13px; color:var(--text2)">It doesn't look like an invoice we can read. A photo or PDF from your supplier works best.</p>
+      </div>
+      <button type="button" style="border:1.5px solid var(--border2); border-radius:10px; padding:8px 14px; background:none; color:var(--text); font-weight:800; font-size:13px; cursor:pointer; flex:none">Choose another file</button>
+    </div>
+    <p style="margin:10px 0 0; font-size:13px; color:var(--muted)">Replaces the file strip in the import modal; nothing below it renders. Says what to do, not what went wrong internally. The protected parser is untouched — this is presentation only.</p>
+  </div>
+
+  <!-- 17 Tablet -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">17 · Tablet &amp; breakpoints</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">One rule set, four widths. Tablet is <b style="color:var(--text)">mobile chrome with desktop room</b> — bottom nav stays until 1024px (the shipped swap point), touch targets stay ≥44px throughout, and nothing ever scrolls horizontally.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:6px 20px; font-size:14px">
+    <div style="display:grid; grid-template-columns:150px 1fr; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:700">&lt; 768</span><span style="color:var(--text2)"><b style="color:var(--text)">Phone.</b> As Mobile States: single column, 16px gutters, bottom 5-tab nav, sticky builder footer, floating + button.</span></div>
+    <div style="display:grid; grid-template-columns:150px 1fr; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:700">768–1023</span><span style="color:var(--text2)"><b style="color:var(--text)">Tablet.</b> Bottom nav kept. 24px gutters, content max 720px centred. Dashboard's What moved / Dig in go two-column; Menu renders the desktop table (it fits at 720); Builder keeps the stacked layout — the sticky cost panel needs ≥1120px.</span></div>
+    <div style="display:grid; grid-template-columns:150px 1fr; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:700">≥ 1024</span><span style="color:var(--text2)"><b style="color:var(--text)">Desktop.</b> Sidebar shell (216px + max-1000px column) via the existing <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">.side-brand</code> swap. Hover states arm here only (<code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">@media (hover:hover)</code>).</span></div>
+    <div style="display:grid; grid-template-columns:150px 1fr; gap:16px; padding:12px 0"><span style="font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:700">1120 · 1130</span><span style="color:var(--text2)"><b style="color:var(--text)">Local wraps.</b> Below 1120px the builder cost panel stacks under the docket; below 1130px the Menu filter toolbar wraps. These are the only per-screen breakpoints — add no others.</span></div>
+  </div>
+  <p style="margin:12px 0 0; font-size:13px; color:var(--muted)">Café iPads live in this band, usually landscape (1024–1180px) — so an iPad landscape gets the full desktop shell, and portrait (768–834px) gets tablet. Both are first-class; test both orientations per batch.</p>
+
+  <!-- 18 First run -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">18 · First run</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">A fresh database is genuinely empty now (seeding was removed on purpose). <b style="color:var(--text)">The empty states ARE the onboarding</b> — no tour overlays, no walkthrough modals, no checklists that nag. Each empty screen states the one next step in chef words; the Dashboard shows the whole path.</p>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px">
+    <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">Dashboard · nothing costed yet</p>
+    <div style="border:1px solid var(--border); border-radius:12px; padding:24px; display:grid; gap:16px">
+      <div>
+        <p style="margin:0; font-size:20px; font-weight:800; color:var(--brand)">Let's cost your first plate</p>
+        <p style="margin:2px 0 0; font-size:14px; color:var(--text2)">Three steps, about ten minutes. EzPlate does all the maths.</p>
+      </div>
+      <div style="display:grid; gap:0">
+        <div style="display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--border)">
+          <span style="width:26px;height:26px;border-radius:999px;background:var(--accent);color:var(--on-accent);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:none">1</span>
+          <div style="flex:1; min-width:0"><p style="margin:0; font-size:15px; font-weight:700">Add the products you buy</p><p style="margin:0; font-size:13px; color:var(--text2)">Type them in, or snap an invoice and we'll read it.</p></div>
+          <button type="button" style="border:0; border-radius:10px; padding:9px 14px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:13px; cursor:pointer; flex:none">Add products</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--border); opacity:.55">
+          <span style="width:26px;height:26px;border-radius:999px;background:var(--field);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:none">2</span>
+          <div style="flex:1; min-width:0"><p style="margin:0; font-size:15px; font-weight:700">Build a plate from them</p><p style="margin:0; font-size:13px; color:var(--text2)">Pick ingredients and amounts — the cost adds itself up.</p></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; padding:12px 0; opacity:.55">
+          <span style="width:26px;height:26px;border-radius:999px;background:var(--field);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:none">3</span>
+          <div style="flex:1; min-width:0"><p style="margin:0; font-size:15px; font-weight:700">Put it on a menu with its price</p><p style="margin:0; font-size:13px; color:var(--text2)">Your margin verdict appears right here.</p></div>
+        </div>
+      </div>
+    </div>
+    <p style="margin:10px 0 0; font-size:13px; color:var(--muted)">Replaces the verdict hero while no plate is costed. Steps complete top-down; a done step gets a --good check and full opacity, the next step's button arms. Card disappears forever once a verdict exists — no "getting started" residue. State is derived from data, nothing stored.</p>
+  </div>
+
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; margin-top:12px">
+    <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">Products · first run</p>
+    <div style="border:1px solid var(--border); border-radius:12px; padding:32px 24px; display:grid; justify-items:center; gap:12px; text-align:center">
+      <p style="margin:0; font-size:15px; font-weight:700">No products yet</p>
+      <p style="margin:0; font-size:13px; color:var(--text2); max-width:340px">Start with the 10–15 things you buy most. You can always add more later.</p>
+      <div style="display:flex; gap:10px">
+        <button type="button" style="border:0; border-radius:12px; padding:11px 16px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:14px; cursor:pointer">Snap an invoice</button>
+        <button type="button" style="border:1.5px solid var(--border2); border-radius:12px; padding:10px 16px; background:none; color:var(--text); font-weight:800; font-size:14px; cursor:pointer">Type one in</button>
+      </div>
+    </div>
+    <p style="margin:10px 0 0; font-size:13px; color:var(--muted)">Invoice import leads — it's the least-typing path for a busy kitchen. Builder and Menu empty states already exist in prod ("add your first ingredient" hint, docket empty) and keep their shipped wording, restyled per §12 of the package.</p>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:960,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { theme: null };
+  applyTheme() {
+    var t = this.state.theme || this.props.theme || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate() { this.applyTheme(); }
+  renderVals() {
+    return {
+      toggleTheme: () => {
+        var cur = this.state.theme || this.props.theme || 'dark';
+        this.setState({ theme: cur === 'dark' ? 'light' : 'dark' });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
