@@ -21,9 +21,7 @@ A line naming a finished item is stale by construction, so it gets noticed; a pa
 Three items left the queue entirely (CodeRabbit **NO**, GitHub Pro **NO**, and the zero-menus headline, which turned out to be **already fixed in v97**).
 A fourth - the builder modal - has since closed the same way: **already built, in v54.** See the done entry.
 
-**One live ask for Max: `docs/decisions/2026-08-08-2.html`** (written during the v122 batch) covers the five decision-blocked items below - `kitchen_items`, the `ensurePlateForDish` heal, the three stale `CLAUDE.md` sentences, insight rule D, and mutation testing. Answer it whenever; nothing in the redesign phase waits on it.
-
-**No other live asks.** Both of the previous two are closed: the `menus` RLS migration was written, applied to production and verified as the client on 8 Aug 2026, and the staging project ref arrived the same day.
+**No live asks for Max.** The decisions #2 file was answered 9 Aug 2026 (`docs/decisions/2026-08-08-2-ANSWERS.md` - all five took the recommendation, all five actioned or unblocked the same day). Both of the previous two are closed: the `menus` RLS migration was written, applied to production and verified as the client on 8 Aug 2026, and the staging project ref arrived the same day.
 Migrations are no longer a stop condition at all; `CLAUDE.md` Tier 3 records the reversal.
 ⚠️ **But staging is still not usable** - the ref is in `.mcp.json` and the server does not load. That is a diagnosis job, not a question for Max; see the item.
 
@@ -87,18 +85,12 @@ Apply Design Package §11–15 app-wide: five interaction states per control, sk
 
 ---
 
-## blocked  Drop `kitchen_items`
-Problem: a tenth table nothing reads.
-Verified 7 Aug: the table exists, RLS on, one policy, **0 rows**, and no reader or writer in `js/app.js`.
-Blocked on: Max's yes.
-
-## blocked  `ensurePlateForDish` gives an unlinked row a brand-new EMPTY plate
+## next  `ensurePlateForDish` heals: relink when ONE plate matches, ask when several (DECIDED 9 Aug 2026)
 Problem: correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one.
 Flagged in v113, unchanged.
-Requirements: a heal that looks for the existing plate before creating one - and an answer for what to do when it finds two candidates.
+Requirements (Max's answer, 9 Aug 2026): the heal looks for an existing library plate by the dish's name BEFORE creating an empty one; exactly one match -> relink automatically; several -> ask; none -> today's behaviour (a fresh empty plate).
 Note **no path creates an unlinked row**: the class arrives only from history or a restore, and production has **0** of them today (verified 7 Aug).
-Blocked on: Max's yes.
-It needs its own brief; it is a data-shape decision.
+The data-shape decision is made; build it with the both-sides lesson in mind (a relink heals kid-lines only - see kingMissingImpact's v124 history).
 
 ## blocked  The restore's full-wipe step (step 3)
 Problem: steps 1 and 2 of the v110 destructive plan were run and passed.
@@ -109,35 +101,12 @@ Not something to schedule.
 Blocked on: Max.
 Destructive against real data.
 
-## blocked  Three `CLAUDE.md` lines point a batch at the wrong file
-Problem: the first two were found by the v115 audit, the third by the v119 batch. All are wording, not code - but `CLAUDE.md` says its rules only change with Max's yes.
-⚠️ **Item 3 is the one that actually costs something** - it is why a whole batch was spent discovering the builder was already a modal.
-1. **Tier 2 → Menus** says *"`ensureDefaultMenu` seeds "Original" only when the `menus` table did not answer at all."* The function (`js/app.js:1016`) does no such thing - it seeds whenever the array is empty. The gating is at the **call site** (`js/app.js:457–459`). A batch grepping the function name finds code that looks like it contradicts the rule, and the safe-looking fix is a guard inside the function, which is the wrong place. (The code does defend itself: `:1014–1015` says "The caller decides; this function must never guess".) Also the seeded name is `'Original menu'`, not `"Original"`.
-2. **Tier 1 → the `where true` rule** is filed under *"The one that bites while editing code"*, but there is no such code to edit: all five `.delete()` calls in `js/app.js` are `.eq()`-scoped. The `where true` lines are SQL, in migrations that Tier 3 says are applied by hand and never bundled into a batch. The hazard is real; the framing sends a batch to the wrong file.
-3. **Tier 2 → Fragile areas** says *"**The builder becomes a MODAL (Max, 8 Aug 2026)** … the builder is converted first, the dropdown placement work second"*, which reads as work still to do. **The builder has been a modal since v54** (verified 8 Aug 2026 in a real browser at 380px and 1280px - see the done entry). A batch reading this line goes looking for a conversion that happened two years of versions ago, and the sentence also holds the dropdown item hostage to it.
-   Max's DECISION is not in question and must not be softened - he chose the modal and the app is a modal. What is wrong is only the tense.
-   Suggested replacement: *"The builder is a MODAL and has been since v54; Max confirmed this shape on 8 Aug 2026 against a recommendation to change it. The dropdown placement work is therefore unblocked - the positioning context is already final."*
-4. **(v125 audit, S1) Tier 2 says plates persist `{kid, qty}` ONLY** - but 84 of 179 live plate lines are `{pid,qty}`, and Tier 1's own `addProduct` entry depends on that fact. The word "only" invites a refactor/importer to drop pid and misc lines on the authority of a hard rule - the 76-of-77-dishes failure class. True statement: NEW lines are written `{kid,qty}`; legacy `{pid,qty}` and `{misc,...}` lines are live data every reader must keep resolving.
-5. **(v125 audit, C1/S5 - the audit's lead finding) Tier 3 presents staging as an available safeguard** ("Staging first, then production... Rehearse there") while staging has never once loaded in a session. The hand-run stop condition was retired ON THE STRENGTH of staging existing; the file that carries the replacement safeguard cannot say the safeguard does not run. Until staging is reachable, Tier 3 should say so and say what that means (every migration is unrehearsed).
-Requirements: rule 1 names the call site; rule 2 says it is a MIGRATION-authoring trap; rule 3 puts the builder in the past tense (now doubly so - Q6 shipped the builder redesign inside the modal) without weakening the decision; rule 4 drops the word "only"; rule 5 marks staging unavailable until it demonstrably loads.
-Blocked on: Max's yes. Docs-only, and none of the five changes what the code does. The decisions file (2026-08-08-2.html) asks about the first three; items 4-5 were found after it was written, so confirm the wider scope when he answers.
-
-## blocked  Insight rule D - promote into `CLAUDE.md`?
-Problem: **this item's premise expired and two of its facts were wrong** - corrected 8 Aug 2026 rather than worked around.
-1. It said `CLAUDE.md` records these under "Open, NOT bugs", above a "snapshot line". The three-tier rewrite (#69) deleted both that section and the snapshot line, so there is no longer a line to promote anything above.
-2. **There is no rule E.** The code carries rules **A–D only** (`js/app.js:2974–2998`); "A–E" was a miscount that the old `CLAUDE.md` propagated. The three-logs rule it was bundled with already IS durable law - it is Tier 1's "Five history series, deliberately separate".
-So what is actually left to decide is only rule D (every insight family runs on every render; v90 shipped a panel saying "nothing needs attention" above a bar reporting costs creeping up).
-It is written at the function it governs, which is where `CLAUDE.md`'s own test - "true but inferable is a deletion" - says it belongs.
-Requirements: either promote rule D and say why the comment at the site is not enough, or close this and leave it where it is.
-Blocked on: Max's yes.
-Docs-only either way, and the do-nothing answer is defensible.
-
-## blocked  Mutation testing (Stryker) - measure the tests that cannot fail
+## next  Mutation testing (Stryker) - measure the tests that cannot fail (APPROVED 9 Aug 2026, dev-only)
 Problem: `CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke.
 A test that passes against broken code is worse than no test, because it is trusted.
 The suite is ~799 tests in 0.86s (count re-measured by the v125 audit), so mutating it is cheap - the usual reason not to do this does not apply here.
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
-Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
+Max's yes: 9 Aug 2026, dev-only (`docs/decisions/2026-08-08-2-ANSWERS.md`). The no-new-dependencies rule protects the CLIENT; nothing here ships to it. The v125 audit's six counted "test that cannot fail" incidents are the case for running this soon.
 
 ## next  An eval harness for the invoice reader
 Problem: triaged out of the v115 audit's dropped-threads list, 8 Aug 2026, and it is the one of the five that deserved its own item.
@@ -337,6 +306,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **The five decisions of 9 Aug 2026** - all answered (`docs/decisions/2026-08-08-2-ANSWERS.md`), all recommendations taken, all actioned same-day in one docs batch (handover `HANDOVER-133-decisions.md`):
+  **`kitchen_items` DROPPED** (re-verified 0 rows + no code reference immediately before; applied over the production MCP with staging unavailable, said out loud; rollback recorded in `supabase/migrations/20260809_drop_kitchen_items.sql`). Ten public tables now.
+  **Five stale `CLAUDE.md` lines corrected** (the original three + the v125 audit's two, taken as the same class - flagged in the answers file in case that overreads the yes).
+  **Insight rule D closed** - the rule stays at the code.
+  **`ensurePlateForDish` and Stryker unblocked** as normal `next` items carrying their decisions.
 
 - **Q8 - Invoice review redesign + the ticks bug** - shipped 9 Aug 2026 as **`ezplate-v127`** (PR #96), handover `HANDOVER-132-invoice.md`.
   Scoped as planned (verdict sentence · warn tints · live "Confirm N changes" footer · THE ticks fix); the mock's structural rebuild was not taken - it omits the pack-teach/chips/price machinery.
