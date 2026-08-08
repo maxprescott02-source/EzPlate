@@ -29,9 +29,14 @@ One marker is a thin test: **make a second change before judging this**, so you 
   A warm boot never shows it, so this waits for a real gap.
 - **Re-tap smooth scroll and tab-switch scroll.** Chromium could not answer this: it pauses rAF in background tabs.
   Does iOS Safari fight it?
-- **The dotless chips** - Healthy / Watch / Rework.
-  The active chip carries the colour now.
-  Is the idle row too quiet?
+- **The chips** - Healthy / Watch / Rework.
+  ⚠️ **Corrected 8 Aug 2026 by the v115 audit: this entry used to read "the dotless chips", which described a state that never shipped.**
+  The dots were removed in v115's first draft and put BACK on Max's own instruction the same day (`HANDOVER-v115.md:227` reverses `:116`).
+  Both the dots (`css/style.css:504`) and the active-chip tint the removal introduced (`:507-510`) ship together.
+  So the question is not whether the idle row is too quiet without dots - it is whether **dots plus a tinted active chip** is one signal too many.
+- **The v115 splash / loading screen.** Rebuilt live on the last shipping batch after being decided three ways in one day (`HANDOVER-v115.md:222` then `:247`, which supersedes it), and it is the first thing a user sees.
+  It also carried a bug only a browser caught - the session flag was set before it was read (`HANDOVER-v115.md:265`).
+  Failure: it flashes on a warm open, or shows twice, or a real week-long gap shows the wrong one of the two states.
 - **Builder rows at 380px.** The overflow from Max's screenshot.
   Contained in Chromium by measurement; the phone is the judge.
 - **The Gemini insight arrival.** Settles rather than flashes?
