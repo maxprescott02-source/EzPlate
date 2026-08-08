@@ -133,7 +133,7 @@ That is why the since-line renders at all-menus scope only.
 `postgres` (MCP, SQL editor) and `authenticator` (PostgREST, for `anon` and `authenticated`) differ in ways that change whether SQL *runs at all* - preloaded libraries, `statement_timeout`, and RLS, which the MCP bypasses entirely.
 The `verify` skill has the differences and the procedure for exercising an RPC as the client.
 
-The one that bites while editing code: **`safeupdate` rejects any WHERE-less `DELETE` or `UPDATE`** for `authenticator` but not for `postgres`.
+The one that bites while AUTHORING A MIGRATION (there is no client code to edit - every `.delete()` in `js/app.js` is `.eq()`-scoped; the `where true` lines are SQL): **`safeupdate` rejects any WHERE-less `DELETE` or `UPDATE`** for `authenticator` but not for `postgres`.
 So **the `where true` on the restore's deletes is load-bearing** - it looks like a no-op and is not.
 Do not tidy it away.
 
@@ -246,7 +246,7 @@ Describing without naming is fine - "the name you'll use when building plates" i
   If something new resists that classification, **ask: there is no third category.**
 - Products come from the Supabase `ingredients` table and nowhere else.
   Custom ids are `CX*`.
-- Plates persist `{kid, qty}` only; kitchen-word renames are display-only.
+- NEW plate lines are written `{kid, qty}`; legacy `{pid, qty}` and `{misc, label, cost}` lines are LIVE data (84 of 179 lines at the v125 count) that every reader must keep resolving. Kitchen-word renames are display-only. (The word "only" was dropped 9 Aug 2026, Max's yes - it invited a refactor or importer to discard the legacy shapes on the authority of a hard rule.)
 - `nextKid()` scans the live `kitchenIngredients` array - push immediately, never batch ids.
 
 ## Writes
@@ -267,7 +267,7 @@ Describing without naming is fine - "the name you'll use when building plates" i
 There is **no holding area** and **no last-menu guard**: any menu is deletable, including the last, and **zero menus is a legitimate state**.
 
 `fallbackMenuId()` never returns a deleted id and returns `null` when no menu exists.
-**`ensureDefaultMenu` seeds "Original" only when the `menus` table did not answer at all.** A successful EMPTY read is the user having deleted everything and must be respected - an earlier version keyed off a localStorage signal that read false forever and resurrected "Original menu" on every boot.
+**The `ensureDefaultMenu` GATE lives at its CALL SITE in `bootstrapSync`, not in the function** - the function seeds `'Original menu'` whenever the array it is handed is empty and must never guess (its own comment says so); the caller invokes it only when the `menus` table did not answer at all. A successful EMPTY read is the user having deleted everything and must be respected - an earlier version keyed off a localStorage signal that read false forever and resurrected "Original menu" on every boot. (Wording corrected 9 Aug 2026, Max's yes - the old sentence sent a batch to guard the wrong place.)
 
 ## No new dependencies, no build step, no scope creep
 
@@ -316,9 +316,9 @@ Read the relevant tests first, diagnose with a truth table before patching, lock
 - **Supplier renames must migrate supplier memory.** Taught matches key off the supplier NAME (`memKey`); renaming without re-keying orphans them silently.
   `tidySupplierMemMigration` rebuilds keys from each entry's already-normalised `phrase_norm`.
   Apply the same pattern to any future rename of a name used as a lookup key elsewhere.
-- **The builder becomes a MODAL (Max, 8 Aug 2026)** - decided against the recommendation to leave it a full page, and it sets an ORDER, not just a shape: **the builder is converted first, the dropdown placement work second.**
-  The two are one job done twice if taken the other way round, because the positioning context every dropdown resolves against changes with the builder.
-  Do not "fix" a dropdown against the page layout in the meantime.
+- **The builder IS a MODAL and has been since v54; Max confirmed this shape on 8 Aug 2026 against a recommendation to change it, and Q6 (v125) shipped its redesign inside the modal.**
+  The dropdown placement work is therefore UNBLOCKED - the positioning context is already final.
+  (Tense corrected 9 Aug 2026, Max's yes - the old future-tense wording cost a whole batch hunting a conversion that had shipped two years of versions earlier.)
 - **Mobile visual consistency:** one card system, compact header pills not full-width bars, one primary CTA per screen.
   A previous density pass was rolled back wholesale - visual changes are surgical, one screen at a time.
 
@@ -360,7 +360,7 @@ Its highest-value output is "this is the wrong question": one request asked whic
 
 **The safeguards are not optional - the old rule's protection has to be replaced, not just deleted:**
 
-- **Staging first, then production.** `.mcp.json` carries both projects; staging is `supabase-staging`. Rehearse there, then apply to production.
+- **Staging first, then production - BUT staging has never yet loaded in any session.** `.mcp.json` carries both projects (`supabase-staging`), and the server does not come up - see the queue's diagnosis item. **Until it demonstrably loads, every migration is UNREHEARSED against production: say so out loud before applying anything that is not a behavioural no-op, and defer destructive ones.** (Marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available.)
 - **Order the statements so the dangerous intermediate state cannot exist**, rather than trusting the transaction alone to prevent it. Keep the transaction as well. (Worked example in `20260808_menus_rls.sql`: create the inert policy first, enable RLS second, so a failure between them leaves today's behaviour.)
 - **Verify AS THE CLIENT, over PostgREST with the anon key.** The MCP and the SQL editor run as `postgres` and bypass RLS, so they cannot see a policy mistake - see "The client's role is not the MCP's role".
   On a write, send `Prefer: return=representation` and check a row came back: **a blocked anon write returns success and touches nothing**, so an empty response, not an error, is the failure signal.

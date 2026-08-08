@@ -1,0 +1,26 @@
+-- Drop public.kitchen_items — the tenth table, which nothing reads or writes.
+--
+-- WHY: verified 7 Aug 2026 (queue item) and RE-verified immediately before applying (9 Aug 2026):
+--   0 rows, no reader or writer anywhere in js/app.js or api/, RLS was on with one policy.
+--   Max's yes: docs/decisions/2026-08-08-2-ANSWERS.md ("Yes, drop it").
+--
+-- APPLIED: 9 Aug 2026, by Claude (Fable 5) over the production MCP (execute_sql; apply_migration is
+--   blocked in this environment). STAGING WAS NOT AVAILABLE — the supabase-staging MCP server has
+--   never loaded (see docs/QUEUE.md staging item), so this ran unrehearsed against production, said
+--   out loud per the Tier 3 rule. Accepted because the app-behavioural risk is zero (no reference in
+--   any shipped file) and the data risk is zero (0 rows re-verified in the same session).
+--
+-- VERIFIED: information_schema.tables count for (public, kitchen_items) = 0 after the drop.
+--   Client-role verification is N/A: no client code path touches the table, so there is no RPC or
+--   PostgREST surface to exercise as `authenticator`.
+--
+-- ROLLBACK (one statement, restores the exact shape captured before the drop; the table held no data):
+--   create table public.kitchen_items (
+--     id text not null,
+--     name text not null,
+--     current_product_id text,
+--     created_at timestamptz default now()
+--   );
+--   (RLS/policy would then need re-enabling if it is ever actually used; it never was.)
+
+drop table public.kitchen_items;
