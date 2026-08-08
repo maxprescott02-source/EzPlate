@@ -137,20 +137,24 @@ None of it can be checked from a container.
 
 ## v103 - Ingredients tab + the carried D block
 
-- **Ingredient cards with the price column at 380px.** Long product names now wrap into the space the price vacated - does the column read at arm's length, and do prices scan as one axis down the list?
+⚠️ **The Ingredients tab was redesigned in v124** (cards → one surface of rows, inline drift, loud broken links). The D-block flows still apply; the card descriptions predate the redesign.
+
+- **~~Ingredient cards with~~ Ingredient ROWS (v124) with the price column at 380px.** Long product names now wrap into the space the price vacated - does the column read at arm's length, and do prices scan as one axis down the list?
 - **The two compressed modal hints in situ.** "Follows the linked product." is the tersest line shipped - five-second test it.
 - **D1 (v86 carried):** the strapline in situ.
 - **D2 (v86 carried):** the setup-from-products wizard - progress and done states.
 
 ## v102 - Plates tab + the carried B block (the biggest single clearable chunk)
 
-- Plates cards: 16px radius + 8px seam at tablet/desktop widths - glance check.
+⚠️ **The Plates tab was redesigned in v123** (card grid → one surface of rows) and the builder in v125 (cost panel + docket columns). The B-block FLOWS below are still worth driving; the visual descriptions predate the redesign - judge the new rows/panel on their own terms.
+
+- ~~Plates cards: 16px radius + 8px seam at tablet/desktop widths~~ (superseded by the v123 rows - glance-check the row list instead).
 - Builder popup: no hint under the search (with ingredients); the compressed docket line; the no-ingredients empty state still appears on a fresh install.
 - The Manage-menus modal one-liner in situ.
 - Chip tint on plate cards in dark mode with theme = System (the fixed path).
 - **B1–B9, all on this tab:** B1 draft resume round-trip · B2 re-entry guard (+ no-nag after save) · B3 live margin preview vs Menu row · B4 sticky Save reachable · B5 "Add to a menu" wording · B6 no-match dead-end lands on Ingredients · B7 empty-plate no-match shows message only · B8 unnamed-plate refusal stays put · B9 printed docket copy.
-  **Note on B1/B2:** the queue's "builder plants a draft just from looking" bug lives exactly here.
-  If the resume prompt greets you after a look-only visit, that is the known bug, not a new finding.
+  **Note on B1/B2 (corrected 9 Aug 2026 by the v125 audit):** the "builder plants a draft just from looking" bug was FIXED in v118 - the v118 block near the top of this file is the current truth.
+  If the resume prompt greets you after a look-only visit, that is a REGRESSION worth reporting, not a known bug to ignore.
 
 ## v101 - Settings prose
 
