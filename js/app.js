@@ -4325,7 +4325,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v126';
+var APP_VERSION='v127';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -6317,6 +6317,13 @@ function renderInvWaiting(box){
     +'<div class="inv-wait-s">Nothing has been saved. The lines appear once the check is done.</div></div></div>';
   box.style.display='block';
 }
+/* Q8 (v127): the footer counts what will actually apply — "Confirm N changes", recounted on every
+   tick and every re-render from the live checkboxes (the same boxes confirmApplyInvoice reads). */
+function updateInvApplyCount(){
+  var box=document.getElementById('invReview'); var btn=box&&box.querySelector('#invApply'); if(!btn) return;
+  var n=box.querySelectorAll('.invAppr:checked').length;
+  btn.textContent='Confirm '+n+' change'+(n===1?'':'s');
+}
 function renderInvReview(){
   if(gemPending()){ var wbox=document.getElementById('invReview'); if(wbox) renderInvWaiting(wbox); return; }   // v113: nothing actionable exists until the referee has spoken
   invRows.forEach(function(r,i){ if(r&&r.addNew&&r.newItem){ var s=niSnapshot(i); if(s) r.newItem=s; } });   // v50 item 1: capture an OPEN new-item form before innerHTML wipes it. Guarded on r.newItem so a fresh addNew row (newItem:null) can't absorb a stale form left in the DOM by a previous invRows/import — only a form THIS row actually opened is re-captured.
@@ -6325,7 +6332,8 @@ function renderInvReview(){
   var matched=states.filter(function(s){return s==='matched';}).length;
   var newc=states.filter(function(s){return s==='new';}).length;
   var review=states.filter(function(s){return s==='review';}).length;
-  var html='<div class="inv-sum">'+matched+' matched \u00b7 '+newc+' new \u00b7 '+review+' to review'+gemStatusHtml()+'</div>';
+  // Q8 (v127): the verdict reads as a sentence — the design's copy, same three invRowState counts
+  var html='<div class="inv-sum"><b>'+matched+' matched and ready</b> · '+review+(review===1?' needs':' need')+' your eye · '+newc+' new product'+(newc===1?'':'s')+'. Nothing saves until you confirm.'+gemStatusHtml()+'</div>';
   if(invGst.note) html+='<div class="inv-gst">'+esc(invGst.note)+'</div>';
   html+='<div class="atable-wrap"><table class="invtable"><thead><tr><th>Invoice line</th><th>Unit price</th><th>Match to product</th><th>Old</th><th>Conf.</th><th>Apply</th></tr></thead><tbody>';
   invRows.forEach(function(r,i){
@@ -6378,7 +6386,14 @@ function renderInvReview(){
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
     var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.gemMatchReview?' <span class="flag-review">check match</span>':(r.gemPriceReview?' <span class="flag-review">check price</span>':(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')))):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > suspected wrong match (v63) > AI price-check (v66) > price jump > low match.
-    var checked = (invRowState(r)==='matched') || !!(r.newItem && r.newItem.approved);  // only clean hi-confidence matches auto-apply; everything else waits for the user's tick. v50 item 1: once the user ticks a new-item row, that tick persists on r.newItem so a re-render can't drop it (v39 still holds — rows with no newItem never pre-tick)
+    /* Q8 (v127) — THE TICK TRUTH TABLE (the v50/v52 "ticks lost on any re-render" bug, fixed):
+         userTick set   -> the USER's tick/untick stands, whatever the state (their decision, restored —
+                           not a pre-tick; an untick on a matched row survives too)
+         userTick unset -> the auto-tick law, unchanged: ONLY 'matched' pre-ticks
+         addNew rows    -> r.newItem.approved stays the one home for that tick (v50 contract)
+       invSelChanged DELETES userTick — changing the match changes what the tick approved. */
+    var checked = r.addNew ? !!(r.newItem && r.newItem.approved)
+      : (r.userTick!=null ? !!r.userTick : (invRowState(r)==='matched'));
     var chips='';
     if(!r.addNew && r.cands && r.cands.length>1){                 // multiple plausible matches: surface the real choices immediately
       chips='<div class="cand-chips">'+r.cands.slice(0,3).map(function(c){
@@ -6448,7 +6463,7 @@ function renderInvReview(){
         var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
         var pvEl=tr.querySelector('.pt-preview');                  // v45 item 1: the preview line lives under .price-row now, not inside .pack-teach
         if(pvEl){ pvEl.textContent=invPackPreviewText(r, q, u); }
-        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks
+        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(r.userTick!=null)?!!r.userTick:(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks; Q8: the user's own tick stands
       }
     }
     pt.querySelector('.invPackQty').addEventListener('input', recompute);
@@ -6464,7 +6479,7 @@ function renderInvReview(){
       sel.value=ch.getAttribute('data-cid');
       invSelChanged(tr);                                             // updates row data + full re-render (this tr is now detached)
       var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');   // re-query the rebuilt row; the selected chip's .sel + % come from render
-      var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');
+      var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=(invRowState(invRows[i])==='matched');   // userTick was deleted by invSelChanged just above — the state default IS the truth here
     };
   });
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
@@ -6478,6 +6493,16 @@ function renderInvReview(){
     var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=false;   // v39: new items are ticked by the user once the form is filled
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
+  // Q8 (v127): persist the human's tick (the truth table at `checked`), and keep the footer count live
+  box.querySelectorAll('.invAppr').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      var tr=cb.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10); var r=invRows[i]; if(!r) return;
+      if(r.addNew){ if(r.newItem) r.newItem.approved=cb.checked; }   // the v50 home for the add-new tick
+      else r.userTick=cb.checked;
+      updateInvApplyCount();
+    });
+  });
+  updateInvApplyCount();
   invRows.forEach(function(r,i){                                   // v50 item 1: re-open + rehydrate any new-item form that was open before this rebuild
     if(r&&r.addNew&&r.newItem){
       expandNewItem(i);
@@ -6507,7 +6532,7 @@ function flagNeedsAttention(row){                                  // ITEM 4: on
 /* ===================================================================================
    v62: AI second reader (Reader 2 / Gemini) — request + merge. Everything here wraps
    AROUND the existing parser and review flow; it never edits the protected region and
-   changes nothing when the network is absent. See handovers/HANDOVER-v62.md for the
+   changes nothing when the network is absent. See docs/handovers/HANDOVER-v62.md for the
    rule-by-rule rationale and the chosen plausibility band.
    =================================================================================== */
 var GEM_BAND=0.5;                                                  // rule 3 plausibility band: adopt a reading only if within ±50% of price history H
@@ -6759,6 +6784,7 @@ function invSelChanged(tr){
   var i=parseInt(tr.dataset.i,10), r=invRows[i]; if(!r) return;
   var sel=tr.querySelector('.invSel'), old=tr.querySelector('.invOld'), appr=tr.querySelector('.invAppr');
   r.addNew=false; r.newItem=null; collapseNewItem(i);   // v50 item 1: picking a real match abandons any in-progress new-item form
+  delete r.userTick;                                    // Q8 (v127): the match changed, so the old tick no longer approves this application — back to the state default
   r.gemMatchReview=false; r.gemSuggestId=null;          // v63 item 2: the human has now ruled on the match — the "check match" flag is spent
   r.gemPriceReview=false;                               // v66: a new match re-derives the price — any AI price-check is moot
   if(sel.value==='skip'){ r.bestId=null; r.manualPick=false; r.needsAttention=false; renderInvReview(); return; }  // one render path — no per-cell poking

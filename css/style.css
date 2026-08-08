@@ -2188,10 +2188,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .settings-panel .mfoot{position:sticky;bottom:0;background:var(--surface)}
 
 /* ===== batch (v37) — Fable consistency patch (Max notes 15 Jul) ===== */
-/* the invoice tint reads the SAME state machine as the summary: matched / review / new */
-.invtable tr.inv-data.st-review:not(.sec):not(.ni-row),
+/* the invoice tint reads the SAME state machine as the summary: matched / review / new.
+   Q8 (v127): review rows wear WARN (the design's tint — they need an eye, they are not errors);
+   a new row carries an accent stripe and no wash (its "new item" flag is the signal). */
+.invtable tr.inv-data.st-review:not(.sec):not(.ni-row){
+  background:var(--warn-bg);border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn)}
 .invtable tr.inv-data.st-new:not(.sec):not(.ni-row){
-  background:var(--bad-bg);border-color:var(--bad);box-shadow:inset 3px 0 0 var(--bad)}
+  box-shadow:inset 3px 0 0 var(--accent)}
 /* search bars: clear button always visible (the Products pattern), builder included */
 .search-wrap{position:relative}
 .q-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:2}
