@@ -6,10 +6,12 @@ Ordering is priority - move an item up to change what happens next.
 Max adds problems here, not briefs: what is wrong, and what must be true when it is fixed.
 How is Claude Code's call.
 
-**⚠️ 12 of the 13 blocked items below are waiting on Max** - the exception is "Re-pin claude-code-action", which waits on upstream and needs no decision.
-**The five that unblock the most are in `docs/decisions/2026-08-08.html`** (also in `~/Downloads`) - open it on a phone, answer what you like, tap Copy answers, paste back.
-Answering it releases: Staging Supabase, Builder as modal (which gates the dropdown work), CodeRabbit, GitHub Pro, `public.menus` RLS, and the zero-menus headline.
-The rest stay blocked on purpose - they are cheap to defer and a longer file goes unanswered.
+**All five questions in `docs/decisions/2026-08-08.html` were ANSWERED on 8 Aug 2026.** The answers are recorded in `docs/decisions/2026-08-08-ANSWERS.md` - read that before re-proposing anything it covers.
+Three items left the queue entirely (CodeRabbit **NO**, GitHub Pro **NO**, and the zero-menus headline, which turned out to be **already fixed in v97**), one became the top unblocked item (the builder modal), and two are now blocked on a concrete thing rather than a decision: Max running the `menus` RLS migration, and the staging project ref.
+
+**Two live asks for Max, both small:**
+1. **Run `supabase/migrations/20260808_menus_rls.sql`** - verification steps are at the bottom of the file.
+2. **Create the free staging Supabase project and send the ref.**
 
 **Reconciled 7 Aug 2026** against `CLAUDE.md`'s outstanding list, the "Deliberately NOT built" / "Found, not fixed" / "Follow-ups" sections of all 66 handovers, and the Batch 0 audit.
 Every item below was checked against the code or production before it was kept or added - line numbers and counts are measured, not quoted.
@@ -17,23 +19,18 @@ Suite green (0 fail) at reconcile time.
 
 ---
 
-## blocked  Builder as modal - decision
-Problem: the builder is a full page.
-Making it a modal was raised and never decided.
-It gates the dropdown work below: the positioning context changes, so fixing dropdowns first means fixing them twice.
-Blocked on: Max.
-Product decision, not a technical one.
+## next  Convert the builder to a modal
+**DECIDED 8 Aug 2026 (Max): make it a modal first.** Against the recommendation, which was to leave it a page - recorded in `docs/decisions/2026-08-08-ANSWERS.md` and in `CLAUDE.md` Tier 2.
+Problem: the builder is a full page, and the dropdown work below cannot sensibly start until this lands - the positioning context every dropdown resolves against changes with it, so doing dropdowns first means doing them twice.
+Requirements: the builder opens as a modal on mobile and desktop, and everything it does today still works - the draft machinery (v118), `guardUnfinishedPlate` on every entry, the unfinished-plate prompt, and the plate-name suggest.
+One primary CTA per screen; surgical, not a density pass.
+Out of scope: the dropdown placement work itself, which is the NEXT item and must not be folded in.
+⚠️ **This is big enough to be its own batch and probably its own PR.** Do not bundle it with the dropdowns - that is explicitly the "would exceed what one PR can be reviewed as" stop condition.
 
 ## blocked  Drop `kitchen_items`
 Problem: a tenth table nothing reads.
 Verified 7 Aug: the table exists, RLS on, one policy, **0 rows**, and no reader or writer in `js/app.js`.
 Blocked on: Max's yes.
-
-## blocked  `public.menus` has RLS disabled
-Problem: verified 7 Aug - `menus` is the only public table with `relrowsecurity = false` and **zero policies**; the other ten all have RLS on.
-Requirements: decide whether this is fixed now or at the multi-tenant gate.
-It is harmless single-tenant and a real hole the moment there are two accounts.
-Blocked on: Max - the answer depends on whether multi-tenant has a date.
 
 ## blocked  `ensurePlateForDish` gives an unlinked row a brand-new EMPTY plate
 Problem: correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one.
@@ -68,22 +65,6 @@ It is written at the function it governs, which is where `CLAUDE.md`'s own test 
 Requirements: either promote rule D and say why the comment at the site is not enough, or close this and leave it where it is.
 Blocked on: Max's yes.
 Docs-only either way, and the do-nothing answer is defensible.
-
-## blocked  Zero menus + existing history shows a stale headline figure
-Problem: with nothing costed, the dashboard still states a percentage from the old series.
-Arguably an honesty question.
-Pre-existing v89 behaviour, flagged in v96, unchanged.
-Requirements: decide what the headline says when there is nothing to average.
-Blocked on: Max - it moves the headline number in a state that has shipped for seven versions, so it is not a judgement call.
-
-## blocked  CodeRabbit free tier as the independent second reader
-Problem: the GitHub Actions "Code review" workflow was demoted to on-demand on 8 Aug 2026 - 11 runs, 5 silent skips, zero bugs found, ~$20 of Max's personal Claude subscription capacity and ~15 min per batch.
-That leaves the pre-push `code-review` agent as the only reviewer, and it runs on the same machine as the batch.
-CodeRabbit is now **free for private repos, unlimited**, and has the measured record here: **two criticals in v108 alone**, plus real bugs in v102, v111 and v113.
-It was dropped only because a trial expired, not because it underperformed.
-Requirements: it reviews every PR, and its findings follow the same rule as any other - fixed, explained, or queued, in the same branch.
-Known problems, documented in this repo's own handovers: **the CLI times out**, and **it skips untracked files** - so a brand-new file can pass review by never being read.
-Blocked on: **Max.** It needs a GitHub App installed against his account, which no agent can do.
 
 ## blocked  Mutation testing (Stryker) - measure the tests that cannot fail
 Problem: `CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke.
@@ -134,19 +115,10 @@ Requirements: once a release ≥ v1.0.188 contains upstream `d573b167`, pin back
 `gh api repos/anthropics/claude-code-action/contents/src/modes/detector.ts?ref=v1 -H 'Accept: application/vnd.github.raw' | grep -A6 'const validActions'` - if `labeled` appears, re-pin.
 Blocked on: upstream, not Max. Nothing to decide; check it when a batch next touches the workflow.
 
-## blocked  GitHub Pro at $4/month - so a check can actually gate `main`
-Problem: branch protection and rulesets require Pro on a private repo (the API returns **403**), so today **nothing can block a merge** - "mandatory review" is a convention, not a mechanism.
-$4/month buys the mechanism: a required check that stops a merge with a red review or a failing suite.
-Blocked on: **Max.** A spending decision, not a task - there is nothing to build until he says yes.
-
----
-
-## blocked  Staging Supabase
-**Stop condition fired 8 Aug 2026, and it is not something a batch can work around.**
-There is no staging project to build against and no agent can create one: the Supabase MCP is scoped to a single `project_ref` (`.mcp.json:5`, production) and exposes no project-creation tool.
-The alternative, Supabase's own branching (`create_branch` / `merge_branch`), is a **paid add-on**, so that is a spending decision as well as an account one.
-Blocked on: **Max.** Either create a second free-tier Supabase project and add its ref, or say yes to paid branching.
-Everything below is what to build once one of those exists, and none of it can start before then.
+## blocked  Staging Supabase - waiting on the project ref
+**DECIDED 8 Aug 2026 (Max): a free second Supabase project**, not paid branching - he confirmed separately he does NOT need Supabase Pro.
+Blocked on: **the project ref.** Max creates the project in the Supabase dashboard and sends the ref; it goes in `.mcp.json` and everything below can start.
+Accepted at decision time: free projects pause after about a week idle, and staging will sit idle exactly that long between batches, so it will often need an unpause click first.
 
 Problem: `.mcp.json` points at production.
 Every batch since v89 has run against live data.
@@ -155,8 +127,6 @@ Requirements: migrations apply to staging first and are verified there before Ma
 Local state cannot cross environments - demonstrate it, do not assert it.
 Empty, realistic and scale seeds (12 menus, several hundred products, plates on multiple menus).
 Out of scope: multi-tenant, auth, RLS policy work.
-Note: this is the loop's most common stop condition.
-Until it exists, "autonomous" means halting every second batch to wait for a hand-run migration.
 
 ## next  Floating layers and mobile dropdowns
 Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying.
@@ -165,7 +135,7 @@ Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce anim
 **Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
-Blocked on: the builder-as-modal decision above.
+**Sequenced, not blocked:** the builder-as-modal decision was made 8 Aug 2026, so this waits on that CONVERSION landing rather than on an answer. Start it the batch after.
 
 ## next  Invoice ticks are lost on any re-render
 Problem: `renderInvReview()` is a full-row rebuild, and it re-derives every tick from `invRowState` - `checked = (state === 'matched')`.
@@ -256,7 +226,8 @@ Login purges local state (v108 removed the heal machinery that made this collide
 ## next  `business_id` on every table, plus RLS
 Requirements: staged, one table at a time, migration by hand, each verified before the next.
 RLS with no matching policy returns 200 and an empty array, not an error - a policy mistake looks exactly like "no data".
-Note: `menus` starts from RLS OFF and zero policies, so it is the one table that needs enabling as well as policying.
+Note: **`menus` no longer starts from RLS OFF** - corrected 8 Aug 2026, when `20260808_menus_rls.sql` was applied. All eleven public tables now have RLS on with at least one policy, so no table needs ENABLING as well as policying; they all need their permissive `using (true)` policy REPLACED with a `business_id` one.
+(This sentence was the one the RLS migration told people to go and fix. It said to fix it in `CLAUDE.md`, where it never lived - the v121 review caught that.)
 See the blocked item above.
 
 ## next  Roles - owner vs staff
@@ -290,6 +261,18 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **The five decisions of 8 Aug 2026** - all answered, recorded in `docs/decisions/2026-08-08-ANSWERS.md`.
+  Two went **against the recommendation** and are flagged there as such, because a decision taken against advice is the one most likely to be quietly reversed later by someone who only sees the advice.
+  - **CodeRabbit: NO. GitHub Pro: NO.** Both out of the queue. **Do not re-propose either.** The mandatory pre-push `code-review` agent is unchanged and is now permanently the only second reader; recorded in `CLAUDE.md`.
+  - **Builder becomes a modal, and it sets an ORDER** - modal first, dropdowns second. Recorded in `CLAUDE.md` Tier 2.
+  - **`menus` RLS fixed now**, migration written and awaiting Max.
+  - **Staging: a free second project**, not paid branching.
+
+- **Zero menus + existing history shows a stale headline figure** - closed 8 Aug 2026 as **already fixed, and the item was stale.**
+  Max answered "show a dash", which is what the app has done since **v97**: `computeAvgFoodCost` returns null, `verdictHtml` renders `—` plus "Nothing costed and priced yet", and `tests/dash-persist.test.js:400` has pinned it since.
+  Reproduced in a real browser at 380px with zero menus and 14 history points before closing: headline `—`, honest line, chart still drawn.
+  **The item described pre-v97 behaviour and survived the 7 Aug reconcile without being checked against the code** - the second time in two batches that a queue entry claimed something was missing when it had shipped.
 
 - **Threads that never reached any landing place** - triaged 8 Aug 2026. Two became their own items (the invoice eval harness, the surviving `TODO(Max)`), two were folded into the items that already owned the question (`manager` into Roles, bulk catalogue bootstrap into Onboarding), and one was **closed as already built**.
   **Abbreviation matching in search ships and has since v55.** `kitchenSearchMatches` calls `kingSearchFilter`, which matches a kitchen ingredient against its linked product's description and brand, and `matchTokens` requires every token - so "bread gf" finds ingredient "Bread" via product "Bread GF — TipTop". The comment at `app.js:673` states that example outright.

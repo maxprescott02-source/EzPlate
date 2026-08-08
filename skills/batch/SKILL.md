@@ -1,6 +1,6 @@
 ---
 name: batch
-description: Run a queued item end to end without stopping for approval - investigate, plan, build, test, review, merge, hand over, take the next item. Stops only on the conditions listed below.
+description: Run a queued item end to end without stopping for approval - investigate, plan, build, test, review, merge, hand over, drop the context, take the next item. Stops only on the conditions listed below.
 ---
 
 # Batch
@@ -47,7 +47,18 @@ If you are running `/batch`, you are in the first case.
     Nothing to remember and no calendar: the version increments once per batch, so it already is the counter.
     **When you later run that item, YOU file the report** to `docs/audits/AUDIT-vNN.md` at the version it audited.
     The agent is read-only and hands the report back rather than saving it, so an unfiled report leaves the counter unchanged and the next audit never gets queued.
-11. **Next item.**
+11. **CLEAR THE CONTEXT. Carry nothing forward except the queue.**
+    By this point everything durable is in `CLAUDE.md`, the handover, `docs/QUEUE.md` and `docs/PHONE.md` - **that is what those files are for.** Anything still living only in the conversation is either already written down, or was never worth keeping.
+    This is the safest point in the loop to stop: the work is merged, the diary is written, the queue is ticked.
+
+    **You cannot clear your own context - there is no tool for it.** So do both of these:
+    - **Say the item is done and that this is a clean break**, in one line, so Max can `/clear` and re-run `/batch` if he wants a genuinely fresh window. Do not wait for him.
+    - **Then behave as though it had been cleared**, which is the part that is actually yours.
+
+    **Behaving as though cleared, concretely.** Re-read `docs/QUEUE.md`, `CLAUDE.md`, `docs/PHONE.md` and the newest handover **from disk**. Not "recall" - read them.
+    Then treat every belief from the item you just finished as **absent unless it is in one of those files**: counts, line numbers, what a function does, what you concluded about a file, what you decided not to do.
+    If you find yourself about to act on something you know only because you did the last item, **that is the signal it should have been written down** - go and write it in the right file first, then act on the file.
+12. **Next item.**
 
 **Bump the cache version** as part of step 4 whenever the batch ships a client asset - the `cache-version` skill has the six spots.
 `CLAUDE.md` has no snapshot section to update; current state lives in git, `docs/QUEUE.md` and `docs/PHONE.md`.
