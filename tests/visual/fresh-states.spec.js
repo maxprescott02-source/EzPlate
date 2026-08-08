@@ -373,7 +373,13 @@ window.renderInvReview();
 document.getElementById('invModal').classList.add('open');`;
 
 for (const size of SIZES) {
-  test(`v46 item 3: ingredient cards share the Products grid @ ${size.name}`, async ({ page }) => {
+  /* Q5 (v124): REWRITTEN — this spec used to pin the v46/v103 shared card GRID (3-up at desktop),
+     which the Q5 redesign deliberately replaced with one surface of stacked rows. The premise
+     changed; the two checks still worth keeping (the 2-line clamp on the linked-product line, and
+     keyboard access through the role="button" row) carry over unchanged. The focus ring is now
+     INSET (outline-offset:-2px) because the surface's overflow:hidden clips an outward ring — the
+     same defect the Q4 review caught on #plateList. */
+  test(`Q5: ingredient rows stack on one surface @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
     await page.goto('/');
@@ -390,15 +396,21 @@ for (const size of SIZES) {
     const grid = await page.evaluate(() => {
       const king = Array.from(document.querySelectorAll('#kingList .king-row')).map(r => Math.round(r.getBoundingClientRect().left));
       const link = document.querySelector('.king-row[data-kid="K2"] .king-link');
+      const list = document.getElementById('kingList');
+      // script focus() on a div does not match :focus-visible, so resolve the rule from the CSSOM
+      const insetRule = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } })
+        .some(r => r.selectorText && r.selectorText.includes('#kingList .king-row:focus-visible') && r.style.outlineOffset === '-2px');
       return {
         kingCols: new Set(king).size,
-        ingCols: getComputedStyle(document.querySelector('#kingList')).gridTemplateColumns.split(' ').length,
+        surface: getComputedStyle(list).overflow === 'hidden' && getComputedStyle(list).borderTopWidth === '1px',
         clamp: link ? getComputedStyle(link).webkitLineClamp : null,
+        insetRule,
       };
     });
-    // the SAME column story as .ing-list: 1 col at 380, 3 at 1280
-    expect(grid.kingCols, 'ingredient card columns').toBe(size.name === 'desktop' ? 3 : 1);
+    expect(grid.kingCols, 'rows stack — one shared left edge at every width').toBe(1);
+    expect(grid.surface, 'the list is one bordered, clipped surface').toBe(true);
     expect(grid.clamp, 'linked-product line clamps to 2 lines').toBe('2');
+    expect(grid.insetRule, 'focus ring is inset, or the surface clip eats it').toBe(true);
     // keyboard access survives the restyle
     await page.evaluate(() => document.querySelector('.king-row[data-kid="K1"]').focus());
     await page.keyboard.press('Enter');

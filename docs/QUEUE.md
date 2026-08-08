@@ -71,7 +71,9 @@ one screen per batch, one PR, one review · change only the HTML strings the nam
 
 ## next  Q5 - Ingredients redesign
 Implement `Redesign - Ingredients.dc.html`. Stop after.
-> **Plan.** The `data-tab="pantry"` screen, UI label "Ingredients" - `renderIngredients`. Rows become ingredient / "→ linked product · brand · supplier" / unit cost, with inline drift % when the last invoice moved it.
+> **Plan.** The `data-tab="pantry"` screen, UI label "Ingredients" - **`renderKitchenPanel` / `#kingList` / `.king-row`**, NOT `renderIngredients`.
+> ⚠️ Corrected 9 Aug 2026 before building: the plan as written named `renderIngredients`, which is the PRODUCTS screen (`#ingList`, Q7's target) - the naming inversion claimed another victim at planning time. Verified against `rerenderCurrentTab` (`pantry → renderKitchenPanel`) and the `#tab-pantry` markup.
+> Rows become ingredient / "→ linked product · brand · supplier" / unit cost, with inline drift % when the last invoice moved it.
 > Drift must read from `ing_price_history`, **never `ingredients.updated_at`**, which is a single restore timestamp on every row and means nothing.
 > New broken-link state: "⚠ product missing — relink to keep N plates costed" in `--bad`. **Count N on BOTH sides** - the absence of a back-pointer is not evidence nothing was lost.
 

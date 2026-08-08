@@ -3040,3 +3040,31 @@ html{scrollbar-gutter:stable}
   #plateList .ing-meta{grid-column:2;grid-row:1}
   #plateList .ing-price{grid-column:3;grid-row:1}
 }
+
+/* ----------------------------------------------------------------------
+   27. Q5 (v124) — THE INGREDIENTS (pantry) LIST: card grid becomes ONE
+   surface of rows, like §26 did for Plates. #kingList-scoped; the .king-*
+   classes, data-kid and the row's click/keyboard wiring are untouched.
+   ---------------------------------------------------------------------- */
+#kingList{display:block;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-card);overflow:hidden;padding:0;margin:var(--sp-2) var(--sp-4) var(--sp-3)}
+@media (min-width:1024px){ #kingList{margin:var(--sp-2) var(--sp-5) var(--sp-2)} }
+#kingList .king-row{background:none;border:0;border-radius:0;box-shadow:none;margin:0;
+  padding:var(--sp-3) var(--sp-4);transition:background var(--t-fast) var(--ease)}
+#kingList .king-row + .king-row{border-top:1px solid var(--border)}
+#kingList .king-row:focus-visible{outline-offset:-2px}   /* the §26 lesson: an outward focus ring dies in the surface's overflow clip */
+@media (hover:hover) and (pointer:fine){ #kingList .king-row:hover{background:var(--hover)} }
+/* the link arrow is presentation, not content — and the missing-product row replaces it with its ⚠ */
+#kingList .king-link::before{content:"→ ";color:var(--muted2)}
+#kingList .king-link.king-missing::before{content:""}
+.king-missing{color:var(--bad);font-weight:700}
+.king-drift{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
+.king-drift.up{color:var(--bad)}      /* price up = worse — semantic, matching .dig-v */
+.king-drift.down{color:var(--good)}
+.king-price.notcosted{font-size:var(--fs-sm);color:var(--muted2)}
+@media (min-width:640px){   /* desktop: three real columns — ingredient / linked product / unit cost */
+  #kingList .king-row{grid-template-columns:minmax(150px,.7fr) minmax(0,1.6fr) max-content;column-gap:var(--sp-4)}
+  #kingList .king-main{display:contents}   /* name and link become row-grid siblings, one per column */
+  #kingList .king-name{font-size:var(--fs-base)}
+  #kingList .king-price{grid-column:3;grid-row:1}
+}
