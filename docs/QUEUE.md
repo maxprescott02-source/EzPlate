@@ -92,17 +92,22 @@ The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
 Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
 
-## next  Threads that never reached any landing place
-Problem: found by the v115 audit, which checked `QUEUE.md`, `PHONE.md`, `CLAUDE.md` **and all 68 handovers** for each.
-These are not deferred - they were dropped, and nothing anywhere records them.
-- **An eval harness for the invoice reader.** Zero hits in all three files and every handover. The invoice path is the app's highest-stakes surface and the only one with an AI in it; there is no way to tell whether a parser or prompt change made it better or worse.
-- **Abbreviation matching in search** ("bread gf"). Appears only in `HANDOVER-v83`.
-- **`manager` as a third role.** The roles item below specs owner/staff only; `manager` appears in `HANDOVER-v60`, `v82` and `v98` and was never carried forward.
-- **Bulk catalogue bootstrap for onboarding.** Inside "Onboarding and empty states" by implication only, never named.
-- **The one surviving `TODO(Max)`** - `index.html:11`, the absolute production URL used for `og:url`, canonical and `og:image`. In neither `QUEUE.md` nor `PHONE.md`. (The privacy-policy and contact-details TODOs the older notes mention **no longer exist in the code**.)
-Requirements: each either becomes its own item with a real problem statement, or is closed on purpose and said so.
-Out of scope: building any of them.
-This item is a triage, not a batch.
+## next  An eval harness for the invoice reader
+Problem: triaged out of the v115 audit's dropped-threads list, 8 Aug 2026, and it is the one of the five that deserved its own item.
+The invoice path is the app's highest-stakes surface and its only AI one, and **there is no way to tell whether a parser or prompt change made it better or worse.** `tests/invoice-gate.test.js` and `tests/inv-gemini-merge.test.js` pin specific decisions on hand-written inputs; neither measures accuracy over a corpus.
+So every change to `resolveMatchedPrice`, the taught-pack precedence or the Gemini prompt is judged by whether the unit tests still pass and whether one invoice looked right.
+Requirements: a set of real invoices with expected line/price/pack outcomes, and a score that can be compared across two commits.
+It must run offline against stored model responses - re-calling Gemini per run would make the score non-deterministic and cost money.
+Out of scope: changing the parser or the prompt. This is measurement; acting on what it measures is separate.
+Note: this needs Max's real invoice set, and those invoices are commercial data - decide where the corpus lives before collecting it.
+
+## next  The one surviving `TODO(Max)`: absolute social-sharing URLs
+Problem: triaged out of the v115 audit, 8 Aug 2026. `index.html:11` says to set an absolute production URL for `og:url` + `<link rel="canonical"/>` and absolute `og:image`/`twitter:image` **"once the Vercel domain is fixed"**.
+**The domain IS fixed** - `CLAUDE.md` names `https://scoopyscosting.vercel.app` the stable alias - so the condition this was waiting on has been met and nobody noticed.
+Today `og:image` and `twitter:image` are relative (`icons/icon-512.png`, `index.html:16` and `:20`) and there is no `og:url` or canonical at all, so a link pasted into a message thread previews inconsistently or not at all.
+Requirements: absolute URLs on all four, the TODO comment removed.
+Out of scope: any other head metadata.
+Note: touches `index.html`, so it needs the six-spot cache bump - worth folding into a batch already shipping a client asset rather than paying a bump for a preview image.
 
 ## next  `isBuilderDirty` compares against the raw saved lines, not what was loaded
 Problem: found by the v118 pre-push review and **considered, not fixed** - it is an asymmetry rather than a reproducible bug, and the fix belongs with the orphan-line work rather than bolted onto a draft fix.
@@ -259,11 +264,14 @@ Problem: the app currently tells staff "owner and staff access is already planne
 That copy ships or comes out.
 Requirements: what staff can actually do - read costs but not edit prices?
 Import invoices but not delete plates?
+**Is there a third role?** A `manager` was sketched in `HANDOVER-v60`, `v82` and `v98` and never carried forward - folded in here by the v115 audit's dropped-threads triage rather than given its own item, because "how many roles" and "what can each do" are one question and answering them apart would answer them twice.
 Blocked on: Max.
 Product decision; everything technical downstream depends on it.
 
 ## next  Onboarding and empty states
 Requirements: every screen at zero, which production has never shown.
+**Including how a new café gets a product catalogue at all** - named explicitly here by the v115 audit's triage, because "bulk catalogue bootstrap" was inside this item by implication only and an implied requirement is one nobody builds.
+Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
 Needs staging.
 
 ## next  The privacy gate
@@ -282,6 +290,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Threads that never reached any landing place** - triaged 8 Aug 2026. Two became their own items (the invoice eval harness, the surviving `TODO(Max)`), two were folded into the items that already owned the question (`manager` into Roles, bulk catalogue bootstrap into Onboarding), and one was **closed as already built**.
+  **Abbreviation matching in search ships and has since v55.** `kitchenSearchMatches` calls `kingSearchFilter`, which matches a kitchen ingredient against its linked product's description and brand, and `matchTokens` requires every token - so "bread gf" finds ingredient "Bread" via product "Bread GF — TipTop". The comment at `app.js:673` states that example outright.
+  **The audit was right that it appeared only in one handover, and wrong to infer it was dropped** - a grep of the process docs cannot see a feature that shipped without one. Worth remembering for the next dropped-threads sweep: check the code, not just the paperwork.
+  Also corrected: the `TODO(Max)` was waiting on "once the Vercel domain is fixed", and **the domain has been fixed for some time** - the condition was met and nobody noticed.
 
 - **The three foreign keys are Tier 1 law that the repo cannot check** - verified 8 Aug 2026 against production via `pg_constraint`, recorded as an addendum in `docs/audits/AUDIT-v115.md`.
   **All three match `CLAUDE.md` exactly, and there is no fourth FK in `public`**: `menu_items.plate_id → plates.id` NO ACTION, `plates.menu_id → menu_items.id` SET NULL, `menu_items.menu_id → menus.id` SET NULL.
