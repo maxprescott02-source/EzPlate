@@ -3075,8 +3075,10 @@ html{scrollbar-gutter:stable}
    sticky footer carries total + verdict + Save together. All ids and
    handlers unchanged; the v118 draft machinery is not touched.
    ---------------------------------------------------------------------- */
-/* the cost block leading #platePanel */
+/* the cost block leading #platePanel — a ≥900px presentation: under 900 the sticky footer is the
+   one carrier of the total + verdict (showing both duplicated the figure on every phone row) */
 .bcost{border-bottom:1px solid var(--border);padding-bottom:var(--sp-3);margin-bottom:var(--sp-2)}
+@media (max-width:899px){ .bcost{display:none} }
 .bcost-head{padding:var(--sp-4) var(--sp-5) var(--sp-2);border-bottom:2px solid var(--text)}
 .bcost-lbl{display:block;font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2)}
 .bcost-total{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
@@ -3106,12 +3108,15 @@ html{scrollbar-gutter:stable}
 .bfs-line b{font-family:var(--mono)}
 .bv-t-green{color:var(--good)}.bv-t-amber{color:var(--warn)}.bv-t-red{color:var(--bad)}
 @media (min-width:900px){
-  .builder-overlay .modal-builder{width:min(980px,calc(100vw - 48px));max-width:none}   /* the base .modal width caps at 640 — the two-column body needs the room (descendant selector: the §"margins locked" lesson) */
+  .builder-overlay .modal-builder{width:min(980px,calc(100vw - 48px));max-width:none}   /* .modal's width:min(640px,…) AND .modal-builder's own 720px max-width both cap the shell — override both (descendant selector: the §"margins locked" lesson) */
   .modal-builder .mbody{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--sp-4);align-items:start}
   #platePanel{position:sticky;top:0}                        /* sticks within the scrolling .mbody — the queue plan's own suggestion */
   .bfoot-sum{display:none}                                  /* the panel says it; the footer holds Save alone */
-  /* docket lines flatten to the design's columns: name / qty / unit cost / line cost / × */
-  #lines .line{display:grid;grid-template-columns:minmax(0,1fr) auto auto minmax(64px,auto) 24px;gap:0 10px;align-items:center}
+  /* docket lines flatten to the design's columns: name / qty / unit cost / line cost / ×.
+     FIXED tracks, not auto — each .line is its own grid, so auto tracks would size per-row and the
+     columns would not line up down the docket (the v125 review measured it). 44px for the × matches
+     .x's min-width; a 24px track was fiction the button overflowed. */
+  #lines .line{display:grid;grid-template-columns:minmax(0,1fr) 124px 116px 84px 44px;gap:0 10px;align-items:center}   /* col2 fits the qtybox's real min-content (~116px measured) — a narrower track overflowed leftward into the name column */
   #lines .line .top,#lines .line .costs{display:contents}   /* the two-row skeleton's children join the row grid; DOM unchanged */
   #lines .line .nm{grid-column:1;grid-row:1}
   #lines .line .qtybox{grid-column:2;grid-row:1;justify-self:end}

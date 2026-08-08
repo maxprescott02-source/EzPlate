@@ -350,7 +350,13 @@ $('plateName').value = 'Smoke Plate';
 ok('the builder has a category field (§J)', !!$('plateCat'));
 $('plateCat').value = 'Breakfast';                      // §J: the plate's library category
 window.addMiscCost();                                   // a misc line makes the plate non-empty
-ok('the cost panel mirrors the docket total (Q6)', $('bTotal').textContent === $('total').textContent, $('bTotal').textContent + ' vs ' + $('total').textContent);
+// Q6: the compare must run on a NON-ZERO total — both elements ship as "$0.00" in static markup, so
+// comparing at zero passes even with renderBuilderCost deleted (the v125 review proved it)
+// (jsdom does not compile inline oninput= handlers on innerHTML-created nodes — call the real
+// handler with the row's own uid, the same function the attribute invokes)
+const miscLine = window.document.querySelector('#lines .line.misc-line');
+window.setMiscCost(Number(miscLine.getAttribute('data-uid')), '1.25');
+ok('the cost panel mirrors the docket total (Q6)', $('bTotal').textContent === '$1.25' && $('total').textContent === '$1.25', $('bTotal').textContent + ' vs ' + $('total').textContent);
 $('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
 ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
 let libCard = window.document.querySelector('#plateList .ing-card');

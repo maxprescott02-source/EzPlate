@@ -924,10 +924,13 @@ function renderBuilderCost(tot){
     else{
       var line;
       if(on.length){
-        // the WORST menu leads — red before amber before green — because that is the one to act on
+        // the WORST menu leads — red before amber before green — because that is the one to act on.
+        // rank.red is 0, so the lookup must be nullish-checked, never ||'d: `rank[x]||3` rewrites
+        // red to LAST (the v125 review caught exactly that shipping).
         var rank={red:0,amber:1,green:2,none:3};
+        var rk=function(l){ return rank[l]!=null?rank[l]:4; };
         var worst=on.map(function(m){ return {m:m, mp:menuMarginPreview(cost, m.price)}; })
-          .sort(function(a,b){ return (rank[a.mp.light]||3)-(rank[b.mp.light]||3); })[0];
+          .sort(function(a,b){ return rk(a.mp.light)-rk(b.mp.light); })[0];
         line=(worst.mp.pct==null)
           ? ('suggested '+money(cost/foodTarget())+' at '+cogsPct+'%')
           : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price)+' — suggested '+fmt2(cost/foodTarget()));
@@ -5092,6 +5095,12 @@ function openBuilder(){ armDraftSaves();                              // v84: th
   var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal');
   // v61 item 2: every open (New AND Edit) starts at the top — the scroller (and the full-screen overlay at mobile widths) can otherwise retain the previous session's position
   var bm=document.getElementById('builderModal'); if(bm){ bm.scrollTop=0; var mb=bm.querySelector('.mbody'); if(mb) mb.scrollTop=0; }
+  /* Q6 (v125): refresh the cost panel on EVERY open. Three of the four open paths re-render anyway,
+     but resumeUnfinishedPlate's same-session branch calls openBuilder alone — a dish price, menu or
+     target changed while the builder was hidden would otherwise show stale (the v125 review's
+     scenario). Safe against the v118 draft trap: savePlateDraft gates on isBuilderDirty, so this
+     writes no draft on a look-only visit. */
+  updateTotals();
 }
 function closeBuilder(){ hide('builderModal'); }
 /* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
