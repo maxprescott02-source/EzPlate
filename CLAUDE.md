@@ -18,6 +18,17 @@ If a line here disagrees with the code, **the code is right and this file is a f
 | Outstanding work | `docs/QUEUE.md` |
 | Device checks | `docs/PHONE.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
+
+**Two counters, and they are NOT the same number** (Max, 8 Aug 2026, after this confused him and, before him, the v115 audit):
+
+- the **batch number** in a handover's filename increments once per batch, always;
+- the **deploy version** (`sw.js` `CACHE`, the six cache spots) increments only when a batch ships a client asset.
+
+Four docs-only batches in a row left them three apart, so `HANDOVER-v122` shipped `ezplate-v119`.
+**New handovers drop the `v`: `HANDOVER-123-short-name.md`.** The `v` is what implied "app version"; a bare batch number does not.
+Existing `HANDOVER-vNN.md` files keep their names - they are write-once, and renaming them would rewrite the record to fix a label.
+**Every handover states the deploy version it shipped, or says it shipped none.**
+**`docs/audits/AUDIT-vNN.md` KEEPS its `v` and is correct as-is** - an audit really is keyed to the deploy version, because the `/batch` counter compares it against `sw.js`. Do not "make it consistent" with the handovers; they are numbering two different things on purpose.
 | Version bumps, handovers, running the checks | `skills/` - invoke them |
 | Current state | git, the repo, the Supabase MCP. Not this file. |
 

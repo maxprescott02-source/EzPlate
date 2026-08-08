@@ -6,6 +6,17 @@ Ordering is priority - move an item up to change what happens next.
 Max adds problems here, not briefs: what is wrong, and what must be true when it is fixed.
 How is Claude Code's call.
 
+**Two things decide what runs next, and they are different** (added 8 Aug 2026, after Max asked whether the queue was sorted by blockers alone):
+
+- **`Blocked on:`** - waiting on a person or an outside thing. `/batch` skips it and never guesses the answer.
+- **`Do after:` / `Do with:`** - waiting on ANOTHER QUEUE ITEM, because doing this first means doing it twice. It names the item and says what the saving is.
+
+Position in this file is still the priority. These two only decide what gets SKIPPED.
+
+**`Do after:` is deleted the moment it is satisfied**, and that is the point of it rather than housekeeping.
+The dropdowns item spent two years "sequenced" behind a builder conversion that had already shipped in v54, because the ordering lived in prose that nothing re-checked.
+A line naming a finished item is stale by construction, so it gets noticed; a paragraph does not.
+
 **All five questions in `docs/decisions/2026-08-08.html` were ANSWERED on 8 Aug 2026.** The answers are recorded in `docs/decisions/2026-08-08-ANSWERS.md` - read that before re-proposing anything it covers.
 Three items left the queue entirely (CodeRabbit **NO**, GitHub Pro **NO**, and the zero-menus headline, which turned out to be **already fixed in v97**).
 A fourth - the builder modal - has since closed the same way: **already built, in v54.** See the done entry.
@@ -51,7 +62,16 @@ The redesign restructures the layout of every screen a dropdown opens over, so d
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
-## next  Q2 - Dashboard redesign
+## doing  Q2 - Dashboard redesign
+**Branch `feature/q2-dashboard-redesign`, pushed. Cache bumped to v120 on the branch.**
+**Done — the whole screen and its specs.** Verdict eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and the ranked disclosure, chart as its own card, What moved, the two-column second row, and the v98 desktop grid rewritten in place. Driven in a real browser at 380px and 1280px in both themes. The design package is committed to `docs/design_handoff_ezplate_redesign/`.
+**Suite: 782 unit green** (+9 in `tests/dash-chips.test.js`) **and all 102 Playwright green**, `node -c` and smoke clean.
+The five dashboard spec files were **re-pointed to what each was protecting, not blessed** - `v98-grid.spec.js` was rewritten because its subject (a By-menu selector card beside the chart) no longer exists, and its real contracts were carried over: the grid holds at 2/6/12 menus, a too-long list scrolls inside its own layer without pushing the page, selection keeps its sparkline, one elevation token.
+⚠️ **The specs earned their keep**: `v96-menu-select.spec.js:245` caught a real 44px touch-floor regression that the mock's 6px chip padding introduced. The design contradicts itself there - its own §15 asks for 52px mobile targets.
+**Deviations from the mock, both deliberate and both recorded at the code:** the promoted chips are the two WORST menus, not "two most-used" (no sales volume exists - Rule C); and What moved says "this month", never "last invoice" (the log has one writer used by both the invoice path and a hand edit, so the source is not knowable).
+Remaining: pre-push `code-review` findings, PR, merge, handover.
+
+
 Implement `Redesign - Dashboard v2 Desktop.dc.html` + the Dashboard frame of `Redesign - Mobile States.dc.html`, inside the existing `renderDashboard()` path. Both themes, 380px and desktop.
 Out of scope: every other screen. Stop after this one.
 > **Plan.** First commit the package to `docs/design/`. Then work outward from `renderDashboard()` and the four helpers it calls, changing only their emitted markup: `verdictHtml` gains the 44px mono semantic headline (one per screen); `trendChart` keeps its existing SVG maths and gains the over-target wash, dashed target line and accent change-markers; `menuCompareHtml` and `digInHtml` become two-column row lists on one surface with hairline separators, not card-per-row.
@@ -79,10 +99,11 @@ Implement `Redesign - Ingredients.dc.html`. Stop after.
 > Drift must read from `ing_price_history`, **never `ingredients.updated_at`**, which is a single restore timestamp on every row and means nothing.
 > New broken-link state: "⚠ product missing — relink to keep N plates costed" in `--bad`. **Count N on BOTH sides** - the absence of a back-pointer is not evidence nothing was lost.
 
-## blocked  Q6 - Plate builder redesign
+## next  Q6 - Plate builder redesign
 Implement `Redesign - Plate Builder.dc.html` + its mobile frame.
-**Blocked on: Max.** The design is a FULL PAGE and he chose the MODAL on 8 Aug 2026, against advice, hours before sending this brief. Only he can reverse that; a batch must not.
-> **Recommendation: keep the modal shell, take everything else.** The design's substance is the docket columns, the sticky cost panel, the margin verdict block and the mobile sticky footer (total + margin + Save together) - **all of which fit inside `#builderModal` unchanged.** The cost panel can be `position:sticky` within `.mbody` at desktop widths; the modal is already a full-screen takeover under 560px, which is what the mobile frame draws anyway.
+**DECIDED 8 Aug 2026 (Max): "keep the modal".** Unblocked by that answer - it took the recommendation below, so the design's full-page shell is set aside and everything else is taken.
+The modal shape now has TWO explicit confirmations from Max on the same day, the second against a design proposing otherwise. **Do not re-open it from the mock.**
+> **The recommendation he took: keep the modal shell, take everything else.** The design's substance is the docket columns, the sticky cost panel, the margin verdict block and the mobile sticky footer (total + margin + Save together) - **all of which fit inside `#builderModal` unchanged.** The cost panel can be `position:sticky` within `.mbody` at desktop widths; the modal is already a full-screen takeover under 560px, which is what the mobile frame draws anyway.
 > That yields the redesign without reversing a decision, without reopening the dropdown sequencing, and without touching the v118 draft machinery or `guardUnfinishedPlate`.
 > If Max does want the full page, say so explicitly and it becomes its own batch with its own risk: every builder entry point, the draft/resume flow, the unfinished-plate guard and the scroll-lock all assume an overlay.
 > Either way: `renderPlate` and the `#lines`/`#total` ids stay, and **nothing inside the protected parser region is touched** - the invoice REVIEW UI is fair game, the parsing is not.
@@ -200,6 +221,7 @@ No handover names a shared cause and no Tier 1 entry was ever written, which is 
 `tests/empty-states.test.js` exists but postdates all four, so it pins the current state rather than the thing that kept breaking.
 Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
 Out of scope: a visual redesign of any empty state.
+Do after: **Q10** - the empty-state CSS is mid-redesign until the sweep lands, so a root cause named now is named against layout that is still moving. Q10 explicitly carries the empty states over UNCHANGED, which is what makes the target hold still.
 
 ## blocked  Re-pin claude-code-action to a release tag
 Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
@@ -235,8 +257,9 @@ Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce anim
 **Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
-**No longer sequenced behind anything - START THIS NEXT.** It waited on "the builder-as-modal conversion landing"; that conversion landed in **v54** and was verified 8 Aug 2026 (see the done entry below).
-The positioning context every dropdown resolves against is therefore already in its final shape, so there is no longer a reason to do this twice - and no reason to wait.
+Do after: **Q6** - every screen a dropdown opens over is being restructured by the redesign, so fixing placement against today's layout means computing it twice.
+**The old prose sequencing here was WRONG and is the reason `Do after:` exists.** It said this waited on "the builder-as-modal conversion landing" - a conversion that had already shipped in **v54**, so the item sat behind a satisfied dependency for two years of versions with nothing able to notice.
+Q6 is a real, checkable prerequisite; that one was not.
 
 ## next  Invoice ticks are lost on any re-render
 Problem: `renderInvReview()` is a full-row rebuild, and it re-derives every tick from `invRowState` - `checked = (state === 'matched')`.
@@ -245,6 +268,8 @@ Only the new-item FORM state is rehydrated across a rebuild (v50 item 1); the ti
 Flagged as a known parallel in v50 and v52, verified still true 7 Aug at `app.js:6130`, `:6146`, `:6157`.
 Requirements: a tick the user placed survives a re-render.
 The auto-tick rule is untouched - only `matched` rows are ever *pre*-ticked; this is about not throwing away a decision the user already made.
+Do with: **Q8** - the bug is IN `renderInvReview`, which is the one function Q8 rewrites. Two batches on one renderer, or one; and fixing it first means fixing it into markup Q8 replaces.
+Q8's plan already says to decide this explicitly rather than let it ride.
 Note: fragile area.
 Truth-table diagnosis first, regression test mandatory.
 
@@ -267,6 +292,7 @@ Requirements: each spec either asserts something a user would notice, or is reti
 Downgraded from v111's full 45-test audit.
 Note: Playwright is not in `npm test`, so nothing here fails loudly.
 That is the reason to look, not a reason to defer.
+Do after: **Q10** - the redesign is already forcing honest rewrites of a chunk of these specs (Q2 alone rewrote `v98-grid.spec.js` wholesale), so auditing them now audits specs that are about to be rewritten anyway. What survives Q10 is the set actually worth judging.
 ⚠️ **Coupling found by the v115 audit: `addProduct` is a Tier 1 trap kept alive ONLY by `fresh-states.spec.js`, and the trap says deleting it fails SILENTLY.**
 If this item retires that spec, `addProduct` becomes dead in the same commit and nothing will notice.
 Close the trap in the same branch, or keep the spec for that reason and write it down.
@@ -287,6 +313,7 @@ Each has been listed and skipped for scope at least once.
 Requirements: a rule comes out only when nothing emits its class - grep both files per selector, not per family.
 `.an-empty` and `.an-empty-box` are separate names sharing a prefix; do not let one grep answer for both.
 Out of scope: restructuring anything the deleted rules sat next to.
+Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
 
 ## next  Small, each independently shippable
 - **`edDelArmed` is dead** - declared at `app.js:6910`, written at `:6937` and `:6949`, read nowhere.
@@ -296,6 +323,7 @@ Out of scope: restructuring anything the deleted rules sat next to.
   One rule fixes it. Related to the multi-tenant **Onboarding and empty states** item, but independently shippable, so it sits here rather than waiting for that phase.
 - **`.invAppr` (the invoice Apply checkbox) is 26×26px** - the app's last sub-44px touch target, and the one on the highest-stakes screen. v46 skipped it as "inside the protected invoice review area"; **that is not true** - the rule is `style.css:829` and the markup `app.js:6094`, while the protected region runs `app.js:5344–5570`.
   The `::after` hit-area technique already used for `.ms-clear` and `.range-btn` fixes it in one rule with no visual change.
+  **Do with Q8** - same markup Q8 rewrites. (Q2 learned that `::after` satisfies a thumb but NOT a spec measuring `boundingBox`, so check which kind of pin covers this one before choosing the technique.)
 - **`.range-btn` - visual size only, NOT an accessibility item.** The chip is 32px tall (`style.css:2180`) but `style.css:2374–2375` give it a `::after` extending 6px top and bottom, so the tappable area is already 44px.
   What is actually left is that the dashboard now shows controls at two visual sizes after the 44px selector rows.
   Max deferred this 31 Jul; it is a taste call.

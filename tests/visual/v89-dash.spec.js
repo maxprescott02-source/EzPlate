@@ -88,7 +88,11 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       const names = await page.locator('.mcmp-name').allTextContents();
       const pcts = await page.locator('.mcmp-pct').allTextContents();
       expect(names).toEqual(['All menus', 'Winter', 'Original']);
-      expect(pcts).toEqual(['40.0%', '60.0%', '30.0%']);
+      /* v120: the chips carry the bare figure — no '%'. The unit is stated once, by the 44px
+         headline directly above them, and repeating it on every chip is the label-on-a-row the
+         redesign removes. The ORDER and the VALUES, which is what this test is actually for,
+         are unchanged. The ranked disclosure list still writes '%' on its rows. */
+      expect(pcts).toEqual(['40.0', '60.0', '30.0']);
 
       await page.screenshot({ path: `tests/visual/__shots__/v89-dash-all-${label}-${theme}.png`, fullPage: true });
 
@@ -129,27 +133,27 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       expect(cur).toBe('MENU_ORIGINAL');
 
       // desktop: v98 grid (SUPERSEDES the v95 terminal-row bento, per the grid brief) — the
-      // selector card sits beside the chart card in row 1, heights matched and CHART-driven;
-      // every variable-height region (insights, Dig in) gets a full-width row beneath, where
-      // nothing sits beside it to mismatch. Asserted unconditionally so the placement check
-      // can't pass vacuously if a panel stops rendering (CodeRabbit, v90 — still applies).
+      /* v120: the desktop composition is four full-width rows — verdict, chart, insights, then the
+         two-column What moved | Dig in. The old row-1 pair (chart beside a selector card) is gone
+         with the selector card. Kept here as a light stacking check; v98-grid.spec.js owns the full
+         contract at three content levels. Asserted unconditionally so it can't pass vacuously if a
+         panel stops rendering (CodeRabbit, v90 — still applies). */
       if (width >= 1024) {
         await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
-        const geo = await page.evaluate(() => ({
-          panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect(),
-          cmp: document.querySelector('#dashBody .dash-compare').getBoundingClientRect(),
-          ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
-          dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
-        }));
-        expect(Math.abs(geo.cmp.top - geo.panel.top), 'selector and chart card top-aligned in row 1').toBeLessThanOrEqual(2);
-        expect(geo.cmp.left, 'the selector is the right-hand card').toBeGreaterThanOrEqual(geo.panel.right - 1);
-        // v98 revision: the selector card is content-sized, capped at the chart card's floor
-        expect(geo.cmp.bottom, 'the selector card never outgrows the chart card').toBeLessThanOrEqual(geo.panel.bottom + 2);
-        expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
+        const geo = await page.evaluate(() => {
+          const r = (s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect() : null; };
+          return { verdict: r('#dashBody .dash-verdict-panel'), chart: r('#dashBody .dash-chart-panel'),
+                   ins: r('#dashBody .dash-ins'), row2: r('#dashBody .dash-row2') };
+        });
+        for (const k of ['verdict', 'chart', 'ins', 'row2']) {
+          expect(geo[k], `${k} renders`).not.toBeNull();
+        }
+        expect(geo.chart.top, 'the chart is a full-width row below the verdict').toBeGreaterThanOrEqual(geo.verdict.bottom - 1);
+        expect(geo.ins.top, 'insights below the chart').toBeGreaterThanOrEqual(geo.chart.bottom - 1);
+        expect(geo.row2.top, 'the two-column row is last').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
         // edge pins, not a width comparison (CodeRabbit, v98): a width check could pass offset
-        expect(geo.ins.left, 'insights start at the chart card edge').toBeLessThanOrEqual(geo.panel.left + 1);
-        expect(geo.ins.right, 'insights span through the selector card edge').toBeGreaterThanOrEqual(geo.cmp.right - 1);
-        expect(geo.dig.top, 'Dig in sits below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
+        expect(geo.ins.left, 'every row starts at the same column edge').toBeLessThanOrEqual(geo.verdict.left + 1);
+        expect(geo.ins.right, 'and ends at the same one').toBeGreaterThanOrEqual(geo.verdict.right - 1);
       }
 
       // nothing overflows horizontally
@@ -175,7 +179,7 @@ test('every chart range still renders with the list present, and the range never
     await page.locator(`.range-btn[data-rg="${rg}"]`).click();
     await page.waitForTimeout(200);
     await expect(page.locator('.dash-chart')).toBeVisible();
-    await expect(page.locator('.dash-compare')).toBeVisible();
+    await expect(page.locator('.dash-chips'), 'the scope control survives a range change').toBeVisible();
     // the selection survives every range change
     await expect(page.locator('.mcmp-row.act'), `range ${rg} reset the scope`)
       .toHaveAttribute('data-scope', 'MENU_WINTER');
@@ -208,7 +212,7 @@ test('the whole scope control is absent when only one menu exists', async ({ pag
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(400);
   await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
-  await expect(page.locator('.dash-compare')).toHaveCount(0);
+  await expect(page.locator('.dash-chips'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
   await expect(page.locator('.verdict-num')).toBeVisible();
 });
 
@@ -265,7 +269,7 @@ test('deleting the OTHER menu while scoped leaves no trapped scope', async ({ pa
   // one menu left -> the list is gone, so the scope must have collapsed to all-menus with it
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
   await expect(page.locator('.dh-scope')).toHaveText('All menus');
-  await expect(page.locator('.dash-compare')).toHaveCount(0);
+  await expect(page.locator('.dash-chips'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
   // and the figure is the surviving menu's own, not a stale cached one
   await expect(page.locator('.verdict-num')).toHaveText('60.0%');
 });
@@ -294,7 +298,7 @@ test('deleting the menu the dashboard is scoped TO recovers cleanly', async ({ p
 test('zero menus is a legitimate state, not a broken dashboard', async ({ page }) => {
   await bootWith(page, [], [], PLATES3);
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
-  await expect(page.locator('.dash-compare')).toHaveCount(0);
+  await expect(page.locator('.dash-chips'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
   await expect(page.locator('.verdict-num')).toHaveText('—');
   await expect(page.locator('.verdict-line')).toContainText('Nothing costed and priced yet');
   const of = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -331,7 +335,7 @@ test('an uncosted menu is excluded from By-menu, and is no longer a reachable sc
     ],
     PLATES3);
   // one costed menu -> no list, and therefore no control: the dashboard stays at all-menus
-  await expect(page.locator('.dash-compare')).toHaveCount(0);
+  await expect(page.locator('.dash-chips'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
   await expect(page.locator('.dh-scope')).toHaveText('All menus');
   await expect(page.locator('.verdict-num')).toHaveText('30.0%');   // Toastie: 3/10

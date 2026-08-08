@@ -2973,8 +2973,18 @@ function digData(kind, scope){
       var pct=(last-prev)/prev*100;
       if(Math.abs(pct)<1) return;                                    // sub-1% is rounding noise, not a move
       var t=ptMs(a[a.length-1]); if(since==null || t<since) since=t;
+      /* v120: `sub` is for the What-moved panel's second line. Two dimensions, which is the bar
+         Max set in v90 — a bare "in 9 plates" was rejected as something the owner already knows,
+         but paired with the size of the move it is the thing they could not compute in their head.
+         Breadth counts through productRefs so BOTH reference paths are checked (ingredient→pid and
+         plate-line→pid); do not swap it for a single-path count.
+         WHEN is a time phrase and nothing more. The design's "last invoice" is NOT derivable —
+         setProduct is the one writer of this log and it is called by the invoice apply AND by a
+         hand edit, so claiming an invoice source would be false about half the time. */
+      var np=(typeof productRefs==='function')?productRefs(p.id).plates.length:0;
       rows.push({name:p.description+(p.brand?' — '+p.brand:''), val:Math.abs(pct),
-        disp:(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%', dir:(pct>0?'up':'down'), light:null});
+        disp:(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%', dir:(pct>0?'up':'down'), light:null,
+        sub:moverWhen(t)+(np?(' · in '+np+' plate'+(np===1?'':'s')):'')});
     });
     rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
     return {title:'Biggest movers', sub:(since!=null?('price changes since '+monthLabel(since)):'across all products'), rows:rows};
@@ -3482,6 +3492,14 @@ function costAtLines(lines, ms){
 /* the unit word that matches perDisplayValue's scaling — g is shown per kg, ml per L, ea per unit.
    Anything else has no comparable display unit, so the price-gap family skips it. */
 function unitWordFor(base){ return base==='g'?'kg':base==='ml'?'L':base==='ea'?'unit':''; }
+/* v120: the What-moved row's time phrase. Deliberately vague-but-true — the log records WHEN a
+   price changed and nothing about what caused it, so this never says "last invoice". */
+function moverWhen(ms){
+  if(ms==null || !isFinite(ms)) return 'recently';
+  var d=new Date(ms), now=new Date();
+  if(d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth()) return 'this month';
+  return monthLabel(ms);
+}
 function monthLabel(ms){
   var d=new Date(ms), now=new Date();
   var opts=(now.getFullYear()===d.getFullYear())?{month:'long'}:{month:'long', year:'numeric'};
@@ -3883,10 +3901,71 @@ function mcmpSparkSeries(h){
    rows' range. That explanation only applied to the short-lived distinct-plate maths, which never
    shipped — with per-publication counting the headline is a weighted blend of the rows, so both the
    helper and the line are gone. Tombstone so the name stays greppable. */
-function menuCompareHtml(scope){
-  var rows=menuComparisonRows();
-  if(rows.length<2) return '';                                       // fewer than two costed menus: nothing to compare, and dashScopeValid collapses the scope to match
-  var allPct=computeAvgFoodCost();                                   // non-null whenever two menus are costed; the '—' is belt-and-braces, not an expected state
+/* v120 (Q2 redesign): the scope chips. This is the SAME control the By-menu list was — it sets
+   dashScope through the same `.mcmp-row` + data-scope delegate — restyled as a chip row with the
+   full ranked list moved behind a "N more" disclosure. Two controls for one value is what v96
+   removed, and this does not reintroduce one: the chips and the list are one control in two states.
+
+   ≤5 costed menus enumerate; 6+ collapse to All + two + "N more ▾", per the design.
+
+   THE TWO PROMOTED CHIPS ARE THE WORST PERFORMERS, not the "two most-used" the design asks for.
+   EzPlate has no sales volume — deliberately, Rule C — so "most-used" could only be faked from a
+   proxy like dish count, and a proxy for usage on a cost dashboard is exactly the profit-impact
+   implication Rule C forbids. Worst-first is the ranking this panel already declares in its own
+   honesty note, so the chips and the list now agree instead of ordering by two different ideas. */
+var dashMenusOpen=false;                                             // view state only, not persisted — a disclosure, not a preference
+function setDashMenusOpen(v){ dashMenusOpen=!!v; renderDashboard(); }
+function dashChipHtml(id, name, pct, scope){
+  var on=(id===scope);
+  return '<button type="button" class="mcmp-row dash-chip'+(on?' act':'')+'" data-scope="'+esc(id)+'"'
+    +(on?' aria-current="true"':'')+'>'
+    +'<span class="mcmp-name">'+esc(name)+'</span>'
+    +'<span class="mcmp-pct">'+(pct==null?'—':pct.toFixed(1))+'</span></button>';
+}
+function dashChipsHtml(scope){
+  var rows=menuComparisonRows();                                     // already worst-first, already excludes uncosted
+  if(rows.length<2) return '';                                       // one costed menu: the headline already says it, a chip row of one is noise
+  var allPct=computeAvgFoodCost();
+  var shown=(rows.length<=5)?rows:rows.slice(0,2);
+  var rest=(rows.length<=5)?[]:rows.slice(2);
+  var html='<div class="dash-chips-wrap"><div class="dash-chips" role="group" aria-label="Dashboard scope">'
+    +dashChipHtml(DASH_ALL,'All menus',allPct,scope)
+    +shown.map(function(r){ return dashChipHtml(r.id,r.name,r.pct,scope); }).join('');
+  if(rest.length){
+    html+='<button type="button" class="dash-more" id="dashMore" aria-expanded="'+(dashMenusOpen?'true':'false')+'">'
+      +rest.length+' more <span aria-hidden="true">▾</span></button>';
+  }
+  html+='</div>';
+  if(rest.length && dashMenusOpen) html+=menuCompareHtml(scope, rest);
+  /* The honesty note rides with the chips at every size. It is not decoration: it is the standing
+     "cost efficiency, not earnings" statement, and with the list behind a disclosure it would
+     otherwise disappear for anyone who never opens it. */
+  html+='<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>';
+  return html+'</div>';
+}
+/* v120: the What-moved panel — the existing 'movers' computation (largest logged price step per
+   product) promoted from a Dig-in tile to a panel of its own. No new maths; digData('movers')
+   already ranked these and v120 only added each row's `sub`. */
+function whatMovedHtml(){
+  var d=digData('movers'), rows=d.rows.slice(0,3);
+  var body=rows.length
+    ? '<ul class="mv-list">'+rows.map(function(r){
+        return '<li class="mv-row"><span class="mv-main"><span class="mv-name">'+esc(r.name)+'</span>'
+          +(r.sub?'<span class="mv-sub">'+esc(r.sub)+'</span>':'')+'</span>'
+          +'<span class="dig-v'+(r.dir?(' '+r.dir):'')+'">'+esc(r.disp)+'</span></li>';
+      }).join('')+'</ul>'
+    : '<p class="hint">No price moves logged yet.</p>';
+  return '<div class="panel dash-moved"><h2>What moved</h2><div class="pad">'+body+'</div></div>';
+}
+/* v120: this renders the chips' DISCLOSURE LIST and nothing else — `rows` is the set of menus that
+   did not get a chip, and dashChipsHtml is its one caller.
+   The standalone "By menu" card it used to render is GONE, not optional: the chips are the scope
+   control now, every `.dash-compare` rule was deleted with it, and a no-argument branch would have
+   been unreachable code that still looked live. The v120 pre-push review caught exactly that — the
+   first cut kept the branch "for the tests", which meant the honesty note and the All-menus rule
+   were pinned on a path the app can no longer run, so either could have been deleted from the live
+   chips with the suite still green. The tests now assert against dashChipsHtml. */
+function menuCompareHtml(scope, rows){
   function row(id, name, pct){
     var on=(id===scope);
     return '<li class="mcmp-li"><button type="button" class="mcmp-row'+(on?' act':'')+'" data-scope="'+esc(id)+'"'
@@ -3895,14 +3974,13 @@ function menuCompareHtml(scope){
       +mcmpSparkHtml(id)
       +'<span class="mcmp-pct">'+(pct==null?'—':pct.toFixed(1)+'%')+'</span></button></li>';
   }
-  return '<div class="panel dash-compare"><h2>By menu</h2><div class="pad">'
-    +'<ul class="mcmp-list">'
-    +row(DASH_ALL, 'All menus', allPct)
-    +rows.map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
-    // v94: one compact hint line (density brief). The standing honesty rule survives compression:
-    // "Ranked by average food cost %" and "no sales figures" are pinned by dash-scope.test.js.
-    +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
-    +'</div></div>';
+  /* A popover, not a panel: no leading All-menus row and no honesty note, because the chip row
+     above carries both. Both still exist — they moved to dashChipsHtml, which is where
+     dash-scope.test.js now asserts them. */
+  return '<div class="dash-menus-pop" role="group" aria-label="All menus ranked by food cost">'
+    +'<p class="dmp-head">All menus · ranked by food cost %</p>'
+    +'<ul class="mcmp-list">'+(rows||[]).map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
+    +'</div>';
 }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
@@ -3944,11 +4022,22 @@ function renderDashboard(){
   // v115: the since-line renders HERE rather than inside verdictHtml so the pure verdict block (and
   // its extraction sandbox) stays free of the change log's globals.
   var pctNow=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
-  var html='<div class="panel dash-panel"><h2>'+heading+'</h2><div class="pad">'
+  /* v120 (Q2 redesign): the verdict and the trend are two panels now, not two tiles in one, and the
+     scope chips sit beside the headline figure instead of in a By-menu card further down. The .panel
+     / .pad / .dp-tile wrappers and every class inside are unchanged — this moves markup, it does not
+     rename it, so the delegates and the tests that hang off them still bind. */
+  var html='<div class="panel dash-panel dash-verdict-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
+    +'<div class="dash-verdict-row">'
+    +'<div class="dash-verdict-main">'
     +verdictHtml(scope, cmp)
+    +'</div>'
+    +dashChipsHtml(scope)
+    +'</div>'
     +sinceLineHtml(scope, pctNow)
-    +'</div><div class="dp-tile dp-chart">'
+    +'</div></div></div>'
+    +'<div class="panel dash-panel dash-chart-panel"><div class="pad">'
+    +'<div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart(scope)   // v115: the chart owns the scope decision now — it draws the menu's own line when the history exists, and emits the scope-note itself ONLY on the all-menus fallback (v89 honesty, v94 wording, unchanged)
     +'</div></div></div>';
@@ -3960,8 +4049,14 @@ function renderDashboard(){
   // variable-height panel a full-width row. The grid rows stay EXPLICIT (v89's lesson — auto-placement
   // pushed a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle.
   html+=dashInsightsHtml(scope);
-  html+=menuCompareHtml(scope);
-  html+=digInHtml(scope);
+  /* v120: What moved + Dig in are the design's two-column second row. The By-menu PANEL is gone as a
+     standing card — the chips above are that control now — but menuCompareHtml still owns the markup
+     and is still called, from the chips' disclosure. While a drill-down is open, Dig in takes the
+     full width on its own: the two-column row is for the four summary tiles, not for a list. */
+  html+='<div class="dash-row2'+(digOpen?' is-open':'')+'">'
+    +(digOpen?'':whatMovedHtml())
+    +digInHtml(scope)
+    +'</div>';
   root.innerHTML=html;
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
   // v90: the drill-down is a re-render, not a modal — one state variable, no dismissable layer.
@@ -3976,6 +4071,10 @@ function renderDashboard(){
   // Note what this does NOT touch: dashRange. Range and scope are orthogonal, and each setter
   // re-renders from the other's live module var rather than resetting it.
   root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ setDashScope(b.getAttribute('data-scope')); }; });
+  // v120: the chips' "N more" disclosure. Picking a scope from inside it re-renders through
+  // setDashScope, which leaves dashMenusOpen alone — so the list stays open and the tick moves,
+  // rather than the panel closing under the finger that just used it.
+  var dm=root.querySelector('#dashMore'); if(dm) dm.onclick=function(){ setDashMenusOpen(!dashMenusOpen); };
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
@@ -4080,7 +4179,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v119';
+var APP_VERSION='v120';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

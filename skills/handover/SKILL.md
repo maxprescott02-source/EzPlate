@@ -5,7 +5,10 @@ description: Write the end-of-batch handover for EzPlate. Use at the end of ever
 
 # Handover
 
-Every batch ends with `docs/handovers/HANDOVER-vNN.md`.
+Every batch ends with `docs/handovers/HANDOVER-<batch>-<short-name>.md` (e.g. `HANDOVER-123-dashboard.md`).
+**The `v` was dropped on 8 Aug 2026** because it implied the number was the app version; it is not.
+The batch number counts batches; the deploy version in `sw.js` moves only when a batch ships a client asset, so they drift apart.
+**State the deploy version the batch shipped, or say it shipped none.** Older `HANDOVER-vNN.md` files keep their names - write-once.
 It is a dated diary entry for ONE batch, and it is the audit trail - several rules in `CLAUDE.md` exist only because a handover recorded why something was done.
 
 **Write-once.** A handover is evidence of what was believed at the time, so it is never edited after the fact.
@@ -28,7 +31,7 @@ Do not restyle them.
 Every section appears, in this order, every time.
 
 ```markdown
-# HANDOVER - vNN (short name for the batch)
+# HANDOVER - <batch> (short name for the batch)
 
 **Branch:** `...` · **Scope:** the queue item, brief or review finding this came from. One line.
 

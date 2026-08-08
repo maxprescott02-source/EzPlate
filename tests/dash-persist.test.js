@@ -247,27 +247,39 @@ function withRows(MENU, menusList) {
     ${extractFn(SRC, 'mcmpSparkHtml')}
     ${extractFn(SRC, 'mcmpSparkSeries')}
     ${extractFn(SRC, 'menuCompareHtml')}
+    /* v120: the All-menus figure lives on a CHIP now, not a By-menu row. Asserting through
+       dashChipsHtml keeps this pointed at the live path — menuCompareHtml alone renders only the
+       disclosure list, which deliberately has no All-menus row. */
+    ${extractFn(SRC, 'dashChipHtml')}
+    ${extractFn(SRC, 'dashChipsHtml')}
+    var dashMenusOpen=false;
+    function esc(s){ return String(s==null?'':s); }
+    function renderDashboard(){}
     return {
       computeAvgFoodCost: computeAvgFoodCost,
       avgFoodCostForScope: avgFoodCostForScope,
       menuComparisonRows: menuComparisonRows,
-      menuCompareHtml: menuCompareHtml
+      menuCompareHtml: menuCompareHtml,
+      dashChipsHtml: dashChipsHtml
     };
   `);
   return factory(MENU, menusList);
 }
 
-// The figure shown in the All-menus row, read back off the rendered markup.
+/* The figure shown in the All-menus chip, read back off the rendered markup.
+   v120: chips carry the bare number — the '%' is stated once by the headline above them — so the
+   suffix is appended here rather than expected in the markup. The VALUE is what these tests are
+   about: that the row and the chart are built from the same number. */
 function allMenusRowPct(html) {
   const m = html.match(/data-scope="all"[\s\S]*?<span class="mcmp-pct">([^<]*)<\/span>/);
-  assert.ok(m, 'the All-menus row renders a percentage cell');
-  return m[1];
+  assert.ok(m, 'the All-menus chip renders a percentage cell');
+  return m[1] + '%';
 }
 
 test('v97: the All-menus row shows the same figure the chart’s all-menus line is built from', () => {
   const app = withRows(TWO_COSTED(), MENUS);
   const chartFigure = app.computeAvgFoodCost();                // == what logHistory pushes into priceHistory
-  assert.strictEqual(allMenusRowPct(app.menuCompareHtml('all')), chartFigure.toFixed(1) + '%',
+  assert.strictEqual(allMenusRowPct(app.dashChipsHtml('all')), chartFigure.toFixed(1) + '%',
     'one all-menus number on the screen, to the displayed precision');
 });
 
@@ -284,7 +296,7 @@ test('v97: a plate on two menus counts ONCE PER PUBLICATION — deliberate, not 
   ];
   const app = withRows(MENU, MENUS);
   near(app.computeAvgFoodCost(), 30, 'three publications: (20+20+50)/3 — NOT 35, which counts PL1 once');
-  assert.strictEqual(allMenusRowPct(app.menuCompareHtml('all')), '30.0%', 'and the row agrees');
+  assert.strictEqual(allMenusRowPct(app.dashChipsHtml('all')), '30.0%', 'and the row agrees');
 });
 
 test('v97 INVARIANT: All menus always sits within the range of the By-menu rows', () => {
