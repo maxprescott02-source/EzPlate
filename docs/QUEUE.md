@@ -66,12 +66,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## doing  Q9 - Settings redesign
-Implement `Redesign - Settings.dc.html`. Stop after.
-> **Plan.** Sectioned modal, markup in `index.html`: left nav with `--accent-weak` active fill, setting rows as label+help left / control right.
-> The seven-section drill-down, the AI toggles, the theme segment and the About version line all already exist and are pinned by `smoke [3b]` - this is a restyle of that structure, not a rebuild.
-> "Menu item" survives as a fifth object noun in the Edit-menu-item modal; it is a known exception awaiting its own brief, **not a bug to fix on sight here.**
-
 ## next  Q10 - System sweep
 Apply Design Package §11–15 app-wide: five interaction states per control, skeletons, empty-state variants, keyboard rules, contrast floors, moon/sun theme icon. Verify `prefers-reduced-motion`. No screen-specific changes.
 > **Plan. Last on purpose** - it codifies what the eight screen batches established, so running it early would set rules the screens then break.
@@ -296,6 +290,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q9 - Settings redesign** - shipped 9 Aug 2026 as **`ezplate-v128`** (PR #99), handover `HANDOVER-134-settings.md`.
+  The v81 structure already matched the mock, so this was five CSS deltas folded into it: help-text contrast (`--text2`), quiet AA-passing theme segment (accent-weak + inset accent ring, not solid accent), mono right-aligned target input matching the GST select, desktop's duplicate section title sr-only'd (mobile detail keeps it), nav active 800.
+  Review: 8 findings, 5 fixed (incl. the mobile "no persistent selection" leak - weight AND a pre-existing colour), 2 kept-with-comment, 1 queued into Q10 (the app-wide selected-idiom contrast pair).
+  **Both riders closed too**: absolute `og:url`/canonical/`og:image`/`twitter:image` shipped (the surviving `TODO(Max)` item), and the "two stale handover-path comments" item was struck as stale - the comments already said `docs/handovers/…`.
 
 - **The five decisions of 9 Aug 2026** - all answered (`docs/decisions/2026-08-08-2-ANSWERS.md`), all recommendations taken, all actioned same-day in one docs batch (handover `HANDOVER-133-decisions.md`):
   **`kitchen_items` DROPPED** (re-verified 0 rows + no code reference immediately before; applied over the production MCP with staging unavailable, said out loud; rollback recorded in `supabase/migrations/20260809_drop_kitchen_items.sql`). Ten public tables now.
