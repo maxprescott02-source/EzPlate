@@ -81,8 +81,11 @@ test('the button carries the current scope name and its figure — all-menus sco
   const btn = btnOf(html);
   assert.match(btn, /dsb-name">All menus</, 'the scope name');
   assert.match(btn, /mcmp-pct[^"]*">41\.2</, 'the all-menus average');
-  assert.match(btn, /aria-haspopup="true"/);
   assert.match(btn, /aria-expanded="false"/);
+  assert.doesNotMatch(btn, /aria-haspopup/,
+    'the layer is a group of plain buttons, not a menu — aria-expanded alone is the honest signal');
+  assert.match(btn, /aria-label="Dashboard scope: All menus, 41\.2% food cost"/,
+    'the label carries the figure the colour encodes — a screen reader hears what the tint shows');
 });
 
 test('the button follows a narrowed scope — name and that menu\'s own figure', () => {
@@ -147,6 +150,22 @@ test('the selected scope is the only row marked current', () => {
   const html = harness(SIX, { open: true }).dashScopeHtml('M_A');
   assert.strictEqual((html.match(/aria-current="true"/g) || []).length, 1);
   assert.match(html, /data-scope="M_A"[^>]*aria-current="true"/);
+});
+
+test('dashPctClass: the epsilon holds at the boundary, and a missing figure is NEUTRAL', () => {
+  const factory = new Function('COGS', `
+    "use strict";
+    var cogsPct=COGS;
+    ${extractFn(APP, 'dashPctClass')}
+    return dashPctClass;
+  `);
+  const cls = factory(40);
+  assert.strictEqual(cls(40.0), 'good', 'bang on target is good');
+  // the +0.05 epsilon is the SAME one verdictHtml and the sparklines use — the three must agree,
+  // and this is the only pin that fails if the epsilon is dropped from this one
+  assert.strictEqual(cls(40.05), 'good', 'inside the epsilon is still good');
+  assert.strictEqual(cls(40.1), 'bad', 'past the epsilon is bad');
+  assert.strictEqual(cls(null), '', "a missing figure gets NO verdict class — the isFinite('') shape");
 });
 
 test('the chips are gone from the shipped source, not merely unrendered', () => {

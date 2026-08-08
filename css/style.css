@@ -2596,7 +2596,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v129: the scope DROPDOWN — the chips are reversed (Max, 9 Aug 2026). One button, right of the
    verdict, carrying the current scope's name + food-cost %; the ranked list opens under it. */
 .dash-scope-wrap{position:relative;margin-left:auto;min-width:0}
-.dash-scope-btn{display:flex;align-items:center;gap:var(--sp-2);padding:8px 16px;border-radius:12px;
+.dash-scope-btn{display:flex;align-items:center;gap:var(--sp-2);padding:8px 16px;border-radius:var(--radius-ctl);
   border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font:inherit;
   font-weight:700;font-size:var(--fs-sm);cursor:pointer;max-width:100%;
   transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
@@ -2616,7 +2616,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 @media (min-width:1024px){
   .dash-scope-btn{min-height:0}
 }
-.dash-scope-btn:hover{background:var(--field)}
+/* --hover, not --field: light theme's --field equals --surface, which made hover a no-op on the
+   chips for two versions without anyone noticing — the primary control doesn't inherit that. */
+.dash-scope-btn:hover{background:var(--hover)}
 .dash-scope-btn:active{transform:scale(.985)}
 @media (prefers-reduced-motion:reduce){ .dash-scope-btn:active{transform:none} }
 .dash-scope-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -2624,10 +2626,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-card);
   box-shadow:var(--shadow-lg);padding:var(--sp-3);max-height:min(60vh,360px);overflow:auto;
   animation:fadeIn var(--t-med) var(--ease)}
-.dmp-head{margin:0 0 var(--sp-2);font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--muted2)}
-/* the dropdown list keeps the shipped row markup, so sparklines survive the redesign */
-.dash-menus-pop .mcmp-row{padding:var(--sp-2) 0}
+/* v129: .dmp-head is GONE — with the All-menus row inside the popover a "Ranked by…" heading was
+   false of its first row, and the honesty note below already states the basis once.
+   The dropdown list keeps the shipped row markup, so sparklines survive the redesign.
+   Row padding is #dashBody-qualified because the density block's `#dashBody .mcmp-row` (1,1,0)
+   out-specifies a bare descendant pair — the bare form that sat here was dead on arrival. */
+#dashBody .dash-menus-pop .mcmp-row{padding:var(--sp-2) var(--sp-2)}
 /* v129 selected row: tinted fill, text stays --text — deliberately NOT the --accent-ink-on-accent-weak
    pair, which sits below the AA floor app-wide (queued for one decision in Q10). */
 .dash-menus-pop .mcmp-row.act{background:var(--accent-weak)}

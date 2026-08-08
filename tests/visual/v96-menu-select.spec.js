@@ -292,3 +292,34 @@ test('the scope button and every row, including All menus, clear the 44px touch 
     expect(box.height, 'dig rows stay display rows at 32px').toBeGreaterThanOrEqual(32);
   }
 });
+
+/* ---- 6. v129: the dropdown dismisses like the app's other floating layers ----
+   The v129 review's major finding: as first cut, the popover had NO dismissal path — no outside
+   click, no Escape — and dashMenusOpen survived tab navigation, so the layer re-opened itself over
+   the chart on the next visit. These pin the whole dismissal contract. */
+test('v129: outside click and Escape close the dropdown, and the open state cannot leak', async ({ page }) => {
+  await boot(page);
+  await openScope(page);
+  await expect(page.locator('.dash-menus-pop')).toHaveCount(1);
+
+  // outside click — the verdict figure is inert and never covered by the right-aligned popover
+  await page.locator('.verdict-num').click();
+  await page.waitForTimeout(250);
+  await expect(page.locator('.dash-menus-pop'), 'outside click closes it').toHaveCount(0);
+
+  // Escape closes and hands focus back to the button that owns the layer
+  await openScope(page);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  await expect(page.locator('.dash-menus-pop'), 'Escape closes it').toHaveCount(0);
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.id),
+    'Escape returns focus to the button').toBe('dashScopeBtn');
+
+  // and a tab round-trip cannot resurrect the layer (the nav tap is itself an outside click)
+  await openScope(page);
+  await page.locator('.navbtn[data-tab="builder"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.dash-menus-pop'), 'no popover re-opens itself after navigation').toHaveCount(0);
+});

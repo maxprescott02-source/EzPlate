@@ -4058,17 +4058,37 @@ function mcmpSparkSeries(h){
    beside a button that ranks nothing. */
 var dashMenusOpen=false;                                             // view state only, not persisted — a dropdown, not a preference
 function setDashMenusOpen(v){ dashMenusOpen=!!v; renderDashboard(); }
-function dashPctClass(pct){ return (pct!=null && pct<=cogsPct+0.05)?'good':'bad'; }   // the v115 anchor-to-target pair
+/* v129 review: the dropdown dismisses like the app's other floating layers (the product search
+   drop has the same pair) — outside click and Escape. Both gate on dashMenusOpen so they are
+   inert whenever the layer is closed. The button's own click never lands here as "outside":
+   its wrap still ancestors the (by then detached) target, so closest() finds it either way.
+   Esc returns focus to the button — the control the popover belongs to. */
+document.addEventListener('click', function(e){
+  if(dashMenusOpen && !(e.target.closest && e.target.closest('.dash-scope-wrap'))) setDashMenusOpen(false);
+});
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && dashMenusOpen){
+    setDashMenusOpen(false);
+    var b=document.getElementById('dashScopeBtn'); if(b) b.focus();
+  }
+});
+/* The v115 anchor-to-target pair. A missing figure gets NO class — neutral, never a verdict.
+   (Unreachable today: both callers only run with >=2 costed rows. Pinned anyway — an absent value
+   falling through to a real-looking verdict is the isFinite('') shape this app has paid for.) */
+function dashPctClass(pct){ if(pct==null) return ''; return (pct<=cogsPct+0.05)?'good':'bad'; }
 function dashScopeHtml(scope){
   var rows=menuComparisonRows();                                     // already worst-first, already excludes uncosted
-  if(rows.length<2) return '';                                       // one costed menu: the headline already says it, a scope control of one is noise
+  if(rows.length<2){ dashMenusOpen=false; return ''; }               // one costed menu: no control — and the open flag dies WITH the control, or the popover would render pre-opened when a second menu is costed later
   var allPct=computeAvgFoodCost();
   var isAll=(scope===DASH_ALL);
   var name=isAll?'All menus':menuNameById(scope);
   var pct=isAll?allPct:avgFoodCostForScope(scope);
+  // aria-label carries the figure the colour encodes; no aria-haspopup — the layer is a group of
+  // plain buttons, not a menu, so aria-expanded alone is the honest signal (the #dashMore precedent)
   var html='<div class="dash-scope-wrap">'
-    +'<button type="button" class="dash-scope-btn" id="dashScopeBtn" aria-haspopup="true"'
-    +' aria-expanded="'+(dashMenusOpen?'true':'false')+'" aria-label="Dashboard scope: '+esc(name)+'">'
+    +'<button type="button" class="dash-scope-btn" id="dashScopeBtn"'
+    +' aria-expanded="'+(dashMenusOpen?'true':'false')+'" aria-label="Dashboard scope: '+esc(name)
+    +(pct==null?'':', '+pct.toFixed(1)+'% food cost')+'">'
     +'<span class="dsb-name">'+esc(name)+'</span>'
     +'<span class="mcmp-pct '+dashPctClass(pct)+'">'+(pct==null?'—':pct.toFixed(1))+'</span>'
     +'<span class="dsb-caret" aria-hidden="true">▾</span></button>';
@@ -4106,10 +4126,12 @@ function menuCompareHtml(scope, rows){
       +mcmpSparkHtml(id)
       +'<span class="mcmp-pct '+dashPctClass(pct)+'">'+(pct==null?'—':pct.toFixed(1)+'%')+'</span></button></li>';
   }
-  /* The honesty note closes the popover: it qualifies the ranking above it, and the ranking lives
-     nowhere else any more. dash-dropdown.test.js pins both the wording and the placement. */
-  return '<div class="dash-menus-pop" role="group" aria-label="All menus ranked by food cost">'
-    +'<p class="dmp-head">Ranked by food cost %</p>'
+  /* No heading. The old "Ranked by food cost %" head became FALSE the moment the All-menus row
+     moved under it — All menus is the whole business, not a competitor in the ranking (the v96
+     rule, stated where the rows are built) — and the honesty note below already states the basis
+     once. The group's label says what the layer IS (the scope control), not a claim about order.
+     dash-dropdown.test.js pins the note's wording and placement. */
+  return '<div class="dash-menus-pop" role="group" aria-label="Dashboard scope">'
     +'<ul class="mcmp-list">'+(rows||[]).map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
     +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
     +'</div>';
@@ -4208,8 +4230,13 @@ function renderDashboard(){
   // v129: picking a scope CLOSES the dropdown — the button's own label confirms the selection, so
   // holding the list open (the chips-era disclosure behaviour) would leave a layer covering the
   // number the pick just changed. dashMenusOpen is set directly; setDashScope's re-render carries it.
-  root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); }; });
-  var dsb=root.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); };
+  // Both handlers refocus the REBUILT button: innerHTML replacement drops focus to <body>, which
+  // strands a keyboard user mid-interaction (v129 review). Touch is unaffected — the ring is
+  // :focus-visible-gated. The outside-click close deliberately does NOT refocus: the user was
+  // leaving, and yanking focus back would hijack whatever they clicked toward.
+  function refocusScopeBtn(){ var nb=root.querySelector('#dashScopeBtn'); if(nb) nb.focus(); }
+  root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); refocusScopeBtn(); }; });
+  var dsb=root.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); refocusScopeBtn(); };
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
