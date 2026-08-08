@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&amp;display=swap" rel="stylesheet">
+<style>
+:root, [data-theme="light"]{
+  --bg:#F7F3EC; --surface:#FFFDF9; --field:#F2EADF;
+  --text:#2A1F1A; --text2:#6B5D54; --muted:#756759; --border:#E8DFD3; --border2:#D9CDBD;
+  --brand:#3E2C26; --accent:#B84E0C; --accent-weak:rgba(184,78,12,.10); --on-accent:#FFFFFF;
+  --good:#2E6B44; --good-bg:rgba(46,107,68,.12);
+  --warn:#A96206; --warn-bg:rgba(169,98,6,.12);
+  --bad:#B03A2E; --bad-bg:rgba(176,58,46,.10);
+  --elev:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
+}
+[data-theme="dark"]{
+  --bg:#191412; --surface:#241E1B; --field:#221C19;
+  --text:#F3EDE5; --text2:#C9BBAF; --muted:#97897E; --border:#392F2A; --border2:#4A3E37;
+  --brand:#F3EDE5; --accent:#F08A3C; --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+  --good:#6FBE8F; --good-bg:rgba(111,190,143,.16);
+  --warn:#E2A54B; --warn-bg:rgba(226,165,75,.16);
+  --bad:#E76D5C; --bad-bg:rgba(231,109,92,.16);
+  --elev:none;
+}
+html,body{margin:0;background:var(--bg)}
+body{font:15px/1.6 'Nunito Sans',system-ui,sans-serif;color:var(--text)}
+a{color:var(--accent)}a:hover{color:var(--accent)}
+button{transition:background .14s cubic-bezier(.2,.7,.3,1),filter .14s cubic-bezier(.2,.7,.3,1),transform .1s}
+button:not([disabled]):active{transform:translateY(1px)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main button[style*="width:100%"]:hover,button.mrow:hover,button.prow:hover,button.krow:hover,button.mrow2:hover,button.drow:hover{background:var(--field)}
+aside button:hover{background:var(--accent-weak)}
+button[style*="background:var(--accent)"]:not([disabled]):hover{filter:brightness(.92)}
+button[style*="border-radius:999px"]:hover{background:var(--field)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@keyframes shimmer{0%{opacity:.55}50%{opacity:1}100%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div data-screen-label="Design package" style="max-width:880px; margin:0 auto; padding:40px 32px 80px">
+
+  <div style="display:flex; align-items:center; gap:12px">
+    <svg viewBox="0 0 64 64" style="width:32px;height:32px;color:var(--brand)" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"></circle><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path></svg>
+    <div>
+      <h1 style="margin:0; font-size:26px; font-weight:800; color:var(--brand)">EzPlate — design package</h1>
+      <p style="margin:2px 0 0; font-size:14px; color:var(--text2)">For the coding agent. Vanilla CSS, no build step. Toggle themes with the ◐ button to check both modes of every sample. <button type="button" onClick="{{ toggleTheme }}" style="border:1px solid var(--border2); border-radius:8px; background:none; color:var(--text); font-weight:700; font-size:13px; padding:4px 10px; cursor:pointer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path></svg> Toggle theme</button></p>
+    </div>
+  </div>
+
+  <!-- 1. Tokens -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">1 · Colour tokens</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Unchanged from the current app — the redesign keeps the palette. Light values first, dark in parentheses. Set on <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">:root</code> / <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">[data-theme="dark"]</code> exactly as today.</p>
+  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px">
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--bg); border:1px solid var(--border2)"></span><span style="font-size:13px"><b>--bg</b> page · #F7F3EC (#191412)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--surface); border:1px solid var(--border2)"></span><span style="font-size:13px"><b>--surface</b> card · #FFFDF9 (#241E1B)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--field); border:1px solid var(--border2)"></span><span style="font-size:13px"><b>--field</b> inputs · #F2EADF (#221C19)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--accent)"></span><span style="font-size:13px"><b>--accent</b> marmalade, CTAs only · #B84E0C (#F08A3C)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--good)"></span><span style="font-size:13px"><b>--good</b> at/under target · #2E6B44 (#6FBE8F)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--warn)"></span><span style="font-size:13px"><b>--warn</b> watch · #A96206 (#E2A54B)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--bad)"></span><span style="font-size:13px"><b>--bad</b> over target · #B03A2E (#E76D5C)</span></div>
+    <div style="display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px 14px"><span style="width:28px; height:28px; border-radius:8px; background:var(--brand)"></span><span style="font-size:13px"><b>--brand</b> headings · #3E2C26 (#F3EDE5)</span></div>
+  </div>
+  <p style="margin:12px 0 0; font-size:14px; color:var(--text2)"><b style="color:var(--text)">Elevation stays two-mode:</b> <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--elev</code> = cast shadow in light, <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">none</code> in dark (depth from the surface step). <b style="color:var(--text)">Semantic colour rule:</b> green means at/under target, red means over, amber means watch — and colour appears only on the figure or the tint block that carries the judgement, never as decoration. Under target is never punished.</p>
+
+  <!-- 2. Type -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">2 · Type scale</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Two faces: Nunito Sans for words, the system mono stack for every figure (<code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">ui-monospace, "SF Mono", Menlo, Consolas, monospace</code> with <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">font-variant-numeric:tabular-nums</code>). The rule the redesign adds: <b style="color:var(--text)">on any row, the figure is at least as large as the words beside it.</b></p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:6px 20px">
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:44px; font-weight:700; color:var(--bad)">41.2%</span><span style="font-size:13px; color:var(--muted)">44px mono 700 — the page verdict, one per screen, always semantic-coloured</span></div>
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:36px; font-weight:700">$6.96</span><span style="font-size:13px; color:var(--muted)">36px mono 700 — a panel's own headline figure (builder total)</span></div>
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-size:24px; font-weight:800; color:var(--brand)">Products</span><span style="font-size:13px; color:var(--muted)">24px 800 — page title, one per screen</span></div>
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700">$16.90 <span style="font-size:11px; color:var(--muted)">/kg</span></span><span style="font-size:13px; color:var(--muted)">16px mono 700 — row figure (unit label 11px muted)</span></div>
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-size:15px; font-weight:700">Barramundi Fillet Skinless</span><span style="font-size:13px; color:var(--muted)">15px 700 — row title</span></div>
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0; border-bottom:1px solid var(--border)"><span style="font-size:13px; color:var(--text2)">this month · in 9 plates</span><span style="font-size:13px; color:var(--muted)">13px --text2 — row meta / sub-lines</span></div>
+    <div style="display:flex; align-items:baseline; gap:16px; padding:12px 0"><span style="font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">What moved</span><span style="font-size:13px; color:var(--muted)">12px 800 small-caps — SECTION boundaries only, never row labels, max one per panel</span></div>
+  </div>
+
+  <!-- 3. Spacing + shape -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">3 · Spacing &amp; shape</h2>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
+    <p style="margin:0 0 8px">Keep the current 4px scale: <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">4 · 8 · 12 · 16 · 20 · 24 · 32</code>. Card seam stays <b style="color:var(--text)">8px</b>; page gutter <b style="color:var(--text)">16px</b> mobile, <b style="color:var(--text)">40px</b> desktop main column. Desktop shell: 216px sidebar + content column max 1000px.</p>
+    <p style="margin:0 0 8px">Radii: <b style="color:var(--text)">16px</b> cards · <b style="color:var(--text)">12px</b> controls/inputs · <b style="color:var(--text)">10px</b> buttons in rows · <b style="color:var(--text)">999px</b> chips.</p>
+    <p style="margin:0">Row heights: dense list rows ~46px (11px vertical padding), action rows with sub-lines ~62px. Hairline <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">1px --border</code> separators INSIDE one surface — no card-per-row. Dashed borders are reserved for the docket idiom.</p>
+  </div>
+
+  <!-- 4. Buttons -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">4 · Buttons</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">One primary per screen. Hover = darken accent (<code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">#A34509</code> light / <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">#E2792A</code> dark); pressed adds <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">transform:translateY(1px)</code>; focus ring <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">2px solid --accent, offset 2px</code>.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center">
+    <button type="button" style="border:0; border-radius:12px; padding:11px 16px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:14px; cursor:pointer">Primary · Save plate</button>
+    <button type="button" style="border:1.5px solid var(--border2); border-radius:12px; padding:10px 16px; background:none; color:var(--text); font-weight:800; font-size:14px; cursor:pointer">Secondary · Import invoice</button>
+    <button type="button" style="border:1.5px solid var(--border); border-radius:12px; padding:10px 16px; background:none; color:var(--text2); font-weight:700; font-size:14px; cursor:pointer">Ghost · Clear plate</button>
+    <button type="button" style="border:1.5px solid var(--bad-bg); border-radius:12px; padding:10px 16px; background:none; color:var(--bad); font-weight:800; font-size:14px; cursor:pointer">Danger · Delete</button>
+    <button type="button" disabled style="border:0; border-radius:12px; padding:11px 16px; background:var(--field); color:var(--muted); font-weight:800; font-size:14px">Disabled</button>
+  </div>
+
+  <!-- 5. Form fields -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">5 · Form fields</h2>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; display:grid; grid-template-columns:1fr 1fr; gap:16px">
+    <div>
+      <label style="display:block; font-size:12px; font-weight:700; color:var(--text2); margin-bottom:4px">Rest</label>
+      <input type="text" placeholder="Search products…" style="width:100%; box-sizing:border-box; background:var(--field); border:1.5px solid var(--border); border-radius:12px; padding:11px 14px; font-size:15px; color:var(--text)">
+    </div>
+    <div>
+      <label style="display:block; font-size:12px; font-weight:700; color:var(--text2); margin-bottom:4px">Focus — 2px accent ring</label>
+      <input type="text" value="Fish &amp; Chips" style="width:100%; box-sizing:border-box; background:var(--field); border:1.5px solid var(--border); border-radius:12px; padding:11px 14px; font-size:15px; color:var(--text); outline:2px solid var(--accent); outline-offset:1px">
+    </div>
+    <div>
+      <label style="display:block; font-size:12px; font-weight:700; color:var(--text2); margin-bottom:4px">Error — message replaces help text</label>
+      <input type="text" style="width:100%; box-sizing:border-box; background:var(--field); border:1.5px solid var(--bad); border-radius:12px; padding:11px 14px; font-size:15px; color:var(--text)">
+      <p style="margin:4px 0 0; font-size:12px; font-weight:700; color:var(--bad)">Give the plate a name before saving.</p>
+    </div>
+    <div>
+      <label style="display:block; font-size:12px; font-weight:700; color:var(--text2); margin-bottom:4px">Numeric — mono, right-aligned, no spinners</label>
+      <div style="display:flex; align-items:center; gap:8px"><input type="number" value="220" style="width:90px; text-align:right; background:var(--field); border:1.5px solid var(--border); border-radius:12px; padding:11px 12px; font-family:ui-monospace,Menlo,monospace; font-size:15px; color:var(--text)"><span style="font-family:ui-monospace,Menlo,monospace; font-size:14px; color:var(--muted)">g</span></div>
+    </div>
+  </div>
+
+  <!-- 6. Chips -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">6 · Chips</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Scope chips carry their figure in mono. Active = <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--field</code> fill + <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--border2</code>; idle = borderless-feeling <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--border</code>. Past five menus, the row collapses to All + two most-used + a "N more ▾" chip opening the ranked list.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+    <button type="button" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border2); background:var(--field); color:var(--text); font-weight:700; font-size:13px; cursor:pointer">All menus <span style="font-family:ui-monospace,Menlo,monospace">41.2</span></button>
+    <button type="button" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer">Winter <span style="font-family:ui-monospace,Menlo,monospace">39.4</span></button>
+    <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer">7 more ▾</button>
+    <span style="width:16px"></span>
+    <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--good); background:var(--good-bg); color:var(--good); font-weight:700; font-size:13px; cursor:pointer">● Healthy</button>
+    <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer"><span style="color:var(--warn)">●</span> Watch</button>
+    <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer"><span style="color:var(--bad)">●</span> Rework</button>
+  </div>
+
+  <!-- 7. List rows -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">7 · List rows</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">The core pattern replacing label:value cards. One surface per list; each row is a full-width <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">&lt;button&gt;</code>; the figure sits in a fixed right column, coloured only when the colour is a judgement. Hover = <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--field</code> fill.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); overflow:hidden">
+    <button type="button" style="display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:center; width:100%; text-align:left; border:0; background:none; padding:12px 20px; cursor:pointer; color:var(--text)">
+      <span style="grid-column:1; font-size:15px; font-weight:700">Two-line action row — Seafood Basket</span>
+      <span style="grid-column:2; grid-row:1 / span 2; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700; color:var(--bad); text-align:right">45.5%</span>
+      <span style="grid-column:1; font-size:13px; color:var(--text2)">sub-line carries the context · never a label</span>
+    </button>
+    <button type="button" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:var(--field); padding:12px 20px; cursor:pointer; color:var(--text)">
+      <span style="font-size:15px; font-weight:700">Single-line row (hover state shown)</span>
+      <span style="margin-left:auto; font-size:13px; color:var(--text2)">middle meta</span>
+      <span style="font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700">$34.50 <span style="font-size:11px; color:var(--muted)">/kg</span></span>
+    </button>
+    <button type="button" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:none; padding:12px 20px; cursor:pointer; color:var(--text)">
+      <span style="font-size:15px; font-weight:700; color:var(--text2)">Uncosted row — muted, never red</span>
+      <span style="margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:700; color:var(--muted)">not costed</span>
+    </button>
+  </div>
+
+  <!-- 8. Margin verdict block -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">8 · Margin verdict block</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Replaces the 3px stripe + 12px badge as the carrier of the margin light: a tinted block with the judgement in words and the figure in bold. Used in the builder's cost panel and anywhere a single plate's margin is stated.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; display:grid; gap:8px">
+    <div style="padding:9px 12px; border-radius:9px; background:var(--good-bg); font-size:13px; color:var(--text)"><b style="color:var(--good)">32.6% food cost</b> — comfortably under your 40% target</div>
+    <div style="padding:9px 12px; border-radius:9px; background:var(--warn-bg); font-size:13px; color:var(--text)"><b style="color:var(--warn)">42.2% food cost</b> — 90c under suggested</div>
+    <div style="padding:9px 12px; border-radius:9px; background:var(--bad-bg); font-size:13px; color:var(--text)"><b style="color:var(--bad)">45.5% food cost</b> — $2.60 under suggested</div>
+  </div>
+
+  <!-- 9. AI panel -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">9 · AI briefing panel</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Read-only, same chrome as every panel. The 16px sparkle is the ONLY Gemini identity marker; the credit line is mandatory. Sentences state facts the app computed; each may end in one quiet link into an existing flow. Never a button that changes data, never a figure the app didn't compute.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev)">
+    <div style="display:flex; align-items:center; gap:8px; padding:16px 20px 6px">
+      <svg viewBox="0 0 24 24" style="width:16px;height:16px" aria-hidden="true"><defs><linearGradient id="pkgSpark" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"></stop><stop offset=".35" stop-color="#9b72cb"></stop><stop offset=".70" stop-color="#d96570"></stop><stop offset="1" stop-color="#f2a60c"></stop></linearGradient></defs><path fill="url(#pkgSpark)" d="M12 2.2l2.3 6.4 6.4 2.3-6.4 2.3L12 19.6l-2.3-6.4L3.3 10.9l6.4-2.3z"></path></svg>
+      <span style="font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">What needs attention</span>
+    </div>
+    <div style="padding:4px 20px 14px">
+      <p style="margin:0; padding:9px 0; font-size:15px; line-height:1.55; color:var(--text2); border-bottom:1px solid var(--border)"><b style="color:var(--text)">Bold lead states the finding</b> — figures inline, dollars preferred over points. <a href="#" style="font-weight:700; text-decoration:none">Open plate</a></p>
+      <p style="margin:6px 0 0; font-size:11px; color:var(--muted); text-align:right">Phrased by Gemini — every figure computed by EzPlate</p>
+    </div>
+  </div>
+
+  <!-- 10. Navigation -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">10 · Navigation</h2>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Desktop (≥1024):</b> 216px sidebar, items 14px/700, active = <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--accent-weak</code> fill + accent text (the page's one standing accent). Theme + Settings pinned to the foot. No tagline anywhere in chrome.</p>
+    <p style="margin:0"><b style="color:var(--text)">Mobile (&lt;1024):</b> the existing 5-tab bottom bar, 56px hit targets, active in accent. Order and <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">data-tab</code> values unchanged (the naming inversion stays internal).</p>
+  </div>
+
+  <!-- 11. Motion + interaction states -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">11 · Motion &amp; interaction states</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Keep the app's existing motion system verbatim — one easing family, three durations, nothing ad-hoc. Every interactive element defines all five states; none may be missing.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Durations/easing (unchanged):</b> <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--t-fast .14s</code> taps, hovers, chips · <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--t-med .22s</code> dropdowns, rows, toasts · <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--t-slow .3s</code> modals, panels · easing <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">cubic-bezier(.2,.7,.3,1)</code>; the spring easing stays reserved for the two signature moments (AI panel arrival, invoice toast). All motion off under <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">prefers-reduced-motion</code>.</p>
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Per-component state table:</b> rest · hover (<code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--field</code> fill on rows, darkened accent on primary) · pressed (<code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">translateY(1px)</code>, --t-fast) · focus-visible (2px accent ring, offset 2px, NEVER removed) · disabled (--field fill, --muted text, no pointer).</p>
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Optimistic updates:</b> a save repaints instantly, the toast waits for the server (the app's existing rule — the wording never claims success before the write lands).</p>
+    <p style="margin:0"><b style="color:var(--text)">AI phrasing swap:</b> templates render first; the Gemini phrasing cross-fades in at --t-med. It settles, never flashes.</p>
+  </div>
+
+  <!-- 12. Empty states -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">12 · Empty states</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Carry the current app's system over unchanged — it is already gold-standard: two variants only, never both. <b style="color:var(--text)">A</b> = data exists, filters matched nothing (offer "Clear filters"). <b style="color:var(--text)">B</b> = true empty (illustration + one sentence + the primary action). Reuse the existing illustrated marks from <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--empty-*</code> tokens.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:24px 20px; display:grid; grid-template-columns:1fr 1fr; gap:16px">
+    <div style="text-align:center; padding:16px; border:1px dashed var(--border2); border-radius:12px">
+      <p style="margin:0; font-size:14px; font-weight:700">No products match</p>
+      <p style="margin:4px 0 10px; font-size:13px; color:var(--text2)">Variant A — the data is there, the filter isn't.</p>
+      <button type="button" style="border:1.5px solid var(--border2); border-radius:10px; padding:8px 14px; background:none; color:var(--text); font-weight:700; font-size:13px; cursor:pointer">Clear filters</button>
+    </div>
+    <div style="text-align:center; padding:16px; border:1px dashed var(--border2); border-radius:12px">
+      <svg viewBox="0 0 64 64" style="width:44px;height:44px;color:var(--muted); opacity:.7" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="5"></circle><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"></path></svg>
+      <p style="margin:6px 0 0; font-size:14px; font-weight:700">No plates yet</p>
+      <p style="margin:4px 0 10px; font-size:13px; color:var(--text2)">Variant B — one sentence, one action.</p>
+      <button type="button" style="border:0; border-radius:10px; padding:9px 14px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:13px; cursor:pointer">+ New plate</button>
+    </div>
+  </div>
+
+  <!-- 13. Density -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">13 · Density modes</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Lists over ~50 rows (Products, big menus) get a Comfortable/Compact toggle, persisted as a view preference in localStorage (allowed — it is a preference, not data). Compact drops sub-lines and tightens padding; the figure column is untouched.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); overflow:hidden">
+    <div style="display:flex; align-items:center; gap:8px; padding:10px 20px; border-bottom:1.5px solid var(--border2)">
+      <span style="font-size:12px; color:var(--muted)">Row height:</span>
+      <span style="font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:var(--field); border:1.5px solid var(--border2)">Comfortable · 58px</span>
+      <span style="font-size:12px; font-weight:700; color:var(--text2); padding:3px 10px; border-radius:999px; border:1.5px solid var(--border)">Compact · 40px</span>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr auto; gap:1px 12px; align-items:center; padding:11px 20px; border-bottom:1px solid var(--border)">
+      <span style="grid-column:1; font-size:15px; font-weight:700">Comfortable — title + sub-line</span>
+      <span style="grid-column:2; grid-row:1 / span 2; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700">$16.90 <span style="font-size:11px; color:var(--muted)">/kg</span></span>
+      <span style="grid-column:1; font-size:13px; color:var(--text2)">Seafood · Bidfood</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px; padding:8px 20px">
+      <span style="font-size:14px; font-weight:700">Compact — one line</span>
+      <span style="font-size:12px; color:var(--text2)">Seafood · Bidfood</span>
+      <span style="margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700">$16.90 <span style="font-size:11px; color:var(--muted)">/kg</span></span>
+    </div>
+  </div>
+
+  <!-- 14. Loading -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">14 · Loading</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">The boot gate and splash stay exactly as shipped (they are keyed to real data arrival). WITHIN a loaded app, a region that waits (AI phrasing, invoice referee) shows skeleton bars in its own layout — never a spinner in a card, never layout shift when content lands.</p>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px">
+    <div style="height:14px; width:70%; border-radius:6px; background:var(--field); animation:shimmer 1.4s ease-in-out infinite"></div>
+    <div style="height:14px; width:52%; border-radius:6px; background:var(--field); margin-top:10px; animation:shimmer 1.4s ease-in-out infinite .2s"></div>
+    <div style="height:14px; width:61%; border-radius:6px; background:var(--field); margin-top:10px; animation:shimmer 1.4s ease-in-out infinite .4s"></div>
+  </div>
+
+  <!-- 15. Keyboard, focus, contrast -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">15 · Keyboard, focus &amp; contrast</h2>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Keyboard (desktop):</b> <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">/</code> focuses search on any list screen · <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">Esc</code> closes the top layer only · <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">Enter</code> on a focused row = the tap action · arrow keys scrub the trend chart (already shipped — keep). No shortcut chords; this is not a power tool.</p>
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Focus:</b> every row-button, chip and control shows the 2px accent ring on <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">:focus-visible</code>. Dialogs trap focus and return it to the opener on close.</p>
+    <p style="margin:0 0 8px"><b style="color:var(--text)">Contrast floors:</b> <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--muted</code> is legal only ≥12px AND for dispensable text (captions, units); anything the user must read to act uses <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">--text2</code> or better. Semantic colours on dark must be used at their dark-mode values (already AA on --surface); never place --warn text on --warn-bg smaller than 13px bold.</p>
+    <p style="margin:0"><b style="color:var(--text)">Icons:</b> one set — 24px viewBox, 2px stroke, round caps (the current nav icons define it). Theme toggles use the existing moon/sun SVG pair (24px viewBox, 2px stroke) — implemented in the mocks.</p>
+  </div>
+
+  <!-- 16. Implementation notes -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">16 · Notes for the coding agent</h2>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
+    <p style="margin:0 0 8px">· All tokens already exist in <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">css/style.css</code> — this package changes STRUCTURE, not palette. New tokens needed: none.</p>
+    <p style="margin:0 0 8px">· Never rename identifiers, ids, <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">data-tab</code> values or storage keys; change only what a human reads.</p>
+    <p style="margin:0 0 8px">· Small-caps eyebrows: max one per panel, section boundaries only. Row labels are gone — position + the fixed figure column carry the meaning.</p>
+    <p style="margin:0 0 8px">· Figures: mono + <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">tabular-nums</code>, right-aligned in a fixed column, ≥ the row's word size. Colour on a figure is a judgement (target-anchored), never decoration.</p>
+    <p style="margin:0 0 8px">· The builder's cost panel is <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">position:sticky</code> on desktop and becomes the sticky footer (total + Save together) on mobile.</p>
+    <p style="margin:0">· Visual changes remain surgical, one screen per batch, per the standing rule.</p>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:960,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { theme: null };
+  applyTheme() {
+    var t = this.state.theme || this.props.theme || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate() { this.applyTheme(); }
+  renderVals() {
+    return {
+      toggleTheme: () => {
+        var cur = this.state.theme || this.props.theme || 'dark';
+        this.setState({ theme: cur === 'dark' ? 'light' : 'dark' });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

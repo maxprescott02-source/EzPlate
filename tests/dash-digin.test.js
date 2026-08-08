@@ -85,6 +85,14 @@ function digHarness() {
     ${extractFn(APP, 'dispPrice')}
     ${extractFn(APP, 'ptMs')}
     ${extractFn(APP, 'monthLabel')}
+    /* v120: digData's movers rows gained a two-dimension sub-line (size of the move + how many
+       plates carry it). Both helpers are extracted rather than stubbed so the real breadth count
+       runs here — productRefs is the one that must check BOTH reference paths, and a stub would
+       have hidden it if that ever collapsed to one. kitchenIngredients is empty in this fixture,
+       so the count exercises the plate-line->pid path. */
+    var kitchenIngredients=[];
+    ${extractFn(APP, 'productRefs')}
+    ${extractFn(APP, 'moverWhen')}
     ${extractFn(APP, 'digData')}
     ${extractFn(APP, 'digInHtml')}
     var DIG_CARDS=[

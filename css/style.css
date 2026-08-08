@@ -2540,6 +2540,86 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .verdict-trend.bad{color:var(--bad)}
 .verdict-trend.flat{color:var(--muted2)}
 
+/* ===== v120 — Q2 dashboard redesign =====
+   Structure only: every colour, duration and easing below is an existing token, and every class the
+   delegates and tests bind to (.mcmp-row, .mcmp-name, .mcmp-pct, .dig-card, .dig-v, .verdict-num,
+   .dh-scope) keeps its name. The design's 44px/40px figure and 12px/11px eyebrow are the two sizes
+   the type scale does not already carry, so they are set here on the elements that own them rather
+   than promoted to tokens — the package's "no new tokens" rule is about the palette. */
+.dash-verdict-panel h2{font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.dash-verdict-row{display:flex;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap}
+.dash-verdict-main{min-width:0}
+.dash-verdict-panel .verdict-num{font-size:40px;line-height:1}
+.dash-verdict-panel .verdict-line{font-size:var(--fs-sm);font-weight:600}
+@media (min-width:700px){
+  .dash-verdict-panel .verdict-num{font-size:44px}
+  .dash-verdict-panel .verdict-line{font-size:var(--fs-base)}
+  /* the target sentence sits on the figure's baseline at desktop, per the mock */
+  .dash-verdict-panel .verdict{align-items:baseline;gap:var(--sp-3)}
+  .dash-verdict-panel .verdict-line{display:inline;margin:0}
+}
+/* scope chips — the By-menu control, restyled. .mcmp-row keeps every behaviour it had. */
+.dash-chips-wrap{position:relative;margin-left:auto;min-width:0}
+.dash-chips{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+/* DESCENDANT FORM ON PURPOSE. `.mcmp-row` is defined LATER in this file than this block, so a bare
+   `.dash-chip` ties it on specificity and loses on source order — the chips came out as full-width
+   borderless rows. Same cascade trap as v119's builder takeover, one screen over. Do not flatten
+   these to a single class; tests/dash-chips.test.js pins the ordering that makes it necessary. */
+.dash-chips .dash-chip{width:auto;min-height:0;gap:var(--sp-2);padding:6px 14px;border-radius:var(--radius-pill);
+  border:1.5px solid var(--border);background:none;color:var(--text2);font-weight:700;font-size:var(--fs-sm);
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
+.dash-chips .dash-chip .mcmp-name{flex:0 1 auto;font-size:var(--fs-sm);white-space:nowrap}
+.dash-chips .dash-chip .mcmp-pct{min-width:0;font-size:var(--fs-sm)}
+/* THE 44px FLOOR WINS OVER THE MOCK'S PADDING, and only where it means something. The mock's
+   6px/14px pill measures 37.5px; this app has a 44px TOUCH floor that v96-menu-select.spec.js
+   pins at 380px, and it caught this. The design is not so much wrong as internally inconsistent —
+   its own §15 asks for 52px mobile targets while §6 draws a 37.5px chip.
+   So: 44px below the desktop shell breakpoint, and the mock's tighter pill only at >=1024px,
+   where the app is already a pointer layout.
+   TWO THINGS THAT DO NOT WORK, both tried: an ::after hit-area (the .ms-clear / .range-btn trick)
+   leaves boundingBox measuring 37.5 — green to a thumb, red to the spec, and worse than either
+   honest answer; and a `(pointer:fine)` query relaxes the floor in the exact case it must hold,
+   because the desktop Chromium the specs run in reports a fine pointer at 380px too. */
+.dash-chips .dash-chip,.dash-more{min-height:44px}
+@media (min-width:1024px){
+  .dash-chips .dash-chip,.dash-more{min-height:0}
+}
+.dash-chips .dash-chip:hover{background:var(--field)}
+.dash-chips .dash-chip.act{background:var(--field);border-color:var(--border2);color:var(--text)}
+.dash-more{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;
+  border:1.5px solid var(--border);background:none;color:var(--text2);font-weight:700;font-size:var(--fs-sm);cursor:pointer}
+.dash-more:hover{background:var(--field)}
+.dash-more:focus-visible,.dash-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dash-menus-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:20;width:280px;max-width:calc(100vw - 32px);
+  background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-card);
+  box-shadow:var(--shadow-lg);padding:var(--sp-3);max-height:min(60vh,360px);overflow:auto;
+  animation:fadeIn var(--t-med) var(--ease)}
+.dmp-head{margin:0 0 var(--sp-2);font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted2)}
+/* the disclosure list keeps the shipped row markup, so sparklines survive the redesign */
+.dash-menus-pop .mcmp-row{padding:var(--sp-2) 0}
+/* second row — What moved | Dig in */
+/* minmax(0,1fr), not 1fr: the bare keyword is minmax(AUTO,1fr), so a long product name in What
+   moved sizes its own column and the two stop being halves. Same reason .dash-row2's children
+   carry min-width:0 — a grid item's default min-width:auto refuses to shrink below its content. */
+.dash-row2{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4)}
+@media (min-width:900px){ .dash-row2{grid-template-columns:repeat(2,minmax(0,1fr))} .dash-row2.is-open{grid-template-columns:minmax(0,1fr)} }
+.dash-row2 > .panel{margin:0;min-width:0}
+/* Dig in is half-width now, so its four tiles cannot stay on one line — the 4-track rule at 640px
+   was written when it had the page to itself. Two-up inside the row, four-up only when the
+   drill-down opens and the panel takes the full width back. */
+.dash-row2 .dig-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:900px){ .dash-row2.is-open .dig-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+.dash-row2 .dig-card{min-width:0}
+.mv-list{list-style:none;margin:0;padding:0}
+.mv-row{display:flex;align-items:center;gap:var(--sp-3);min-height:44px;padding:var(--sp-2) 0}
+.mv-row + .mv-row{border-top:1px solid var(--border)}
+.mv-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.mv-name{font-size:var(--fs-sm);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mv-sub{font-size:var(--fs-xs);color:var(--text2)}
+.mv-row .dig-v{flex:0 0 auto;font-size:var(--fs-md);font-weight:700}
+@media (prefers-reduced-motion:reduce){ .dash-menus-pop{animation:none} }
+
 /* v96: .dash-scope is gone — the scope picker was deleted and the By-menu list is the control. Its
    rules (here, in the #dashBody density block, and both bento bands) went with it. */
 
@@ -2727,26 +2807,28 @@ html{scrollbar-gutter:stable}
    width (the cards-in-cards fix). With the compares tile deleted (v98 revision) the DOM order
    verdict → chart IS the card order; the CSS `order` re-cut is gone. */
 @media(min-width:1024px){
+  /* v120 (Q2 redesign) REPLACES the row map above, in place — this block stays the ONE desktop
+     owner, because a second stacked layer is what the comment says bred repeat breakages.
+       row 1  .dash-verdict-panel  full width — headline figure + scope chips
+       row 2  .dash-chart-panel    full width — the trend
+       row 3  .dash-ins            full width
+       row 4  .dash-row2           full width, itself the design's two-column What moved | Dig in
+     .dash-compare is no longer a standing panel (the chips absorbed it, and it renders inside
+     their popover), so its row-1 placement and the :not(:has()) fallbacks below are retired with
+     it. .dash-dig is now a CHILD of .dash-row2, not of #dashBody, so it takes no placement here. */
   #dashBody{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-2);padding:0 0 var(--sp-3)}
-  #dashBody .dash-panel{grid-column:1/8;grid-row:1;margin:var(--sp-5) 0 0;min-height:0}
-  /* inset-top mirrors the panel's sp-5 margin so the two cards top-align; inset-bottom stays
-     AUTO so the card ends at its content, and max-height caps it at the panel's floor (100% of
-     the grid area minus the top offset) so a long list scrolls instead of stretching the page.
-     BOTH grid lines must be EXPLICIT (1/2, not 1): an abs-pos grid child's containing block only
-     uses a grid line that is definite — an auto end line falls back to the container's padding
-     edge, and the card stretched to the page end (caught by v98-grid.spec.js, run 1). */
-  #dashBody .dash-compare{grid-column:8/13;grid-row:1/2;position:absolute;inset:var(--sp-5) 0 auto 0;max-height:calc(100% - var(--sp-5));margin:0;display:flex;flex-direction:column;min-height:0}
-  #dashBody .dash-compare .pad{flex:1 1 auto;min-height:0;overflow-y:auto}
-  #dashBody .dash-ins{grid-column:1/13;grid-row:2;margin:0}
-  #dashBody .dash-dig{grid-column:1/13;grid-row:3;margin:0}
-  /* absent panels: the neighbour takes the width / the row closes up (rows stay explicit) */
-  #dashBody:not(:has(.dash-compare)) .dash-panel{grid-column:1/13}
-  #dashBody:not(:has(.dash-ins)) .dash-dig{grid-row:2}
+  #dashBody .dash-panel{grid-column:1/13;min-height:0}
+  #dashBody .dash-verdict-panel{grid-row:1;margin:var(--sp-5) 0 0}
+  #dashBody .dash-chart-panel{grid-row:2;margin:0}
+  #dashBody .dash-row2{grid-column:1/13;grid-row:4;margin:0}
+  #dashBody .dash-ins{grid-column:1/13;grid-row:3;margin:0}
+  /* absent panel: the row closes up rather than leaving a gap (rows stay EXPLICIT — v89's lesson
+     was that auto-flow pushed a panel below the fold when a third child appeared). */
+  #dashBody:not(:has(.dash-ins)) .dash-row2{grid-row:3}
 
-  /* --- the top card: ONE surface, one column — number, target line, then the trend (the
-     compares tile is deleted, v98 revision); a hairline separates the zones, never a fill. --- */
+  /* --- v120: verdict and trend are two cards now, so the hairline that separated them INSIDE one
+     card is gone with the card that owned it — a seam between two surfaces is the gap, not a rule. --- */
   #dashBody .dash-panel .pad{display:flex;flex-direction:column;padding:var(--sp-3) var(--sp-5) var(--sp-4)}
-  #dashBody .dp-chart{margin-top:var(--sp-3);border-top:1px solid var(--border);padding-top:var(--sp-3)}
   /* the chart KEEPS its 540px cap and centred controls: rendering the 320-unit viewBox any
      wider scales the axis type with it (axis fonts are out of bounds for this batch). */
   /* the scope caption's line is RESERVED at the card's floor and the note absolutely positioned
@@ -2843,7 +2925,12 @@ html{scrollbar-gutter:stable}
 /* Strand 2: the chart reframed. The hero figure grows toward the approved mockup's weight — one
    deliberate size for the one number the dashboard exists to answer; everything else keeps the
    token scale. */
-#dashBody .verdict-num{font-size:34px}
+/* v120: 34px was v115's step toward the approved mockup; the Q2 redesign lands on its final pair
+   (40px phone / 44px desktop), set in the v120 block above. Kept here as the id-specificity owner
+   so there is ONE rule deciding this size — the class rule above could not outrank an id, and
+   escalating specificity to win against your own stylesheet is how this file bred repeat breakages. */
+#dashBody .dash-verdict-panel .verdict-num{font-size:40px}
+@media(min-width:700px){ #dashBody .dash-verdict-panel .verdict-num{font-size:44px} }
 /* The since-line: the achievement, then the gap. The warm tint marks accumulating drift (the thing
    worth glancing at); .calm drops the tint when there is no drift to report. Deliberately NOT a
    traffic-light colour — drift is normal trading, not failure (that judgement lives on the chart's

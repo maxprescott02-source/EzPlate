@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&amp;display=swap" rel="stylesheet">
+<style>
+:root, [data-theme="light"]{
+  --bg:#F7F3EC; --surface:#FFFDF9; --field:#F2EADF;
+  --text:#2A1F1A; --text2:#6B5D54; --muted:#756759; --border:#E8DFD3; --border2:#D9CDBD;
+  --brand:#3E2C26; --accent:#B84E0C; --accent-weak:rgba(184,78,12,.10); --on-accent:#FFFFFF;
+  --good:#2E6B44; --good-bg:rgba(46,107,68,.12);
+  --warn:#A96206; --warn-bg:rgba(169,98,6,.12);
+  --bad:#B03A2E; --bad-bg:rgba(176,58,46,.10);
+  --elev:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
+}
+[data-theme="dark"]{
+  --bg:#191412; --surface:#241E1B; --field:#221C19;
+  --text:#F3EDE5; --text2:#C9BBAF; --muted:#97897E; --border:#392F2A; --border2:#4A3E37;
+  --brand:#F3EDE5; --accent:#F08A3C; --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
+  --good:#6FBE8F; --good-bg:rgba(111,190,143,.16);
+  --warn:#E2A54B; --warn-bg:rgba(226,165,75,.16);
+  --bad:#E76D5C; --bad-bg:rgba(231,109,92,.16);
+  --elev:none;
+}
+html,body{margin:0;background:var(--bg)}
+body{font:15px/1.5 'Nunito Sans',system-ui,sans-serif;color:var(--text)}
+a{color:var(--accent)}a:hover{color:var(--accent)}
+button{transition:background .14s cubic-bezier(.2,.7,.3,1),filter .14s cubic-bezier(.2,.7,.3,1),transform .1s}
+button:not([disabled]):active{transform:translateY(1px)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main button[style*="width:100%"]:hover,button.mrow:hover,button.prow:hover,button.krow:hover,button.mrow2:hover,button.drow:hover{background:var(--field)}
+aside button:hover{background:var(--accent-weak)}
+button[style*="background:var(--accent)"]:not([disabled]):hover{filter:brightness(.92)}
+button[style*="border-radius:999px"]:hover{background:var(--field)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) 90px 100px 100px 130px;gap:0 12px;align-items:center}
+.mtools{display:flex;gap:8px;margin-top:20px;align-items:center;flex-wrap:wrap}
+.mtools input[type="search"]{flex:1 1 160px;min-width:140px}
+</style>
+</helmet>
+<div data-screen-label="Menu redesign (desktop)" style="display:grid; grid-template-columns:216px 1fr; min-height:100vh; background:var(--bg)">
+
+  <aside style="border-right:1px solid var(--border); padding:20px 12px; display:flex; flex-direction:column; gap:4px; position:sticky; top:0; height:100vh; box-sizing:border-box">
+    <div style="display:flex; align-items:center; gap:10px; padding:4px 10px 18px">
+      <svg viewBox="0 0 64 64" style="width:30px;height:30px;color:var(--brand)" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"></circle><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path></svg>
+      <span style="font-weight:800; font-size:17px; color:var(--brand)"><span style="color:var(--accent)">Ez</span>Plate</span>
+    </div>
+    <button type="button" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:10px; background:none; color:var(--text2); font-weight:700; font-size:14px; cursor:pointer; text-align:left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M3 3v18h18"></path><path d="M7 14l4-4 3 3 5-6"></path></svg>Dashboard</button>
+    <button type="button" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:10px; background:none; color:var(--text2); font-weight:700; font-size:14px; cursor:pointer; text-align:left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>Products</button>
+    <button type="button" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:10px; background:none; color:var(--text2); font-weight:700; font-size:14px; cursor:pointer; text-align:left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 21v-9"></path><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"></path><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"></path></svg>Ingredients</button>
+    <button type="button" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:10px; background:none; color:var(--text2); font-weight:700; font-size:14px; cursor:pointer; text-align:left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M6 3v4"></path><path d="M9 3v4"></path><path d="M12 3v4"></path><path d="M6 7h6"></path><path d="M9 7v14"></path><path d="M18 3v18"></path><path d="M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2"></path></svg>Plates</button>
+    <button type="button" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:10px; background:var(--accent-weak); color:var(--accent); font-weight:800; font-size:14px; cursor:pointer; text-align:left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><line x1="5" y1="20" x2="5" y2="12"></line><line x1="12" y1="20" x2="12" y2="6"></line><line x1="19" y1="20" x2="19" y2="14"></line></svg>Menu</button>
+    <span style="flex:1"></span>
+    <button type="button" onClick="{{ toggleTheme }}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:0; border-radius:10px; background:none; color:var(--text2); font-weight:700; font-size:14px; cursor:pointer; text-align:left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;vertical-align:-4px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path></svg> Theme</button>
+  </aside>
+
+  <main style="padding:28px 40px 48px; max-width:1000px; box-sizing:border-box; width:100%">
+
+    <div style="display:flex; align-items:center; gap:12px">
+      <div>
+        <h1 style="margin:0; font-size:24px; font-weight:800; color:var(--brand)">Menu</h1>
+        <p style="margin:2px 0 0; font-size:13px; color:var(--muted)">Winter Menu · 7 plates · averaging <span style="font-family:ui-monospace,Menlo,monospace; font-weight:700; color:var(--good)">39.4%</span> food cost</p>
+      </div>
+      <span style="margin-left:auto"></span>
+      <button type="button" style="border:1.5px solid var(--border2); border-radius:12px; padding:10px 16px; background:none; color:var(--text); font-weight:800; font-size:14px; cursor:pointer">+ Existing plate</button>
+      <button type="button" style="border:0; border-radius:12px; padding:11px 16px; background:var(--accent); color:var(--on-accent); font-weight:800; font-size:14px; cursor:pointer">+ New menu</button>
+    </div>
+
+    <div class="mtools">
+      <button type="button" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border2); background:var(--field); color:var(--text); font-weight:700; font-size:13px; cursor:pointer">Winter Menu <span style="font-family:ui-monospace,Menlo,monospace; color:var(--good)">39.4</span></button>
+      <button type="button" style="display:flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer">Breakfast <span style="font-family:ui-monospace,Menlo,monospace; color:var(--bad)">42.7</span></button>
+      <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer">7 more ▾</button>
+      <span style="margin-left:auto"></span>
+      <input type="search" placeholder="Search plates…" aria-label="Search plates" style="box-sizing:border-box; background:var(--surface); border:1.5px solid var(--border); border-radius:12px; padding:9px 14px; font-size:14px; color:var(--text)">
+      <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer"><span style="color:var(--good)">●</span> Healthy</button>
+      <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer"><span style="color:var(--warn)">●</span> Watch</button>
+      <button type="button" style="display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--border); background:none; color:var(--text2); font-weight:700; font-size:13px; cursor:pointer"><span style="color:var(--bad)">●</span> Rework</button>
+    </div>
+
+    <div style="margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); overflow:hidden">
+      <div class="mrow" style="padding:10px 20px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border-bottom:1.5px solid var(--border2)">
+        <span>Plate</span><span style="text-align:right">Cost</span><span style="text-align:right">Suggested (40%)</span><span style="text-align:right">Menu price</span><span style="text-align:right">Margin</span>
+      </div>
+      <div style="padding:12px 20px 4px; font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--brand)">Breakfast</div>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700">Bacon &amp; Egg Muffin</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$2.31</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$5.78</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700">$8.50</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; color:var(--good)">27.2% ✓</span>
+      </button>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700">Big Breakfast</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$5.87</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$14.68</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700">$18.00</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; color:var(--good)">32.6% ✓</span>
+      </button>
+      <div style="padding:14px 20px 4px; font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--brand); border-top:1px solid var(--border)">Mains</div>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700">Chicken Schnitzel Burger</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$4.12</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$10.30</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700">$14.00</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; color:var(--good)">29.4% ✓</span>
+      </button>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700">Fish &amp; Chips</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$6.96 <span style="display:block; font-size:11px; color:var(--muted)">$6.61–7.28</span></span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$17.40</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700">$16.50</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; color:var(--warn)">42.2% · +90c</span>
+      </button>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700">Garlic Bread</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$1.05</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$2.63</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700">$6.00</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; color:var(--good)">17.5% ✓</span>
+      </button>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700; color:var(--text2)">Pumpkin Soup <span style="font-weight:600; font-size:12px; color:var(--muted)">· not costed yet</span></span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; color:var(--muted)">—</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; color:var(--muted)">—</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700; color:var(--text2)">$9.00</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:13px; font-weight:700; color:var(--muted)">cost it →</span>
+      </button>
+      <button type="button" class="mrow" style="width:100%; text-align:left; border:0; border-top:1px solid var(--border); background:none; padding:11px 20px; cursor:pointer; color:var(--text)">
+        <span style="font-size:15px; font-weight:700">Seafood Basket</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$8.42 <span style="display:block; font-size:11px; color:var(--muted)">$8.02–8.90</span></span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:14px; color:var(--text2)">$21.05</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums; font-size:16px; font-weight:700">$18.50</span>
+        <span style="text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:14px; font-weight:700; color:var(--bad)">45.5% · +$2.60</span>
+      </button>
+    </div>
+    <p style="margin:10px 4px 0; font-size:12px; color:var(--muted)">Margin = food cost % against your 40% target; the dollar figure is what the price is short of suggested. Click a row to edit price, category or menu.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { theme: null };
+  applyTheme() {
+    var t = this.state.theme || this.props.theme || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate() { this.applyTheme(); }
+  renderVals() {
+    return {
+      toggleTheme: () => {
+        var cur = this.state.theme || this.props.theme || 'dark';
+        this.setState({ theme: cur === 'dark' ? 'light' : 'dark' });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
