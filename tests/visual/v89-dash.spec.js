@@ -133,27 +133,27 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       expect(cur).toBe('MENU_ORIGINAL');
 
       // desktop: v98 grid (SUPERSEDES the v95 terminal-row bento, per the grid brief) — the
-      /* v120: the desktop composition is four full-width rows — verdict, chart, insights, then the
-         two-column What moved | Dig in. The old row-1 pair (chart beside a selector card) is gone
-         with the selector card. Kept here as a light stacking check; v98-grid.spec.js owns the full
-         contract at three content levels. Asserted unconditionally so it can't pass vacuously if a
-         panel stops rendering (CodeRabbit, v90 — still applies). */
+      /* v121: the top card is ONE surface again (verdict + chips + chart), with What moved as the
+         right-hand row-1 card — the v98 7/5 split, kept because it is the layout that already
+         looked right; v120's two full-width cards were reverted as janky on Max's screenshot.
+         Light stacking check only; v98-grid.spec.js owns the full contract at three content
+         levels. Asserted unconditionally so it can't pass vacuously (CodeRabbit, v90). */
       if (width >= 1024) {
         await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
         const geo = await page.evaluate(() => {
           const r = (s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect() : null; };
-          return { verdict: r('#dashBody .dash-verdict-panel'), chart: r('#dashBody .dash-chart-panel'),
-                   ins: r('#dashBody .dash-ins'), row2: r('#dashBody .dash-row2') };
+          return { panel: r('#dashBody .dash-panel'), moved: r('#dashBody .dash-moved'),
+                   ins: r('#dashBody .dash-ins') };
         });
-        for (const k of ['verdict', 'chart', 'ins', 'row2']) {
+        for (const k of ['panel', 'moved', 'ins']) {
           expect(geo[k], `${k} renders`).not.toBeNull();
         }
-        expect(geo.chart.top, 'the chart is a full-width row below the verdict').toBeGreaterThanOrEqual(geo.verdict.bottom - 1);
-        expect(geo.ins.top, 'insights below the chart').toBeGreaterThanOrEqual(geo.chart.bottom - 1);
-        expect(geo.row2.top, 'the two-column row is last').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
+        expect(geo.moved.left, 'What moved is the right-hand row-1 card').toBeGreaterThanOrEqual(geo.panel.right - 1);
+        expect(Math.abs(geo.moved.top - geo.panel.top), 'row-1 cards top-aligned').toBeLessThanOrEqual(2);
+        expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
         // edge pins, not a width comparison (CodeRabbit, v98): a width check could pass offset
-        expect(geo.ins.left, 'every row starts at the same column edge').toBeLessThanOrEqual(geo.verdict.left + 1);
-        expect(geo.ins.right, 'and ends at the same one').toBeGreaterThanOrEqual(geo.verdict.right - 1);
+        expect(geo.ins.left, 'insights start at the top card edge').toBeLessThanOrEqual(geo.panel.left + 1);
+        expect(geo.ins.right, 'insights span through the What-moved edge').toBeGreaterThanOrEqual(geo.moved.right - 1);
       }
 
       // nothing overflows horizontally

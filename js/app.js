@@ -4022,10 +4022,15 @@ function renderDashboard(){
   // v115: the since-line renders HERE rather than inside verdictHtml so the pure verdict block (and
   // its extraction sandbox) stays free of the change log's globals.
   var pctNow=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
-  /* v120 (Q2 redesign): the verdict and the trend are two panels now, not two tiles in one, and the
-     scope chips sit beside the headline figure instead of in a By-menu card further down. The .panel
-     / .pad / .dp-tile wrappers and every class inside are unchanged — this moves markup, it does not
-     rename it, so the delegates and the tests that hang off them still bind. */
+  /* v121 (Max, 8 Aug 2026, on seeing v120 in production): the verdict and the trend are ONE card
+     again — the v98 surface that already looked right — with the redesign folded INTO it rather
+     than replacing it. v120 split them into two full-width cards, and the chart (capped at 540px
+     on purpose — wider scales the axis type out of bounds) floated in a full-width card with dead
+     space either side. His word was "janky", and he was right.
+     What v120 added is all still here: the chips (in the verdict row), the eyebrow heading, the
+     40/44px figure, What moved, the two-column second row. What returns is the one-surface top
+     card, number → since → hairline → chart, whose desktop width is set by the grid below so the
+     540px chart FILLS it instead of swimming in it. */
   var html='<div class="panel dash-panel dash-verdict-panel"><h2>'+heading+'</h2><div class="pad">'
     +'<div class="dp-tile dp-verdict">'
     +'<div class="dash-verdict-row">'
@@ -4035,9 +4040,7 @@ function renderDashboard(){
     +dashChipsHtml(scope)
     +'</div>'
     +sinceLineHtml(scope, pctNow)
-    +'</div></div></div>'
-    +'<div class="panel dash-panel dash-chart-panel"><div class="pad">'
-    +'<div class="dp-tile dp-chart">'
+    +'</div><div class="dp-tile dp-chart">'
     +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
     +trendChart(scope)   // v115: the chart owns the scope decision now — it draws the menu's own line when the history exists, and emits the scope-note itself ONLY on the all-menus fallback (v89 honesty, v94 wording, unchanged)
     +'</div></div></div>';
@@ -4179,7 +4182,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v120';
+var APP_VERSION='v121';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

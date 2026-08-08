@@ -59,6 +59,11 @@ The redesign restructures the layout of every screen a dropdown opens over, so d
 
 **Order is Max's, and differs from the package's.** He set Dashboard → Menu → Plates → Ingredients → Builder → Products → Invoice → Settings → sweep; the README proposed Products third. His order stands.
 
+**FOLD, DON'T REPLACE (Max, 8 Aug 2026, after seeing Q2's first cut in production - his word was "janky"):**
+**the mocks are a direction, not a layout to transplant. Fold each screen's redesign INTO the composition the app already has and that already looks right.**
+What that meant on Q2, kept here as the worked example: the mock's full-width trend card left the 540px-capped chart swimming in dead space, and its 6px chip padding broke the 44px touch floor - both times the app's existing layout was right and the mock was wrong. The redesign's SUBSTANCE (type scale, chips, new panels, row lists) transfers; the app's proven card structure, spacing rhythm and floors stay.
+**Before building each item: screenshot the CURRENT screen first, and judge the result against it, not only against the mock.**
+
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
