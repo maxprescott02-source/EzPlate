@@ -66,6 +66,33 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
+## next  Dashboard scope chips → one simple dropdown (Max, 9 Aug 2026)
+Problem: Q2 (v120) shipped scope chips with the ≤5/6+ collapse and a ranked disclosure. Max reversed it 9 Aug 2026: chips out.
+Verified live before keeping (the queue's own rule): `dashChipsHtml` emits `.dash-chip` rows at `js/app.js:4065`/`:4060` with the `#dashMore` disclosure - real work, not already done.
+Requirements: one dropdown button right of the verdict ("All menus 41.2 ▾") opening the existing ranked disclosure (All menus first, then worst-first, food-cost % in semantic colour, uncosted excluded). No chips anywhere; 44px touch floor holds.
+Mock updated 9 Aug: `Redesign - Dashboard v2 Desktop.dc.html`.
+
+## next  Remove the density toggle (Max, 9 Aug 2026)
+Problem: Q7 (v126) shipped Comfortable/Compact on Products, on the one legal localStorage key. Max reversed it 9 Aug 2026: it changes too little to earn a control a chef has to understand.
+Verified live: `PROD_DENSITY_KEY='cafeDB_prodDensity'` (`js/app.js:2050`) with the in-memory-first plumbing at `:2051-2055`, `.seg-density` (`css/style.css:3175`), and `tests/visual/q7-products.spec.js` pins compact + persistence.
+Requirements: control gone, one row height everywhere, the key and its in-memory-first plumbing removed, the specs pinning the toggle retired on purpose. Design Package §13 records the cut.
+
+## next  Menu verdict cell: drop the dollar shortfall (Max, 9 Aug 2026)
+Problem: Q3 (v122) shipped "42.2% · +90c" (`vbadge`, `js/app.js:1350-1362`, pinned exactly in `tests/menu-margin.test.js`). The dollar delta reads as a price-rise instruction; judging cost is the app's job, pushing price hikes is not.
+Verified live: the cell prints the shortfall today, and amber vs red differ ONLY by hue (v128 session audit) - both premises hold.
+Requirements: the cell states food-cost % vs target only (e.g. "42.2% · over").
+**This item now OWNS the amber/red hue-only discriminator (moved from Q10):** the word after the % carries it - amber "over", red "well over" (or better copy) - decided here once, with the `aria-label` following the same wording.
+
+## next  G1 - Error-state restyle
+Per the handoff addendum `Redesign - Error, Tablet & First-run.dc.html` §16 and README gap batch G1 (both landed in the 9 Aug handoff update).
+Presentation only: restyles the SHIPPED mechanisms (`toast()`, `#syncBanner`, boot gate, invoice file-failed) - production error wording verbatim, the protected parser untouched, no new error plumbing. One PR.
+
+## next  G2 - Tablet pass (768-1023)
+Per addendum §17: bottom nav kept, 24px gutters, content max 720px, targets ≥44px, hover only ≥1024 under `@media (hover:hover)`; the only per-screen wraps are 1120px (builder panel) and 1130px (menu toolbar) - add no others. Test iPad portrait AND landscape. One PR.
+
+## next  G3 - First-run
+Per addendum §18: empty states ARE the onboarding - Dashboard 3-step path card replaces the verdict hero while nothing is costed (state derived from data, no stored flag, gone once a verdict exists); Products first-run leads with invoice import; Builder/Menu keep their shipped empty-state wording, restyled. No new storage. One PR.
+
 ## next  Q10 - System sweep
 Apply Design Package §11–15 app-wide: five interaction states per control, skeletons, empty-state variants, keyboard rules, contrast floors, moon/sun theme icon. Verify `prefers-reduced-motion`. No screen-specific changes.
 > **Plan. Last on purpose** - it codifies what the eight screen batches established, so running it early would set rules the screens then break.
@@ -73,10 +100,23 @@ Apply Design Package §11–15 app-wide: five interaction states per control, sk
 > Empty states are already gold-standard per the package - **carry them over unchanged**, two variants only (A: filters matched nothing; B: true empty). Do not redesign them.
 > Contrast floors: `--muted` only ≥12px and only for dispensable text; anything needed to act uses `--text2` or better.
 > **From the v125 audit's dropped-threads sweep:** (a) the trend chart was never diffed against the mock pixel-by-pixel (HANDOVER-123 said "if they differ it belongs in Q10") - do that diff here; (b) list-row `aria-label`s announce neither drift nor unit cost (HANDOVER-127) - the screen-wide row-labelling question lands here.
-> **From the Q3 review (8 Aug 2026): on phones the Menu tab's amber and red verdicts now differ ONLY by hue** - the old cell printed "12% under" / "29% under", which was the amber/red discriminator in text; the new cell prints food-cost % + dollar gap, and neither derives the boundary. The `aria-label` covers screen readers but not colour-blind sighted users. Decide a non-colour discriminator here, where the contrast rules land - not as a one-screen patch.
+> ~~From the Q3 review (8 Aug 2026): the Menu tab's amber and red verdicts differ only by hue~~ **MOVED 9 Aug 2026: the "drop the dollar shortfall" item above owns this decision now** - the cell is being rewritten there anyway, and the word after the % (amber "over", red "well over") is the discriminator.
 > Fold in the queued **unstyled zero-ingredients link** here if it has not shipped by then - the sheet still has no anchor colour rule at all.
 > **From the Q9 review (9 Aug 2026): the selected-state pair `--accent-ink` on `--accent-weak` is 3.74:1 over `--surface2` at 15px/800** - below the 4.5:1 AA floor for non-large text, and it is the app's standard selected idiom (`.set-navitem[aria-current]`, `.mlf-chip.on`, others). Q9 made the Settings nav highlight the pane's ONLY visible section cue (the duplicate title is sr-only'd on desktop), which raises the stakes. Decide the pair once, app-wide, here - Q9 deliberately did not fork the idiom on one control.
 > ⚠️ Verify `prefers-reduced-motion` genuinely disables motion; the app already has a reduced-motion early return in `closeOverlay` that a sweep could easily break.
+> **Investigated 9 Aug 2026 (v128 session, before Max's reversals paused the batch) - findings for whoever runs this, measured not guessed:**
+> - **Do after: the three reversal items above** - they delete the chips and the density control this sweep would otherwise restyle, and the verdict-cell rewrite owns the discriminator now.
+> - Much of §11-15 already ships: moon/sun pair (`index.html:78`), motion tokens + §22 wholesale reduced-motion (`style.css:1037`), global focus rules (`:169`, `:1787`), disabled/skeleton block (`:1473`), `.ins-credit` space already reserved (`:2718`).
+> - **The press language is `scale(.98)`, decided v115 (`style.css:1786`)** - the package's `translateY(1px)` loses; extend scale to the few controls missing :active (`.king-row`, `.set-navitem`, `.seg-btn`, `.range-btn`) with reduce guards (§22 kills animations/transitions, NOT transforms).
+> - **§14's no-spinner rule was considered and DECLINED for the invoice wait**: the ring is v115's deliberate one-ring language (boot/PTR/invoice, comment at `style.css:2973`), still on `docs/PHONE.md` for Max to judge. Don't re-litigate silently.
+> - Focus ring genuinely missing only on `.misc-name` (`style.css:2530` kills ring on :focus, colour-only underline left). `.tp-dot`'s `outline:none` rules are DEAD - nothing emits `tp-dot` (the tooltip `.tp-tip`/`.tp-d` IS live); fold into the dead-CSS sweep.
+> - **Esc stacking is a real defect**: `js/app.js:7503` closes ALL open modals in one press (a confirm over the invoice review closes both), and two more Esc listeners (`:1048`, `:2640`) fire in parallel. §15 says top layer only.
+> - No `/` shortcut exists; `currentTab()` (`js/app.js:1391`) gives the tab→search-id map (`plateSearch`/`menuSearch`/`kingSearch`/`ingSearch`); bail when typing or a modal is open.
+> - Row labels: `king-row`'s `aria-label` OVERRIDES its content (price + drift never announced, `js/app.js:2257`); Products rows have no label and announce a run-on string. Decide the screen-wide rule; the `vbadge` aria (`:1348`) is the good example.
+> - Contrast floor: sub-12px muted violations = `.tp-d` 10px, `.upu` 11, `.ing-per` 11 (the price-basis correctness flag!), `.range-btn` 11, `.ing-tag` 11, `.dash-chart .ax` 11, `.side-brand small` 11; plus a ~15-rule needed-at-muted ≥12px list (full table in the v128 session's audit agent output - re-derive with a grep if needed, the selectors are the durable part).
+> - **Selected-idiom fix candidate (the Q9 line above): light `--accent-ink` → `var(--accent-press)`** = 5.2:1 on tinted fills (computed), dark already passes at 4.5; one line, keeps the idiom app-wide.
+> - Focus trap + return-to-opener in dialogs: NOT built anywhere; big enough for its own item - queue it out of the sweep rather than riding it.
+> - The trend-chart-vs-mock diff (rider a) is DONE: the shipped chart carries the mock's substance (mono axis, dashed target, state-coloured line, markers, honest caption); only composition-level differences remain and the app's are deliberate. No action.
 
 ---
 

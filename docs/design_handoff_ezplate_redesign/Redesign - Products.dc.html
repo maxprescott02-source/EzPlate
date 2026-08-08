@@ -41,9 +41,6 @@ button[style*="background:var(--accent)"]:not([disabled]):hover{filter:brightnes
 button[style*="border-radius:999px"]:hover{background:var(--field)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 input:focus{outline:2px solid var(--accent);outline-offset:1px}
-.plist.compact button{padding-top:5px!important;padding-bottom:5px!important}
-.segd{border:0;padding:9px 12px;background:none;color:var(--text2);font-weight:700;font-size:13px;cursor:pointer}
-.segd.on{background:var(--field);color:var(--text);font-weight:800}
 .ptools{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
 .ptools input[type="search"]{flex:1 1 160px;min-width:140px}
 </style>
@@ -81,14 +78,10 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
       <input type="search" placeholder="Search 412 products…" aria-label="Search products" style="box-sizing:border-box; background:var(--surface); border:1.5px solid var(--border2); border-radius:12px; padding:12px 16px; font-size:15px; color:var(--text)">
       <select aria-label="Filter by category" style="background:var(--surface); border:1.5px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px; font-weight:700; color:var(--text2)"><option>All categories</option><option>Dairy &amp; Eggs</option><option>Frozen</option><option>Meat</option><option>Produce</option><option>Seafood</option></select>
       <select aria-label="Filter by supplier" style="background:var(--surface); border:1.5px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px; font-weight:700; color:var(--text2)"><option>All suppliers</option><option>Bidfood</option><option>PFD</option><option>The Fruit Wagon</option></select>
-      <div style="display:flex; border:1.5px solid var(--border); border-radius:12px; overflow:hidden" role="group" aria-label="Row density">
-        <button type="button" class="segd {{ segComfort }}" onClick="{{ setComfort }}">Comfortable</button>
-        <button type="button" class="segd {{ segCompact }}" onClick="{{ setCompact }}" style="border-left:1px solid var(--border)">Compact</button>
-      </div>
     </div>
 
     <!-- One surface, hairline rows: price column fixed right, drift beside it when an invoice moved it -->
-    <div class="plist {{ densityClass }}" style="margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); overflow:hidden">
+    <div style="margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); overflow:hidden">
       <div style="display:grid; grid-template-columns:1fr 150px 130px 130px 80px; gap:0 16px; padding:10px 20px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border-bottom:1.5px solid var(--border2)">
         <span>Product</span><span>Category</span><span>Supplier</span><span style="text-align:right">Price</span><span style="text-align:right">Change</span>
       </div>
@@ -169,7 +162,7 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
 class Component extends DCLogic {
-  state = { theme: null, dense: false };
+  state = { theme: null };
   applyTheme() {
     var t = this.state.theme || this.props.theme || 'dark';
     document.documentElement.setAttribute('data-theme', t);
@@ -178,11 +171,6 @@ class Component extends DCLogic {
   componentDidUpdate() { this.applyTheme(); }
   renderVals() {
     return {
-      densityClass: this.state.dense ? 'compact' : '',
-      segComfort: this.state.dense ? '' : 'on',
-      segCompact: this.state.dense ? 'on' : '',
-      setComfort: () => this.setState({ dense: false }),
-      setCompact: () => this.setState({ dense: true }),
       toggleTheme: () => {
         var cur = this.state.theme || this.props.theme || 'dark';
         this.setState({ theme: cur === 'dark' ? 'light' : 'dark' });

@@ -213,28 +213,10 @@ button[style*="border-radius:999px"]:hover{background:var(--field)}
     </div>
   </div>
 
-  <!-- 13. Density -->
-  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">13 · Density modes</h2>
-  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Lists over ~50 rows (Products, big menus) get a Comfortable/Compact toggle, persisted as a view preference in localStorage (allowed — it is a preference, not data). Compact drops sub-lines and tightens padding; the figure column is untouched.</p>
-  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); overflow:hidden">
-    <div style="display:flex; align-items:center; gap:8px; padding:10px 20px; border-bottom:1.5px solid var(--border2)">
-      <span style="font-size:12px; color:var(--muted)">Row height:</span>
-      <span style="font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:var(--field); border:1.5px solid var(--border2)">Comfortable · 58px</span>
-      <span style="font-size:12px; font-weight:700; color:var(--text2); padding:3px 10px; border-radius:999px; border:1.5px solid var(--border)">Compact · 40px</span>
-    </div>
-    <div style="display:grid; grid-template-columns:1fr auto; gap:1px 12px; align-items:center; padding:11px 20px; border-bottom:1px solid var(--border)">
-      <span style="grid-column:1; font-size:15px; font-weight:700">Comfortable — title + sub-line</span>
-      <span style="grid-column:2; grid-row:1 / span 2; font-family:ui-monospace,Menlo,monospace; font-size:16px; font-weight:700">$16.90 <span style="font-size:11px; color:var(--muted)">/kg</span></span>
-      <span style="grid-column:1; font-size:13px; color:var(--text2)">Seafood · Bidfood</span>
-    </div>
-    <div style="display:flex; align-items:center; gap:12px; padding:8px 20px">
-      <span style="font-size:14px; font-weight:700">Compact — one line</span>
-      <span style="font-size:12px; color:var(--text2)">Seafood · Bidfood</span>
-      <span style="margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:15px; font-weight:700">$16.90 <span style="font-size:11px; color:var(--muted)">/kg</span></span>
-    </div>
-  </div>
+  <!-- 13. Density — cut -->
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">13 · Density modes — removed</h2>
+  <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">Cut on review: the Comfortable/Compact toggle changed too little to earn a control a chef has to understand. <b style="color:var(--text)">One row height everywhere</b>, per §3. Do not build a density toggle and do not add its localStorage key — the mocks no longer show it.</p>
 
-  <!-- 14. Loading -->
   <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">14 · Loading</h2>
   <p style="margin:0 0 12px; font-size:14px; color:var(--text2)">The boot gate and splash stay exactly as shipped (they are keyed to real data arrival). WITHIN a loaded app, a region that waits (AI phrasing, invoice referee) shows skeleton bars in its own layout — never a spinner in a card, never layout shift when content lands.</p>
   <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px">
@@ -253,7 +235,15 @@ button[style*="border-radius:999px"]:hover{background:var(--field)}
   </div>
 
   <!-- 16. Implementation notes -->
-  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">16 · Notes for the coding agent</h2>
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">16–18 · Error states · Tablet breakpoints · First run</h2>
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
+    <p style="margin:0 0 8px">Specified with full mocks in the addendum file <b style="color:var(--text)">Redesign - Error, Tablet &amp; First-run.dc.html</b>. Summary:</p>
+    <p style="margin:0 0 8px">· <b style="color:var(--text)">§16 Errors:</b> restyle the shipped vessels only — sync pill states, toasts (failure = --bad border + icon, holds 5s, prod wording verbatim), boot-gate error with one retry, invoice file-failed strip. A failed write is never quiet; every error has exactly one action.</p>
+    <p style="margin:0 0 8px">· <b style="color:var(--text)">§17 Breakpoints:</b> &lt;768 phone · 768–1023 tablet (bottom nav kept, 24px gutters, max 720px) · ≥1024 desktop shell · local wraps at 1120 (builder panel) and 1130 (menu toolbar) only. Targets ≥44px through 1023; hover arms at ≥1024 under <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">@media (hover:hover)</code>.</p>
+    <p style="margin:0">· <b style="color:var(--text)">§18 First run:</b> empty states ARE the onboarding — no tours, no stored flags. Dashboard shows a 3-step path card (derived from data, gone forever once a verdict exists); Products first-run leads with invoice import.</p>
+  </div>
+
+  <h2 style="margin:40px 0 4px; font-size:13px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--brand)">19 · Notes for the coding agent</h2>
   <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--elev); padding:16px 20px; font-size:14px; color:var(--text2)">
     <p style="margin:0 0 8px">· All tokens already exist in <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">css/style.css</code> — this package changes STRUCTURE, not palette. New tokens needed: none.</p>
     <p style="margin:0 0 8px">· Never rename identifiers, ids, <code style="font-family:ui-monospace,Menlo,monospace; font-size:13px">data-tab</code> values or storage keys; change only what a human reads.</p>
