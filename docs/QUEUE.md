@@ -69,14 +69,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
-## next  Q5 - Ingredients redesign
-Implement `Redesign - Ingredients.dc.html`. Stop after.
-> **Plan.** The `data-tab="pantry"` screen, UI label "Ingredients" - **`renderKitchenPanel` / `#kingList` / `.king-row`**, NOT `renderIngredients`.
-> ⚠️ Corrected 9 Aug 2026 before building: the plan as written named `renderIngredients`, which is the PRODUCTS screen (`#ingList`, Q7's target) - the naming inversion claimed another victim at planning time. Verified against `rerenderCurrentTab` (`pantry → renderKitchenPanel`) and the `#tab-pantry` markup.
-> Rows become ingredient / "→ linked product · brand · supplier" / unit cost, with inline drift % when the last invoice moved it.
-> Drift must read from `ing_price_history`, **never `ingredients.updated_at`**, which is a single restore timestamp on every row and means nothing.
-> New broken-link state: "⚠ product missing — relink to keep N plates costed" in `--bad`. **Count N on BOTH sides** - the absence of a back-pointer is not evidence nothing was lost.
-
 ## next  Q6 - Plate builder redesign
 Implement `Redesign - Plate Builder.dc.html` + its mobile frame.
 **DECIDED 8 Aug 2026 (Max): "keep the modal".** Unblocked by that answer - it took the recommendation below, so the design's full-page shell is set aside and everything else is taken.
@@ -374,6 +366,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q5 - Ingredients redesign** - shipped 9 Aug 2026 as **`ezplate-v124`** (PR #87), handover `HANDOVER-127-ingredients.md`.
+  `renderKitchenPanel` + `#kingList`-scoped CSS: one surface of rows (ingredient / "→ product — brand · supplier" / unit cost), inline drift beside the name via `ingLastMovePct` (the same rule as What-moved, reading `ing_price_history`), and loud broken links ("⚠ product missing — relink to keep N plates costed", "no cost").
+  **Two corrections along the way:** the item named `renderIngredients` (the Products screen - the naming inversion caught at planning, fixed in the item before building), and its "count N on BOTH sides" premise was wrong about relink semantics - a relink mutates `k.pid` and cannot heal a legacy bare-pid line, so N counts only the kid arm (the review's major finding; the both-sides law stays at `productRefs`).
+  **The review's other major:** the first cut's source-grep test pins passed with the two render branches inverted - the fresh-states spec now renders both new states and asserts the DOM.
 
 - **Q4 - Plates redesign** - shipped 9 Aug 2026 as **`ezplate-v123`** (PR #85), handover `HANDOVER-126-plates.md`.
   CSS only, all `#plateList`-scoped - the card grid became one surface of library rows (name · category / published-where on a fixed column / cost right in mono); the Products tab shares the classes and is untouched until Q7. Zero JS changes; smoke [12]'s pins all hold.
