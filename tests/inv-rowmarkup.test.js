@@ -172,6 +172,17 @@ test('Q8 (v127): a tick the USER placed survives a re-render — on any row stat
   assert.ok(!/invAppr" checked/.test(noDecision), 'absent a decision, a review row is never pre-ticked');
 });
 
+test('Q8 (v127): every self-edit path clears userTick — the persistence protects ticks from OTHER rows only', () => {
+  // Playwright is not in npm test, so the clearing rule gets a source pin here too (the addProduct
+  // lesson: what only a spec covers can be deleted silently). One site per self-edit path:
+  // invSelChanged (match pick) · the .invPrice change handler · the +New open · closeNewItem · the
+  // pack-teach recompute. Five, exactly.
+  const sites = (SRC.match(/delete (r|invRows\[i\])\.userTick/g) || []).length;
+  assert.equal(sites, 5, 'five clearing sites — one per self-edit path; a missing one re-opens the v127 review\'s "ticked but unappliable" hole');
+  assert.ok(extractFn(SRC, 'invSelChanged').includes('delete r.userTick'), 'match pick clears');
+  assert.ok(extractFn(SRC, 'closeNewItem').includes('userTick'), 'dismissing the new-item form clears');
+});
+
 test('v50 item 1: a new-item row persists its ticked state across re-renders (newItem.approved drives the box, v39 still holds)', () => {
   const base = Object.assign(attentionRow(), { addNew: true, bestId: null, needsAttention: false });
   // no form yet -> unticked (v39: a new row is never auto-ticked by the renderer)

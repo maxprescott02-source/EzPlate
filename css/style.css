@@ -1827,15 +1827,18 @@ button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-vi
 /* item 5: a finger sliding across the chart scrubs the tooltip, never selects text */
 .dash-chart svg{touch-action:none;-webkit-touch-callout:none}
 .dash-chart ::selection{background:transparent}
-/* item 6: needs-attention rows — skimmable, warm, not an error (DORMANT until the Opus hook lands) */
-.inv-data.needs-attention{background:var(--bad-bg);box-shadow:inset 3px 0 0 var(--bad)}
+/* item 6, retired by Q8 (v127): the needs-attention TINT is gone — needsAttention is a strict
+   subset of st-review, and its higher-specificity duplicate silently outgunned the st-* rules,
+   which meant tint derived from needsAttention rather than invRowState (breaking the v37
+   invariant the moment the two rules stopped declaring identical values — the v127 review
+   caught exactly that). Tint now lives ONLY on the st-* rules. The stripe inset stays. */
 .inv-data.needs-attention td:first-child{padding-left:calc(var(--sp-4) + 3px)}
 /* v67 item 3: the pre-v67 phone misc-cost overrides were removed here — see the v67 misc block. */
 
 /* ===== v28 — notification, attention, stability, hover parity ===== */
-/* item 5a: the tint now OUTGUNS the card rule (.invtable tbody tr:not():not() was winning on specificity) */
-.invtable tbody tr.inv-data.needs-attention:not(.sec):not(.ni-row){
-  background:var(--bad-bg);border-color:var(--bad);box-shadow:inset 3px 0 0 var(--bad)}
+/* item 5a, retired by Q8 (v127) with the item-6 rule above — same reason, same tombstone. The
+   st-* rules below (§v37 block) are the ONE tint authority; this (0,5,2) duplicate outranked
+   them. */
 /* item 2: nothing moves while you type — every box in the row is fixed-width */
 .pt-group .invPackQty{width:84px;min-width:84px}
 .pt-group .invPackUnit{width:86px;min-width:86px}
@@ -2191,9 +2194,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* the invoice tint reads the SAME state machine as the summary: matched / review / new.
    Q8 (v127): review rows wear WARN (the design's tint — they need an eye, they are not errors);
    a new row carries an accent stripe and no wash (its "new item" flag is the signal). */
-.invtable tr.inv-data.st-review:not(.sec):not(.ni-row){
+.invtable tbody tr.inv-data.st-review:not(.sec):not(.ni-row){
   background:var(--warn-bg);border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn)}
-.invtable tr.inv-data.st-new:not(.sec):not(.ni-row){
+.invtable tbody tr.inv-data.st-new:not(.sec):not(.ni-row){
   box-shadow:inset 3px 0 0 var(--accent)}
 /* search bars: clear button always visible (the Products pattern), builder included */
 .search-wrap{position:relative}

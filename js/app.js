@@ -4322,7 +4322,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    + a localStorage mirror, loaded idempotently in bootstrapSync.
    ============================================================ */
 /* The version string. sw.js's CACHE constant is the source of truth; this is a mirror,
-   NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
+   NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
 var APP_VERSION='v127';
@@ -6224,7 +6224,7 @@ function expandNewItem(i){
 function collapseNewItem(i){ var nirow=document.querySelector('.ni-slot[data-ni="'+i+'"]'); if(nirow) nirow.style.display='none'; }
 function closeNewItem(i){
   collapseNewItem(i);
-  var r=invRows[i]; if(r){ r.addNew=false; r.bestId=null; r.manualPick=false; r.newItem=null; }   /* dismissing the form = this line is neither new nor matched (skip); drop its saved form state */
+  var r=invRows[i]; if(r){ delete r.userTick; r.addNew=false; r.bestId=null; r.manualPick=false; r.newItem=null; }   /* dismissing the form = this line is neither new nor matched (skip); drop its saved form state */
   renderInvReview();                                               /* ITEM 1 (v33): single render path rebuilds the row (dropdown back to "assign manually", labelled dashes, unticked) */
 }
 function invUnitToBase(unitType){
@@ -6391,7 +6391,11 @@ function renderInvReview(){
                            not a pre-tick; an untick on a matched row survives too)
          userTick unset -> the auto-tick law, unchanged: ONLY 'matched' pre-ticks
          addNew rows    -> r.newItem.approved stays the one home for that tick (v50 contract)
-       invSelChanged DELETES userTick — changing the match changes what the tick approved. */
+       EVERY self-edit to a row's basis (match pick, price edit, pack teach, +New open/close) DELETES
+       its userTick — persistence exists ONLY to protect ticks from re-renders caused ELSEWHERE.
+       userTick needs no gemRowLocked entry for one reason: the v113 gate renders NO checkboxes while
+       the referee is pending, so no userTick can exist for it to override — if that gate ever
+       weakens, revisit this. */
     var checked = r.addNew ? !!(r.newItem && r.newItem.approved)
       : (r.userTick!=null ? !!r.userTick : (invRowState(r)==='matched'));
     var chips='';
@@ -6442,6 +6446,7 @@ function renderInvReview(){
     inp.addEventListener('change', function(){
       var tr=inp.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10); var r=invRows[i]; if(!r) return;
       var v=parseFloat(inp.value); r.unitPrice=(!isNaN(v)&&v>=0)?v:null;
+      delete r.userTick;                                                   // Q8 (v127): the user edited THIS row's price — the old tick approved a different application (v127 review: a blanked price kept its tick and applied nothing, silently)
       if(r.bestId && byId[r.bestId] && (!r.unit || r.unit==='auto')){ var b=byId[r.bestId].base_unit; r.unit=(b==='g'?'kg':b==='ml'?'l':'ea'); }
       r.needManual=(r.unitPrice==null && !r.packTaught);
       r.gemPriceReview=false;                                              // v66: the human just set the price — the AI price-check is resolved
@@ -6463,7 +6468,8 @@ function renderInvReview(){
         var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
         var pvEl=tr.querySelector('.pt-preview');                  // v45 item 1: the preview line lives under .price-row now, not inside .pack-teach
         if(pvEl){ pvEl.textContent=invPackPreviewText(r, q, u); }
-        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(r.userTick!=null)?!!r.userTick:(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks; Q8: the user's own tick stands
+        delete r.userTick;                                       // Q8 (v127): teaching a pack is a self-edit — the tick resets to the state default like every other edit to this row's basis
+        var ap=tr.querySelector('.invAppr'); if(ap)ap.checked=(invRowState(r)==='matched');   // v39: a flagged row never auto-ticks
       }
     }
     pt.querySelector('.invPackQty').addEventListener('input', recompute);
@@ -6485,7 +6491,7 @@ function renderInvReview(){
   box.querySelectorAll('.ni-add-btn').forEach(function(b){ b.onclick=function(){
     var i=parseInt(b.getAttribute('data-add'),10), tr=b.closest('tr'), r=invRows[i];
     if(b.classList.contains('open')){ closeNewItem(i); return; }   /* second tap collapses */
-    if(r){ r.addNew=true; r.bestId=null; r.manualPick=false; }      /* reject any prior match, this line becomes a new item */
+    if(r){ r.addNew=true; r.bestId=null; r.manualPick=false; delete r.userTick; }      /* reject any prior match, this line becomes a new item — and the tick that approved it goes too (Q8) */
     renderInvReview();                                              /* ITEM 1 (v33): single path — row becomes "new", Old/Conf render as labelled dashes */
     expandNewItem(i);                                              /* then open the form on the freshly-rendered row */
     var fresh=document.querySelector('#invReview tr.inv-data[data-i="'+i+'"]');
