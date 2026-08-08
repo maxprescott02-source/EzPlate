@@ -68,13 +68,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Q7 - Products redesign
-Implement `Redesign - Products.dc.html` + its mobile frame, including the density toggle. Stop after.
-> **Free riders for this batch** (v125 audit): fix the two stale handover-path comments (`index.html:808` names `handovers/HANDOVER-v88.md`, `js/app.js:6473` names `handovers/HANDOVER-v62.md`; both moved under `docs/`) - their "next batch that touches those files" trigger has now been met six times without the fix landing. Also decide the '—'-vs-"no cost" visual language for priceless rows (HANDOVER-127) while the price cells are open.
-> **Plan.** The `data-tab="ingredients"` screen, UI label "Products". Table rows: product·brand / category / supplier / price (16px mono + unit) / Change column showing drift from the last invoice, semantically coloured, "—" when untouched.
-> **The density toggle is the one legal new localStorage key** - a view preference, Comfortable 58px / Compact 40px, compact dropping sub-lines only and never the figure column. It must not store data.
-> Mobile stacks price+drift right with a floating + button.
-
 ## next  Q8 - Invoice import redesign
 Implement `Redesign - Invoice Import.dc.html`. Stop after.
 > **Plan. This is the app's most fragile surface - read `CLAUDE.md`'s invoice rules and the existing tests BEFORE editing, and diagnose with a truth table.**
@@ -83,6 +76,7 @@ Implement `Redesign - Invoice Import.dc.html`. Stop after.
 > **Auto-tick rule is unchanged and the design agrees**: only a `'matched'` row is ever pre-ticked, by the renderer AND by every handler.
 > Note the queued bug "Invoice ticks are lost on any re-render" lives on this exact code - **fix it in this batch or explicitly not, but decide it, because this batch rewrites the renderer that causes it.**
 > **Harness note (HANDOVER-128, via the v125 audit's dropped-threads sweep):** jsdom does not compile inline `oninput=` handlers on innerHTML-created nodes - and this renderer is full of them. Smoke pins must call the handler functions directly.
+> **Free rider carried from Q7 (still unfixed after seven touching batches):** the two stale handover-path comments - `index.html` names `handovers/HANDOVER-v88.md`, `js/app.js` names `handovers/HANDOVER-v62.md`; both live under `docs/` now. Fix them IN THIS BATCH - it touches both files.
 
 ## next  Q9 - Settings redesign
 Implement `Redesign - Settings.dc.html`. Stop after.
@@ -364,6 +358,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q7 - Products redesign** - shipped 9 Aug 2026 as **`ezplate-v126`** (PR #94), handover `HANDOVER-131-products.md`.
+  One surface of rows with a Change (drift) column via the shared `ingLastMovePct` rule; the density preference on the ONE legal new localStorage key (in-memory-first so a blocked write cannot mute the toggle); the mobile floating add, BODY-level after the review measured it parked below the fold inside the transform-animating tab; v99's price-basis rule kept by DEDUPE (the label renders exactly when the figure lacks the basis).
+  The batch's Q7 riders both landed: the two stale handover-path comments were NOT fixed here (they live in files this batch bumped - carried once more, now attached to Q8's entry), and the '—'-vs-"no cost" language question was resolved by the basis-flag dedupe.
+  Review: 11 findings, 2 major (the transform-ancestor FAB; a 36px touch target), all actioned.
 
 - **Harden the naming-inversion guard (audit T1)** - shipped 9 Aug 2026 (PR #92), test-only, no deploy version. Handover `HANDOVER-130-t1-guard.md`.
   The guard now pins the CROSSING itself, both halves: the nav button (attribute + aria-label + visible label on one element) and the panel h2 each tab opens. Verified failing against simulated swaps of each half before committing. The review found the first cut pinned only the nav half - the h2s were unpinned anywhere in the repo.
