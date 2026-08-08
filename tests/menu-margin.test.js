@@ -78,10 +78,14 @@ test('an uncosted plate (cost 0) yields no light and no pct', () => {
   assert.equal(mp.light, 'none');
 });
 
-/* ---- Q3 (v122): the Menu row's Margin cell (vbadge) composes food-cost % + shortfall ---------
-   Same maths as menuMarginPreview (cost/price*100), same light as analyze() — the three surfaces
-   can never disagree. The dollar figure is what the price is short of SUGGESTED, in cents under
-   a dollar ("+90c") and dollars from there ("+$2.60"). */
+/* ---- Q3 (v122): the Menu row's Food-cost cell (vbadge) composes food-cost % + shortfall ------
+   The LIGHT always equals analyze()'s — the one place the green/amber/red rule lives — so the
+   publish preview, the chips and the row can never disagree on colour. (The preview rounds its %
+   to a whole number and this cell shows one decimal: same cost/price ratio, different display
+   precision, deliberately untested against each other.) The dollar figure is what the price is
+   short of SUGGESTED, in cents under a dollar ("+90c") and dollars from there ("+$2.60").
+   The aria-label is pinned too: on phones the thead is display:none, so it is the cell's only
+   announced meaning. */
 function withVbadge(cogs) {
   // eslint-disable-next-line no-new-func
   const factory = new Function('COGS', `
@@ -98,13 +102,13 @@ function withVbadge(cogs) {
 test('Margin cell, healthy: food-cost % to one decimal + tick, green', () => {
   const { analyze, vbadge } = withVbadge(40);
   const out = vbadge(analyze(2.31, 8.5));                       // the design's own example row
-  assert.equal(out, '<span class="vbadge vgood">27.2% ✓</span>');
+  assert.equal(out, '<span class="vbadge vgood" aria-label="food cost 27.2% — at or under your target">27.2% ✓</span>');
 });
 
 test('Margin cell, under by less than a dollar: shortfall reads in cents', () => {
   const { analyze, vbadge } = withVbadge(40);
   const out = vbadge(analyze(6.96, 16.5));                      // suggested 17.40 → 90c short, amber
-  assert.equal(out, '<span class="vbadge vwarn">42.2% · +90c</span>');
+  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 42.2% of the menu price — 90c below the suggested price">42.2% · +90c</span>');
 });
 
 test('Margin cell, under by a dollar or more: shortfall reads in dollars', () => {
@@ -112,13 +116,13 @@ test('Margin cell, under by a dollar or more: shortfall reads in dollars', () =>
   // suggested 21.05 → $2.55 short = 12% below suggested → AMBER (the light is analyze()'s
   // price-shortfall rule, not the food-cost %; the mock painted this row red and the app's law wins)
   const out = vbadge(analyze(8.42, 18.5));
-  assert.equal(out, '<span class="vbadge vwarn">45.5% · +$2.55</span>');
+  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 45.5% of the menu price — $2.55 below the suggested price">45.5% · +$2.55</span>');
 });
 
 test('Margin cell, more than 15% below suggested: red', () => {
   const { analyze, vbadge } = withVbadge(40);
   const out = vbadge(analyze(8.42, 15));                        // suggested 21.05 → $6.05 short, 29% below
-  assert.equal(out, '<span class="vbadge vbad">56.1% · +$6.05</span>');
+  assert.equal(out, '<span class="vbadge vbad" aria-label="food cost 56.1% of the menu price — $6.05 below the suggested price">56.1% · +$6.05</span>');
 });
 
 test('Margin cell light ALWAYS equals analyze() — colour anchored to the target, not direction', () => {
@@ -140,5 +144,38 @@ test('Margin cell under by a rounding hair (<0.5c): the % stands alone, never "+
   const { vbadge } = withVbadge(30);
   // hand-built analysis: under, but the gap rounds to 0 cents
   const out = vbadge({ state: 'under', light: 'amber', cost: 3, menuPrice: 10, suggested: 10.004 });
-  assert.equal(out, '<span class="vbadge vwarn">30.0%</span>');
+  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 30.0% of the menu price">30.0%</span>');
+});
+
+/* ---- Q3 review findings: pins the first cut lacked ------------------------------------------ */
+
+test('uncosted row: 5 tds, "· not costed yet" on the name, an honest dash — never "cost it →"', () => {
+  // the row tap opens the price/category editor, which has no route to the builder (v55) — an
+  // arrow inviting "cost it" would promise navigation that does not exist
+  const menu = (() => {
+    const sig = 'function renderAnalysis(';
+    const i = SRC.indexOf(sig); const start = SRC.indexOf('{', i);
+    let d = 0;
+    for (let n = start; n < SRC.length; n++) { if (SRC[n] === '{') d++; else if (SRC[n] === '}' && --d === 0) return SRC.slice(i, n + 1); }
+  })();
+  const row = menu.match(/<tr class="muted mi-row lt-none"[^]*?<\/tr>/);
+  assert.ok(row, 'the uncosted row branch exists');
+  assert.ok(row[0].includes('mi-uncosted'), 'the name carries the not-costed note');
+  assert.ok(row[0].includes('not costed yet'), 'in those words');
+  assert.equal((row[0].match(/<td/g) || []).length, 5, 'same 5-td shape as aRow — the mobile grid depends on it');
+  assert.ok(/muted-dash/.test(row[0].split('<td').pop()), 'the verdict cell is a muted dash');
+  assert.ok(!row[0].includes('cost it'), 'no "cost it" call to action in the emitted row (a code comment may still explain why)');
+});
+
+test('Menu tab headers: Plate / Cost / Suggested / Menu price / Food cost — never "Margin"', () => {
+  // "Margin" over a food-cost % misreads badly (27.2% food cost is a 72.8% margin); the honest
+  // header matches the Dashboard's own word for the same figure
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const thead = html.match(/<thead><tr><th>Plate<\/th>[^]*?<\/thead>/);
+  assert.ok(thead, 'the Menu tab thead is findable by its first column');
+  assert.ok(thead[0].includes('<th>Cost</th>'), 'Cost column');
+  assert.ok(thead[0].includes('<th>Menu price</th>'), 'Menu price column');
+  assert.ok(thead[0].includes('<th>Food cost</th>'), 'the verdict column is named for the number it shows');
+  assert.ok(!thead[0].includes('Margin'), 'not called Margin');
+  assert.ok(!thead[0].includes('Variance'), 'the old Variance header is gone');
 });

@@ -1282,17 +1282,23 @@ function ensurePlateForDish(m){
 // sections already in use, so the vocabulary stays shared.
 function plateCategories(){ var s={}; savedPlates.forEach(function(sp){ if(sp.category) s[sp.category]=1; }); (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){ if(m&&m.section) s[m.section]=1; }); return Object.keys(s).sort(); }
 function builderCategoryValue(){ var el=document.getElementById('plateCat'); return el?(el.value||'').trim():''; }
-/* Q3 (v122): the Margin cell composes the verdict as figures \u2014 the food-cost % of the menu price,
-   plus (when under) the dollar amount the price is short of suggested. The light still comes from
-   analyze() and the pct maths matches menuMarginPreview, so the publish-dialog preview, the filter
-   chips and the row can never disagree. Colour stays anchored to the TARGET, never to direction. */
+/* Q3 (v122): the Food-cost cell composes the verdict as figures \u2014 the food-cost % of the menu
+   price plus, when under, the dollar amount the price is short of suggested. The LIGHT comes from
+   analyze() \u2014 the one place the green/amber/red rule lives \u2014 so the publish-dialog preview, the
+   filter chips and this cell can never disagree on colour. (The dialog rounds its % to a whole
+   number; this cell shows one decimal. Same ratio, different display precision \u2014 a display choice,
+   not a second computation.) Colour stays anchored to the TARGET, never to direction.
+   The aria-label matters: on phones the thead is display:none, so this span is the cell's only
+   announced meaning \u2014 and it is the one cell whose figures don't explain themselves. */
 function vbadge(a){
-  if((a.state==='ok'||a.state==='under') && a.cost>0 && a.menuPrice>0){
+  if((a.state==='ok'||a.state==='under') && a.cost>0 && a.menuPrice>0){   // belt-and-braces before the division \u2014 callers can hand-build `a` (a test does)
     var pct=(a.cost/a.menuPrice*100).toFixed(1);
-    if(a.state==='ok') return '<span class="vbadge vgood">'+pct+'% \u2713</span>';
+    if(a.state==='ok') return '<span class="vbadge vgood" aria-label="food cost '+pct+'% \u2014 at or under your target">'+pct+'% \u2713</span>';
     var c=Math.round((a.suggested-a.menuPrice)*100);                 // cents short of the suggested price
-    var short=c<1?'':(' \u00b7 +'+(c<100?(c+'c'):('$'+(c/100).toFixed(2))));
-    return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'">'+pct+'%'+short+'</span>';
+    var money=c<100?(c+'c'):('$'+(c/100).toFixed(2));
+    var short=c<1?'':(' \u00b7 +'+money);
+    var say='food cost '+pct+'% of the menu price'+(c<1?'':(' \u2014 '+money+' below the suggested price'));
+    return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'" aria-label="'+say+'">'+pct+'%'+short+'</span>';
   }
   return '<span class="muted-dash">\u2014</span>';
 }
@@ -6876,9 +6882,12 @@ function renderAnalysis(){
       shown++;
       if(it.costed){ html+=aRow(it.m.name||it.sp.name, it.a, it.m); }
       else{ var note=it.m.notes?' <span class="mi-note" title="'+esc(it.m.notes)+'">ⓘ</span>':'';
-        // Q3 (v122): uncosted is MUTED, never red — "· not costed yet" rides the name, and the Margin
-        // cell invites rather than judges. Same 5-td shape as aRow so the CSS grid treats both alike.
-        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button><span class="mi-uncosted">· not costed yet</span>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num"><span class="vbadge vnone">cost it →</span></td></tr>'; }
+        // Q3 (v122): uncosted is MUTED, never red — "· not costed yet" rides the name and the verdict
+        // cell stays an honest dash. The design's "cost it →" was dropped on review: the row tap opens
+        // the price/category editor (openMenuEdit), which has no route to the builder since v55, so the
+        // arrow promised navigation that doesn't exist. Same 5-td shape as aRow so the CSS grid treats
+        // both alike.
+        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button><span class="mi-uncosted">· not costed yet</span>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num"><span class="muted-dash">—</span></td></tr>'; }
     });
   });
   // v55: unpublished plates are NOT dishes — they live only in the Plates tab, never on the Menu tab.

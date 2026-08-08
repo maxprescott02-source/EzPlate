@@ -168,9 +168,11 @@
       <div class="atable-wrap">
         <table class="atable">
           <!-- v115: the Light column is gone — the row's left stripe carries the light -->
-          <!-- Q3 (v122): header copy tightened to the redesign's column set — Cost / Suggested / Menu
-               price / Margin. Human-read text only; the id and the live target % in it are unchanged. -->
-          <thead><tr><th>Plate</th><th>Cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Menu price</th><th>Margin</th></tr></thead>
+          <!-- Q3 (v122): header copy tightened to the redesign's column set. The design called the
+               last column "Margin" and needed a footnote to admit the number is food-cost % — the
+               honest header needs no footnote, and matches the Dashboard's own word for the same
+               figure. Human-read text only; the id and the live target % in it are unchanged. -->
+          <thead><tr><th>Plate</th><th>Cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Menu price</th><th>Food cost</th></tr></thead>
           <tbody id="aBody"></tbody>
         </table>
       </div>
