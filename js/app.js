@@ -2018,6 +2018,12 @@ function renderIngredients(){
   if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
   if(!items.length){ wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
   wrap.innerHTML=items.map(function(p){
+    /* Q7 (v126): the Change column — drift from the last LOGGED move, by the same ingLastMovePct
+       rule the Ingredients rows and the What-moved panel use, "—" when untouched. Semantic colour:
+       up is bad. Everything else in the row is the same markup; the columns are CSS. */
+    var pct=ingLastMovePct(p.id);
+    var drift=(pct==null)?'<span class="ing-drift none">—</span>'
+      :('<span class="ing-drift '+(pct>0?'up':'down')+'">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
     return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</div>'
@@ -2026,9 +2032,26 @@ function renderIngredients(){
       +(p.supplier?'<span class="ing-tag sup">'+esc(p.supplier)+'</span>':'')
       +'</div>'
       +'<div class="ing-price"><b>'+dispPrice(p)+'</b><span class="ing-per">'+ingUnitLabel(p)+'</span></div>'
+      +drift
       +'</button>';
   }).join('');
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openIngEdit(b.getAttribute('data-id')); }; });
+  applyProdDensity();                                                 // Q7 (v126): re-stamp the density class after every rebuild
+}
+/* Q7 (v126): the density toggle — THE one legal new localStorage key, and it is a VIEW PREFERENCE
+   (CLAUDE.md: localStorage holds view preferences and derived caches only; this holds no data).
+   Compact drops the sub-lines only — never the figure column. */
+var PROD_DENSITY_KEY='cafeDB_prodDensity';
+function prodDensity(){ try{ return localStorage.getItem(PROD_DENSITY_KEY)==='compact'?'compact':'comfortable'; }catch(e){ return 'comfortable'; } }
+function setProdDensity(d){ try{ localStorage.setItem(PROD_DENSITY_KEY, d==='compact'?'compact':'comfortable'); }catch(e){} applyProdDensity(); }
+function applyProdDensity(){
+  var wrap=document.getElementById('ingList'); if(!wrap) return;
+  var compact=prodDensity()==='compact';
+  wrap.classList.toggle('density-compact', compact);
+  document.querySelectorAll('#tab-ingredients .segd').forEach(function(b){
+    var on=(b.getAttribute('data-density')==='compact')===compact;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false');
+  });
 }
 var ingEditId=null;
 function openIngEdit(id){
@@ -4255,6 +4278,9 @@ function renderDashboard(){
 (function(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
+  // Q7 (v126): density toggle + mobile floating add
+  document.querySelectorAll('#tab-ingredients .segd').forEach(function(b){ b.addEventListener('click',function(){ setProdDensity(b.getAttribute('data-density')); }); });
+  var pf=document.getElementById('prodFab'); if(pf) pf.addEventListener('click',function(){ openModal(); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
   var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',clearProductFilters);   // v58: same helper the empty-state action uses
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
@@ -4288,7 +4314,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v125';
+var APP_VERSION='v126';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

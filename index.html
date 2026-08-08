@@ -29,7 +29,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=125">
+<link rel="stylesheet" href="css/style.css?v=126">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -218,10 +218,19 @@
         </div>
         <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
         <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select>
+        <!-- Q7 (v126): row density — a view preference on the ONE legal new localStorage key
+             (cafeDB_prodDensity). Compact drops sub-lines only, never the figure column. -->
+        <div class="seg-density" role="group" aria-label="Row density">
+          <button type="button" class="segd" data-density="comfortable">Comfortable</button>
+          <button type="button" class="segd" data-density="compact">Compact</button>
+        </div>
         <button class="btn ghost ing-clear-filters" id="ingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
       <p class="hint ing-count panel-meta" id="ingCount"></p>
       <div id="ingList" class="ing-list"></div>
+      <!-- Q7 (v126): the mobile floating add — the same + New product action, within thumb reach on
+           the app's most-scrolled list. Hidden at ≥640px, where the header button is at hand. -->
+      <button class="fab" id="prodFab" type="button" aria-label="New product">+</button>
     </div>
   </div><!-- /tab-ingredients (LABEL: Products) -->
 
@@ -809,7 +818,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=125"></script>
+<script src="js/app.js?v=126"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
