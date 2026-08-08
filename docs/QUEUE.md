@@ -68,12 +68,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Harden the naming-inversion test guard (audit T1)
-Problem: found by the v125 audit, its most consequential test-integrity finding. `tests/terminology.test.js:102-105` asserts only that both `data-tab` strings APPEAR in `index.html` - it never asserts the crossing. A terminology pass that swapped the two visible labels (the exact "fix" Tier 1 forbids and says a terminology pass will be tempted to make) leaves both attributes present and the suite green. The assertion messages claim knowledge the assertions do not check.
-Requirements: the guard asserts label-and-attribute together on the same element (the button with `data-tab="pantry"` carries the visible text "Ingredients", and `data-tab="ingredients"` carries "Products"), so a swap goes red. Pin the `aria-label`s too.
-Out of scope: any change to the markup itself.
-Note: small, test-only, but it changes what runs - pre-push review applies.
-
 ## next  Q7 - Products redesign
 Implement `Redesign - Products.dc.html` + its mobile frame, including the density toggle. Stop after.
 > **Free riders for this batch** (v125 audit): fix the two stale handover-path comments (`index.html:808` names `handovers/HANDOVER-v88.md`, `js/app.js:6473` names `handovers/HANDOVER-v62.md`; both moved under `docs/`) - their "next batch that touches those files" trigger has now been met six times without the fix landing. Also decide the '—'-vs-"no cost" visual language for priceless rows (HANDOVER-127) while the price cells are open.
@@ -370,6 +364,9 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Harden the naming-inversion guard (audit T1)** - shipped 9 Aug 2026 (PR #92), test-only, no deploy version. Handover `HANDOVER-130-t1-guard.md`.
+  The guard now pins the CROSSING itself, both halves: the nav button (attribute + aria-label + visible label on one element) and the panel h2 each tab opens. Verified failing against simulated swaps of each half before committing. The review found the first cut pinned only the nav half - the h2s were unpinned anywhere in the repo.
 
 - **Q6 - Plate builder redesign** - shipped 9 Aug 2026 as **`ezplate-v125`** (PR #89), handover `HANDOVER-128-builder.md`.
   The modal shell stayed (decided twice); inside it: the cost panel (total / suggested / per-menu tinted verdicts) leads the save column at ≥900px with the modal widened to 980 and the docket flattened to columns over the unchanged DOM; under 900px the sticky footer carries total + worst-menu verdict + Save. `renderBuilderCost` renders every surface from the one `updateTotals` figure, lights from `menuMarginPreview`.
