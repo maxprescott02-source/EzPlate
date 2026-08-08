@@ -156,6 +156,33 @@ test('v39: only a clean matched row renders pre-ticked — flagged/new rows neve
   assert.ok(/invAppr" checked/.test(clean), 'a clean hi match still auto-ticks');
 });
 
+test('Q8 (v127): a tick the USER placed survives a re-render — on any row state', () => {
+  // the v50/v52 bug: renderInvReview re-derived every tick from invRowState, so a user's tick on a
+  // review or price-change row was discarded whenever anything else on the sheet re-rendered.
+  const reviewTicked = buildRow(Object.assign(attentionRow(), { userTick: true }), 0);   // needsAttention -> st-review
+  assert.ok(/invAppr" checked/.test(reviewTicked), "the user's tick on a review row is restored, not re-derived");
+  assert.ok(/ st-review/.test(reviewTicked), 'and the row is still review — restoring a tick is not a state change');
+
+  // the mirror case: the user UNTICKED a matched row; the pre-tick must not resurrect it
+  const matchedUnticked = buildRow(Object.assign(attentionRow(), { needsAttention: false, userTick: false }), 0);
+  assert.ok(!/invAppr" checked/.test(matchedUnticked), "the user's untick on a matched row survives too");
+
+  // no user decision -> the auto-tick law exactly as before (pinned again here so this test stands alone)
+  const noDecision = buildRow(attentionRow(), 0);
+  assert.ok(!/invAppr" checked/.test(noDecision), 'absent a decision, a review row is never pre-ticked');
+});
+
+test('Q8 (v127): every self-edit path clears userTick — the persistence protects ticks from OTHER rows only', () => {
+  // Playwright is not in npm test, so the clearing rule gets a source pin here too (the addProduct
+  // lesson: what only a spec covers can be deleted silently). One site per self-edit path:
+  // invSelChanged (match pick) · the .invPrice change handler · the +New open · closeNewItem · the
+  // pack-teach recompute. Five, exactly.
+  const sites = (SRC.match(/delete (r|invRows\[i\])\.userTick/g) || []).length;
+  assert.equal(sites, 5, 'five clearing sites — one per self-edit path; a missing one re-opens the v127 review\'s "ticked but unappliable" hole');
+  assert.ok(extractFn(SRC, 'invSelChanged').includes('delete r.userTick'), 'match pick clears');
+  assert.ok(extractFn(SRC, 'closeNewItem').includes('userTick'), 'dismissing the new-item form clears');
+});
+
 test('v50 item 1: a new-item row persists its ticked state across re-renders (newItem.approved drives the box, v39 still holds)', () => {
   const base = Object.assign(attentionRow(), { addNew: true, bestId: null, needsAttention: false });
   // no form yet -> unticked (v39: a new row is never auto-ticked by the renderer)
