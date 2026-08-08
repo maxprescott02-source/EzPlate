@@ -373,7 +373,13 @@ window.renderInvReview();
 document.getElementById('invModal').classList.add('open');`;
 
 for (const size of SIZES) {
-  test(`v46 item 3: ingredient cards share the Products grid @ ${size.name}`, async ({ page }) => {
+  /* Q5 (v124): REWRITTEN — this spec used to pin the v46/v103 shared card GRID (3-up at desktop),
+     which the Q5 redesign deliberately replaced with one surface of stacked rows. The premise
+     changed; the two checks still worth keeping (the 2-line clamp on the linked-product line, and
+     keyboard access through the role="button" row) carry over unchanged. The focus ring is now
+     INSET (outline-offset:-2px) because the surface's overflow:hidden clips an outward ring — the
+     same defect the Q4 review caught on #plateList. */
+  test(`Q5: ingredient rows stack on one surface @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
     await page.goto('/');
@@ -381,8 +387,11 @@ for (const size of SIZES) {
     await page.evaluate(() => {
       window.kitchenIngredients.push(
         { id: 'K1', name: 'Chips', pid: 'P0108' }, { id: 'K2', name: 'Bacon', pid: 'P0004' },
-        { id: 'K3', name: 'Milk', pid: 'P0201' }, { id: 'K4', name: 'Cheese', pid: 'P0031' },
+        { id: 'K3', name: 'Milk', pid: 'P0201' }, { id: 'K4', name: 'Lemon', pid: 'P_GONE' },
       );
+      // a real logged move on Bacon: the drift badge must RENDER, not merely exist in source —
+      // the review showed the first cut's source-grep pins passed with the branches inverted
+      window.ingPriceLog['P0004'] = [{ t: Date.now() - 86400000, v: 0.01 }, { t: Date.now(), v: 0.0112 }];
       window.rebuildKById(); window.renderKitchenPanel();
     });
     await page.locator('.navbtn[data-tab="pantry"]').click();
@@ -390,21 +399,46 @@ for (const size of SIZES) {
     const grid = await page.evaluate(() => {
       const king = Array.from(document.querySelectorAll('#kingList .king-row')).map(r => Math.round(r.getBoundingClientRect().left));
       const link = document.querySelector('.king-row[data-kid="K2"] .king-link');
+      const list = document.getElementById('kingList');
+      // script focus() on a div does not match :focus-visible, so resolve the rule from the CSSOM
+      const insetRule = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } })
+        .some(r => r.selectorText && r.selectorText.includes('#kingList .king-row:focus-visible') && r.style.outlineOffset === '-2px');
       return {
         kingCols: new Set(king).size,
-        ingCols: getComputedStyle(document.querySelector('#kingList')).gridTemplateColumns.split(' ').length,
+        surface: getComputedStyle(list).overflow === 'hidden' && getComputedStyle(list).borderTopWidth === '1px',
         clamp: link ? getComputedStyle(link).webkitLineClamp : null,
+        insetRule,
       };
     });
-    // the SAME column story as .ing-list: 1 col at 380, 3 at 1280
-    expect(grid.kingCols, 'ingredient card columns').toBe(size.name === 'desktop' ? 3 : 1);
+    expect(grid.kingCols, 'rows stack — one shared left edge at every width').toBe(1);
+    expect(grid.surface, 'the list is one bordered, clipped surface').toBe(true);
     expect(grid.clamp, 'linked-product line clamps to 2 lines').toBe('2');
+    expect(grid.insetRule, 'the inset-outline rule exists in the CSSOM (existence, not cascade victory)').toBe(true);
+
+    // the two states this batch added, asserted on the RENDERED rows
+    const states = await page.evaluate(() => {
+      const broken = document.querySelector('.king-row[data-kid="K4"]');
+      const drifted = document.querySelector('.king-row[data-kid="K2"]');
+      const badge = drifted.querySelector('.king-drift');
+      return {
+        warn: broken.querySelector('.king-link.king-missing')?.textContent || '',
+        noCost: broken.querySelector('.king-price.notcosted')?.textContent || '',
+        drift: badge ? badge.textContent : null,
+        driftUp: badge ? badge.classList.contains('up') : null,
+        driftVisible: badge ? badge.getBoundingClientRect().width > 0 : null,
+      };
+    });
+    expect(states.warn, 'broken link is loud').toContain('product missing');
+    expect(states.noCost, 'broken link prices as "no cost"').toBe('no cost');
+    expect(states.drift, 'the logged +12% move renders').toBe('+12.0%');
+    expect(states.driftUp, 'a rise is classed up (bad)').toBe(true);
+    expect(states.driftVisible, 'and the badge has real geometry — not clamped away').toBe(true);
     // keyboard access survives the restyle
     await page.evaluate(() => document.querySelector('.king-row[data-kid="K1"]').focus());
     await page.keyboard.press('Enter');
     await expect(page.locator('#kingModal')).toHaveClass(/open/);
     await page.locator('#kingModalCancel').click();
-    await page.locator('#kingList').screenshot({ path: `tests/visual/__shots__/v46-king-grid-${size.name}.png` });
+    await page.locator('#kingList').screenshot({ path: `tests/visual/__shots__/q5-king-rows-${size.name}.png` });
   });
 
   test(`v46 item 5: flag pill centres on the title line @ ${size.name}`, async ({ page }) => {

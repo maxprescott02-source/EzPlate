@@ -39,7 +39,7 @@ const kingSearchFilter = new Function(`
 const PRODS = {
   P0108: { id: 'P0108', description: 'Chips 10Mm Straight Cut', brand: 'Safries', category: 'Frozen' },
   P0010: { id: 'P0010', description: 'Barramundi Flt 100/200 S/Less', brand: 'Seacrest', category: 'Seafood' },
-  P0298: { id: 'P0298', description: 'Sauce Tartare Pouch Gluten Free', brand: 'Edlyn', category: 'Sauces' }
+  P0298: { id: 'P0298', description: 'Sauce Tartare Pouch Gluten Free', brand: 'Edlyn', category: 'Sauces', supplier: 'Bidfood' }
 };
 const WORDS = [
   { id: 'K0001', name: 'Chips', pid: 'P0108' },
@@ -90,4 +90,9 @@ test('ITEM 3: a word whose product is missing never throws \u2014 it just cannot
   assert.deepEqual(names(kingSearchFilter('orphan', WORDS, PRODS)), ['Orphan'], 'still findable by its own name');
   assert.deepEqual(kingSearchFilter('safries', WORDS, {}), [], 'no product table at all is survivable');
   assert.deepEqual(kingSearchFilter('chips', WORDS, null), [{ id: 'K0001', name: 'Chips', pid: 'P0108' }]);
+});
+
+test('Q5 (v124): the SUPPLIER matches too — the row shows it now, so the search above it must find it', () => {
+  assert.deepEqual(names(kingSearchFilter('bidfood', WORDS, PRODS)), ['Tartare']);
+  assert.deepEqual(names(kingSearchFilter('bidfood gluten', WORDS, PRODS)), ['Tartare'], 'supplier token + description token');
 });

@@ -1462,6 +1462,20 @@ function ingPriceBand(pid){                                          // {min,max
   vals=vals.filter(function(v){return v!=null&&isFinite(v);}); if(!vals.length) return null;
   return {min:Math.min.apply(null,vals), max:Math.max.apply(null,vals)};
 }
+/* Q5 (v124): the last logged move for a product, as a % step — the SAME rule as digData('movers')
+   (two points minimum, prev>0, finite last, sub-1% is rounding noise), so the Ingredients row's
+   inline drift and the Dashboard's What-moved panel can never disagree about whether a price moved.
+   And like the movers note says: the SOURCE is not derivable — setProduct is this log's one writer
+   and it serves the invoice apply AND a hand edit — so this is "the last logged move", never "the
+   last invoice". */
+function ingLastMovePct(pid){
+  var a=ingPriceLog[pid]; if(!a || a.length<2) return null;
+  var prev=a[a.length-2].v, last=a[a.length-1].v;
+  // typeof before isFinite — isFinite('') is TRUE (CLAUDE.md), and a '' point would render −100.0%
+  if(!(prev>0) || typeof last!=='number' || !isFinite(last)) return null;
+  var pct=(last-prev)/prev*100;
+  return Math.abs(pct)<1 ? null : pct;
+}
 /* ---- v114: THE CHANGE LOG — the counterpart to everything above, and the OPPOSITE of it. ------------
    Every log above this line records what a SUPPLIER did. This one records what MAX did. The dashboard's
    food-cost trend is permanently red because ingredient prices drift up continuously and the number only
@@ -2081,10 +2095,10 @@ function saveIngEdit(){
 /* ============================================================
    Feature 1 (Phase 2) — "My ingredients" panel + create/change/delete
    ============================================================ */
-function kingProductLabel(k){                                        // "Chips 10mm Straight Cut — Safries · $2.68/kg" (v36: arrow dropped, the text is the link)
+function kingProductLabel(k){                                        // "Chips 10mm Straight Cut — Safries · Bidfood" (Q5: the leading → is CSS on .king-link, presentation not content)
   var p=byId[k.pid];
   if(!p) return '(product missing)';
-  return p.description+(p.brand?' \u2014 '+p.brand:'');   // v103: the price moved out of the sentence into the card's .king-price figure column
+  return p.description+(p.brand?' \u2014 '+p.brand:'')+(p.supplier?' \u00b7 '+p.supplier:'');   // v103: the price lives in .king-price; Q5 (v124): supplier joins the sentence, per the design
 }
 // v59 item 6a: an ingredient's category is DERIVED, live, from its linked product \u2014 never stored on
 // the ingredient. Repointing the link or editing the product's category changes it automatically.
@@ -2100,7 +2114,7 @@ function kingSearchFilter(q, words, prods){
   return (words||[]).filter(function(k){
     if(!k) return false;
     var p=(prods||{})[k.pid];
-    var hay=((k.name||'')+' '+(p?((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')):'')).toLowerCase();
+    var hay=((k.name||'')+' '+(p?((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')):'')).toLowerCase();   // Q5 (v124): the row shows the supplier now, so the search six pixels above it must match it too (the Products filter already does)
     return matchTokens(toks,hay);
   });
 }
@@ -2129,16 +2143,30 @@ function renderKitchenPanel(){
   // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
   // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=list.map(function(k){
-    var c=kingCategory(k);                                           // v59 item 6a: derived-category chip
-    // v67 follow-up: category chip sits in a meta row at the BOTTOM of the card (name → linked product →
-    // category), matching the Products card layout (.ing-main then .ing-meta), and reuses the same .ing-tag
-    // chip so ingredient and product cards read identically. It used to sit inline between name and link.
+    /* Q5 (v124): the row is ingredient / "→ product — brand · supplier" (+ inline drift when the
+       last LOGGED move was ≥1%) / unit cost. The v67 category chip row is GONE from the row — the
+       design drops it, the category still drives the filter above, and it stays derived from the
+       linked product. A broken link is loud now: the quiet "(product missing)" hid real risk, so
+       the row says what is at stake, counted through BOTH line shapes (kingMissingImpact). */
     var kp=byId[k.pid];                                              // v103: price is a right-aligned figure column (the .ing-price idiom), not part of the sentence
-    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+'">'
-      +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'
-      +'<span class="king-link">'+esc(kingProductLabel(k))+'</span></div>'
-      +(kp?'<span class="king-price">'+esc(unitCostStr(kp))+'</span>':'')
-      +(c?'<div class="king-meta"><span class="ing-tag">'+esc(c)+'</span></div>':'')
+    var link, price, drift='';
+    if(kp){
+      var pct=ingLastMovePct(k.pid);
+      // the drift rides the NAME line, not the link line — .king-link clamps to 2 lines and a long
+      // "description — brand · supplier" would silently ellipsise the one signal this row adds
+      drift=(pct==null)?'':(' <span class="king-drift '+(pct>0?'up':'down')+'">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
+      link='<span class="king-link">'+esc(kingProductLabel(k))+'</span>';
+      price='<span class="king-price">'+esc(unitCostStr(kp))+'</span>';
+    } else {
+      var n=platesUsingKid(k.id).length;
+      link='<span class="king-link king-missing">⚠ product missing — '
+        +(n?('relink to keep '+n+' plate'+(n===1?'':'s')+' costed'):'relink to give it a cost')+'</span>';
+      price='<span class="king-price notcosted">no cost</span>';
+    }
+    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+(kp?'':' — product missing')+'">'
+      +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+drift+'</span>'
+      +link+'</div>'
+      +price
       +'</div>';
   }).join('');
   box.querySelectorAll('.king-row').forEach(function(row){
@@ -2482,6 +2510,12 @@ function saveKingModal(){
    helpers name the blast radius so the change log can record which menus an ingredient-level change
    actually reached. (The first also replaces the inline filter deleteKitchenIngredient used to carry.) */
 function platesUsingKid(kid){ return (savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kid; }); }); }
+/* Q5 (v124): the broken-link row's N is platesUsingKid — the KID arm only, ON PURPOSE, because the
+   copy promises "relink to keep N plates costed" and relinking mutates k.pid and nothing else. A
+   legacy bare-pid line resolves through byId directly (lineProduct), so a relink cannot heal it and
+   counting it would make the sentence a lie for exactly those plates — the v124 review caught the
+   first cut doing that. The both-sides law stays where it belongs: productRefs, where deleting a
+   PRODUCT really does break both paths. */
 function menuIdsForPlates(list){
   var seen={}, out=[];
   (list||[]).forEach(function(sp){ menusOfPlate(sp).forEach(function(o){ if(!seen[o.menuId]){ seen[o.menuId]=1; out.push(o.menuId); } }); });
@@ -4197,7 +4231,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/version.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v123';
+var APP_VERSION='v124';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
