@@ -66,7 +66,7 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Q9 - Settings redesign
+## doing  Q9 - Settings redesign
 Implement `Redesign - Settings.dc.html`. Stop after.
 > **Plan.** Sectioned modal, markup in `index.html`: left nav with `--accent-weak` active fill, setting rows as label+help left / control right.
 > The seven-section drill-down, the AI toggles, the theme segment and the About version line all already exist and are pinned by `smoke [3b]` - this is a restyle of that structure, not a rebuild.
@@ -236,7 +236,7 @@ Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and wi
   One rule fixes it. Related to the multi-tenant **Onboarding and empty states** item, but independently shippable, so it sits here rather than waiting for that phase.
 - **`.invAppr` (the invoice Apply checkbox) is 26×26px** - the app's last sub-44px touch target, and the one on the highest-stakes screen. v46 skipped it as "inside the protected invoice review area"; **that is not true** - the rule is `style.css:829` and the markup `app.js:6094`, while the protected region runs `app.js:5344–5570`.
   The `::after` hit-area technique already used for `.ms-clear` and `.range-btn` fixes it in one rule with no visual change.
-  **Do with Q8** - same markup Q8 rewrites. (Q2 learned that `::after` satisfies a thumb but NOT a spec measuring `boundingBox`, so check which kind of pin covers this one before choosing the technique.)
+  (The `Do with: Q8` line was DELETED 9 Aug 2026 by the batch sweep - Q8 shipped as v127 without it, so the ride-along never happened and the item is independently shippable again. Q2's lesson stands: `::after` satisfies a thumb but NOT a spec measuring `boundingBox`, so check which kind of pin covers this one before choosing the technique.)
 - **`.range-btn` - visual size only, NOT an accessibility item.** The chip is 32px tall (`style.css:2180`) but `style.css:2374–2375` give it a `::after` extending 6px top and bottom, so the tappable area is already 44px.
   What is actually left is that the dashboard now shows controls at two visual sizes after the 44px selector rows.
   Max deferred this 31 Jul; it is a taste call.
