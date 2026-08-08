@@ -305,6 +305,9 @@ Read the relevant tests first, diagnose with a truth table before patching, lock
 - **Supplier renames must migrate supplier memory.** Taught matches key off the supplier NAME (`memKey`); renaming without re-keying orphans them silently.
   `tidySupplierMemMigration` rebuilds keys from each entry's already-normalised `phrase_norm`.
   Apply the same pattern to any future rename of a name used as a lookup key elsewhere.
+- **The builder becomes a MODAL (Max, 8 Aug 2026)** - decided against the recommendation to leave it a full page, and it sets an ORDER, not just a shape: **the builder is converted first, the dropdown placement work second.**
+  The two are one job done twice if taken the other way round, because the positioning context every dropdown resolves against changes with the builder.
+  Do not "fix" a dropdown against the page layout in the meantime.
 - **Mobile visual consistency:** one card system, compact header pills not full-width bars, one primary CTA per screen.
   A previous density pass was rolled back wholesale - visual changes are surgical, one screen at a time.
 
@@ -336,10 +339,23 @@ Its highest-value output is "this is the wrong question": one request asked whic
 - **Rollbacks happen.** If Max says the baseline is X, believe him - then verify it yourself and report discrepancies before working.
 - **Keep commentary in the PR and the handover - never in user-visible app copy.**
 
-## Migrations are applied BY HAND
+## Migrations - Claude applies them (REVERSED 8 Aug 2026)
 
-`list_migrations` is empty, so **the migration files plus their commit messages ARE the audit trail.** Write the migration, put it in the queue item, mark the item blocked, and let Max run it.
-Never bundle one into a batch, never apply one yourself.
+`list_migrations` is empty, so **the migration files plus their commit messages ARE the audit trail.** That has not changed and is why every migration is still a committed file with its reasoning in the header.
+
+**What changed:** this section used to read *"let Max run it… never apply one yourself"*, and a pending migration was a stop condition that halted the loop.
+**Max reversed it** (his words: *"i dont want you to stop for me to hand run a query"*), on the strength of staging existing.
+**A migration is no longer a stop condition.** Write it, apply it, verify it, record it.
+
+**The safeguards are not optional - the old rule's protection has to be replaced, not just deleted:**
+
+- **Staging first, then production.** `.mcp.json` carries both projects; staging is `supabase-staging`. Rehearse there, then apply to production.
+- **Order the statements so the dangerous intermediate state cannot exist**, rather than trusting the transaction alone to prevent it. Keep the transaction as well. (Worked example in `20260808_menus_rls.sql`: create the inert policy first, enable RLS second, so a failure between them leaves today's behaviour.)
+- **Verify AS THE CLIENT, over PostgREST with the anon key.** The MCP and the SQL editor run as `postgres` and bypass RLS, so they cannot see a policy mistake - see "The client's role is not the MCP's role".
+  On a write, send `Prefer: return=representation` and check a row came back: **a blocked anon write returns success and touches nothing**, so an empty response, not an error, is the failure signal.
+- **Know the one-statement rollback before you run it**, and say what it is in the file.
+- **Record in the file's header that it was applied, when, by whom, and how it was verified.** With `list_migrations` empty, the file is the only place that can say so.
+- **Anything that DELETES or REWRITES data is still Max's**, not because of who types it but because it is not reversible by a rollback statement. Destructive means data loss is possible if it is wrong - the restore's full-wipe step is the standing example.
 
 ## Deploy
 
@@ -355,6 +371,12 @@ Fetch the alias, and check WHICH build answered before concluding anything from 
 Max has no human reviewer, so this is the only second reader the code gets.
 
 **Nothing can actually BLOCK a merge.** Branch protection and rulesets need GitHub Pro on a private repo - the API returns 403 - so "mandatory" below is a convention you keep, not a mechanism that stops you.
+
+**DECIDED, 8 Aug 2026 (Max): no second reader beyond the pre-push agent. CodeRabbit is NO and GitHub Pro is NO - do not re-propose either.**
+Both were put to him with costs, records and a recommendation to take CodeRabbit; he declined both.
+The option he chose was worded "the current pre-push review is enough", so this declines an ADDITIONAL reader and relaxes nothing below.
+It also means the convention above is the whole mechanism, permanently - **the pre-push agent is the only thing standing between a mistake and production.**
+On the day it was decided that agent caught a four-word change that would have silently discarded a plate's category edit, with the suite green and the change already driven in a browser.
 
 - **The `code-review` agent - MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green.
   **Force it onto a DIFFERENT model from the one running the batch** - a model reviewing its own work is not a second reader - and **never show it the brief**: it judges whether the code is CORRECT, not whether it matches what was asked.
