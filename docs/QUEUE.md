@@ -47,6 +47,13 @@ Not something to schedule.
 Blocked on: Max.
 Destructive against real data.
 
+## blocked  Two `CLAUDE.md` lines point a batch at the wrong file
+Problem: found by the v115 audit. Both are wording, not code - but `CLAUDE.md` says its rules only change with Max's yes.
+1. **Tier 2 → Menus** says *"`ensureDefaultMenu` seeds "Original" only when the `menus` table did not answer at all."* The function (`js/app.js:1016`) does no such thing - it seeds whenever the array is empty. The gating is at the **call site** (`js/app.js:457–459`). A batch grepping the function name finds code that looks like it contradicts the rule, and the safe-looking fix is a guard inside the function, which is the wrong place. (The code does defend itself: `:1014–1015` says "The caller decides; this function must never guess".) Also the seeded name is `'Original menu'`, not `"Original"`.
+2. **Tier 1 → the `where true` rule** is filed under *"The one that bites while editing code"*, but there is no such code to edit: all five `.delete()` calls in `js/app.js` are `.eq()`-scoped. The `where true` lines are SQL, in migrations that Tier 3 says are applied by hand and never bundled into a batch. The hazard is real; the framing sends a batch to the wrong file.
+Requirements: rule 1 names the call site; rule 2 says it is a MIGRATION-authoring trap.
+Blocked on: Max's yes. Docs-only, and neither changes what the code does.
+
 ## blocked  Insight rule D - promote into `CLAUDE.md`?
 Problem: **this item's premise expired and two of its facts were wrong** - corrected 8 Aug 2026 rather than worked around.
 1. It said `CLAUDE.md` records these under "Open, NOT bugs", above a "snapshot line". The three-tier rewrite (#69) deleted both that section and the snapshot line, so there is no longer a line to promote anything above.
@@ -80,14 +87,35 @@ The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
 Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
 
-## next  Run `project-audit` and FILE the report
-Problem: `docs/audits/` does not exist, so no audit has ever been filed and the counter that schedules the next one has nothing to count from.
-The `/batch` rule is a gap of 10 versions between the newest `docs/audits/AUDIT-vNN.md` and `sw.js`; a missing directory trips it outright.
-Requirements: run the `project-audit` agent, then **file its report yourself** to `docs/audits/AUDIT-v116.md` at the version it audited.
-The agent is read-only and hands the report back rather than saving it - an unfiled report leaves the counter unchanged and the next audit never gets queued.
-Every finding then gets the usual decision: fixed, explained as intentional, or added here as its own item.
-Out of scope: acting on the findings in the same batch.
-Filing the report and queueing what it found is the deliverable.
+## blocked  The three foreign keys are Tier 1 law that the repo cannot check
+Problem: found by the v115 audit.
+`CLAUDE.md` Tier 1 states three FKs with specific ON DELETE behaviours, and Tier 3 states that **the migration files plus their commit messages ARE the audit trail**.
+Grepping `supabase/migrations/` for `references` / `foreign key` / `on delete` returns **only negative statements** - none of the three is defined in any migration, because they predate the directory.
+So a hard rule that constrains every restore and every delete path rests on nothing the repo can verify, and the one FK the app can actually hit (`menu_items.plate_id → plates.id`, NO ACTION, raises 23503) is the one most expensive to be wrong about.
+Requirements: query `pg_constraint` through the Supabase MCP, confirm all three names and ON DELETE behaviours, and record the result where the repo can see it - a migration file that documents existing state, or a line in the audit.
+If any differs from Tier 1, the code wins and `CLAUDE.md` is the finding.
+Blocked on: a session with the Supabase MCP.
+Read-only, nothing destructive, no migration to apply - it just could not be done in the audit's own session.
+
+## next  Threads that never reached any landing place
+Problem: found by the v115 audit, which checked `QUEUE.md`, `PHONE.md`, `CLAUDE.md` **and all 68 handovers** for each.
+These are not deferred - they were dropped, and nothing anywhere records them.
+- **An eval harness for the invoice reader.** Zero hits in all three files and every handover. The invoice path is the app's highest-stakes surface and the only one with an AI in it; there is no way to tell whether a parser or prompt change made it better or worse.
+- **Abbreviation matching in search** ("bread gf"). Appears only in `HANDOVER-v83`.
+- **`manager` as a third role.** The roles item below specs owner/staff only; `manager` appears in `HANDOVER-v60`, `v82` and `v98` and was never carried forward.
+- **Bulk catalogue bootstrap for onboarding.** Inside "Onboarding and empty states" by implication only, never named.
+- **The one surviving `TODO(Max)`** - `index.html:11`, the absolute production URL used for `og:url`, canonical and `og:image`. In neither `QUEUE.md` nor `PHONE.md`. (The privacy-policy and contact-details TODOs the older notes mention **no longer exist in the code**.)
+Requirements: each either becomes its own item with a real problem statement, or is closed on purpose and said so.
+Out of scope: building any of them.
+This item is a triage, not a batch.
+
+## next  Menu / empty-state centring - four fixes, no root cause on record
+Problem: found by the v115 audit as **the strongest remaining candidate for an unfound root cause in this repo.**
+Fixed in `HANDOVER-v44`, `v49`, `v54` and `v70`, each as its own CSS correction.
+No handover names a shared cause and no Tier 1 entry was ever written, which is the signature of a symptom being treated four times.
+`tests/empty-states.test.js` exists but postdates all four, so it pins the current state rather than the thing that kept breaking.
+Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
+Out of scope: a visual redesign of any empty state.
 
 ## blocked  Re-pin claude-code-action to a release tag
 Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
@@ -160,6 +188,9 @@ Requirements: each spec either asserts something a user would notice, or is reti
 Downgraded from v111's full 45-test audit.
 Note: Playwright is not in `npm test`, so nothing here fails loudly.
 That is the reason to look, not a reason to defer.
+⚠️ **Coupling found by the v115 audit: `addProduct` is a Tier 1 trap kept alive ONLY by `fresh-states.spec.js`, and the trap says deleting it fails SILENTLY.**
+If this item retires that spec, `addProduct` becomes dead in the same commit and nothing will notice.
+Close the trap in the same branch, or keep the spec for that reason and write it down.
 
 ## next  `doDeleteMenu`'s unawaited dish deletes
 Problem: flagged in v114, unchanged.
@@ -183,9 +214,10 @@ Out of scope: restructuring anything the deleted rules sat next to.
   Verified 7 Aug. Delete it.
 - **`.invAppr` (the invoice Apply checkbox) is 26×26px** - the app's last sub-44px touch target, and the one on the highest-stakes screen. v46 skipped it as "inside the protected invoice review area"; **that is not true** - the rule is `style.css:829` and the markup `app.js:6094`, while the protected region runs `app.js:5344–5570`.
   The `::after` hit-area technique already used for `.ms-clear` and `.range-btn` fixes it in one rule with no visual change.
-- **`.range-btn` - visual size only, NOT an accessibility item.** Correcting the record: the chip is 32px tall (`style.css:2180`) but `style.css:2374–2375` give it a `::after` extending 6px top and bottom, so the tappable area is already 44px.
+- **`.range-btn` - visual size only, NOT an accessibility item.** The chip is 32px tall (`style.css:2180`) but `style.css:2374–2375` give it a `::after` extending 6px top and bottom, so the tappable area is already 44px.
   What is actually left is that the dashboard now shows controls at two visual sizes after the 44px selector rows.
-  Max deferred this 31 Jul; it is a taste call, not the open a11y item CLAUDE.md still calls it.
+  Max deferred this 31 Jul; it is a taste call.
+  (This entry used to end "not the open a11y item CLAUDE.md still calls it". The v115 audit found `CLAUDE.md` no longer mentions `.range-btn` at all - the three-tier rewrite removed it - so the correction was correcting nothing and has been dropped.)
 - **`ingredients.updated_at` is stale and means nothing.** It is NOT history and must never be read as such.
   Either make it honest or drop it - but the reason it is here is so nobody builds on it.
 - **`ing_price_history` needs its unique index reconsidered** - same-millisecond writes for one product would collide on `unique (product_id, recorded_at)`.
@@ -247,6 +279,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Run `project-audit` and FILE the report** - done 8 Aug 2026, filed to `docs/audits/AUDIT-v115.md`.
+  **Filed as v115, not the v116 this item originally asked for**, and the audit was right to argue: the `/batch` counter compares the newest `AUDIT-vNN.md` against `sw.js`, which is `ezplate-v115` because v116 shipped no client asset. The item had conflated the handover diary number with the deploy number, so filing as v116 would have put the counter a version ahead of the thing it measures.
+  **Verdict: healthy.** 756/756 green, every reachable Tier 1 invariant TRUE, and **no Tier 1 entry dead enough to recommend for deletion** - not the normal result for that check.
+  Findings landed as the items above; two were checked and changed before filing:
+  **the "12 missing Playwright specs" was NOT drift** (100 is the local total, 88 is CI's set minus `screenshots.spec.js`, verified with `--list` both ways), and the chip-dot device check was fixed in `docs/PHONE.md` rather than queued.
 
 - **Two browser specs cannot run in CI** - fixed 8 Aug 2026, both `test.skip` lines gone, CI runs all 88.
   **One cause, not two,** and it takes two rules together: `*::-webkit-scrollbar{width:10px}` (`style.css:1490`) sets the width and `html{scrollbar-gutter:stable}` (`:2693`) reserves it on every page, scrolling or not.
