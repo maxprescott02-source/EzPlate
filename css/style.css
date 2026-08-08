@@ -2338,8 +2338,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    sits in the middle instead of being pinned to column 1 (fixes the Products "padded left" icon; also
    covers the new Plates grid). */
 #kingList > .empty,#kingList > .empty-state,
-#ingList > .empty-state,#ingList > .ing-empty,
-#plateList > .empty-state,#plateList > .ing-empty{grid-column:1 / -1}
+#ingList > .empty-state,#ingList > .ing-empty{grid-column:1 / -1}
+/* Q4 (v123): the #plateList pair is retired — the list is display:block now (§26), so grid-column
+   was inert there. Tombstone. */
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
 .king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -3015,10 +3016,18 @@ html{scrollbar-gutter:stable}
 #plateList{display:block;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-card);overflow:hidden;padding:0;margin:var(--sp-2) var(--sp-4) var(--sp-3)}
 #plateList > .ing-card{background:none;border:0;border-radius:0;box-shadow:none;margin:0;
-  padding:var(--sp-3) var(--sp-4);grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3)}
+  padding:var(--sp-3) var(--sp-4);grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3);
+  transition:background var(--t-fast) var(--ease)}   /* the base card transition lists border/transform/shadow, not background — without this the row tint snaps while every other row hover eases */
 #plateList > .ing-card + .ing-card{border-top:1px solid var(--border)}
-#plateList > .ing-card:hover{background:var(--hover)}
+/* the row's border box IS the surface's padding box, so the shared +2px outline falls entirely
+   into the overflow:hidden clip — a keyboard user focusing a one-result list saw NOTHING.
+   Inset outline instead; found by the v123 review with screenshots. */
+#plateList > .ing-card:focus-visible{outline-offset:-2px}
+@media (hover:hover) and (pointer:fine){   /* gated like §D and the Menu rows — an ungated tint sticks after a tap on iOS */
+  #plateList > .ing-card:hover{background:var(--hover)}
+}
 #plateList > .ing-card:active{transform:none}   /* a row inside a clipped surface shrinking reads as a glitch; rows press like the Menu tab's */
+@media (min-width:1024px){ #plateList{margin:var(--sp-2) var(--sp-5) var(--sp-2)} }   /* step to sp-5 with .ing-list's own ≥1024 rule — the surface shares the tab's left edge */
 /* name · category on one line (the mock's "Bacon & Egg Muffin · Breakfast") */
 #plateList .ing-main{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:var(--sp-2)}
 #plateList .ing-name{font-size:var(--fs-base)}
@@ -3028,6 +3037,6 @@ html{scrollbar-gutter:stable}
 #plateList .ing-tag.pub-off{color:var(--muted2);font-weight:600}
 @media (min-width:640px){   /* desktop: three real columns — name·category / published / cost */
   #plateList > .ing-card{grid-template-columns:minmax(0,1fr) 200px max-content;column-gap:var(--sp-4)}   /* fixed published column: the "On …" labels share one left edge down the list */
-  #plateList .ing-meta{grid-column:2;grid-row:1;margin:0}
+  #plateList .ing-meta{grid-column:2;grid-row:1}
   #plateList .ing-price{grid-column:3;grid-row:1}
 }
