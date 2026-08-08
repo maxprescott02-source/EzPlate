@@ -6,7 +6,7 @@ found, the judgement calls made, what was deliberately NOT built, and the
 was believed at the time, so it is never edited after the fact. Keep all of
 them; git keeps them regardless, and deleting one buys nothing.
 
-This is the log. `CLAUDE.md`'s "State as of" section is the *snapshot* — current
+Current state lives in git, `docs/QUEUE.md` and `docs/PHONE.md` - `CLAUDE.md` deliberately carries no snapshot section since the three-tier rewrite. (Corrected 9 Aug 2026 by the v125 audit; this line used to point at a deleted "State as of" section.)
 state only, overwritten every batch. If you want history, it is here.
 
 ## Known gaps in this record (recorded v88 — deliberately NOT backfilled)

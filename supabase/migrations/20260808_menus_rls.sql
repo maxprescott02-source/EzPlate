@@ -6,6 +6,9 @@
 --    project_ref from the server URL in .mcp.json and execute_sql has no project argument, so the
 --    running session could only ever reach production. Staging is now IN .mcp.json as a second
 --    server and is reachable from the next session on - this was the last migration that could not
+-- CORRECTION (9 Aug 2026, v125 audit): the prediction above was DISPROVED - the staging MCP
+-- server has never loaded in any session since. See docs/QUEUE.md (staging item). Until it
+-- demonstrably loads, migrations remain unrehearsed against production.
 --    be rehearsed.
 --
 --    Verified after applying, in this order:

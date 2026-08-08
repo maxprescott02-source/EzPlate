@@ -41,9 +41,8 @@ Suite green (0 fail) at reconcile time.
 **Q1 is DONE - this block is its output.** Read-only pass over `design_handoff_ezplate_redesign/`: the `README.md` rulebook and `Design Package.dc.html` (tokens, type scale, components, motion/states, density, empty states, keyboard/contrast).
 Each item below carries its implementation plan as the indented block under it.
 
-**Where the package lives.** It arrived as `~/Downloads/Redesign_ Dashboard critique and proposal.zip` and is NOT in the repo.
-It must land in **`docs/design/`**, never the repo root - Vercel serves the root, and `.vercelignore` already excludes `docs/`.
-Left out of the repo for now because Q1 said "no code changes, nothing else"; **committing it is the first action of Q2.**
+**Where the package lives: `docs/design_handoff_ezplate_redesign/`** - committed by Q2 as instructed (12 files, off the origin via `.vercelignore`).
+(Corrected 9 Aug 2026 by the v125 audit: this header still said "NOT in the repo" five batches after Q2 landed it.)
 
 **The package is unusually accurate about this repo** - all 11 render functions it names exist (`renderDashboard`, `verdictHtml`, `trendChart`, `menuCompareHtml`, `digInHtml`, `renderAnalysis`, `aRow`, `renderIngredients`, `renderPlatesTab`, `renderKing*`, `renderPlate`, `renderInvReview`), as do all 7 ids (`#dashBody`, `#aBody`, `#ingList`, `#plateList`, `#lines`, `#total`, `#builderModal`), and its "no new tokens" claim holds against `css/style.css`.
 It quotes `CLAUDE.md`'s own rules back correctly, including the naming inversion and the one-screen-per-batch rule.
@@ -67,15 +66,17 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Before building each item: screenshot the CURRENT screen first, and judge the result against it, not only against the mock.**
 
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
-one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
+one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  project-audit
-Problem: `sw.js` ships `ezplate-v125`; the newest report in `docs/audits/` is `AUDIT-v115.md` - a gap of 10, the threshold `/batch` step 10 sets.
-Requirements: run the `project-audit` agent (read-only) and **FILE the report yourself** to `docs/audits/AUDIT-v125.md` - the agent hands the report back and an unfiled report leaves the counter stuck.
-Note: the audit is keyed to the DEPLOY version (the `v` stays on audit filenames on purpose - CLAUDE.md).
+## next  Harden the naming-inversion test guard (audit T1)
+Problem: found by the v125 audit, its most consequential test-integrity finding. `tests/terminology.test.js:102-105` asserts only that both `data-tab` strings APPEAR in `index.html` - it never asserts the crossing. A terminology pass that swapped the two visible labels (the exact "fix" Tier 1 forbids and says a terminology pass will be tempted to make) leaves both attributes present and the suite green. The assertion messages claim knowledge the assertions do not check.
+Requirements: the guard asserts label-and-attribute together on the same element (the button with `data-tab="pantry"` carries the visible text "Ingredients", and `data-tab="ingredients"` carries "Products"), so a swap goes red. Pin the `aria-label`s too.
+Out of scope: any change to the markup itself.
+Note: small, test-only, but it changes what runs - pre-push review applies.
 
 ## next  Q7 - Products redesign
 Implement `Redesign - Products.dc.html` + its mobile frame, including the density toggle. Stop after.
+> **Free riders for this batch** (v125 audit): fix the two stale handover-path comments (`index.html:808` names `handovers/HANDOVER-v88.md`, `js/app.js:6473` names `handovers/HANDOVER-v62.md`; both moved under `docs/`) - their "next batch that touches those files" trigger has now been met six times without the fix landing. Also decide the '—'-vs-"no cost" visual language for priceless rows (HANDOVER-127) while the price cells are open.
 > **Plan.** The `data-tab="ingredients"` screen, UI label "Products". Table rows: product·brand / category / supplier / price (16px mono + unit) / Change column showing drift from the last invoice, semantically coloured, "—" when untouched.
 > **The density toggle is the one legal new localStorage key** - a view preference, Comfortable 58px / Compact 40px, compact dropping sub-lines only and never the figure column. It must not store data.
 > Mobile stacks price+drift right with a floating + button.
@@ -87,6 +88,7 @@ Implement `Redesign - Invoice Import.dc.html`. Stop after.
 > Three invariants must survive, each from a real regression: **full-row re-render only** (per-cell patching left stale cells) · **`.muted-row` hiding stays scoped to `.is-new`** · **tint derives from `invRowState` via `st-*` classes** so the card and the summary can never disagree.
 > **Auto-tick rule is unchanged and the design agrees**: only a `'matched'` row is ever pre-ticked, by the renderer AND by every handler.
 > Note the queued bug "Invoice ticks are lost on any re-render" lives on this exact code - **fix it in this batch or explicitly not, but decide it, because this batch rewrites the renderer that causes it.**
+> **Harness note (HANDOVER-128, via the v125 audit's dropped-threads sweep):** jsdom does not compile inline `oninput=` handlers on innerHTML-created nodes - and this renderer is full of them. Smoke pins must call the handler functions directly.
 
 ## next  Q9 - Settings redesign
 Implement `Redesign - Settings.dc.html`. Stop after.
@@ -100,6 +102,7 @@ Apply Design Package §11–15 app-wide: five interaction states per control, sk
 > Five states on every interactive element (rest/hover/pressed/focus-visible/disabled), **focus ring never removed**. Skeleton bars for waiting regions, never a spinner in a card, never layout shift.
 > Empty states are already gold-standard per the package - **carry them over unchanged**, two variants only (A: filters matched nothing; B: true empty). Do not redesign them.
 > Contrast floors: `--muted` only ≥12px and only for dispensable text; anything needed to act uses `--text2` or better.
+> **From the v125 audit's dropped-threads sweep:** (a) the trend chart was never diffed against the mock pixel-by-pixel (HANDOVER-123 said "if they differ it belongs in Q10") - do that diff here; (b) list-row `aria-label`s announce neither drift nor unit cost (HANDOVER-127) - the screen-wide row-labelling question lands here.
 > **From the Q3 review (8 Aug 2026): on phones the Menu tab's amber and red verdicts now differ ONLY by hue** - the old cell printed "12% under" / "29% under", which was the amber/red discriminator in text; the new cell prints food-cost % + dollar gap, and neither derives the boundary. The `aria-label` covers screen readers but not colour-blind sighted users. Decide a non-colour discriminator here, where the contrast rules land - not as a one-screen patch.
 > Fold in the queued **unstyled zero-ingredients link** here if it has not shipped by then - the sheet still has no anchor colour rule at all.
 > ⚠️ Verify `prefers-reduced-motion` genuinely disables motion; the app already has a reduced-motion early return in `closeOverlay` that a sweep could easily break.
@@ -136,8 +139,10 @@ Problem: the first two were found by the v115 audit, the third by the v119 batch
 3. **Tier 2 → Fragile areas** says *"**The builder becomes a MODAL (Max, 8 Aug 2026)** … the builder is converted first, the dropdown placement work second"*, which reads as work still to do. **The builder has been a modal since v54** (verified 8 Aug 2026 in a real browser at 380px and 1280px - see the done entry). A batch reading this line goes looking for a conversion that happened two years of versions ago, and the sentence also holds the dropdown item hostage to it.
    Max's DECISION is not in question and must not be softened - he chose the modal and the app is a modal. What is wrong is only the tense.
    Suggested replacement: *"The builder is a MODAL and has been since v54; Max confirmed this shape on 8 Aug 2026 against a recommendation to change it. The dropdown placement work is therefore unblocked - the positioning context is already final."*
-Requirements: rule 1 names the call site; rule 2 says it is a MIGRATION-authoring trap; rule 3 puts the builder in the past tense without weakening the decision.
-Blocked on: Max's yes. Docs-only, and none of the three changes what the code does.
+4. **(v125 audit, S1) Tier 2 says plates persist `{kid, qty}` ONLY** - but 84 of 179 live plate lines are `{pid,qty}`, and Tier 1's own `addProduct` entry depends on that fact. The word "only" invites a refactor/importer to drop pid and misc lines on the authority of a hard rule - the 76-of-77-dishes failure class. True statement: NEW lines are written `{kid,qty}`; legacy `{pid,qty}` and `{misc,...}` lines are live data every reader must keep resolving.
+5. **(v125 audit, C1/S5 - the audit's lead finding) Tier 3 presents staging as an available safeguard** ("Staging first, then production... Rehearse there") while staging has never once loaded in a session. The hand-run stop condition was retired ON THE STRENGTH of staging existing; the file that carries the replacement safeguard cannot say the safeguard does not run. Until staging is reachable, Tier 3 should say so and say what that means (every migration is unrehearsed).
+Requirements: rule 1 names the call site; rule 2 says it is a MIGRATION-authoring trap; rule 3 puts the builder in the past tense (now doubly so - Q6 shipped the builder redesign inside the modal) without weakening the decision; rule 4 drops the word "only"; rule 5 marks staging unavailable until it demonstrably loads.
+Blocked on: Max's yes. Docs-only, and none of the five changes what the code does. The decisions file (2026-08-08-2.html) asks about the first three; items 4-5 were found after it was written, so confirm the wider scope when he answers.
 
 ## blocked  Insight rule D - promote into `CLAUDE.md`?
 Problem: **this item's premise expired and two of its facts were wrong** - corrected 8 Aug 2026 rather than worked around.
@@ -152,7 +157,7 @@ Docs-only either way, and the do-nothing answer is defensible.
 ## blocked  Mutation testing (Stryker) - measure the tests that cannot fail
 Problem: `CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke.
 A test that passes against broken code is worse than no test, because it is trusted.
-The suite is ~756 tests in 0.84s, so mutating it is cheap - the usual reason not to do this does not apply here.
+The suite is ~799 tests in 0.86s (count re-measured by the v125 audit), so mutating it is cheap - the usual reason not to do this does not apply here.
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
 Blocked on: **Max's yes.** It adds a devDependency, and `CLAUDE.md`'s no-new-dependencies rule means he decides, not the batch.
 
@@ -224,7 +229,7 @@ Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce anim
 **Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
-Do after: **Q6** - every screen a dropdown opens over is being restructured by the redesign, so fixing placement against today's layout means computing it twice.
+(The `Do after: Q6` line was DELETED 9 Aug 2026 by the v125 audit's sweep - Q6 shipped as v125, so the dependency is satisfied and this item is unblocked. The audit noted the line survived one batch past its trigger: the deletion rule works only when the sweep actually runs.)
 **The old prose sequencing here was WRONG and is the reason `Do after:` exists.** It said this waited on "the builder-as-modal conversion landing" - a conversion that had already shipped in **v54**, so the item sat behind a satisfied dependency for two years of versions with nothing able to notice.
 Q6 is a real, checkable prerequisite; that one was not.
 
@@ -283,6 +288,8 @@ Out of scope: restructuring anything the deleted rules sat next to.
 Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
 
 ## next  Small, each independently shippable
+- ⚠️ **Every line number in this block predates the redesign** (v125 audit: ~290 lines moved in `js/app.js`, ~255 in `css/style.css`). The audit re-measured every claim - all still true in substance; the corrected numbers are in `docs/audits/AUDIT-v125.md` §5. Re-grep by NAME, never by the number.
+- **The publish dialog and the Menu row print the same food-cost ratio at different precision** (whole-number % vs one decimal; HANDOVER-125, landed by the v125 audit). Same `cost/price` ratio, two displays - align them or record the split as deliberate at both sites.
 - **Builder cost panel: the design's "+ Add to another menu" shortcut was deferred out of Q6** (9 Aug 2026). It needs the manage-menus modal to stack over the open builder and the cost panel to refresh when menus change underneath - both untested territory that was not riding a redesign batch. The panel's "On menus" list ships without it; publishing still lives one tap away on the plate card.
 - **`layout-consistency.spec.js` never measures the list BODY** - its comment claims it asserts "the shared left edge", but it stops at the actions row (`panelLeft`/`titleTextLeft`/`btnLeft`), so the v123 Plates surface sitting 4px proud at ≥1024 would have shipped silently; the review caught it, not the spec. Extend it to measure each tab's list-body left edge at both sizes. Found by the v123 pre-push review, 9 Aug 2026. (Also pre-existing and shared: at 561-1023px both Products and Plates sit 4px inside the h2 edge - decide once whether that is the design.)
 - **`analyze().absPct` lost its last reader in v122** - the Q3 redesign replaced the "`32% under`" Variance cell (its only consumer) with the food-cost % composition. It is three lines inside `analyze` and part of that pure function's tested shape, so it was kept rather than trimmed mid-batch. Trim it (and its `Math.round`) the next time `analyze` is touched, or keep it deliberately - either way say so at the site. Found by the v122 pre-push review.
