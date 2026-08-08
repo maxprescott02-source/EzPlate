@@ -21,6 +21,103 @@ Suite green (0 fail) at reconcile time.
 
 ---
 
+---
+
+# THE REDESIGN PHASE (added 8 Aug 2026 from Max's brief)
+
+**Q1 is DONE - this block is its output.** Read-only pass over `design_handoff_ezplate_redesign/`: the `README.md` rulebook and `Design Package.dc.html` (tokens, type scale, components, motion/states, density, empty states, keyboard/contrast).
+Each item below carries its implementation plan as the indented block under it.
+
+**Where the package lives.** It arrived as `~/Downloads/Redesign_ Dashboard critique and proposal.zip` and is NOT in the repo.
+It must land in **`docs/design/`**, never the repo root - Vercel serves the root, and `.vercelignore` already excludes `docs/`.
+Left out of the repo for now because Q1 said "no code changes, nothing else"; **committing it is the first action of Q2.**
+
+**The package is unusually accurate about this repo** - all 11 render functions it names exist (`renderDashboard`, `verdictHtml`, `trendChart`, `menuCompareHtml`, `digInHtml`, `renderAnalysis`, `aRow`, `renderIngredients`, `renderPlatesTab`, `renderKing*`, `renderPlate`, `renderInvReview`), as do all 7 ids (`#dashBody`, `#aBody`, `#ingList`, `#plateList`, `#lines`, `#total`, `#builderModal`), and its "no new tokens" claim holds against `css/style.css`.
+It quotes `CLAUDE.md`'s own rules back correctly, including the naming inversion and the one-screen-per-batch rule.
+**Verified, not assumed** - three queue items in three batches have already been wrong about this codebase.
+
+**Three things in it are wrong or missing. Do not discover these mid-batch:**
+1. ⚠️ **The builder redesign is a FULL PAGE, which reverses Max's decision of the same day.** README screen 5 says "Full-page editor", and `Redesign - Plate Builder.dc.html` has the sidebar nav, a "← Plates" back link and no overlay markup. On **8 Aug 2026 Max chose the modal, against the recommendation to keep it a page** (`docs/decisions/2026-08-08-ANSWERS.md`, flagged against advice). The package **contradicts itself** here: its own merge plan item 3 lists `#builderModal` among "every existing hook" to keep. See Q6.
+2. **`Current - *.dc.html` and `src/` do not exist.** README line 34 promises them and the zip has 12 files, none of them. So **Q2's "diff against `Current - Dashboard.dc.html`" cannot be done as written.** Diff against the shipped app instead, which is the better reference anyway - the code is the truth here, the mock is an inference.
+3. **`--accent-press` already IS the hover-darken value.** The package hardcodes `#A34509`/`#E2792A`; those are `--accent-press` at `style.css:69` and `:100`. Use the token, never the literal.
+
+**Sequencing question for Max, recommendation given, NOT blocking anything below.**
+The "Floating layers and mobile dropdowns" item was unblocked this batch and now sits under this phase.
+The redesign restructures the layout of every screen a dropdown opens over, so doing dropdowns first means doing them twice - the same argument that sequenced them behind the builder.
+**Recommendation: leave dropdowns until after Q6 (Builder), then do them once against the final layout.** Taken as read unless Max says otherwise.
+
+**Order is Max's, and differs from the package's.** He set Dashboard → Menu → Plates → Ingredients → Builder → Products → Invoice → Settings → sweep; the README proposed Products third. His order stands.
+
+**Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
+one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
+
+## next  Q2 - Dashboard redesign
+Implement `Redesign - Dashboard v2 Desktop.dc.html` + the Dashboard frame of `Redesign - Mobile States.dc.html`, inside the existing `renderDashboard()` path. Both themes, 380px and desktop.
+Out of scope: every other screen. Stop after this one.
+> **Plan.** First commit the package to `docs/design/`. Then work outward from `renderDashboard()` and the four helpers it calls, changing only their emitted markup: `verdictHtml` gains the 44px mono semantic headline (one per screen); `trendChart` keeps its existing SVG maths and gains the over-target wash, dashed target line and accent change-markers; `menuCompareHtml` and `digInHtml` become two-column row lists on one surface with hairline separators, not card-per-row.
+> Scope chips are new markup around the existing `dashScope` state - **≤5 menus enumerate, 6+ collapse to All + two most-used + "N more ▾"** ranked worst-first with uncosted menus excluded. That ranking is new logic and needs its own unit test.
+> The AI panel is a restyle of the shipped insights block, not a rebuild: keep the deterministic-template-then-cross-fade path, the `#ezSparkGrad` reuse (the gradient must stay defined exactly once - `smoke [16]` pins this) and the mandatory credit line. **It must stay read-only** - no control in it may write.
+> ⚠️ **Do not touch the per-publication counting.** A plate on two menus counts twice; distinct-plate maths was built, tested and reverted by Max on his own data. The chips make scope more prominent, which makes this MORE tempting, not less.
+> Watch: `tests/dash-persist.test.js` pins the zero-state (`—` + "Nothing costed and priced yet") and scope restore; `v89-dash`, `v90-dash`, `v98-grid`, `v115-reframe` and `v96-menu-select` specs all cover this screen and will need honest updating, not wholesale snapshot blessing.
+
+## next  Q3 - Menu redesign
+Implement `Redesign - Menu.dc.html` + its mobile frame. Same rules. Stop after.
+> **Plan.** `renderAnalysis` / `aRow` only. Desktop becomes a real table inside one surface - sections as small-caps eyebrows (max one per panel), columns Plate / Cost (min–max range beneath) / Suggested / Menu price / Margin.
+> The Margin cell composes the verdict in words + figure ("27.2% ✓", "42.2% · +90c", "45.5% · +$2.60", muted "cost it →" when uncosted). **Uncosted is muted, never red** - that is a Design Package rule and also the app's existing meaning.
+> Colour stays anchored to the TARGET, not to direction - `tests/trend-reframe.test.js` holds the pair that catches a revert.
+> Mobile is one line per plate with the coloured figure carrying the verdict. Keep `data-mid` and the `.mi-row` delegate exactly; the filter toolbar wraps below ~1130px.
+
+## next  Q4 - Plates redesign
+Implement `Redesign - Plates.dc.html`. Stop after.
+> **Plan.** `renderPlatesTab` only. Card grid becomes library rows on one surface: name·category / published-where (accent when on a menu, muted "Unpublished") / plate cost right-aligned in a fixed mono column.
+> Keep `data-pid` and the card click → `openPlateActions(pid)` wiring untouched; this changes what a row looks like, never how it is found.
+> Uncosted plates keep "not costed yet" and stay muted. `smoke [12]` asserts the grid, the badges and the cost cell - read it before editing.
+
+## next  Q5 - Ingredients redesign
+Implement `Redesign - Ingredients.dc.html`. Stop after.
+> **Plan.** The `data-tab="pantry"` screen, UI label "Ingredients" - `renderIngredients`. Rows become ingredient / "→ linked product · brand · supplier" / unit cost, with inline drift % when the last invoice moved it.
+> Drift must read from `ing_price_history`, **never `ingredients.updated_at`**, which is a single restore timestamp on every row and means nothing.
+> New broken-link state: "⚠ product missing — relink to keep N plates costed" in `--bad`. **Count N on BOTH sides** - the absence of a back-pointer is not evidence nothing was lost.
+
+## blocked  Q6 - Plate builder redesign
+Implement `Redesign - Plate Builder.dc.html` + its mobile frame.
+**Blocked on: Max.** The design is a FULL PAGE and he chose the MODAL on 8 Aug 2026, against advice, hours before sending this brief. Only he can reverse that; a batch must not.
+> **Recommendation: keep the modal shell, take everything else.** The design's substance is the docket columns, the sticky cost panel, the margin verdict block and the mobile sticky footer (total + margin + Save together) - **all of which fit inside `#builderModal` unchanged.** The cost panel can be `position:sticky` within `.mbody` at desktop widths; the modal is already a full-screen takeover under 560px, which is what the mobile frame draws anyway.
+> That yields the redesign without reversing a decision, without reopening the dropdown sequencing, and without touching the v118 draft machinery or `guardUnfinishedPlate`.
+> If Max does want the full page, say so explicitly and it becomes its own batch with its own risk: every builder entry point, the draft/resume flow, the unfinished-plate guard and the scroll-lock all assume an overlay.
+> Either way: `renderPlate` and the `#lines`/`#total` ids stay, and **nothing inside the protected parser region is touched** - the invoice REVIEW UI is fair game, the parsing is not.
+
+## next  Q7 - Products redesign
+Implement `Redesign - Products.dc.html` + its mobile frame, including the density toggle. Stop after.
+> **Plan.** The `data-tab="ingredients"` screen, UI label "Products". Table rows: product·brand / category / supplier / price (16px mono + unit) / Change column showing drift from the last invoice, semantically coloured, "—" when untouched.
+> **The density toggle is the one legal new localStorage key** - a view preference, Comfortable 58px / Compact 40px, compact dropping sub-lines only and never the figure column. It must not store data.
+> Mobile stacks price+drift right with a floating + button.
+
+## next  Q8 - Invoice import redesign
+Implement `Redesign - Invoice Import.dc.html`. Stop after.
+> **Plan. This is the app's most fragile surface - read `CLAUDE.md`'s invoice rules and the existing tests BEFORE editing, and diagnose with a truth table.**
+> `renderInvReview` only. Adds the verdict sentence up front ("11 matched and ready · 2 need your eye · 1 new product") and row tints, and a footer "Confirm N changes" counting ticked rows.
+> Three invariants must survive, each from a real regression: **full-row re-render only** (per-cell patching left stale cells) · **`.muted-row` hiding stays scoped to `.is-new`** · **tint derives from `invRowState` via `st-*` classes** so the card and the summary can never disagree.
+> **Auto-tick rule is unchanged and the design agrees**: only a `'matched'` row is ever pre-ticked, by the renderer AND by every handler.
+> Note the queued bug "Invoice ticks are lost on any re-render" lives on this exact code - **fix it in this batch or explicitly not, but decide it, because this batch rewrites the renderer that causes it.**
+
+## next  Q9 - Settings redesign
+Implement `Redesign - Settings.dc.html`. Stop after.
+> **Plan.** Sectioned modal, markup in `index.html`: left nav with `--accent-weak` active fill, setting rows as label+help left / control right.
+> The seven-section drill-down, the AI toggles, the theme segment and the About version line all already exist and are pinned by `smoke [3b]` - this is a restyle of that structure, not a rebuild.
+> "Menu item" survives as a fifth object noun in the Edit-menu-item modal; it is a known exception awaiting its own brief, **not a bug to fix on sight here.**
+
+## next  Q10 - System sweep
+Apply Design Package §11–15 app-wide: five interaction states per control, skeletons, empty-state variants, keyboard rules, contrast floors, moon/sun theme icon. Verify `prefers-reduced-motion`. No screen-specific changes.
+> **Plan. Last on purpose** - it codifies what the eight screen batches established, so running it early would set rules the screens then break.
+> Five states on every interactive element (rest/hover/pressed/focus-visible/disabled), **focus ring never removed**. Skeleton bars for waiting regions, never a spinner in a card, never layout shift.
+> Empty states are already gold-standard per the package - **carry them over unchanged**, two variants only (A: filters matched nothing; B: true empty). Do not redesign them.
+> Contrast floors: `--muted` only ≥12px and only for dispensable text; anything needed to act uses `--text2` or better.
+> Fold in the queued **unstyled zero-ingredients link** here if it has not shipped by then - the sheet still has no anchor colour rule at all.
+> ⚠️ Verify `prefers-reduced-motion` genuinely disables motion; the app already has a reduced-motion early return in `closeOverlay` that a sweep could easily break.
+
+---
+
 ## blocked  Drop `kitchen_items`
 Problem: a tenth table nothing reads.
 Verified 7 Aug: the table exists, RLS on, one policy, **0 rows**, and no reader or writer in `js/app.js`.
