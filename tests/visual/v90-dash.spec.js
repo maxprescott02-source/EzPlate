@@ -177,6 +177,14 @@ test('the old highlight cards and their modal are gone', async ({ page }) => {
   }
 });
 
+/* v129: the scope rows live behind the dropdown — open it, then pick; picking closes it. */
+async function pickScope(page, id) {
+  await page.locator('#dashScopeBtn[aria-expanded="false"]').click();
+  await page.waitForTimeout(250);
+  await page.locator(`.mcmp-row[data-scope="${id}"]`).click();
+  await page.waitForTimeout(300);
+}
+
 test('scoping the Dashboard changes the insight set and rescopes the drill-downs', async ({ page }) => {
   await boot(page, 1280, 'light');
   const before = await page.locator('#dashBody .ins-line').allTextContents();
@@ -187,8 +195,7 @@ test('scoping the Dashboard changes the insight set and rescopes the drill-downs
     return n;
   });
 
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();   // v96: the list is the selector
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');   // v96: the list is the selector; v129: behind the dropdown
   const after = await page.locator('#dashBody .ins-line').allTextContents();
   expect(after.join('|'), 'a different scope says different things').not.toEqual(before.join('|'));
 
@@ -215,8 +222,7 @@ test('the GLOBAL drill-downs ignore the scope — they rank products, not a menu
   }, i);
 
   const stockAll = await readCard(3);
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();   // v96: the list is the selector
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');   // v96: the list is the selector; v129: behind the dropdown
   const stockWinter = await readCard(3);
   expect(stockWinter.rows, 'dearest-per-unit is the same list at any scope').toEqual(stockAll.rows);
   expect(stockWinter.sub, 'and its label says it covers all products').toMatch(/all products/i);

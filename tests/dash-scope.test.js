@@ -57,13 +57,13 @@ function withState(MENU, menusList, cogsPct) {
     ${extractFn(SRC, 'mcmpSparkHtml')}
     ${extractFn(SRC, 'mcmpSparkSeries')}
     ${extractFn(SRC, 'menuCompareHtml')}
-    /* v120: the By-menu CARD is gone — the chips are the scope control, and menuCompareHtml now
-       renders only their disclosure list. These tests assert against dashChipsHtml because that is
-       the live path; pointed at menuCompareHtml alone they would have been pinning behaviour the
-       app can no longer reach (the v120 pre-push review caught exactly that). */
-    ${extractFn(SRC, 'dashChipHtml')}
-    ${extractFn(SRC, 'dashChipsHtml')}
-    var dashMenusOpen=true;          // disclosure OPEN, so the full ranked set is in the markup
+    /* v129: the scope control is the DROPDOWN — dashScopeHtml builds the button and hands
+       menuCompareHtml the full selectable set (All menus first). These tests assert against
+       dashScopeHtml because that is the live path; pointed at menuCompareHtml alone they would be
+       pinning behaviour the app cannot reach (the v120 pre-push review caught exactly that). */
+    ${extractFn(SRC, 'dashPctClass')}
+    ${extractFn(SRC, 'dashScopeHtml')}
+    var dashMenusOpen=true;          // dropdown OPEN, so the full ranked set is in the markup
     function renderDashboard(){}
     ${extractFn(SRC, 'dashScopeValid')}
     var DASH_ALL='all';
@@ -74,7 +74,7 @@ function withState(MENU, menusList, cogsPct) {
       computeAvgFoodCost: computeAvgFoodCost,
       menuComparisonRows: menuComparisonRows,
       menuCompareHtml: menuCompareHtml,
-      dashChipsHtml: dashChipsHtml,
+      dashScopeHtml: dashScopeHtml,
       dashScopeValid: dashScopeValid,
       setScope: setScope
     };
@@ -193,7 +193,7 @@ test('v96: the separate scope picker is gone from the shipped source', () => {
 
 test('v96: All menus is the FIRST row of the list, and is a selectable scope', () => {
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
-  const html = withState(MENU, MENUS).dashChipsHtml('all');
+  const html = withState(MENU, MENUS).dashScopeHtml('all');
   assert.match(html, /data-scope="all"/, 'All menus is a row, not an implicit fallback');
   const first = html.indexOf('data-scope="all"');
   const others = [html.indexOf('data-scope="MENU_ORIGINAL"'), html.indexOf('data-scope="MENU_WINTER"')];
@@ -204,7 +204,7 @@ test('v96: All menus is the FIRST row of the list, and is a selectable scope', (
 test('v96: All menus carries the all-menus average, not a blank or a menu figure', () => {
   // Original: cost 4 / price 10 = 40%. Winter: 2 / 10 = 20%. Across both dishes: 30%.
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
-  const html = withState(MENU, MENUS).dashChipsHtml('all');
+  const html = withState(MENU, MENUS).dashScopeHtml('all');
   const allRow = html.slice(html.indexOf('data-scope="all"'), html.indexOf('data-scope="MENU_'));
   /* v120: chips carry the bare figure — the '%' is stated once by the headline above them. The
      VALUE, which is what this test is for, is unchanged. */
@@ -213,7 +213,7 @@ test('v96: All menus carries the all-menus average, not a blank or a menu figure
 
 test('v96: rows are real buttons, not divs with click handlers', () => {
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
-  const html = withState(MENU, MENUS).dashChipsHtml('all');
+  const html = withState(MENU, MENUS).dashScopeHtml('all');
   const rows = html.match(/<button type="button" class="mcmp-row/g) || [];
   assert.strictEqual(rows.length, 3, 'All menus + two costed menus, every one a <button>');
   assert.doesNotMatch(html, /<div[^>]*class="mcmp-row/, 'no div masquerading as a control');
@@ -222,9 +222,9 @@ test('v96: rows are real buttons, not divs with click handlers', () => {
 test('v96: selecting a menu does not reorder the list', () => {
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
   const order = h => (h.match(/data-scope="([^"]+)"/g) || []);
-  const onAll = order(withState(MENU, MENUS).dashChipsHtml('all'));
-  const onWinter = order(withState(MENU, MENUS).dashChipsHtml('MENU_WINTER'));
-  const onOriginal = order(withState(MENU, MENUS).dashChipsHtml('MENU_ORIGINAL'));
+  const onAll = order(withState(MENU, MENUS).dashScopeHtml('all'));
+  const onWinter = order(withState(MENU, MENUS).dashScopeHtml('MENU_WINTER'));
+  const onOriginal = order(withState(MENU, MENUS).dashScopeHtml('MENU_ORIGINAL'));
   assert.deepStrictEqual(onWinter, onAll, 'ranking is independent of the selection');
   assert.deepStrictEqual(onOriginal, onAll);
   // and the ranking is v98's worst-first (highest food cost % leads), All menus excluded from it
@@ -236,26 +236,26 @@ test('v96: a menu with nothing costed is not a row, so it is not a reachable sco
   const THREE = MENUS.concat({ id: 'MENU_EMPTY', name: 'Empty' });
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
   const app = withState(MENU, THREE);
-  assert.doesNotMatch(app.dashChipsHtml('all'), /MENU_EMPTY/);
+  assert.doesNotMatch(app.dashScopeHtml('all'), /MENU_EMPTY/);
   app.setScope('MENU_EMPTY');
   assert.strictEqual(app.dashScopeValid(), 'all', 'and a scope with no row collapses to all-menus');
 });
 
 test('the By-menu list needs two costed menus, not merely two menus', () => {
   const app = withState([dish('MENU_ORIGINAL', 4, 10)], MENUS);   // two menus, one costed
-  assert.strictEqual(app.dashChipsHtml('all'), '');
+  assert.strictEqual(app.dashScopeHtml('all'), '');
 });
 
 test('the By-menu list marks the selected menu for assistive tech', () => {
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
-  const html = withState(MENU, MENUS).dashChipsHtml('MENU_WINTER');
+  const html = withState(MENU, MENUS).dashScopeHtml('MENU_WINTER');
   assert.match(html, /data-scope="MENU_WINTER" aria-current="true"/);
   assert.strictEqual((html.match(/aria-current/g) || []).length, 1, 'exactly one current row');
 });
 
 test('the By-menu list states the basis of its ranking and claims no profit knowledge', () => {
   const MENU = [dish('MENU_ORIGINAL', 4, 10), dish('MENU_WINTER', 2, 10)];
-  const html = withState(MENU, MENUS).dashChipsHtml('all');
+  const html = withState(MENU, MENUS).dashScopeHtml('all');
   assert.match(html, /Ranked by average food cost %/, 'the basis is explicit');
   assert.match(html, /no sales figures/, 'the volume limitation is stated, not implied');
   assert.doesNotMatch(html, /profit|earns the most|makes the most|revenue/i,
@@ -271,7 +271,7 @@ test('a narrowed scope collapses to all-menus once fewer than two menus remain',
   const app = withState([dish('MENU_WINTER', 4, 10)], one);
   app.setScope('MENU_WINTER');
   assert.strictEqual(app.dashScopeValid(), 'all', 'no control on screen -> no narrowed scope');
-  assert.strictEqual(app.dashChipsHtml(app.dashScopeValid()), '', 'and still no dead control');
+  assert.strictEqual(app.dashScopeHtml(app.dashScopeValid()), '', 'and still no dead control');
 });
 
 /* v96 sharpens the same invariant. The control moved from the picker (rendered per MENU) to the list
@@ -281,7 +281,7 @@ test('a narrowed scope collapses to all-menus once fewer than two menus remain',
 test('v96: a narrowed scope collapses when the LIST stops rendering, not merely when a menu is deleted', () => {
   const app = withState([dish('MENU_WINTER', 4, 10)], MENUS);   // two menus exist, only one is costed
   app.setScope('MENU_WINTER');
-  assert.strictEqual(app.dashChipsHtml('MENU_WINTER'), '', 'one costed menu -> no list');
+  assert.strictEqual(app.dashScopeHtml('MENU_WINTER'), '', 'one costed menu -> no list');
   assert.strictEqual(app.dashScopeValid(), 'all', '-> and therefore no narrowed scope');
 });
 

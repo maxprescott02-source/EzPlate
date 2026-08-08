@@ -66,7 +66,7 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## next  Dashboard scope chips → one simple dropdown (Max, 9 Aug 2026)
+## doing  Dashboard scope chips → one simple dropdown (Max, 9 Aug 2026)
 Problem: Q2 (v120) shipped scope chips with the ≤5/6+ collapse and a ranked disclosure. Max reversed it 9 Aug 2026: chips out.
 Verified live before keeping (the queue's own rule): `dashChipsHtml` emits `.dash-chip` rows at `js/app.js:4065`/`:4060` with the `#dashMore` disclosure - real work, not already done.
 Requirements: one dropdown button right of the verdict ("All menus 41.2 ▾") opening the existing ranked disclosure (All menus first, then worst-first, food-cost % in semantic colour, uncosted excluded). No chips anywhere; 44px touch floor holds.

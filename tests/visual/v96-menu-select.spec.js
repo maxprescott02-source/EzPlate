@@ -74,6 +74,17 @@ async function boot(page, { width = 380, history = FULL_HISTORY, scope = null } 
   await page.waitForTimeout(500);
 }
 
+/* v129: the scope rows live behind the dropdown — open it when it isn't already; picking closes it. */
+async function openScope(page) {
+  const closed = page.locator('#dashScopeBtn[aria-expanded="false"]');
+  if (await closed.count()) { await closed.click(); await page.waitForTimeout(250); }
+}
+async function pickScope(page, id) {
+  await openScope(page);
+  await page.locator(`.mcmp-row[data-scope="${id}"]`).click();
+  await page.waitForTimeout(300);
+}
+
 /* ---- 1. one selection drives every dependent, together ----
    The brief named three regions. Two of them (the comparison block, the trend chart) are all-menus by
    the v89 scope-honesty rule and do NOT follow the selection — per-menu history has only existed since
@@ -86,15 +97,19 @@ test('one tap moves every scope-following region at once, with no partial update
   await expect(page.locator('.verdict-num')).toHaveText('40.0%');
   const insAll = await page.locator('#dashBody .ins-line').allTextContents();
 
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');
 
-  // headline, its target line, and the row marking all moved together
+  // headline, its target line, and the control marking all moved together (v129: the closed
+  // dropdown's label is the visible marking; the row's aria-current is asserted re-opened)
   await expect(page.locator('.verdict-num')).toHaveText('60.0%');
   await expect(page.locator('.dh-scope')).toHaveText('Winter');
   await expect(page.locator('.verdict-line')).toContainText('30.0 pts over your 30% target');
+  await expect(page.locator('#dashScopeBtn .dsb-name')).toHaveText('Winter');
+  await openScope(page);
   await expect(page.locator('.mcmp-row.act')).toHaveCount(1);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
+  await page.locator('#dashScopeBtn').click();   // close it again so the rest reads the resting state
+  await page.waitForTimeout(250);
 
   // the chart is honest that it did NOT narrow, rather than silently redrawing as the menu
   await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
@@ -118,12 +133,9 @@ test('selecting All menus reproduces the all-menus rendering exactly', async ({ 
   await boot(page);
   const before = await page.locator('#dashBody').innerHTML();
 
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('.mcmp-row[data-scope="MENU_ORIGINAL"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('.mcmp-row[data-scope="all"]').click();
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');
+  await pickScope(page, 'MENU_ORIGINAL');
+  await pickScope(page, 'all');
 
   const after = await page.locator('#dashBody').innerHTML();
   expect(after, 'the all-menus dashboard is restored intact').toEqual(before);
@@ -133,8 +145,7 @@ test('selecting All menus reproduces the all-menus rendering exactly', async ({ 
 test('a scope with insufficient history shows the not-enough-history copy, not NaN', async ({ page }) => {
   await boot(page, { history: [] });
 
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');
 
   // the headline still computes from live costing — only the HISTORY is missing
   await expect(page.locator('.verdict-num')).toHaveText('60.0%');
@@ -159,8 +170,7 @@ test('a scope with insufficient history shows the not-enough-history copy, not N
    localStorage, real boot — which is the only place the module-init read is genuinely exercised. */
 test('v97: the selection survives a reload, and the range survives it independently', async ({ page }) => {
   await boot(page);
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');
   await expect(page.locator('.dh-scope')).toHaveText('Winter');
   await page.locator('.range-btn[data-rg="1y"]').click();              // change the OTHER persisted preference
   await page.waitForTimeout(300);
@@ -172,6 +182,8 @@ test('v97: the selection survives a reload, and the range survives it independen
   await page.waitForTimeout(500);
 
   await expect(page.locator('.dh-scope')).toHaveText('Winter');
+  await expect(page.locator('#dashScopeBtn .dsb-name')).toHaveText('Winter');
+  await openScope(page);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
   await expect(page.locator('.range-btn.act')).toHaveAttribute('data-rg', '1y');
 });
@@ -196,7 +208,11 @@ test('v97: a stored scope for a deleted menu falls back to All menus, silently',
 
   await boot(page, { scope: 'MENU_DELETED' });
   await expect(page.locator('.dh-scope')).toHaveText('All menus');
+  await expect(page.locator('#dashScopeBtn .dsb-name')).toHaveText('All menus');
+  await openScope(page);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'all');
+  await page.locator('#dashScopeBtn').click();   // close again: the silence assertions read the resting state
+  await page.waitForTimeout(250);
   await expect(page.locator('.verdict-num')).not.toHaveText('—');      // a real figure, not a blank card
   // #toast is always in the DOM; .show is what makes it visible, so THAT is what "nothing surfaced" means
   await expect(page.locator('#toast')).not.toHaveClass(/\bshow\b/);
@@ -212,8 +228,7 @@ test('v97: a stored scope for a deleted menu falls back to All menus, silently',
    actually WINS — a muted-by-default h2 out-specifying the exception would be silent and invisible. */
 test('v97: the menu name is full strength while the metric stays muted, and scope is stated once', async ({ page }) => {
   await boot(page);
-  await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
-  await page.waitForTimeout(300);
+  await pickScope(page, 'MENU_WINTER');
 
   const seen = await page.evaluate(() => {
     const h2 = document.querySelector('#dashBody .dash-panel h2');
@@ -242,7 +257,7 @@ test('v97: the menu name is full strength while the metric stays muted, and scop
        on the chart title), and counting the control would make the rule unsatisfiable. */
     const el = document.querySelector('#dashBody .dash-panel');
     const clone = el.cloneNode(true);
-    clone.querySelectorAll('.dash-chips-wrap').forEach((n) => n.remove());
+    clone.querySelectorAll('.dash-scope-wrap').forEach((n) => n.remove());
     return clone.innerText;
   });
   // case-insensitive: innerText returns CSS-TRANSFORMED text, and dashboard headings are uppercased
@@ -255,8 +270,12 @@ test('v97: the menu name is full strength while the metric stays muted, and scop
    The v94 density pass lowered the DIG-row floor to 32px on the grounds that those are display rows.
    That reasoning is correct and stands; it does not extend here. By-menu rows are buttons that set the
    dashboard's scope, so they are held to the app's touch-target floor — measured, at phone width. */
-test('every By-menu row, including All menus, clears the 44px touch floor @ 380px', async ({ page }) => {
+test('the scope button and every row, including All menus, clear the 44px touch floor @ 380px', async ({ page }) => {
   await boot(page);
+  // v129: the button is the always-visible control, so the floor applies to it first
+  const btn = await page.locator('#dashScopeBtn').boundingBox();
+  expect(btn.height, 'the dropdown button is at least 44px tall').toBeGreaterThanOrEqual(44);
+  await openScope(page);
   const rows = await page.locator('.mcmp-row').all();
   expect(rows.length, 'All menus + two costed menus').toBe(3);
   for (const r of rows) {
