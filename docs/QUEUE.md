@@ -150,14 +150,6 @@ Out of scope: multi-tenant, auth, RLS policy work.
 Note: this is the loop's most common stop condition.
 Until it exists, "autonomous" means halting every second batch to wait for a hand-run migration.
 
-## next  Builder plants a draft just from looking
-Problem: opening the builder to LOOK at a plate and closing it with × autosaves a draft, which resurfaces as "Unfinished plate — resume or discard?" on the next visit, possibly a week later.
-Resuming against a plate that changed elsewhere could reintroduce stale lines.
-Found in v115 flow-testing; pre-existing v82 draft machinery, now reached through `guardUnfinishedPlate` on every entry (`app.js:4844`), so a look-only visit arms the prompt for the next one.
-Requirements: looking at a plate leaves no draft.
-A draft that does exist cannot silently overwrite newer state.
-Out of scope: the builder's layout.
-
 ## next  Floating layers and mobile dropdowns
 Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying.
 Underneath: five independent placement implementations, five separate breakages.
@@ -285,6 +277,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Builder plants a draft just from looking** - fixed 8 Aug 2026, shipped in **v118**.
+  `savePlateDraft` gated on `draftHasContent` alone, which cannot tell unsaved work from a visit: a loaded plate has content by definition. It now asks `isBuilderDirty()`.
+  **The sequencing is why it hid:** `loadPlate` renders BEFORE `openBuilder` arms draft saves, so the FIRST builder open of a session wrote nothing and the bug looked absent; `_draftArmed` then stays true, so the SECOND look-only visit planted the draft.
+  **A one-visit test passes against the broken code** - `tests/visual/v118-draft.spec.js` drives two, and was verified failing against the pre-fix condition at both widths before it was committed.
+  Second half done too: a draft records the baseline it was taken against, and resuming one whose plate moved since asks first. Cannot-tell cases (new plate, deleted plate, pre-v118 draft) resume silently rather than nagging.
 
 - **Run `project-audit` and FILE the report** - done 8 Aug 2026, filed to `docs/audits/AUDIT-v115.md`.
   **Filed as v115, not the v116 this item originally asked for**, and the audit was right to argue: the `/batch` counter compares the newest `AUDIT-vNN.md` against `sw.js`, which is `ezplate-v115` because v116 shipped no client asset. The item had conflated the handover diary number with the deploy number, so filing as v116 would have put the counter a version ahead of the thing it measures.
