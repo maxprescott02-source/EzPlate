@@ -51,7 +51,17 @@ The redesign restructures the layout of every screen a dropdown opens over, so d
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
-## next  Q2 - Dashboard redesign
+## doing  Q2 - Dashboard redesign
+**Branch `feature/q2-dashboard-redesign`, commit 391f4cd, pushed and NOT merged.** Cache already bumped to v120 on the branch.
+**Done:** the whole screen — verdict eyebrow + 40/44px semantic figure, scope chips with the ≤5 / 6+ collapse and the ranked disclosure, chart as its own card, What moved, the two-column second row, and the v98 desktop grid rewritten in place. Driven in a real browser at 380px and 1280px in both themes. Unit suite **782 green** (+9 in `tests/dash-chips.test.js`), `node -c` and smoke clean. The design package is committed to `docs/design_handoff_ezplate_redesign/`.
+**Left to do, and the ONLY thing standing between this and a PR: 21 dashboard Playwright specs are red** because the screen deliberately changed shape.
+They need rewriting one at a time to the new layout - **not a snapshot bless**, which is what the package and `CLAUDE.md` both warn against.
+- `v98-grid.spec.js` (10) is the big one and is largely **obsolete by design**: it tests a two-column row 1 and a `.dash-compare` card that no longer exist. Decide per test whether it retires or moves to the new map.
+- `v89-dash.spec.js` (5), `v115-reframe.spec.js` (4), `v96-menu-select.spec.js` (1), `v90-flows.spec.js` (1) are mostly screenshot and geometry pins that need re-pointing.
+⚠️ **One of these already earned its keep**: `v96-menu-select.spec.js:245` caught a real 44px touch-floor regression the mock's 6px chip padding introduced. Treat the rest as potentially doing the same - read what each was protecting before changing it.
+Then: pre-push `code-review` agent (mandatory, different model), PR, merge, handover.
+
+
 Implement `Redesign - Dashboard v2 Desktop.dc.html` + the Dashboard frame of `Redesign - Mobile States.dc.html`, inside the existing `renderDashboard()` path. Both themes, 380px and desktop.
 Out of scope: every other screen. Stop after this one.
 > **Plan.** First commit the package to `docs/design/`. Then work outward from `renderDashboard()` and the four helpers it calls, changing only their emitted markup: `verdictHtml` gains the 44px mono semantic headline (one per screen); `trendChart` keeps its existing SVG maths and gains the over-target wash, dashed target line and accent change-markers; `menuCompareHtml` and `digInHtml` become two-column row lists on one surface with hairline separators, not card-per-row.
