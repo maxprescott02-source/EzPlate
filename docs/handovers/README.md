@@ -48,3 +48,19 @@ shipped versions. A missing filename is indistinguishable from a missing batch.
 
 `HANDOVER-v40.md` had been sitting in the repo root since v42, which explicitly
 noted the decision not to move it. It now lives here with the rest.
+
+## Naming changed 8 Aug 2026 — the `v` is gone
+
+New files are `HANDOVER-<batch>-<short-name>.md`, e.g. `HANDOVER-123-dashboard.md`.
+
+**Why:** the `v` implied the number was the app version. It is not. The batch number
+increments once per batch; the deploy version in `sw.js` increments only when a batch
+ships a client asset, so a run of docs-only batches drives them apart. They were three
+apart when this was written — `HANDOVER-v122` shipped `ezplate-v119`. That ambiguity had
+already caused a wrong audit filing (v115) before it confused Max directly.
+
+**Existing `HANDOVER-vNN.md` files keep their names.** They are write-once: renaming them
+to fix a label would be rewriting the record. A reader who sees both forms is looking at
+the changeover, not at a mistake.
+
+**Every handover now states the deploy version it shipped, or says it shipped none.**

@@ -21,6 +21,11 @@ If you are running `/batch`, you are in the first case.
    **First, check whether a blocked item has been answered.** Read the recorded decisions in `CLAUDE.md` - the dated `(Max, …)` lines - against the `Blocked on:` of every `blocked` item.
    If the question has since been answered, unblock the item, note in the item which decision unblocked it, and it competes for the top slot like any other.
    **Never re-ask something already decided.** A decision that has to be made twice was not recorded properly - if the answer is in `CLAUDE.md` or a prior handover it is a lookup, not a decision.
+   **Then sweep every `Do after:` line, in the same pass.** For each, look at the item it names:
+   - **shipped → DELETE the line.** A satisfied dependency left in place is how the dropdowns item spent two years waiting on a conversion that landed in v54. Deleting it is not tidying, it is the mechanism.
+   - **not shipped → this item is not ready.** Skip it exactly like a blocked one and keep walking down. Do not ask Max; unmet ordering is a scheduling fact, not a decision.
+   - **names something that is not a queue item, or gives no reason → the line is junk.** Delete it and say so in the handover. A dependency you cannot check is worse than none, because it still stops work.
+   **Taking an item whose `Do after:` is unmet is a real error**, not a judgement call - it means doing the same work twice, which is the whole reason the field exists.
 2. **Decide whether to investigate.** If the item rests on a claim about the code that its author could not see, run `/investigate` first - read-only, no branch.
    If the investigation contradicts the item, **the code wins**: rewrite the item in `docs/QUEUE.md` to match reality and say what changed.
    Reproduce before you fix: a misdiagnosed dead-code path was once briefed as a live compounding bug because nobody drove it.
@@ -114,11 +119,31 @@ One item per heading, in priority order:
 Problem: what is wrong, in Max's words where possible.
 Requirements: what must be true when this is done.
 Out of scope: what this must not touch.
+Do after: (only if real - the queue item that must ship first, and WHY it gets cheaper that way)
 Blocked on: (only if blocked - migration pending, decision pending)
 ```
 
 `status` is one of `next`, `blocked`, `doing`, `done`.
 Move `done` items out weekly.
+
+### `Do after:` - ordering that survives being forgotten
+
+**The problem it fixes (Max, 8 Aug 2026).** `blocked` never reordered anything - it only made `/batch` SKIP.
+Priority was raw list position, set by hand, and the reasoning "this item gets much cheaper if that one runs first" lived in body prose when whoever wrote the item happened to think of it, and nowhere at all when they didn't.
+That reasoning also had **no expiry**: the dropdowns item sat "sequenced, not blocked" behind a builder conversion that had already shipped in v54, and nothing could notice.
+
+So the dependency is a FIELD, and it has three properties the prose did not:
+
+- **It names a queue item, not a vibe.** "Do after: Q8" is checkable. "Do after: the redesign" is not - if you cannot point at the item, you do not have a dependency, you have a preference.
+- **It states WHY the cost changes**, in the same line. Not "do this later" but "shares `renderInvReview` with Q8 - first means rewriting one function twice". An ordering with no stated saving is one nobody can re-judge later.
+- **It is SELF-INVALIDATING.** Step 1 checks it against what is done. When the named item has shipped, **delete the line** - do not leave it as a satisfied dependency, because that is exactly the state the dropdowns item rotted in for two years of versions.
+
+**It is a SOFT block, not a stop condition.** An item whose `Do after:` is unmet is skipped like a blocked one and the loop takes the next.
+It never stalls the queue and it never comes back to Max - unmet ordering is a scheduling fact, not a decision.
+
+**Do NOT use it for:** work that is merely tidier later, anything you cannot name an item for, or a general "after the redesign".
+Overusing it turns a hand-sorted list into a dependency graph nobody maintains.
+If two items genuinely want the same batch, say `Do with:` instead and run them together in one PR.
 
 **Add to the queue as you go.** Anything found-not-fixed becomes an item with enough context to act on later.
 Do not let findings live only in handovers.
