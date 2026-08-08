@@ -1052,9 +1052,9 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .menu-new-btn{white-space:nowrap}   /* v52.1 (Max): size comes from .btn — same as + New ingredient / + New product */
   .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
   /* v115 tombstone: .cogs-inline / .cogs-read deleted — their markup (the .cogs-meta line) went this batch */
-  .cogs-in{display:inline-flex;align-items:center;gap:2px}
-  .cogs-in input{width:74px;padding:8px 10px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
-  .cogs-in .pct{font-weight:700;color:var(--muted2)}
+  /* v128 (Q9) tombstone: .cogs-in moved to the Settings block — its ONE consumer is the Settings
+     target row (index.html #setCogsInput), and a split definition here is the .cogs-read failure
+     mode over again: one rule, one place */
   .menu-search{flex:1 1 220px;min-width:180px;position:relative;display:flex;align-items:center}
   .menu-search input{width:100%;padding:9px 32px 9px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
   .menu-search input::-webkit-search-cancel-button{display:none}
@@ -2118,27 +2118,40 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .set-nav{flex:0 0 184px;display:flex;flex-direction:column;gap:2px;padding:var(--sp-4) var(--sp-3);border-right:1px solid var(--border);overflow:auto;background:var(--surface2)}
 .set-navitem{display:flex;align-items:center;gap:var(--sp-2);width:100%;text-align:left;padding:10px 12px;min-height:44px;border:0;border-radius:var(--radius-ctl);background:transparent;color:var(--text2);font-size:var(--fs-base);font-weight:700;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
 .set-navitem:hover{background:var(--hover);color:var(--text)}
-.set-navitem[aria-current="page"]{background:var(--accent-weak);color:var(--accent-ink)}
+.set-navitem[aria-current="page"]{background:var(--accent-weak);color:var(--accent-ink);font-weight:800}
 .set-chev{display:none;width:18px;height:18px;flex:0 0 auto;margin-left:auto;color:var(--muted2)}
 /* content pane */
 .set-content{flex:1 1 auto;min-width:0;padding:var(--sp-5) var(--sp-6);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .set-section[hidden]{display:none}
 .set-sec-title{margin:0 0 var(--sp-4);font-size:var(--fs-lg);font-weight:800;letter-spacing:-.01em;color:var(--text)}
+/* Q9: on desktop the title duplicates the highlighted nav item, so it is sr-only'd rather than
+   removed — AT keeps the section heading, and mobile detail (≤639) still shows it as the ONLY
+   visible section label there. Declarations mirror .sr-only — if that utility's technique ever
+   changes, change this block too (a class can't be applied per-viewport, hence the copy) */
+@media (min-width:640px){
+  .set-sec-title{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+}
 /* the ONE settings-row pattern app-wide: label + help on the left, control on the right */
 .set-item{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) 0;border-top:1px solid var(--border)}
 .set-item:first-of-type{border-top:0;padding-top:0}
 .set-item-text{flex:1 1 auto;min-width:0}
 .set-item-label{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text)}
-.set-item-help{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:400;color:var(--muted2);line-height:1.5}
+.set-item-help{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:400;color:var(--text2);line-height:1.5}   /* Q9: --text2, not --muted2 — this copy is needed to act on the control beside it */
 .set-item-ctl{flex:0 0 auto}
 .set-content select.set-item-ctl{width:auto;min-width:150px;max-width:220px;padding:10px 34px 10px 12px;min-height:44px;border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
 .set-item-ctl.btn{min-height:44px}
+/* Q9: the target-% input matches the GST select beside it (border2, ctl radius, 44px) and the
+   app's numeral idiom (mono, right-aligned). The WHOLE .cogs-in definition lives here — sole
+   consumer is this row; the old menu-analysis block holds only a tombstone */
+.set-item-ctl.cogs-in{display:inline-flex;align-items:center;gap:6px}
+.set-item-ctl.cogs-in input{width:74px;min-height:44px;padding:10px;text-align:right;font:inherit;font-family:var(--mono);font-weight:600;font-size:var(--fs-base);border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
+.set-item-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
 /* segmented control (theme) */
 .seg{display:inline-flex;border:1px solid var(--border2);border-radius:var(--radius-ctl);overflow:hidden;background:var(--surface)}
 .seg-btn{appearance:none;-webkit-appearance:none;border:0;border-left:1px solid var(--border);background:transparent;color:var(--text2);font-size:var(--fs-sm);font-weight:700;padding:9px 12px;min-height:44px;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
 .seg-btn:first-child{border-left:0}
 .seg-btn:hover{background:var(--hover);color:var(--text)}
-.seg-btn[aria-checked="true"]{background:var(--accent);color:var(--on-accent)}
+.seg-btn[aria-checked="true"]{background:var(--accent-weak);color:var(--text);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--accent)}   /* Q9: quiet selected state — solid accent competed with Done, the modal's one primary CTA. --text not --accent-ink (accent-ink on accent-weak is 4.37:1 in light — fails AA at 13px), and the inset ring is what keeps selected ≠ hover (--hover and composited --accent-weak are near-identical in light) */
 /* switch */
 .switch{position:relative;display:inline-flex;flex:0 0 auto;cursor:pointer}
 .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
@@ -2166,7 +2179,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .set-shell{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   .set-nav{flex:none;width:auto;border-right:0;background:transparent;gap:var(--sp-1);padding:var(--sp-3)}
   .set-navitem{border:1px solid var(--border);background:var(--surface)}
-  .set-navitem[aria-current="page"]{background:var(--surface);color:var(--text)}   /* the list view has no persistent selection */
+  .set-navitem[aria-current="page"]{background:var(--surface);color:var(--text2);font-weight:700}   /* the list view has no persistent selection — neutralise ALL of the desktop active styling (bg, colour AND weight) back to the resting values, or settingsBack leaves the last section highlighted */
   .set-chev{display:inline-flex}
   .set-content{padding:var(--sp-4);overflow:visible}   /* not a second scroller — the shell scrolls */
   .settings-panel:not(.detail-open) .set-content{display:none}

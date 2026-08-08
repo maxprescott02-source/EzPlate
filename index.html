@@ -8,16 +8,18 @@
 <script>(function(){try{var t=localStorage.getItem('cafeCost_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <title>EzPlate — plate costing made easy</title>
 <meta name="description" content="EzPlate — plate costing made easy. Cost menu items, track supplier prices, protect margins.">
-<!-- Social sharing (Open Graph + Twitter). TODO(Max): set an absolute production URL for og:url + <link rel="canonical"> and absolute og:image/twitter:image once the Vercel domain is fixed — relative paths preview inconsistently on some platforms. -->
+<!-- Social sharing (Open Graph + Twitter). Absolute URLs on purpose — relative paths preview inconsistently on some platforms. -->
+<link rel="canonical" href="https://scoopyscosting.vercel.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="EzPlate">
+<meta property="og:url" content="https://scoopyscosting.vercel.app/">
 <meta property="og:title" content="EzPlate — plate costing made easy">
 <meta property="og:description" content="Cost menu items, track supplier prices, and protect your margins. Simple plate costing for cafes and restaurants.">
-<meta property="og:image" content="icons/icon-512.png">
+<meta property="og:image" content="https://scoopyscosting.vercel.app/icons/icon-512.png">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="EzPlate — plate costing made easy">
 <meta name="twitter:description" content="Cost menu items, track supplier prices, and protect your margins. Simple plate costing for cafes and restaurants.">
-<meta name="twitter:image" content="icons/icon-512.png">
+<meta name="twitter:image" content="https://scoopyscosting.vercel.app/icons/icon-512.png">
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +31,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=127">
+<link rel="stylesheet" href="css/style.css?v=128">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -822,7 +824,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=127"></script>
+<script src="js/app.js?v=128"></script>
 <script>
 (function(){
   var root=document.documentElement, KEY='cafeCost_theme';
