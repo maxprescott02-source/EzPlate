@@ -247,5 +247,23 @@ The finding stands — `CLAUDE.md` points at the wrong place — but it is a doc
 
 **C3 — confirmed.** `.mlf-chip .dot{margin:0}` (`css/style.css:504`) and the active-chip tints (`:507–510`) both ship, so `docs/PHONE.md` was asking Max about a UI that was reverted on Max's own instruction. Fixed in `docs/PHONE.md` in this batch.
 
+### Addendum, 8 Aug 2026 — S3 RESOLVED: all three foreign keys verified against production
+
+The audit could not check these because its session had no Supabase MCP, and flagged that Tier 1 states them as hard rules while the repo's own stated audit trail (the migration files) contains none of them.
+Queried `pg_constraint` for every foreign key in `public`:
+
+| Constraint | From | To | ON DELETE | Tier 1 says | |
+|---|---|---|---|---|---|
+| `menu_items_plate_id_fkey` | `menu_items.plate_id` | `plates.id` | **NO ACTION** | NO ACTION, raises 23503 | ✅ |
+| `plates_menu_id_fkey` | `plates.menu_id` | `menu_items.id` | **SET NULL** | SET NULL, legacy | ✅ |
+| `menu_items_menu_id_fkey` | `menu_items.menu_id` | `menus.id` | **SET NULL** | SET NULL | ✅ |
+
+**All three match `CLAUDE.md` exactly, and there is no fourth foreign key in `public`** — so the circularity Tier 1 describes, and the delete-dishes-before-plates ordering the restore depends on, both rest on verified constraints.
+`CLAUDE.md` was right; the gap was only that nothing in the repo could show it.
+This addendum is that record — the queue item asked for "a migration file that documents existing state, or a line in the audit", and a documentation-only migration would have put an unrunnable file into a trail whose entries are meant to be hand-applied.
+
+---
+
 Everything else in this report was filed as the agent returned it, including the claims it marked UNVERIFIABLE.
-**Those are not findings of absence** — they are database claims that need a session with the Supabase MCP, and **S3 in particular says the repo's own stated audit trail does not contain the three foreign keys that Tier 1 states as hard rules.** That has its own queue item.
+**Those are not findings of absence** — they are database claims that need a session with the Supabase MCP.
+**S3 is now resolved: see the addendum above.** The remaining UNVERIFIABLE claims (`ingredients.updated_at`, `safeupdate`'s behaviour per role, the anon 204, `list_migrations`) are still open and still need a session with the MCP to settle.
