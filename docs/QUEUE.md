@@ -69,14 +69,10 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the 102 Playwright specs green per batch.
 
-## next  Q6 - Plate builder redesign
-Implement `Redesign - Plate Builder.dc.html` + its mobile frame.
-**DECIDED 8 Aug 2026 (Max): "keep the modal".** Unblocked by that answer - it took the recommendation below, so the design's full-page shell is set aside and everything else is taken.
-The modal shape now has TWO explicit confirmations from Max on the same day, the second against a design proposing otherwise. **Do not re-open it from the mock.**
-> **The recommendation he took: keep the modal shell, take everything else.** The design's substance is the docket columns, the sticky cost panel, the margin verdict block and the mobile sticky footer (total + margin + Save together) - **all of which fit inside `#builderModal` unchanged.** The cost panel can be `position:sticky` within `.mbody` at desktop widths; the modal is already a full-screen takeover under 560px, which is what the mobile frame draws anyway.
-> That yields the redesign without reversing a decision, without reopening the dropdown sequencing, and without touching the v118 draft machinery or `guardUnfinishedPlate`.
-> If Max does want the full page, say so explicitly and it becomes its own batch with its own risk: every builder entry point, the draft/resume flow, the unfinished-plate guard and the scroll-lock all assume an overlay.
-> Either way: `renderPlate` and the `#lines`/`#total` ids stay, and **nothing inside the protected parser region is touched** - the invoice REVIEW UI is fair game, the parsing is not.
+## next  project-audit
+Problem: `sw.js` ships `ezplate-v125`; the newest report in `docs/audits/` is `AUDIT-v115.md` - a gap of 10, the threshold `/batch` step 10 sets.
+Requirements: run the `project-audit` agent (read-only) and **FILE the report yourself** to `docs/audits/AUDIT-v125.md` - the agent hands the report back and an unfiled report leaves the counter stuck.
+Note: the audit is keyed to the DEPLOY version (the `v` stays on audit filenames on purpose - CLAUDE.md).
 
 ## next  Q7 - Products redesign
 Implement `Redesign - Products.dc.html` + its mobile frame, including the density toggle. Stop after.
@@ -287,6 +283,7 @@ Out of scope: restructuring anything the deleted rules sat next to.
 Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
 
 ## next  Small, each independently shippable
+- **Builder cost panel: the design's "+ Add to another menu" shortcut was deferred out of Q6** (9 Aug 2026). It needs the manage-menus modal to stack over the open builder and the cost panel to refresh when menus change underneath - both untested territory that was not riding a redesign batch. The panel's "On menus" list ships without it; publishing still lives one tap away on the plate card.
 - **`layout-consistency.spec.js` never measures the list BODY** - its comment claims it asserts "the shared left edge", but it stops at the actions row (`panelLeft`/`titleTextLeft`/`btnLeft`), so the v123 Plates surface sitting 4px proud at ≥1024 would have shipped silently; the review caught it, not the spec. Extend it to measure each tab's list-body left edge at both sizes. Found by the v123 pre-push review, 9 Aug 2026. (Also pre-existing and shared: at 561-1023px both Products and Plates sit 4px inside the h2 edge - decide once whether that is the design.)
 - **`analyze().absPct` lost its last reader in v122** - the Q3 redesign replaced the "`32% under`" Variance cell (its only consumer) with the food-cost % composition. It is three lines inside `analyze` and part of that pure function's tested shape, so it was kept rather than trimmed mid-batch. Trim it (and its `Math.round`) the next time `analyze` is touched, or keep it deliberately - either way say so at the site. Found by the v122 pre-push review.
 - **`edDelArmed` is dead** - declared at `app.js:6910`, written at `:6937` and `:6949`, read nowhere.
@@ -366,6 +363,11 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Q6 - Plate builder redesign** - shipped 9 Aug 2026 as **`ezplate-v125`** (PR #89), handover `HANDOVER-128-builder.md`.
+  The modal shell stayed (decided twice); inside it: the cost panel (total / suggested / per-menu tinted verdicts) leads the save column at ≥900px with the modal widened to 980 and the docket flattened to columns over the unchanged DOM; under 900px the sticky footer carries total + worst-menu verdict + Save. `renderBuilderCost` renders every surface from the one `updateTotals` figure, lights from `menuMarginPreview`.
+  **The review's headline: `rank[light]||3` buried RED** (0 is falsy) - the losing menu never led the mobile footer. And a "flaky spec" chase ended in a real defect: the qtybox's 116px min-content overflowing its 92px grid track into the name column. Both fixed and pinned behaviourally in `tests/visual/q6-builder.spec.js`.
+  The mock's "+ Add to another menu" shortcut was deferred to the queue rather than shipped half-tested.
 
 - **Q5 - Ingredients redesign** - shipped 9 Aug 2026 as **`ezplate-v124`** (PR #87), handover `HANDOVER-127-ingredients.md`.
   `renderKitchenPanel` + `#kingList`-scoped CSS: one surface of rows (ingredient / "→ product — brand · supplier" / unit cost), inline drift beside the name via `ingLastMovePct` (the same rule as What-moved, reading `ing_price_history`), and loud broken links ("⚠ product missing — relink to keep N plates costed", "no cost").
