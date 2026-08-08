@@ -3066,3 +3066,63 @@ html{scrollbar-gutter:stable}
   #kingList .king-name{font-size:var(--fs-base)}
   #kingList .king-price{grid-column:3;grid-row:1}
 }
+
+/* ----------------------------------------------------------------------
+   28. Q6 (v125) — THE BUILDER'S COST PANEL + DOCKET COLUMNS
+   The modal SHELL is untouched (Max, twice, 8 Aug 2026: the builder is a
+   modal). Inside it: at ≥900px the body becomes docket + sticky cost
+   panel; docket lines flatten to one row of columns; under 900px the
+   sticky footer carries total + verdict + Save together. All ids and
+   handlers unchanged; the v118 draft machinery is not touched.
+   ---------------------------------------------------------------------- */
+/* the cost block leading #platePanel — a ≥900px presentation: under 900 the sticky footer is the
+   one carrier of the total + verdict (showing both duplicated the figure on every phone row) */
+.bcost{border-bottom:1px solid var(--border);padding-bottom:var(--sp-3);margin-bottom:var(--sp-2)}
+@media (max-width:899px){ .bcost{display:none} }
+.bcost-head{padding:var(--sp-4) var(--sp-5) var(--sp-2);border-bottom:2px solid var(--text)}
+.bcost-lbl{display:block;font-size:var(--fs-xs);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2)}
+.bcost-total{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.bcost-row{display:flex;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-3) var(--sp-5) 0}
+.bcost-cap{font-size:var(--fs-sm);color:var(--text2)}
+.bcost-target{color:var(--muted2)}
+.bcost-suggest{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-base);font-weight:700}
+.bcost-menus{padding:var(--sp-3) var(--sp-5) 0}
+.bcost-cap2{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:var(--sp-2)}
+.bcost-menu{display:flex;justify-content:space-between;gap:var(--sp-3)}
+.bm-name{font-size:var(--fs-sm);font-weight:700}
+.bm-price{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-base);font-weight:700}
+.bverdict{margin-top:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-radius:var(--radius-chip);font-size:var(--fs-sm);color:var(--text)}
+.bverdict b{font-family:var(--mono)}
+.bverdict.bv-green{background:var(--good-bg)}.bverdict.bv-green b{color:var(--good)}
+.bverdict.bv-amber{background:var(--warn-bg)}.bverdict.bv-amber b{color:var(--warn)}
+.bverdict.bv-red{background:var(--bad-bg)}.bverdict.bv-red b{color:var(--bad)}
+/* the docket's own total row retires — the panel (≥900) and the footer (<900) carry the figure now */
+#docketPanel .total{display:none}
+/* mobile footer: the answer rides with the action */
+.builder-foot{flex-direction:column;gap:var(--sp-2);align-items:stretch}
+.bfoot-sum:empty{display:none}
+.bfs-top{display:flex;justify-content:space-between;align-items:baseline}
+.bfs-lbl{font-size:var(--fs-xs);font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2)}
+.bfs-total{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:700}
+.bfs-line{font-size:var(--fs-sm);color:var(--text2)}
+.bfs-line b{font-family:var(--mono)}
+.bv-t-green{color:var(--good)}.bv-t-amber{color:var(--warn)}.bv-t-red{color:var(--bad)}
+@media (min-width:900px){
+  .builder-overlay .modal-builder{width:min(980px,calc(100vw - 48px));max-width:none}   /* .modal's width:min(640px,…) AND .modal-builder's own 720px max-width both cap the shell — override both (descendant selector: the §"margins locked" lesson) */
+  .modal-builder .mbody{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--sp-4);align-items:start}
+  #platePanel{position:sticky;top:0}                        /* sticks within the scrolling .mbody — the queue plan's own suggestion */
+  .bfoot-sum{display:none}                                  /* the panel says it; the footer holds Save alone */
+  /* docket lines flatten to the design's columns: name / qty / unit cost / line cost / ×.
+     FIXED tracks, not auto — each .line is its own grid, so auto tracks would size per-row and the
+     columns would not line up down the docket (the v125 review measured it). 44px for the × matches
+     .x's min-width; a 24px track was fiction the button overflowed. */
+  #lines .line{display:grid;grid-template-columns:minmax(0,1fr) 124px 116px 84px 44px;gap:0 10px;align-items:center}   /* col2 fits the qtybox's real min-content (~116px measured) — a narrower track overflowed leftward into the name column */
+  #lines .line .top,#lines .line .costs{display:contents}   /* the two-row skeleton's children join the row grid; DOM unchanged */
+  #lines .line .nm{grid-column:1;grid-row:1}
+  #lines .line .qtybox{grid-column:2;grid-row:1;justify-self:end}
+  #lines .line .priceline{grid-column:3;grid-row:1;justify-self:end}
+  #lines .line .lc{grid-column:4;grid-row:1;justify-self:end}
+  #lines .line .top .x{grid-column:5;grid-row:1}
+  #lines .line .leader{display:none}                        /* the dotted leader belongs to the stacked layout */
+  #lines .line.misc-line .misc-costbox{grid-column:4;grid-row:1;justify-self:end}
+}
