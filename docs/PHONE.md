@@ -11,6 +11,14 @@ Production state below is measured, not assumed.
 
 ---
 
+## v132-v135 - the v3 repaint reached your phone (AUDIT-v135 D2: nobody asked you to look)
+
+- **Every screen now wears the v3 look on the phone too:** white canvas, flat bordered cards, the Geist typeface, and NO dark mode (your call, 9 Aug - light only until a designed dark package exists). The mobile LAYOUTS are unchanged until V9; the paint and type are not.
+  Failure: the typeface renders badly at small sizes on the real screen, contrast suffers on the real OLED in kitchen light, or you simply miss dark mode - all three are device judgements no emulator settles.
+- **If you used dark mode:** it is gone, and the app should come up light with no flash of the old theme. Failure: a stale dark flash at boot, or the PWA title bar clashing with the white app.
+- **The Menu tab at ≥1024 only (iPad landscape):** switcher pills replace the menu dropdown. A 6th menu makes the pills stand down and the dropdown return, with no copy explaining the swap - **say if that reads as breakage** (it is one line of copy or an earlier overflow design if so).
+- **The mobile Menu verdict cell** says "42.9% · over" with no visible word "target" (the column header is hidden on phones; the aria-label carries it). The v133 review flagged it as possibly reading as "42.9% over [something else]". Failure: you misread it even once. V9 is where the fix would land.
+
 ## v129 - the dashboard scope dropdown
 
 - **Open the Dashboard and look at the verdict row: the big figure on the left, the "All menus 21.7 ▾" button on the right.**
