@@ -66,11 +66,6 @@ What that meant on Q2, kept here as the worked example: the mock's full-width tr
 **Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
 one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
 
-## doing  Remove the density toggle (Max, 9 Aug 2026)
-Problem: Q7 (v126) shipped Comfortable/Compact on Products, on the one legal localStorage key. Max reversed it 9 Aug 2026: it changes too little to earn a control a chef has to understand.
-Verified live: `PROD_DENSITY_KEY='cafeDB_prodDensity'` (`js/app.js:2050`) with the in-memory-first plumbing at `:2051-2055`, `.seg-density` (`css/style.css:3175`), and `tests/visual/q7-products.spec.js` pins compact + persistence.
-Requirements: control gone, one row height everywhere, the key and its in-memory-first plumbing removed, the specs pinning the toggle retired on purpose. Design Package §13 records the cut.
-
 ## next  Menu verdict cell: drop the dollar shortfall (Max, 9 Aug 2026)
 Problem: Q3 (v122) shipped "42.2% · +90c" (`vbadge`, `js/app.js:1350-1362`, pinned exactly in `tests/menu-margin.test.js`). The dollar delta reads as a price-rise instruction; judging cost is the app's job, pushing price hikes is not.
 Verified live: the cell prints the shortfall today, and amber vs red differ ONLY by hue (v128 session audit) - both premises hold.
@@ -324,6 +319,9 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Remove the density toggle (the second 9 Aug reversal)** - shipped 9 Aug 2026 as **`ezplate-v130`** (PR #104), handover `HANDOVER-136-density-toggle.md`.
+  Control, key, plumbing and CSS deleted; a stale `cafeDB_prodDensity` key is actively removed at boot; `q7-products.spec.js` pins the absence (planted-stale-key cleanup included). Review: no functional defects.
 
 - **Dashboard scope chips → one dropdown (the first of the three 9 Aug reversals)** - shipped 9 Aug 2026 as **`ezplate-v129`** (PR #102), handover `HANDOVER-135-scope-dropdown.md`.
   One `.dash-scope-btn` (current scope name + food-cost % in the v115 anchor-to-target pair) opening the ranked popover: selectable All-menus row first, then worst-first, uncosted excluded, honesty note inside the popover, 44px floor spec-pinned.
