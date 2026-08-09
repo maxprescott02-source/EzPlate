@@ -2206,54 +2206,110 @@ function kingSearchFilter(q, words, prods){
   });
 }
 var kingQuery='';
+/* F3 (v139): the mock's §3.4 header subtitle, computed and counting the WHOLE library rather than
+   the filtered view - a summary of what you have, not of what you searched. Broken links are the
+   one thing worth surfacing in the header, because they are silently costing plates nothing. */
+function kingHeadSummary(list){
+  var n=(list||[]).length; if(!n) return '';
+  var broken=0; list.forEach(function(k){ if(!byId[k.pid]) broken++; });
+  var bits=[n+' '+(n===1?'ingredient':'ingredients')];
+  if(broken) bits.push(broken+' '+(broken===1?'product':'products')+' missing');
+  return bits.join(', ');
+}
 function renderKitchenPanel(){
   var box=document.getElementById('kingList'); if(!box) return;
   var sw=document.getElementById('kingSearch'); if(sw) kingQuery=sw.value||'';
+  var sub=document.getElementById('kingHeadSub'); if(sub) sub.textContent=kingHeadSummary(kitchenIngredients);
+  var note=document.getElementById('kingListNote');
+  var showNote=function(on){ if(note) note.hidden=!on; };
+  var ctl=document.getElementById('kingControls');
+  var showControls=function(on){ if(ctl) ctl.hidden=!on; };
   if(!kitchenIngredients.length){
-    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'No ingredients yet.',"Tap '+ New ingredient' or set up from your products.",
-      '<button class="btn primary" type="button" id="kingEmptyNew">+ New ingredient</button>');
+    showNote(false); showControls(false);   // nothing to search, and fillFilter has not run — an option-less select is a control that does nothing
+    /* §5's composed empty state, and this screen's FIRST-RUN state (§5 makes them one).
+       R3: the header strapline the mock's header bar has no room for is re-housed HERE, which is
+       where "each one links to a product you buy" actually teaches somebody - a café with a full
+       list already knows. It is not deleted, and Tier 2's four-noun law makes the sentence
+       load-bearing: this is the only place the app explains Ingredient -> Product. */
+    box.innerHTML=emptyStateHtml(ICON_LEAF_BIG,'Name your first ingredient',
+      'Ingredients are the names you cook with. Each one links to a product you buy, so its cost follows the price you pay.',
+      '<button class="btn primary" type="button" id="kingEmptyNew">New ingredient</button>');
     var b=document.getElementById('kingEmptyNew'); if(b) b.onclick=function(){ openKingModal(null); };
     renderKingProgress();                                            // zero kitchen words + many products is EXACTLY when the wizard matters
     return;
   }
   var kcat=(document.getElementById('kingCatFilter')||{}).value||'';   // v59 item 6a: filter by DERIVED category
+  showControls(true);
   fillFilter(document.getElementById('kingCatFilter'), kingCategories(), 'All categories');
   var kcf=document.getElementById('kingClearFilters'); if(kcf) kcf.style.display=(kingQuery||kcat)?'':'none';
   var list=kingSearchFilter(kingQuery, kitchenIngredients, byId)
     .filter(function(k){ return !kcat || kingCategory(k)===kcat; })
     .sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
   if(!list.length){                                                  // ITEM 3 (v35): there ARE words, the filter/search just matched none of them
+    showNote(false);
     box.innerHTML=emptySearchState(ICON_LEAF_BIG,'ingredients','clearIngredientFilters');   // v58: variant A via the shared helper
     renderKingProgress();                                            // progress counts PRODUCTS, not the filtered view — it stays true
     return;
   }
-  // v44 item 6b: the whole card opens the Edit modal (Products pattern) — no visible Edit/Remove links.
+  showNote(true);
+  /* The column band labels the desktop table (mock §3.4), rows-present branch only.
+     ⚠ The mock's fourth heading is "30-day change" and THAT LABEL WOULD BE A LIE HERE (R2).
+     `ingLastMovePct` compares the last two logged points regardless of their dates - it is the
+     LAST MOVE, not a 30-day window. A true 30-day rule would also break the invariant that this
+     row and the dashboard's What-moved panel can never disagree, because they share this function.
+     So the column ships with the mock's position and an honest heading; Products already words it
+     the same way in its aria ("at the last logged move"). */
+  var band='<div class="king-band" aria-hidden="true"><span>Ingredient</span><span>Category</span>'
+    +'<span class="kb-num">Unit cost</span><span class="kb-num">Last change</span><span class="kb-num">Used in</span></div>';
+  // v44 item 6b: the whole row opens the Edit modal (Products pattern) — no visible Edit/Remove links.
   // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
-  box.innerHTML=list.map(function(k){
-    /* Q5 (v124): the row is ingredient / "→ product — brand · supplier" (+ inline drift when the
-       last LOGGED move was ≥1%) / unit cost. The v67 category chip row is GONE from the row — the
-       design drops it, the category still drives the filter above, and it stays derived from the
-       linked product. A broken link is loud now: the quiet "(product missing)" hid real risk, so
-       the row says what is at stake, counted through BOTH line shapes (kingMissingImpact). */
-    var kp=byId[k.pid];                                              // v103: price is a right-aligned figure column (the .ing-price idiom), not part of the sentence
-    var link, price, drift='';
+  box.innerHTML=band+list.map(function(k){
+    /* F3 (v139): five cells, the mock's §3.4 order. What the rebuild did NOT change, all from the
+       banked contract: the category is DERIVED from the linked product and never stored; a broken
+       link stays loud and its N counts the KID ARM ONLY, because a relink mutates `k.pid` alone and
+       cannot heal a legacy bare-pid line (the v124 review caught that lie once).
+       R1: the Category column REVERSES the recorded Q5 decision to drop it from the row, and turns
+       the `!king-meta`-adjacent pin in king-rows.test.js red. The mock wins; the pin is flipped
+       consciously in the same change rather than worked around. */
+    var kp=byId[k.pid];
+    var used=platesUsingKid(k.id).length;
+    /* "Used in N plates" counts the kid arm, NOT productRefs' both-sides count. The contract left
+       this open per surface; kid-only is right here because the column sits on an INGREDIENT and a
+       legacy bare-pid line uses the PRODUCT without going through this ingredient. It also keeps
+       ONE number on screen: the row, the relink promise and the modal's #king_used already share
+       this computation, and productRefs here would put "9 plates" on a row whose own modal says 7.
+       (Trap 4 of the contract already counts three meanings for this phrase; this adds none.) */
+    var usedCell='<span class="king-used-n'+(used?'':' is-nil')+'">'+(used?(used+' plate'+(used===1?'':'s')):'—')+'</span>';
+    var link, price, drift, cat;
     if(kp){
       var pct=ingLastMovePct(k.pid);
-      // the drift rides the NAME line, not the link line — .king-link clamps to 2 lines and a long
-      // "description — brand · supplier" would silently ellipsise the one signal this row adds
-      drift=(pct==null)?'':(' <span class="king-drift '+(pct>0?'up':'down')+'">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
+      /* Muted "steady" replaces rendering nothing (mock §3.4). It is not "no change": it means no
+         logged move worth reporting, which is also what a sub-1% move reads as. The aria says so. */
+      drift=(pct==null)
+        ? '<span class="king-drift none" aria-label="no recent price change">steady</span>'
+        : '<span class="king-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>';
+      /* `is-nil` marks a PLACEHOLDER, not a broken link: a linked product with no category of its
+         own is empty here too, and without the class the phone showed the bare table dash the
+         design forbids. The class is what the breakpoint rules key off, so it goes on both paths. */
+      var kc=kingCategory(k);
+      cat='<span class="king-cat'+(kc?'':' is-nil')+'">'+esc(kc||'—')+'</span>';
       link='<span class="king-link">'+esc(kingProductLabel(k))+'</span>';
       price='<span class="king-price">'+esc(unitCostStr(kp))+'</span>';
     } else {
-      var n=platesUsingKid(k.id).length;
       link='<span class="king-link king-missing">⚠ product missing — '
-        +(n?('relink to keep '+n+' plate'+(n===1?'':'s')+' costed'):'relink to give it a cost')+'</span>';
+        +(used?('relink to keep '+used+' plate'+(used===1?'':'s')+' costed'):'relink to give it a cost')+'</span>';
       price='<span class="king-price notcosted">no cost</span>';
+      drift='<span class="king-drift none" aria-label="no price to track">—</span>';
+      cat='<span class="king-cat is-nil">—</span>';
     }
-    return '<div class="king-row" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+(kp?'':' — product missing')+'">'
-      +'<div class="king-main"><span class="king-name">'+esc(k.name||'Ingredient')+drift+'</span>'
-      +link+'</div>'
-      +price
+    /* The aria-label OVERRIDES the row's content, so the four figures are never announced. That is
+       a KNOWN, QUEUED defect (the screen-wide announcement rule), deliberately not fixed inside a
+       restyle - the contract says so at trap 5. The label gains nothing here and loses nothing. */
+    /* `no-cat` lets the phone's meta line choose its separator in CSS without a sibling chain -
+       the chain this replaces out-ranked a desktop column rule and moved a cell (see §27). */
+    return '<div class="king-row'+(kingCategory(k)?'':' no-cat')+(kp?'':' is-broken')+'" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+(kp?'':' — product missing')+'">'
+      +'<span class="king-id"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'+link+'</span>'
+      +cat+price+drift+usedCell
       +'</div>';
   }).join('');
   box.querySelectorAll('.king-row').forEach(function(row){
@@ -4418,7 +4474,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v138';
+var APP_VERSION='v139';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

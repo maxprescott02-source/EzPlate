@@ -29,14 +29,15 @@
  * which is exactly the regression it was written to catch — a per-tab nudge among
  * the old screens — and it keeps its teeth until the set empties.
  *
- * CONVERTED, and removed from TABS with their F-item: builder (Plates, F2).
+ * CONVERTED, and removed from TABS with their F-item: builder (Plates, F2), pantry
+ * (Ingredients, F3).
  * A converted screen's own spec owns its header (tests/visual/v138-plates.spec.js).
  * When TABS is down to one entry, this spec has nothing left to compare and goes.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
-const TABS = ['dashboard', 'pantry', 'ingredients', 'analysis'];
+const TABS = ['dashboard', 'ingredients', 'analysis'];
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
   { name: 'desktop', width: 1280, height: 900 },
@@ -100,15 +101,14 @@ for (const size of SIZES) {
 
     // actions rows (the three tabs that have one): same y, same button left edge,
     // and the buttons share the title's left edge — ONE left edge, structurally
-    const p = metrics.pantry, i = metrics.ingredients, a = metrics.analysis;
-    expect(p.actionsTop, 'pantry has an actions row').not.toBeNull();
+    // F3: pantry was the third member of this comparison and has converted, so Products is the
+    // baseline now. Two tabs left; when Products converts (F4) only Menu remains and the whole
+    // cross-tab comparison retires with it.
+    const i = metrics.ingredients, a = metrics.analysis;
     expect(i.actionsTop, 'Products has an actions row').not.toBeNull();
     expect(a.actionsTop, 'Menu has an actions row (v52)').not.toBeNull();
-    expect(Math.abs(p.actionsTop - i.actionsTop), 'actions row y identical across tabs').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(p.actionsTop - a.actionsTop), 'Menu actions row y matches').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(p.btnLeft - i.btnLeft), 'primary button left edge identical').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(p.btnLeft - a.btnLeft), 'Menu primary button left edge identical').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(p.btnLeft - p.titleTextLeft), 'buttons sit on the title text edge (pantry)').toBeLessThanOrEqual(TOL);
+    expect(Math.abs(i.actionsTop - a.actionsTop), 'Menu actions row y matches').toBeLessThanOrEqual(TOL);
+    expect(Math.abs(i.btnLeft - a.btnLeft), 'primary button left edge identical').toBeLessThanOrEqual(TOL);
     expect(Math.abs(i.btnLeft - i.titleTextLeft), 'buttons sit on the title text edge (Products)').toBeLessThanOrEqual(TOL);
     expect(Math.abs(a.btnLeft - a.titleTextLeft), 'buttons sit on the title text edge (Menu)').toBeLessThanOrEqual(TOL);
 
@@ -150,15 +150,15 @@ for (const size of EDGE_SIZES) {
       }, titleSel);
     };
 
-    const old = await edge('pantry', ':scope > h2');
-    const plates = await edge('builder', ':scope > .scr-head > h2');   // F2-converted
-    expect(Math.abs(plates.panelLeft - old.panelLeft), 'Plates panel shares the page edge').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(plates.textLeft - old.textLeft), 'Plates title text shares the ONE left edge').toBeLessThanOrEqual(TOL);
-
-    // and the screen's own body sits on it too — the gap layout-consistency never measured
-    // (its comment claimed "the shared left edge" but it stopped at the actions row)
-    const bodyLeft = await page.evaluate(() =>
-      document.getElementById('plateList').getBoundingClientRect().left);
-    expect(Math.abs(bodyLeft - plates.textLeft), 'the Plates list body sits on the title edge').toBeLessThanOrEqual(TOL);
+    const old = await edge('ingredients', ':scope > h2');   // Products, still unconverted
+    for (const [tab, listId, label] of [['builder', 'plateList', 'Plates'], ['pantry', 'kingList', 'Ingredients']]) {
+      const conv = await edge(tab, ':scope > .scr-head > h2');
+      expect(Math.abs(conv.panelLeft - old.panelLeft), `${label} panel shares the page edge`).toBeLessThanOrEqual(TOL);
+      expect(Math.abs(conv.textLeft - old.textLeft), `${label} title text shares the ONE left edge`).toBeLessThanOrEqual(TOL);
+      // and the screen's own body sits on it too — the gap layout-consistency never measured
+      // (its comment claimed "the shared left edge" but it stopped at the actions row)
+      const bodyLeft = await page.evaluate((id) => document.getElementById(id).getBoundingClientRect().left, listId);
+      expect(Math.abs(bodyLeft - conv.textLeft), `the ${label} list body sits on the title edge`).toBeLessThanOrEqual(TOL);
+    }
   });
 }

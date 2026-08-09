@@ -37,8 +37,18 @@ test('index.html contains no "recipe" anywhere — it names no object in this ap
 });
 
 test('the Ingredients strapline explains without naming a forbidden object', () => {
-  assert.match(html, /The names you cook with — each one links to a product you buy/);
-  assert.ok(!/Kitchen words for recipes/i.test(html), 'the old strapline named two non-objects');
+  /* F3 (v139): the sentence MOVED, and the test follows it rather than pinning a location. The v3
+     header bar (§2) is title + one computed subtitle + actions, with no room for a strapline, so
+     R3 re-housed this one into the screen's empty state — where a café that does not yet know what
+     an Ingredient is will actually read it, instead of above a list that already answers it.
+     What matters is that the app still explains Ingredient -> Product SOMEWHERE, in the four-noun
+     vocabulary, so the assertion spans both files. */
+  const anywhere = html + appCode;
+  assert.match(anywhere, /Each one links to a product you buy/,
+    'the Ingredient -> Product explanation still ships somewhere in the app');
+  assert.match(anywhere, /the names you cook with/i,
+    'and still describes an Ingredient without naming a fifth object');
+  assert.ok(!/Kitchen words for recipes/i.test(anywhere), 'the old strapline named two non-objects');
 });
 
 test('the link-a-product hint costs from PLATES, not recipes', () => {

@@ -2110,19 +2110,10 @@ body{overflow-x:clip}
 /* v49: .king-head/.king-head h3/.king-sub rules (three generations of them) are GONE — the
    pantry title is a real .panel h2 now and the buttons row is the shared .panel-actions
    (see the v49 batch at the end of this file). Nothing here to override anymore. */
-/* v36: ingredient rows share the Products card language (one card system app-wide) */
-.king-row{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
-  padding:var(--sp-3) var(--sp-4);margin:0 var(--sp-5) var(--sp-2)}
-/* v103: the unit price sits in the card's second grid column, right-aligned mono — the .ing-price
-   idiom, so ingredient and product cards read identically (it was inline in the .king-link sentence) */
-.king-price{grid-column:2;grid-row:1 / span 2;text-align:right;white-space:nowrap;
-  font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-md);font-weight:700}
-.king-main{display:flex;flex-direction:column;gap:2px;min-width:0}
-.king-name{font-weight:700;line-height:1.2}
-.king-link{font-size:var(--fs-sm);color:var(--text2);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Q5 (v124) tombstone: the v67 .king-meta category-chip row is no longer emitted — the redesign
-   dropped it from the row (category still drives the filter, derived from the linked product). */
+/* F3 (v139) tombstone: the v36 card-language `.king-row` grid, the v103 `.king-price` span-2 idiom,
+   `.king-main` and the base `.king-name`/`.king-link` rules are GONE. §27 owns the row at every
+   width now, and `.king-main` is no longer emitted at all (the row's identity cell is `.king-id`).
+   Q5's earlier tombstone stands: the v67 `.king-meta` chip row is not emitted either. */
 /* v59 item 6a: read-only category value in the edit modal (the card chip is .ing-tag now) */
 .king-cat-read{font-weight:600;color:var(--text);padding:2px 0}
 /* .king-acts removed v44 item 6b — the card itself opens Edit; Remove moved into the modal */
@@ -2501,8 +2492,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .line .costs .lc{font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* item 6b: ingredient cards are tap-to-edit (Products pattern) — cursor + focus ring for the
    button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
-.king-row{cursor:pointer}
-.king-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* F3 (v139) tombstone: `.king-row`'s cursor and its OUTWARD focus ring moved into §27, which
+   insets the ring — an outward one dies in the list container's overflow clip. */
 #kingModalRemove{margin-right:auto;color:var(--bad);border-color:var(--bad-bg)}   /* v115: visible edge at rest (same fix as .btn.ghost) */
 #kingModalRemove:hover{border-color:var(--bad)}
 /* item 1: the unified pack control's red required mood — same control, mismatch state */
@@ -2551,7 +2542,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    rules are all retired — each list is display:block now (§26/§27/§29). Tombstones. */
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
-.king-link{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* F3 (v139) tombstone: the `.king-link` clamp moved into §27, which sets it per breakpoint. */
 /* Q5 (v124) tombstone: the v103 2-up/3-up #kingList grid media rules are retired — §27 owns the
    list at every width now (one display:block surface). */
 /* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
@@ -3258,7 +3249,13 @@ html{scrollbar-gutter:stable}
 /* the mobile mock's header is title + ONE action and nothing else (§6). The subtitle is a desktop
    affordance; left visible it pushed the action onto a second line, which is how it was found. */
 .scr-sub{display:none;font-size:13px;color:var(--text-3);min-width:0}
-.scr-head > .btn{margin-top:0;margin-left:auto}   /* the action stays right-aligned at both widths */
+.scr-head > .btn,.scr-head > .plib-btn2{margin-top:0}
+/* The mock's own header uses an explicit flex spacer, and so does this. The rule it replaces put
+   `margin-left:auto` on `.btn`, which right-aligned the LAST action only: a screen with a secondary
+   action in a different class (Ingredients' "Set up from products", a `.plib-btn2`) left that
+   button beside the title with 393px of dead space before the primary. A spacer cannot care how
+   many actions there are, or what classes they carry. */
+.scr-gap{flex:1 1 auto;min-width:0}
 @media (min-width:768px){
   .scr-head{min-height:48px;flex-wrap:nowrap;padding:0 var(--sp-5)}
   .scr-sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3421,37 +3418,132 @@ html{scrollbar-gutter:stable}
    v137 shipped a control 44px tall because `min-height` silently beat `height`. */
 @media (min-width:768px) and (hover:hover) and (pointer:fine){
   .plib-search input,.plib-filter,.plib-btn2{min-height:34px;padding-top:7px;padding-bottom:7px}
-  .scr-head > .btn{min-height:32px;padding:7px 14px}
+  .scr-head > .btn,.scr-head > .plib-btn2{min-height:32px;padding:7px 14px}
 }
 
 /* ----------------------------------------------------------------------
-   27. Q5 (v124) — THE INGREDIENTS (pantry) LIST: card grid becomes ONE
-   surface of rows, like §26 did for Plates. #kingList-scoped; the .king-*
-   classes, data-kid and the row's click/keyboard wiring are untouched.
+   27. F3 (v139) — THE INGREDIENTS LIST, REBUILT FROM THE v3 MOCK
+   Replaces Q5 (v124), which made the card grid one surface of rows but kept
+   the row a name/link/price sentence. Source: `Redesign v3 - SaaS.dc.html`
+   §3.4 desktop, `… Mobile.dc.html` §6. Five columns, the v3 768 breakpoint
+   (the old 640 switch is gone). `.king-*` names are KEPT on purpose: the
+   contract records that only this pane emits them, so unlike Plates there is
+   no shared system to unpick — the rules change, the names do not, and every
+   test, handler and `data-kid` reader still finds what it looks for.
+   The header bar, control row and footnote reuse F2's `.scr-head` / `.plib-*`.
    ---------------------------------------------------------------------- */
-#kingList{display:block;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);overflow:hidden;padding:0;margin:var(--sp-2) var(--sp-4) var(--sp-3)}
-@media (min-width:1024px){ #kingList{margin:var(--sp-2) var(--sp-5) var(--sp-2)} }
-#kingList .king-row{background:none;border:0;border-radius:0;box-shadow:none;margin:0;
-  padding:var(--sp-3) var(--sp-4);transition:background var(--t-fast) var(--ease)}
-#kingList .king-row + .king-row{border-top:1px solid var(--border)}
-#kingList .king-price{grid-row:1}   /* the base span-2 assumed the v67 meta row; unemitted now, and spanning into the empty track added ~4px of dead space per mobile row */
-#kingList .king-row:focus-visible{outline-offset:-2px}   /* the §26 lesson: an outward focus ring dies in the surface's overflow clip */
-@media (hover:hover) and (pointer:fine){ #kingList .king-row:hover{background:var(--hover)} }
-/* the link arrow is presentation, not content — and the missing-product row replaces it with its ⚠ */
-#kingList .king-link::before{content:"→ ";color:var(--muted2)}
-#kingList .king-link.king-missing::before{content:""}
-.king-missing{color:var(--bad);font-weight:700}
-.king-drift{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
-.king-drift.up{color:var(--bad)}      /* price up = worse — semantic, matching .dig-v */
-.king-drift.down{color:var(--good)}
-.king-price.notcosted{font-size:var(--fs-sm);color:var(--muted2)}
-@media (min-width:640px){   /* desktop: three real columns — ingredient / linked product / unit cost */
-  #kingList .king-row{grid-template-columns:minmax(150px,.7fr) minmax(0,1.6fr) max-content;column-gap:var(--sp-4)}
-  #kingList .king-main{display:contents}   /* name and link become row-grid siblings, one per column */
-  #kingList .king-name{font-size:var(--fs-base)}
-  #kingList .king-price{grid-column:3;grid-row:1}
+#kingList{display:block;margin:var(--sp-2) var(--sp-5) 0}
+.king-band{display:none}
+/* MOBILE (<768): two-line rows. `.king-id` dissolves so the category and the usage count sit
+   together on the meta line; the figure column stacks unit cost over the change pill (mock §6). */
+.king-row{
+  display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;column-gap:0;
+  align-items:center;width:100%;min-height:56px;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--hairline);border-radius:0;box-shadow:none;
+  margin:0;padding:var(--sp-3) 0;color:var(--text);
+  transition:background var(--t-fast) var(--ease);
 }
+.king-row:last-child{border-bottom:0}
+.king-id{display:contents}
+.king-name{grid-column:1 / 3;grid-row:1;font-size:var(--fs-base);font-weight:500;line-height:1.3;min-width:0}
+/* the linked-product sentence is the pane's ONLY visible route to Products, so R3 re-houses it as
+   the row's meta line rather than dropping it for a column the mock does not draw. */
+.king-link{
+  grid-column:1 / 3;grid-row:2;font-size:12.5px;color:var(--text-3);
+  font-variant-numeric:tabular-nums;min-width:0;
+  white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.king-link::before{content:"\2192\00a0";color:var(--text-3)}   /* the arrow is presentation, not content */
+.king-link.king-missing::before{content:""}
+.king-missing{color:var(--danger);font-weight:600;-webkit-line-clamp:3;line-clamp:3}
+/* MOBILE meta line = "Category, in N plates" — the mock's §6 sub exactly. The linked-product
+   sentence is DESKTOP ONLY: three stacked meta lines under a name is not the mock's row, and on a
+   phone the product is one tap away in the row's own modal. The broken-link warning is the
+   exception and stays loud at both widths, because it is a risk signal, not a detail. */
+.king-link{display:none}
+.king-link.king-missing{display:block}
+/* ONE meta row (row 2) shared by the warning and the category/usage pair, which are mutually
+   exclusive by construction: a broken row shows the warning and hides both, because the warning
+   already states the plate count. Giving them separate rows left a dead grid row under every
+   healthy name — visible as a gap the moment it reached a phone. */
+.king-cat{grid-column:1;grid-row:2;font-size:12.5px;color:var(--text-3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.king-used-n{grid-column:2;grid-row:2;font-size:12.5px;color:var(--text-3);white-space:nowrap}
+.king-row.is-broken .king-used-n{display:none}
+/* a placeholder dash is a TABLE affordance: a column needs a cell. On the phone there are no
+   columns, so an absent value is simply absent rather than a row of dashes. */
+.king-cat.is-nil,.king-used-n.is-nil{display:none}
+/* The separator rides the USAGE, not the category, so hiding the usage hides the comma with it.
+   `.no-cat` is set by the renderer rather than inferred with a sibling chain — the chain this
+   replaces was `.king-cat.is-nil + .king-price + …`, four classes, which OUTRANKED the desktop
+   `.king-used-n{grid-column:5}` rule and threw the Used-in cell into column 1 on every
+   broken-link row at desktop. Specificity beats source order across a media query. */
+.king-row:not(.no-cat) .king-used-n::before{content:"\002c\00a0in\00a0"}
+.king-row.no-cat .king-used-n::before{content:"in\00a0"}
+.king-price{
+  grid-column:3;grid-row:1;justify-self:end;margin-left:var(--sp-3);
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:14px;font-weight:500;text-align:right;white-space:nowrap;
+}
+.king-price.notcosted{font-size:12.5px;color:var(--text-3);font-weight:400}
+/* the change is a tinted mono PILL (mock §3.4), or the muted word "steady" when nothing moved */
+.king-drift{
+  grid-column:3;grid-row:2;justify-self:end;margin-left:var(--sp-3);
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:11.5px;font-weight:500;white-space:nowrap;
+  border-radius:var(--radius-pill);padding:2px 8px;
+}
+.king-drift.up{color:var(--danger);background:var(--danger-bg)}    /* price up = worse — semantic, matching .dig-v */
+.king-drift.down{color:var(--good);background:var(--good-bg)}
+.king-drift.none{color:var(--text-3);background:none;padding:2px 0;font-weight:400}
+.king-row{cursor:pointer}
+/* inset: once the container appears at ≥768 the row's border box IS its padding box, so an outward
+   ring dies in the overflow clip. Inset at every width so the rebuild cannot re-earn the defect. */
+.king-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (hover:hover) and (pointer:fine){ .king-row:hover{background:var(--hover)} }
+
+@media (min-width:768px){
+  #kingList{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-card);overflow:hidden;
+  }
+  /* band and rows are separate grid containers, so both carry the SAME fixed tracks — a max-content
+     track resolves per container and drifts the columns apart (v135's review measured 27px). */
+  .king-band,.king-row{
+    grid-template-columns:minmax(0,1fr) 130px 110px 110px 100px;column-gap:var(--sp-4);
+  }
+  .king-band{
+    display:grid;align-items:center;padding:9px var(--sp-4);
+    font-size:11.5px;font-weight:500;color:var(--text-3);
+    background:var(--surface-2);border-bottom:1px solid var(--border);
+  }
+  .kb-num{text-align:right}
+  .king-row{min-height:0;padding:10px var(--sp-4);align-items:center}
+  /* identity left (name over its product sentence), then four real columns */
+  .king-id{display:flex;flex-direction:column;gap:2px;min-width:0;grid-column:1;grid-row:1}
+  .king-name{grid-column:auto;grid-row:auto;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .king-link{grid-column:auto;grid-row:auto;font-size:12px;-webkit-line-clamp:1;line-clamp:1}
+  .king-missing{-webkit-line-clamp:2;line-clamp:2}
+  .king-link{display:block}
+  /* `.is-nil` / `.is-broken` are two-class selectors, so the desktop rule that brings the dash
+     placeholders back MUST match their specificity — specificity beats source order across a media
+     query, and a plain `.king-cat{display:block}` here silently lost to the mobile rule and left
+     Category and Used-in blank on every broken row at 1360. Second instance of that mistake in this
+     block; both were found by looking at the screen, not by reading the cascade. */
+  .king-cat.is-nil,.king-used-n.is-nil{display:block}
+  .king-row.is-broken .king-used-n{display:block}
+  /* the mobile prefix rules are (0,3,1) — `:not()` counts its argument — so a plain
+     `.king-used-n::before` here could never win, whatever the media query. FOURTH instance of this
+     mistake on this screen; the first three were `display`, this one was `content`, and it printed
+     ", in —" into a column already headed "Used in". Match the specificity, do not out-order it. */
+  .king-row:not(.no-cat) .king-used-n::before,
+  .king-row.no-cat .king-used-n::before{content:none}
+  .king-cat{grid-column:2;grid-row:1;font-size:12.5px;color:var(--text-2)}
+  .king-price{grid-column:3;grid-row:1;font-size:13px;margin-left:0}
+  .king-drift{grid-column:4;grid-row:1;margin-left:0}
+  .king-used-n{grid-column:5;grid-row:1;justify-self:end;text-align:right;color:var(--text-2);font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .king-used-n.is-nil{color:var(--text-3)}
+}
+@media (max-width:560px){ #kingList{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
 /* ----------------------------------------------------------------------
    28. Q6 (v125) — THE BUILDER'S COST PANEL + DOCKET COLUMNS

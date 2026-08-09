@@ -311,25 +311,57 @@ test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient 
   await page.locator('#lines').screenshot({ path: 'tests/visual/__shots__/v45-builder-380.png' });
 });
 
-test('v45 item 3: Ingredients header order — title, divider, buttons, strapline', async ({ page }) => {
+/* v45 item 3 REPLACED by F3 (v139). Its premise — title, then a divider, then a buttons row, then
+   a strapline BELOW them — was the old panel skeleton, and the v3 header bar (§2) is one row: title,
+   muted subtitle, actions right, hairline on the bar itself. Asserting the old stacking order would
+   now assert the conversion had not happened. What survives is the part that was ever load-bearing:
+   the header is ONE row and it carries the divider. */
+test('F3: the Ingredients header is the v3 one-row bar, not a stacked skeleton', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
   await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="pantry"]').click();
   await page.waitForTimeout(300);
-  // v49 update: the pantry title is a REAL .panel h2 now (was an h3 styled to match)
-  const order = await page.evaluate(() => {
-    const y = sel => document.querySelector(sel).getBoundingClientRect().top;
+  const head = await page.evaluate(() => {
+    const bar = document.querySelector('#tab-pantry .scr-head');
+    const r = (el) => el.getBoundingClientRect();
+    const title = bar.querySelector('h2'), btn = document.getElementById('kingNew');
     return {
-      title: y('.king-panel > h2'), btn: y('#kingNew'), sub: y('.king-head .king-sub'),
-      divider: getComputedStyle(document.querySelector('.king-panel > h2')).borderBottomWidth,
+      divider: getComputedStyle(bar).borderBottomWidth,
+      titleDivider: getComputedStyle(title).borderBottomWidth,
+      sameRow: Math.abs(r(title).top - r(btn).top) < r(btn).height,
+      subShown: getComputedStyle(bar.querySelector('.scr-sub')).display,
+      strapline: document.querySelectorAll('#tab-pantry .king-sub').length,
     };
   });
-  expect(order.divider, 'divider sits under the title').toBe('1px');
-  expect(order.btn, 'buttons below the title').toBeGreaterThan(order.title);
-  expect(order.sub, 'strapline below the buttons').toBeGreaterThan(order.btn);
-  await page.screenshot({ path: 'tests/visual/__shots__/v45-pantry-header.png' });
+  expect(head.divider, 'the hairline belongs to the bar').toBe('1px');
+  expect(head.titleDivider, 'and no longer to the title').toBe('0px');
+  expect(head.sameRow, 'title and actions share one row').toBe(true);
+  expect(head.subShown, 'no subtitle on the phone — title plus one action (§6)').toBe('none');
+  expect(head.strapline, 'the strapline moved into the empty state (R3), it is not a second header line').toBe(0);
+
+  /* This screen puts TWO actions in the bar and the wizard one is conditional, so it is the case
+     that breaks a header written for one button. The original rule right-aligned `.btn` only, and
+     "Set up from products" is a `.plib-btn2` — it stayed beside the title with 393px of dead space
+     before the primary. Neither direction had a test. Measured at desktop, where the gap exists. */
+  await page.setViewportSize({ width: 1360, height: 900 });
+  await page.waitForTimeout(300);
+  const pair = await page.evaluate(() => {
+    const r = (el) => el.getBoundingClientRect();
+    const wiz = document.getElementById('kingWizBtn'), nw = document.getElementById('kingNew');
+    if (getComputedStyle(wiz).display === 'none') return null;
+    return {
+      between: r(nw).left - r(wiz).right,
+      fromTitle: r(wiz).left - r(document.querySelector('#tab-pantry .scr-head h2')).right,
+      sameRow: Math.abs(r(wiz).top - r(nw).top) < r(nw).height,
+    };
+  });
+  expect(pair, 'the fixture has unlinked products, so the wizard button is showing').not.toBeNull();
+  expect(pair.sameRow, 'both actions share the bar').toBe(true);
+  expect(pair.between, 'the two actions sit together as a pair, not at opposite ends').toBeLessThan(24);
+  expect(pair.fromTitle, 'and the pair is pushed to the right, away from the title').toBeGreaterThan(100);
+  await page.screenshot({ path: 'tests/visual/__shots__/v139-pantry-header.png' });
 });
 
 test('v45 item 4: button copy at both breakpoints', async ({ page }) => {
@@ -375,11 +407,14 @@ document.getElementById('invModal').classList.add('open');`;
 for (const size of SIZES) {
   /* Q5 (v124): REWRITTEN — this spec used to pin the v46/v103 shared card GRID (3-up at desktop),
      which the Q5 redesign deliberately replaced with one surface of stacked rows. The premise
-     changed; the two checks still worth keeping (the 2-line clamp on the linked-product line, and
-     keyboard access through the role="button" row) carry over unchanged. The focus ring is now
-     INSET (outline-offset:-2px) because the surface's overflow:hidden clips an outward ring — the
-     same defect the Q4 review caught on #plateList. */
-  test(`Q5: ingredient rows stack on one surface @ ${size.name}`, async ({ page }) => {
+     changed; the checks still worth keeping (the clamp on the linked-product line, and keyboard
+     access through the role="button" row) carry over. The focus ring is INSET (outline-offset:-2px)
+     because the surface's overflow:hidden clips an outward ring — the defect the Q4 review caught
+     on #plateList.
+     F3 (v139) REWROTE this test for the rebuilt five-column row. The Q5 shape it used to assert is
+     gone, so asserting it would assert the conversion had not happened; every rendered-state check
+     it carried survives here, plus the states the rebuild added (steady, category, usage). */
+  test(`F3: the Ingredients row is five facts, reflowed by width @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
     await page.goto('/');
@@ -389,56 +424,144 @@ for (const size of SIZES) {
         { id: 'K1', name: 'Chips', pid: 'P0108' }, { id: 'K2', name: 'Bacon', pid: 'P0004' },
         { id: 'K3', name: 'Milk', pid: 'P0201' }, { id: 'K4', name: 'Lemon', pid: 'P_GONE' },
       );
-      // a real logged move on Bacon: the drift badge must RENDER, not merely exist in source —
-      // the review showed the first cut's source-grep pins passed with the branches inverted
+      // a real logged move on Bacon: the drift pill must RENDER, not merely exist in source —
+      // the Q5 review showed the first cut's source-grep pins passing with the branches inverted
       window.ingPriceLog['P0004'] = [{ t: Date.now() - 86400000, v: 0.01 }, { t: Date.now(), v: 0.0112 }];
       window.rebuildKById(); window.renderKitchenPanel();
     });
     await page.locator('.navbtn[data-tab="pantry"]').click();
     await page.waitForTimeout(300);
+
+    const wide = size.width >= 768;
     const grid = await page.evaluate(() => {
-      const king = Array.from(document.querySelectorAll('#kingList .king-row')).map(r => Math.round(r.getBoundingClientRect().left));
-      const link = document.querySelector('.king-row[data-kid="K2"] .king-link');
+      const rows = [...document.querySelectorAll('#kingList .king-row')];
       const list = document.getElementById('kingList');
+      const cs = getComputedStyle(list);
+      const link = document.querySelector('.king-row[data-kid="K2"] .king-link');
       // script focus() on a div does not match :focus-visible, so resolve the rule from the CSSOM
-      const insetRule = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } })
-        .some(r => r.selectorText && r.selectorText.includes('#kingList .king-row:focus-visible') && r.style.outlineOffset === '-2px');
+      const insetRule = [...document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
+        .some((r) => r.selectorText === '.king-row:focus-visible' && r.style.outlineOffset === '-2px');
       return {
-        kingCols: new Set(king).size,
-        surface: getComputedStyle(list).overflow === 'hidden' && getComputedStyle(list).borderTopWidth === '1px',
+        kingCols: new Set(rows.map((r) => Math.round(r.getBoundingClientRect().left))).size,
+        clipped: cs.overflow === 'hidden',
+        bordered: cs.borderTopWidth === '1px',
         clamp: link ? getComputedStyle(link).webkitLineClamp : null,
+        band: getComputedStyle(document.querySelector('#kingList .king-band')).display,
         insetRule,
       };
     });
     expect(grid.kingCols, 'rows stack — one shared left edge at every width').toBe(1);
-    expect(grid.surface, 'the list is one bordered, clipped surface').toBe(true);
-    expect(grid.clamp, 'linked-product line clamps to 2 lines').toBe('2');
     expect(grid.insetRule, 'the inset-outline rule exists in the CSSOM (existence, not cascade victory)').toBe(true);
+    // the container is the mock's desktop affordance only; on the phone the rows sit on the page
+    expect(grid.clipped, 'container clips only at >=768').toBe(wide);
+    expect(grid.bordered, 'container is bordered only at >=768').toBe(wide);
+    expect(grid.band, 'the column band labels the desktop table and nothing on the phone')
+      .toBe(wide ? 'grid' : 'none');
+    expect(grid.clamp, 'the linked-product line clamps — 1 line in its column, 2 stacked')
+      .toBe(wide ? '1' : '2');
 
-    // the two states this batch added, asserted on the RENDERED rows
+    // every state, asserted on the RENDERED rows rather than on a source grep
     const states = await page.evaluate(() => {
-      const broken = document.querySelector('.king-row[data-kid="K4"]');
-      const drifted = document.querySelector('.king-row[data-kid="K2"]');
-      const badge = drifted.querySelector('.king-drift');
+      const row = (kid) => document.querySelector(`.king-row[data-kid="${kid}"]`);
+      const txt = (kid, sel) => (row(kid).querySelector(sel) || {}).textContent || null;
+      const badge = row('K2').querySelector('.king-drift');
+      const steady = row('K1').querySelector('.king-drift');
       return {
-        warn: broken.querySelector('.king-link.king-missing')?.textContent || '',
-        noCost: broken.querySelector('.king-price.notcosted')?.textContent || '',
-        drift: badge ? badge.textContent : null,
-        driftUp: badge ? badge.classList.contains('up') : null,
-        driftVisible: badge ? badge.getBoundingClientRect().width > 0 : null,
+        warn: txt('K4', '.king-link.king-missing') || '',
+        noCost: txt('K4', '.king-price.notcosted'),
+        brokenCat: txt('K4', '.king-cat'),
+        drift: badge.textContent,
+        driftUp: badge.classList.contains('up'),
+        driftVisible: badge.getBoundingClientRect().width > 0,
+        driftPill: getComputedStyle(badge).backgroundColor,
+        steady: steady.textContent,
+        steadyPlain: getComputedStyle(steady).backgroundColor,
+        cat: txt('K1', '.king-cat'),
+        used: txt('K1', '.king-used-n'),
+        mono: getComputedStyle(row('K1').querySelector('.king-price')).fontFamily,
+        numeric: getComputedStyle(row('K1').querySelector('.king-price')).fontVariantNumeric,
       };
     });
     expect(states.warn, 'broken link is loud').toContain('product missing');
     expect(states.noCost, 'broken link prices as "no cost"').toBe('no cost');
+    expect(states.brokenCat, 'a broken link has no category to derive').toBe('—');
     expect(states.drift, 'the logged +12% move renders').toBe('+12.0%');
     expect(states.driftUp, 'a rise is classed up (bad)').toBe(true);
-    expect(states.driftVisible, 'and the badge has real geometry — not clamped away').toBe(true);
-    // keyboard access survives the restyle
+    expect(states.driftVisible, 'and the pill has real geometry — not clamped away').toBe(true);
+    expect(states.driftPill, 'a real move is a TINTED pill (mock §3.4)').not.toBe('rgba(0, 0, 0, 0)');
+    // the mock's muted "steady" replaces rendering nothing, and it is deliberately NOT a pill —
+    // tinting "no news" would put a semantic colour on a non-event
+    expect(states.steady, 'no logged move reads "steady", not blank').toBe('steady');
+    expect(states.steadyPlain, 'and steady carries no tint').toBe('rgba(0, 0, 0, 0)');
+    // R1's flip: the category is back on the row, derived from the linked product
+    expect(states.cat, 'the derived category renders as its own cell').toBeTruthy();
+    expect(states.cat).not.toBe('—');
+    expect(states.used, 'usage counts the kid arm and says so in plates').toMatch(/plates?$|^—$/);
+    /* `textContent` cannot see generated content, so the assertion above passed while the desktop
+       cell actually READ ", in —" under a column headed "Used in" (a review finding). The mobile
+       meta line needs the prefix; the desktop column must not have it. Assert the rendered string,
+       which is textContent PLUS ::before. */
+    const usedRendered = await page.evaluate(() => {
+      const el = document.querySelector('.king-row[data-kid="K1"] .king-used-n');
+      return getComputedStyle(el, '::before').content + '|' + el.textContent;
+    });
+    if (wide) {
+      expect(usedRendered, 'the desktop column carries no "in " prefix — its header already says "Used in"')
+        .toMatch(/^(none|"")\|/);
+    } else {
+      expect(usedRendered, 'the phone meta line reads "…, in N plates"').toMatch(/in/);
+    }
+    expect(states.mono, '§4: Geist Mono on every figure').toMatch(/Geist Mono/);
+    expect(states.numeric).toBe('tabular-nums');
+
+    /* The two defects the F3 browser pass found, both invisible to a textContent assertion:
+       a placeholder that is present in the DOM but display:none reads identically to one that
+       renders. Assert the GEOMETRY. Desktop needs the dashes (a column wants a cell); the phone
+       has no columns, so an absent value is absent rather than a row of dashes. */
+    const geom = await page.evaluate(() => {
+      const row = (kid) => document.querySelector(`.king-row[data-kid="${kid}"]`);
+      const shown = (el) => !!(el && el.getBoundingClientRect().width > 0);
+      const broken = row('K4'), healthy = row('K1');
+      return {
+        brokenCatShown: shown(broken.querySelector('.king-cat')),
+        brokenUsedShown: shown(broken.querySelector('.king-used-n')),
+        healthyUsedShown: shown(healthy.querySelector('.king-used-n')),
+        // the leak: a 4-class sibling chain out-ranked the desktop column rule and threw this
+        // cell to the far left of the row on broken rows only
+        brokenUsedRight: broken.querySelector('.king-used-n').getBoundingClientRect().right,
+        healthyUsedRight: healthy.querySelector('.king-used-n').getBoundingClientRect().right,
+        rowRight: broken.getBoundingClientRect().right,
+        // and the dead grid row: a healthy mobile row must not reserve space for the hidden
+        // linked-product line
+        healthyH: healthy.getBoundingClientRect().height,
+      };
+    });
+    /* The OTHER empty-category state — a product that is linked but carries no category — cannot
+       be staged here: `byId` is a module-scoped `let`, not a window global, and every product in
+       the 393-row fixture has a category. Its markup is pinned in tests/king-rows.test.js instead;
+       the CSS it depends on is proven end-to-end by the broken-link row below, which renders the
+       same `.king-cat.is-nil`. */
+    if (wide) {
+      expect(geom.brokenCatShown, 'desktop: a broken row still fills its Category cell').toBe(true);
+      expect(geom.brokenUsedShown, 'desktop: and its Used-in cell').toBe(true);
+      expect(Math.abs(geom.brokenUsedRight - geom.healthyUsedRight),
+        'Used-in ends on the same right edge on EVERY row — it does not jump columns when the link breaks')
+        .toBeLessThanOrEqual(1.5);
+      expect(geom.rowRight - geom.brokenUsedRight, 'and it is the last column, not the first')
+        .toBeLessThan(60);
+    } else {
+      expect(geom.brokenCatShown, 'phone: no dash placeholders — an absent value is absent').toBe(false);
+      expect(geom.brokenUsedShown, 'phone: the warning already states the plate count').toBe(false);
+      expect(geom.healthyH, 'no dead grid row under a healthy name (the hidden product line)')
+        .toBeLessThan(80);
+    }
+
+    // keyboard access survives the rebuild
     await page.evaluate(() => document.querySelector('.king-row[data-kid="K1"]').focus());
     await page.keyboard.press('Enter');
     await expect(page.locator('#kingModal')).toHaveClass(/open/);
     await page.locator('#kingModalCancel').click();
-    await page.locator('#kingList').screenshot({ path: `tests/visual/__shots__/q5-king-rows-${size.name}.png` });
+    await page.locator('#kingList').screenshot({ path: `tests/visual/__shots__/v139-king-rows-${size.name}.png` });
   });
 
   test(`v46 item 5: flag pill centres on the title line @ ${size.name}`, async ({ page }) => {
@@ -538,19 +661,16 @@ for (const size of SIZES) {
   });
 }
 
-test('v46 items 1+4: strapline inline on desktop; target line labels itself (no pill, big number stays)', async ({ page }) => {
+/* v46 item 1 (the pantry strapline centred with the buttons row) is RETIRED by F3: there is no
+   strapline on this header any more — R3 re-housed the sentence into the empty state, and the v3
+   header's subtitle is a computed count. Item 4 below is a DASHBOARD assertion that only happened
+   to share a test body with it, so it keeps running unchanged. */
+test('v46 item 4: the target line labels itself (no pill, big number stays)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="pantry"]').click();
-  await page.waitForTimeout(300);
-  const head = await page.evaluate(() => {
-    const c = s => { const r = document.querySelector(s).getBoundingClientRect(); return (r.top + r.bottom) / 2; };
-    return { sub: c('.king-head .king-sub'), btn: c('#kingNew') };
-  });
-  expect(Math.abs(head.sub - head.btn), 'strapline vertically centred with the buttons row').toBeLessThanOrEqual(2);
-  // item 4: seed history so the chart draws, then check the pill is gone and the line is labelled
+  // seed history so the chart draws, then check the pill is gone and the line is labelled
   await page.evaluate(() => {
     const day = 86400000, now = Date.now(), pts = [];
     for (let d = 1; d <= 40; d += 3) pts.push({ t: now - d * day, v: 31 + (d % 7) * 0.6 });
