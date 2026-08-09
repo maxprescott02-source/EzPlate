@@ -3,8 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FFFFFF"><!-- v132: light only — one PWA chrome colour; the dark-media variant painted a near-black title bar over a white app -->
-<script>(function(){try{localStorage.removeItem('cafeCost_theme');}catch(e){}})();</script><!-- v132: light only — the stale theme key is actively removed (the v130 stale-key pattern) so the store never re-grows it -->
+<!-- ONE theme-color meta, rewritten by the resolver below and by applyThemePref.
+     NOT a media="(prefers-color-scheme:…)" pair: the browser would pick between those on the
+     OS setting while the page picks its palette on the STORED setting, and those are exactly
+     the two things this batch separates. OS dark + a user who chose Light gives a near-black
+     title bar over a white app — which is verbatim the v132 bug whose fix was the single
+     light-only value. The colours must equal --surface in each palette;
+     tests/settings-toggles.test.js pins them against the stylesheet so they cannot drift. -->
+<meta name="theme-color" content="#FFFFFF">
+<!-- v136 — THE THEME RESOLVER. Runs synchronously in <head>, before first paint, so no
+     frame is ever painted in the wrong theme. It ALWAYS writes an explicit data-theme
+     value ('light' or 'dark'); it never leaves the attribute off.
+     That is the whole point. Before v132, "system" meant NO attribute, so every dark rule
+     had to be written twice — once under [data-theme="dark"], once inside
+     @media (prefers-color-scheme:dark){:root:not([data-theme="light"])} — and a real bug
+     came from writing one half and forgetting the other. Resolving the OS preference here
+     means css/style.css needs ONE html[data-theme="dark"] block and that whole class of
+     bug cannot recur. tests/settings-toggles.test.js pins that no prefers-color-scheme rule
+     ever returns to the stylesheet. The mock's own applyTheme() resolves the same way. -->
+<script>(function(){try{
+  var THEME_SURFACE={light:'#FFFFFF',dark:'#232528'};   /* === --surface per palette; pinned against css/style.css by tests/settings-toggles.test.js */
+  var stored=null; try{stored=localStorage.getItem('cafeCost_theme');}catch(e){}
+  var pref=(stored==='light'||stored==='dark')?stored:'system';
+  var dark=(pref==='dark')||(pref==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  var t=dark?'dark':'light';
+  document.documentElement.setAttribute('data-theme',t);
+  var m=document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute('content',THEME_SURFACE[t]);
+}catch(e){document.documentElement.setAttribute('data-theme','light');}})();</script>
 <title>EzPlate — plate costing made easy</title>
 <meta name="description" content="EzPlate — plate costing made easy. Cost menu items, track supplier prices, protect margins.">
 <!-- Social sharing (Open Graph + Twitter). Absolute URLs on purpose — relative paths preview inconsistently on some platforms. -->
@@ -28,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=135">
+<link rel="stylesheet" href="css/style.css?v=136">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -612,8 +637,22 @@
             </div>
             <div class="set-item-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
           </div>
-          <!-- v132: the Theme segment is gone — light only per the v3 spec (Max's yes, 9 Aug 2026,
-               decision 2). Dark returns as its own designed package or not at all. -->
+          <!-- v136 (F1a): the Theme segment RETURNS. v132 removed it because the app was light
+               only; the replacement design package ships both palettes and FOLD-IN-PROTOCOL §6
+               orders both ported, so the condition v132 set ("its own designed package") is met.
+               Settings is deliberately the home: it is reachable at every screen size, whereas
+               the mock's compact toggle lives in the desktop-only sidebar and lands with F1b. -->
+          <div class="set-item">
+            <div class="set-item-text">
+              <span class="set-item-label" id="setThemeLbl">Theme</span>
+              <p class="set-item-help">System follows your phone’s setting.</p>
+            </div>
+            <div class="seg set-item-ctl" role="radiogroup" aria-labelledby="setThemeLbl">
+              <button type="button" class="seg-btn" id="setThemeLight" data-theme-pref="light" role="radio" aria-checked="false">Light</button>
+              <button type="button" class="seg-btn" id="setThemeDark" data-theme-pref="dark" role="radio" aria-checked="false">Dark</button>
+              <button type="button" class="seg-btn" id="setThemeSystem" data-theme-pref="system" role="radio" aria-checked="true">System</button>
+            </div>
+          </div>
           <div class="set-item">
             <div class="set-item-text">
               <label class="set-item-label" for="setAiSuggestChk">AI suggestions</label>
@@ -811,7 +850,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=135"></script>
+<script src="js/app.js?v=136"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

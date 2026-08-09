@@ -28,10 +28,19 @@
    ========================================================================== */
 
 /* ----------------------------------------------------------------------
-   1. DESIGN TOKENS — EzPlate v3, light only (locked)
-   Palette per docs/design_handoff_ezplate_redesign/V3-Design-Package.md §1.2.
-   Dark mode REMOVED v132 (Max's yes, 9 Aug 2026, decision 2) — it can return
-   later as its own designed package, never as per-screen guesses.
+   1. DESIGN TOKENS — EzPlate v3, light + dark
+   Dark RETURNS in v136 (F1a), per FOLD-IN-PROTOCOL §6: the replacement design
+   package ships both palettes, so the v132 removal ("it can return later as
+   its own designed package") is satisfied rather than reversed.
+
+   THE MOCK'S NAMES ARE CANONICAL. The palette below is pasted verbatim from
+   `Redesign v3 - SaaS.dc.html`, hyphenated names and all. Every F-screen from
+   F2 on is ported from that mock's markup, which references those names — one
+   vocabulary means no hand-translation step, and a mistranslation is exactly
+   the kind of bug that stays invisible until someone switches theme.
+   The app's own older names (--surface2, --text2, --muted2, --bad …) survive
+   as an ALIAS layer at the end of this section, the same way --paper/--ink/
+   --line already alias onto v3 names. Screens only ever consume tokens.
    ---------------------------------------------------------------------- */
 
 /* v3 type — Geist self-hosted (decision 3, Max's yes 9 Aug 2026): static woff2 in /fonts,
@@ -73,34 +82,106 @@
   --t-fast:.14s; --t-med:.22s; --t-slow:.3s; --t-entry:.4s;
 }
 
-/* v3 palette — white canvas, white bordered containers, #FAF7F1 for the sidebar /
-   header bands / hovers. ONE accent (marmalade); green/amber/red reserved for cost
-   semantics. The spec's §1.2 threshold note (good ≤ target, warn ≤ target+3pts) was
-   NOT adopted as a light rule — analyze() (js/app.js) is the shipped law and code is
-   behavior truth (§11.4); only the colour PAIRS below are the spec's. */
+/* ---- The v3 palette, PORTED VERBATIM from the mock's <style> block (protocol §6).
+   Do not edit these two blocks to change a colour: correct it in the DEVIATIONS block
+   directly below, so "verbatim" stays literally true and every departure is in one place. */
 :root{
-  --bg:#FFFFFF; --surface:#FFFFFF; --surface2:#FAF7F1; --field:#FFFFFF;
-  --text:#2A211B; --text2:#6B5D50; --muted2:#7D7060;   /* v3 says #A2937F, but at 2.99:1 on white it fails AA for the 13px hints/prices it colours app-wide — #7D7060 keeps the hue at 4.82:1 (spec deviation, recorded; §7 claims AA and the measurement wins) */
-  --border:#EAE3D8; --border2:#E3DCCF; --hover:#FAF7F1;
-  --divider:#F3EFE8;                                 /* v3: row dividers */
-  --nav-active:#F2EADD;                              /* v3: sidebar active pill */
-  --skeleton:#F3EFE8;                                /* v3: skeleton bars — V8 emits them */
-  --brand:#2A211B;
-  --accent:#B84E0C; --accent-press:#964009;
+--surface:#FFFFFF;--surface-2:#FAF7F1;--hairline:#F3EFE8;--border:#EAE3D8;--border-2:#E3DCCF;
+--hover:#F2EADD;--hover-2:#F5F0E8;--grid:#D8CFC0;
+--text:#2A211B;--text-2:#6B5D50;--text-3:#A2937F;
+--accent:#B84E0C;--accent-2:#964009;--accent-3:#F0A46B;--accent-soft:#F8E7D3;
+--warn:#B54708;--warn-bg:#FDF3E0;--warn-br:#F5E3C8;
+--danger:#C63C33;--danger-bg:#FBEBEA;--danger-br:#F0D4D1;
+--good:#16794C;--good-bg:#E6F4EC;
+--inverse:#2A211B;--scrim:rgba(42,33,27,.32);--shimmer:rgba(255,255,255,.7);
+--shadow-pop:rgba(24,24,27,.08);--shadow-toast:rgba(42,33,27,.18);--shadow-modal:rgba(42,33,27,.16);
+}
+html[data-theme="dark"]{
+--surface:#232528;--surface-2:#1E1F22;--hairline:#2C2E32;--border:#34363B;--border-2:#3F4247;
+--hover:#2E3034;--hover-2:#2A2C30;--grid:#474A50;
+--text:#E4E3E1;--text-2:#ABA9A5;--text-3:#807E7A;
+--accent:#E98B4C;--accent-2:#F5A874;--accent-3:#E9A472;--accent-soft:#3A312A;
+--warn:#DDB27C;--warn-bg:#312C24;--warn-br:#453D30;
+--danger:#E5877D;--danger-bg:#332826;--danger-br:#4A3733;
+--good:#6FBB93;--good-bg:#22302A;
+--inverse:#35373C;--scrim:rgba(12,12,13,.58);--shimmer:rgba(255,255,255,.05);
+--shadow-pop:rgba(0,0,0,.38);--shadow-toast:rgba(0,0,0,.42);--shadow-modal:rgba(0,0,0,.46);
+}
+
+/* ---- MEASURED DEVIATIONS. Three tokens, each because the mock's value fails WCAG AA
+   where this app renders it. Measured, not assumed — the package's own §7 claims AA and
+   has failed measurement twice now, so contrast here is computed, never quoted.
+   R2 in the §3 rubric: legibility is a real constraint, so the constraint wins and gets
+   dressed in the new palette. Ratios are fg-on-surface / on-surface-2 / on-hover.
+
+   --text-3 light  mock #A2937F = 2.99 / 2.80 / 2.51 — fails on every surface.
+     #7D7060 = 4.82 / 4.51 / 4.04, so AA on both PERSISTENT surfaces. A value dark enough
+     to also clear 4.5 on the transient hover wash (#756858, 4.54) lands within a hair of
+     --text-2 (5.42 vs 6.35 on white) and collapses the three-level text hierarchy this
+     token exists to provide. The 4.04 on hover is therefore a deliberate, recorded limit,
+     not an oversight — do not "finish the job" by darkening it further.
+   --text-3 dark   mock #807E7A = 3.79 / 4.07 / 3.26 — fails both persistent surfaces.
+     #908D89 = 4.65 / 4.99 / 4.00, the symmetric correction to the light one.
+   --danger light  mock #C63C33 = 4.44 on its own tint. #C0392F = 5.43 / 4.70 (v132's
+     value, re-decided against the NEW mock rather than carried over silently).
+   Dark --danger/--warn/--good/--accent all pass as shipped; they are NOT overridden. */
+:root{ --text-3:#7D7060; --danger:#C0392F; }
+html[data-theme="dark"]{ --text-3:#908D89; }
+
+/* ---- Ink ON a filled control. NOT in the mock, and that is a defect in the mock rather
+   than a gap: it hardcodes `color:#FFFFFF` on its accent-filled and danger-filled buttons
+   (e.g. "Apply 3 updates"), which against its OWN dark palette measures 2.54:1 on --accent
+   and 2.59:1 on --danger — unreadable. The app already had --on-accent/--on-bad for this
+   job, so the fix is a token that flips with the theme, not a rule change. R2 again.
+   Dark #1E1F22 measures 6.48:1 on --accent and 6.35:1 on --danger. */
+:root{ --on-accent:#FFFFFF; --on-bad:#FFFFFF; --on-inverse:#FFFFFF; --on-accent-dim:rgba(255,255,255,.35); }
+html[data-theme="dark"]{ --on-accent:#1E1F22; --on-bad:#1E1F22; --on-inverse:#E4E3E1; --on-accent-dim:rgba(30,31,34,.35); }
+
+/* ---- color-scheme: not a token, and the one dark-mode fix no stylesheet audit can find,
+   because the surfaces it controls are drawn by the BROWSER and never appear in the DOM.
+   Without it a dark app still opens a WHITE <select> popup list, white number-input
+   spinners, a dark-on-dark text caret and a white autofill wash. The app has selects on
+   Settings, the Menu screen and the builder, so this is reachable immediately.
+   Declared on :root, not on `body`, so form controls inside modals inherit it too. */
+:root{ color-scheme:light; }
+html[data-theme="dark"]{ color-scheme:dark; }
+
+/* ---- Translucent washes. A colour mixed with alpha cannot be aliased onto a solid
+   token, so each needs its own value per theme — these are precisely the values that
+   silently invert (a black wash over a dark surface does nothing). */
+:root{
+  --accent-weak:rgba(184,78,12,.10);   /* focus rings, selected rows, active nav icon */
+  --tag-bg:rgba(0,0,0,.05);            /* .ing-tag and friends: a neutral chip over a card */
+  --illus-cast:rgba(56,38,30,.07);     /* the drop-shadow under empty-state art */
+  --shadow-float-c:rgba(24,24,27,.12); /* the floating button sits ON content, so it casts harder than a dropdown */
+}
+html[data-theme="dark"]{
+  --accent-weak:rgba(233,139,76,.18);
+  --tag-bg:rgba(255,255,255,.07);
+  --illus-cast:rgba(0,0,0,.30);
+  --shadow-float-c:rgba(0,0,0,.46);
+}
+
+/* ---- The toggle knob. It cannot be ONE colour in dark, which is why it gets its own pair:
+   the knob sits on a neutral track when OFF and on --accent when ON, and dark's accent is a
+   LIGHT orange while light's is a DARK one. So dark needs a light knob when off (7.87:1 on
+   --border-2) and a dark knob when on (the rule below switches it to --on-accent, 6.48:1).
+   Light keeps a white knob for both, exactly as it always has.
+   --knob-cast is deliberately NOT --scrim: a scrim is the modal wash and must get DENSER in
+   dark to darken the page behind it, whereas a knob shadow must not, and borrowing one for
+   the other put a near-black shadow on a near-black track — invisible. */
+:root{ --knob:#FFFFFF; --knob-cast:rgba(0,0,0,.25); }
+html[data-theme="dark"]{ --knob:#E4E3E1; --knob-cast:rgba(0,0,0,.45); }
+
+:root{
   --accent-ink:var(--accent);
-  --accent-weak:rgba(184,78,12,.10); --on-accent:#FFFFFF;
-  --accent-tint:#F8E7D3; --accent-tint-ink:#964009;  /* v3: avatars, mobile active chip */
-  --on-bad:#FFFFFF;
-  --good:#16794C;  --good-bg:#E6F4EC;
-  --warn:#B54708;  --warn-bg:#FDF3E0;
-  --bad:#C0392F;   --bad-bg:#FBEBEA;                   /* v3 says #C63C33: 4.44:1 on its own tint, a hair under AA — darkened one step to 4.70:1 (spec deviation, recorded) */
-  --danger-border:#F0D4D1;                           /* v3: destructive outlines, error banners */
-  --toast-bg:#2A211B; --toast-action:#F0A46B;        /* v3: toast chip */
   /* v3 §1.3: shadows ONLY on floating layers — dropdown, modal, toast, bottom sheet.
-     Cards and tables sit flat on their border. */
-  --shadow:0 8px 24px rgba(24,24,27,.08);            /* dropdown */
-  --shadow-lg:0 16px 48px rgba(42,33,27,.16);        /* modal */
-  --shadow-float:0 8px 24px rgba(24,24,27,.12);      /* the floating button */
+     Cards and tables sit flat on their border. The geometry is the app's; the COLOUR
+     comes from the mock's --shadow-* tokens, which is what makes them theme-aware
+     (dark needs a far denser shadow to read at all: .38 against light's .08). */
+  --shadow:0 8px 24px var(--shadow-pop);             /* dropdown */
+  --shadow-lg:0 16px 48px var(--shadow-modal);       /* modal */
+  --shadow-float:0 8px 24px var(--shadow-float-c);   /* the floating button — its own colour: reusing --shadow-pop silently dropped LIGHT from .12 to .08 */
   --elev:none;
   --elev-nav:none;
   --elev-cast:0 0 rgba(0,0,0,0);                     /* composite-safe no-op — a shadow LIST item can't be `none` */
@@ -108,11 +189,46 @@
   --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
   --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
   --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* ---- ALIAS LAYER — the app's own token names, mapped onto the canonical v3 ones above.
+   Every one of these is a var() reference, never a duplicated literal, so a theme switch
+   flows through automatically and no value can drift out of step with its source.
+   New code should prefer the canonical name; these exist so the ~3300 lines of rules
+   written before the mock became canonical keep working unchanged. */
+:root{
+  --bg:var(--surface); --surface2:var(--surface-2); --field:var(--surface);
+  --text2:var(--text-2); --muted2:var(--text-3);
+  --border2:var(--border-2);
+  --divider:var(--hairline);        /* row dividers */
+  --nav-active:var(--hover);        /* the sidebar's active pill IS the mock's hover wash */
+  --skeleton:var(--hairline);
+  --brand:var(--text);
+  --accent-press:var(--accent-2);
+  --accent-tint:var(--accent-soft); --accent-tint-ink:var(--accent-2);
+  --bad:var(--danger); --bad-bg:var(--danger-bg); --danger-border:var(--danger-br);
+  --toast-bg:var(--inverse); --toast-action:var(--accent-3);
   /* legacy token remap — any untouched legacy rule follows the palette */
   --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
   --navy:var(--brand); --maroon:var(--brand);
   --line:var(--border); --line2:var(--border2);
   --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
+}
+
+/* ---- Empty-state illustrations, dark. These are SVG data URIs, so their ink is baked in
+   and cannot read a token — a dark variant is the only way they survive a theme switch
+   (the light art is near-black line work and simply vanishes on a #232528 canvas).
+   Generated by substitution from the light art, so the drawings stay identical and only
+   the five ink values move: outline #3E2C26 -> #A8A6A2, mid #6B5D54 / #8C817D -> #807E7A,
+   dashed #C9BBAF -> #56585D, accent #B84E0C -> #E98B4C. The reduced-motion static variant
+   has its own dark copy further down (§22) — it must, because html[data-theme] outranks
+   :root, so a single dark declaration here would otherwise win INSIDE that media query and
+   serve the animated art to someone who asked for no motion. */
+html[data-theme="dark"]{
+  --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23A8A6A2%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%2356585D%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23807E7A%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23807E7A%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23A8A6A2%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23807E7A%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%2356585D%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+  --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%2356585D%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23807E7A%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
+  --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%23A8A6A2%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%23807E7A%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%2356585D%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
 }
 
 /* ----------------------------------------------------------------------
@@ -156,7 +272,12 @@ header .wrap{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3)
 .brand:focus-visible{outline:2px solid var(--accent,#3a6b4f);outline-offset:2px}
 .brand-logo{display:inline-flex;flex:0 0 auto;color:var(--brand)}
 .brand-logo svg{height:40px;width:40px;display:block}
-.brand-logo .mk-arc{stroke:var(--accent-ink)}
+/* v136: unscoped on purpose. This was .brand-logo .mk-arc, which the DESKTOP sidebar's
+   copy of the logo does not match (.side-brand has no .brand-logo ancestor), so that copy
+   kept its hardcoded #B84E0C stroke and painted a muddy 3.25:1 dark orange in dark mode —
+   right next to .side-brand b .ez, which correctly used the token. Two accents in one
+   element. Bare selector so any future copy of the mark is covered by construction. */
+.mk-arc{stroke:var(--accent-ink)}
 .brand-logo img{height:40px;width:auto;display:block;border-radius:9px} /* legacy fallback */
 .brand-text{display:flex;flex-direction:column;line-height:1.2;min-width:0}
 .brand-text b{font-size:17px;font-weight:700;letter-spacing:-.015em;color:var(--brand)}
@@ -337,7 +458,7 @@ input[type=checkbox]{
   content:"";position:absolute;top:100%;left:0;right:0;height:12px;pointer-events:none;
   background-image:radial-gradient(circle at 8px 12px, transparent 5px, var(--surface) 5.5px);
   background-size:16px 12px;background-repeat:repeat-x;
-  filter:drop-shadow(0 3px 3px rgba(56,38,30,.07));
+  filter:drop-shadow(0 3px 3px var(--illus-cast));
 }
 .plate-tools{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
 .edit-tag{font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700;font-family:var(--mono)}
@@ -562,12 +683,12 @@ input[type=checkbox]{
 .tip{position:relative;cursor:pointer;border-bottom:1px dotted var(--accent-ink)}
 .tipbox{
   position:absolute;z-index:70;right:0;left:auto;top:calc(100% + 9px);width:min(272px,80vw);
-  background:var(--text);color:var(--bg);
+  background:var(--inverse);color:var(--on-inverse);   /* v136: an inverse slab, same as the toast. Missed by the first pass and by the sweep, which cannot see a display:none element. */
   font-family:var(--ui);font-size:var(--fs-sm);line-height:1.5;font-weight:normal;
   text-transform:none;letter-spacing:normal;padding:12px 14px;border-radius:var(--radius-chip);
   box-shadow:var(--shadow-lg);display:none;text-align:left;white-space:normal;
 }
-.tipbox::after{content:"";position:absolute;bottom:100%;right:18px;left:auto;border:6px solid transparent;border-bottom-color:var(--text)}
+.tipbox::after{content:"";position:absolute;bottom:100%;right:18px;left:auto;border:6px solid transparent;border-bottom-color:var(--inverse)}
 .tip:hover .tipbox,.tip.open .tipbox{display:block;animation:dropIn var(--t-med) var(--ease)}
 .num .tipbox{right:0;left:auto}.num .tipbox::after{left:auto;right:18px}
 
@@ -575,7 +696,7 @@ input[type=checkbox]{
    14. MODALS
    ---------------------------------------------------------------------- */
 .modal-overlay{
-  position:fixed;inset:0;background:rgba(24,16,14,.5);display:none;
+  position:fixed;inset:0;background:var(--scrim);display:none;
   align-items:flex-start;justify-content:center;
   padding:calc(env(safe-area-inset-top) + 20px) var(--sp-4) calc(env(safe-area-inset-bottom) + 20px);
   z-index:80;overflow:auto;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
@@ -677,13 +798,13 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .pack-in input{flex:1 1 auto;min-width:0}
 .pack-in select{flex:0 0 auto;width:auto}
 .calc-line{font-size:14px;font-weight:600;color:var(--muted2);padding:8px 12px;border:1px dashed var(--border2);border-radius:10px;background:var(--surface2)}
-.calc-line.ok{color:var(--accent-ink);border-style:solid;border-color:var(--accent);background:rgba(184,78,12,.06)}
+.calc-line.ok{color:var(--accent-ink);border-style:solid;border-color:var(--accent);background:var(--accent-weak)}
 .ad-search{width:100%;padding:11px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);margin-bottom:8px}
 .ad-list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px}
 .ad-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:11px 13px;background:transparent;border:0;border-bottom:1px solid var(--border);cursor:pointer;color:var(--text)}
 .ad-item:last-child{border-bottom:0}
 .ad-item:hover{background:var(--hover)}
-.ad-item.sel{background:rgba(184,78,12,.10);box-shadow:inset 3px 0 0 var(--accent)}
+.ad-item.sel{background:var(--accent-weak);box-shadow:inset 3px 0 0 var(--accent)}
 .ad-nm{font-weight:700;font-size:15px}
 .ad-meta{font-size:12px;color:var(--muted2)}
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
@@ -882,9 +1003,9 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .toast{
   position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));
   transform:translateX(-50%) translateY(8px);
-  background:var(--text);color:var(--bg);padding:12px 18px;border-radius:var(--radius-ctl);
+  background:var(--inverse);color:var(--on-inverse);padding:12px 18px;border-radius:var(--radius-ctl);
   font-size:var(--fs-base);font-weight:600;z-index:90;opacity:0;pointer-events:none;
-  box-shadow:var(--shadow-lg);max-width:calc(100% - 32px);text-align:center;
+  box-shadow:0 8px 24px var(--shadow-toast);max-width:calc(100% - 32px);text-align:center;   /* v136: --shadow-toast is the mock's token for exactly this layer; it was imported and then left unused while the toast borrowed the modal's */
   transition:opacity var(--t-med) var(--ease),transform var(--t-med) var(--ease);
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -973,6 +1094,12 @@ body.scroll-locked{position:fixed;left:0;right:0}
    ---------------------------------------------------------------------- */
 @media print{
   @page{size:A4;margin:16mm}
+  /* v136: paper is white whatever the screen is. The docket's own colours are already
+     hardcoded (#000/#555/#bbb below) and everything else is display:none, so this is about
+     the BROWSER-drawn layer: with color-scheme:dark live on :root, the print canvas and any
+     control chrome can still come out dark. Printing a recipe card is the one thing here
+     that leaves the screen, so it is worth the one line rather than the assumption. */
+  :root,html[data-theme="dark"]{color-scheme:light}   /* BOTH selectors: :root alone is (0,1,0) and loses to the (0,1,1) html[data-theme="dark"] rule above, media queries adding no specificity — the same trap the reduced-motion --empty-illust override handles */
   html,body{width:100%;background:#fff;color:#000;padding:0!important;margin:0!important;font-family:var(--mono)}
   #printDocket, #printDocket *{box-sizing:border-box}
   /* hide the entire app chrome; show only the clean recipe card */
@@ -996,6 +1123,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
   :root{--empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
+  /* ...and its dark twin. Required, not belt-and-braces: html[data-theme="dark"] outranks
+     :root, so without this line the dark ANIMATED art would win inside this very media
+     query and spin for a user who asked for no motion. */
+  html[data-theme="dark"]{--empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23A8A6A2%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23A8A6A2%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%2356585D%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23807E7A%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23807E7A%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23E98B4C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
 }
 
 /* v3 §1.4 (v132) — the screen-mount rise. ONE animation, on the tab pane itself: a tab
@@ -1036,8 +1167,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .uprice-edit input.invPrice{width:78px;padding:6px 6px;font:inherit;font-weight:600;text-align:right;border:1px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--text)}
   .uprice-edit .upu{color:var(--muted2);font-size:11px;font-weight:500}
   .mbadge{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;vertical-align:middle}
-  .mbadge.ok{background:rgba(18,138,43,.14);color:var(--good)}
-  .mbadge.warn{background:rgba(184,120,20,.16);color:var(--warn)}
+  .mbadge.ok{background:var(--good-bg);color:var(--good)}
+  .mbadge.warn{background:var(--warn-bg);color:var(--warn)}
 
 
 /* ----------------------------------------------------------------------
@@ -1116,7 +1247,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ing-name{font-weight:700;line-height:1.2}
 .ing-brand{font-size:var(--fs-xs);color:var(--muted2)}
 .ing-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
-.ing-tag{font-size:11px;font-weight:600;color:var(--muted2);background:rgba(0,0,0,.05);border-radius:6px;padding:1px 7px}
+.ing-tag{font-size:11px;font-weight:600;color:var(--muted2);background:var(--tag-bg);border-radius:6px;padding:1px 7px}
 .ing-tag.sup{color:var(--accent)}
 .ing-price{grid-column:2;grid-row:1 / span 2;text-align:right;white-space:nowrap}
 .ing-price b{font-size:15px}
@@ -1288,11 +1419,22 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .navbtn{
     flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;
     min-height:46px;padding:11px 14px;border-radius:var(--radius-ctl);
-    font-size:var(--fs-sm);font-weight:600;color:var(--text2);
+    font-size:var(--fs-sm);font-weight:500;color:var(--text2);
   }
   .navbtn svg{width:var(--icon-sm);height:var(--icon-sm);padding:0;border-radius:0;background:none}
-  .navbtn:hover{background:rgba(42,33,27,.05);color:var(--text)}   /* --hover equals the sidebar surface here, so it needs its own wash */
-  .navbtn.active{background:var(--nav-active);color:var(--text)}   /* v3 §2: the active pill is the tinted #F2EADD, not an accent wash */
+  /* v136: --hover is the mock's #F2EADD now, distinct from the sidebar's --surface-2, so the
+     local rgba wash this rule used to need is gone.
+     THE ACTIVE PILL AND A HOVERED ITEM SHARE THIS BACKGROUND, and that is the mock's own
+     grammar, not an accident: its nav renders active as {bg:--hover, color:--text, weight:600}
+     and inactive as {bg:none, color:--text-2, weight:500}, with the same --hover on hover for
+     both. So WEIGHT is the discriminator, and the app was the thing missing it — every desktop
+     nav item was 600, which made a hovered item pixel-identical to the active one the moment
+     --hover and --nav-active became the same colour. R1: presentational, so the mock wins.
+     What we give up is the old app's stronger signal, where hover was a 5% wash and active a
+     solid tint; a 500/600 weight step at 13px is subtler. Recorded rather than re-invented —
+     synthesising a third wash is exactly what §3's anti-rule forbids. */
+  .navbtn:hover{background:var(--hover);color:var(--text)}
+  .navbtn.active{background:var(--nav-active);color:var(--text);font-weight:600}
   .navbtn.active svg{background:none;color:var(--accent-ink)}
   .nl{font-size:var(--fs-sm)}
 
@@ -1467,7 +1609,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   border-radius:50%;border:2.5px solid var(--accent-weak);border-top-color:var(--accent);
   animation:ez-spin .7s linear infinite;
 }
-.btn.primary.loading::after{border-color:rgba(255,255,255,.35);border-top-color:var(--on-accent)}
+.btn.primary.loading::after{border-color:var(--on-accent-dim);border-top-color:var(--on-accent)}
 @keyframes ez-spin{to{transform:rotate(360deg)}}
 .skeleton{
   border-radius:var(--radius-chip);color:transparent!important;pointer-events:none;
@@ -1700,7 +1842,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   /* Phase 1: product pack field + invoice unit-mismatch flag */
   .ig-pack .pack-row{display:flex;gap:8px;align-items:center;margin-top:6px}
   .ig-pack select{padding:8px 10px;font:inherit;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
-  .flag-mismatch{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--bad);border-radius:6px;padding:1px 6px;margin-left:4px}
+  .flag-mismatch{display:inline-block;font-size:11px;font-weight:700;color:var(--on-bad);background:var(--bad);border-radius:6px;padding:1px 6px;margin-left:4px}
 
 /* ===== bugfix batch (v22) ===== */
 /* item 4: misc cost lines + add button */
@@ -1715,9 +1857,15 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .dash-chart#trendWrap{position:relative}
 .tp-dot{cursor:pointer;transition:r .1s ease}
 .tp-dot:hover,.tp-dot.act,.tp-dot:focus{r:5;outline:none}
-.tp-tip{position:absolute;transform:translate(-50%,-140%);background:var(--ink,#2b2b2b);color:#fff;font-size:.75rem;line-height:1;padding:5px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:5}
+/* ⚠️ THESE COLOURS DO NOT RENDER. `.tp-tip` is re-declared at equal specificity further down
+   (the v115 chart-tooltip rule: background:var(--surface);color:var(--text) plus a border, and
+   ::after{content:none} which removes this arrow entirely), and last wins. The live tooltip is
+   a light CARD, not an inverse pill — and it is already theme-correct, being all tokens.
+   Left tokenised rather than reverted to the old hardcoded #fff so that IF the later rule is
+   ever deleted this degrades to something readable; do NOT "fix" the tooltip here. */
+.tp-tip{position:absolute;transform:translate(-50%,-140%);background:var(--inverse);color:var(--on-inverse);font-size:.75rem;line-height:1;padding:5px 8px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:5}
 .tp-tip.show{opacity:1}
-.tp-tip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink,#2b2b2b)}
+.tp-tip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--inverse)}
 /* item 5: remembered items — plain sentence rows */
 .smem-row .smem-sentence{font-weight:600}
 .smem-eq{opacity:.6;margin:0 2px}
@@ -2133,15 +2281,26 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .set-item-ctl.cogs-in input{width:74px;min-height:44px;padding:10px;text-align:right;font:inherit;font-family:var(--mono);font-weight:600;font-size:var(--fs-base);border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
 .set-item-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
 /* segmented control (theme) */
-/* v132: the .seg / .seg-btn segmented control is deleted — its only consumer was the
-   Settings theme segment, which died with dark mode (light only, Max's yes 9 Aug 2026). */
+/* v136 (F1a): .seg / .seg-btn RESTORED with the Settings theme segment, its only consumer
+   (v132 deleted both together). Q9's quiet-selected reasoning is carried over verbatim
+   because it still holds in light — and now holds in dark too, since every value here is a
+   token: --accent-weak is the one that flips (a 10% black-orange wash over white becomes an
+   18% bright-orange wash over near-black), which is exactly why it is a per-theme token
+   rather than an alias. */
+.seg{display:inline-flex;border:1px solid var(--border2);border-radius:var(--radius-ctl);overflow:hidden;background:var(--surface)}
+.seg-btn{appearance:none;-webkit-appearance:none;border:0;border-left:1px solid var(--border);background:transparent;color:var(--text2);font-size:var(--fs-sm);font-weight:700;padding:9px 12px;min-height:44px;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.seg-btn:first-child{border-left:0}
+.seg-btn:hover{background:var(--hover);color:var(--text)}
+.seg-btn[aria-checked="true"]{background:var(--accent-weak);color:var(--text);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--accent)}   /* Q9: quiet selected state — solid accent competed with Done, the modal's one primary CTA. --text not --accent-ink (accent-ink on accent-weak is 4.37:1 in light — fails AA at 13px), and the inset ring is what keeps selected ≠ hover (--hover and composited --accent-weak are near-identical in light) */
 /* switch */
 .switch{position:relative;display:inline-flex;flex:0 0 auto;cursor:pointer}
 .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .switch-track{position:relative;display:block;width:48px;height:28px;border-radius:var(--radius-pill);background:var(--border2);transition:background var(--t-med) var(--ease)}
-.switch-track::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform var(--t-med) var(--ease)}
+.switch-track::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--knob);box-shadow:0 1px 2px var(--knob-cast);transition:transform var(--t-med) var(--ease),background var(--t-med) var(--ease)}
 .switch input:checked + .switch-track{background:var(--accent)}
-.switch input:checked + .switch-track::after{transform:translateX(20px)}
+/* the knob becomes ink ON the accent track, which is what keeps it legible in dark, where
+   --accent is light and a light knob would vanish into it (1.98:1) */
+.switch input:checked + .switch-track::after{transform:translateX(20px);background:var(--on-accent)}
 .switch input:focus-visible + .switch-track{outline:2px solid var(--accent);outline-offset:2px}
 /* placeholder empty state (Account / Team — a coming feature, not a disabled control) */
 .set-empty{padding:var(--sp-6) var(--sp-4);text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-card);background:var(--surface2)}
@@ -2687,9 +2846,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dash-ins h2{display:flex;align-items:center;gap:var(--sp-2)}
 .ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
 /* v98: the sparkle is the AI-provenance marker and keeps Gemini's hues — the stock stops
-   wash out at 16px, so the deeper-luminance variant of the same gradient is drawn
-   (#ezSparkGradDeep, defined beside #ezSparkGrad in index.html). v132: light-only. */
+   wash out at 16px on a pale page, so the deeper-luminance variant of the same gradient is
+   drawn (#ezSparkGradDeep, defined beside #ezSparkGrad in index.html).
+   v136: the PAIR is restored. "Deep" exists because the page is pale; on the dark canvas the
+   deepened stops are the ones that disappear, so dark takes the stock brighter set. This is
+   the one place in the file where dark is not a token flip — the gradient stops live in an
+   SVG <defs>, which cannot read a custom property, so the two themes select a different
+   gradient by id instead. Both hues are Gemini's own, deliberately not palette-native. */
 .ins-spark path{fill:url(#ezSparkGradDeep)}
+html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
 .ins-line{margin:0;padding:var(--sp-3) 0;font-size:var(--fs-base);line-height:1.55;color:var(--text2)}
 .ins-line:first-child{padding-top:0}
 .ins-line:last-of-type{padding-bottom:0}
@@ -3228,8 +3393,9 @@ html{scrollbar-gutter:stable}
     text-transform:none;color:var(--text);display:flex;align-items:center;gap:var(--sp-2);
   }
   #dashBody .panel h2.tbl-head{color:var(--text);background:var(--surface2);border-bottom:1px solid var(--divider);padding:12px 20px;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;min-height:0}
-  /* the band IS --surface2, so the back button needs its own hover wash there */
-  .tbl-head .dig-back:hover{background:rgba(42,33,27,.06)}
+  /* v136: --hover is the mock's #F2EADD and no longer equals --surface2, so the band's back
+     button can use the shared token; the local wash this comment used to justify is gone. */
+  .tbl-head .dig-back:hover{background:var(--hover)}
 
   /* ---- §3.1 KPI strip: three cells, one bordered container, internal hairlines ---- */
   .kpi-strip{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;margin-bottom:var(--sp-5)}

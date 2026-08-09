@@ -4402,13 +4402,14 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v135';
+var APP_VERSION='v136';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
   var ai=document.getElementById('setAiInvoiceChk'); if(ai) ai.checked=aiInvoiceCheck;   // v81
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
+  syncThemeSeg();                                                                       // v136
   setSettingsSection('general', false);   // v81: state isn't persisted between opens — always land on the first section / the mobile list
   show('settingsPanel');
 }
@@ -4896,7 +4897,29 @@ function clearCacheAndRefresh(){
   // v81: AI feature toggles
   var aic=document.getElementById('setAiInvoiceChk'); if(aic) aic.addEventListener('change',function(){ setAiInvoiceCheck(aic.checked,true); });
   var asg=document.getElementById('setAiSuggestChk'); if(asg) asg.addEventListener('change',function(){ setAiSuggestions(asg.checked,true); });
-  // v132: the v81 theme segment is gone — light only (Max's yes, 9 Aug 2026); index.html removes the stale key at boot
+  // v136 (F1a): the theme segment returns with dark mode. Delegated off .seg so the three
+  // buttons share one listener; applyThemePref owns both the store and the attribute.
+  var seg=document.querySelector('#settingsPanel .seg');
+  if(seg){
+    var segPick=function(b){ if(!b) return; var pref=b.getAttribute('data-theme-pref'); applyThemePref(pref); syncThemeSeg(pref); b.focus(); };
+    seg.addEventListener('click',function(ev){ segPick(ev.target.closest('.seg-btn[data-theme-pref]')); });
+    /* The markup is role="radiogroup" + role="radio", which promises arrow-key selection.
+       Without this the promise is false: a screen-reader user is told it is a radio group and
+       then cannot move inside it. Home/End included per the WAI-ARIA radio-group pattern. */
+    seg.addEventListener('keydown',function(ev){
+      var btns=Array.prototype.slice.call(seg.querySelectorAll('.seg-btn[data-theme-pref]'));
+      var i=btns.indexOf(ev.target.closest('.seg-btn[data-theme-pref]'));
+      if(i<0||!btns.length) return;
+      var n=-1;
+      if(ev.key==='ArrowRight'||ev.key==='ArrowDown') n=(i+1)%btns.length;
+      else if(ev.key==='ArrowLeft'||ev.key==='ArrowUp') n=(i-1+btns.length)%btns.length;
+      else if(ev.key==='Home') n=0;
+      else if(ev.key==='End') n=btns.length-1;
+      else return;
+      ev.preventDefault();
+      segPick(btns[n]);
+    });
+  }
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
   on('setTidyOpen',function(){ reopenSettingsSection='lists'; closeSettings(); openTidyManage('category'); });     // v81: return to Lists on close (one-tap back)
@@ -5715,9 +5738,78 @@ function setAiSuggestions(on, persist){
   if(typeof renderDashboard==='function'){ try{ renderDashboard(); }catch(e){} }
 }
 
-/* v132: the theme preference machinery (THEME_KEY / loadThemePref / applyThemePref / syncThemeSeg)
-   is DELETED, not dormant — light only per the v3 spec (Max's yes, 9 Aug 2026, decision 2).
-   index.html actively removes the stale 'cafeCost_theme' key at boot (the v130 pattern). */
+/* v136 (F1a): the theme preference machinery RETURNS. v132 deleted it because the app went
+   light-only; the replacement design package ships both palettes and FOLD-IN-PROTOCOL §6
+   orders both ported, so the removal's own condition is satisfied rather than reversed.
+
+   THE STORED VALUE AND THE APPLIED VALUE ARE DIFFERENT THINGS, deliberately:
+     stored  'light' | 'dark' | 'system'   (absent === 'system')
+     applied 'light' | 'dark'              — NEVER absent.
+   index.html's <head> resolver writes the applied value before first paint; everything here
+   goes through applyThemePref so the two can never drift apart. Keeping the attribute always
+   explicit is what lets css/style.css carry ONE html[data-theme="dark"] block instead of the
+   pre-v132 arrangement, where "system" meant no attribute and every dark rule had to be
+   duplicated into a @media (prefers-color-scheme:dark) mirror — a real bug came from writing
+   one half and forgetting the other.
+
+   Device-local on purpose (localStorage, a view preference — CLAUDE.md Tier 2), never
+   dbSetSetting: theme belongs to the device, not the café. */
+var THEME_KEY='cafeCost_theme';
+function loadThemePref(){ try{ var v=localStorage.getItem(THEME_KEY); if(v==='dark'||v==='light') return v; }catch(e){} return 'system'; }
+function systemPrefersDark(){ try{ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches); }catch(e){ return false; } }
+/* The resolver. One place decides what the attribute says, so 'system' cannot leave a stale
+   'dark' on <html> after the OS flips to light. */
+function resolveTheme(pref){ return (pref==='dark'||pref==='light') ? pref : (systemPrefersDark()?'dark':'light'); }
+/* The ONE place a resolved theme is written to the document, so the attribute and the PWA
+   chrome colour can never disagree. The <meta name="theme-color"> deliberately has no
+   media="(prefers-color-scheme:…)" variants: the browser would resolve those against the OS
+   while the page resolves against the STORED preference, so choosing Light on a dark phone
+   would leave a near-black title bar over a white app — the v132 bug. Reading the colour off
+   the live --surface token means it follows the palette instead of duplicating it. */
+function applyResolvedTheme(theme){
+  var root=document.documentElement;
+  root.setAttribute('data-theme', theme);
+  try{
+    var m=document.querySelector('meta[name="theme-color"]');
+    if(m){
+      var c=getComputedStyle(root).getPropertyValue('--surface').trim();
+      if(c) m.setAttribute('content', c);
+    }
+  }catch(e){}
+}
+function applyThemePref(pref){
+  if(pref!=='dark'&&pref!=='light') pref='system';
+  try{ if(pref==='system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY,pref); }catch(e){}
+  applyResolvedTheme(resolveTheme(pref));
+}
+function syncThemeSeg(pref){
+  /* Takes the APPLIED preference when the caller knows it. It used to always re-read the
+     store, so on a device where localStorage throws, applyThemePref would swallow the write
+     failure, the theme would flip, and the segment would snap back to the old choice with no
+     explanation — the control disagreeing with the screen. */
+  if(pref!=='light'&&pref!=='dark'&&pref!=='system') pref=loadThemePref();
+  var btns=document.querySelectorAll('#settingsPanel .seg-btn[data-theme-pref]');
+  for(var i=0;i<btns.length;i++){
+    var on=btns[i].getAttribute('data-theme-pref')===pref;
+    btns[i].setAttribute('aria-checked', on?'true':'false');
+    /* Roving tabindex: a radiogroup is ONE tab stop, and arrow keys move within it. Without
+       this the three buttons are three stops and the arrow keys below do nothing useful. */
+    btns[i].setAttribute('tabindex', on?'0':'-1');
+  }
+}
+/* NEW in v136, and the reason 'system' is now honest: the pre-v132 code read the OS setting
+   once at boot, so a phone switching to dark at sunset left the app light until it was
+   reopened — which for an intermittent user could be a week. While the preference is
+   'system' (and only then), follow the OS live. */
+(function(){
+  try{
+    var mq=window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)');
+    if(!mq) return;
+    var onChange=function(){ if(loadThemePref()==='system') applyResolvedTheme(resolveTheme('system')); };
+    if(mq.addEventListener) mq.addEventListener('change',onChange);
+    else if(mq.addListener) mq.addListener(onChange);   /* Safari < 14 */
+  }catch(e){}
+})();
 function invDbg(){ if(window.EZ_INV_DEBUG && window.console) try{console.log.apply(console, arguments);}catch(e){} }
 function invGstDetect(text){
   var t=(text||'').toLowerCase();
