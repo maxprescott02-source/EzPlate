@@ -732,7 +732,7 @@ qEl.addEventListener('keydown',e=>{
   if(e.key==='ArrowDown'){e.preventDefault();hiIdx=Math.min(hiIdx+1,curList.length-1);paintHi();}
   else if(e.key==='ArrowUp'){e.preventDefault();hiIdx=Math.max(hiIdx-1,0);paintHi();}
   else if(e.key==='Enter'){e.preventDefault();const pick=hiIdx>=0?curList[hiIdx]:curList[0];pickListItem(pick);}
-  else if(e.key==='Escape'){closeDrop();}
+  else if(e.key==='Escape'){closeDrop();e.stopPropagation();}   // v137: an open drop is the top layer — don't let the modal's Escape handler close the modal too
 });
 function paintHi(){[...dropEl.children].filter(c=>c.hasAttribute('role')).forEach((c,i)=>c.classList.toggle('hi',i===hiIdx));const el=dropEl.querySelectorAll('[role="option"]')[hiIdx];if(el)el.scrollIntoView({block:'nearest'});}
 dropEl.addEventListener('mousedown',e=>{const o=e.target.closest('.opt');if(!o)return;e.preventDefault();
@@ -765,7 +765,7 @@ function editPrice(uid){
   chip.innerHTML='$<input class="pin" type="number" min="0" step="0.01" value="'+(val!=null?val.toFixed(2):'')+'"> /'+word;   // v55 §E3: autofilled price shows 2dp (the stored cost_per_base_unit stays exact until the user commits an edit)
   const inp=chip.querySelector('input'); inp.focus(); inp.select();
   let cancelled=false;
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){cancelled=true;renderPlate();}});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}else if(e.key==='Escape'){cancelled=true;renderPlate();e.stopPropagation();}});   // v137: Escape cancels THIS edit — it must not also close the builder around it
   inp.addEventListener('blur',()=>{ if(!cancelled) commitPrice(uid,inp.value); },{once:true});
 }
 function commitPrice(uid,raw){
@@ -1047,7 +1047,10 @@ document.getElementById('mSave').addEventListener('click',submitNew);
 ['f_packsize','f_price','f_packunit'].forEach(function(id){var e=document.getElementById(id);if(e)e.addEventListener('input',updateAddCalc);});
 document.getElementById('f_packunit').addEventListener('change',updateAddCalc);
 modal.addEventListener('mousedown',e=>{if(e.target===modal)closeModal();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
+/* v137 (F1b): this modal's own Escape listener is GONE — the one top-layer handler at the end
+   of this file closes whatever is actually on top, and reaches this modal through its × (#mClose,
+   wired to closeModal just above). A per-modal Escape listener is the shape that made a stack
+   close in both directions at once. */
 
 let toastT;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
@@ -2630,7 +2633,10 @@ function deleteKitchenIngredient(kid){
   on('kingWizClose',closeKingWizard);                                // v61 item 4: the × closes the wizard modal
   (function(){ var kwm=document.getElementById('kingWizModal'); if(!kwm) return;
     kwm.addEventListener('mousedown',function(e){ if(e.target===kwm) closeKingWizard(); });   // backdrop tap closes (skips are already persisted — no data loss)
-    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && kwm.classList.contains('open')) closeKingWizard(); }); })();
+    /* v137 (F1b): the wizard's own Escape listener is GONE — the top-layer handler at the end of
+       this file reaches it through #kingWizClose, which is closeKingWizard. That matters here more
+       than most: the wizard deliberately stacks a confirm over itself (Add all), and a listener
+       that only knew about the wizard closed it out from under that confirm. */ })();
   var _goHome=function(){ showTab('dashboard'); };   // v39: the logo is the way home
   ['brandHome','sideBrandHome'].forEach(function(id){   // header logo (mobile) + sidebar logo (desktop >=1024px) — one is always the visible one
     var el=document.getElementById(id); if(!el) return;
@@ -4066,6 +4072,16 @@ document.addEventListener('keydown', function(e){
   if(e.key==='Escape' && dashMenusOpen){
     setDashMenusOpen(false);
     var b=document.getElementById('dashScopeBtn'); if(b) b.focus();
+    /* v137 (F1b), found by the pre-push review: this popover is a LAYER, and Escape must close
+       one layer. Without this, an Escape pressed while the popover and a modal are both open ran
+       this handler AND the top-layer handler at the end of the file, closing two layers on one
+       keypress — the exact defect that batch removed from the modal set, surviving here.
+       stopIMMEDIATEPropagation, not stopPropagation: both listeners are registered on `document`
+       itself, and stopPropagation only stops the walk to the NEXT node, never a sibling listener
+       on the same one. (The combobox and price-chip handlers can use the plain form — they sit on
+       their own inner elements, so the event genuinely still has a walk to stop.)
+       Reproduced before fixing: one Escape took the popover flag AND #settingsPanel down together. */
+    e.stopImmediatePropagation();
   }
 });
 /* The v115 anchor-to-target pair. A missing figure gets NO class — neutral, never a verdict.
@@ -4402,7 +4418,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v136';
+var APP_VERSION='v137';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4873,6 +4889,7 @@ function clearCacheAndRefresh(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
   on('sideSettings',openSettings);   // v132: the v3 sidebar's bottom-group Settings entry (desktop only; CSS hides it <1024)
+  on('sideInvoices',openInv);        // v137 (F1b): the same import flow as #importBtn — the mock's placement, not a second capability
   // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
@@ -4899,6 +4916,15 @@ function clearCacheAndRefresh(){
   var asg=document.getElementById('setAiSuggestChk'); if(asg) asg.addEventListener('change',function(){ setAiSuggestions(asg.checked,true); });
   // v136 (F1a): the theme segment returns with dark mode. Delegated off .seg so the three
   // buttons share one listener; applyThemePref owns both the store and the attribute.
+  /* v137 (F1b): the sidebar's compact toggle. It flips the RESOLVED theme, which is what makes it
+     honest under 'system' — see syncThemeToggle. syncThemeSeg keeps the Settings segment in step,
+     so the two controls can never show different answers. */
+  var stg=document.getElementById('sideThemeToggle');
+  if(stg) stg.addEventListener('click',function(){
+    var next=resolveTheme(loadThemePref())==='dark' ? 'light' : 'dark';
+    applyThemePref(next); syncThemeSeg(next);
+  });
+  syncThemeToggle();                                                                    // v137: boot state — Settings may never be opened
   var seg=document.querySelector('#settingsPanel .seg');
   if(seg){
     var segPick=function(b){ if(!b) return; var pref=b.getAttribute('data-theme-pref'); applyThemePref(pref); syncThemeSeg(pref); b.focus(); };
@@ -5036,7 +5062,100 @@ function syncBodyScrollLock(){
     window.scrollTo(0,_scrollLockY);                              // exactly where they were — no jump on close
   }
 }
-function openOverlay(el){ if(!el) return; clearTimeout(el.__closeT); el.classList.remove('closing'); el.classList.add('open'); el.setAttribute('aria-hidden','false'); syncBodyScrollLock(); }
+/* ---- v137 (F1b): the modal/sheet primitive — one top layer, one trap, one way back ----
+
+   THE TOP LAYER IS DERIVED FROM THE DOM, never from a list. The old Escape handler closed a
+   hard-coded set of 8 ids, which broke in BOTH directions at once: Escape over a stacked confirm
+   also closed everything listed underneath it, while 8 other modals had no Escape at all. Stacks
+   are deliberate here (Settings→confirm for clear-cache and restore, ingModal→confirm on product
+   delete, kingWizModal→confirm on Add all) — #confirmModal carries z-index:85 for exactly that.
+
+   `topOverlay()` reads what the BROWSER would paint on top: highest computed z-index among the
+   open overlays, tie-broken by document order, because equal z-index means the later sibling wins
+   (the v44 finding that gave #confirmModal its own layer in the first place).
+
+   WHAT THAT DOES AND DOES NOT GUARANTEE — worth stating, because the pre-push review read it the
+   other way round. This function cannot disagree with the screen: it computes paint order by the
+   same two rules the browser uses, so whatever it returns IS the layer on top. What it cannot do
+   is rescue a modal that is painted in the wrong place to begin with. Fifteen of the eighteen
+   overlays share z-index:80, so if a future flow opens an EARLIER-in-markup modal over a later
+   one, the browser paints the new modal BEHIND the old — a rendering bug — and Escape would then
+   correctly close the one actually on top, which is not the one the user just opened.
+   No such flow exists today: every real stack either routes through #confirmModal (z-index:85,
+   which always wins) or closes the first modal before opening the second (setSmemOpen and
+   paPublish both do exactly that). The one genuine same-z stack, Tidy lists -> a tidy action, has
+   the child later in the markup and is pinned in tests/visual/v137-modal-layer.spec.js against
+   elementFromPoint. The residual hazard is a QUEUE ITEM, not a bug here: nothing makes markup
+   order a rule a modal author has to follow.
+
+   It closes through the overlay's own × rather than calling hide(), so each modal keeps its real
+   close function: closeConfirm() clears __confirmFn (a bare hide() leaked them), closeKingWizard()
+   syncs kingWizOpen, closeBuilder() keeps its semantics. That also makes this self-maintaining —
+   a new modal with a × in its .mhead is covered by construction, which is the one thing a fixed
+   list can never be. The scope is `.mhead > .x` and not `.x`: the builder's line-remove buttons
+   are also `.x`. */
+function topOverlay(){
+  var open=document.querySelectorAll('.modal-overlay.open'), best=null, bestZ=-Infinity;
+  for(var i=0;i<open.length;i++){
+    var z=parseInt(getComputedStyle(open[i]).zIndex,10); if(!isFinite(z)) z=0;
+    if(z>=bestZ){ bestZ=z; best=open[i]; }                        // >= so a later sibling at equal z wins, as it does on screen
+  }
+  return best;
+}
+function closeTopOverlay(){
+  var el=topOverlay(); if(!el) return false;
+  var x=el.querySelector('.mhead > .x');
+  if(x){ x.click(); } else { closeOverlay(el); }                  // no × (none today) — still closes rather than trapping the user
+  return true;
+}
+
+/* Focus: trap inside the top layer, and give it back when the layer goes.
+   The app had neither — the only return-to-opener anywhere was the dashboard scope popover. */
+var FOCUSABLE='a[href],area[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function focusablesIn(el){
+  if(!el) return [];
+  return Array.prototype.filter.call(el.querySelectorAll(FOCUSABLE), function(n){
+    if(n.closest('[aria-hidden="true"],[hidden]')) return false;
+    return !!(n.offsetWidth||n.offsetHeight||n.getClientRects().length);   // visible only: these modals hide whole sections
+  });
+}
+/* WHERE FOCUS LANDS: the first focusable, which in practice is the × in .mhead. Chosen over
+   "the first form control", which reads better on paper:
+     - this app lives on a phone, and auto-focusing an input pops the keyboard over a bottom
+       sheet that is only 88dvh tall to begin with;
+     - a modal that genuinely wants its field focused already does it AFTER show(), and that
+       still wins because it runs later — openTidyRename has worked that way for versions.
+   So the default is the predictable one and the exception stays where it already lives. */
+function focusOverlay(el){
+  var dlg=el.querySelector('.modal')||el, f=focusablesIn(dlg);
+  var target=f[0]||dlg;
+  if(target===dlg && !dlg.hasAttribute('tabindex')) dlg.setAttribute('tabindex','-1');
+  try{ target.focus({preventScroll:true}); }catch(e){ try{ target.focus(); }catch(e2){} }
+}
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Tab') return;
+  var el=topOverlay(); if(!el) return;
+  var dlg=el.querySelector('.modal')||el;
+  if(!dlg.contains(document.activeElement)){ e.preventDefault(); focusOverlay(el); return; }   // focus escaped (or never arrived) — pull it back
+  var f=focusablesIn(dlg); if(!f.length) return;
+  var first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+},true);
+
+function openOverlay(el){
+  if(!el) return;
+  var wasOpen=el.classList.contains('open');
+  clearTimeout(el.__closeT); el.classList.remove('closing'); el.classList.add('open'); el.setAttribute('aria-hidden','false');
+  syncBodyScrollLock();
+  /* Only on a real open: reopening an already-open overlay (openOverlay is idempotent by design)
+     must not overwrite the opener with something inside the modal itself. */
+  if(!wasOpen){
+    var opener=document.activeElement;
+    el.__opener=(opener && opener!==document.body && !el.contains(opener)) ? opener : null;
+    focusOverlay(el);
+  }
+}
 function closeOverlay(el){
   if(!el) return;
   var wasOpen=el.classList.contains('open');
@@ -5044,6 +5163,17 @@ function closeOverlay(el){
   clearTimeout(el.__closeT);
   el.classList.remove('open');                                    // .open drops synchronously so every `.open` check + CSS layout sees it closed now
   syncBodyScrollLock();                                           // v87: BEFORE the reduced-motion early return, so both close paths release the page
+  if(wasOpen){
+    var opener=el.__opener; el.__opener=null;
+    /* Return focus only if the opener still exists AND focus is still inside the layer we just
+       closed — if something else has since claimed focus (a stacked modal, a re-render), stealing
+       it back would be worse than leaving it. */
+    if(opener && document.contains(opener) && (!document.activeElement || el.contains(document.activeElement) || document.activeElement===document.body)){
+      try{ opener.focus({preventScroll:true}); }catch(e){ try{ opener.focus(); }catch(e2){} }
+    }
+    var under=topOverlay();                                       // a stack: hand focus back to the layer underneath
+    if(under && !under.contains(document.activeElement)) focusOverlay(under);
+  }
   if(!wasOpen || prefersReducedMotion()){ el.classList.remove('closing'); return; }
   el.classList.add('closing');                                    // .modal-overlay.closing re-asserts display + runs the fade-out (CSS §14)
   el.__closeT=setTimeout(function(){ el.classList.remove('closing'); }, 320);
@@ -5796,6 +5926,25 @@ function syncThemeSeg(pref){
        this the three buttons are three stops and the arrow keys below do nothing useful. */
     btns[i].setAttribute('tabindex', on?'0':'-1');
   }
+  syncThemeToggle(pref);
+}
+/* v137 (F1b): the mock's compact sidebar toggle. It is a TWO-state control over a THREE-state
+   preference, so what it reports has to be the resolved theme, not the stored one — under
+   'system' on a dark OS it must read pressed, or it would offer to switch to the theme already
+   on screen. Pressing it therefore leaves 'system' and stores an explicit choice; that is the
+   mock's own model (it has no system state at all), and the Settings segment stays the place
+   where 'system' can be chosen back. Both controls route through applyThemePref, so neither can
+   drift from the attribute. */
+function syncThemeToggle(pref){
+  var b=document.getElementById('sideThemeToggle'); if(!b) return;
+  if(pref!=='light'&&pref!=='dark'&&pref!=='system') pref=loadThemePref();
+  var dark=resolveTheme(pref)==='dark';
+  b.setAttribute('aria-pressed', dark?'true':'false');
+  b.setAttribute('aria-label', dark?'Switch to light mode':'Switch to dark mode');
+  var icon=document.getElementById('sideThemeIcon');
+  if(icon) icon.setAttribute('d', dark
+    ? 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4'   /* sun: pressed = dark is on, tapping returns to light */
+    : 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z');                                                                                          /* moon */
 }
 /* NEW in v136, and the reason 'system' is now honest: the pre-v132 code read the OS setting
    once at boot, so a phone switching to dark at sunset left the app light until it was
@@ -5805,7 +5954,7 @@ function syncThemeSeg(pref){
   try{
     var mq=window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)');
     if(!mq) return;
-    var onChange=function(){ if(loadThemePref()==='system') applyResolvedTheme(resolveTheme('system')); };
+    var onChange=function(){ if(loadThemePref()==='system'){ applyResolvedTheme(resolveTheme('system')); syncThemeToggle('system'); } };   // v137: the toggle reports the RESOLVED theme, so an OS flip has to re-sync it
     if(mq.addEventListener) mq.addEventListener('change',onChange);
     else if(mq.addListener) mq.addListener(onChange);   /* Safari < 14 */
   }catch(e){}
@@ -7699,7 +7848,18 @@ edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 // backdrop tap closes small dialogs; the builder popup is deliberately NOT backdrop-dismissable (an accidental
 // tap must not throw away a plate in progress) — only its × / Escape close it.
 ['menuModal','invModal','confirmModal','editModal','delChoiceModal','plateActionsModal','manageMenusModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){['menuModal','invModal','confirmModal','editModal','delChoiceModal','builderModal','plateActionsModal','manageMenusModal'].forEach(function(id){var m=document.getElementById(id);if(m&&m.classList.contains('open'))hide(id);});}});
+/* v137 (F1b): ONE Escape handler for every modal in the app, closing the TOP LAYER ONLY.
+   It replaces a hard-coded list of 8 ids plus two single-modal listeners. See topOverlay() /
+   closeTopOverlay() for why the layer is derived from the DOM rather than named.
+   BUBBLE phase, deliberately — a dropdown open INSIDE a modal is a layer too, and Escape must
+   close it first. Those handlers now stopPropagation() when they consume the key, so this one
+   never sees it. Capture would have closed the whole modal out from under an open combobox.
+   The dashboard scope popover keeps its own listener: it is a popover, not an overlay, and is
+   not in this set. */
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape') return;
+  if(closeTopOverlay()) e.preventDefault();
+});
 updateLastImport(); updateEditTag();
 
 
