@@ -68,10 +68,11 @@ Shipped 10 Aug 2026 as **`ezplate-v136`**. See the done section for what landed.
 ## done  F1b - Shell reconcile + the modal/sheet primitive
 Shipped 10 Aug 2026 as **`ezplate-v137`**. See the done section.
 
-## doing  F2 - Plates (desktop §3.3 + mobile §6, one item)
-Rebuild from the mock: search + category select; Plate (+muted category) | Published (accent when live) | Plate cost. Mobile: two-line rows, name + "category, on X menu" meta, cost right.
-**R2, recorded now:** the mock's row-click opens the Builder, but publishing still lives OUTSIDE the builder until F7 rehouses it - flipping the click here would orphan Publish/Print/Delete (§11.6). So this item wires the existing action chooser to the new rows, and **F7 flips the click**; the pinning spec is consciously changed there, not here.
-§4 criteria are the definition of done.
+## done  F2 - Plates (desktop §3.3 + mobile §6, one item)
+Shipped 10 Aug 2026 as **`ezplate-v138`**. See the done section.
+
+⚠️ **Read this before F3.** The F-items describe the LIST and nothing else, so a batch can rebuild the table, satisfy every criterion the item names, and leave the screen's header and control row wearing v3 tokens over old markup - the hybrid §2 forbids. On F2 those two were the larger half of the CSS. **Every F-item includes its screen's header bar and its filter/search row**, with the screen's own classes: `.ing-controls`, `.menu-search`, `.ing-filter`, `.ms-clear` and `.panel` are all still dressing unconverted screens, so restyling any of them converts a screen by accident.
+`.scr-head` (title + muted subtitle + one right-aligned action) is built and is the shared §2 header bar - reuse it, do not rebuild it. `.plib-panel`'s card-suppression rule is the pattern for dropping the old `.panel` card per screen; when the last screen converts, the base `.panel` rule goes.
 
 ## next  F3 - Ingredients (desktop §3.4 + mobile §6, one item)
 Ingredient | Category | Unit cost | 30-day change (pill or muted "steady") | Used in N plates.
@@ -364,6 +365,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **F2 - Plates, the first screen REBUILT from the mock** - shipped 10 Aug 2026 as **`ezplate-v138`** (PR #123), handover `HANDOVER-146-plates.md`.
+  The screen owns its markup and its `.plib-*` classes instead of borrowing the Products `.ing-card` system under twenty `#plateList` overrides, so F4 converts Products without unpicking them. Desktop: the mock's header bar (title + computed "6 plates, 1 not costed, 2 unpublished" + New plate), search + category select, bordered table with a column band at `minmax(0,1fr) 170px 120px`. Mobile: two-line rows, "category, on Winter Menu" meta, mono money right, 56px floor, no container. One breakpoint, 768.
+  **Rulings at the code:** R1 "not costed" and 640→768 · R2 the row still opens the ACTION CHOOSER, **F7 flips it** · R2 the 44px floor beats the mock's 31/36px except under `(pointer:fine)` · R2 loading IS the boot gate (v108 exists so no screen paints before the server answers; a per-screen skeleton contradicts it and is unreachable behind the gate) · R3 Clear filters and the search × survive (no native clear on iOS Safari) · R4 no permission-denied state, there is no auth.
+  **Four defects found by MEASURING, none by reasoning:** the header gutter was wrong in the 561-767 band only (the app steps at 560, v3 steps at 768, and nothing had measured between them); `.plib-note{display:block}` outranked the UA's `[hidden]` so the footnote sat under both empty states; a trailing space in CSS `content` collapses ("Breakfast,on Winter Menu" on the phone); the true-empty state showed an option-less category select because `fillFilter` runs only on the rows-present branch.
+  **Twelve planted defects, two of which caught real bugs rather than confirming fixes** - second batch running that planting has paid. Specs rewritten honestly: `layout-consistency.spec.js` now compares the UNCONVERTED set (its "all five tabs share one skeleton" premise is superseded by the fold-in) and gains a left-edge test for converted ones; `v135-plates.spec.js` → `v138-plates.spec.js`. Review: no defects, one fragility fixed (`.scr-head > h2` tied `.panel h2` on specificity; now `.panel > .scr-head > h2`, pinned).
 
 - **F1b - Shell reconcile + the modal/sheet primitive** - shipped 10 Aug 2026 as **`ezplate-v137`**, handover `HANDOVER-145-shell-modal.md`.
   **Escape now closes the TOP LAYER ONLY, derived from the DOM** (`topOverlay()`: highest computed z-index among `.modal-overlay.open`, tie-broken by document order — the two rules the browser itself paints by). It replaces a hard-coded list of 8 ids plus two single-modal listeners, and closes through each overlay's own `.mhead > .x`, so every modal keeps its real close function — `closeConfirm` clears `__confirmFn`, which the old bare `hide()` leaked. **Self-maintaining: a new modal with a × is covered by construction.** The 8 modals that had no Escape at all now have one. **Focus trap + return-to-opener exist for the first time**, including handing focus back to the layer underneath when the top of a stack closes.
