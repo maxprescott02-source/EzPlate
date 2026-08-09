@@ -50,8 +50,10 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## doing  V4b - Plates (spec §3.3)
-Search + category select · Plate (+muted category) | Published (accent when live) | Plate cost · row click opens the builder (whatever shape the builder is when this runs).
+## next  project-audit - RUN AND FILE (triggered at gap 10: sw.js v135 vs AUDIT-v125)
+Problem: the /batch loop's audit counter fired - ten deploy versions since the last audit.
+Requirements: run the project-audit agent (read-only), then FILE its report yourself to `docs/audits/AUDIT-v135.md` - the agent hands the report back and an unfiled report leaves the counter stuck.
+Note the batch context: five v3-phase batches (V1, V2+V3, V4a, V4b + the verdict cell) shipped in one overnight run with per-batch adversarial reviews; the audit should check the phase's standing rules held (tokens consumed not hardcoded, ids/data-tab preserved, no dead CSS shipped, deviations recorded at the code).
 
 ## next  V4c - Ingredients (spec §3.4)
 Ingredient | Category | Unit cost | 30-day change (pill or muted "steady") | Used in N plates.
@@ -328,6 +330,9 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **V4b - Plates library** - shipped 9 Aug 2026 as **`ezplate-v135`** (PR #117), handover `HANDOVER-142-plates.md`.
+  Column band at ≥640 (rows-present branches only); published-in-accent confirmed as v55's shipped colour (the diff's re-declaration was a review-caught no-op). The review MEASURED the band misaligned with its rows (per-container max-content) and a pre-existing 27px row-to-row drift behind a false Q4 comment - both fixed with shared fixed tracks. **The "row click opens the builder" bullet is DEFERRED to V5** (it would orphan Publish/Print/Delete, §11.6) - pinned in `v135-plates.spec.js` and carried on V5's item.
 
 - **KPI delta pill: DECIDED NO (Max, 9 Aug 2026, `docs/decisions/2026-08-09-ANSWERS.md` Q1).** The v98 deletion now stands twice-decided; the chart is the one trend surface. Closed without building. Do not re-propose.
 
