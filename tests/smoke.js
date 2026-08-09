@@ -122,9 +122,26 @@ $('setAiInvoiceChk').checked = true; $('setAiInvoiceChk').dispatchEvent(new wind
 $('setAiSuggestChk').checked = false; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));
 ok('turning AI suggestions off removes the Dashboard insights panel', !window.document.querySelector('#dashBody .dash-ins') && window.aiSuggestions === false);
 $('setAiSuggestChk').checked = true; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));   // restore ON
-// v132: light only — the theme segment is GONE from Settings and no theme machinery survives
-ok('v132: no theme segment in Settings (light only)', !window.document.querySelector('#settingsPanel .seg-btn[data-theme-pref]'));
-ok('v132: no forced theme attribute and no stored theme key', !window.document.documentElement.getAttribute('data-theme') && !window.localStorage.getItem('cafeCost_theme'));
+// v136 (F1a): dark returns — these two assertions pinned its absence and are rewritten,
+// not dropped. They now drive the live mechanism rather than reading the markup.
+ok('v136: all three theme choices are in Settings', window.document.querySelectorAll('#settingsPanel .seg-btn[data-theme-pref]').length === 3);
+(function(){
+  var root = window.document.documentElement;
+  window.applyThemePref('dark');
+  ok('v136: choosing Dark applies the attribute and stores the preference',
+     root.getAttribute('data-theme') === 'dark' && window.localStorage.getItem('cafeCost_theme') === 'dark');
+  window.syncThemeSeg();
+  ok('v136: the segment reflects the stored choice',
+     $('setThemeDark').getAttribute('aria-checked') === 'true' && $('setThemeSystem').getAttribute('aria-checked') === 'false');
+  window.applyThemePref('system');
+  // The pair that matters: 'system' clears the KEY but must still leave an EXPLICIT
+  // attribute. Leaving 'dark' behind would strand the app in dark; removing the attribute
+  // would re-open the every-rule-written-twice bug class the CSS no longer guards against.
+  ok('v136: System clears the stored key but still writes an explicit attribute',
+     !window.localStorage.getItem('cafeCost_theme') && /^(light|dark)$/.test(root.getAttribute('data-theme') || ''));
+  window.applyThemePref('light');
+  ok('v136: switching back to Light leaves no stale dark attribute', root.getAttribute('data-theme') === 'light');
+})();
 $('settingsDone').click();
 
 console.log('\n[4] item 6 — backup export');

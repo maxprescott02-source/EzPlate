@@ -281,8 +281,20 @@ test('one elevation token: every card is flat — v3 draws no card shadows @ 128
 // the earned credit) and always draws the deeper-luminance variant — the stock stops washed
 // out at 16px. Computed fill, not source: what matters is which gradient actually wins.
 // (The dark half of this pin died with dark mode, v132.) ----
-test('the sparkle draws the deep gradient (light only since v132)', async ({ page }) => {
+/* v136: dark returned, so this pins the PAIR rather than the light half. The deepened stops
+   exist because the light page is pale; on the dark canvas they are the ones that vanish.
+   Asserting both directions is what makes this fail if a future batch collapses the pair back
+   to one gradient — asserting light alone passed happily through all of v132-v135, when the
+   dark selector had in fact been deleted. */
+test('the sparkle pairs its gradient to the theme: deep on light, stock on dark', async ({ page }) => {
   await boot(page, 1280, 6, 'light');
-  const fill = await page.evaluate(() => getComputedStyle(document.querySelector('.ins-spark path')).fill);
-  expect(fill, 'the deepened stops win').toContain('ezSparkGradDeep');
+  const light = await page.evaluate(() => getComputedStyle(document.querySelector('.ins-spark path')).fill);
+  expect(light, 'the deepened stops win on the pale page').toContain('ezSparkGradDeep');
+
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  const dark = await page.evaluate(() => getComputedStyle(document.querySelector('.ins-spark path')).fill);
+  // NB 'ezSparkGradDeep' also contains 'ezSparkGrad', so a toContain here would pass against
+  // the very code this is meant to catch. Match the id terminated by its closing paren.
+  expect(dark, 'dark takes the stock brighter stops').toMatch(/ezSparkGrad["')]/);
+  expect(dark, 'and specifically NOT the deep variant, which disappears on a dark canvas').not.toContain('Deep');
 });

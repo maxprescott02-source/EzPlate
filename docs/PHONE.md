@@ -11,11 +11,47 @@ Production state below is measured, not assumed.
 
 ---
 
+## v136 - dark mode is BACK, and Settings now has a Light / Dark / System control
+
+⚠️ **This reverses what the v132-v135 block below tells you.** That block says dark mode is gone
+and the app should come up light. It was correct when written; the replacement design package
+ships both palettes and the protocol orders both ported, so the condition you set on 9 Aug
+("light only until a designed dark package exists") is **met**, not overruled. Read this block
+first and treat the "dark mode is gone" bullet below as history.
+
+- **Find it:** Settings → General → Theme. Three choices. **System** is the default and follows
+  your phone.
+- **The one thing only your phone can settle: does dark actually read in the kitchen?** The
+  palette is deliberately soft grey (`#232528` canvas, `#1E1F22` sidebar), not black. On an OLED
+  that choice can look washed out where black would look crisp — or it can look right and black
+  would glare at 5am. Every text/background pair was measured against WCAG AA in a real browser,
+  so this is **not** a contrast question; it is a "does it feel right on the real screen" question.
+  Failure: you find yourself squinting, or you switch it back to Light within a day.
+- **The theme must not flash on boot.** The theme is resolved before the first frame paints.
+  Failure: any flash of white before dark appears (or vice versa) when you open the installed PWA
+  cold. That is the single most likely real defect here and an emulator will not show it honestly.
+- **The PWA title bar / status bar should match the app's canvas**, and must follow **your
+  choice**, not the phone's setting. The specific case to try: **set your phone to dark, then
+  choose Light in Settings.** Failure: a near-black title bar sitting above a white app. (This
+  exact bug existed in v132 and again briefly in this batch; it is fixed and pinned, but only a
+  real installed PWA proves the title bar.)
+- **"System" should flip live.** With System selected, change your phone's appearance (or let it
+  switch at sunset) **without reopening the app**. It should follow immediately. Before this batch
+  it only read the setting at boot, which for a once-a-week user meant sitting in the wrong theme
+  for days. Failure: it stays on the old theme until you reopen.
+- **Native controls in dark.** Open a `<select>` — Settings → GST default is the quickest. The
+  popup list should be dark. Failure: a white popup list over the dark app (this is the
+  `color-scheme` fix; iOS Safari is the one that most often ignores it).
+- **The empty-state drawings in dark.** The clearest is the plate builder with no ingredients
+  added. The line art should be visible grey, not a near-invisible dark-on-dark smudge.
+- **Printing while in dark mode.** Print a plate docket with the app in dark. The paper must come
+  out white with black text. Failure: any dark background on the printout.
+
 ## v132-v135 - the v3 repaint reached your phone (AUDIT-v135 D2: nobody asked you to look)
 
 - **Every screen now wears the v3 look on the phone too:** white canvas, flat bordered cards, the Geist typeface, and NO dark mode (your call, 9 Aug - light only until a designed dark package exists). The mobile LAYOUTS are unchanged until V9; the paint and type are not.
   Failure: the typeface renders badly at small sizes on the real screen, contrast suffers on the real OLED in kitchen light, or you simply miss dark mode - all three are device judgements no emulator settles.
-- **If you used dark mode:** it is gone, and the app should come up light with no flash of the old theme. Failure: a stale dark flash at boot, or the PWA title bar clashing with the white app.
+- ~~**If you used dark mode:** it is gone~~ — **SUPERSEDED by the v136 block above, 10 Aug 2026.** Dark returned with the replacement design package. Struck rather than deleted so the reversal is visible: this said dark was gone, and it is not.
 - **The Menu tab at ≥1024 only (iPad landscape):** switcher pills replace the menu dropdown. A 6th menu makes the pills stand down and the dropdown return, with no copy explaining the swap - **say if that reads as breakage** (it is one line of copy or an earlier overflow design if so).
 - **The mobile Menu verdict cell** says "42.9% · over" with no visible word "target" (the column header is hidden on phones; the aria-label carries it). The v133 review flagged it as possibly reading as "42.9% over [something else]". Failure: you misread it even once. V9 is where the fix would land.
 
