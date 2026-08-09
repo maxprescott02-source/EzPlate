@@ -34,94 +34,102 @@ Suite green (0 fail) at reconcile time.
 
 ---
 
-# THE V3 REDESIGN PHASE (added 9 Aug 2026 from Max's v3 package)
+# THE V3 FOLD-IN (queue reset 10 Aug 2026 per FOLD-IN-PROTOCOL.md §0a/§0b)
 
-**The spec: `docs/design_handoff_ezplate_redesign/V3-Design-Package.md`**, with two mocks (`Redesign v3 - SaaS.dc.html` desktop, `Redesign v3 - Mobile.dc.html` mobile, both rendered by `support.js`).
-**It supersedes every v1/v2 mock and the previous phase's remaining screen guidance** - the v2 screen batches (Q2-Q9) all shipped and live in done. The older `.dc.html` files stay on disk as reference; the only item still keyed to one is G2, because the v3 package has no tablet spec and the addendum's §17 remains the only one.
-**Spec §11 (the fold-in playbook) is the law of this phase**: a reskin plus layout migration, not a rewrite. Audit each screen's handlers/reads/writes BEFORE touching it and that list is the contract. Mock is layout truth, code is behavior truth. Features are queued to FUNCTION, never shipped as UI shells.
+**The law of this phase: `docs/design_handoff_ezplate_redesign/FOLD-IN-PROTOCOL.md`.** It supersedes spec §11 (where they disagree, the protocol wins). The spec is `V3-Design-Package.md`; the mocks are `Redesign v3 - SaaS.dc.html` (desktop, 10 screens + 4 modals, light AND dark) and `Redesign v3 - Mobile.dc.html` (9 screens + sheets). Both were clicked through screen-by-screen on 10 Aug 2026 before this reset.
 
-**Three decisions, asked and answered by Max on 9 Aug 2026 (all three recommendations taken):**
-1. **The builder becomes a FULL PAGE (V5). This REVERSES Max's 8 Aug modal decision - explicitly, not quietly:** the 8 Aug history, the against-advice flag and Q6's shipped modal redesign were all on the table when he chose. The v3 shell (sidebar, breadcrumbs, full-screen mobile pushes) makes the page the native pattern and the 1040px two-column layout does not fit a modal. `CLAUDE.md` Tier 2 still says "the builder IS a MODAL"; **updating that line ships with V5** - the yes given here covers that edit.
-2. **Light theme only, per the spec.** The Light/Dark/System control, the dark token set and the boot `data-theme` restore come out in V1; `cafeCost_theme` is actively removed at boot (the v130 stale-key pattern). Dark can return later as its own designed package - not as per-screen guesses against a light-only spec.
-3. **Geist / Geist Mono self-hosted** - woff2 files committed, `@font-face` in CSS, the Google Fonts preconnect/`<link>` removed (offline-friendly, nothing new fetched at runtime). The new-dependency yes is given.
+**The direction INVERTED (§0):** the previous pass applied new styling to old markup - skinning, per the old §11's own instructions. The protocol calls the result a hybrid and it is - though the record should stay straight: the pass was not abandoned mid-screen. Five whole batches shipped green and reviewed (V1 tokens/shell, V2+V3 table+dashboard, V4a Menu, V4b Plates = `ezplate-v132`-`v135`); they are hybrids by the new definition (old IA, new paint), not broken halves.
+The new law: **the mock is truth for structure, hierarchy and interaction; the app is truth for data, business rules and side effects. Each screen's view layer is REBUILT from the mock and re-attached to the existing logic - never restyled in place.** A screen is fully v3 or fully untouched. The old stylesheet is scoped to a `.legacy` wrapper on unconverted screens; a converted screen deletes its old markup and CSS in the same change; when `.legacy` has no children left, the old stylesheet dies.
 
-**Already shipped and confirmed by the spec - no work:** menu-scope dropdown (v129), no density toggle (v130), the invoice-review invariants (§8 matches the shipped `invConfirmState`/auto-tick law).
+**§0a's REVERT IS OVERRIDDEN (Max, 10 Aug 2026): no reset pass, no clean starting line.** The fold-in proceeds from the current shipped state (v135). The V1-V4b paint STAYS until each screen's F-item rebuilds that screen from the mock - a skinned screen is treated exactly like an old screen: fully replaced when its turn comes, never patched further. So §2 binds FORWARD: no NEW skinning, no screen ever half-converted by an F-item; the already-skinned screens are a known, listed, shrinking set (Dashboard, Menu, Plates carry v13x paint), and conversion state is read from this queue and the `.legacy` wrapper, not from the paint. The protocol file carries a dated amendment saying the same, so no future session runs §0a's revert off the raw document.
 
-**Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
-one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
+**Conflicts walk the §3 rubric (R1 presentational→mock wins · R2 real constraint→old behaviour in new dress · R3 dropped control→rehome, never delete · R4 missing backend→build what exists, spec the rest, never a dead control · R5 tie→mock wins, note the loss) and the rule number is recorded here.**
+
+**What survives of the 9 Aug decisions:** builder-as-full-page STANDS (rides F7, with the CLAUDE.md "IS a MODAL" edit). **Light-only is SUPERSEDED** - the replacement package ships light + dark and protocol §6 orders both ported verbatim (`data-theme` switch, persisted, OS default); do not cite the 9 Aug answer against it. Geist self-hosted STANDS - already shipped in v132 and stays.
+
+**Standing rules, unchanged by the reset:** naming inversion holds (UI labels "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder` internals - only human-read text changes) · protected parser region untouched · **list every handler, data read/write and edge case BEFORE touching a screen; that list is the contract (§5) - keep the ids/data hooks the surviving JS reads, or move the handler deliberately; never discover behaviour by deleting it** · six-spot cache bump per shipping batch · `npm test` + Playwright green per batch (specs pinning old layouts are rewritten honestly in the same change, never deleted to go green) · one screen per change set, one PR, one review; never mix shell work with screen work · §4's last bullet is §11.6's law: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit, or carries a written R3/R4 reason.
+
+**§4 acceptance criteria = the definition of done for EVERY F-screen below** (check them off in the PR): structure matches the mock side-by-side at 1360×900 (same regions in order; row grammar identity-left, mono-figures-right, status-pill-rightmost) · every colour/border/shadow from a token, ZERO hard-coded hex in screen code · Geist for UI, Geist Mono `tabular-nums` for every number · all five states (loading skeleton, empty, error, first-run, permission denied) exist and are v3-styled · mobile counterpart converted in the SAME item per the §6.1 parity map · old component + CSS deleted in the same change · focus ring on every interactive; modals trap focus and close on Esc · no behaviour regression without a logged reason.
 
 ## blocked  CLAUDE.md corrections from AUDIT-v135 (five lines + one candidate trap)
 Problem: the audit verified ~60 CLAUDE.md claims; five are wrong or stale, and one recurring lesson has earned Tier 1 candidacy. Rules there change only with Max's yes.
 The corrections (full evidence in `docs/audits/AUDIT-v135.md` §2a):
 1. **S1 (the important one):** `pushWrite` "resolves to ... `null` when offline" - NO null path exists; offline resolves `{error}`. A batch following the doc would sequence a dependent write after a failure. The `null` contract belongs to `dbPushMenuAfterPlate`.
 2. **S2:** "drops writes silently when fully offline" - the drop is real, "silently" is false (the fail handler toasts "It has NOT been saved").
-3. **S3 + C1:** "The dropdown placement work is therefore UNBLOCKED - the positioning context is already final" - both halves false since the 9 Aug reversal (dropdowns are Do-after-V6; V5 rehouses the builder). The planned V5 edit covers only the "IS a MODAL" line, not this sentence - fold this into V5's edit or fix now.
+3. **S3 + C1:** "The dropdown placement work is therefore UNBLOCKED - the positioning context is already final" - both halves false since the 9 Aug reversal (dropdowns are Do-after the floating-layers item, now F10-gated; F7 rehouses the builder). The planned builder-batch edit covers only the "IS a MODAL" line, not this sentence - fold it into F7's edit or fix now. (V5/V6 references re-pointed 10 Aug 2026 at the queue reset.)
 4. **S5/D4 (second audit in a row):** name `cafeDB_plateDraft` as the known exception to "localStorage ... never data" (it is authored content, bound to DRAFTKEY so a literal grep misses it).
 5. **R3 candidate Tier 1 entry:** "a stub that mirrors a real function must mirror its CONTRACT - extract the real function instead" - four incidents (v113, and three consecutive batches 139-141), same remedy each time, never written as a rule.
 Blocked on: Max - a one-word yes covers 1-4 as the same stale-line class as HANDOVER-133; say separately if 5 (a NEW rule) gets in.
 
-## next  V4c - Ingredients (spec §3.4)
+## next  F1 - Shell: reconcile what shipped, complete what's missing (tokens light + dark, sidebar, header bar, page container, modal/sheet primitive)
+**§0a's revert is overridden (Max, 10 Aug 2026)** - this item starts from the shipped v132 shell and applies §0a.3's own test to it: keep shell work only where it is genuinely correct against the mock; correct the rest. No screens in this item.
+- **Tokens:** diff the shipped `:root` block against the SaaS mock's current one and reconcile; port `html[data-theme="dark"]` verbatim. The v132 deviations were deliberate and recorded at the code (AA-corrected muted/bad values - the spec's own §7 AA claim failed measurement; weights normalised to the four real faces) - re-decide each against the NEW mock per R2/R5 and record the outcome; neither silently drop them nor silently keep them.
+- **Theme switch:** `document.documentElement.dataset.theme`, persisted, defaulting to the OS preference. Dark stays soft grey per protocol §6 - never "fixed" toward black. This consciously unwinds v132's removal of the theme machinery: the stored key returns as a live view preference (localStorage is legal for it - Tier 2).
+- **Shell:** sidebar (bottom group: Invoices, Settings, account row), 48px header bars, page container - checked against the mock and corrected, not rebuilt for its own sake.
+- **Modal/sheet primitive:** NEW - centered 12vh modal ≥768, bottom sheet <768, scrim + × + Esc. **This is where the two carried modal defects die:** Esc must close the TOP layer only (today `js/app.js:7503` + two parallel listeners close ALL stacked modals in one press), and focus trap + return-to-opener must exist (today nowhere). Build both in; don't drop them again.
+- Fonts shipped in v132 and stand. Motion: verify the shipped §1.4 set (entry rise + stagger, hover/press, shimmer) against the mock, add the sheet slide - all CSS, all behind `prefers-reduced-motion`.
+Note for the §5 states everywhere: the one-ring wait language (boot/PTR/invoice) was DECLINED for replacement in v115 and still sits on `docs/PHONE.md` for Max - §5's "no spinners" does not kill it silently; if the ring goes it goes by his call.
+
+## next  F2 - Plates (desktop §3.3 + mobile §6, one item)
+Rebuild from the mock: search + category select; Plate (+muted category) | Published (accent when live) | Plate cost. Mobile: two-line rows, name + "category, on X menu" meta, cost right.
+**R2, recorded now:** the mock's row-click opens the Builder, but publishing still lives OUTSIDE the builder until F7 rehouses it - flipping the click here would orphan Publish/Print/Delete (§11.6). So this item wires the existing action chooser to the new rows, and **F7 flips the click**; the pinning spec is consciously changed there, not here.
+§4 criteria are the definition of done.
+
+## next  F3 - Ingredients (desktop §3.4 + mobile §6, one item)
 Ingredient | Category | Unit cost | 30-day change (pill or muted "steady") | Used in N plates.
-Keep v124's substance: `ingLastMovePct` is the change rule; broken-link states stay loud.
-**§11.1 contract banked at `docs/contracts/V4c-ingredients-contract.md` (9 Aug 2026) - read it FIRST; it is the restyle's contract and it corrected this item:** the old text here said "Used in N plates counts BOTH line shapes - the both-sides law at productRefs", which contradicts the shipped v124 law. The RELINK-PROMISE string stays kid-arm only (a relink cannot heal a bare-pid line; the v124 review caught that lie once already). A neutral usage COLUMN, if added, may count both via `productRefs` - decide per surface and record it.
-**R1 (AUDIT-v135): `.king-row`'s ≥640 grid ends in `max-content` - the SAME per-container drift the v135 review measured on Plates (fixed twice now: v125 qtybox, v135 band). Fix it to a fixed track IN THIS BATCH, before the band goes on top, and reconcile `.tbl-head` here if this batch consumes it (the css:3222 warning V4a left unanswered).**
-Also from the contract: re-adding a Category column reverses a recorded Q5 decision (turns `king-rows.test.js:85` red - flip it consciously); the drift badge is "last logged move", NOT a 30-day window (changing that breaks the row/What-moved agreement invariant); a steady row currently renders nothing where the spec wants muted "steady".
+**Read `docs/contracts/V4c-ingredients-contract.md` FIRST - it is this screen's §5 handler/read/write contract, already banked:** the drift badge reads `ingLastMovePct` = LAST LOGGED MOVE, not a true 30-day window (changing that breaks the row/What-moved agreement invariant); broken-link states stay loud ("⚠ product missing - relink to keep N plates costed"); the RELINK-PROMISE string stays kid-arm only (a relink cannot heal a bare-pid line - the v124 review caught that lie once); a usage COLUMN may count both arms via `productRefs` - decide per surface and record it. R1: the mock's Category column reverses a recorded Q5 decision and turns `king-rows.test.js:85` red - the mock wins, flip the pin consciously and note it. Muted "steady" replaces today's rendering of nothing.
+§4 criteria are the definition of done.
 
-## next  V4d - Products (spec §3.5)
-**R1 (AUDIT-v135): `#ingList`'s 640-899 band grid uses a `max-content` middle track - the per-container drift mechanism, third live instance. Fix to fixed tracks when the band lands here.**
-Search + supplier select · Product (+muted brand) | Category | Supplier | Pack price | Last change. Keep v99's price-basis visibility rule (the label renders exactly when the figure lacks the basis, v126's dedupe).
+## next  F4 - Products (desktop §3.5 + mobile §6, one item)
+Search + supplier select · Product (+muted brand) | Category | Supplier | Pack price | Last change. Mobile: sub-screen under More, back chevron "‹ More", never a dead end.
+R2: keep v99's price-basis visibility law (the basis label renders exactly when the figure lacks it - v126's dedupe); the mock doesn't know basis-less figures exist.
+§4 criteria are the definition of done.
 
-## next  V4e - Invoices screen (spec §3.6)
-Dashed dropzone + the import entry point moves here. ⚠️ **The "recent imports" table has NO backing store - nothing records an import today.** Ship the dropzone and either a visibly-stubbed recents area or none (§11.4); the store is the "Invoice import history" feature item below, queued to function. Do not invent a per-session fake.
+## next  F5 - Menu (desktop §3.2 + mobile §6, one item)
+Switcher pills (active = tinted + border, mono %) with "N more ▾" overflow at >5 menus, search right; grouped table (uppercase group rows) Plate | Cost | Suggested at 40% | Price | Food cost pill; not-costed row muted with "cost it" pill. Mobile: two-line rows, price + pill stacked right, Switch control in the header.
+R2 carries: the light is `analyze()`'s law on every surface - preview, chips and row can never disagree. R4 check on "cost it": v122 dropped the arrow because no route to the builder existed; wire it honestly to the F2/F7 row-click route or keep the honest muted dash - never a control that does nothing. The "N more ▾" overflow is a real floating layer - if it can't be built cleanly before the floating-layers item, R4-log it visibly rather than half-build.
+§4 criteria are the definition of done.
 
-## next  V5 - Builder full page (§10.5; spec §3.7; decision 1 - THE REVERSAL)
-Modal → full-screen page: breadcrumb "Plates /", left ingredient table with add-ingredient footer row, 300px right rail (cost card: plate cost, suggested, price input, amber under-suggested guidance banner; publishing card: menu + category selects).
-This is a RE-HOUSING, not a rebuild: keep every id (`#builderModal` may live on as the page container's id - never rename), the draft machinery (`isBuilderDirty`, `guardUnfinishedPlate`), `#lines`/`#total`, and Q6's cost-panel logic (`renderBuilderCost`, `menuMarginPreview`).
-**Inherited from V4b (v135): the Plates row-click still opens the ACTION CHOOSER** - flipping it to open the builder is THIS batch's job, and only once publishing lives in the builder page (otherwise Publish/Print/Delete are orphaned, §11.6). `tests/visual/v135-plates.spec.js` pins the current behaviour and must be consciously changed here. Mobile is already a full-screen takeover, so <768 mostly restyles; the sticky bottom summary bar (plate cost + suggested + price action) replaces the current footer per §6.
-"Saved just now" wording is server-confirmed only - it renders when `pushWrite`'s promise settles ok, never optimistically (an occasional user would rather be told a thing did not save).
-The mock's Duplicate button and recent-range line are feature items below - stub or skip, never half-ship (§11.4).
-**Ships the `CLAUDE.md` Tier 2 edit** ("builder IS a MODAL" → the 9 Aug full-page decision, dated, with the reversal history). The old "recent range" from `priceHistory` stays queued.
+## next  F6 - Dashboard (desktop §3.1 + mobile §6, one item)
+KPI strip (3 cells, internal hairlines), trend chart (red line, shaded over-target band, dashed 40% line, orange ring markers + mono annotations on user changes), Needs-attention briefing (read-only rows, bold lead + ONE link each, credit "Phrased by Gemini, computed by EzPlate", reveal law untouched), What moved / Dig in two-up, menu-scope dropdown in the header (ranked, mono %, colour-coded - v129's substance re-housed). Mobile: hero 44 mono + delta pill + one-sentence context, simplified sparkline, stacked cards.
+R2 carries: chart colour anchors to the TARGET (`trend-reframe` law - rising-under stays green, falling-over stays red); the since-line renders at all-menus scope only (arithmetic across two series fabricates movement); per-publication counting is DECIDED, not a bug. First-run IS this screen's empty state: the path card replaces the verdict hero while nothing is costed, derived from data, no stored flag.
+§4 criteria are the definition of done.
 
-## next  V6 - Modals + sheets (§10.6; spec §4)
-Upload-invoice 3-step modal as a RESTYLE of the shipped review flow - the `invConfirmState` law, auto-tick rule, pack-teach/chips machinery and watchdog all untouched; regression tests first per `CLAUDE.md` fragile areas. New-plate modal. Scrim/Esc/centering conventions. <768: modals become bottom sheets per §6.
-Delete-workspace modal is NOT built (multi-tenant phase). The command palette arrives with its feature item, not here.
-⚠️ Two carried defects land here, where the modal system is open: **Esc closes ALL stacked modals in one press** (`js/app.js:7503` + two parallel Esc listeners; §7 wants top layer only), and **focus trap + return-to-opener exists nowhere** - build it into the shared modal/sheet shell or give it its own item, don't drop it again.
+## next  F7 - Plate Builder (desktop §3.7 + mobile §6, one item - full page; the 9 Aug reversal STANDS)
+Modal → full-screen page: breadcrumb "Plates /", header = plate name + live food-cost pill + saved state + Duplicate*, left ingredient table (Ingredient | Qty input mono | Unit | Cost | Remove) with add-ingredient footer row, 300px right rail (Cost card: plate cost, recent range*, suggested at 40%, menu price input, amber under-suggested guidance; Publishing card: menu + category selects). Mobile: full-screen push "‹ Plates", sticky bottom summary bar (plate cost + suggested + set-price action) above the tab bar.
+Re-attach, never rediscover: the draft machinery (`isBuilderDirty`, `guardUnfinishedPlate`), `#lines`/`#total`, `renderBuilderCost`/`menuMarginPreview`, and the plate↔dish link laws (`plateIdOf`/`plateForMenuItem`/`dishesOfPlate`/`menusOfPlate` only). "Saved just now" renders only when `pushWrite`'s settled promise is ok - never optimistically (the occasional user would rather be told a thing did not save).
+**This item flips the Plates row-click to open the builder** (F2's R2 note) - publishing lives here now, so nothing orphans; the pinning spec is consciously changed in this change.
+*Duplicate and recent-range are behaviour specs below (R4): visibly disabled with a reason, or absent - never decorative.
+**Ships the `CLAUDE.md` Tier 2 edit** ("builder IS a MODAL" → the full-page decision, dated, with the full reversal history) plus the S3/C1 dropdown-sentence correction if the blocked audit item hasn't landed it first.
+§4 criteria are the definition of done.
 
-## next  V7 - Settings (§10.7; spec §3.8)
-Section cards per the mock, mapped onto the settings that EXIST (Costing: target % + GST switch; Data: the JSON backup/restore, restyled). §11.1 audit first: anything the mock shows that the app lacks (business name, currency, notification toggles - there is no notification system) is stubbed visibly or skipped and queued, not silently invented. Switches 38×22, orange on.
-"CSV export" is a feature item below; "Delete workspace" is multi-tenant. The Account screen (spec §3.9: Team, Plan, billing) is NOT built in this phase - it describes a product state (auth, roles, billing) that does not exist; it lives in the multi-tenant phase.
+## next  F8 - Invoices (desktop §3.6 + mobile §6, one item)
+Dashed dropzone + the upload entry point; the upload modal/sheet's 3 steps (choose → scanning → review) with §4's exact copy ("Nothing changes without your review"), mobile sheet leading with "Take a photo"*. **The review step is a RESTYLE of the shipped flow** - `invConfirmState` law, auto-tick rule (only `'matched'` pre-ticks), pack-teach/chips/price machinery, watchdog + `gemToken` bump: all untouched, regression tests first (`CLAUDE.md` fragile area). Inline amber row for unmatched lines (Link / Skip) - never a modal, never blocks the rest.
+**R4, recorded:** the mock's recent-imports table has NO backing store - nothing records an import today. Ship the dropzone and either a visibly-stubbed recents area or none; the store is the behaviour spec below. Never invent a per-session fake.
+*Camera capture is its own behaviour spec below.
+§4 criteria are the definition of done.
 
-## next  V8 - States (§10.8; spec §5) - absorbs G1 and G3 (folded 9 Aug 2026)
-Empty / loading / sync-error / toast / inline-import-error / form-validation per §5, wired to the SHIPPED mechanisms (`toast()`, `#syncBanner`, boot gate, invoice file-failed) - production error wording verbatim, no new error plumbing (that was G1). First-run IS the empty states: Dashboard path card replaces the verdict hero while nothing is costed, state derived from data, no stored flag, gone once a verdict exists; Products first-run leads with invoice import (that was G3). Skeletons match final layout, zero shift.
-⚠️ §5 says "no spinners", but the one-ring wait language (boot/PTR/invoice) was considered and DECLINED for replacement in v115 and still sits on `docs/PHONE.md` for Max to judge - if the ring goes, it goes by his call, not silently under this batch.
+## next  F9 - Settings (desktop §3.8 + mobile §6, one item)
+Section cards mapped onto what EXISTS: Costing (target % number input + GST switch, 38×22 orange-on), Data (the JSON backup/restore, restyled). **R4 for everything else the mock shows** - business name, currency, notification toggles (no notification system exists), CSV export, Delete workspace: each is visibly-stubbed-with-reason, absent, or waits for its behaviour spec - never decorative, never silently invented. Mobile: sub-screen under More, back chevron.
+§4 criteria are the definition of done.
 
-## next  V9 - Mobile (§10.9; spec §6 + §6.1)
-The structural one: the bottom bar becomes Home, Menu, Plates, Ingredients, **More** - Products LEAVES the bar and lands on the new More screen (chevron rows: Products, Invoices, Settings; the mock's workspace/plan card is skipped - no workspace or plan exists). Two-line list rows (56px min), sticky blurred headers, back chevrons on sub-screens (never dead ends), dashboard hero number + simplified sparkline, full-width 50px primaries.
-Keep the `data-tab` machinery under the new bar - More is a navigation layer over the existing tabs, not a rename of anything. **The parity map (§6.1) is the acceptance checklist**: same names, same order, same reading direction as desktop.
+## next  F10 - Account (desktop §3.9 + mobile §6, one item) - expect this to reduce to ONE QUESTION
+⚠️ R4 nearly in full: profile, team, invite, plan and billing describe auth, roles and billing that DO NOT EXIST (the recorded multi-tenant deferral of that machinery stands - see the multi-tenant section). Per §5's stop-and-ask: when this item is reached, put the one question to Max with a recommendation - ship a minimal honest screen for what exists today, or leave Account entirely to the multi-tenant phase and let More/sidebar omit it. Do not build UI shells for absent capabilities either way.
+§4 criteria apply to whatever ships.
 
-## next  V10 - Keyboard/focus + system sweep (§10.10; spec §7 - absorbs the old Q10)
-Last on purpose - it codifies what V1-V9 establish. Focus-visible outlines everywhere (never removed), Esc/Enter conventions, AA contrast, one primary per region, disabled = tinted + not-allowed (never invisible). Bind ⌘K only once the palette feature exists - never a dead chord.
-Carried from the old Q10's measured notes (v128 session), the parts still live after v3:
-> - Line numbers below predate the v3 batches by construction - re-grep by NAME.
-> - Focus ring missing on `.misc-name` (rule kills it on :focus, colour-only underline left).
-> - Row `aria-label`s: `king-row`'s label OVERRIDES its content (price + drift never announced); Products rows announce a run-on string. Decide the screen-wide rule; the `vbadge` aria is the good example.
-> - The old palette's contrast-floor violation list and the 3.74:1 selected-idiom pair die with the old palette in V1. **§7 CLAIMS every v3 pill pair is AA - verify with measured ratios, don't trust the spec's own claim.**
-> - Fold in the queued **unstyled zero-ingredients link** if it has not shipped by then.
-> - `/`-focuses-search: `currentTab()` gives the tab→search-id map; bail when typing or a modal is open. (v3 §7 doesn't ask for it; take it or drop it deliberately.)
-> - Verify `prefers-reduced-motion` still genuinely disables motion after nine batches of new CSS.
-> - The Esc-stacking and focus-trap defects moved to V6, where the modal shell is open.
+## Behaviour specs from the package (§11.5, plus the R4 discoveries above) - each needs its brief before build
+Written as trigger / data / state changes / error path; the mock is referenced for placement only. UI polish never ships as a feature entry; features never ship as pure UI.
+- **Command palette (⌘K)** - Trigger: ⌘K and the sidebar button. Data: the live in-memory arrays (plates, menus, ingredients) + static actions (upload invoice, new plate); no new storage. State: selecting navigates to the screen or opens the action's modal; Esc closes; focus returns to the opener. Error: an honest zero-results row; the chord binds only once the palette exists - never a dead chord.
+- **Invoice apply-step wiring** - Trigger: "Apply N updates" on the review step (F8's dressing). Data: the confirmed rows per `invConfirmState`; counts for the "N price updates, M unchanged" footer. State: exactly the shipped apply path - nothing applies without review (§8). Error: per-line inline amber (Link product / Skip this line); a late AI response is dead by `gemToken` law.
+- **Invoice import history** (feeds F8's recents; R4) - Trigger: apply time. Data: date, supplier, item count, change count, status - a Supabase table with migration + RLS like the others, plus a retention decision. This is DATA, so never localStorage (Tier 2: there is no third category). State: one row per import; "Failed, retry" rows need a decision on whether pre-store failures are recordable at all. Error: a write failure surfaces via `pushWrite`'s toast, and the import itself must not be blocked by history bookkeeping.
+- **Plate Duplicate** (F7's header; R4) - Trigger: the Duplicate button. Data: lines + category cloned into a new UNSAVED plate; name rule to decide. State: publish state NOT copied (a copy published to the same menu would duplicate a dish); interacts with `guardUnfinishedPlate`. Error: unsaved-work guard fires before the clone, not after.
+- **Recent range on the cost card** (F7; R4) - Trigger: cost card render. Data: read-only derivation from `priceHistory`; window and copy to define. State: none - display only. Error: fewer than two points renders nothing, never "$X to $X".
+- **Mobile camera upload** - Trigger: "Take a photo" on the upload sheet. Data: `capture` on the file input, feeding the EXISTING parse path; no new parsing. State: the same 3-step flow. Error: the existing file-failed path, verbatim wording.
+- **CSV export (Settings → Data)** - Trigger: the Data-section button. Data: which objects and columns, to decide. State: a download; nothing else changes. **CSV is an export for humans and NEVER an import path - the JSON backup stays the restore format and the backup-format law is untouched.**
+- **Delete workspace** - recorded and GATED on the multi-tenant phase: no workspace concept exists to delete, so the control does not ship before the capability (R4). The type-to-confirm design is banked in the mock and §4 for when that phase builds it.
 
-## next  G2 - Tablet pass (768-1023)
-Keyed to the OLD addendum (`Redesign - Error, Tablet & First-run.dc.html` §17) - **the v3 package has no tablet spec, so §17's decisions stand**: bottom nav kept, 24px gutters, content max 720px, targets ≥44px, hover only ≥1024 under `@media (hover:hover)`. Its "only per-screen wraps are 1120/1130" line predates the v3 layouts - re-measure, don't quote. Test iPad portrait AND landscape. One PR.
-Do after: **V9** - the tablet band sits between two layouts that both change in this phase.
-
-## Features from the v3 spec - queued to FUNCTION (§11.5), each needs its brief before build
-- **Command palette (⌘K)**: trigger ⌘K + the sidebar button; sources are the live in-memory arrays (plates, menus, ingredients) plus actions (upload invoice, new plate); selecting navigates or opens; Esc closes; no new storage.
-- **Invoice import history** (feeds V4e's recents table): nothing records an import today. Needs a real store - a Supabase table (date, supplier, item count, change count, status) written at apply time, with migration + RLS like the others, and a retention decision. This is DATA, so it is not localStorage (Tier 2: there is no third category).
-- **Plate Duplicate** (builder header): behavior spec needed - clones lines + category into a new UNSAVED plate; name rule; publish state NOT copied (a copy published to the same menu would duplicate a dish). Decide before building.
-- **Recent range on the builder cost card**: read-only derivation from `priceHistory`; define the window and the copy.
-- **Mobile camera upload** (bottom-sheet "Take a photo"): `capture` on the file input feeding the existing parse path; no new parsing.
-- **CSV export (Settings → Data)**: which objects, which columns. The JSON backup already exists and stays the restore format - **the backup-format law is untouched; CSV is an export for humans and NEVER an import path.**
+## superseded  G2 - Tablet pass (768-1023)
+Superseded 10 Aug 2026 at the queue reset: it was keyed to the OLD addendum's §17, and the package replacement deleted its reference mock from disk. v3 defines one breakpoint (<768); 768-1023 renders the desktop layout. If the tablet band looks broken during the phase, that is a stop-and-ask with a recommendation - not a resurrection of §17.
 
 ---
 
@@ -137,7 +145,7 @@ Problem: steps 1 and 2 of the v110 destructive plan were run and passed.
 Step 3 - restoring into a genuinely EMPTY database - never was.
 What it would newly prove is narrow: that an empty table restores as well as a populated one, and how the boot gate reads mid-restore against nothing.
 Requirements: a fresh export taken minutes before, and Max's explicit go on the day.
-**SCHEDULED (Max, 9 Aug 2026, answers file Q2): runs when the v3 redesign phase (V1-V10 + G2) finishes, before any multi-tenant work.** The batch that closes the phase prepares everything and asks for the go.
+**SCHEDULED (Max, 9 Aug 2026, answers file Q2): runs when the v3 fold-in phase (F1-F10) finishes, before any multi-tenant work.** (Was "V1-V10 + G2"; re-pointed 10 Aug 2026 at the queue reset - same phase, new item names.) The batch that closes the phase prepares everything and asks for the go.
 Blocked on: Max's go on the day — the timing question is answered.
 Destructive against real data.
 
@@ -172,7 +180,7 @@ No handover names a shared cause and no Tier 1 entry was ever written, which is 
 `tests/empty-states.test.js` exists but postdates all four, so it pins the current state rather than the thing that kept breaking.
 Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
 Out of scope: a visual redesign of any empty state.
-Do after: **V10** - the empty-state CSS is mid-redesign until the v3 phase lands (V8 redesigns the empty states outright, V9 moves mobile layout), so a root cause named now is named against layout that is still moving. (Was `Do after: Q10`; re-pointed 9 Aug 2026 when the v3 package superseded that sweep.)
+Do after: **F10** - the empty-state CSS is mid-rebuild until the fold-in lands (every screen's §5 states are rebuilt from the mock), so a root cause named now is named against layout that is still moving. (Was Q10, then V10; re-pointed 10 Aug 2026 at the queue reset.)
 
 ## blocked  Re-pin claude-code-action to a release tag
 Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
@@ -206,7 +214,7 @@ Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce anim
 **Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
-Do after: **V6** - the v3 phase restructures every layout a dropdown opens over (sidebar shell, full-page builder, bottom sheets), so doing placement first means doing it twice; V6 is when the layer system settles. (Added 9 Aug 2026 when the v3 package arrived; the same argument previously sequenced this behind Q6.)
+Do after: **F10** - the fold-in rebuilds every layout a dropdown opens over (shell, full-page builder, bottom sheets), so doing placement first means doing it twice; the layer system settles with the last converted screen. (Was V6; re-pointed 10 Aug 2026 at the queue reset. The same argument previously sequenced this behind Q6.)
 (The `Do after: Q6` line was DELETED 9 Aug 2026 by the v125 audit's sweep - Q6 shipped as v125, so the dependency is satisfied and this item is unblocked. The audit noted the line survived one batch past its trigger: the deletion rule works only when the sweep actually runs.)
 **The old prose sequencing here was WRONG and is the reason `Do after:` exists.** It said this waited on "the builder-as-modal conversion landing" - a conversion that had already shipped in **v54**, so the item sat behind a satisfied dependency for two years of versions with nothing able to notice.
 Q6 is a real, checkable prerequisite; that one was not.
@@ -230,7 +238,7 @@ Requirements: each spec either asserts something a user would notice, or is reti
 Downgraded from v111's full 45-test audit.
 Note: Playwright is not in `npm test`, so nothing here fails loudly.
 That is the reason to look, not a reason to defer.
-Do after: **V10** - the redesign keeps forcing honest rewrites of these specs (Q2 alone rewrote `v98-grid.spec.js` wholesale, and the v3 phase will do more), so auditing them now audits specs about to be rewritten anyway. What survives the v3 phase is the set actually worth judging. (Was `Do after: Q10`; re-pointed 9 Aug 2026.)
+Do after: **F10** - the fold-in forces honest rewrites of these specs screen by screen (Q2 alone rewrote `v98-grid.spec.js` wholesale, and rebuilding markup will do far more), so auditing them now audits specs about to be rewritten anyway. What survives the fold-in is the set actually worth judging. (Was Q10, then V10; re-pointed 10 Aug 2026 at the queue reset.)
 ⚠️ **Coupling found by the v115 audit: `addProduct` is a Tier 1 trap kept alive ONLY by `fresh-states.spec.js`, and the trap says deleting it fails SILENTLY.**
 If this item retires that spec, `addProduct` becomes dead in the same commit and nothing will notice.
 Close the trap in the same branch, or keep the spec for that reason and write it down.
@@ -251,13 +259,13 @@ Each has been listed and skipped for scope at least once.
 Requirements: a rule comes out only when nothing emits its class - grep both files per selector, not per family.
 `.an-empty` and `.an-empty-box` are separate names sharing a prefix; do not let one grep answer for both.
 Out of scope: restructuring anything the deleted rules sat next to.
-Do after: **V10** - the v3 batches rewrite the markup that owns these selectors and will orphan more CSS of their own (V1's dark-theme removal alone will), so sweeping now does part of the job and leaves a second sweep to run anyway. (Was `Do after: Q10`; re-pointed 9 Aug 2026.)
+Do after: **F10** - the fold-in rewrites the markup that owns these selectors and its §2 `.legacy` mechanism does most of this sweep structurally (when `.legacy` has no children left, the old stylesheet dies wholesale); this item is the residue check afterwards. (Was Q10, then V10; re-pointed 10 Aug 2026 at the queue reset.)
 
 ## next  Small, each independently shippable
 - **`.github/workflows/test.yml:174` count comment is stale** ("9 specs, 8 survive" - actual 17/16; AUDIT-v135). The guard is correct and fails closed; only the number lies. Workflow-file change, so it takes the mandatory review despite being a comment.
 - **The ~390KB of self-hosted fonts re-download on every deploy** (v132 review): `CACHE` changes per version, `activate` deletes the old cache, and `install` re-fetches every ASSET — including the eight immutable woff2 files — on the mobile connection of an intermittent user. Consider a separate versionless font cache (fonts never change once committed) or fetch-time caching. Also: `cache.addAll`'s `.catch(function(){})` swallows a partial install silently — `tests/settings-toggles.test.js` now pins that every ASSETS path exists on disk, which covers the typo case but not a deploy-time failure.
-- **The v3 opaque semantic tints no longer composite with row hover** (v132 review): `--warn-bg`/`--good-bg`/`--bad-bg` went from rgba washes to solid hex, so a tinted row (e.g. an invoice review row) fully masks `.atable tbody tr:hover td{background:var(--hover)}` — hover feedback disappears on exactly the rows being scanned. Decide in V2 (the table system owns row hover): either hover wins via a composited overlay, or tinted rows deliberately don't hover.
-- **Three vocabularies name the same three lights** (v131 pre-push review): the Add-to-menu preview says "Slightly under"/"Underpriced" (price framing, `marginLightWord`), the filter chips say "Watch"/"Rework", and the Menu cell now says "over"/"well over" (cost framing). Colour can never disagree (all read `analyze()`); the words meet seconds apart in one flow and frame opposite directions. Unify to one vocabulary or record the split as deliberate at all three sites. Best decided inside V6 (modals) - V4a shipped without touching it (AUDIT-v135 C2 caught the routed-note-evaporates pattern; this line now names only the batch still ahead).
+- **The v3 opaque semantic tints no longer composite with row hover** (v132 review): `--warn-bg`/`--good-bg`/`--bad-bg` went from rgba washes to solid hex, so a tinted row (e.g. an invoice review row) fully masks `.atable tbody tr:hover td{background:var(--hover)}` — hover feedback disappears on exactly the rows being scanned. Decide when F1 re-lands the tokens and the first F-screen consumes them (was "decide in V2"; re-pointed 10 Aug 2026): either hover wins via a composited overlay, or tinted rows deliberately don't hover.
+- **Three vocabularies name the same three lights** (v131 pre-push review): the Add-to-menu preview says "Slightly under"/"Underpriced" (price framing, `marginLightWord`), the filter chips say "Watch"/"Rework", and the Menu cell now says "over"/"well over" (cost framing). Colour can never disagree (all read `analyze()`); the words meet seconds apart in one flow and frame opposite directions. Unify to one vocabulary or record the split as deliberate at all three sites. Best decided inside F8 (the invoice modal batch; was V6, re-pointed 10 Aug 2026) - V4a shipped without touching it (AUDIT-v135 C2 caught the routed-note-evaporates pattern; this line now names only the batch still ahead).
 - **Ticking a never-opened add-new form stores the tick nowhere** (v127 review, pre-existing): an AI-appended add-new row ticked before its form is opened keeps the tick only in the DOM; Confirm then fails against a form that does not exist with a toast pointing at no highlight, blocking the import. Decide: either opening the form on first tick, or refusing the tick with copy. Lives on `renderInvReview`'s add-new path.
 - ⚠️ **Every line number in this block predates the redesign** (v125 audit: ~290 lines moved in `js/app.js`, ~255 in `css/style.css`). The audit re-measured every claim - all still true in substance; the corrected numbers are in `docs/audits/AUDIT-v125.md` §5. Re-grep by NAME, never by the number.
 - **The publish dialog and the Menu row print the same food-cost ratio at different precision** (whole-number % vs one decimal; HANDOVER-125, landed by the v125 audit). Same `cost/price` ratio, two displays - align them or record the split as deliberate at both sites.
@@ -338,6 +346,8 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **The V-series redesign queue (V4c-V10, G2, the features list, the 9 Aug phase preamble) SUPERSEDED 10 Aug 2026** by Max's replacement design package (`FOLD-IN-PROTOCOL.md` §0a/§0b). The fold-in direction inverted from restyle-in-place to rebuild-from-mock, so the remaining items were reset as F1-F10 + behaviour specs; surviving substance (the V4c contract, the carried modal defects, the R2/R4 laws, the old Q10 residue relevant post-rebuild) moved into the F-items. V1-V4b SHIPPED (`ezplate-v132`-`v135`) and STAND - Max overrode §0a's revert on 10 Aug 2026 (no reset pass; each screen's paint is replaced when its F-item rebuilds it, and F1 reconciles the shipped shell instead of starting clean). AUDIT-v135's R1 grid-track fixes queued on V4c/V4d die with the rebuilt grids they were scoped to. Of the old Q10 sweep, the §4 per-screen criteria absorb the focus/AA work; two durable notes moved to the specs/preamble (⌘K never binds before the palette exists; §7's own AA claim gets measured, not trusted).
 
 - **project-audit at v135** - run and FILED 9 Aug 2026 (`docs/audits/AUDIT-v135.md`). **Verdict: healthy** - third consecutive clean Tier 1 result, parser region byte-identical across 20 versions, all five overnight batches held the phase rules, zero hardcoded hex, all three spot-checked review fixes hold. Findings landed as the items/edits below (S1/S2/S3+C1+R3 await Max's yes; D1 rewrote the staging item; R1 folded into V4c/V4d; D2/D5 went to PHONE.md).
 
