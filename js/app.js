@@ -890,8 +890,10 @@ function updateTotals(){
    truth: the total is the figure updateTotals just computed, the per-menu verdicts come from
    menuMarginPreview — analyze()'s light — so the builder, the publish dialog and the Menu row can
    never disagree. "On menus" reads menusOfPlate for the LOADED plate; a new unsaved plate has no
-   menus and shows the suggested price alone. The shortfall wording mirrors the Menu tab's cell:
-   cents under a dollar, dollars from there. */
+   menus and shows the suggested price alone. The shortfall wording ("90c under suggested") is
+   DELIBERATE here and deliberately absent from the Menu tab's cell (v131 dropped it there): the
+   builder is where a price gets SET, so the gap to suggested is guidance; on the Menu tab it read
+   as a price-rise instruction. V5 keeps this panel's under-suggested guidance by design. */
 function renderBuilderCost(tot){
   var tEl=document.getElementById('bTotal'); if(!tEl) return;
   var cost=Number(tot)||0;
@@ -1345,7 +1347,9 @@ function builderCategoryValue(){ var el=document.getElementById('plateCat'); ret
    agrees). The word after the % is what discriminates amber from red \u2014 "over" vs "well over" \u2014
    because hue was otherwise the ONLY difference between them. The LIGHT (and therefore the word)
    comes from analyze() \u2014 the one place the green/amber/red rule lives \u2014 so the publish-dialog
-   preview, the filter chips and this cell can never disagree. (The dialog rounds its % to a whole
+   preview, the filter chips and this cell can never disagree ON COLOUR (their words differ:
+   "Slightly under"/"Watch"/"over" all name the same amber \u2014 a queued question, not a drift).
+   (The dialog rounds its % to a whole
    number; this cell shows one decimal. Same ratio, different display precision \u2014 a display choice,
    not a second computation.) Colour stays anchored to the TARGET, never to direction.
    The aria-label matters: on phones the thead is display:none, so this span is the cell's only
@@ -1355,7 +1359,7 @@ function vbadge(a){
     var pct=(a.cost/a.menuPrice*100).toFixed(1);
     if(a.state==='ok') return '<span class="vbadge vgood" aria-label="food cost '+pct+'% \u2014 at or under your target">'+pct+'% \u2713</span>';
     var word=a.light==='red'?'well over':'over';                      // the amber/red discriminator \u2014 hue alone was the only other difference
-    var shown=a.light==='red'?'well\u00a0over':'over';                // nbsp: a narrow cell wraps at the \u00b7 , never mid-phrase
+    var shown=word.replace(' ','\u00a0');                             // nbsp: a narrow cell wraps at the \u00b7 , never mid-phrase; aria keeps the plain space
     return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'" aria-label="food cost '+pct+'% \u2014 '+word+' your target">'+pct+'% \u00b7 '+shown+'</span>';
   }
   return '<span class="muted-dash">\u2014</span>';

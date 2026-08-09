@@ -131,10 +131,12 @@ test('Margin cell, more than 15% below suggested: red, and the word escalates to
 
 test('no dollar delta ever renders in the cell — the shortfall really is gone (v3 §8)', () => {
   const { analyze, vbadge } = withVbadge(40);
-  // a sweep across greens, ambers and reds at cent and dollar shortfall scales
+  // a sweep across greens, ambers and reds at cent and dollar shortfall scales. The property is
+  // the strong one: NO dollar sign, NO cents figure, NO suggested-price wording, in any form —
+  // "$2.55 short" would slip a format-shaped pin (the review caught the first cut doing exactly that)
   [[2.31, 8.5], [6.96, 16.5], [8.42, 18.5], [8.42, 15], [3, 4], [0.5, 1]].forEach(([cost, price]) => {
     const out = vbadge(analyze(cost, price));
-    assert.ok(!/\+\$?\d/.test(out) && !/\d+c\b/.test(out) && !out.includes('suggested'),
+    assert.ok(!out.includes('$') && !/\d ?c\b/.test(out) && !out.includes('suggested'),
       `no shortfall figure or suggested-price wording for cost ${cost} @ $${price}: ${out}`);
   });
 });
@@ -154,9 +156,13 @@ test('Margin cell with no menu price: an em-dash, no figure fabricated', () => {
   assert.equal(vbadge(analyze(2, 0)), '<span class="muted-dash">—</span>');
 });
 
-test('Margin cell under by a rounding hair: still an honest "over", never a fabricated figure', () => {
+test('Margin cell under by a rounding hair: the word follows the TRUE state, not the rounded display', () => {
   const { vbadge } = withVbadge(30);
-  // hand-built analysis: under by a whisker — the wording no longer depends on the gap's size
+  // hand-built analysis: under by a whisker. The display rounds to "30.0%" — exactly the target —
+  // while the word says "over". ACCEPTED, not an oversight (v131 review finding 2): the word comes
+  // from analyze()'s unrounded state, which IS over; making the word consult the rounded display
+  // would be a second light rule diverging from the one place the law lives. Same idiom as the
+  // dashboard's pts-over line, which also speaks from unrounded values.
   const out = vbadge({ state: 'under', light: 'amber', cost: 3, menuPrice: 10, suggested: 10.004 });
   assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 30.0% — over your target">30.0% · over</span>');
 });
