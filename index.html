@@ -28,7 +28,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=133">
+<link rel="stylesheet" href="css/style.css?v=134">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -136,6 +136,11 @@
       </div>
       <div class="an-controls">
         <div class="menu-picker-row">
+          <!-- v134 (V4a): the switcher pills. Desktop-only (CSS) and only when every menu fits (≤5) —
+               the mock's "N more ▾" overflow needs a floating layer, queued behind V6 where the layer
+               system settles; with more menus the native select IS the overflow-capable control.
+               Pills and select share the one switch path; #menuSelect stays the mobile control. -->
+          <div class="menu-pills" id="menuPills" role="group" aria-label="Menu" hidden></div>
           <select id="menuSelect" aria-label="Menu"></select>
           <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
         </div>
@@ -806,7 +811,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=133"></script>
+<script src="js/app.js?v=134"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
