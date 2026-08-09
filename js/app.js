@@ -7177,8 +7177,13 @@ function buildMenuPills(){
   box.querySelectorAll('.menu-pill').forEach(function(b){
     b.onclick=function(){
       var id=b.getAttribute('data-menu');
+      if(id===currentMenuId) return;                                         // re-tapping the active pill has nothing to do — no re-render, no localStorage rewrite
       var sel=document.getElementById('menuSelect'); if(sel) sel.value=id;   // the select mirrors, so the two controls can never disagree
       setCurrentMenuId(id); updateMenuDelBtn(); renderAnalysis();
+      // renderAnalysis rebuilt the pills (innerHTML), which detached the clicked button and
+      // dropped focus to <body> — at ≥1024 the pills are the ONLY switcher, so a keyboard user
+      // lost their place entirely (review finding; same refocus law as the dashboard scope btn).
+      var nb=document.querySelector('.menu-pill[data-menu="'+id+'"]'); if(nb) nb.focus();
     };
   });
 }

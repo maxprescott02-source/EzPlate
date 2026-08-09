@@ -924,7 +924,11 @@ for (const size of SIZES) {
         // v115: .cogs-meta (the suggested-prices line) is REMOVED (Max) — the live target moved to
         // the Suggested column header, asserted below instead of the meta line's text.
         order: [T('.an-head'), T('.an-controls'), T('.atable-wrap')],   // v59: .akey (traffic-light key) removed
-        edges: [L('.an-head .btn'), L('#menuSelect')],
+        // v134: with menus seeded, desktop hides #menuSelect behind the switcher pills — this
+      // spec seeds NONE, so the select is genuinely the visible switcher here. If a menu is
+      // ever seeded into this file, measure `.menu-pill` instead (v134-menu-pills.spec.js
+      // already pins the pills' left edge at 1280).
+      edges: [L('.an-head .btn'), L('#menuSelect')],
         meta: !!document.querySelector('.cogs-meta'),
         suggestedTh: document.getElementById('aSuggestedTh').textContent,
       };

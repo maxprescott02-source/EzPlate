@@ -3269,24 +3269,32 @@ html{scrollbar-gutter:stable}
     color:var(--text2);font-size:12.5px;font-weight:500;cursor:pointer;min-height:0;
     transition:background var(--t-fast) var(--ease);
   }
-  .menu-pill:hover{background:var(--hover)}
+  @media (hover:hover) and (pointer:fine){ .menu-pill:hover{background:var(--hover)} }   /* the repo convention — a tap must not leave a stuck hover tint */
   .menu-pill.act{background:var(--nav-active);border-color:var(--border);color:var(--text);font-weight:600}
   .mp-pct{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11.5px}
   .mp-pct.good{color:var(--good)}
   .mp-pct.bad{color:var(--bad)}
   /* with pills up, the select would be a second control for the same switch — it stays the
-     mobile control and the >5-menus fallback */
+     mobile control and the >5-menus fallback. Delete keeps the row's right edge (the select
+     was the row's only growing child; without this the destructive button lands against the
+     most-clicked control — review finding). */
   .menu-picker-row.pills-on #menuSelect{display:none}
+  .menu-picker-row.pills-on .menu-del-btn{margin-left:auto}
+  /* ≥1024 includes iPad portrait — a coarse pointer gets the full touch floor on the ONLY switcher */
+  @media (pointer:coarse){ .menu-pill{min-height:44px} }
 }
 @media (min-width:640px){
   /* the v3 column-label band (V2's remaining primitive, first consumed here) — the header
      names themselves are pinned by tests and do not change */
   #tab-analysis .atable thead th{background:var(--surface2);font-size:11.5px;font-weight:500;color:var(--muted2);border-bottom:1px solid var(--border);text-transform:none;letter-spacing:0}
   /* uppercase group rows per the mock */
-  #tab-analysis .atable tr.sec>td{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);background:var(--surface);border-bottom:1px solid var(--divider)}
+  #tab-analysis .atable tr.sec>td{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);border-bottom:1px solid var(--divider)}
   /* the verdict cell wears the v3 tint as a PILL — CSS only: the vbadge markup, wording and
      aria (the v131 law) are exact-pinned and untouched */
-  #tab-analysis .vbadge{display:inline-block;border-radius:var(--radius-pill);padding:2px 8px;font-size:11.5px;font-weight:500}
+  /* tint ONLY — the v122 decision ("the coloured figure is the row's verdict and reads at
+     table size", fs-sm/700) stands; the first cut shrank it to the mock's 11.5/500, which
+     quietly reversed a recorded decision (review finding) */
+  #tab-analysis .vbadge{display:inline-block;border-radius:var(--radius-pill);padding:2px 8px}
   #tab-analysis .vbadge.vgood{background:var(--good-bg)}
   #tab-analysis .vbadge.vwarn{background:var(--warn-bg)}
   #tab-analysis .vbadge.vbad{background:var(--bad-bg)}
