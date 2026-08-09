@@ -3035,7 +3035,7 @@ html{scrollbar-gutter:stable}
 #plateList .ing-tag{background:none;padding:0;border-radius:0;font-size:var(--fs-sm);font-weight:700}
 #plateList .ing-tag.pub-off{color:var(--muted2);font-weight:600}
 @media (min-width:640px){   /* desktop: three real columns — name·category / published / cost */
-  #plateList > .ing-card{grid-template-columns:minmax(0,1fr) 200px max-content;column-gap:var(--sp-4)}   /* fixed published column: the "On …" labels share one left edge down the list */
+  #plateList > .ing-card{grid-template-columns:minmax(0,1fr) 200px 120px;column-gap:var(--sp-4)}   /* fixed published AND cost columns: v135 made the third track fixed — max-content resolved per-row and drifted the middle column by up to 27px between rows, so "one left edge" only became true here */
   #plateList .ing-meta{grid-column:2;grid-row:1}
   #plateList .ing-price{grid-column:3;grid-row:1}
 }
@@ -3311,14 +3311,16 @@ html{scrollbar-gutter:stable}
    ====================================================================== */
 #plateList > .ing-colhead{display:none}
 @media (min-width:640px){
+  /* the band and the rows are SEPARATE grid containers, so both use the same FIXED tracks —
+     a max-content third track resolves per-container and drifted the middle column by up to
+     22px between the band and an uncosted row (review measurement) */
   #plateList > .ing-colhead{
-    display:grid;grid-template-columns:minmax(0,1fr) 200px max-content;gap:0 var(--sp-4);
+    display:grid;grid-template-columns:minmax(0,1fr) 200px 120px;gap:0 var(--sp-4);
     padding:9px var(--sp-4);background:var(--surface2);border-bottom:1px solid var(--border);
     font-size:11.5px;font-weight:500;color:var(--muted2);
   }
   #plateList > .ing-colhead .ch-num{text-align:right}
-  /* v3 §3.3: Published reads in the accent when live; Unpublished stays muted (the pub-off
-     rule at its shared site). Accent-as-status is the mock's own call — the one place orange
-     is not a CTA — and it is scoped HERE so the builder's badge idiom keeps its colours. */
-  #plateList .ing-tag.pub-on{color:var(--accent-ink)}
+  /* Published-in-accent needs NO rule here: .ing-tag.pub-on has been the accent since v55
+     (the global rule) — §3.3 confirms the shipped colour rather than changing it. The first
+     cut re-declared it as a no-op with a wrong scoping story (review finding). */
 }
