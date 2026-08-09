@@ -51,7 +51,7 @@ The new law: **the mock is truth for structure, hierarchy and interaction; the a
 
 **§4 acceptance criteria = the definition of done for EVERY F-screen below** (check them off in the PR): structure matches the mock side-by-side at 1360×900 (same regions in order; row grammar identity-left, mono-figures-right, status-pill-rightmost) · every colour/border/shadow from a token, ZERO hard-coded hex in screen code · Geist for UI, Geist Mono `tabular-nums` for every number · all five states (loading skeleton, empty, error, first-run, permission denied) exist and are v3-styled · mobile counterpart converted in the SAME item per the §6.1 parity map · old component + CSS deleted in the same change · focus ring on every interactive; modals trap focus and close on Esc · no behaviour regression without a logged reason.
 
-## blocked  CLAUDE.md corrections from AUDIT-v135 (five lines + one candidate trap)
+## blocked  CLAUDE.md corrections from AUDIT-v135 (five lines + TWO candidate traps)
 Problem: the audit verified ~60 CLAUDE.md claims; five are wrong or stale, and one recurring lesson has earned Tier 1 candidacy. Rules there change only with Max's yes.
 The corrections (full evidence in `docs/audits/AUDIT-v135.md` §2a):
 1. **S1 (the important one):** `pushWrite` "resolves to ... `null` when offline" - NO null path exists; offline resolves `{error}`. A batch following the doc would sequence a dependent write after a failure. The `null` contract belongs to `dbPushMenuAfterPlate`.
@@ -60,7 +60,11 @@ The corrections (full evidence in `docs/audits/AUDIT-v135.md` §2a):
 4. **S5/D4 (second audit in a row):** name `cafeDB_plateDraft` as the known exception to "localStorage ... never data" (it is authored content, bound to DRAFTKEY so a literal grep misses it).
 5. **R3 candidate Tier 1 entry:** "a stub that mirrors a real function must mirror its CONTRACT - extract the real function instead" - four incidents (v113, and three consecutive batches 139-141), same remedy each time, never written as a rule.
 6. **ADDED 10 Aug 2026 (F1a batch), same stale-line class:** Tier 3 line 363 says "**staging has never yet loaded in any session**". It loads now - `mcp__supabase-staging__list_tables` was called from a live session on 10 Aug 2026 and answered (empty `public`, as a fresh project should be). AUDIT-v135 (D1) was right that the cause was approval, not connectivity, and Max has since approved the server. **The rest of that line still stands and must NOT be deleted with it:** the schema is empty, so there is still nothing to rehearse against, and every migration is still unrehearsed until the staging queue item runs. Correct the "never loaded" clause only.
-Blocked on: Max - a one-word yes covers 1-4 (and now 6) as the same stale-line class as HANDOVER-133; say separately if 5 (a NEW rule) gets in.
+7. **ADDED 10 Aug 2026 (F3 batch) - a SECOND new Tier 1 candidate, and the strongest evidence any of these has:**
+   > **A `@media` block does not win by being later.** Specificity is compared before source order, so a multi-class selector written outside a media query beats a single-class rule written inside one. Putting the narrow selector on the small screen and the plain one on the large screen inverts the cascade, and the symptom is a rule that looks right in the file and does nothing on screen. When a declaration appears at both breakpoints, give the two rules the SAME specificity.
+
+   **Five instances in ONE screen in ONE batch** (F3/v139): a 4-class sibling chain threw a cell into the wrong column on broken rows; the desktop `—` placeholders lost to a mobile `.is-nil` rule and rendered blank; a dead grid row appeared under every healthy mobile name; the desktop cancel of a mobile `::before` prefix could never win, so a column headed "Used in" read ", in —" on every row; and the header's right-alignment keyed off one class of button and left the other 393px away. Three were found by looking at the app and two by the review - **and the fourth was written into the fix for the third**, which is the case for making it a rule rather than a lesson. F2 (v138) hit the same class twice more (`[hidden]` overrides).
+Blocked on: Max - a one-word yes covers 1-4 (and now 6) as the same stale-line class as HANDOVER-133; say separately whether 5 and 7 (both NEW rules) get in.
 
 ## done  F1a - Tokens (light + dark) + the theme switch
 Shipped 10 Aug 2026 as **`ezplate-v136`**. See the done section for what landed.
@@ -74,7 +78,14 @@ Shipped 10 Aug 2026 as **`ezplate-v138`**. See the done section.
 ⚠️ **Read this before F3.** The F-items describe the LIST and nothing else, so a batch can rebuild the table, satisfy every criterion the item names, and leave the screen's header and control row wearing v3 tokens over old markup - the hybrid §2 forbids. On F2 those two were the larger half of the CSS. **Every F-item includes its screen's header bar and its filter/search row**, with the screen's own classes: `.ing-controls`, `.menu-search`, `.ing-filter`, `.ms-clear` and `.panel` are all still dressing unconverted screens, so restyling any of them converts a screen by accident.
 `.scr-head` (title + muted subtitle + one right-aligned action) is built and is the shared §2 header bar - reuse it, do not rebuild it. `.plib-panel`'s card-suppression rule is the pattern for dropping the old `.panel` card per screen; when the last screen converts, the base `.panel` rule goes.
 
-## doing  F3 - Ingredients (desktop §3.4 + mobile §6, one item)
+## done  F3 - Ingredients (desktop §3.4 + mobile §6, one item)
+Shipped 10 Aug 2026 as **`ezplate-v139`**. See the done section.
+
+## next  Two actions in a mobile screen header, where §6 asks for one
+Problem: F3 put "Set up from products" beside "New ingredient" in the Ingredients header bar. The mock's §6 mobile header is "screen title + one action max". The wizard button is CONDITIONAL (`renderKingProgress` shows it only while products are unlinked or skips exist), so most cafés see one action most of the time - but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
+Hiding it on mobile was rejected: it would strand the whole setup flow on the device Max actually works on.
+Requirements: either a v3 home for a conditional secondary action on a phone header (the mock has no pattern, so this is a stop-and-ask with a recommendation), or a recorded decision that this screen keeps two. Do not improvise a third pattern.
+Note it is measured and pinned at DESKTOP only (`fresh-states.spec.js`, the header test) - the phone case is on `docs/PHONE.md` for Max to judge.
 Ingredient | Category | Unit cost | 30-day change (pill or muted "steady") | Used in N plates.
 **Read `docs/contracts/V4c-ingredients-contract.md` FIRST - it is this screen's §5 handler/read/write contract, already banked:** the drift badge reads `ingLastMovePct` = LAST LOGGED MOVE, not a true 30-day window (changing that breaks the row/What-moved agreement invariant); broken-link states stay loud ("⚠ product missing - relink to keep N plates costed"); the RELINK-PROMISE string stays kid-arm only (a relink cannot heal a bare-pid line - the v124 review caught that lie once); a usage COLUMN may count both arms via `productRefs` - decide per surface and record it. R1: the mock's Category column reverses a recorded Q5 decision and turns `king-rows.test.js:85` red - the mock wins, flip the pin consciously and note it. Muted "steady" replaces today's rendering of nothing.
 §4 criteria are the definition of done.
@@ -365,6 +376,13 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **F3 - Ingredients, rebuilt from the mock** - shipped 10 Aug 2026 as **`ezplate-v139`** (PR #125), handover `HANDOVER-147-ingredients.md`.
+  Five columns (Ingredient over its linked-product sentence | Category | Unit cost | Last change | Used in); mobile two-line rows with a "Category, in N plates" meta. The `.king-*` NAMES are kept - the contract records only this pane emits them, so there was no shared system to unpick.
+  **Rulings:** R1 the Category column is BACK, reversing Q5, and the flipped pin now protects what made Q5 safe (the category is DERIVED, never stored) · R2 the mock's "30-day change" heading is refused as a LIE - `ingLastMovePct` is the last logged move, and a real 30-day rule would break the row/What-moved invariant; ships as "Last change" · R2 "Used in" counts the KID ARM, so the row, the relink promise and the modal cannot disagree (the contract left this open; the surrounding facts had already decided it) · R3 both controls the mock drops survive, the strapline is re-housed into the empty state, the linked-product sentence becomes the desktop row's second line.
+  **FIVE cascade defects, all one mistake** - a multi-class selector out-ranking a single-class rule inside a `@media` block. Three found by looking at the screen, two by the review; the fourth was written INTO the fix for the third. **A CLAUDE.md rule is proposed for it and awaits Max's yes** (see the handover).
+  The furthest-travelling one was invisible to its own test: `textContent` cannot see `::before`, so a column headed "Used in" read ", in —" on every desktop row while its assertion passed. Eleven planted defects; three assertions rewritten because they could not fail.
+  Also: `king-rows.test.js` strips comments before every source grep - a code comment mentioning `king-meta` broke a pin while the markup was correct.
 
 - **F2 - Plates, the first screen REBUILT from the mock** - shipped 10 Aug 2026 as **`ezplate-v138`** (PR #123), handover `HANDOVER-146-plates.md`.
   The screen owns its markup and its `.plib-*` classes instead of borrowing the Products `.ing-card` system under twenty `#plateList` overrides, so F4 converts Products without unpicking them. Desktop: the mock's header bar (title + computed "6 plates, 1 not costed, 2 unpublished" + New plate), search + category select, bordered table with a column band at `minmax(0,1fr) 170px 120px`. Mobile: two-line rows, "category, on Winter Menu" meta, mono money right, 56px floor, no container. One breakpoint, 768.
