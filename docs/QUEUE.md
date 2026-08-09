@@ -50,15 +50,6 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## doing  V2 - Table system (§10.2; spec §2 tables) — running WITH V3 per its Do-with
-The shared list component: bordered rounded container, `#FAF7F1` header band, hairline dividers (no zebra), whole-row `<button>`s, tinted mono pills, uppercase group-header rows.
-Do with: **V3 (its first consumer)** - shipping classes nothing emits would land dead CSS by construction; build the system in the batch that first uses it and let V4a-e adopt it screen by screen.
-
-## doing  V3 - Dashboard (§10.3; spec §3.1) — running WITH V2
-KPI strip (3 cells, internal hairlines) · trend chart (over-target band, dashed target line, orange user-change markers with mono annotation) · Needs-attention AI briefing rows (read-only, ONE link each, the "Phrased by Gemini, computed by EzPlate" credit stays - the money law is untouched) · What moved / Dig in two-up · scope dropdown in the header (shipped v129: restyle, don't rebuild).
-The sidebar Dashboard nav badge (avg % when over target) is new, honest and app-computed - in scope.
-Fold note: the chart's composition survived the v2 phase deliberately (the HANDOVER-123 diff found the app's layout right where the mock wasn't); judge against the current screen.
-
 ## next  V4a - Menu (spec §3.2)
 Switcher pills with mono % + "N more ▾" overflow · grouped table Plate | Cost | Suggested | Price | food-cost pill · not-costed row: muted name, dashes. The v2 phase's honest-copy decisions carry: "Food cost" not "Margin", no dollar deltas, no "cost it →" arrow promising navigation that doesn't exist.
 (The `Do after: the verdict-cell item` line was DELETED 9 Aug 2026 by the batch sweep - that item shipped as v131, so V4a inherits the honest cell and is unblocked.)
@@ -344,6 +335,9 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **V2+V3 - Table system + Dashboard** - shipped 9 Aug 2026 as **`ezplate-v133`** (PR #111), handover `HANDOVER-140-table-dashboard.md`.
+  Run together per V2's Do-with. Shipped primitives: header band + good/bad pills (row-button base, `.pill-warn`, group rows wait for V4a, their first consumer). Dashboard: KPI strip at ≥1024 (hero stays on mobile until V9 and on the empty state everywhere), band headers, pill deltas, sidebar badge (announced via aria-label), credit reworded to "Phrased by Gemini, computed by EzPlate" with the reveal law untouched. Review: 9 findings all actioned - the headline was "Not costed" counting price-less-but-costed plates under a lying label; the delta pill was removed as a quiet v98 reversal and queued for Max.
 
 - **V1 - Tokens + shell** - shipped 9 Aug 2026 as **`ezplate-v132`** (PR #109), handover `HANDOVER-139-v1-tokens-shell.md`.
   v3 palette light-only (dark fully removed, stale key deleted at boot), Geist/Geist Mono self-hosted + SW-cached, desktop sidebar per §2 with Settings in the bottom group, 48px title bars on the four static tabs, §1.4 entry motion. Spec deviations recorded at the code: AA-corrected muted/bad values (the spec's own §7 claim failed measurement), weights normalised to the four real faces, nav order kept for V9. Review: 13 findings, 4 major - the headline was the sidebar Settings entry running `showTab(undefined)` (blank desktop screen; specs passed against it). Two Small items queued (font refetch per deploy; tint-vs-hover compositing for V2).
