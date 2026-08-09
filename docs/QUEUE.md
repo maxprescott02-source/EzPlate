@@ -50,10 +50,6 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## doing  V4a - Menu (spec §3.2)
-Switcher pills with mono % + "N more ▾" overflow · grouped table Plate | Cost | Suggested | Price | food-cost pill · not-costed row: muted name, dashes. The v2 phase's honest-copy decisions carry: "Food cost" not "Margin", no dollar deltas, no "cost it →" arrow promising navigation that doesn't exist.
-(The `Do after: the verdict-cell item` line was DELETED 9 Aug 2026 by the batch sweep - that item shipped as v131, so V4a inherits the honest cell and is unblocked.)
-
 ## next  V4b - Plates (spec §3.3)
 Search + category select · Plate (+muted category) | Published (accent when live) | Plate cost · row click opens the builder (whatever shape the builder is when this runs).
 
@@ -335,6 +331,9 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **V4a - Menu screen** - shipped 9 Aug 2026 as **`ezplate-v134`** (PR #114), handover `HANDOVER-141-menu.md`.
+  Switcher pills at ≥1024 (≤5 menus; the select stays the mobile control and the >5 fallback - the "N more ▾" overflow rides the floating-layers item behind V6), column band + group rows + verdict tint as CSS scoped off the invoice review. Review: 2 majors fixed (focus fell to body on every switch; the click path had zero real coverage behind a comment claiming otherwise), verdict figure kept at v122's size. Note for Max: a 6th menu swaps pills back to the select with no copy - say if that reads as breakage.
 
 - **V2+V3 - Table system + Dashboard** - shipped 9 Aug 2026 as **`ezplate-v133`** (PR #111), handover `HANDOVER-140-table-dashboard.md`.
   Run together per V2's Do-with. Shipped primitives: header band + good/bad pills (row-button base, `.pill-warn`, group rows wait for V4a, their first consumer). Dashboard: KPI strip at ≥1024 (hero stays on mobile until V9 and on the empty state everywhere), band headers, pill deltas, sidebar badge (announced via aria-label), credit reworded to "Phrased by Gemini, computed by EzPlate" with the reveal law untouched. Review: 9 findings all actioned - the headline was "Not costed" counting price-less-but-costed plates under a lying label; the delta pill was removed as a quiet v98 reversal and queued for Max.
