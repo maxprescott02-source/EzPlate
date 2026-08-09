@@ -50,7 +50,7 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## next  V4b - Plates (spec §3.3)
+## doing  V4b - Plates (spec §3.3)
 Search + category select · Plate (+muted category) | Published (accent when live) | Plate cost · row click opens the builder (whatever shape the builder is when this runs).
 
 ## next  V4c - Ingredients (spec §3.4)
@@ -65,7 +65,8 @@ Dashed dropzone + the import entry point moves here. ⚠️ **The "recent import
 
 ## next  V5 - Builder full page (§10.5; spec §3.7; decision 1 - THE REVERSAL)
 Modal → full-screen page: breadcrumb "Plates /", left ingredient table with add-ingredient footer row, 300px right rail (cost card: plate cost, suggested, price input, amber under-suggested guidance banner; publishing card: menu + category selects).
-This is a RE-HOUSING, not a rebuild: keep every id (`#builderModal` may live on as the page container's id - never rename), the draft machinery (`isBuilderDirty`, `guardUnfinishedPlate`), `#lines`/`#total`, and Q6's cost-panel logic (`renderBuilderCost`, `menuMarginPreview`). Mobile is already a full-screen takeover, so <768 mostly restyles; the sticky bottom summary bar (plate cost + suggested + price action) replaces the current footer per §6.
+This is a RE-HOUSING, not a rebuild: keep every id (`#builderModal` may live on as the page container's id - never rename), the draft machinery (`isBuilderDirty`, `guardUnfinishedPlate`), `#lines`/`#total`, and Q6's cost-panel logic (`renderBuilderCost`, `menuMarginPreview`).
+**Inherited from V4b (v135): the Plates row-click still opens the ACTION CHOOSER** - flipping it to open the builder is THIS batch's job, and only once publishing lives in the builder page (otherwise Publish/Print/Delete are orphaned, §11.6). `tests/visual/v135-plates.spec.js` pins the current behaviour and must be consciously changed here. Mobile is already a full-screen takeover, so <768 mostly restyles; the sticky bottom summary bar (plate cost + suggested + price action) replaces the current footer per §6.
 "Saved just now" wording is server-confirmed only - it renders when `pushWrite`'s promise settles ok, never optimistically (an occasional user would rather be told a thing did not save).
 The mock's Duplicate button and recent-range line are feature items below - stub or skip, never half-ship (§11.4).
 **Ships the `CLAUDE.md` Tier 2 edit** ("builder IS a MODAL" → the 9 Aug full-page decision, dated, with the reversal history). The old "recent range" from `priceHistory` stays queued.

@@ -4402,7 +4402,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v134';
+var APP_VERSION='v135';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -5188,7 +5188,13 @@ function renderPlatesTab(){
     return matchTokens(toks, ((sp.name||'')+' '+(sp.category||'')+' '+(plateMenuSummary(sp)||'')).toLowerCase());
   }).slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
   if(!items.length){ wrap.innerHTML=emptySearchState(ICON_PLATE_BIG,'plates','clearPlateFilters'); return; }   // v58: variant A via the shared helper
-  wrap.innerHTML=items.map(function(sp){
+  /* v135 (V4b): the v3 column-label band (spec §3.3), rows-present branches only — an empty
+     state under a column band would label nothing. Q4 deliberately skipped the mock's header
+     row; the v3 package re-asks and supersedes (queue phase header). aria-hidden: each row
+     already announces its own name/state/cost, so the band is visual wayfinding, not the
+     accessible structure. NOT an .ing-card — the `+` hairline combinator must not count it. */
+  var colhead='<div class="ing-colhead" aria-hidden="true"><span>Plate</span><span>Published</span><span class="ch-num">Plate cost</span></div>';
+  wrap.innerHTML=colhead+items.map(function(sp){
     return '<button class="ing-card" type="button" data-pid="'+esc(sp.id)+'">'
       +'<div class="ing-main"><span class="ing-name">'+esc(sp.name||'Unnamed plate')+'</span>'+(sp.category?'<span class="ing-brand">'+esc(sp.category)+'</span>':'')+'</div>'
       +'<div class="ing-meta">'+plateMenuBadge(sp)+'</div>'
