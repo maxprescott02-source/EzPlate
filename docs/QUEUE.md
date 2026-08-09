@@ -130,7 +130,7 @@ Step 3 - restoring into a genuinely EMPTY database - never was.
 What it would newly prove is narrow: that an empty table restores as well as a populated one, and how the boot gate reads mid-restore against nothing.
 Requirements: a fresh export taken minutes before, and Max's explicit go on the day.
 Not something to schedule.
-Blocked on: Max.
+Blocked on: Max — Q2 in `docs/decisions/2026-08-09.html` asks when.
 Destructive against real data.
 
 ## next  Mutation testing (Stryker) - measure the tests that cannot fail (APPROVED 9 Aug 2026, dev-only)
@@ -249,7 +249,7 @@ Do after: **V10** - the v3 batches rewrite the markup that owns these selectors 
 
 ## next  Small, each independently shippable
 - **KPI-strip delta pill: the v3 mock draws one; v98 deleted that stat class** (v133 review). The mock's first KPI cell shows a "+2.4 pts" pill vs last month. v133 shipped WITHOUT it, because the v98 tombstone records Max deleting the "vs last week/month/year" compares block as duplicating the chart — and the month baseline is unlabelled in the mock besides ("2.4 pts against WHAT" reads as "over target"). Reviving a decided deletion is Max's call: if yes, the pill needs a stated baseline (e.g. "vs July") and stays all-menus only (cross-series law).
-  Blocked on: Max — does the deleted "vs last month" comparison come back as a labelled KPI pill, or does the chart stay the only trend surface?
+  Blocked on: Max — Q1 in `docs/decisions/2026-08-09.html`.
 - **The ~390KB of self-hosted fonts re-download on every deploy** (v132 review): `CACHE` changes per version, `activate` deletes the old cache, and `install` re-fetches every ASSET — including the eight immutable woff2 files — on the mobile connection of an intermittent user. Consider a separate versionless font cache (fonts never change once committed) or fetch-time caching. Also: `cache.addAll`'s `.catch(function(){})` swallows a partial install silently — `tests/settings-toggles.test.js` now pins that every ASSETS path exists on disk, which covers the typo case but not a deploy-time failure.
 - **The v3 opaque semantic tints no longer composite with row hover** (v132 review): `--warn-bg`/`--good-bg`/`--bad-bg` went from rgba washes to solid hex, so a tinted row (e.g. an invoice review row) fully masks `.atable tbody tr:hover td{background:var(--hover)}` — hover feedback disappears on exactly the rows being scanned. Decide in V2 (the table system owns row hover): either hover wins via a composited overlay, or tinted rows deliberately don't hover.
 - **Three vocabularies name the same three lights** (v131 pre-push review): the Add-to-menu preview says "Slightly under"/"Underpriced" (price framing, `marginLightWord`), the filter chips say "Watch"/"Rework", and the Menu cell now says "over"/"well over" (cost framing). Colour can never disagree (all read `analyze()`); the words meet seconds apart in one flow and frame opposite directions. Unify to one vocabulary or record the split as deliberate at all three sites. Best decided inside V4a (Menu) / V6 (modals), which restyle two of the three surfaces.
@@ -310,7 +310,7 @@ That copy ships or comes out.
 Requirements: what staff can actually do - read costs but not edit prices?
 Import invoices but not delete plates?
 **Is there a third role?** A `manager` was sketched in `HANDOVER-v60`, `v82` and `v98` and never carried forward - folded in here by the v115 audit's dropped-threads triage rather than given its own item, because "how many roles" and "what can each do" are one question and answering them apart would answer them twice.
-Blocked on: Max.
+Blocked on: Max — Q3 in `docs/decisions/2026-08-09.html`.
 Product decision; everything technical downstream depends on it.
 
 ## next  Onboarding and empty states

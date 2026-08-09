@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EzPlate — 3 decisions, 9 Aug 2026</title>
+<style>
+  :root{--text:#2A211B;--text2:#6B5D50;--muted:#7D7060;--border:#EAE3D8;--divider:#F3EFE8;
+        --surface:#FAF7F1;--accent:#B84E0C;--good:#16794C;--good-bg:#E6F4EC;--bad:#C0392F;--bad-bg:#FBEBEA;--warn-bg:#FDF3E0;--warn:#B54708}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px 16px 60px}
+  .wrap{max-width:680px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--text2);font-size:13px;margin:0 0 24px}
+  .q{border:1px solid var(--border);border-radius:12px;margin:20px 0;overflow:hidden}
+  .q-head{background:var(--surface);border-bottom:1px solid var(--divider);padding:12px 18px;font-weight:600;font-size:15px}
+  .q-body{padding:14px 18px 18px}
+  .why{color:var(--text2);font-size:13.5px;margin:0 0 12px}
+  .opt{border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:10px 0}
+  .opt b{font-size:14px}
+  .opt p{margin:6px 0 0;font-size:13.5px;color:var(--text2)}
+  .rec{border-color:var(--accent);background:#FDF8F3}
+  .rec .tag{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--accent);border-radius:999px;padding:2px 9px;margin-left:6px;vertical-align:2px}
+  .flip{font-size:13px;color:var(--warn);background:var(--warn-bg);border-radius:8px;padding:8px 12px;margin-top:12px}
+  .flip b{color:var(--warn)}
+  button.copy{display:block;width:100%;margin-top:28px;padding:14px;font-size:15px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:10px;cursor:pointer}
+  button.copy:active{transform:scale(.98)}
+  .note{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Three decisions</h1>
+<p class="sub">9 Aug 2026 · none of these stop the current work — answer whenever suits. Tap the button at the bottom when done and paste the result back to Claude.</p>
+
+<div class="q" id="q1">
+  <div class="q-head">1 · Should the Dashboard's big number get a "vs last month" change pill back?</div>
+  <div class="q-body">
+    <p class="why"><b>Why now:</b> the v3 design draws a small "+2.4 pts" pill beside the average food cost. You deleted exactly this kind of stat in v98 ("vs last week/month/year" — your words at the time: it duplicated what the chart shows). The new dashboard shipped <i>without</i> the pill so your deletion wasn't quietly reversed. Nothing is broken either way.</p>
+    <div class="opt rec"><b>A — Leave it out</b><span class="tag">recommended</span>
+      <p>The trend chart sits directly below the number and already shows the movement. One figure, one chart, nothing duplicated — the reasoning you gave in v98 still holds. Costs nothing.</p></div>
+    <div class="opt"><b>B — Bring it back, labelled</b>
+      <p>The pill returns as e.g. "+2.4 pts vs July" — the baseline named, so it can't be misread as "over target". Only ever shown on All menus (a per-menu version would mix two different data series, which fabricates movement). Commits you to a second trend statement above the chart.</p></div>
+    <div class="flip"><b>What would change the recommendation:</b> if you find yourself opening the dashboard wanting the "how much did it move" number at a glance without reading the chart — that's B's whole case.</div>
+  </div>
+</div>
+
+<div class="q" id="q2">
+  <div class="q-head">2 · The one restore test that has never been run — when do you want to do it?</div>
+  <div class="q-body">
+    <p class="why"><b>Why now:</b> steps 1 and 2 of the restore's destructive test plan passed long ago. Step 3 — restoring into a genuinely <i>empty</i> database — never ran. Until it does, "restore works on an empty account" is believed, not proven. It needs about 15 minutes of your time on the day: take a fresh export, say go, watch it come back. It cannot be done without you because it deletes everything first.</p>
+    <div class="opt rec"><b>A — Do it before the multi-tenant work starts</b><span class="tag">recommended</span>
+      <p>New cafés start from empty, so this is the exact case multi-tenant depends on. No calendar date — just: when the v3 redesign phase finishes, Claude prepares everything and asks for your go. Costs one short session, low risk with the fresh export in hand.</p></div>
+    <div class="opt"><b>B — Do it soon (next few days)</b>
+      <p>Gets the unknown off the books early. Same 15 minutes, just sooner — say a day and it will be prepared.</p></div>
+    <div class="opt"><b>C — Accept the gap and don't run it</b>
+      <p>Costs nothing now. Commits you to discovering any empty-restore bug on the day a real new café needs it — the most expensive possible moment.</p></div>
+    <div class="flip"><b>What would change the recommendation:</b> if multi-tenant is further away than it looks, B beats A — an untested restore path is also YOUR disaster-recovery path today.</div>
+  </div>
+</div>
+
+<div class="q" id="q3">
+  <div class="q-head">3 · Staff accounts: what can staff actually do? (and is there a manager?)</div>
+  <div class="q-body">
+    <p class="why"><b>Why now:</b> it doesn't block today's work, but every technical multi-tenant decision downstream (database rules, screens, invites) depends on this answer, and having it early means the phase can be designed once instead of twice. The app currently tells staff "owner and staff access is already planned" — that copy ships or comes out based on your answer.</p>
+    <div class="opt"><b>A — Two roles: owner + read-only staff</b>
+      <p>Staff see costs and menus, change nothing. Simplest to build and explain. Commits you to doing every price change and import yourself.</p></div>
+    <div class="opt rec"><b>B — Two roles: owner + working staff</b><span class="tag">recommended</span>
+      <p>Staff can import invoices and edit ingredients/plates, but cannot delete plates or menus, change the target, or restore backups. Matches how a kitchen actually runs (someone else keys the invoice) while keeping the destructive things yours. Slightly more to build than A.</p></div>
+    <div class="opt"><b>C — Three roles: owner + manager + staff</b>
+      <p>A manager sits between (everything except backups/restore/billing). Most flexible, most to build and explain — only worth it if a real person at Scoopy's would BE the manager.</p></div>
+    <div class="flip"><b>What would change the recommendation:</b> name the actual people. If nobody but you would ever touch prices, A. If someone effectively runs the kitchen when you're away, C stops being over-engineering.</div>
+  </div>
+</div>
+
+<button class="copy" onclick="copyAnswers()">Copy my answers</button>
+<p class="note">Tap each answer below first if you want, or just edit the pasted text.</p>
+
+<script>
+function copyAnswers(){
+  var md='## Decisions — 9 Aug 2026\n'
+    +'1. Dashboard change pill: A (leave out) / B (bring back labelled) → YOUR ANSWER\n'
+    +'2. Empty-restore test: A (before multi-tenant) / B (soon — say a day) / C (accept the gap) → YOUR ANSWER\n'
+    +'3. Staff roles: A (read-only) / B (working staff, recommended) / C (three roles) → YOUR ANSWER\n'
+    +'Notes: \n';
+  (navigator.clipboard&&navigator.clipboard.writeText)?navigator.clipboard.writeText(md).then(function(){alert('Copied — paste it back to Claude.');},function(){prompt('Copy this:',md);}):prompt('Copy this:',md);
+}
+</script>
+</div>
+</body>
+</html>
