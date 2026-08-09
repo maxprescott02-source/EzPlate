@@ -4402,7 +4402,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v133';
+var APP_VERSION='v134';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -7135,6 +7135,10 @@ function renderAnalysis(){
     tr.onclick=function(){ var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); };   // v112: the data-pid/openPlateEdit branch is gone with the orphan-plate editor
   });
   // v90: nothing insight-related runs here any more — the Menu tab has no suggestions UI at all.
+  // v134: the switcher pills refresh with every render — a switch moves the active pill and a
+  // price edit moves the pill's %; buildMenuSelector's own call sites (boot, sync, menu CRUD)
+  // don't cover either of those.
+  if(typeof buildMenuPills==='function') buildMenuPills();
 }
 
 /* ===== multiple menus: selector, pickers, create modal ===== */
@@ -7146,7 +7150,42 @@ function buildMenuSelector(){
     if(currentMenuId) sel.value=currentMenuId;
   }
   updateMenuDelBtn();
+  buildMenuPills();
   buildMenuPickers();
+}
+/* v134 (V4a): the §3.2 switcher pills — desktop-only by CSS, and only when every menu fits
+   (≤5): the mock's "N more ▾" overflow needs a floating layer, and floating-layer placement is
+   queued behind V6 where the layer system settles, so with more menus the native select stays
+   as the overflow-capable control (it also remains the mobile control at every count).
+   Pills and select share the ONE switch path (setCurrentMenuId → renderAnalysis). The pill %
+   is avgFoodCostForScope — the same figure the dashboard states for that menu — coloured by
+   the shared anchor-to-target pair; an uncosted menu shows its name alone, never a dash. */
+function buildMenuPills(){
+  var box=document.getElementById('menuPills'); if(!box) return;
+  var row=box.closest('.menu-picker-row');
+  var fit=(menusList.length>0 && menusList.length<=5);
+  box.hidden=!fit;
+  if(row) row.classList.toggle('pills-on', fit);
+  if(!fit){ box.innerHTML=''; return; }
+  box.innerHTML=menusList.map(function(m){
+    var pct=avgFoodCostForScope(m.id);
+    var on=(m.id===currentMenuId);
+    return '<button type="button" class="menu-pill'+(on?' act':'')+'" data-menu="'+esc(m.id)+'"'+(on?' aria-current="true"':'')
+      +' aria-label="'+esc(m.name)+(pct==null?'':(', '+pct.toFixed(1)+'% food cost'))+'">'
+      +esc(m.name)+(pct==null?'':(' <span class="mp-pct '+dashPctClass(pct)+'">'+pct.toFixed(1)+'%</span>'))+'</button>';
+  }).join('');
+  box.querySelectorAll('.menu-pill').forEach(function(b){
+    b.onclick=function(){
+      var id=b.getAttribute('data-menu');
+      if(id===currentMenuId) return;                                         // re-tapping the active pill has nothing to do — no re-render, no localStorage rewrite
+      var sel=document.getElementById('menuSelect'); if(sel) sel.value=id;   // the select mirrors, so the two controls can never disagree
+      setCurrentMenuId(id); updateMenuDelBtn(); renderAnalysis();
+      // renderAnalysis rebuilt the pills (innerHTML), which detached the clicked button and
+      // dropped focus to <body> — at ≥1024 the pills are the ONLY switcher, so a keyboard user
+      // lost their place entirely (review finding; same refocus law as the dashboard scope btn).
+      var nb=document.querySelector('.menu-pill[data-menu="'+id+'"]'); if(nb) nb.focus();
+    };
+  });
 }
 function buildMenuPickers(){                                   // fill the menu <select>s inside the Publish + Edit modals
   ['mi_menu','ed_menu'].forEach(function(id){
