@@ -268,10 +268,13 @@ test('one elevation token: every card is flat — v3 draws no card shadows @ 128
   });
   await boot(page, 1280, 6, 'light');
   const got = await page.evaluate(read);
+  // all four agree AND match the resolved token — so deleting box-shadow:var(--elev) from one
+  // card, or retiring the token, still fails here when --elev later becomes a real shadow
+  // (plain `'none'` × 4 could never fail again — review finding on the first rewrite)
+  const token = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--elev').trim());
+  expect(token, 'the one elevation token is none in v3').toBe('none');
+  expect(new Set(Object.values(got)).size, 'every card shares the ONE token value').toBe(1);
   expect(got.panel, 'v3: cards sit flat on their border').toBe('none');
-  expect(got.moved, 'What moved included').toBe('none');
-  expect(got.ins, 'insights included').toBe('none');
-  expect(got.dig, 'dig tiles included').toBe('none');
 });
 
 // ---- v98, re-pinned v132: the sparkle keeps Gemini's hues (it marks AI provenance, beside

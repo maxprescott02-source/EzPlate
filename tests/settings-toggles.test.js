@@ -127,10 +127,24 @@ test('v132: the stale cafeCost_theme key is actively removed at boot (the v130 s
     'nothing may READ the key any more');
 });
 
-test('v132: style.css carries no dark-theme rules (light only, locked)', () => {
+test('v132: no dark-theme rules survive anywhere the client ships (light only, locked)', () => {
   const CSS = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
   assert.ok(!/data-theme/.test(CSS), 'no data-theme selectors');
-  assert.ok(!/prefers-color-scheme/.test(CSS), 'no color-scheme media queries');
+  assert.ok(!/prefers-color-scheme/.test(CSS), 'no color-scheme media queries in CSS');
+  // the review found the one surviving artefact in the file this guard did not scan:
+  // a dark-media theme-color meta painting a near-black PWA title bar over a white app
+  assert.ok(!/prefers-color-scheme/.test(HTML), 'no color-scheme media anywhere in index.html (metas included)');
+});
+
+test('v132: every service-worker ASSET path resolves to a real file (a 404 rejects the whole cache.addAll, silently)', () => {
+  const SW = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const list = SW.match(/const ASSETS = \[([^\]]+)\]/)[1].match(/'[^']+'/g).map(s => s.slice(1, -1));
+  assert.ok(list.length >= 15, `ASSETS list found (${list.length} entries)`);
+  list.forEach(p => {
+    const clean = p.replace(/\?v=\d+$/, '');
+    if (clean === './') return;
+    assert.ok(fs.existsSync(path.join(ROOT, clean)), `ASSETS entry must exist on disk: ${p}`);
+  });
 });
 
 /* ---------- the GATE: AI invoice check OFF => no API call ---------- */
