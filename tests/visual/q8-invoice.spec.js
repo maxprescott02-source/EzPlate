@@ -53,7 +53,7 @@ test('a user tick on a review row survives a re-render caused elsewhere', async 
   expect(base.btn, 'footer counts the pre-ticks').toBe('Confirm ' + preCount + ' change' + (preCount === 1 ? '' : 's'));
   // the EXACT warn wash — before v127 these price-change rows painted --bad-bg via the old
   // needs-attention duplicate rule, which outranked st-review; reverting either fix repaints red
-  expect(base.reviewTint, 'review rows wear WARN, not the old red').toBe('rgba(169, 98, 6, 0.12)');
+  expect(base.reviewTint, 'review rows wear WARN, not the old red').toBe('rgb(253, 243, 224)');   // v132: --warn-bg is the v3 pair #FDF3E0
 
   // the user ticks the review row
   await rows.nth(2).locator('.invAppr').check();

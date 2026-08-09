@@ -255,12 +255,11 @@ test('percentages and sparklines share axes across the ranked list @ 1280', asyn
   }
 });
 
-// ---- v98 revision: ONE elevation, two modes. Every dashboard card draws the same --elev token
-// — cast shadow in light; none in dark, where the surface-lightness step carries depth. Pinned
-// by computed style so a per-card override or a murky dark shadow cannot creep back.
-// v120: .dash-compare is no longer a standing card; .dash-moved is the new one, and both halves
-// sweep the same card types so the dark check cannot go vacuous. ----
-test('one elevation token: cards share it in light, and it is none in dark @ 1280', async ({ page }) => {
+// ---- v98 revision, re-pinned v132: ONE elevation. v3 §1.3 kills card shadows outright —
+// shadows exist only on floating layers (dropdown, modal, toast) — so every dashboard card
+// must draw NO cast shadow, and all four must agree. Pinned by computed style so a per-card
+// shadow cannot creep back. (The two-mode light/dark split died with dark mode, v132.) ----
+test('one elevation token: every card is flat — v3 draws no card shadows @ 1280', async ({ page }) => {
   const read = () => ({
     panel: getComputedStyle(document.querySelector('#dashBody .dash-panel')).boxShadow,
     moved: getComputedStyle(document.querySelector('#dashBody .dash-moved')).boxShadow,
@@ -268,26 +267,22 @@ test('one elevation token: cards share it in light, and it is none in dark @ 128
     dig: getComputedStyle(document.querySelector('#dashBody .dig-card')).boxShadow
   });
   await boot(page, 1280, 6, 'light');
-  const light = await page.evaluate(read);
-  expect(light.panel, 'light mode casts a real shadow').not.toBe('none');
-  expect(new Set(Object.values(light)).size, 'every card shares ONE shadow value in light').toBe(1);
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-  const dark = await page.evaluate(read);
-  expect(dark.panel, 'dark mode draws no cast shadow — the surface step is the depth').toBe('none');
-  expect(dark.moved, 'What moved included').toBe('none');
-  expect(dark.ins, 'insights included').toBe('none');
-  expect(dark.dig, 'dig tiles included').toBe('none');
+  const got = await page.evaluate(read);
+  // all four agree AND match the resolved token — so deleting box-shadow:var(--elev) from one
+  // card, or retiring the token, still fails here when --elev later becomes a real shadow
+  // (plain `'none'` × 4 could never fail again — review finding on the first rewrite)
+  const token = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--elev').trim());
+  expect(token, 'the one elevation token is none in v3').toBe('none');
+  expect(new Set(Object.values(got)).size, 'every card shares the ONE token value').toBe(1);
+  expect(got.panel, 'v3: cards sit flat on their border').toBe('none');
 });
 
-// ---- v98: the sparkle keeps Gemini's hues (it marks AI provenance, beside the earned credit)
-// but LIGHT mode draws the deeper-luminance variant — the stock stops washed out on cream.
-// Computed fill, not source: what matters is which gradient actually wins in each theme. ----
-test('the sparkle draws the deep gradient in light mode and the stock one in dark', async ({ page }) => {
+// ---- v98, re-pinned v132: the sparkle keeps Gemini's hues (it marks AI provenance, beside
+// the earned credit) and always draws the deeper-luminance variant — the stock stops washed
+// out at 16px. Computed fill, not source: what matters is which gradient actually wins.
+// (The dark half of this pin died with dark mode, v132.) ----
+test('the sparkle draws the deep gradient (light only since v132)', async ({ page }) => {
   await boot(page, 1280, 6, 'light');
-  const lightFill = await page.evaluate(() => getComputedStyle(document.querySelector('.ins-spark path')).fill);
-  expect(lightFill, 'light mode uses the deepened stops').toContain('ezSparkGradDeep');
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-  const darkFill = await page.evaluate(() => getComputedStyle(document.querySelector('.ins-spark path')).fill);
-  expect(darkFill, 'dark mode keeps the stock Gemini stops').toContain('ezSparkGrad');
-  expect(darkFill, 'dark mode does NOT deepen').not.toContain('ezSparkGradDeep');
+  const fill = await page.evaluate(() => getComputedStyle(document.querySelector('.ins-spark path')).fill);
+  expect(fill, 'the deepened stops win').toContain('ezSparkGradDeep');
 });

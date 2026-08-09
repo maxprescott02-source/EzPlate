@@ -1,9 +1,12 @@
 /*
  * settings-toggles.test.js — v81 Settings additions.
  *
- * Guards the two new AI toggles + the theme preference, all on the house
- * settings-persistence pattern (dbSetSetting + a localStorage mirror), and the
- * two behavioural GATES those toggles drive:
+ * Guards the two new AI toggles, on the house settings-persistence pattern
+ * (dbSetSetting + a localStorage mirror), and the two behavioural GATES those
+ * toggles drive:
+ * (v132: the theme-preference block is GONE with the machinery it pinned —
+ * light only per the v3 spec, Max's yes 9 Aug 2026. The absence pins live in
+ * the v132 block at the bottom.)
  *   - AI invoice check OFF  => gemFireSecondReader makes NO API call.
  *   - AI suggestions OFF     => dashInsightsHtml renders nothing (v90: the Dashboard, not the Menu tab).
  * Defaults must preserve today's behaviour (both readers ON) so brand-new
@@ -54,18 +57,15 @@ function togglesHarness() {
     var document = { documentElement: ROOT, getElementById:function(){ return null; } };
     function dbSetSetting(k,v){ WRITES.push({key:k, value:v}); }
     function renderDashboard(){ RENDERS.insights++; }   /* v90: insights render on the Dashboard now */
-    var AI_INV_KEY='cafeDB_aiInvoiceCheck', AI_SUG_KEY='cafeDB_aiSuggestions', THEME_KEY='cafeCost_theme';
+    var AI_INV_KEY='cafeDB_aiInvoiceCheck', AI_SUG_KEY='cafeDB_aiSuggestions';
     var aiInvoiceCheck, aiSuggestions;
     ${extractFn(APP, 'loadAiInvoiceCheck')}
     ${extractFn(APP, 'setAiInvoiceCheck')}
     ${extractFn(APP, 'loadAiSuggestions')}
     ${extractFn(APP, 'setAiSuggestions')}
-    ${extractFn(APP, 'loadThemePref')}
-    ${extractFn(APP, 'applyThemePref')}
     return {
       loadAiInvoiceCheck:loadAiInvoiceCheck, setAiInvoiceCheck:setAiInvoiceCheck,
-      loadAiSuggestions:loadAiSuggestions, setAiSuggestions:setAiSuggestions,
-      loadThemePref:loadThemePref, applyThemePref:applyThemePref
+      loadAiSuggestions:loadAiSuggestions, setAiSuggestions:setAiSuggestions
     };
   `);
   return { api: factory(writes, store, root, renders), writes, store, root, renders };
@@ -109,32 +109,42 @@ test('v81: toggling AI suggestions persists, round-trips, and re-renders the ins
   assert.equal(renders.insights, 1, 'the panel/trigger update immediately on toggle');
 });
 
-/* ---------- theme preference ---------- */
+/* ---------- v132: light only — pin the ABSENCE, both halves ---------- */
 
-test('v81: theme preference defaults to "system" (no stored key = follow the OS)', () => {
-  const { api } = togglesHarness();
-  assert.equal(api.loadThemePref(), 'system');
+test('v132: the theme machinery is gone from app.js and the segment from Settings (light only)', () => {
+  // the functions and the key must not quietly return — dark comes back as its own
+  // designed package (Max, 9 Aug 2026, decision 2), never as a leftover mechanism
+  ['function loadThemePref(', 'function applyThemePref(', 'function syncThemeSeg(', "THEME_KEY='cafeCost_theme'"]
+    .forEach(sig => assert.ok(APP.indexOf(sig) < 0, `app.js must not carry ${sig}`));
+  assert.ok(!/data-theme-pref/.test(HTML), 'the Settings theme segment is gone');
+  assert.ok(!/id="themeToggle"/.test(HTML), 'the header moon toggle is gone');
 });
 
-test('v81: choosing Light/Dark sets data-theme + the same key the header toggle uses', () => {
-  const { api, store, root } = togglesHarness();
-  api.applyThemePref('dark');
-  assert.equal(root.getAttribute('data-theme'), 'dark');
-  assert.equal(store['cafeCost_theme'], 'dark', 'reuses the header toggle key — not a second mechanism');
-  assert.equal(api.loadThemePref(), 'dark');
-
-  api.applyThemePref('light');
-  assert.equal(root.getAttribute('data-theme'), 'light');
-  assert.equal(api.loadThemePref(), 'light');
+test('v132: the stale cafeCost_theme key is actively removed at boot (the v130 stale-key pattern)', () => {
+  assert.ok(/localStorage\.removeItem\(\s*['"]cafeCost_theme['"]\s*\)/.test(HTML),
+    'index.html must remove the dead key so an old install cannot keep a forced theme');
+  assert.ok(!/localStorage\.getItem\(\s*['"]cafeCost_theme['"]\s*\)/.test(HTML),
+    'nothing may READ the key any more');
 });
 
-test('v81: choosing System clears the key and the forced attribute (falls back to prefers-color-scheme)', () => {
-  const { api, store, root } = togglesHarness();
-  api.applyThemePref('dark');
-  api.applyThemePref('system');
-  assert.equal(root.getAttribute('data-theme'), null, 'no forced theme');
-  assert.equal('cafeCost_theme' in store, false, 'key removed so CSS media query wins');
-  assert.equal(api.loadThemePref(), 'system');
+test('v132: no dark-theme rules survive anywhere the client ships (light only, locked)', () => {
+  const CSS = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+  assert.ok(!/data-theme/.test(CSS), 'no data-theme selectors');
+  assert.ok(!/prefers-color-scheme/.test(CSS), 'no color-scheme media queries in CSS');
+  // the review found the one surviving artefact in the file this guard did not scan:
+  // a dark-media theme-color meta painting a near-black PWA title bar over a white app
+  assert.ok(!/prefers-color-scheme/.test(HTML), 'no color-scheme media anywhere in index.html (metas included)');
+});
+
+test('v132: every service-worker ASSET path resolves to a real file (a 404 rejects the whole cache.addAll, silently)', () => {
+  const SW = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const list = SW.match(/const ASSETS = \[([^\]]+)\]/)[1].match(/'[^']+'/g).map(s => s.slice(1, -1));
+  assert.ok(list.length >= 15, `ASSETS list found (${list.length} entries)`);
+  list.forEach(p => {
+    const clean = p.replace(/\?v=\d+$/, '');
+    if (clean === './') return;
+    assert.ok(fs.existsSync(path.join(ROOT, clean)), `ASSETS entry must exist on disk: ${p}`);
+  });
 });
 
 /* ---------- the GATE: AI invoice check OFF => no API call ---------- */

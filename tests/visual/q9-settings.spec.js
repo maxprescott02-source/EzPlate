@@ -23,8 +23,27 @@ async function boot(page, width) {
 for (const width of [640, 1280]) {
   test(`desktop ${width}px: section title is in the DOM for AT but takes no visible space`, async ({ page }) => {
     await boot(page, width);
-    await page.click('#settingsBtn');
+    // v132: at ≥1024 the header is gone — Settings lives in the sidebar's bottom group
+    await page.click(width >= 1024 ? '#sideSettings' : '#settingsBtn');
     await page.waitForTimeout(400);
+    if (width >= 1024) {
+      // the sidebar entry wears .navbtn for styling but must NOT behave as a tab: the first cut
+      // let the blanket .navbtn wiring run showTab(undefined), which blanked every pane and wrote
+      // the string "undefined" into cafeDB_lastTab (review finding). Pin the round trip.
+      await page.click('#settingsClose');
+      await page.waitForTimeout(300);
+      const state = await page.evaluate(() => ({
+        visiblePanes: ['builder', 'ingredients', 'analysis', 'dashboard', 'pantry']
+          .filter(n => document.getElementById('tab-' + n).style.display !== 'none').length,
+        lastTab: localStorage.getItem('cafeDB_lastTab'),
+        settingsActive: document.getElementById('sideSettings').classList.contains('active'),
+      }));
+      expect(state.visiblePanes, 'exactly one tab pane stays visible after the settings round trip').toBe(1);
+      expect(state.lastTab, 'the remembered tab survives opening Settings').not.toBe('undefined');
+      expect(state.settingsActive, 'the Settings entry never takes the active pill').toBe(false);
+      await page.click('#sideSettings');
+      await page.waitForTimeout(300);
+    }
     const title = page.locator('#setSec-general .set-sec-title');
     await expect(title).toHaveText('General');
     const box = await title.boundingBox();
