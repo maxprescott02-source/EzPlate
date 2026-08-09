@@ -350,8 +350,11 @@ ok('row 0 is still an add-new line', window.document.querySelector('#invReview t
 
 console.log('\n[12] v54 — Plates library tab + builder popup + publish-from-card');
 // the Builder tab is now the Plates library; the builder lives in a popup.
+// F2 (v138): the library's view layer was rebuilt from the v3 mock, so the row is `.plib-row` and
+// no longer the borrowed Products `.ing-card`. The FLOW pinned here is untouched — every id, every
+// handler and every step below is the same; only the selectors and the row's own words moved.
 ok('the tab container keeps data-tab="builder" (identifier unchanged)', !!$('tab-builder'));
-ok('the Plates card grid exists', !!$('plateList'));
+ok('the Plates list exists', !!$('plateList'));
 ok('the builder popup exists as a modal, not the tab body', !!$('builderModal') && !!$('docketPanel'));
 ok('the old builder buttons are gone (no Publish-to-Menu / Save-draft)', !$('addMenuBtn'));
 ok('the single Save button remains inside the popup', !!$('saveBtn'));
@@ -374,16 +377,25 @@ window.setMiscCost(Number(miscLine.getAttribute('data-uid')), '1.25');
 ok('the cost panel mirrors the docket total (Q6)', $('bTotal').textContent === '$1.25' && $('total').textContent === '$1.25', $('bTotal').textContent + ' vs ' + $('total').textContent);
 $('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
 ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
-let libCard = window.document.querySelector('#plateList .ing-card');
-ok('the saved plate appears as a card', !!libCard && /Smoke Plate/.test(libCard.textContent), libCard && libCard.textContent);
-ok('the card shows its category (§J)', /Breakfast/.test(libCard.textContent), libCard && libCard.textContent);
+let libCard = window.document.querySelector('#plateList .plib-row');
+ok('the saved plate appears as a row', !!libCard && /Smoke Plate/.test(libCard.textContent), libCard && libCard.textContent);
+ok('the row shows its category (§J)', /Breakfast/.test(libCard.textContent), libCard && libCard.textContent);
 ok('the category filter is populated (§J)', /Breakfast/.test(($('plateCatFilter') || {}).textContent || ''));
 ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
-ok('the card shows a plate-cost cell', !!libCard && /plate cost/.test(libCard.textContent) && /\$/.test(libCard.textContent), libCard && libCard.textContent);
+// v138: the cost is the bare figure the mock draws — the "plate cost" caption is the BAND's job now,
+// so the pin is the mono cell carrying a real amount, not a caption repeated on every row
+ok('the row shows the plate cost as a mono figure',
+   !!libCard && /^\$\d/.test((libCard.querySelector('.plib-cost') || {}).textContent || ''),
+   libCard && (libCard.querySelector('.plib-cost') || {}).textContent);
+ok('the column band labels it once, above the rows',
+   /Plate cost/.test((window.document.querySelector('#plateList .plib-band') || {}).textContent || ''));
+ok('the footnote is revealed with the rows', $('plateListNote') && !$('plateListNote').hidden);
+ok('the header subtitle counts the library',
+   /^1 plate, 1 unpublished$/.test(($('plateHeadSub') || {}).textContent || ''), ($('plateHeadSub') || {}).textContent);
 
-// tapping the card opens the action chooser -> Add to a menu (v82 wording; opens the v55 many-to-many manager)
+// tapping the row opens the action chooser -> Add to a menu (v82 wording; opens the v55 many-to-many manager)
 libCard.click();
-ok('tapping a card opens the action popup', $('plateActionsModal').classList.contains('open'));
+ok('tapping a row opens the action popup', $('plateActionsModal').classList.contains('open'));
 ok('the card offers "Add to a menu"', $('paPublish').textContent === 'Add to a menu', $('paPublish').textContent);
 $('paPublish').click();
 ok('Add to a menu opens the manage-menus modal', $('manageMenusModal').classList.contains('open'));
@@ -399,7 +411,7 @@ $('mi_cat').value = '';                                 // empty category -> "Un
 window.submitMenuItem();
 ok('publishing closes the publish modal', !$('menuModal').classList.contains('open'));
 window.renderPlatesTab();
-libCard = window.document.querySelector('#plateList .ing-card');
+libCard = window.document.querySelector('#plateList .plib-row');
 ok('the plate now shows which menu it is On', !!libCard && /On /.test(libCard.textContent), libCard && libCard.textContent);
 // Manage menus now shows the menu with a price + Remove (published there)
 libCard.click();
@@ -802,10 +814,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[20] …the builder closes and lands on the Ingredients tab',
      !$('builderModal').classList.contains('open') && $('tab-pantry').style.display !== 'none');
   window.showTab('builder');
-  const savedCard = [...window.document.querySelectorAll('#plateList .ing-card')]
+  const savedCard = [...window.document.querySelectorAll('#plateList .plib-row')]
     .find(c => /Chef Salad/.test(c.textContent));
   ok('[20] …and the plate was SAVED to the library, not lost', !!savedCard,
-     [...window.document.querySelectorAll('#plateList .ing-card')].map(c => c.textContent).join(' | '));
+     [...window.document.querySelectorAll('#plateList .plib-row')].map(c => c.textContent).join(' | '));
 
   // ---------------------------------------------------------------------------
   // [21] v83 — "resuming a plate doesn't work" (Max). This needs a FRESH boot with a

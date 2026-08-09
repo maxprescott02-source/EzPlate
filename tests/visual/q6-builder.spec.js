@@ -34,7 +34,7 @@ test('cost panel tracks edits live; new plate resets it', async ({ page }) => {
   });
   await page.locator('.navbtn[data-tab="builder"]').click();
   await page.waitForTimeout(300);
-  await page.locator('#plateList .ing-card').first().click();
+  await page.locator('#plateList .plib-row').first().click();
   await page.waitForTimeout(300);
   await page.locator('#paEdit').click();
   await page.waitForTimeout(500);

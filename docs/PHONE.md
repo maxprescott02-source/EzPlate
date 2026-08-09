@@ -11,6 +11,31 @@ Production state below is measured, not assumed.
 
 ---
 
+## v138 - Plates is the first screen REBUILT from the v3 mock
+
+The Plates tab no longer borrows the Products card styling. It is a two-line list on the phone
+(name, then "category, on Winter Menu", cost right) and a three-column table on desktop.
+Everything else on the screen still works exactly as it did - the row still opens the same
+Add-to-a-menu / Edit / Print / Delete chooser.
+
+- **Read the meta line on the real catalogue, both themes.** Every row is now
+  "category, publish state" under the name. Your plate names are longer than the fixtures.
+  A failure looks like: the name wrapping to three lines, or the meta line truncating the menu
+  name so you cannot tell which menu a plate is on.
+- **"not costed" in the cost column.** It replaces the old dash-plus-"not costed yet" caption.
+  A device is the judge of whether it reads as information at 15px mono, or as an error.
+  (The older "reads as clutter?" question further down this file is about the OLD rendering and
+  is answered by this one - do not answer both.)
+- **The clear ✕ inside the search box.** It is a new element (`.plib-x`) with an invisible 40px
+  hit area rather than the app's shared one. Tap it with a thumb, not a fingertip: a failure is
+  having to aim, or hitting the text field instead and popping the keyboard.
+- **The lowercase meta line.** "Mains, on Winter Menu" is lowercased by CSS (`::first-letter`),
+  not in the text. iOS Safari is the one engine this was not driven in. A failure looks like
+  "Mains, On Winter Menu" - wrong-looking but harmless, so it is worth a glance and nothing more.
+- **The header row.** Title plus one "New plate" button, no subtitle on the phone (the desktop
+  gets "6 plates, 1 not costed, 2 unpublished"). A failure is the button wrapping onto its own
+  line - it did exactly that before it was caught, and only on a narrow screen.
+
 ## v136 - dark mode is BACK, and Settings now has a Light / Dark / System control
 
 ⚠️ **This reverses what the v132-v135 block below tells you.** That block says dark mode is gone
