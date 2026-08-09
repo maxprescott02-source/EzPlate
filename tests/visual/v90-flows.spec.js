@@ -155,7 +155,7 @@ test('changing the AI suggestions toggle adds and removes the insights panel', a
   await page.waitForTimeout(400);
   await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
 
-  await page.locator('#settingsBtn').click();
+  await page.locator('#sideSettings').click();   // v132: at 1280 the header is gone — the sidebar's bottom group owns Settings
   await page.waitForTimeout(300);
   // the switch is a visually-hidden <input> behind a decorative .switch-track — correct a11y, and it
   // means the LABEL is the real tap target. Click what a thumb would click.
@@ -170,7 +170,7 @@ test('changing the AI suggestions toggle adds and removes the insights panel', a
   // v121: the verdict and the chart are ONE card again (the v120 two-card cut was reverted as janky)
   await expect(page.locator('#dashBody .dash-panel')).toHaveCount(1);
 
-  await page.locator('#settingsBtn').click();
+  await page.locator('#sideSettings').click();   // v132: sidebar bottom group (still at 1280)
   await page.waitForTimeout(300);
   await page.locator('label.switch:has(#setAiSuggestChk)').click();
   await expect(page.locator('#setAiSuggestChk')).toBeChecked();

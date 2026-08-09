@@ -23,7 +23,8 @@ async function boot(page, width) {
 for (const width of [640, 1280]) {
   test(`desktop ${width}px: section title is in the DOM for AT but takes no visible space`, async ({ page }) => {
     await boot(page, width);
-    await page.click('#settingsBtn');
+    // v132: at ≥1024 the header is gone — Settings lives in the sidebar's bottom group
+    await page.click(width >= 1024 ? '#sideSettings' : '#settingsBtn');
     await page.waitForTimeout(400);
     const title = page.locator('#setSec-general .set-sec-title');
     await expect(title).toHaveText('General');

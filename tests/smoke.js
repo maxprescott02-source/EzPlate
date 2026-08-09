@@ -102,7 +102,7 @@ window.renderAnalysis();
 ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 'Suggested (25%)', $('aSuggestedTh').textContent);
 $('settingsDone').click();
 
-console.log('\n[3b] v81 — Settings sectioned surface (sidebar / drill-down + AI toggles + theme)');
+console.log('\n[3b] v81 — Settings sectioned surface (sidebar / drill-down + AI toggles)');
 const setPanel = window.document.querySelector('#settingsPanel .settings-panel');
 const navItem = g => window.document.querySelector(`.set-navitem[data-goto="${g}"]`);
 $('settingsBtn').click();
@@ -122,11 +122,9 @@ $('setAiInvoiceChk').checked = true; $('setAiInvoiceChk').dispatchEvent(new wind
 $('setAiSuggestChk').checked = false; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));
 ok('turning AI suggestions off removes the Dashboard insights panel', !window.document.querySelector('#dashBody .dash-ins') && window.aiSuggestions === false);
 $('setAiSuggestChk').checked = true; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));   // restore ON
-window.document.querySelector('.seg-btn[data-theme-pref="dark"]').click();
-ok('choosing Dark forces data-theme + writes the header toggle key', window.document.documentElement.getAttribute('data-theme') === 'dark' && window.localStorage.getItem('cafeCost_theme') === 'dark');
-ok('the Dark segment reads selected', window.document.querySelector('.seg-btn[data-theme-pref="dark"]').getAttribute('aria-checked') === 'true');
-window.document.querySelector('.seg-btn[data-theme-pref="system"]').click();
-ok('choosing System clears the forced theme (falls back to the OS)', !window.document.documentElement.getAttribute('data-theme') && !window.localStorage.getItem('cafeCost_theme'));
+// v132: light only — the theme segment is GONE from Settings and no theme machinery survives
+ok('v132: no theme segment in Settings (light only)', !window.document.querySelector('#settingsPanel .seg-btn[data-theme-pref]'));
+ok('v132: no forced theme attribute and no stored theme key', !window.document.documentElement.getAttribute('data-theme') && !window.localStorage.getItem('cafeCost_theme'));
 $('settingsDone').click();
 
 console.log('\n[4] item 6 — backup export');

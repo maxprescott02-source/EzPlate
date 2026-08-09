@@ -28,125 +28,91 @@
    ========================================================================== */
 
 /* ----------------------------------------------------------------------
-   1. DESIGN TOKENS — EzPlate
-   Palette: Espresso #3E2C26 (brand ink) · Marmalade #B84E0C (CTA accent)
-   Paper #F7F3EC (bg) · Sage #2E6B44 (healthy margin) · Brick #B03A2E (danger)
+   1. DESIGN TOKENS — EzPlate v3, light only (locked)
+   Palette per docs/design_handoff_ezplate_redesign/V3-Design-Package.md §1.2.
+   Dark mode REMOVED v132 (Max's yes, 9 Aug 2026, decision 2) — it can return
+   later as its own designed package, never as per-screen guesses.
    ---------------------------------------------------------------------- */
+
+/* v3 type — Geist self-hosted (decision 3, Max's yes 9 Aug 2026): static woff2 in /fonts,
+   cached by the service worker, OFL license alongside. Google Fonts is gone — nothing
+   type-related is fetched at runtime. */
+@font-face{font-family:'Geist';src:url('../fonts/Geist-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist';src:url('../fonts/Geist-Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist';src:url('../fonts/Geist-SemiBold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist';src:url('../fonts/Geist-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url('../fonts/GeistMono-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url('../fonts/GeistMono-Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url('../fonts/GeistMono-SemiBold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url('../fonts/GeistMono-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
 :root{
-  /* type — Nunito Sans loaded in <head>; falls back to system-ui offline */
-  --ui:'Nunito Sans',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  /* type */
+  --ui:'Geist',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:'Geist Mono',ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
   --fs-xs:12px; --fs-sm:13px; --fs-base:15px; --fs-md:16px; --fs-lg:18px; --fs-xl:24px;
 
   /* spacing scale (4px base) */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
 
-  /* shape */
-  --radius-card:16px; --radius-ctl:12px; --radius-chip:9px; --radius-pill:999px;
+  /* shape — v3 §1.3: containers 12px mobile / 10px desktop, controls 10px / 6px.
+     The ≥1024 block re-declares the two tokens; screens only ever consume them. */
+  --radius-card:12px; --radius-ctl:10px; --radius-chip:9px; --radius-pill:999px;
 
   /* motion system (v72) — ONE easing + a small fixed duration scale.
      No ad-hoc durations/easings anywhere else; everything transitions off these.
-     Durations:  --t-fast  taps / hovers / toggles / chips
-                 --t-med   most state changes (dropdowns, cards, toasts)
-                 --t-slow  larger surfaces (modal + panel open/close)
-     Easing:     --ease         primary ease-out for entrances / most motion
-                 --ease-in-out  symmetric moves (e.g. a modal fading back out)
-                 --ease-spring  overshoot bounce — the signature moments only
-                                (Gemini panel expand + invoice-import toast).
-     All motion is disabled wholesale under prefers-reduced-motion (§22). */
+     --ease primary ease-out · --ease-in-out symmetric · --ease-spring signature overshoot
+     · --ease-entry the v3 §1.4 screen-mount rise. All motion is disabled wholesale
+     under prefers-reduced-motion.
+     v3 asks press scale(.99); the app's decided press language is scale(.98) (v115) and
+     ONE press value app-wide wins over the mock — recorded here per the queue note. */
   --ease:cubic-bezier(.2,.7,.3,1);
   --ease-in-out:cubic-bezier(.65,0,.35,1);
-  --ease-spring:cubic-bezier(.34,1.56,.64,1);   /* easeOutBack — visible overshoot for the signature moments */
-  --t-fast:.14s; --t-med:.22s; --t-slow:.3s;
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+  --ease-entry:cubic-bezier(.16,1,.3,1);
+  --t-fast:.14s; --t-med:.22s; --t-slow:.3s; --t-entry:.4s;
 }
 
-/* Light — EzPlate default: warm paper, espresso ink, marmalade accent */
-:root[data-theme="light"], :root{
-  --bg:#F7F3EC; --surface:#FFFDF9; --surface2:#F2EADF; --field:#FFFDF9;
-  --text:#2A1F1A; --text2:#6B5D54; --muted2:#756759;
-  --border:#E8DFD3; --border2:#D9CDBD; --hover:#F2EADF;
-  --brand:#3E2C26;                                   /* espresso — headings, eyebrows, docket */
-  --accent:#B84E0C; --accent-press:#A34509;          /* marmalade — CTAs only */
+/* v3 palette — white canvas, white bordered containers, #FAF7F1 for the sidebar /
+   header bands / hovers. ONE accent (marmalade); green/amber/red reserved for cost
+   semantics. The spec's §1.2 threshold note (good ≤ target, warn ≤ target+3pts) was
+   NOT adopted as a light rule — analyze() (js/app.js) is the shipped law and code is
+   behavior truth (§11.4); only the colour PAIRS below are the spec's. */
+:root{
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface2:#FAF7F1; --field:#FFFFFF;
+  --text:#2A211B; --text2:#6B5D50; --muted2:#A2937F;
+  --border:#EAE3D8; --border2:#E3DCCF; --hover:#FAF7F1;
+  --divider:#F3EFE8;                                 /* v3: row dividers */
+  --nav-active:#F2EADD;                              /* v3: sidebar active pill */
+  --skeleton:#F3EFE8;                                /* v3: skeleton bars — V8 emits them */
+  --brand:#2A211B;
+  --accent:#B84E0C; --accent-press:#964009;
   --accent-ink:var(--accent);
   --accent-weak:rgba(184,78,12,.10); --on-accent:#FFFFFF;
+  --accent-tint:#F8E7D3; --accent-tint-ink:#964009;  /* v3: avatars, mobile active chip */
   --on-bad:#FFFFFF;
-  --good:#2E6B44;  --good-bg:rgba(46,107,68,.12);    /* sage — healthy margin */
-  --warn:#A96206;  --warn-bg:rgba(169,98,6,.12);     /* toasted amber — check this */
-  --bad:#B03A2E;   --bad-bg:rgba(176,58,46,.10);     /* brick — losses & deletes */
-  --shadow:0 1px 2px rgba(62,44,38,.05),0 6px 18px rgba(62,44,38,.07);
-  --shadow-lg:0 22px 56px rgba(41,28,22,.24);
-  --shadow-float:0 3px 10px rgba(60,40,20,.13);       /* v79: soft elevation for the floating Suggestions button */
-  /* v98: card elevation is a TWO-MODE token — cast shadow in light; none in dark, where depth
-     comes from the surface-lightness step instead (cast shadow reads as murk on a dark page).
-     Dashboard cards use it now; migrating the other tabs is a listed follow-up, not implied. */
-  --elev:var(--shadow);
-  --elev-nav:0 -4px 18px rgba(56,38,30,.08);   /* v99: bottom-nav's upward cast — two-mode like --elev */
-  --elev-cast:var(--shadow);                   /* v99: composite-safe --elev — `none` is invalid inside a shadow list */
+  --good:#16794C;  --good-bg:#E6F4EC;
+  --warn:#B54708;  --warn-bg:#FDF3E0;
+  --bad:#C63C33;   --bad-bg:#FBEBEA;
+  --danger-border:#F0D4D1;                           /* v3: destructive outlines, error banners */
+  --toast-bg:#2A211B; --toast-action:#F0A46B;        /* v3: toast chip */
+  /* v3 §1.3: shadows ONLY on floating layers — dropdown, modal, toast, bottom sheet.
+     Cards and tables sit flat on their border. */
+  --shadow:0 8px 24px rgba(24,24,27,.08);            /* dropdown */
+  --shadow-lg:0 16px 48px rgba(42,33,27,.16);        /* modal */
+  --shadow-float:0 8px 24px rgba(24,24,27,.12);      /* the floating button */
+  --elev:none;
+  --elev-nav:none;
+  --elev-cast:0 0 rgba(0,0,0,0);                     /* composite-safe no-op — a shadow LIST item can't be `none` */
   --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
   --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
   --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
   --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
-  /* legacy token remap — any untouched legacy rule follows the theme */
+  /* legacy token remap — any untouched legacy rule follows the palette */
   --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
   --navy:var(--brand); --maroon:var(--brand);
   --line:var(--border); --line2:var(--border2);
   --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
-}
-:root[data-theme="dark"]{
-  --bg:#191412; --surface:#241E1B; --surface2:#2C2521; --field:#221C19;
-  --text:#F3EDE5; --text2:#C9BBAF; --muted2:#97897E;
-  --border:#392F2A; --border2:#4A3E37; --hover:#2C2521;
-  --brand:#F3EDE5;
-  --accent:#F08A3C; --accent-press:#E2792A;          /* marmalade, brightened for dark */
-  --accent-ink:var(--accent);
-  --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
-  --on-bad:#2A1F1A;
-  --good:#6FBE8F;  --good-bg:rgba(111,190,143,.16);
-  --warn:#E2A54B;  --warn-bg:rgba(226,165,75,.16);
-  --bad:#E76D5C;   --bad-bg:rgba(231,109,92,.16);
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
-  --shadow-lg:0 28px 68px rgba(0,0,0,.6);
-  --shadow-float:0 3px 12px rgba(0,0,0,.45);          /* v79: soft elevation for the floating Suggestions button */
-  --elev:none;                                        /* v98: dark depth = the surface step, not cast shadow */
-  --elev-nav:none;
-  --elev-cast:0 0 rgba(0,0,0,0);                      /* transparent no-op — a shadow LIST item can't be `none` */
-  --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
-  --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
-  --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
-  --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
-  --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
-  --navy:var(--brand); --maroon:var(--brand);
-  --line:var(--border); --line2:var(--border2);
-  --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#191412; --surface:#241E1B; --surface2:#2C2521; --field:#221C19;
-    --text:#F3EDE5; --text2:#C9BBAF; --muted2:#97897E;
-    --border:#392F2A; --border2:#4A3E37; --hover:#2C2521;
-    --brand:#F3EDE5;
-    --accent:#F08A3C; --accent-press:#E2792A;
-    --accent-ink:var(--accent);
-    --accent-weak:rgba(240,138,60,.16); --on-accent:#2A1F1A;
-    --on-bad:#2A1F1A;
-    --good:#6FBE8F;  --good-bg:rgba(111,190,143,.16);
-    --warn:#E2A54B;  --warn-bg:rgba(226,165,75,.16);
-    --bad:#E76D5C;   --bad-bg:rgba(231,109,92,.16);
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.42);
-    --shadow-lg:0 28px 68px rgba(0,0,0,.6);
-    --shadow-float:0 3px 12px rgba(0,0,0,.45);          /* v79: soft elevation for the floating Suggestions button */
-    --elev:none;                                        /* v98: dark depth = the surface step, not cast shadow */
-    --elev-nav:none;
-    --elev-cast:0 0 rgba(0,0,0,0);                      /* transparent no-op — a shadow LIST item can't be `none` */
-    --empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22rotate%22%20from%3D%220%20104%2088%22%20to%3D%22360%20104%2088%22%20dur%3D%2240s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%2215.43%22%20stroke-dashoffset%3D%220%22%3E%3Canimate%20attributeName%3D%22stroke-dashoffset%22%20values%3D%2215.43%3B0%3B0%3B15.43%22%20keyTimes%3D%220%3B.3%3B.75%3B1%22%20dur%3D%224.5s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3Cg%20opacity%3D%220%22%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3CanimateTransform%20attributeName%3D%22transform%22%20type%3D%22translate%22%20values%3D%220%203%3B0%20-5%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3Canimate%20attributeName%3D%22opacity%22%20values%3D%220%3B.85%3B.85%3B0%22%20keyTimes%3D%220%3B.25%3B.7%3B1%22%20dur%3D%222.8s%22%20begin%3D%221.4s%22%20repeatCount%3D%22indefinite%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
-  --empty-ing:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22120%22%20rx%3D%2264%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2244%22%20y%3D%2252%22%20width%3D%22112%22%20height%3D%2264%22%20rx%3D%228%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M44%2074%20H156%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M70%2052%20V116%20M130%2052%20V116%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%223.5%22%20opacity%3D%22.55%22%2F%3E%3Cpath%20d%3D%22M52%2046%20H148%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M124%2046%20C124%2030%2C%20140%2030%2C%20142%2018%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M133%2030%20C140%2032%2C%20146%2030%2C%20150%2024%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
-  --empty-chart:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20128%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M28%2014%20V104%20H184%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M28%2062%20H184%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M44%2088%20C70%2084%2C%2084%2070%2C%20104%2072%20C%20128%2074%2C%20142%2056%2C%20162%2050%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%20stroke-dasharray%3D%220.1%2011%22%2F%3E%3Ccircle%20cx%3D%22166%22%20cy%3D%2249%22%20r%3D%227%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E");
-  --empty-menu:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20140%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22100%22%20cy%3D%22124%22%20rx%3D%2260%22%20ry%3D%228%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2214%22%20width%3D%2288%22%20height%3D%22106%22%20rx%3D%2210%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cpath%20d%3D%22M72%2034%20H112%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M72%2054%20H128%20M72%2070%20H128%20M72%2086%20H128%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%22122%22%20cy%3D%22102%22%20r%3D%2211%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%224%22%2F%3E%3Cpath%20d%3D%22M%20122%2095.5%20A%206.5%206.5%200%200%201%20127.5%20105.5%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
-    --paper:var(--bg); --card:var(--surface); --ink:var(--text); --muted:var(--muted2);
-    --navy:var(--brand); --maroon:var(--brand);
-    --line:var(--border); --line2:var(--border2);
-    --green:var(--good); --greenbg:var(--good-bg); --amber:var(--warn); --hot:var(--accent-weak);
-  }
 }
 
 /* ----------------------------------------------------------------------
@@ -206,13 +172,6 @@ header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
 }
 .theme-toggle:hover{background:var(--hover);color:var(--text)}
 .theme-toggle svg{width:20px;height:20px}
-.theme-toggle .ic-sun{display:none}
-:root[data-theme="dark"] .theme-toggle .ic-moon{display:none}
-:root[data-theme="dark"] .theme-toggle .ic-sun{display:inline}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .theme-toggle .ic-moon{display:none}
-  :root:not([data-theme="light"]) .theme-toggle .ic-sun{display:inline}
-}
 
 .sync-banner{
   position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 10px);transform:translateX(-50%);
@@ -1036,12 +995,22 @@ body.scroll-locked{position:fixed;left:0;right:0}
    ---------------------------------------------------------------------- */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
-  :root, :root[data-theme="light"]{--empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
-  :root[data-theme="dark"]{--empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){--empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%23F3EDE5%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%23F3EDE5%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%234A3E37%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23F08A3C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
+  :root{--empty-illust:url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20208%20150%22%20fill%3D%22none%22%3E%3Cellipse%20cx%3D%22104%22%20cy%3D%22126%22%20rx%3D%2272%22%20ry%3D%229%22%20fill%3D%22%233E2C26%22%20opacity%3D%22.07%22%2F%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2244%22%20stroke%3D%22%233E2C26%22%20stroke-width%3D%225%22%2F%3E%3Cg%3E%3Ccircle%20cx%3D%22104%22%20cy%3D%2288%22%20r%3D%2226%22%20stroke%3D%22%23C9BBAF%22%20stroke-width%3D%224%22%20stroke-dasharray%3D%221%209%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%20104.000%2062.000%20A%2026%2026%200%200%201%20118.539%2066.445%22%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%3E%3C%2Fpath%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%2034%2062%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%2026%2062%20V%2078%20C%2026%2084%2C%2042%2084%2C%2042%2078%20V%2062%22%2F%3E%3Cpath%20d%3D%22M%2034%2062%20V%2080%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%236B5D54%22%20stroke-width%3D%224.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M%20172%2064%20V%20118%22%2F%3E%3Cpath%20d%3D%22M%20172%2064%20C%20164%2072%2C%20164%2088%2C%20172%2094%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23B84E0C%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%22.85%22%3E%3Cpath%20d%3D%22M%2096%2034%20C%2092%2028%2C%20100%2024%2C%2096%2018%22%2F%3E%3Cpath%20d%3D%22M%20112%2032%20C%20108%2026%2C%20116%2022%2C%20112%2016%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
+}
+
+/* v3 §1.4 (v132) — the screen-mount rise. ONE animation, on the tab pane itself: a tab
+   switch toggles display, which restarts the animation, so "once per screen mount" is
+   exactly what display:none→shown gives for free. Panels inside are NOT staggered on
+   purpose — several tabs rebuild their innerHTML on data changes (the dashboard on every
+   scope switch), and a stagger there would replay on re-renders that are not mounts.
+   Guarded twice: inside no-preference AND under the global kill switch above — either
+   alone disables it. closeOverlay's reduced-motion early return is untouched. */
+@media (prefers-reduced-motion:no-preference){
+  #tab-builder,#tab-ingredients,#tab-analysis,#tab-dashboard,#tab-pantry{
+    animation:ezRise var(--t-entry) var(--ease-entry) both;
   }
 }
+@keyframes ezRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
   /* ===== Menu analysis controls =====
      v52: the picker/target/search header moved onto the canonical panel skeleton — the layout
@@ -1149,11 +1118,6 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ing-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
 .ing-tag{font-size:11px;font-weight:600;color:var(--muted2);background:rgba(0,0,0,.05);border-radius:6px;padding:1px 7px}
 .ing-tag.sup{color:var(--accent)}
-[data-theme="dark"] .ing-tag{background:rgba(255,255,255,.08)}
-/* v102: the override above misses SYSTEM-dark — applyThemePref removes data-theme on "system",
-   so the media variant is required too (the v99 handover's latent gap, fixed while this batch
-   touched the card chips) */
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ing-tag{background:rgba(255,255,255,.08)} }
 .ing-price{grid-column:2;grid-row:1 / span 2;text-align:right;white-space:nowrap}
 .ing-price b{font-size:15px}
 .ing-price .ing-per{display:block;font-size:11px;color:var(--muted2)}
@@ -1293,15 +1257,24 @@ body.scroll-locked{position:fixed;left:0;right:0}
 
 /* ============================ DESKTOP ≥1024px ============================ */
 @media (min-width:1024px){
-  body{padding-left:232px;padding-bottom:40px}
+  /* v3 §1.3: desktop shape tokens — containers 10px, controls 6px. Declared here ONCE;
+     screens only consume the tokens. */
+  :root{--radius-card:10px;--radius-ctl:6px}
 
-  /* -- the bottom tab bar becomes a persistent left sidebar (same element, no JS) -- */
+  body{padding-left:224px;padding-bottom:40px}
+
+  /* -- the bottom tab bar becomes a persistent left sidebar (same element, no JS).
+        v3 §2: 224px, #FAF7F1 (--surface2), hairline right border. -- */
   .bottomnav{
-    top:0;bottom:0;left:0;right:auto;width:232px;
+    top:0;bottom:0;left:0;right:auto;width:224px;
     flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;
     padding:18px 14px calc(18px + env(safe-area-inset-bottom));
     border-top:0;border-right:1px solid var(--border);box-shadow:none;
+    background:var(--surface2);
   }
+  /* v3 §2: the sidebar's bottom group — Settings sits above the safe-area edge.
+     (Invoices arrives with V4e; "UI states" and the account row are not built.) */
+  .nav-settings{margin-top:auto}
   .side-brand{
     display:flex;align-items:center;gap:var(--sp-2);padding:6px 8px 18px;
     border-bottom:1px solid var(--border);margin-bottom:var(--sp-4);color:var(--brand);
@@ -1319,13 +1292,14 @@ body.scroll-locked{position:fixed;left:0;right:0}
   }
   .navbtn svg{width:var(--icon-sm);height:var(--icon-sm);padding:0;border-radius:0;background:none}
   .navbtn:hover{background:var(--hover);color:var(--text)}
-  .navbtn.active{background:var(--accent-weak);color:var(--accent-ink)}
-  .navbtn.active svg{background:none}
+  .navbtn.active{background:var(--nav-active);color:var(--text)}   /* v3 §2: the active pill is the tinted #F2EADD, not an accent wash */
+  .navbtn.active svg{background:none;color:var(--accent-ink)}
   .nl{font-size:var(--fs-sm)}
 
-  /* -- slim utility header: the sidebar owns the brand on desktop -- */
-  header .brand{display:none}
-  header .wrap{justify-content:flex-end;padding:10px var(--sp-6)}
+  /* v132: the header is GONE at desktop — the sidebar owns the brand and the bottom group owns
+     Settings, which was the header's last control once the theme toggle died (light-only).
+     #syncBanner and the toast are position:fixed siblings, not children — they survive. */
+  header{display:none}
 
   /* -- content column -- */
   .wrap{max-width:1000px;padding:0 var(--sp-6)}
@@ -1343,11 +1317,21 @@ body.scroll-locked{position:fixed;left:0;right:0}
      not overridden — desktop dashboard placement has exactly ONE owner now, the v98 block at the
      end of this file. (.dash-chart svg{height:auto} was a restatement of the base rule.) */
 
-  /* -- floating chrome respects the sidebar -- */
-  .toast{left:calc(50% + 116px)}
+  /* -- floating chrome respects the sidebar (offset = half its 224px width) -- */
+  .toast{left:calc(50% + 112px)}
   .toast.show{transform:translateX(-50%) translateY(0)}
-  .sync-banner{left:calc(50% + 116px)}
+  .sync-banner{left:calc(50% + 112px)}
   .install-banner{left:auto;right:24px;bottom:24px;max-width:400px}
+
+  /* v3 §2: 48px screen-header bars — the panel h2 eyebrows become real titles
+     (15/600, sentence case, vertically centered on a 48px bar, hairline kept).
+     Dashboard panels keep their own h2 idiom until V3: their more-specific rules
+     sit later in the file and win on purpose. */
+  .panel h2{
+    font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
+    min-height:48px;display:flex;align-items:center;gap:var(--sp-2);
+    padding:0 var(--sp-5);
+  }
 
   /* -- analysis: roomier table -- */
   .atable th,.atable td,
@@ -1360,8 +1344,9 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .ing-list{grid-template-columns:repeat(3,1fr)}
 }
 
-/* sidebar brand block is hidden on mobile/tablet (bottom bar shows icons only) */
-@media (max-width:1023px){ .side-brand{display:none} }
+/* sidebar brand block + the bottom-group Settings entry are hidden on mobile/tablet
+   (the bottom bar shows the five tabs only; the header gear owns Settings until V9) */
+@media (max-width:1023px){ .side-brand,.nav-settings{display:none} }
 
 /* ---- cascade-final overrides (must sit after the base control rules) ---- */
 input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:focus{
@@ -2703,15 +2688,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    defined once in index.html — never inside this panel's markup, which is re-rendered constantly. */
 .dash-ins h2{display:flex;align-items:center;gap:var(--sp-2)}
 .ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
-/* v98: the sparkle is the AI-provenance marker and keeps Gemini's hues — but the stock stops
-   wash out at 16px on the cream page, so LIGHT mode draws the deeper-luminance variant of the
-   same gradient (#ezSparkGradDeep, defined beside #ezSparkGrad in index.html). The switch
-   mirrors the theme-token pattern above: light is the default, dark restores the original. */
+/* v98: the sparkle is the AI-provenance marker and keeps Gemini's hues — the stock stops
+   wash out at 16px, so the deeper-luminance variant of the same gradient is drawn
+   (#ezSparkGradDeep, defined beside #ezSparkGrad in index.html). v132: light-only. */
 .ins-spark path{fill:url(#ezSparkGradDeep)}
-:root[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .ins-spark path{fill:url(#ezSparkGrad)}
-}
 .ins-line{margin:0;padding:var(--sp-3) 0;font-size:var(--fs-base);line-height:1.55;color:var(--text2)}
 .ins-line:first-child{padding-top:0}
 .ins-line:last-of-type{padding-bottom:0}
@@ -3206,4 +3186,11 @@ html{scrollbar-gutter:stable}
   #ingList .ing-tag.sup{grid-column:3;grid-row:1}
   #ingList .ing-price{grid-column:4;grid-row:1}
   #ingList .ing-drift{grid-column:5;grid-row:1;justify-self:end;align-self:center}
+}
+
+/* v132 (v3 shell): the dashboard verdict panel's h2 joins the 48px title bars at desktop —
+   the five tabs share ONE title type (layout-consistency.spec.js pins it). Sits at the end
+   of the file so it beats the v98 dashboard eyebrow rule at equal specificity. */
+@media (min-width:1024px){
+  .dash-verdict-panel h2{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none}
 }

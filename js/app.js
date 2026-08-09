@@ -4333,14 +4333,13 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v131';
+var APP_VERSION='v132';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
   var ai=document.getElementById('setAiInvoiceChk'); if(ai) ai.checked=aiInvoiceCheck;   // v81
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
-  syncThemeSeg();
   setSettingsSection('general', false);   // v81: state isn't persisted between opens — always land on the first section / the mobile list
   show('settingsPanel');
 }
@@ -4359,11 +4358,6 @@ function setSettingsSection(id, drill){
   var content=shell.querySelector('.set-content'); if(content) content.scrollTop=0;   // fresh section starts at the top
 }
 function settingsBack(){ var panel=document.querySelector('#settingsPanel .settings-panel'); if(panel) panel.classList.remove('detail-open'); }   // v81: mobile back arrow → return to the section list
-function syncThemeSeg(){
-  var pref=loadThemePref();
-  var btns=document.querySelectorAll('#settingsPanel .seg-btn');
-  for(var i=0;i<btns.length;i++){ btns[i].setAttribute('aria-checked', btns[i].getAttribute('data-theme-pref')===pref ? 'true':'false'); }
-}
 /* v81: a sub-surface (Tidy lists / Remembered packs) opened FROM Settings returns to its parent section in
    one tap (Max: "opening Tidy by mistake must be one tap to get back"). The same doors reached from a filter's
    "Manage list…" leave this null, so those close back to the app as before. */
@@ -4808,6 +4802,7 @@ function clearCacheAndRefresh(){
 (function(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
+  on('sideSettings',openSettings);   // v132: the v3 sidebar's bottom-group Settings entry (desktop only; CSS hides it <1024)
   // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
@@ -4832,9 +4827,7 @@ function clearCacheAndRefresh(){
   // v81: AI feature toggles
   var aic=document.getElementById('setAiInvoiceChk'); if(aic) aic.addEventListener('change',function(){ setAiInvoiceCheck(aic.checked,true); });
   var asg=document.getElementById('setAiSuggestChk'); if(asg) asg.addEventListener('change',function(){ setAiSuggestions(asg.checked,true); });
-  // v81: theme preference segmented control (Light / Dark / System) — same mechanism as the header moon toggle
-  var seg=document.querySelector('#settingsPanel .seg');
-  if(seg) seg.addEventListener('click',function(ev){ var b=ev.target.closest('.seg-btn'); if(!b) return; applyThemePref(b.getAttribute('data-theme-pref')); syncThemeSeg(); });
+  // v132: the v81 theme segment is gone — light only (Max's yes, 9 Aug 2026); index.html removes the stale key at boot
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
   on('setTidyOpen',function(){ reopenSettingsSection='lists'; closeSettings(); openTidyManage('category'); });     // v81: return to Lists on close (one-tap back)
@@ -5647,17 +5640,9 @@ function setAiSuggestions(on, persist){
   if(typeof renderDashboard==='function'){ try{ renderDashboard(); }catch(e){} }
 }
 
-/* Theme preference surfaced in Settings. Reuses the header moon toggle's exact mechanism — localStorage
-   'cafeCost_theme' + <html data-theme>. 'system' clears the key so CSS follows prefers-color-scheme. Kept
-   device-local (like the header toggle); NOT synced via dbSetSetting — theme is per device, and staff share
-   devices. This is the persistent choice BEHIND the header toggle, not a second mechanism. */
-var THEME_KEY='cafeCost_theme';
-function loadThemePref(){ try{ var v=localStorage.getItem(THEME_KEY); if(v==='dark'||v==='light') return v; }catch(e){} return 'system'; }
-function applyThemePref(pref){
-  var root=document.documentElement;
-  if(pref==='dark'||pref==='light'){ root.setAttribute('data-theme',pref); try{ localStorage.setItem(THEME_KEY,pref); }catch(e){} }
-  else { root.removeAttribute('data-theme'); try{ localStorage.removeItem(THEME_KEY); }catch(e){} }   // 'system' → fall back to prefers-color-scheme
-}
+/* v132: the theme preference machinery (THEME_KEY / loadThemePref / applyThemePref / syncThemeSeg)
+   is DELETED, not dormant — light only per the v3 spec (Max's yes, 9 Aug 2026, decision 2).
+   index.html actively removes the stale 'cafeCost_theme' key at boot (the v130 pattern). */
 function invDbg(){ if(window.EZ_INV_DEBUG && window.console) try{console.log.apply(console, arguments);}catch(e){} }
 function invGstDetect(text){
   var t=(text||'').toLowerCase();
