@@ -3195,3 +3195,49 @@ html{scrollbar-gutter:stable}
     min-height:48px;display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-5);
   }
 }
+
+/* ======================================================================
+   §V2 + §V3 (v133) — the v3 table system, first consumed by the Dashboard
+   Shipped HERE: the header band (.tbl-head) and the tinted mono pills
+   (.pill-good/.pill-bad). NOT shipped yet, each waiting for its first real
+   consumer (the no-dead-CSS law): the row-button base and .pill-warn (V4a's
+   Menu rows), the column-label band and uppercase group rows (also V4a).
+   The band applies at ≥1024 only — below 1024 the dashboard keeps today's
+   layout until V9 translates §6.
+   ====================================================================== */
+.pill{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
+.pill-good{color:var(--good);background:var(--good-bg)}
+.pill-bad{color:var(--bad);background:var(--bad-bg)}
+/* below 1024 neither the strip nor the badge exists — the bottom bar has no room for a badge
+   and the mobile dashboard keeps its 44px hero (V9 owns the §6 translation) */
+.kpi-strip{display:none}
+.nl-badge{display:none}
+@media (min-width:1024px){
+  .tbl-head{
+    background:var(--surface2);border-bottom:1px solid var(--divider);
+    padding:12px 20px;margin:0;font-size:13px;font-weight:600;letter-spacing:0;
+    text-transform:none;color:var(--text);display:flex;align-items:center;gap:var(--sp-2);
+  }
+  /* the density block's `#dashBody .panel h2{color:var(--muted2)}` outranks a bare class —
+     this ID-qualified restatement is what lets the band read at full strength */
+  #dashBody .panel h2.tbl-head{color:var(--text);padding:12px 20px;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none}
+
+  /* ---- §3.1 KPI strip: three cells, one bordered container, internal hairlines ---- */
+  .kpi-strip{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;margin-bottom:var(--sp-5)}
+  .kpi-cell{padding:18px 22px;border-right:1px solid var(--divider);min-width:0}
+  .kpi-cell:last-child{border-right:0}
+  .kpi-label{font-size:12.5px;font-weight:500;color:var(--text2)}
+  .kpi-row{display:flex;align-items:baseline;gap:var(--sp-2);margin-top:6px}
+  .kpi-num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+  .kpi-num.good{color:var(--good)}
+  .kpi-num.bad{color:var(--bad)}
+  .kpi-sub{margin-top:4px;font-size:12px;color:var(--muted2)}
+  /* the strip's first cell IS the verdict at desktop — the 44px hero hides here and stays the
+     mobile face until V9 (§6 keeps a hero on phones). The row keeps the scope control. */
+  #dashBody .dash-verdict-main{display:none}
+  #dashBody .dash-verdict-row{justify-content:flex-end}
+
+  /* ---- the sidebar Dashboard badge (§2): all-menus avg %, only when over target ---- */
+  .nl-badge{display:inline-block;margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;font-weight:500;color:var(--bad);background:var(--bad-bg);border-radius:var(--radius-pill);padding:1px 7px}
+  .nl-badge[hidden]{display:none}
+}

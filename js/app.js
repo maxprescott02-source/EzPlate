@@ -1379,6 +1379,7 @@ function currentTab(){
   return 'builder';
 }
 function rerenderCurrentTab(){                                         // re-run the active tab's render (e.g. once boot data lands)
+  try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(e){}   // v133: the sidebar badge follows the data, whichever tab is shown
   var t=currentTab();
   try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
@@ -1823,6 +1824,7 @@ function logHistory(){
    carrying write settles — a beat after logHistory's synchronous repaint — so a user sitting on the
    Dashboard would otherwise see the surface one entry stale until their next navigation. */
 function repaintDashboardIfVisible(){
+  try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(_){ }   // v133: the badge updates even when the dashboard pane is hidden — a price edit on another tab must not leave it stale
   try{ var dash=document.getElementById('tab-dashboard'); if(dash && dash.style.display!=='none') renderDashboard(); }catch(_){ }
 }
 /* v89: the same point-logging contract as logHistory, once per menu that has costed, priced plates.
@@ -3151,12 +3153,12 @@ function digInHtml(scope){
         }).join('')+'</ul>'
       // v58 empty-state system: the ONE place an empty state is built. No bespoke markup, no one-off rule.
       : emptyStateHtml(ICON_MENU_BIG, 'Nothing to rank yet.', 'Cost a plate and put it on a menu to fill this list.');
-    return '<div class="panel dash-dig detail-open"><h2>'
+    return '<div class="panel dash-dig detail-open"><h2 class="tbl-head">'
       +'<button class="dig-back" type="button" id="digBack" aria-label="Back to Dig in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>'
       +esc(d.title)+'</h2>'
       +'<div class="pad"><p class="hint dig-sub">'+esc(d.sub)+'</p>'+body+'</div></div>';
   }
-  return '<div class="panel dash-dig"><h2>Dig in</h2><div class="pad">'
+  return '<div class="panel dash-dig"><h2 class="tbl-head">Dig in</h2><div class="pad">'
     +'<div class="dig-grid">'+DIG_CARDS.map(function(c){ return digCardHtml(c, scope); }).join('')+'</div>'
     +'</div></div>';
 }
@@ -3940,14 +3942,17 @@ function dashInsightsHtml(scope){
   if(!insights.length) return '';
   dashInsPending={insights:insights, scope:scope};
   var sig=insightSig(insights);
-  return '<div class="panel dash-ins"><h2>'+DASH_INS_SPARK+'What needs attention</h2>'
+  return '<div class="panel dash-ins"><h2 class="tbl-head">'+DASH_INS_SPARK+'What needs attention</h2>'
     // aria-live: the templates render first and the Gemini phrasing swaps in afterwards, so the text
     // under a screen-reader user's cursor genuinely changes after load. Polite, because none of it is
     // urgent. A full re-render replaces the region rather than mutating it, so scope changes don't
     // announce — only the phrasing swap does, which is the change worth hearing about.
     +'<div class="pad ins-body" id="dashInsBody" aria-live="polite" data-sig="'+esc(sig)+'">'
     +insights.map(function(ins,ix){ return '<p class="ins-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
-    +'<p class="ins-credit" hidden translate="no">Refined by Gemini</p>'
+    // v133: the v3 spec's fuller wording — it states BOTH halves of the money law. The reveal
+    // mechanics are unchanged: hidden until applyPhrasedInsights proves Gemini phrased a shown
+    // line (the mock paints the credit always-on in the header band; the reveal law wins).
+    +'<p class="ins-credit" hidden translate="no">Phrased by Gemini, computed by EzPlate</p>'
     +'</div></div>';
 }
 /* ===== v89: the verdict header, the menu selector and the By-menu list =====
@@ -4094,12 +4099,14 @@ function whatMovedHtml(){
   var d=digData('movers'), rows=d.rows.slice(0,3);
   var body=rows.length
     ? '<ul class="mv-list">'+rows.map(function(r){
+        // v133 (V2): the delta wears the v3 tinted mono pill — up (a cost rise) is bad, down is good.
+        // Colour is a cost observation, the same anchoring every dashboard colour carries.
         return '<li class="mv-row"><span class="mv-main"><span class="mv-name">'+esc(r.name)+'</span>'
           +(r.sub?'<span class="mv-sub">'+esc(r.sub)+'</span>':'')+'</span>'
-          +'<span class="dig-v'+(r.dir?(' '+r.dir):'')+'">'+esc(r.disp)+'</span></li>';
+          +'<span class="dig-v'+(r.dir?(' '+r.dir+' pill '+(r.dir==='up'?'pill-bad':'pill-good')):'')+'">'+esc(r.disp)+'</span></li>';
       }).join('')+'</ul>'
     : '<p class="hint">No price moves logged yet.</p>';
-  return '<div class="panel dash-moved"><h2>What moved</h2><div class="pad">'+body+'</div></div>';
+  return '<div class="panel dash-moved"><h2 class="tbl-head">What moved</h2><div class="pad">'+body+'</div></div>';
 }
 /* v120 made this the chips' disclosure list; v129 makes it the DROPDOWN's popover — dashScopeHtml
    is still its one caller, and now hands it the FULL selectable set: the All-menus row first (the
@@ -4125,6 +4132,52 @@ function menuCompareHtml(scope, rows){
     +'<ul class="mcmp-list">'+(rows||[]).map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
     +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
     +'</div>';
+}
+/* v133 (V3): the §3.1 KPI strip — three cells in one bordered container, internal hairlines.
+   Desktop-only by CSS (≥1024): below 1024 today's 44px verdict hero stays until V9 owns mobile
+   (§6 keeps a hero there anyway). Every figure is deterministic app arithmetic on the SAME data
+   the rest of the dashboard reads. Counts are per publication, the decided headline law.
+   The delta pill renders at ALL-MENUS scope only: dashComparisons' month figure IS the all-menus
+   series, and subtracting it from a narrowed current would fabricate movement across two series —
+   the same law that keeps the since-line all-menus only. */
+function kpiStripHtml(scope, cmp){
+  var isAll=(scope==null||scope===DASH_ALL);
+  var pct=isAll?cmp.current:avgFoodCostForScope(scope);
+  var over=0, costed=0, uncosted=0;
+  MENU.forEach(function(m){
+    if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+    var sp=plateForMenuItem(m);
+    var c=sp?costFromLines(sp.lines):0;
+    if(m.price>0 && c>0){ costed++; if(analyze(c, m.price).state==='under') over++; }
+    else uncosted++;
+  });
+  var pctCell=(pct==null)
+    ? '<span class="kpi-num"><span class="muted-dash">—</span></span>'
+    : '<span class="kpi-num '+dashPctClass(pct)+'">'+pct.toFixed(1)+'%</span>';
+  var delta='';
+  if(isAll && cmp.current!=null && cmp.lastMonth!=null){
+    var d=cmp.current-cmp.lastMonth;
+    if(Math.abs(d)>=0.05)                                        // below display rounding is not movement
+      delta='<span class="pill '+(d>0?'pill-bad':'pill-good')+'">'+(d>0?'+':'−')+Math.abs(d).toFixed(1)+' pts</span>';
+  }
+  return '<div class="kpi-strip">'
+    +'<div class="kpi-cell"><div class="kpi-label">Average food cost</div><div class="kpi-row">'+pctCell+delta+'</div>'
+      +'<div class="kpi-sub">'+(pct==null?'nothing costed and priced yet':('vs your '+fmtTargetPct()+' target'))+'</div></div>'
+    +'<div class="kpi-cell"><div class="kpi-label">Plates over target</div><div class="kpi-row"><span class="kpi-num'+(over>0?' bad':'')+'">'+over+'</span></div>'
+      +'<div class="kpi-sub">of '+costed+' costed'+(isAll?'':' on this menu')+'</div></div>'
+    +'<div class="kpi-cell"><div class="kpi-label">Not costed</div><div class="kpi-row"><span class="kpi-num">'+uncosted+'</span></div>'
+      +'<div class="kpi-sub">plates without a full cost</div></div>'
+    +'</div>';
+}
+/* v133 (V3): the sidebar Dashboard badge — the ALL-MENUS average, shown only when it is over
+   target. App-computed and deterministic; hidden at or under target, hidden when nothing is
+   costed, hidden below 1024 by CSS (the mobile bar has no badge until V9 decides one). */
+function updateDashNavBadge(){
+  var el=document.getElementById('dashNavBadge'); if(!el) return;
+  var pct=null; try{ pct=computeAvgFoodCost(); }catch(e){}
+  var over=(pct!=null && pct>cogsPct+0.05);                      // the same epsilon every anchor-to-target site uses
+  el.hidden=!over;
+  el.textContent=over?(pct.toFixed(1)+'%'):'';
 }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
@@ -4176,6 +4229,7 @@ function renderDashboard(){
      card, number → since → hairline → chart, whose desktop width is set by the grid below so the
      540px chart FILLS it instead of swimming in it. */
   var html='<div class="panel dash-panel dash-verdict-panel"><h2>'+heading+'</h2><div class="pad">'
+    +kpiStripHtml(scope, cmp)   // v133: ≥1024 shows the strip and hides the hero row's figure; below 1024 CSS hides the strip
     +'<div class="dp-tile dp-verdict">'
     +'<div class="dash-verdict-row">'
     +'<div class="dash-verdict-main">'
@@ -4333,7 +4387,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v132';
+var APP_VERSION='v133';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
