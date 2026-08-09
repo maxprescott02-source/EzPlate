@@ -50,13 +50,6 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## doing  Menu verdict cell: drop the dollar shortfall (Max, 9 Aug 2026)
-Problem: Q3 (v122) shipped "42.2% · +90c" (`vbadge`, `js/app.js:1350-1362`, pinned exactly in `tests/menu-margin.test.js`). The dollar delta reads as a price-rise instruction; judging cost is the app's job, pushing price hikes is not.
-Verified live: the cell prints the shortfall today, and amber vs red differ ONLY by hue (v128 session audit) - both premises hold.
-Requirements: the cell states food-cost % vs target only (e.g. "42.2% · over").
-**This item now OWNS the amber/red hue-only discriminator (moved from the old Q10):** the word after the % carries it - amber "over", red "well over" (or better copy) - decided here once, with the `aria-label` following the same wording.
-**The v3 spec confirms it** (§8: "No dollar deltas in menu verdict cells"). Ship before V4a so the redesigned Menu batch inherits the honest cell.
-
 ## next  V1 - Tokens + shell (§10.1; spec §1, §2)
 **The ONE deliberately-global batch of the phase.** A palette/type/radius/shadow/motion swap repaints every screen at once; doing it per-screen would leave two palettes visible for weeks. Tier 2's "surgical, one screen" rule is set aside HERE ONLY, knowingly - everything after is per-screen again. Screenshot the app before and after; both go in the PR for Max.
 Contents: §1 tokens as CSS custom properties (semantic thresholds included) · Geist/Geist Mono self-hosted (decision 3: static woff2 + `@font-face`, Google Fonts preconnect/link removed) · light-only (decision 2: theme segment out of Settings, dark rules out of `style.css`, boot `data-theme` script out of `index.html`, `cafeCost_theme` removed at boot) · §1.4 motion (~30 lines, ALL inside the reduced-motion guard - do not break the existing `closeOverlay` early return) · §2 desktop shell at ≥1024: sidebar (the existing tab buttons restyled in place, `data-tab` intact; bottom group; the mock's "UI states" nav item is a spec screen and is NOT built) and the 48px screen header bars. Below 1024 the layout stays today's (new tokens only) until V9.
@@ -73,7 +66,7 @@ Fold note: the chart's composition survived the v2 phase deliberately (the HANDO
 
 ## next  V4a - Menu (spec §3.2)
 Switcher pills with mono % + "N more ▾" overflow · grouped table Plate | Cost | Suggested | Price | food-cost pill · not-costed row: muted name, dashes. The v2 phase's honest-copy decisions carry: "Food cost" not "Margin", no dollar deltas, no "cost it →" arrow promising navigation that doesn't exist.
-Do after: **the verdict-cell item above** (it rewrites the same cell; doing this first means doing it twice).
+(The `Do after: the verdict-cell item` line was DELETED 9 Aug 2026 by the batch sweep - that item shipped as v131, so V4a inherits the honest cell and is unblocked.)
 
 ## next  V4b - Plates (spec §3.3)
 Search + category select · Plate (+muted category) | Published (accent when live) | Plate cost · row click opens the builder (whatever shape the builder is when this runs).
@@ -352,6 +345,9 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **Menu verdict cell: drop the dollar shortfall** - shipped 9 Aug 2026 as **`ezplate-v131`** (PR #107), handover `HANDOVER-138-verdict-cell.md`.
+  The cell states food-cost % vs target only: amber "42.2% · over", red "56.1% · well over" (the word is the hue discriminator the old Q10 asked for), aria-label same wording, green and the dash unchanged. The builder panel's "under suggested" guidance stays by design (V5 keeps it). Review: no majors; the three-vocabularies finding is a new Small item; the rounding-hair "30.0% · over" case is accepted and recorded at the test.
 
 - **Remove the density toggle (the second 9 Aug reversal)** - shipped 9 Aug 2026 as **`ezplate-v130`** (PR #104), handover `HANDOVER-136-density-toggle.md`.
   Control, key, plumbing and CSS deleted; a stale `cafeDB_prodDensity` key is actively removed at boot; `q7-products.spec.js` pins the absence (planted-stale-key cleanup included). Review: no functional defects.
