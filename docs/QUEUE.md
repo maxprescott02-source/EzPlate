@@ -34,78 +34,107 @@ Suite green (0 fail) at reconcile time.
 
 ---
 
-# THE REDESIGN PHASE (added 8 Aug 2026 from Max's brief)
+# THE V3 REDESIGN PHASE (added 9 Aug 2026 from Max's v3 package)
 
-**Q1 is DONE - this block is its output.** Read-only pass over `design_handoff_ezplate_redesign/`: the `README.md` rulebook and `Design Package.dc.html` (tokens, type scale, components, motion/states, density, empty states, keyboard/contrast).
-Each item below carries its implementation plan as the indented block under it.
+**The spec: `docs/design_handoff_ezplate_redesign/V3-Design-Package.md`**, with two mocks (`Redesign v3 - SaaS.dc.html` desktop, `Redesign v3 - Mobile.dc.html` mobile, both rendered by `support.js`).
+**It supersedes every v1/v2 mock and the previous phase's remaining screen guidance** - the v2 screen batches (Q2-Q9) all shipped and live in done. The older `.dc.html` files stay on disk as reference; the only item still keyed to one is G2, because the v3 package has no tablet spec and the addendum's §17 remains the only one.
+**Spec §11 (the fold-in playbook) is the law of this phase**: a reskin plus layout migration, not a rewrite. Audit each screen's handlers/reads/writes BEFORE touching it and that list is the contract. Mock is layout truth, code is behavior truth. Features are queued to FUNCTION, never shipped as UI shells.
 
-**Where the package lives: `docs/design_handoff_ezplate_redesign/`** - committed by Q2 as instructed (12 files, off the origin via `.vercelignore`).
-(Corrected 9 Aug 2026 by the v125 audit: this header still said "NOT in the repo" five batches after Q2 landed it.)
+**Three decisions, asked and answered by Max on 9 Aug 2026 (all three recommendations taken):**
+1. **The builder becomes a FULL PAGE (V5). This REVERSES Max's 8 Aug modal decision - explicitly, not quietly:** the 8 Aug history, the against-advice flag and Q6's shipped modal redesign were all on the table when he chose. The v3 shell (sidebar, breadcrumbs, full-screen mobile pushes) makes the page the native pattern and the 1040px two-column layout does not fit a modal. `CLAUDE.md` Tier 2 still says "the builder IS a MODAL"; **updating that line ships with V5** - the yes given here covers that edit.
+2. **Light theme only, per the spec.** The Light/Dark/System control, the dark token set and the boot `data-theme` restore come out in V1; `cafeCost_theme` is actively removed at boot (the v130 stale-key pattern). Dark can return later as its own designed package - not as per-screen guesses against a light-only spec.
+3. **Geist / Geist Mono self-hosted** - woff2 files committed, `@font-face` in CSS, the Google Fonts preconnect/`<link>` removed (offline-friendly, nothing new fetched at runtime). The new-dependency yes is given.
 
-**The package is unusually accurate about this repo** - all 11 render functions it names exist (`renderDashboard`, `verdictHtml`, `trendChart`, `menuCompareHtml`, `digInHtml`, `renderAnalysis`, `aRow`, `renderIngredients`, `renderPlatesTab`, `renderKing*`, `renderPlate`, `renderInvReview`), as do all 7 ids (`#dashBody`, `#aBody`, `#ingList`, `#plateList`, `#lines`, `#total`, `#builderModal`), and its "no new tokens" claim holds against `css/style.css`.
-It quotes `CLAUDE.md`'s own rules back correctly, including the naming inversion and the one-screen-per-batch rule.
-**Verified, not assumed** - three queue items in three batches have already been wrong about this codebase.
+**Already shipped and confirmed by the spec - no work:** menu-scope dropdown (v129), no density toggle (v130), the invoice-review invariants (§8 matches the shipped `invConfirmState`/auto-tick law).
 
-**Three things in it are wrong or missing. Do not discover these mid-batch:**
-1. ⚠️ **The builder redesign is a FULL PAGE, which reverses Max's decision of the same day.** README screen 5 says "Full-page editor", and `Redesign - Plate Builder.dc.html` has the sidebar nav, a "← Plates" back link and no overlay markup. On **8 Aug 2026 Max chose the modal, against the recommendation to keep it a page** (`docs/decisions/2026-08-08-ANSWERS.md`, flagged against advice). The package **contradicts itself** here: its own merge plan item 3 lists `#builderModal` among "every existing hook" to keep. See Q6.
-2. **`Current - *.dc.html` and `src/` do not exist.** README line 34 promises them and the zip has 12 files, none of them. So **Q2's "diff against `Current - Dashboard.dc.html`" cannot be done as written.** Diff against the shipped app instead, which is the better reference anyway - the code is the truth here, the mock is an inference.
-3. **`--accent-press` already IS the hover-darken value.** The package hardcodes `#A34509`/`#E2792A`; those are `--accent-press` at `style.css:69` and `:100`. Use the token, never the literal.
-
-**Sequencing question for Max, recommendation given, NOT blocking anything below.**
-The "Floating layers and mobile dropdowns" item was unblocked this batch and now sits under this phase.
-The redesign restructures the layout of every screen a dropdown opens over, so doing dropdowns first means doing them twice - the same argument that sequenced them behind the builder.
-**Recommendation: leave dropdowns until after Q6 (Builder), then do them once against the final layout.** Taken as read unless Max says otherwise.
-
-**Order is Max's, and differs from the package's.** He set Dashboard → Menu → Plates → Ingredients → Builder → Products → Invoice → Settings → sweep; the README proposed Products third. His order stands.
-
-**FOLD, DON'T REPLACE (Max, 8 Aug 2026, after seeing Q2's first cut in production - his word was "janky"):**
-**the mocks are a direction, not a layout to transplant. Fold each screen's redesign INTO the composition the app already has and that already looks right.**
-What that meant on Q2, kept here as the worked example: the mock's full-width trend card left the 540px-capped chart swimming in dead space, and its 6px chip padding broke the 44px touch floor - both times the app's existing layout was right and the mock was wrong. The redesign's SUBSTANCE (type scale, chips, new panels, row lists) transfers; the app's proven card structure, spacing rhythm and floors stay.
-**Before building each item: screenshot the CURRENT screen first, and judge the result against it, not only against the mock.**
-
-**Standing rules for every item below** (from `CLAUDE.md` and the package, which agree):
-one screen per batch, one PR, one review · change only the HTML strings the named render functions emit, never restructure `js/app.js` around them · keep every id, `data-tab`, `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` class and the `.mi-row` delegate · no new tokens, no new dependencies, no build step · never rename anything · six-spot cache bump each time · `npm test` **and** the FULL Playwright suite green per batch (103 specs at v125 - the number moves with the suite; never quote a stale count as the gate).
+**Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
+one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
 ## next  Menu verdict cell: drop the dollar shortfall (Max, 9 Aug 2026)
 Problem: Q3 (v122) shipped "42.2% · +90c" (`vbadge`, `js/app.js:1350-1362`, pinned exactly in `tests/menu-margin.test.js`). The dollar delta reads as a price-rise instruction; judging cost is the app's job, pushing price hikes is not.
 Verified live: the cell prints the shortfall today, and amber vs red differ ONLY by hue (v128 session audit) - both premises hold.
 Requirements: the cell states food-cost % vs target only (e.g. "42.2% · over").
-**This item now OWNS the amber/red hue-only discriminator (moved from Q10):** the word after the % carries it - amber "over", red "well over" (or better copy) - decided here once, with the `aria-label` following the same wording.
+**This item now OWNS the amber/red hue-only discriminator (moved from the old Q10):** the word after the % carries it - amber "over", red "well over" (or better copy) - decided here once, with the `aria-label` following the same wording.
+**The v3 spec confirms it** (§8: "No dollar deltas in menu verdict cells"). Ship before V4a so the redesigned Menu batch inherits the honest cell.
 
-## next  G1 - Error-state restyle
-Per the handoff addendum `Redesign - Error, Tablet & First-run.dc.html` §16 and README gap batch G1 (both landed in the 9 Aug handoff update).
-Presentation only: restyles the SHIPPED mechanisms (`toast()`, `#syncBanner`, boot gate, invoice file-failed) - production error wording verbatim, the protected parser untouched, no new error plumbing. One PR.
+## next  V1 - Tokens + shell (§10.1; spec §1, §2)
+**The ONE deliberately-global batch of the phase.** A palette/type/radius/shadow/motion swap repaints every screen at once; doing it per-screen would leave two palettes visible for weeks. Tier 2's "surgical, one screen" rule is set aside HERE ONLY, knowingly - everything after is per-screen again. Screenshot the app before and after; both go in the PR for Max.
+Contents: §1 tokens as CSS custom properties (semantic thresholds included) · Geist/Geist Mono self-hosted (decision 3: static woff2 + `@font-face`, Google Fonts preconnect/link removed) · light-only (decision 2: theme segment out of Settings, dark rules out of `style.css`, boot `data-theme` script out of `index.html`, `cafeCost_theme` removed at boot) · §1.4 motion (~30 lines, ALL inside the reduced-motion guard - do not break the existing `closeOverlay` early return) · §2 desktop shell at ≥1024: sidebar (the existing tab buttons restyled in place, `data-tab` intact; bottom group; the mock's "UI states" nav item is a spec screen and is NOT built) and the 48px screen header bars. Below 1024 the layout stays today's (new tokens only) until V9.
+Note: v3 says press `scale(.99)`; the app's decided press language is `scale(.98)` (v115). One value app-wide - keep `.98` unless there is a reason, and record the call at the token.
+
+## next  V2 - Table system (§10.2; spec §2 tables)
+The shared list component: bordered rounded container, `#FAF7F1` header band, hairline dividers (no zebra), whole-row `<button>`s, tinted mono pills, uppercase group-header rows.
+Do with: **V3 (its first consumer)** - shipping classes nothing emits would land dead CSS by construction; build the system in the batch that first uses it and let V4a-e adopt it screen by screen.
+
+## next  V3 - Dashboard (§10.3; spec §3.1)
+KPI strip (3 cells, internal hairlines) · trend chart (over-target band, dashed target line, orange user-change markers with mono annotation) · Needs-attention AI briefing rows (read-only, ONE link each, the "Phrased by Gemini, computed by EzPlate" credit stays - the money law is untouched) · What moved / Dig in two-up · scope dropdown in the header (shipped v129: restyle, don't rebuild).
+The sidebar Dashboard nav badge (avg % when over target) is new, honest and app-computed - in scope.
+Fold note: the chart's composition survived the v2 phase deliberately (the HANDOVER-123 diff found the app's layout right where the mock wasn't); judge against the current screen.
+
+## next  V4a - Menu (spec §3.2)
+Switcher pills with mono % + "N more ▾" overflow · grouped table Plate | Cost | Suggested | Price | food-cost pill · not-costed row: muted name, dashes. The v2 phase's honest-copy decisions carry: "Food cost" not "Margin", no dollar deltas, no "cost it →" arrow promising navigation that doesn't exist.
+Do after: **the verdict-cell item above** (it rewrites the same cell; doing this first means doing it twice).
+
+## next  V4b - Plates (spec §3.3)
+Search + category select · Plate (+muted category) | Published (accent when live) | Plate cost · row click opens the builder (whatever shape the builder is when this runs).
+
+## next  V4c - Ingredients (spec §3.4)
+Ingredient | Category | Unit cost | 30-day change (pill or muted "steady") | Used in N plates.
+Keep v124's substance: `ingLastMovePct` is the change rule; broken-link states stay loud; **"Used in N plates" counts BOTH line shapes (kid and legacy bare-pid) - the both-sides law at `productRefs`.**
+
+## next  V4d - Products (spec §3.5)
+Search + supplier select · Product (+muted brand) | Category | Supplier | Pack price | Last change. Keep v99's price-basis visibility rule (the label renders exactly when the figure lacks the basis, v126's dedupe).
+
+## next  V4e - Invoices screen (spec §3.6)
+Dashed dropzone + the import entry point moves here. ⚠️ **The "recent imports" table has NO backing store - nothing records an import today.** Ship the dropzone and either a visibly-stubbed recents area or none (§11.4); the store is the "Invoice import history" feature item below, queued to function. Do not invent a per-session fake.
+
+## next  V5 - Builder full page (§10.5; spec §3.7; decision 1 - THE REVERSAL)
+Modal → full-screen page: breadcrumb "Plates /", left ingredient table with add-ingredient footer row, 300px right rail (cost card: plate cost, suggested, price input, amber under-suggested guidance banner; publishing card: menu + category selects).
+This is a RE-HOUSING, not a rebuild: keep every id (`#builderModal` may live on as the page container's id - never rename), the draft machinery (`isBuilderDirty`, `guardUnfinishedPlate`), `#lines`/`#total`, and Q6's cost-panel logic (`renderBuilderCost`, `menuMarginPreview`). Mobile is already a full-screen takeover, so <768 mostly restyles; the sticky bottom summary bar (plate cost + suggested + price action) replaces the current footer per §6.
+"Saved just now" wording is server-confirmed only - it renders when `pushWrite`'s promise settles ok, never optimistically (an occasional user would rather be told a thing did not save).
+The mock's Duplicate button and recent-range line are feature items below - stub or skip, never half-ship (§11.4).
+**Ships the `CLAUDE.md` Tier 2 edit** ("builder IS a MODAL" → the 9 Aug full-page decision, dated, with the reversal history). The old "recent range" from `priceHistory` stays queued.
+
+## next  V6 - Modals + sheets (§10.6; spec §4)
+Upload-invoice 3-step modal as a RESTYLE of the shipped review flow - the `invConfirmState` law, auto-tick rule, pack-teach/chips machinery and watchdog all untouched; regression tests first per `CLAUDE.md` fragile areas. New-plate modal. Scrim/Esc/centering conventions. <768: modals become bottom sheets per §6.
+Delete-workspace modal is NOT built (multi-tenant phase). The command palette arrives with its feature item, not here.
+⚠️ Two carried defects land here, where the modal system is open: **Esc closes ALL stacked modals in one press** (`js/app.js:7503` + two parallel Esc listeners; §7 wants top layer only), and **focus trap + return-to-opener exists nowhere** - build it into the shared modal/sheet shell or give it its own item, don't drop it again.
+
+## next  V7 - Settings (§10.7; spec §3.8)
+Section cards per the mock, mapped onto the settings that EXIST (Costing: target % + GST switch; Data: the JSON backup/restore, restyled). §11.1 audit first: anything the mock shows that the app lacks (business name, currency, notification toggles - there is no notification system) is stubbed visibly or skipped and queued, not silently invented. Switches 38×22, orange on.
+"CSV export" is a feature item below; "Delete workspace" is multi-tenant. The Account screen (spec §3.9: Team, Plan, billing) is NOT built in this phase - it describes a product state (auth, roles, billing) that does not exist; it lives in the multi-tenant phase.
+
+## next  V8 - States (§10.8; spec §5) - absorbs G1 and G3 (folded 9 Aug 2026)
+Empty / loading / sync-error / toast / inline-import-error / form-validation per §5, wired to the SHIPPED mechanisms (`toast()`, `#syncBanner`, boot gate, invoice file-failed) - production error wording verbatim, no new error plumbing (that was G1). First-run IS the empty states: Dashboard path card replaces the verdict hero while nothing is costed, state derived from data, no stored flag, gone once a verdict exists; Products first-run leads with invoice import (that was G3). Skeletons match final layout, zero shift.
+⚠️ §5 says "no spinners", but the one-ring wait language (boot/PTR/invoice) was considered and DECLINED for replacement in v115 and still sits on `docs/PHONE.md` for Max to judge - if the ring goes, it goes by his call, not silently under this batch.
+
+## next  V9 - Mobile (§10.9; spec §6 + §6.1)
+The structural one: the bottom bar becomes Home, Menu, Plates, Ingredients, **More** - Products LEAVES the bar and lands on the new More screen (chevron rows: Products, Invoices, Settings; the mock's workspace/plan card is skipped - no workspace or plan exists). Two-line list rows (56px min), sticky blurred headers, back chevrons on sub-screens (never dead ends), dashboard hero number + simplified sparkline, full-width 50px primaries.
+Keep the `data-tab` machinery under the new bar - More is a navigation layer over the existing tabs, not a rename of anything. **The parity map (§6.1) is the acceptance checklist**: same names, same order, same reading direction as desktop.
+
+## next  V10 - Keyboard/focus + system sweep (§10.10; spec §7 - absorbs the old Q10)
+Last on purpose - it codifies what V1-V9 establish. Focus-visible outlines everywhere (never removed), Esc/Enter conventions, AA contrast, one primary per region, disabled = tinted + not-allowed (never invisible). Bind ⌘K only once the palette feature exists - never a dead chord.
+Carried from the old Q10's measured notes (v128 session), the parts still live after v3:
+> - Line numbers below predate the v3 batches by construction - re-grep by NAME.
+> - Focus ring missing on `.misc-name` (rule kills it on :focus, colour-only underline left).
+> - Row `aria-label`s: `king-row`'s label OVERRIDES its content (price + drift never announced); Products rows announce a run-on string. Decide the screen-wide rule; the `vbadge` aria is the good example.
+> - The old palette's contrast-floor violation list and the 3.74:1 selected-idiom pair die with the old palette in V1. **§7 CLAIMS every v3 pill pair is AA - verify with measured ratios, don't trust the spec's own claim.**
+> - Fold in the queued **unstyled zero-ingredients link** if it has not shipped by then.
+> - `/`-focuses-search: `currentTab()` gives the tab→search-id map; bail when typing or a modal is open. (v3 §7 doesn't ask for it; take it or drop it deliberately.)
+> - Verify `prefers-reduced-motion` still genuinely disables motion after nine batches of new CSS.
+> - The Esc-stacking and focus-trap defects moved to V6, where the modal shell is open.
 
 ## next  G2 - Tablet pass (768-1023)
-Per addendum §17: bottom nav kept, 24px gutters, content max 720px, targets ≥44px, hover only ≥1024 under `@media (hover:hover)`; the only per-screen wraps are 1120px (builder panel) and 1130px (menu toolbar) - add no others. Test iPad portrait AND landscape. One PR.
+Keyed to the OLD addendum (`Redesign - Error, Tablet & First-run.dc.html` §17) - **the v3 package has no tablet spec, so §17's decisions stand**: bottom nav kept, 24px gutters, content max 720px, targets ≥44px, hover only ≥1024 under `@media (hover:hover)`. Its "only per-screen wraps are 1120/1130" line predates the v3 layouts - re-measure, don't quote. Test iPad portrait AND landscape. One PR.
+Do after: **V9** - the tablet band sits between two layouts that both change in this phase.
 
-## next  G3 - First-run
-Per addendum §18: empty states ARE the onboarding - Dashboard 3-step path card replaces the verdict hero while nothing is costed (state derived from data, no stored flag, gone once a verdict exists); Products first-run leads with invoice import; Builder/Menu keep their shipped empty-state wording, restyled. No new storage. One PR.
-
-## next  Q10 - System sweep
-Apply Design Package §11–15 app-wide: five interaction states per control, skeletons, empty-state variants, keyboard rules, contrast floors, moon/sun theme icon. Verify `prefers-reduced-motion`. No screen-specific changes.
-> **Plan. Last on purpose** - it codifies what the eight screen batches established, so running it early would set rules the screens then break.
-> Five states on every interactive element (rest/hover/pressed/focus-visible/disabled), **focus ring never removed**. Skeleton bars for waiting regions, never a spinner in a card, never layout shift.
-> Empty states are already gold-standard per the package - **carry them over unchanged**, two variants only (A: filters matched nothing; B: true empty). Do not redesign them.
-> Contrast floors: `--muted` only ≥12px and only for dispensable text; anything needed to act uses `--text2` or better.
-> **From the v125 audit's dropped-threads sweep:** (a) the trend chart was never diffed against the mock pixel-by-pixel (HANDOVER-123 said "if they differ it belongs in Q10") - do that diff here; (b) list-row `aria-label`s announce neither drift nor unit cost (HANDOVER-127) - the screen-wide row-labelling question lands here.
-> ~~From the Q3 review (8 Aug 2026): the Menu tab's amber and red verdicts differ only by hue~~ **MOVED 9 Aug 2026: the "drop the dollar shortfall" item above owns this decision now** - the cell is being rewritten there anyway, and the word after the % (amber "over", red "well over") is the discriminator.
-> Fold in the queued **unstyled zero-ingredients link** here if it has not shipped by then - the sheet still has no anchor colour rule at all.
-> **From the Q9 review (9 Aug 2026): the selected-state pair `--accent-ink` on `--accent-weak` is 3.74:1 over `--surface2` at 15px/800** - below the 4.5:1 AA floor for non-large text, and it is the app's standard selected idiom (`.set-navitem[aria-current]`, `.mlf-chip.on`, others). Q9 made the Settings nav highlight the pane's ONLY visible section cue (the duplicate title is sr-only'd on desktop), which raises the stakes. Decide the pair once, app-wide, here - Q9 deliberately did not fork the idiom on one control.
-> ⚠️ Verify `prefers-reduced-motion` genuinely disables motion; the app already has a reduced-motion early return in `closeOverlay` that a sweep could easily break.
-> **Investigated 9 Aug 2026 (v128 session, before Max's reversals paused the batch) - findings for whoever runs this, measured not guessed:**
-> - **Do after: the three reversal items above** - they delete the chips and the density control this sweep would otherwise restyle, and the verdict-cell rewrite owns the discriminator now.
-> - Much of §11-15 already ships: moon/sun pair (`index.html:78`), motion tokens + §22 wholesale reduced-motion (`style.css:1037`), global focus rules (`:169`, `:1787`), disabled/skeleton block (`:1473`), `.ins-credit` space already reserved (`:2718`).
-> - **The press language is `scale(.98)`, decided v115 (`style.css:1786`)** - the package's `translateY(1px)` loses; extend scale to the few controls missing :active (`.king-row`, `.set-navitem`, `.seg-btn`, `.range-btn`) with reduce guards (§22 kills animations/transitions, NOT transforms).
-> - **§14's no-spinner rule was considered and DECLINED for the invoice wait**: the ring is v115's deliberate one-ring language (boot/PTR/invoice, comment at `style.css:2973`), still on `docs/PHONE.md` for Max to judge. Don't re-litigate silently.
-> - Focus ring genuinely missing only on `.misc-name` (`style.css:2530` kills ring on :focus, colour-only underline left). `.tp-dot`'s `outline:none` rules are DEAD - nothing emits `tp-dot` (the tooltip `.tp-tip`/`.tp-d` IS live); fold into the dead-CSS sweep.
-> - **Esc stacking is a real defect**: `js/app.js:7503` closes ALL open modals in one press (a confirm over the invoice review closes both), and two more Esc listeners (`:1048`, `:2640`) fire in parallel. §15 says top layer only.
-> - No `/` shortcut exists; `currentTab()` (`js/app.js:1391`) gives the tab→search-id map (`plateSearch`/`menuSearch`/`kingSearch`/`ingSearch`); bail when typing or a modal is open.
-> - Row labels: `king-row`'s `aria-label` OVERRIDES its content (price + drift never announced, `js/app.js:2257`); Products rows have no label and announce a run-on string. Decide the screen-wide rule; the `vbadge` aria (`:1348`) is the good example.
-> - Contrast floor: sub-12px muted violations = `.tp-d` 10px, `.upu` 11, `.ing-per` 11 (the price-basis correctness flag!), `.range-btn` 11, `.ing-tag` 11, `.dash-chart .ax` 11, `.side-brand small` 11; plus a ~15-rule needed-at-muted ≥12px list (full table in the v128 session's audit agent output - re-derive with a grep if needed, the selectors are the durable part).
-> - **Selected-idiom fix candidate (the Q9 line above): light `--accent-ink` → `var(--accent-press)`** = 5.2:1 on tinted fills (computed), dark already passes at 4.5; one line, keeps the idiom app-wide.
-> - Focus trap + return-to-opener in dialogs: NOT built anywhere; big enough for its own item - queue it out of the sweep rather than riding it.
-> - The trend-chart-vs-mock diff (rider a) is DONE: the shipped chart carries the mock's substance (mono axis, dashed target, state-coloured line, markers, honest caption); only composition-level differences remain and the app's are deliberate. No action.
+## Features from the v3 spec - queued to FUNCTION (§11.5), each needs its brief before build
+- **Command palette (⌘K)**: trigger ⌘K + the sidebar button; sources are the live in-memory arrays (plates, menus, ingredients) plus actions (upload invoice, new plate); selecting navigates or opens; Esc closes; no new storage.
+- **Invoice import history** (feeds V4e's recents table): nothing records an import today. Needs a real store - a Supabase table (date, supplier, item count, change count, status) written at apply time, with migration + RLS like the others, and a retention decision. This is DATA, so it is not localStorage (Tier 2: there is no third category).
+- **Plate Duplicate** (builder header): behavior spec needed - clones lines + category into a new UNSAVED plate; name rule; publish state NOT copied (a copy published to the same menu would duplicate a dish). Decide before building.
+- **Recent range on the builder cost card**: read-only derivation from `priceHistory`; define the window and the copy.
+- **Mobile camera upload** (bottom-sheet "Take a photo"): `capture` on the file input feeding the existing parse path; no new parsing.
+- **CSV export (Settings → Data)**: which objects, which columns. The JSON backup already exists and stays the restore format - **the backup-format law is untouched; CSV is an export for humans and NEVER an import path.**
 
 ---
 
@@ -156,7 +185,7 @@ No handover names a shared cause and no Tier 1 entry was ever written, which is 
 `tests/empty-states.test.js` exists but postdates all four, so it pins the current state rather than the thing that kept breaking.
 Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
 Out of scope: a visual redesign of any empty state.
-Do after: **Q10** - the empty-state CSS is mid-redesign until the sweep lands, so a root cause named now is named against layout that is still moving. Q10 explicitly carries the empty states over UNCHANGED, which is what makes the target hold still.
+Do after: **V10** - the empty-state CSS is mid-redesign until the v3 phase lands (V8 redesigns the empty states outright, V9 moves mobile layout), so a root cause named now is named against layout that is still moving. (Was `Do after: Q10`; re-pointed 9 Aug 2026 when the v3 package superseded that sweep.)
 
 ## blocked  Re-pin claude-code-action to a release tag
 Problem: `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` - **main's head on 8 Aug 2026, not a release.**
@@ -192,6 +221,7 @@ Problem: dropdowns cover the search bar, cannot be scrolled, and the bounce anim
 **Count them properly before planning off the number** - every enumeration in this project has come back different from the guess.
 Requirements: usable one-handed on a 380px phone.
 One placement implementation.
+Do after: **V6** - the v3 phase restructures every layout a dropdown opens over (sidebar shell, full-page builder, bottom sheets), so doing placement first means doing it twice; V6 is when the layer system settles. (Added 9 Aug 2026 when the v3 package arrived; the same argument previously sequenced this behind Q6.)
 (The `Do after: Q6` line was DELETED 9 Aug 2026 by the v125 audit's sweep - Q6 shipped as v125, so the dependency is satisfied and this item is unblocked. The audit noted the line survived one batch past its trigger: the deletion rule works only when the sweep actually runs.)
 **The old prose sequencing here was WRONG and is the reason `Do after:` exists.** It said this waited on "the builder-as-modal conversion landing" - a conversion that had already shipped in **v54**, so the item sat behind a satisfied dependency for two years of versions with nothing able to notice.
 Q6 is a real, checkable prerequisite; that one was not.
@@ -215,7 +245,7 @@ Requirements: each spec either asserts something a user would notice, or is reti
 Downgraded from v111's full 45-test audit.
 Note: Playwright is not in `npm test`, so nothing here fails loudly.
 That is the reason to look, not a reason to defer.
-Do after: **Q10** - the redesign is already forcing honest rewrites of a chunk of these specs (Q2 alone rewrote `v98-grid.spec.js` wholesale), so auditing them now audits specs that are about to be rewritten anyway. What survives Q10 is the set actually worth judging.
+Do after: **V10** - the redesign keeps forcing honest rewrites of these specs (Q2 alone rewrote `v98-grid.spec.js` wholesale, and the v3 phase will do more), so auditing them now audits specs about to be rewritten anyway. What survives the v3 phase is the set actually worth judging. (Was `Do after: Q10`; re-pointed 9 Aug 2026.)
 ⚠️ **Coupling found by the v115 audit: `addProduct` is a Tier 1 trap kept alive ONLY by `fresh-states.spec.js`, and the trap says deleting it fails SILENTLY.**
 If this item retires that spec, `addProduct` becomes dead in the same commit and nothing will notice.
 Close the trap in the same branch, or keep the spec for that reason and write it down.
@@ -236,7 +266,7 @@ Each has been listed and skipped for scope at least once.
 Requirements: a rule comes out only when nothing emits its class - grep both files per selector, not per family.
 `.an-empty` and `.an-empty-box` are separate names sharing a prefix; do not let one grep answer for both.
 Out of scope: restructuring anything the deleted rules sat next to.
-Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and will orphan more CSS of their own, so sweeping now does part of the job and leaves a second sweep to run anyway.
+Do after: **V10** - the v3 batches rewrite the markup that owns these selectors and will orphan more CSS of their own (V1's dark-theme removal alone will), so sweeping now does part of the job and leaves a second sweep to run anyway. (Was `Do after: Q10`; re-pointed 9 Aug 2026.)
 
 ## next  Small, each independently shippable
 - **Ticking a never-opened add-new form stores the tick nowhere** (v127 review, pre-existing): an AI-appended add-new row ticked before its form is opened keeps the tick only in the DOM; Confirm then fails against a form that does not exist with a toast pointing at no highlight, blocking the import. Decide: either opening the form on first tick, or refusing the tick with copy. Lives on `renderInvReview`'s add-new path.
@@ -276,6 +306,8 @@ Do after: **Q10** - Q2 to Q9 rewrite the markup that owns these selectors and wi
 ---
 
 ## Multi-tenant phase - do not start until the gates above are done
+
+**Picked up from the v3 design package (9 Aug 2026):** the spec's **Account screen** (§3.9: profile, Team + invite, Plan + billing) and **Delete-workspace modal** (§4: type-the-name-to-confirm) belong to THIS phase - they describe auth, roles and billing that do not exist, and building them as UI shells was declined per §11.5. When this phase builds them, the v3 mocks are their design.
 
 ## next  Supabase Auth
 Requirements: email/password, optional Google.
