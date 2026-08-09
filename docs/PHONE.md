@@ -11,6 +11,26 @@ Production state below is measured, not assumed.
 
 ---
 
+## v139 - Ingredients is rebuilt too, and it is now five columns
+
+The screen is a table on desktop and two-line rows on the phone. Everything it could do before it
+still does: tap a row to rename it or change the product it links to, the setup wizard, search,
+the category filter and its "Manage list..." door.
+
+- **The meta line on your real catalogue.** Each row now reads "Category, in N plates" under the
+  name. A failure is a category long enough to push the plate count off the line, or a row where
+  both are missing and the line sits empty.
+- **"Last change", not "30-day change".** The mock asked for a 30-day window and the app does not
+  have one - this is the last logged move, which is the same number the dashboard's What moved
+  uses. Check the two agree for an ingredient you know moved recently. If they disagree, that is
+  the invariant breaking and it matters more than the label.
+- **"steady" where a price has not moved.** It used to render nothing at all. A failure is it
+  reading as a status you have to act on rather than as "no news".
+- **Two buttons in the header while setup is live.** "Set up from products" sits next to
+  "New ingredient" on the phone. The mock asks for one action there. A failure is the pair
+  crowding the title or wrapping to a second line - it did exactly that before it was caught, and
+  the fix was measured at desktop only.
+
 ## v138 - Plates is the first screen REBUILT from the v3 mock
 
 The Plates tab no longer borrows the Products card styling. It is a two-line list on the phone
