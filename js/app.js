@@ -4418,7 +4418,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v137';
+var APP_VERSION='v138';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -5318,18 +5318,48 @@ var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke=
 // v55: a plate can be on MANY menus. The badge summarises them; the cost cell shows "not costed" for an
 // empty plate (§B) rather than a misleading $0.00.
 function plateMenuSummary(sp){ var on=menusOfPlate(sp); if(!on.length) return null; return on.length===1?on[0].name:(on.length+' menus'); }
-function plateMenuBadge(sp){ var s=plateMenuSummary(sp); return s?('<span class="ing-tag pub-on">On '+esc(s)+'</span>'):'<span class="ing-tag pub-off">Unpublished</span>'; }
 function plateIsCosted(sp){ return !!(sp && sp.lines && sp.lines.length); }
-function plateCostCell(sp){ return plateIsCosted(sp)
-  ? '<div class="ing-price"><b>'+fmt2(costFromLines(sp.lines))+'</b><span class="ing-per">plate cost</span></div>'
-  : '<div class="ing-price notcosted"><b>—</b><span class="ing-per">not costed yet</span></div>'; }
+/* F2 (v138) — the row's three facts as PLAIN TEXT, one function each, so desktop columns and the
+   mobile meta line render the SAME string (§6.1: same names, same reading direction on both).
+   platePubText keeps its leading capital for the desktop column; the mobile meta lowercases the
+   first letter in CSS, which is the only difference the mock draws between the two. */
+function platePubText(sp){ var s=plateMenuSummary(sp); return s?('On '+s):'Unpublished'; }
+/* R1: the mock's word is "not costed"; the pre-v138 cell said "—" plus a "not costed yet" caption.
+   ONE string on both breakpoints — the mock's own mobile row renders it "-", which would leave a
+   bare dash carrying the meaning on the smaller screen. */
+function plateCostText(sp){ return plateIsCosted(sp)?fmt2(costFromLines(sp.lines)):'not costed'; }
+/* the mock's §3.3 header subtitle, computed rather than decorative: it counts the WHOLE library,
+   not the filtered view, because it is a summary of what you own and not of what you searched. */
+function plateHeadSummary(list){
+  var n=list.length; if(!n) return '';
+  var un=0, nc=0;
+  list.forEach(function(sp){ if(!plateIsCosted(sp)) nc++; if(!menusOfPlate(sp).length) un++; });
+  var bits=[n+' '+(n===1?'plate':'plates')];
+  if(nc) bits.push(nc+' not costed');
+  if(un) bits.push(un+' unpublished');
+  return bits.join(', ');
+}
 function renderPlatesTab(){
   var wrap=document.getElementById('plateList'); if(!wrap) return;
+  var sub=document.getElementById('plateHeadSub'); if(sub) sub.textContent=plateHeadSummary(savedPlates);
+  var note=document.getElementById('plateListNote');
+  var showNote=function(on){ if(note) note.hidden=!on; };
+  /* The controls go with the true-empty state: there is nothing to search and `fillFilter` runs
+     only on the rows-present branch, so the category select would render with no options at all -
+     a control that does nothing, which §R4 forbids as firmly as an invented one. The FILTERED
+     empty state keeps them, because clearing the filter is the way out of it. */
+  var ctl=document.getElementById('plateControls');
+  var showControls=function(on){ if(ctl) ctl.hidden=!on; };
   if(!savedPlates.length){
-    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'No plates yet.',"Tap '+ New plate' to cost your first plate.",
-      '<button class="btn primary" type="button" onclick="openBuilderNew()">+ New plate</button>');
+    showNote(false); showControls(false);
+    /* §5's empty state, v3 copy: bold one-liner + how + one primary. It is also this screen's
+       FIRST-RUN state - §5 makes the empty states the onboarding path, so there is no second
+       variant and no stored flag deciding between them. */
+    wrap.innerHTML=emptyStateHtml(ICON_PLATE_BIG,'Cost your first plate','Add the ingredients a plate uses and EzPlate works out what it costs you.',
+      '<button class="btn primary" type="button" onclick="openBuilderNew()">New plate</button>');
     return;
   }
+  showControls(true);
   fillFilter(document.getElementById('plateCatFilter'), plateCategories(), 'All categories');   // §J
   var q=(document.getElementById('plateSearch')?document.getElementById('plateSearch').value:'').trim().toLowerCase();
   var toks=searchTokens(q);   // v59: shared token matcher
@@ -5340,21 +5370,30 @@ function renderPlatesTab(){
     if(!toks.length) return true;
     return matchTokens(toks, ((sp.name||'')+' '+(sp.category||'')+' '+(plateMenuSummary(sp)||'')).toLowerCase());
   }).slice().sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
-  if(!items.length){ wrap.innerHTML=emptySearchState(ICON_PLATE_BIG,'plates','clearPlateFilters'); return; }   // v58: variant A via the shared helper
-  /* v135 (V4b): the v3 column-label band (spec §3.3), rows-present branches only — an empty
-     state under a column band would label nothing. Q4 deliberately skipped the mock's header
-     row; the v3 package re-asks and supersedes (queue phase header). aria-hidden: each row
-     already announces its own name/state/cost, so the band is visual wayfinding, not the
-     accessible structure. NOT an .ing-card — the `+` hairline combinator must not count it. */
-  var colhead='<div class="ing-colhead" aria-hidden="true"><span>Plate</span><span>Published</span><span class="ch-num">Plate cost</span></div>';
-  wrap.innerHTML=colhead+items.map(function(sp){
-    return '<button class="ing-card" type="button" data-pid="'+esc(sp.id)+'">'
-      +'<div class="ing-main"><span class="ing-name">'+esc(sp.name||'Unnamed plate')+'</span>'+(sp.category?'<span class="ing-brand">'+esc(sp.category)+'</span>':'')+'</div>'
-      +'<div class="ing-meta">'+plateMenuBadge(sp)+'</div>'
-      +plateCostCell(sp)
+  if(!items.length){ showNote(false); wrap.innerHTML=emptySearchState(ICON_PLATE_BIG,'plates','clearPlateFilters'); return; }   // v58: variant A via the shared helper
+  showNote(true);
+  /* The column band labels the desktop table (mock §3.3) and is emitted on the rows-present branch
+     only — a band over an empty state labels nothing. aria-hidden because each row announces its
+     own name, state and cost; the band is visual wayfinding, not the accessible structure. */
+  var band='<div class="plib-band" aria-hidden="true"><span>Plate</span><span>Published</span><span class="plib-bnum">Plate cost</span></div>';
+  wrap.innerHTML=band+items.map(function(sp){
+    var pub=platePubText(sp), on=(pub!=='Unpublished');
+    /* ONE set of four facts, reflowed by CSS: desktop reads them across three columns
+       (name·category / published / cost), mobile stacks category+published as the meta line
+       under the name (§6.1 - the reading direction never changes, only the wrapping).
+       .plib-id groups name+category into ONE desktop grid cell and dissolves on mobile. */
+    return '<button class="plib-row" type="button" data-pid="'+esc(sp.id)+'">'
+      +'<span class="plib-id"><span class="plib-name">'+esc(sp.name||'Unnamed plate')+'</span>'
+      +(sp.category?'<span class="plib-cat">'+esc(sp.category)+'</span>':'')+'</span>'
+      +'<span class="plib-pub'+(on?' is-on':'')+'">'+esc(pub)+'</span>'
+      +'<span class="plib-cost'+(plateIsCosted(sp)?'':' is-nil')+'">'+esc(plateCostText(sp))+'</span>'
       +'</button>';
   }).join('');
-  wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
+  /* R2, and F7 changes this consciously: the row opens the ACTION CHOOSER, not the builder. The
+     mock's row-click goes straight to the builder, but publishing/printing/deleting live in the
+     chooser until F7 rehouses publishing into the builder page - flipping it here would orphan
+     three controls (§11.6). tests/visual/v138-plates.spec.js pins the current answer. */
+  wrap.querySelectorAll('.plib-row').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
 }
 /* ---- builder popup ---- */
 function openBuilder(){ armDraftSaves();                              // v84: the user is now IN the builder — draft saves are live from here (see armDraftSaves)

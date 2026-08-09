@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=137">
+<link rel="stylesheet" href="css/style.css?v=138">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -121,24 +121,40 @@
 </div>
 <div class="wrap" id="appMain">
   <div id="tab-builder">
-    <!-- v54: the Builder tab is now the PLATES LIBRARY — a card grid identical in style to Products
-         and Ingredients. Building/editing happens in the #builderModal popup; publishing happens from
-         a plate card. data-tab stays "builder" (identifier unchanged; only the label is "Plates"). -->
-    <div class="panel">
-      <h2>Plates</h2>
-      <div class="panel-actions">
-        <button class="btn primary" id="newPlateBtn" type="button">+ New<span class="btn-noun"> plate</span></button>
-        <!-- v102 prose cull: strapline gone - the save/publish model is carried by the buttons and the Unpublished / On-menu badges -->
+    <!-- v54: the Builder tab is the PLATES LIBRARY. Building/editing happens in the #builderModal
+         popup. data-tab stays "builder" (identifier unchanged; only the label is "Plates").
+         F2 (v138): the view layer is REBUILT from `Redesign v3 - SaaS.dc.html` §3.3 (desktop) and
+         `Redesign v3 - Mobile.dc.html` §6 (mobile) per FOLD-IN-PROTOCOL §1.2 — it no longer borrows
+         the Products `.ing-card` system, so F4 can convert Products without unpicking twenty
+         #plateList override rules. Every id and handler below is unchanged; only the shape is new.
+         .scr-head is the mock's §2 screen-header bar (title + muted subtitle + right-aligned
+         action) — a mock pattern ported here as its first consumer, for F3-F10 to reuse. -->
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Plates</h2>
+        <!-- filled by renderPlatesTab: "8 plates, 1 not costed, 1 unpublished" (mock §3.3) -->
+        <span class="scr-sub" id="plateHeadSub"></span>
+        <button class="btn primary" id="newPlateBtn" type="button">New plate</button>
       </div>
-      <div class="ing-controls">
-        <div class="menu-search plate-search">
-          <input id="plateSearch" type="search" placeholder="Search plates…" autocomplete="off">
-          <button id="plateSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      <!-- mock §3.3's control row: search (grows) + category select. Plates-owned classes, because
+           `.ing-controls`/`.menu-search`/`.ing-filter` still dress the four unconverted screens. -->
+      <div class="plib-controls" id="plateControls">
+        <div class="plib-search">
+          <input id="plateSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
+          <!-- R3: the mock has no clear ×, and `type="search"` gives no native one on iOS Safari —
+               Max's phone. The control survives, restyled, rather than being silently deleted. -->
+          <button id="plateSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
         </div>
-        <select id="plateCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
-        <button class="btn ghost ing-clear-filters" id="plateClearFilters" type="button" style="display:none">Clear filters</button>
+        <!-- the wrapper exists to carry the chevron: a data-URI arrow cannot read a token, and a
+             hard-coded hex in a converted screen is a dark-mode bug by construction (protocol §6) -->
+        <span class="plib-selwrap"><select id="plateCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
+        <!-- R3 again: the mock drops this; it survives, as the mock's secondary button -->
+        <button class="plib-btn2" id="plateClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
-      <div id="plateList" class="ing-list"></div>
+      <div id="plateList"></div>
+      <!-- mock §3.3's footnote, R2-adapted: publishing lives in the action chooser until F7
+           rehouses it into the builder page, so the copy states what this screen actually does -->
+      <p class="plib-note" id="plateListNote" hidden>Select a plate for its actions — edit, add to a menu, print or delete.</p>
     </div>
   </div><!-- /tab-builder (LABEL: Plates) -->
 
@@ -862,7 +878,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=137"></script>
+<script src="js/app.js?v=138"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

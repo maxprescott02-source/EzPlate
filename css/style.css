@@ -756,9 +756,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
      tests/builder-modal.test.js pins the ordering that makes it necessary. */
   .builder-overlay .modal-builder,.wiz-overlay .modal-wiz{width:100%}
 }
-/* published / unpublished badge on a plate card — reuses .ing-tag; accent echoes .ing-tag.sup */
-.ing-tag.pub-on{color:var(--accent)}
-.ing-tag.pub-off{color:var(--muted2)}
+/* F2 (v138) tombstone: `.ing-tag.pub-on/.pub-off` are gone with the plate card that emitted them.
+   Published-where is `.plib-pub` / `.plib-pub.is-on` in §26 now, and it is the Plates screen's own. */
 /* plate card action chooser */
 .plate-actions .pa-sub,.manage-menus .pa-sub{margin:0 0 var(--sp-4);font-size:13px;color:var(--muted2)}
 .pa-choices{display:flex;flex-direction:column;gap:8px}
@@ -770,8 +769,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .mm-price{font-variant-numeric:tabular-nums;color:var(--muted2)}
 .mm-row .btn{min-height:36px;padding:6px 14px}
 .mm-empty{padding:18px 4px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
-/* §B: an uncosted plate reads "not costed yet", not a misleading $0.00 */
-.ing-price.notcosted b{color:var(--muted2);font-weight:600}
+/* F2 (v138) tombstone: `.ing-price.notcosted` is gone with the plate card. §B's rule stands and
+   moved with the screen — an uncosted plate reads "not costed" (`.plib-cost.is-nil`), never $0.00. */
 /* v54: unit type is create-only on the product EDIT form — shown, not editable */
 #ig_unit:disabled{opacity:.75;cursor:not-allowed;background:var(--surface2)}
 .ro-note{display:block;margin-top:4px;font-weight:400;color:var(--muted2)}
@@ -1513,7 +1512,11 @@ body.scroll-locked{position:fixed;left:0;right:0}
      (15/600, sentence case, vertically centered on a 48px bar, hairline kept).
      Dashboard panels keep their own h2 idiom until V3: their more-specific rules
      sit later in the file and win on purpose. */
-  #tab-builder > .panel > h2, #tab-ingredients > .panel > h2,
+  /* F2 (v138): #tab-builder (Plates) left this rule — its title lives in `.scr-head`, the mock's
+     real §2 header bar (title + subtitle + action on ONE row), which owns its own 48px and hairline.
+     Each remaining tab drops out of this list as its F-item converts it; when the list is empty the
+     rule goes with it. */
+  #tab-ingredients > .panel > h2,
   #tab-pantry > .panel > h2, #tab-analysis > .panel > h2{
     font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
     min-height:48px;display:flex;align-items:center;gap:var(--sp-2);
@@ -3218,38 +3221,207 @@ html{scrollbar-gutter:stable}
    splash was rebuilt instead (see §24) as the one first-open loading screen on every width. */
 
 /* ----------------------------------------------------------------------
-   26. Q4 (v123) — THE PLATES LIBRARY: card grid becomes ONE surface of rows
-   Everything here is #plateList-scoped ON PURPOSE: the row markup keeps the
-   shared .ing-card classes, and the Products tab (#ingList, same classes)
-   must not change until its own batch (Q7). DOM and wiring are untouched —
-   .ing-card, data-pid, the openPlateActions click, smoke [12]'s pinned text.
+   26. F2 (v138) — THE PLATES LIBRARY, REBUILT FROM THE v3 MOCK
+   Replaces Q4 (v123)/V4b (v135), which skinned the shared .ing-card system
+   with twenty #plateList overrides. This screen now owns its markup and its
+   classes (.plib-*), so F4 can convert Products without unpicking them.
+   Source: `Redesign v3 - SaaS.dc.html` §3.3 desktop, `… Mobile.dc.html` §6.
+   The one breakpoint is 768 (v3 §6) — the old 640 switch is gone.
    ---------------------------------------------------------------------- */
-#plateList{display:block;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);overflow:hidden;padding:0;margin:var(--sp-2) var(--sp-4) var(--sp-3)}
-#plateList > .ing-card{background:none;border:0;border-radius:0;box-shadow:none;margin:0;
-  padding:var(--sp-3) var(--sp-4);grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3);
-  transition:background var(--t-fast) var(--ease)}   /* the base card transition lists border/transform/shadow, not background — without this the row tint snaps while every other row hover eases */
-#plateList > .ing-card + .ing-card{border-top:1px solid var(--border)}
-/* the row's border box IS the surface's padding box, so the shared +2px outline falls entirely
-   into the overflow:hidden clip — a keyboard user focusing a one-result list saw NOTHING.
-   Inset outline instead; found by the v123 review with screenshots. */
-#plateList > .ing-card:focus-visible{outline-offset:-2px}
-@media (hover:hover) and (pointer:fine){   /* gated like §D and the Menu rows — an ungated tint sticks after a tap on iOS */
-  #plateList > .ing-card:hover{background:var(--hover)}
+
+/* -- the outer card is OLD CHROME the mock does not draw. In v3 a screen is a header bar with a
+      hairline and then content on the page canvas; only the TABLE is a bordered container. Left
+      in place it renders a border around a border. Scoped to `.plib-panel` because the four
+      unconverted screens still need `.panel` exactly as it is (§2: never restyle a screen that is
+      not being converted). Each F-item adds its own class here and the base rule shrinks. -- */
+.plib-panel{background:none;border:0;box-shadow:none;border-radius:0;margin-top:0}
+
+/* -- the mock's §2 screen-header bar: title + muted subtitle + right action.
+      Ported here as its first consumer; F3-F10 reuse .scr-head as-is. It carries
+      the hairline that `.panel h2` used to own, so the h2 inside it gives it up. -- */
+/* the gutter is sp-5 above 560 and sp-4 at/below — the step `.panel h2` and `.ing-controls`
+   already take. Getting the BASE wrong here misaligns the header against the search row in the
+   561-767 band only, which is exactly the band no spec measured until this batch added one. */
+.scr-head{
+  display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;
+  padding:var(--sp-3) var(--sp-5);border-bottom:1px solid var(--border);
 }
-#plateList > .ing-card:active{transform:none}   /* a row inside a clipped surface shrinking reads as a glitch; rows press like the Menu tab's */
-@media (min-width:1024px){ #plateList{margin:var(--sp-2) var(--sp-5) var(--sp-2)} }   /* step to sp-5 with .ing-list's own ≥1024 rule — the surface shares the tab's left edge */
-/* name · category on one line (the mock's "Bacon & Egg Muffin · Breakfast") */
-#plateList .ing-main{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:var(--sp-2)}
-#plateList .ing-name{font-size:var(--fs-base)}
-#plateList .ing-brand::before{content:"· "}
-/* published-where as plain coloured text, not a chip — accent when on a menu, muted otherwise */
-#plateList .ing-tag{background:none;padding:0;border-radius:0;font-size:var(--fs-sm);font-weight:700}
-#plateList .ing-tag.pub-off{color:var(--muted2);font-weight:600}
-@media (min-width:640px){   /* desktop: three real columns — name·category / published / cost */
-  #plateList > .ing-card{grid-template-columns:minmax(0,1fr) 200px 120px;column-gap:var(--sp-4)}   /* fixed published AND cost columns: v135 made the third track fixed — max-content resolved per-row and drifted the middle column by up to 27px between rows, so "one left edge" only became true here */
-  #plateList .ing-meta{grid-column:2;grid-row:1}
-  #plateList .ing-price{grid-column:3;grid-row:1}
+/* `.panel >` is load-bearing, not decoration. Without it this selector is 0-1-1 — the SAME
+   specificity as the generic `.panel h2` at the top of the file — so which one won would be
+   decided by file order alone, and any equal-specificity rule inserted between them would flip
+   the header back to the uppercase eyebrow silently. With it the selector is 0-2-1 and order
+   stops mattering. Every screen that adopts `.scr-head` puts it directly inside `.panel`. */
+.panel > .scr-head > h2{
+  font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
+  color:var(--text);margin:0;padding:0;border-bottom:0;
+}
+/* the mobile mock's header is title + ONE action and nothing else (§6). The subtitle is a desktop
+   affordance; left visible it pushed the action onto a second line, which is how it was found. */
+.scr-sub{display:none;font-size:13px;color:var(--text-3);min-width:0}
+.scr-head > .btn{margin-top:0;margin-left:auto}   /* the action stays right-aligned at both widths */
+@media (min-width:768px){
+  .scr-head{min-height:48px;flex-wrap:nowrap;padding:0 var(--sp-5)}
+  .scr-sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+
+/* -- the list surface. Bordered rounded container on desktop; on mobile the mock has
+      no container at all, just rows divided by hairlines on the page. -- */
+/* -- the control row (mock §3.3: search grows, category select beside it). Its own classes: the
+      shared `.ing-controls`/`.menu-search`/`.ing-filter` still dress four unconverted screens, and
+      restyling them would convert those screens by accident. -- */
+/* `:not([hidden])` for the same reason as `.plib-note` below — a bare `display:flex` outranks the
+   UA's `[hidden]{display:none}`, so the renderer's hide would be ignored on the empty state. */
+.plib-controls:not([hidden]){display:flex}
+.plib-controls{gap:var(--sp-2);flex-wrap:wrap;align-items:center;padding:var(--sp-3) var(--sp-5) 0}
+.plib-search{flex:1 1 200px;min-width:160px;position:relative;display:flex;align-items:center}
+.plib-search input{
+  width:100%;font:inherit;min-height:44px;padding:10px 40px 10px 12px;
+  border:1px solid var(--border-2);border-radius:var(--radius-ctl);
+  background:var(--surface-2);color:var(--text);   /* §6: mobile search fields are tinted */
+}
+.plib-search input::-webkit-search-cancel-button{display:none}
+.plib-selwrap{position:relative;display:inline-flex;align-items:center;flex:0 1 auto;max-width:48%;min-width:0}
+.plib-filter{
+  width:100%;font:inherit;min-height:44px;padding:10px 34px 10px 12px;
+  border:1px solid var(--border-2);border-radius:var(--radius-ctl);
+  background:var(--surface);color:var(--text-2);font-weight:500;cursor:pointer;
+  -webkit-appearance:none;appearance:none;
+  text-overflow:ellipsis;
+}
+/* the chevron is DRAWN, not an image: a data-URI arrow carries its own hex and so cannot follow
+   the theme — §6 makes that an automatic dark-mode bug. Two borders and a rotation, one token. */
+.plib-selwrap::after{
+  content:"";position:absolute;right:14px;top:calc(50% - 4px);width:7px;height:7px;
+  border-right:1.6px solid var(--text-3);border-bottom:1.6px solid var(--text-3);
+  transform:rotate(45deg);pointer-events:none;
+}
+/* the mock's secondary button: white, hairline border, plain text */
+.plib-btn2{
+  font:inherit;font-weight:500;min-height:44px;padding:8px 12px;cursor:pointer;
+  border:1px solid var(--border-2);border-radius:var(--radius-ctl);
+  background:var(--surface);color:var(--text);
+}
+/* 22px of paint, 40x40 to the pointer. The `::after` inset technique the app already uses for
+   every other clear × (§ "small controls freed from the global 44px touch floor") — a rename that
+   dropped it would silently shrink a touch target back under the floor. */
+.plib-x{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  width:22px;height:22px;min-height:0;padding:0;border:0;border-radius:50%;
+  background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.plib-x::after{content:"";position:absolute;inset:-9px;border-radius:50%}
+/* the mock gives the fields no hover state and the buttons one; §7's "hover on every button" is
+   about buttons. `--border` is LIGHTER than `--border-2` in both palettes, so the obvious-looking
+   `border-color:var(--border)` would have made a hovered field recede. */
+@media (hover:hover) and (pointer:fine){
+  .plib-btn2:hover,.plib-x:hover{background:var(--hover)}
+  .plib-filter:hover{border-color:var(--text-3)}
+}
+
+/* the list and its footnote sit on the panel's shared gutter — the same sp-5/sp-4 step
+   the control row above them uses, so the search field and the rows share one left edge */
+#plateList{display:block;margin:var(--sp-2) var(--sp-5) 0}
+.plib-band{display:none}
+/* MOBILE (<768, the v3 breakpoint): two-line rows. .plib-id dissolves so that category and
+   published sit side by side on line 2 — one grid cell cannot hold two elements, and a
+   display:contents wrapper is what lets the SAME markup be three columns at ≥768. */
+.plib-row{
+  display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;column-gap:0;
+  align-items:center;width:100%;min-height:56px;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--hairline);border-radius:0;
+  padding:var(--sp-3) 0;color:var(--text);cursor:pointer;font:inherit;
+  transition:background var(--t-fast) var(--ease);
+}
+.plib-row:last-child{border-bottom:0}
+.plib-id{display:contents}
+.plib-name{grid-column:1 / 3;grid-row:1;font-size:var(--fs-base);font-weight:500;line-height:1.3;min-width:0}
+.plib-cat{grid-column:1;grid-row:2}
+.plib-pub{grid-column:2;grid-row:2;min-width:0}
+.plib-cat,.plib-pub{font-size:12.5px;font-weight:400;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the separator lives on the CATEGORY, so ::first-letter below sees a real letter and not
+   punctuation. The space is an escaped NBSP: a trailing space inside `content` collapses away,
+   which rendered "Breakfast,on Winter Menu" — visible only once it was on a phone. */
+.plib-cat::after{content:"\002c\00a0"}
+.plib-pub{display:inline-block}
+/* the mock writes the meta line lowercase ("Mains, on Winter Menu", "Kids, unpublished") and the
+   desktop column capitalised ("On Winter Menu"). ONE string in the DOM, so the two can never drift
+   apart; the case is presentation. Needs the inline-block above — ::first-letter only applies to a
+   block container. If a browser ignores it the text is merely capitalised, never wrong. */
+.plib-pub::first-letter{text-transform:lowercase}
+.plib-cost{
+  grid-column:3;grid-row:1 / span 2;align-self:center;margin-left:var(--sp-3);
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:500;text-align:right;white-space:nowrap;
+}
+.plib-cost.is-nil{color:var(--text-3);font-size:13px}
+/* desktop only — the mobile mock has no footnote, and on a phone it is three lines of chrome
+   under the thing it describes. The renderer still toggles `hidden` at both widths, so the
+   empty-state rule holds either way. */
+.plib-note{display:none;margin:var(--sp-3) var(--sp-5) var(--sp-4);font-size:12px;color:var(--text-3)}
+/* THE mobile collapse — the same 560 step .panel-actions/.ing-controls already take */
+@media (max-width:560px){
+  #plateList{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+  .plib-note{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+  .scr-head{padding-left:var(--sp-4);padding-right:var(--sp-4)}
+  .plib-controls{padding-left:var(--sp-4);padding-right:var(--sp-4)}
+}
+
+/* the row's border box coincides with the surface's padding box once the container appears at
+   ≥768, so the shared +2px outline would fall entirely inside overflow:hidden — a keyboard user
+   on a one-result list saw NOTHING. The v123 review found that with screenshots; inset it here
+   at every width so the rebuild cannot re-earn the same defect. */
+.plib-row:focus-visible{outline-offset:-2px}
+@media (hover:hover) and (pointer:fine){   /* gated: an ungated tint sticks after a tap on iOS */
+  .plib-row:hover{background:var(--hover)}
+}
+
+@media (min-width:768px){
+  #plateList{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-card);overflow:hidden;
+  }
+  .plib-controls{padding-top:var(--sp-4)}
+  /* §6 tints the search field; that is the MOBILE rule — the desktop mock's is white on white */
+  .plib-search input{background:var(--surface)}
+  /* `:not([hidden])` is load-bearing: a bare `display:block` outranks the UA's `[hidden]{display:none}`
+     (class beats attribute-less type rules), so the renderer's hide would have been ignored and the
+     footnote would have sat under both empty states. */
+  .plib-note:not([hidden]){display:block}
+  /* the band and the rows are separate grid containers, so BOTH templates are fixed and IDENTICAL:
+     a max-content track resolves per container and drifted the middle column by up to 27px between
+     rows (v135's review measured it). tests/visual/v138-plates.spec.js asserts the resulting
+     alignment rather than the template, so a future re-track that still lines up is allowed. */
+  .plib-band,.plib-row{grid-template-columns:minmax(0,1fr) 170px 120px;column-gap:var(--sp-4)}
+  .plib-band{
+    display:grid;align-items:center;padding:9px var(--sp-4);
+    font-size:11.5px;font-weight:500;color:var(--text-3);
+    background:var(--surface-2);border-bottom:1px solid var(--border);
+  }
+  .plib-bnum{text-align:right}
+  .plib-row{min-height:0;padding:10px var(--sp-4);align-items:center}
+  /* identity left / published / money right — name and category share ONE cell, as the mock draws
+     them ("Bacon & Egg Muffin  Breakfast"), so .plib-id becomes a real box again */
+  .plib-id{display:flex;align-items:baseline;column-gap:6px;min-width:0;grid-column:1;grid-row:1}
+  .plib-name{grid-column:auto;grid-row:auto;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .plib-cat{grid-column:auto;grid-row:auto;font-size:12px}
+  .plib-cat::after{content:none}
+  .plib-pub{
+    grid-column:2;grid-row:1;font-size:12.5px;font-weight:500;color:var(--text-3);
+  }
+  .plib-pub.is-on{color:var(--accent)}   /* accent when live — v55's shipped colour, confirmed by §3.3 */
+  .plib-pub::first-letter{text-transform:none}
+  .plib-cost{grid-column:3;grid-row:1;font-size:13px;margin-left:0}
+}
+
+/* The mock's desktop control density (34px fields, 32px primary) against this app's 44px touch
+   floor. Both are right, for different inputs — so the floor is relaxed only where the pointer is
+   FINE, which is the same test the app already uses to gate row hover. A 768-wide TOUCH device
+   keeps every target at 44px; a mouse gets the mock. Decided consciously, not shrunk by accident:
+   v137 shipped a control 44px tall because `min-height` silently beat `height`. */
+@media (min-width:768px) and (hover:hover) and (pointer:fine){
+  .plib-search input,.plib-filter,.plib-btn2{min-height:34px;padding-top:7px;padding-bottom:7px}
+  .scr-head > .btn{min-height:32px;padding:7px 14px}
 }
 
 /* ----------------------------------------------------------------------
@@ -3513,30 +3685,9 @@ html{scrollbar-gutter:stable}
   #tab-analysis .vbadge.vbad{background:var(--bad-bg)}
 }
 
-/* ======================================================================
-   §V4b (v135) — the Plates library adopts the v3 column band (spec §3.3)
-   #plateList-scoped like §26 — the Products/Ingredients tabs share only
-   the class NAMES (their own scoped blocks own their rules). The band is
-   emitted only when rows are (renderPlatesTab), and it is NOT an
-   .ing-card, so the `+` hairline combinator and the direct-child row
-   rules are untouched. Hidden below 640, where the two-line card has no
-   columns to label (V9 owns the phone).
-   ====================================================================== */
-#plateList > .ing-colhead{display:none}
-@media (min-width:640px){
-  /* the band and the rows are SEPARATE grid containers, so both use the same FIXED tracks —
-     a max-content third track resolves per-container and drifted the middle column by up to
-     22px between the band and an uncosted row (review measurement) */
-  #plateList > .ing-colhead{
-    display:grid;grid-template-columns:minmax(0,1fr) 200px 120px;gap:0 var(--sp-4);
-    padding:9px var(--sp-4);background:var(--surface2);border-bottom:1px solid var(--border);
-    font-size:11.5px;font-weight:500;color:var(--muted2);
-  }
-  #plateList > .ing-colhead .ch-num{text-align:right}
-  /* Published-in-accent needs NO rule here: .ing-tag.pub-on has been the accent since v55
-     (the global rule) — §3.3 confirms the shipped colour rather than changing it. The first
-     cut re-declared it as a no-op with a wrong scoping story (review finding). */
-}
+/* §V4b (v135) tombstone — the `#plateList > .ing-colhead` band and its 640px switch are GONE.
+   F2 (v138) rebuilt the screen from the mock: the band is `.plib-band` in §26 now, on the v3
+   768 breakpoint, and it no longer borrows a class from the Products card system. */
 
 /* ======================================================================
    v137 (F1b) — THE MODAL / SHEET PRIMITIVE (v3 §4 desktop, §6 mobile)
