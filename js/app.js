@@ -1995,7 +1995,6 @@ function fillFilter(sel, list, label){
 }
 function renderIngredients(){
   var wrap=document.getElementById('ingList'); if(!wrap) return;
-  applyProdDensity();                                                 // Q7 (v126): BEFORE the early returns — the toggle must read its state on the empty and no-match screens too
   var cntEl=document.getElementById('ingCount');
   if(!PRODUCTS.length){                                               // brand-new user: no products at all -> full empty state (gate on the store, not the filtered rows)
     if(cntEl) cntEl.textContent='';
@@ -2044,26 +2043,12 @@ function renderIngredients(){
   }).join('');
   wrap.querySelectorAll('.ing-card').forEach(function(b){ b.onclick=function(){ openIngEdit(b.getAttribute('data-id')); }; });
 }
-/* Q7 (v126): the density toggle — THE one legal new localStorage key, and it is a VIEW PREFERENCE
-   (CLAUDE.md: localStorage holds view preferences and derived caches only; this holds no data).
-   Compact drops the sub-lines only — never the figure column. */
-var PROD_DENSITY_KEY='cafeDB_prodDensity';
-var _prodDensity=null;                                                // in-memory FIRST (the setDashRange pattern) — a blocked localStorage write must not make the toggle silently inert
-function prodDensity(){
-  if(_prodDensity) return _prodDensity;
-  try{ _prodDensity=(localStorage.getItem(PROD_DENSITY_KEY)==='compact')?'compact':'comfortable'; }catch(e){ _prodDensity='comfortable'; }
-  return _prodDensity;
-}
-function setProdDensity(d){ _prodDensity=(d==='compact')?'compact':'comfortable'; try{ localStorage.setItem(PROD_DENSITY_KEY, _prodDensity); }catch(e){} applyProdDensity(); }
-function applyProdDensity(){
-  var wrap=document.getElementById('ingList'); if(!wrap) return;
-  var compact=prodDensity()==='compact';
-  wrap.classList.toggle('density-compact', compact);
-  document.querySelectorAll('#tab-ingredients .segd').forEach(function(b){
-    var on=(b.getAttribute('data-density')==='compact')===compact;
-    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false');
-  });
-}
+/* v130: the Q7 (v126) density toggle is DELETED, not hidden (Max, 9 Aug 2026: it changes too
+   little to earn a control a chef has to understand). prodDensity / setProdDensity /
+   applyProdDensity and the seg-density control are gone; this tombstone keeps the names greppable.
+   The one legal localStorage key it held (cafeDB_prodDensity) is actively removed so the store
+   goes back to holding only live view preferences. */
+try{ localStorage.removeItem('cafeDB_prodDensity'); }catch(e){}
 var ingEditId=null;
 function openIngEdit(id){
   var p=byId[id]; if(!p) return; ingEditId=id;
@@ -4308,8 +4293,7 @@ function renderDashboard(){
 (function(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
-  // Q7 (v126): density toggle + mobile floating add
-  document.querySelectorAll('#tab-ingredients .segd').forEach(function(b){ b.addEventListener('click',function(){ setProdDensity(b.getAttribute('data-density')); }); });
+  // Q7 (v126): mobile floating add (its density toggle was deleted in v130)
   var pf=document.getElementById('prodFab'); if(pf) pf.addEventListener('click',function(){ openModal(); });
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
   var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',clearProductFilters);   // v58: same helper the empty-state action uses
@@ -4344,7 +4328,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v129';
+var APP_VERSION='v130';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

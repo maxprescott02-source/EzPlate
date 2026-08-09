@@ -1,9 +1,11 @@
 /*
  * q7-products.spec.js — Q7 (v126). The Products list redesign, behaviourally.
  * Locks: one-surface rows at both widths; the Change column renders a seeded drift and "—" for an
- * untouched product; the density toggle drops sub-lines only (never the figure), writes the ONE
- * legal localStorage key, and survives a reload; the floating add shows only under 640px and opens
- * the product modal. Console stays clean.
+ * untouched product; the floating add shows only under 640px and opens the product modal. Console
+ * stays clean.
+ * v130: the density-toggle pins are RETIRED ON PURPOSE — Max reversed the toggle on 9 Aug 2026, so
+ * what is pinned now is its ABSENCE: no control, no density-compact class, and a stale
+ * cafeDB_prodDensity key is actively removed at boot.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
@@ -33,7 +35,7 @@ async function boot(page, width, errs) {
   await page.waitForTimeout(200);
 }
 
-test('rows on one surface, drift renders, density persists @ 1280', async ({ page }) => {
+test('rows on one surface, drift renders, the density toggle is gone @ 1280', async ({ page }) => {
   const errs = [];
   await boot(page, 1280, errs);
   const d = await page.evaluate(() => {
@@ -67,23 +69,20 @@ test('rows on one surface, drift renders, density persists @ 1280', async ({ pag
   expect(d.basisFlag, 'an unknown base_unit keeps its v99 correctness flag beside the figure').toBeTruthy();
   expect(d.fabHidden, 'no floating add at desktop').toBe(true);
 
-  // density: compact drops sub-lines only, writes the key, survives reload
-  await page.locator('#tab-ingredients .segd[data-density="compact"]').click();
-  await page.waitForTimeout(200);
-  const compact = await page.evaluate(() => ({
+  // v130: the toggle is GONE — no control, one row height, and a stale key from a device that had
+  // the toggle is removed at boot rather than left as dead storage
+  await expect(page.locator('.seg-density, .segd'), 'no density control anywhere').toHaveCount(0);
+  const gone = await page.evaluate(() => ({
     cls: document.getElementById('ingList').classList.contains('density-compact'),
     key: localStorage.getItem('cafeDB_prodDensity'),
-    priceVisible: getComputedStyle(document.querySelector('#ingList .ing-price')).display !== 'none',
   }));
-  expect(compact.cls).toBe(true);
-  expect(compact.key, 'the ONE legal new localStorage key, holding a preference').toBe('compact');
-  expect(compact.priceVisible, 'the figure column never hides').toBe(true);
+  expect(gone.cls, 'no density-compact class survives').toBe(false);
+  expect(gone.key, 'the retired key is not written').toBe(null);
+  await page.evaluate(() => localStorage.setItem('cafeDB_prodDensity', 'compact'));
   await page.reload();
   await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="ingredients"]').click();
-  await page.waitForTimeout(400);
-  const persisted = await page.evaluate(() => document.getElementById('ingList').classList.contains('density-compact'));
-  expect(persisted, 'the preference survives a reload').toBe(true);
+  const cleaned = await page.evaluate(() => localStorage.getItem('cafeDB_prodDensity'));
+  expect(cleaned, 'a stale key from the toggle era is actively removed at boot').toBe(null);
   expect(errs.filter(e => !/favicon|manifest|net::ERR_FAILED/i.test(e)), 'console clean').toHaveLength(0);
 });
 
@@ -105,18 +104,10 @@ test('mobile: sub-line rows, stacked price+drift, floating add opens the modal @
   expect(d.driftBelowPrice, 'drift stacks under the price on the right').toBe(true);
   expect(d.fabVisible, 'the floating add shows on the phone').toBe(true);
   expect(d.fabRect, 'and sits inside the viewport (not parked in the animated tab)').toBe(true);
-  // compact on mobile: the sub-line hides, the row gets shorter, the price stays
-  const before = await page.evaluate(() => document.querySelector('#ingList .ing-card').getBoundingClientRect().height);
-  await page.locator('#tab-ingredients .segd[data-density="compact"]').click();
-  await page.waitForTimeout(200);
-  const after = await page.evaluate(() => ({
-    h: document.querySelector('#ingList .ing-card').getBoundingClientRect().height,
-    meta: getComputedStyle(document.querySelector('#ingList .ing-meta')).display,
-    price: getComputedStyle(document.querySelector('#ingList .ing-price')).display,
-  }));
-  expect(after.h, 'compact rows are shorter').toBeLessThan(before);
-  expect(after.meta, 'sub-lines drop').toBe('none');
-  expect(after.price, 'the figure column never hides').not.toBe('none');
+  // v130: no density control on mobile either; the sub-line always renders
+  await expect(page.locator('.seg-density, .segd'), 'no density control at phone width').toHaveCount(0);
+  const meta = await page.evaluate(() => getComputedStyle(document.querySelector('#ingList .ing-meta')).display);
+  expect(meta, 'the sub-line renders at the one row height').not.toBe('none');
   await page.locator('#prodFab').click();
   await page.waitForTimeout(300);
   await expect(page.locator('#modal'), 'the floating add opens the new-product modal (#modal — #ingModal is the EDIT modal)').toHaveClass(/open/);
