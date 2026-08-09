@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#FFFFFF}
+body{font-family:'Geist',system-ui,sans-serif;color:#2A211B;line-height:1.5;font-size:15px}
+a{color:#B84E0C}a:hover{color:#964009}
+button{font-family:inherit}
+button:not([disabled]):active{transform:scale(.99)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #B84E0C;outline-offset:1px;border-radius:4px}
+input,select{font-family:inherit}
+::placeholder{color:#A2937F}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sheet{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div data-screen-label="EzPlate v3 mobile" style="min-height:100vh; background:#FFFFFF; display:flex; flex-direction:column; max-width:430px; margin:0 auto; position:relative">
+
+  <!-- DASHBOARD -->
+  <sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:14px 20px; display:flex; align-items:center; gap:8px">
+    <svg viewBox="0 0 64 64" style="width:22px;height:22px;color:#2A211B" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"></circle><path d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"></path></svg>
+    <span style="font-size:16px; font-weight:700; color:#2A211B"><span style="color:#B84E0C">Ez</span>Plate</span>
+    <span style="flex:1"></span>
+    <span style="font-size:12px; color:#A2937F">Synced 4 min ago</span>
+  </header>
+  <main style="flex:1; padding:20px 20px 96px; box-sizing:border-box">
+    <div style="animation:rise .4s cubic-bezier(.16,1,.3,1) both">
+      <div style="font-size:12px; font-weight:500; color:#6B5D50">Avg food cost, all menus</div>
+      <div style="display:flex; align-items:baseline; gap:10px; margin-top:4px">
+        <span style="font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:44px; font-weight:600; letter-spacing:-.02em; line-height:1; color:#C63C33">41.2%</span>
+        <span style="display:inline-block; font-family:'Geist Mono',monospace; font-size:12px; font-weight:500; color:#C63C33; background:#FBEBEA; border-radius:999px; padding:2px 9px">+0.4</span>
+      </div>
+      <p style="margin:8px 0 0; font-size:13px; color:#6B5D50">1.2 pts over your 40% target. Your last change cut 0.7 pts.</p>
+    </div>
+    <svg viewBox="0 0 350 110" style="width:100%; display:block; margin-top:18px; animation:rise .4s cubic-bezier(.16,1,.3,1) .05s both" role="img" aria-label="Food cost trend against the 40 percent target">
+      <line x1="0" y1="52" x2="350" y2="52" stroke="#D8CFC0" stroke-dasharray="3 4" stroke-width="1"></line>
+      <text x="348" y="48" text-anchor="end" font-size="9" fill="#A2937F" font-family="Geist Mono,monospace">40%</text>
+      <path d="M0 66 C 44 64, 72 62, 102 59 C 132 56, 156 50, 186 48 C 210 47, 228 54, 246 55 C 270 55, 298 50, 322 47 C 334 46, 344 45, 350 45" fill="none" stroke="#C63C33" stroke-width="1.75" stroke-linecap="round"></path>
+      <circle cx="246" cy="55" r="3.5" fill="#FFFFFF" stroke="#B84E0C" stroke-width="1.5"></circle>
+    </svg>
+    <section style="margin-top:24px; border:1px solid #EAE3D8; border-radius:12px; overflow:hidden; animation:rise .4s cubic-bezier(.16,1,.3,1) .1s both">
+      <div style="display:flex; align-items:center; padding:12px 16px; border-bottom:1px solid #F3EFE8; background:#FAF7F1"><h2 style="margin:0; font-size:13px; font-weight:600; color:#2A211B">Needs attention</h2><span style="margin-left:auto; font-size:10.5px; color:#A2937F">Gemini phrases, EzPlate computes</span></div>
+      <sc-for list="{{ briefing }}" as="b" hint-placeholder-count="3">
+        <button type="button" style="display:block; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 16px; cursor:pointer; color:#2A211B; transition:background .12s" style-hover="background:#FAF7F1">
+          <span style="display:block; font-size:14px; font-weight:600; line-height:1.4">{{ b.lead }}</span>
+          <span style="display:block; margin-top:3px; font-size:13px; line-height:1.5; color:#6B5D50">{{ b.body }}</span>
+          <span style="display:inline-block; margin-top:7px; font-size:13px; font-weight:500; color:#B84E0C">{{ b.action }}</span>
+        </button>
+      </sc-for>
+    </section>
+    <section style="margin-top:20px; border:1px solid #EAE3D8; border-radius:12px; overflow:hidden; animation:rise .4s cubic-bezier(.16,1,.3,1) .15s both">
+      <h2 style="margin:0; font-size:13px; font-weight:600; color:#2A211B; padding:12px 16px; border-bottom:1px solid #F3EFE8; background:#FAF7F1">What moved</h2>
+      <sc-for list="{{ movers }}" as="mv" hint-placeholder-count="3">
+        <button type="button" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 16px; cursor:pointer; color:#2A211B; transition:background .12s" style-hover="background:#FAF7F1">
+          <span style="min-width:0"><span style="display:block; font-size:14px; font-weight:500">{{ mv.name }}</span><span style="display:block; font-size:12px; color:#A2937F">{{ mv.meta }}</span></span>
+          <span style="margin-left:auto; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:12.5px; font-weight:500; color:{{ mv.fg }}; background:{{ mv.bg }}; border-radius:999px; padding:3px 10px">{{ mv.delta }}</span>
+        </button>
+      </sc-for>
+    </section>
+  </main>
+  </sc-if>
+
+  <!-- MENU -->
+  <sc-if value="{{ isMenu }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:14px 20px; display:flex; align-items:center; gap:8px">
+    <h1 style="margin:0; font-size:17px; font-weight:600; color:#2A211B">Winter Menu</h1>
+    <span style="display:inline-block; font-family:'Geist Mono',monospace; font-size:11.5px; font-weight:500; color:#16794C; background:#E6F4EC; border-radius:999px; padding:2px 9px">39.4%</span>
+    <span style="flex:1"></span>
+    <button type="button" style="border:1px solid #E3DCCF; border-radius:8px; padding:8px 12px; background:#FFFFFF; color:#2A211B; font-weight:500; font-size:13px; cursor:pointer; min-height:36px">Switch ▾</button>
+  </header>
+  <main style="flex:1; padding:16px 20px 96px; box-sizing:border-box">
+    <input type="search" placeholder="Search plates" aria-label="Search plates" style="width:100%; box-sizing:border-box; background:#FAF7F1; border:1px solid #EAE3D8; border-radius:10px; padding:11px 14px; font-size:15px; color:#2A211B">
+    <div style="margin-top:8px">
+      <sc-for list="{{ menuRows }}" as="r" hint-placeholder-count="8">
+        <sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 0 6px; font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#A2937F">{{ r.group }}</div>
+        </sc-if>
+        <sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+          <button type="button" onClick="{{ goBuilder }}" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 0; cursor:pointer; color:#2A211B; min-height:56px; transition:background .12s" style-hover="background:#FAF7F1">
+            <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500">{{ r.name }}</span><span style="display:block; font-size:12.5px; color:#A2937F; font-variant-numeric:tabular-nums">{{ r.sub }}</span></span>
+            <span style="text-align:right"><span style="display:block; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:15px; font-weight:500">{{ r.price }}</span><span style="display:inline-block; margin-top:3px; font-family:'Geist Mono',monospace; font-size:11.5px; font-weight:500; color:{{ r.fg }}; background:{{ r.bg }}; border-radius:999px; padding:2px 8px">{{ r.margin }}</span></span>
+          </button>
+        </sc-if>
+      </sc-for>
+    </div>
+  </main>
+  </sc-if>
+
+  <!-- PLATES -->
+  <sc-if value="{{ isPlates }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:14px 20px; display:flex; align-items:center; gap:8px">
+    <h1 style="margin:0; font-size:17px; font-weight:600; color:#2A211B">Plates</h1>
+    <span style="flex:1"></span>
+    <button type="button" style="border:0; border-radius:8px; padding:9px 14px; background:#B84E0C; color:#FFFFFF; font-weight:500; font-size:13.5px; cursor:pointer; min-height:36px; transition:background .15s" style-hover="background:#964009">New plate</button>
+  </header>
+  <main style="flex:1; padding:16px 20px 96px; box-sizing:border-box">
+    <input type="search" placeholder="Search plates" aria-label="Search plates" style="width:100%; box-sizing:border-box; background:#FAF7F1; border:1px solid #EAE3D8; border-radius:10px; padding:11px 14px; font-size:15px; color:#2A211B">
+    <div style="margin-top:8px">
+      <sc-for list="{{ plateRows }}" as="p" hint-placeholder-count="8">
+        <button type="button" onClick="{{ goBuilder }}" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 0; cursor:pointer; color:#2A211B; min-height:56px; transition:background .12s" style-hover="background:#FAF7F1">
+          <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500">{{ p.name }}</span><span style="display:block; font-size:12.5px; color:#A2937F">{{ p.sub }}</span></span>
+          <span style="font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:15px; font-weight:500">{{ p.cost }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </main>
+  </sc-if>
+
+  <!-- INGREDIENTS -->
+  <sc-if value="{{ isIng }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:14px 20px; display:flex; align-items:center; gap:8px">
+    <h1 style="margin:0; font-size:17px; font-weight:600; color:#2A211B">Ingredients</h1>
+    <span style="flex:1"></span>
+    <button type="button" onClick="{{ openUpload }}" style="border:1px solid #E3DCCF; border-radius:8px; padding:8px 12px; background:#FFFFFF; color:#2A211B; font-weight:500; font-size:13px; cursor:pointer; min-height:36px">Import invoice</button>
+  </header>
+  <main style="flex:1; padding:8px 20px 96px; box-sizing:border-box">
+    <sc-for list="{{ ingRows }}" as="i" hint-placeholder-count="7">
+      <button type="button" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 0; cursor:pointer; color:#2A211B; min-height:56px; transition:background .12s" style-hover="background:#FAF7F1">
+        <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500">{{ i.name }}</span><span style="display:block; font-size:12.5px; color:#A2937F">{{ i.sub }}</span></span>
+        <span style="text-align:right"><span style="display:block; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:14px; font-weight:500">{{ i.unit }}</span><sc-if value="{{ i.hasDelta }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block; margin-top:3px; font-family:'Geist Mono',monospace; font-size:11.5px; font-weight:500; color:{{ i.fg }}; background:{{ i.bg }}; border-radius:999px; padding:2px 8px">{{ i.delta }}</span></sc-if></span>
+      </button>
+    </sc-for>
+  </main>
+  </sc-if>
+
+  <!-- MORE -->
+  <sc-if value="{{ isMore }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:14px 20px; display:flex; align-items:center">
+    <h1 style="margin:0; font-size:17px; font-weight:600; color:#2A211B">More</h1>
+  </header>
+  <main style="flex:1; padding:8px 20px 96px; box-sizing:border-box">
+    <sc-for list="{{ moreRows }}" as="mr" hint-placeholder-count="4">
+      <button type="button" onClick="{{ mr.go }}" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:15px 0; cursor:pointer; color:#2A211B; min-height:56px; transition:background .12s" style-hover="background:#FAF7F1">
+        <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500">{{ mr.label }}</span><span style="display:block; font-size:12.5px; color:#A2937F">{{ mr.sub }}</span></span>
+        <span style="font-size:14px; color:#A2937F">›</span>
+      </button>
+    </sc-for>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:20px; padding:14px; border:1px solid #EAE3D8; border-radius:12px">
+      <div style="width:32px; height:32px; border-radius:9px; background:#F8E7D3; color:#964009; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600">MK</div>
+      <div><span style="display:block; font-size:14px; font-weight:600; color:#2A211B">Marta's Kitchen</span><span style="display:block; font-size:12px; color:#A2937F">Kitchen plan, renews 4 Sep</span></div>
+    </div>
+  </main>
+  </sc-if>
+
+  <!-- INVOICES -->
+  <sc-if value="{{ isInv }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:14px 20px; display:flex; align-items:center; gap:8px">
+    <h1 style="margin:0; font-size:17px; font-weight:600; color:#2A211B">Invoices</h1>
+    <span style="flex:1"></span>
+    <button type="button" onClick="{{ openUpload }}" style="border:0; border-radius:8px; padding:9px 14px; background:#B84E0C; color:#FFFFFF; font-weight:500; font-size:13.5px; cursor:pointer; min-height:36px; transition:background .15s" style-hover="background:#964009">Upload</button>
+  </header>
+  <main style="flex:1; padding:8px 20px 96px; box-sizing:border-box">
+    <sc-for list="{{ invoiceRows }}" as="v" hint-placeholder-count="4">
+      <button type="button" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 0; cursor:pointer; color:#2A211B; min-height:56px; transition:background .12s" style-hover="background:#FAF7F1">
+        <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500">{{ v.supplier }}</span><span style="display:block; font-size:12.5px; color:#A2937F">{{ v.date }}, {{ v.sub }}</span></span>
+        <span style="display:inline-block; font-size:11.5px; font-weight:500; color:{{ v.fg }}; background:{{ v.bg }}; border-radius:999px; padding:3px 10px">{{ v.status }}</span>
+      </button>
+    </sc-for>
+  </main>
+  </sc-if>
+
+  <!-- BUILDER -->
+  <sc-if value="{{ isBuilder }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:12px 14px; display:flex; align-items:center; gap:6px">
+    <button type="button" onClick="{{ goPlates }}" aria-label="Back to plates" style="border:0; background:none; font-size:15px; color:#B84E0C; cursor:pointer; padding:6px 8px; min-height:44px">‹ Plates</button>
+    <h1 style="margin:0; font-size:16px; font-weight:600; color:#2A211B">Fish &amp; Chips</h1>
+    <span style="flex:1"></span>
+    <span style="font-size:11.5px; color:#A2937F">Saved</span>
+  </header>
+  <main style="flex:1; padding:16px 20px 180px; box-sizing:border-box">
+    <div style="display:flex; align-items:center; gap:8px">
+      <span style="display:inline-block; font-family:'Geist Mono',monospace; font-size:12px; font-weight:500; color:#B54708; background:#FDF3E0; border-radius:999px; padding:3px 10px">42.2% food cost</span>
+      <span style="font-size:12.5px; color:#A2937F">target 40%</span>
+    </div>
+    <div style="margin-top:14px">
+      <sc-for list="{{ builderRows }}" as="br" hint-placeholder-count="5">
+        <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid #F3EFE8; padding:13px 0; min-height:52px">
+          <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500; color:#2A211B">{{ br.name }}</span><span style="display:block; font-size:12.5px; color:#A2937F; font-variant-numeric:tabular-nums">{{ br.qty }}</span></span>
+          <span style="font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:14px; font-weight:500; color:#2A211B">{{ br.cost }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <button type="button" style="width:100%; box-sizing:border-box; margin-top:14px; border:1px dashed #D8CFC0; border-radius:10px; padding:13px; background:none; color:#6B5D50; font-weight:500; font-size:14px; cursor:pointer; min-height:48px; transition:background .15s" style-hover="background:#FAF7F1">Add an ingredient</button>
+  </main>
+  <div style="position:fixed; bottom:calc(64px + env(safe-area-inset-bottom)); left:0; right:0; max-width:430px; margin:0 auto; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-top:1px solid #EAE3D8; padding:12px 20px; display:flex; align-items:center; gap:12px; z-index:25">
+    <div><span style="display:block; font-size:11.5px; color:#A2937F">Plate cost</span><span style="display:block; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:17px; font-weight:600; color:#2A211B">$6.96</span></div>
+    <div><span style="display:block; font-size:11.5px; color:#A2937F">Suggested</span><span style="display:block; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:17px; font-weight:600; color:#2A211B">$17.40</span></div>
+    <span style="flex:1"></span>
+    <button type="button" style="border:0; border-radius:8px; padding:11px 16px; background:#B84E0C; color:#FFFFFF; font-weight:500; font-size:14px; cursor:pointer; min-height:44px; transition:background .15s" style-hover="background:#964009">Set price $17.40</button>
+  </div>
+  </sc-if>
+
+  <!-- PRODUCTS -->
+  <sc-if value="{{ isProd }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:12px 14px; display:flex; align-items:center; gap:6px">
+    <button type="button" onClick="{{ goMore }}" aria-label="Back" style="border:0; background:none; font-size:15px; color:#B84E0C; cursor:pointer; padding:6px 8px; min-height:44px">‹ More</button>
+    <h1 style="margin:0; font-size:16px; font-weight:600; color:#2A211B">Products</h1>
+  </header>
+  <main style="flex:1; padding:8px 20px 96px; box-sizing:border-box">
+    <sc-for list="{{ prodRows }}" as="pr" hint-placeholder-count="8">
+      <button type="button" style="display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:1px solid #F3EFE8; background:none; padding:13px 0; cursor:pointer; color:#2A211B; min-height:56px; transition:background .12s" style-hover="background:#FAF7F1">
+        <span style="min-width:0; flex:1"><span style="display:block; font-size:15px; font-weight:500">{{ pr.name }}</span><span style="display:block; font-size:12.5px; color:#A2937F">{{ pr.sub }}</span></span>
+        <span style="text-align:right"><span style="display:block; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:14px; font-weight:500">{{ pr.price }}</span><sc-if value="{{ pr.hasDelta }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block; margin-top:3px; font-family:'Geist Mono',monospace; font-size:11.5px; font-weight:500; color:{{ pr.fg }}; background:{{ pr.bg }}; border-radius:999px; padding:2px 8px">{{ pr.delta }}</span></sc-if></span>
+      </button>
+    </sc-for>
+  </main>
+  </sc-if>
+
+  <!-- SETTINGS -->
+  <sc-if value="{{ isSet }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:12px 14px; display:flex; align-items:center; gap:6px">
+    <button type="button" onClick="{{ goMore }}" aria-label="Back" style="border:0; background:none; font-size:15px; color:#B84E0C; cursor:pointer; padding:6px 8px; min-height:44px">‹ More</button>
+    <h1 style="margin:0; font-size:16px; font-weight:600; color:#2A211B">Settings</h1>
+  </header>
+  <main style="flex:1; padding:16px 20px 96px; box-sizing:border-box; display:flex; flex-direction:column; gap:16px">
+    <section style="border:1px solid #EAE3D8; border-radius:12px; overflow:hidden">
+      <h2 style="margin:0; font-size:13px; font-weight:600; color:#2A211B; padding:12px 16px; border-bottom:1px solid #F3EFE8; background:#FAF7F1">Costing</h2>
+      <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+        <div><label for="mtarget" style="display:block; font-size:12.5px; font-weight:500; color:#6B5D50; margin-bottom:5px">Target food cost, % of menu price</label><input id="mtarget" type="number" value="40" min="10" max="80" style="width:100px; box-sizing:border-box; background:#FFFFFF; border:1px solid #E3DCCF; border-radius:8px; padding:10px 12px; font-size:15px; font-family:'Geist Mono',monospace; color:#2A211B"></div>
+        <div style="display:flex; align-items:center; min-height:44px"><span style="font-size:14px; font-weight:500; color:#2A211B">Prices include GST</span><button type="button" onClick="{{ toggleGst }}" role="switch" aria-checked="{{ gstStr }}" style="margin-left:auto; position:relative; width:44px; height:26px; border-radius:999px; border:0; background:{{ gstBg }}; cursor:pointer; transition:background .2s; padding:0"><span style="position:absolute; top:2px; left:{{ gstLeft }}; width:22px; height:22px; border-radius:50%; background:#FFFFFF; box-shadow:0 1px 2px rgba(42,33,27,.2); transition:left .2s cubic-bezier(.16,1,.3,1)"></span></button></div>
+      </div>
+    </section>
+    <section style="border:1px solid #EAE3D8; border-radius:12px; overflow:hidden">
+      <h2 style="margin:0; font-size:13px; font-weight:600; color:#2A211B; padding:12px 16px; border-bottom:1px solid #F3EFE8; background:#FAF7F1">Notifications</h2>
+      <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:12px; min-height:44px"><span style="flex:1"><span style="display:block; font-size:14px; font-weight:500; color:#2A211B">Price rise alerts</span><span style="display:block; font-size:12px; color:#A2937F">When an ingredient rises more than 5%</span></span><button type="button" onClick="{{ toggleAlerts }}" role="switch" aria-checked="{{ alertsStr }}" style="position:relative; width:44px; height:26px; border-radius:999px; border:0; background:{{ alertsBg }}; cursor:pointer; transition:background .2s; padding:0"><span style="position:absolute; top:2px; left:{{ alertsLeft }}; width:22px; height:22px; border-radius:50%; background:#FFFFFF; box-shadow:0 1px 2px rgba(42,33,27,.2); transition:left .2s cubic-bezier(.16,1,.3,1)"></span></button></div>
+      </div>
+    </section>
+  </main>
+  </sc-if>
+
+  <!-- ACCOUNT -->
+  <sc-if value="{{ isAcct }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky; top:0; z-index:20; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border-bottom:1px solid #EAE3D8; padding:12px 14px; display:flex; align-items:center; gap:6px">
+    <button type="button" onClick="{{ goMore }}" aria-label="Back" style="border:0; background:none; font-size:15px; color:#B84E0C; cursor:pointer; padding:6px 8px; min-height:44px">‹ More</button>
+    <h1 style="margin:0; font-size:16px; font-weight:600; color:#2A211B">Account</h1>
+  </header>
+  <main style="flex:1; padding:16px 20px 96px; box-sizing:border-box; display:flex; flex-direction:column; gap:16px">
+    <div style="display:flex; align-items:center; gap:12px; padding:14px; border:1px solid #EAE3D8; border-radius:12px">
+      <div style="width:40px; height:40px; border-radius:11px; background:#F8E7D3; color:#964009; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600">MK</div>
+      <div><span style="display:block; font-size:15px; font-weight:600; color:#2A211B">Marta Kowalczyk</span><span style="display:block; font-size:12.5px; color:#A2937F">marta@martaskitchen.com.au</span></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px; padding:14px; border:1px solid #EAE3D8; border-radius:12px">
+      <div><span style="display:block; font-size:14px; font-weight:600; color:#2A211B">Kitchen plan</span><span style="display:block; font-size:12.5px; color:#A2937F">3 seats, renews 4 Sep 2026</span></div>
+      <span style="margin-left:auto; font-family:'Geist Mono',monospace; font-size:15px; font-weight:500; color:#2A211B">$29/mo</span>
+    </div>
+    <button type="button" style="width:100%; box-sizing:border-box; border:1px solid #E3DCCF; border-radius:10px; padding:13px; background:#FFFFFF; color:#2A211B; font-weight:500; font-size:14px; cursor:pointer; min-height:48px; transition:background .15s" style-hover="background:#FAF7F1">Sign out</button>
+  </main>
+  </sc-if>
+
+  <!-- UPLOAD SHEET -->
+  <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-modal="true" style="position:fixed; inset:0; z-index:50; display:flex; align-items:flex-end; justify-content:center">
+    <button type="button" onClick="{{ closeSheet }}" aria-label="Close" style="position:absolute; inset:0; border:0; background:rgba(42,33,27,.32); cursor:default"></button>
+    <div style="position:relative; width:100%; max-width:430px; background:#FFFFFF; border-radius:16px 16px 0 0; box-shadow:0 -8px 32px rgba(42,33,27,.14); padding-bottom:env(safe-area-inset-bottom); animation:sheet .3s cubic-bezier(.16,1,.3,1) both">
+      <div style="width:36px; height:4px; border-radius:999px; background:#E3DCCF; margin:10px auto 0"></div>
+      <div style="display:flex; align-items:center; padding:12px 20px; border-bottom:1px solid #F3EFE8"><h2 style="margin:0; font-size:15px; font-weight:600; color:#2A211B">Upload invoice</h2><button type="button" onClick="{{ closeSheet }}" style="margin-left:auto; border:0; background:none; font-size:17px; color:#A2937F; cursor:pointer; padding:4px 8px">×</button></div>
+      <sc-if value="{{ upDrop }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:20px; display:flex; flex-direction:column; gap:10px">
+          <button type="button" onClick="{{ upNext }}" style="width:100%; box-sizing:border-box; border:0; border-radius:10px; padding:15px; background:#B84E0C; color:#FFFFFF; font-weight:500; font-size:15px; cursor:pointer; min-height:50px; transition:background .15s" style-hover="background:#964009">Take a photo</button>
+          <button type="button" onClick="{{ upNext }}" style="width:100%; box-sizing:border-box; border:1px solid #E3DCCF; border-radius:10px; padding:15px; background:#FFFFFF; color:#2A211B; font-weight:500; font-size:15px; cursor:pointer; min-height:50px; transition:background .15s" style-hover="background:#FAF7F1">Choose a file</button>
+          <p style="margin:4px 0 8px; font-size:12.5px; color:#A2937F; text-align:center">PDF, JPG or HEIC. Nothing changes without your review.</p>
+        </div>
+      </sc-if>
+      <sc-if value="{{ upScan }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:24px 20px 28px">
+          <p style="margin:0; font-size:14px; font-weight:500; color:#2A211B">Reading bidfood-06-aug.pdf</p>
+          <div style="position:relative; overflow:hidden; height:6px; border-radius:999px; background:#F3EFE8; margin-top:12px"><span style="position:absolute; inset:0; width:40%; border-radius:999px; background:#B84E0C; animation:shimmer 1.2s infinite"></span></div>
+          <p style="margin:10px 0 0; font-size:12.5px; color:#A2937F">Matching 34 line items to your products.</p>
+        </div>
+      </sc-if>
+      <sc-if value="{{ upReview }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <sc-for list="{{ reviewRows }}" as="rv" hint-placeholder-count="3">
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 20px; border-bottom:1px solid #F3EFE8">
+              <span style="min-width:0; flex:1"><span style="display:block; font-size:14px; font-weight:500; color:#2A211B">{{ rv.name }}</span><span style="display:block; font-family:'Geist Mono',monospace; font-size:12px; color:#A2937F">{{ rv.change }}</span></span>
+              <span style="display:inline-block; font-family:'Geist Mono',monospace; font-size:11.5px; font-weight:500; color:{{ rv.fg }}; background:{{ rv.bg }}; border-radius:999px; padding:2px 8px">{{ rv.delta }}</span>
+            </div>
+          </sc-for>
+          <div style="padding:16px 20px 20px">
+            <button type="button" onClick="{{ closeSheet }}" style="width:100%; box-sizing:border-box; border:0; border-radius:10px; padding:15px; background:#B84E0C; color:#FFFFFF; font-weight:500; font-size:15px; cursor:pointer; min-height:50px; transition:background .15s" style-hover="background:#964009">Apply 3 updates</button>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- TAB BAR -->
+  <nav aria-label="Primary" style="position:fixed; bottom:0; left:0; right:0; z-index:30; background:rgba(255,255,255,.94); backdrop-filter:blur(10px); border-top:1px solid #EAE3D8; display:grid; grid-template-columns:repeat(5,1fr); max-width:430px; margin:0 auto; padding:6px 8px calc(10px + env(safe-area-inset-bottom))">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+      <button type="button" onClick="{{ t.go }}" aria-current="{{ t.current }}" style="border:0; background:none; display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 0; min-height:48px; cursor:pointer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="{{ t.color }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:22px; height:22px; transition:stroke .15s" aria-hidden="true"><path d="{{ t.d }}"></path></svg>
+        <span style="font-size:10.5px; font-weight:{{ t.weight }}; color:{{ t.color }}">{{ t.label }}</span>
+      </button>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+  state = { screen: 'dash', sheet: null, upStep: 'drop', gst: true, alerts: true };
+  go(s) { this.setState({ screen: s, sheet: null }); }
+  renderVals() {
+    var S = this.state.screen, self = this;
+    var G = '#16794C', GB = '#E6F4EC', W = '#B54708', WB = '#FDF3E0', R = '#C63C33', RB = '#FBEBEA';
+    function tab(id, label, d) {
+      var on = S === id || (id==='plates' && S==='builder') || (id==='more' && (S==='inv'||S==='set'||S==='acct'||S==='prod'));
+      return { label: label, d: d, go: function(){ self.go(id); }, current: on ? 'page' : 'false',
+        color: on ? '#B84E0C' : '#8A7C6B', weight: on ? 600 : 500 };
+    }
+    return {
+      isDash: S==='dash', isMenu: S==='menu', isPlates: S==='plates', isIng: S==='ing',
+      isMore: S==='more', isBuilder: S==='builder', isInv: S==='inv',
+      tabs: [
+        tab('dash','Home','M3 3v18h18 M7 14l4-4 3 3 5-6'),
+        tab('menu','Menu','M5 20v-8 M12 20V6 M19 20v-6'),
+        tab('plates','Plates','M6 3v4 M9 3v4 M12 3v4 M6 7h6 M9 7v14 M18 3v18 M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'),
+        tab('ing','Ingredients','M12 21v-9 M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z'),
+        tab('more','More','M5 12h.01 M12 12h.01 M19 12h.01')
+      ],
+      goPlates: function(){ self.go('plates'); }, goBuilder: function(){ self.go('builder'); },
+      goInv: function(){ self.go('inv'); }, goMore: function(){ self.go('more'); },
+      isProd: S==='prod', isSet: S==='set', isAcct: S==='acct',
+      toggleGst: function(){ self.setState(function(s){ return { gst: !s.gst }; }); },
+      toggleAlerts: function(){ self.setState(function(s){ return { alerts: !s.alerts }; }); },
+      gstStr: this.state.gst ? 'true' : 'false', gstBg: this.state.gst ? '#B84E0C' : '#D8CFC0', gstLeft: this.state.gst ? '20px' : '2px',
+      alertsStr: this.state.alerts ? 'true' : 'false', alertsBg: this.state.alerts ? '#B84E0C' : '#D8CFC0', alertsLeft: this.state.alerts ? '20px' : '2px',
+      prodRows: [
+        { name:'Avocado Tray 23ct', sub:'Produce, The Fruit Wagon', price:'$41.90', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Bacon Middle Rasher', sub:'Meat, PFD', price:'$62.00', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Barramundi Fillet Skinless', sub:'Seafood, Bidfood', price:'$94.50', hasDelta:true, delta:'-4%', fg:G, bg:GB },
+        { name:'Batter Mix Premium 10kg', sub:'Dry goods, Bidfood', price:'$38.20', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Cheese Tasty Block', sub:'Dairy & Eggs, Bidfood', price:'$49.25', hasDelta:true, delta:'+12%', fg:R, bg:RB },
+        { name:'Chips Straight Cut 10mm', sub:'Frozen, Bidfood', price:'$25.80', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Eggs Free Range 180pk', sub:'Dairy & Eggs, PFD', price:'$75.60', hasDelta:true, delta:'+6%', fg:W, bg:WB },
+        { name:'Milk Full Cream 2L', sub:'Dairy & Eggs, PFD', price:'$3.10', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Smoked Salmon Sliced', sub:'Seafood, Bidfood', price:'$68.90', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Tartare Sauce 2.4L', sub:'Sauces, Bidfood', price:'$9.85', hasDelta:false, delta:'', fg:'', bg:'' }
+      ],
+      sheetOpen: !!this.state.sheet,
+      isUpload: this.state.sheet==='upload',
+      upDrop: this.state.upStep==='drop', upScan: this.state.upStep==='scan', upReview: this.state.upStep==='review',
+      openUpload: function(){ self.setState({ sheet:'upload', upStep:'drop' }); },
+      closeSheet: function(){ self.setState({ sheet:null }); },
+      upNext: function(){
+        var st = self.state.upStep;
+        if (st==='drop') { self.setState({ upStep:'scan' }); setTimeout(function(){ if (self.state.upStep==='scan') self.setState({ upStep:'review' }); }, 1800); }
+        else self.setState({ upStep:'review' });
+      },
+      briefing: [
+        { lead:'Seafood Basket is your biggest leak.', body:'45.5% food cost, 5.5 pts over target. $21.10 is the price that meets it.', action:'Open plate' },
+        { lead:'Cheese is quietly costing you.', body:'Tasty Cheese Block rose 12% this month and sits in 9 plates.', action:'See the plates' },
+        { lead:'Fish & Chips is 90c short', body:'of its suggested $17.40, the last amber plate on Winter Menu.', action:'Open plate' }
+      ],
+      movers: [
+        { name:'Tasty Cheese Block', meta:'this month, in 9 plates', delta:'+12%', fg:R, bg:RB },
+        { name:'Eggs Free Range', meta:'last invoice, in 7 plates', delta:'+6%', fg:W, bg:WB },
+        { name:'Barramundi Fillet', meta:'last invoice, in 3 plates', delta:'-4%', fg:G, bg:GB }
+      ],
+      menuRows: [
+        { isGroup:true, isRow:false, group:'Breakfast' },
+        { isRow:true, name:'Bacon & Egg Muffin', sub:'$2.31 cost, suggested $5.78', price:'$8.50', margin:'27.2%', fg:G, bg:GB },
+        { isRow:true, name:'Big Breakfast', sub:'$5.87 cost, suggested $14.68', price:'$18.00', margin:'32.6%', fg:G, bg:GB },
+        { isGroup:true, isRow:false, group:'Mains' },
+        { isRow:true, name:'Chicken Schnitzel Burger', sub:'$4.12 cost, suggested $10.30', price:'$14.00', margin:'29.4%', fg:G, bg:GB },
+        { isRow:true, name:'Fish & Chips', sub:'$6.96 cost, suggested $17.40', price:'$16.50', margin:'42.2%', fg:W, bg:WB },
+        { isRow:true, name:'Garlic Bread', sub:'$1.05 cost, suggested $2.63', price:'$6.00', margin:'17.5%', fg:G, bg:GB },
+        { isRow:true, name:'Pumpkin Soup', sub:'not costed yet', price:'$9.00', margin:'cost it', fg:'#6B5D50', bg:'#F5F0E8' },
+        { isRow:true, name:'Seafood Basket', sub:'$8.42 cost, suggested $21.05', price:'$18.50', margin:'45.5%', fg:R, bg:RB }
+      ],
+      plateRows: [
+        { name:'Bacon & Egg Muffin', sub:'Breakfast, on Breakfast menu', cost:'$2.31' },
+        { name:'Big Breakfast', sub:'Breakfast, on Breakfast menu', cost:'$5.87' },
+        { name:'Chicken Schnitzel Burger', sub:'Mains, on 2 menus', cost:'$4.12' },
+        { name:'Fish & Chips', sub:'Mains, on Winter Menu', cost:'$6.96' },
+        { name:'Garlic Bread', sub:'Mains, on Winter Menu', cost:'$1.05' },
+        { name:'Kids Nuggets & Chips', sub:'Kids, unpublished', cost:'$2.74' },
+        { name:'Pumpkin Soup', sub:'Mains, not costed yet', cost:'-' },
+        { name:'Seafood Basket', sub:'Mains, on Winter Menu', cost:'$8.42' }
+      ],
+      ingRows: [
+        { name:'Tasty Cheese Block', sub:'Dairy & Eggs, in 9 plates', unit:'$9.85 /kg', hasDelta:true, delta:'+12%', fg:R, bg:RB },
+        { name:'Eggs Free Range', sub:'Dairy & Eggs, in 7 plates', unit:'$0.42 /ea', hasDelta:true, delta:'+6%', fg:W, bg:WB },
+        { name:'Chips Straight Cut', sub:'Frozen, in 5 plates', unit:'$2.15 /kg', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Bacon Middle Rasher', sub:'Meat, in 4 plates', unit:'$12.40 /kg', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Barramundi Fillet', sub:'Seafood, in 3 plates', unit:'$18.90 /kg', hasDelta:true, delta:'-4%', fg:G, bg:GB },
+        { name:'Smoked Salmon', sub:'Seafood, in 2 plates', unit:'$34.50 /kg', hasDelta:false, delta:'', fg:'', bg:'' },
+        { name:'Milk Full Cream', sub:'Dairy & Eggs, in 6 plates', unit:'$1.55 /L', hasDelta:false, delta:'', fg:'', bg:'' }
+      ],
+      moreRows: [
+        { label:'Products', sub:'What you buy, as invoiced', go: function(){ self.go('prod'); } },
+        { label:'Invoices', sub:'Imports and price updates', go: function(){ self.go('inv'); } },
+        { label:'Settings', sub:'Target %, GST, notifications', go: function(){ self.go('set'); } },
+        { label:'Account', sub:'Profile, team, plan', go: function(){ self.go('acct'); } }
+      ],
+      invoiceRows: [
+        { date:'6 Aug', supplier:'Bidfood', sub:'34 items, 3 up 1 down', status:'Processed', fg:G, bg:GB },
+        { date:'5 Aug', supplier:'PFD Food Services', sub:'21 items, 1 up', status:'Needs review', fg:W, bg:WB },
+        { date:'30 Jul', supplier:'The Fruit Wagon', sub:'12 items, none changed', status:'Processed', fg:G, bg:GB },
+        { date:'24 Jul', supplier:'PFD Food Services', sub:'18 items', status:'Failed, retry', fg:R, bg:RB }
+      ],
+      builderRows: [
+        { name:'Barramundi Fillet', qty:'300 g', cost:'$5.67' },
+        { name:'Batter Mix Premium', qty:'80 g', cost:'$0.31' },
+        { name:'Chips Straight Cut', qty:'240 g', cost:'$0.52' },
+        { name:'Tartare Sauce', qty:'40 mL', cost:'$0.16' },
+        { name:'Lemon', qty:'0.25 ea', cost:'$0.30' }
+      ],
+      reviewRows: [
+        { name:'Cheese Tasty Block', change:'$43.95 to $49.25', delta:'+12%', fg:R, bg:RB },
+        { name:'Eggs Free Range 180pk', change:'$71.30 to $75.60', delta:'+6%', fg:W, bg:WB },
+        { name:'Barramundi Fillet', change:'$98.40 to $94.50', delta:'-4%', fg:G, bg:GB }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
