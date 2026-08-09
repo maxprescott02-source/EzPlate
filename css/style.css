@@ -3299,3 +3299,26 @@ html{scrollbar-gutter:stable}
   #tab-analysis .vbadge.vwarn{background:var(--warn-bg)}
   #tab-analysis .vbadge.vbad{background:var(--bad-bg)}
 }
+
+/* ======================================================================
+   §V4b (v135) — the Plates library adopts the v3 column band (spec §3.3)
+   #plateList-scoped like §26 — the Products/Ingredients tabs share only
+   the class NAMES (their own scoped blocks own their rules). The band is
+   emitted only when rows are (renderPlatesTab), and it is NOT an
+   .ing-card, so the `+` hairline combinator and the direct-child row
+   rules are untouched. Hidden below 640, where the two-line card has no
+   columns to label (V9 owns the phone).
+   ====================================================================== */
+#plateList > .ing-colhead{display:none}
+@media (min-width:640px){
+  #plateList > .ing-colhead{
+    display:grid;grid-template-columns:minmax(0,1fr) 200px max-content;gap:0 var(--sp-4);
+    padding:9px var(--sp-4);background:var(--surface2);border-bottom:1px solid var(--border);
+    font-size:11.5px;font-weight:500;color:var(--muted2);
+  }
+  #plateList > .ing-colhead .ch-num{text-align:right}
+  /* v3 §3.3: Published reads in the accent when live; Unpublished stays muted (the pub-off
+     rule at its shared site). Accent-as-status is the mock's own call — the one place orange
+     is not a CTA — and it is scoped HERE so the builder's badge idiom keeps its colours. */
+  #plateList .ing-tag.pub-on{color:var(--accent-ink)}
+}

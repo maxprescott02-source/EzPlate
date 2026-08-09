@@ -50,7 +50,7 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## next  V4b - Plates (spec §3.3)
+## doing  V4b - Plates (spec §3.3)
 Search + category select · Plate (+muted category) | Published (accent when live) | Plate cost · row click opens the builder (whatever shape the builder is when this runs).
 
 ## next  V4c - Ingredients (spec §3.4)
