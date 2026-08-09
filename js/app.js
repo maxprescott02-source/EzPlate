@@ -1339,23 +1339,24 @@ function ensurePlateForDish(m){
 // sections already in use, so the vocabulary stays shared.
 function plateCategories(){ var s={}; savedPlates.forEach(function(sp){ if(sp.category) s[sp.category]=1; }); (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){ if(m&&m.section) s[m.section]=1; }); return Object.keys(s).sort(); }
 function builderCategoryValue(){ var el=document.getElementById('plateCat'); return el?(el.value||'').trim():''; }
-/* Q3 (v122): the Food-cost cell composes the verdict as figures \u2014 the food-cost % of the menu
-   price plus, when under, the dollar amount the price is short of suggested. The LIGHT comes from
-   analyze() \u2014 the one place the green/amber/red rule lives \u2014 so the publish-dialog preview, the
-   filter chips and this cell can never disagree on colour. (The dialog rounds its % to a whole
+/* Q3 (v122), reworked 9 Aug 2026 (Max): the Food-cost cell states food-cost % vs target ONLY.
+   The dollar shortfall it used to append ("+90c") read as a price-rise instruction \u2014 judging cost
+   is the app's job, pushing price hikes is not \u2014 so no dollar delta ever renders here (v3 spec \u00a78
+   agrees). The word after the % is what discriminates amber from red \u2014 "over" vs "well over" \u2014
+   because hue was otherwise the ONLY difference between them. The LIGHT (and therefore the word)
+   comes from analyze() \u2014 the one place the green/amber/red rule lives \u2014 so the publish-dialog
+   preview, the filter chips and this cell can never disagree. (The dialog rounds its % to a whole
    number; this cell shows one decimal. Same ratio, different display precision \u2014 a display choice,
    not a second computation.) Colour stays anchored to the TARGET, never to direction.
    The aria-label matters: on phones the thead is display:none, so this span is the cell's only
-   announced meaning \u2014 and it is the one cell whose figures don't explain themselves. */
+   announced meaning \u2014 it carries the same word the sighted reader gets. */
 function vbadge(a){
   if((a.state==='ok'||a.state==='under') && a.cost>0 && a.menuPrice>0){   // belt-and-braces before the division \u2014 callers can hand-build `a` (a test does)
     var pct=(a.cost/a.menuPrice*100).toFixed(1);
     if(a.state==='ok') return '<span class="vbadge vgood" aria-label="food cost '+pct+'% \u2014 at or under your target">'+pct+'% \u2713</span>';
-    var c=Math.round((a.suggested-a.menuPrice)*100);                 // cents short of the suggested price
-    var money=c<100?(c+'c'):('$'+(c/100).toFixed(2));
-    var short=c<1?'':(' \u00b7 +'+money);
-    var say='food cost '+pct+'% of the menu price'+(c<1?'':(' \u2014 '+money+' below the suggested price'));
-    return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'" aria-label="'+say+'">'+pct+'%'+short+'</span>';
+    var word=a.light==='red'?'well over':'over';                      // the amber/red discriminator \u2014 hue alone was the only other difference
+    var shown=a.light==='red'?'well\u00a0over':'over';                // nbsp: a narrow cell wraps at the \u00b7 , never mid-phrase
+    return '<span class="vbadge '+(a.light==='red'?'vbad':'vwarn')+'" aria-label="food cost '+pct+'% \u2014 '+word+' your target">'+pct+'% \u00b7 '+shown+'</span>';
   }
   return '<span class="muted-dash">\u2014</span>';
 }
@@ -4328,7 +4329,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v130';
+var APP_VERSION='v131';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

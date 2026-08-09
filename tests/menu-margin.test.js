@@ -78,14 +78,16 @@ test('an uncosted plate (cost 0) yields no light and no pct', () => {
   assert.equal(mp.light, 'none');
 });
 
-/* ---- Q3 (v122): the Menu row's Food-cost cell (vbadge) composes food-cost % + shortfall ------
-   The LIGHT always equals analyze()'s — the one place the green/amber/red rule lives — so the
-   publish preview, the chips and the row can never disagree on colour. (The preview rounds its %
-   to a whole number and this cell shows one decimal: same cost/price ratio, different display
-   precision, deliberately untested against each other.) The dollar figure is what the price is
-   short of SUGGESTED, in cents under a dollar ("+90c") and dollars from there ("+$2.60").
+/* ---- Q3 (v122), reworked 9 Aug 2026: the Food-cost cell states % vs target ONLY --------------
+   The dollar shortfall it used to append ("+90c") read as a price-rise instruction and was
+   dropped on Max's call (v3 spec §8 agrees: no dollar deltas in menu verdict cells). The word
+   after the % now carries the amber/red discrimination — "over" vs "well over" — because hue was
+   otherwise the only difference. The LIGHT always equals analyze()'s — the one place the
+   green/amber/red rule lives — so the publish preview, the chips and the row can never disagree.
+   (The preview rounds its % to a whole number and this cell shows one decimal: same cost/price
+   ratio, different display precision, deliberately untested against each other.)
    The aria-label is pinned too: on phones the thead is display:none, so it is the cell's only
-   announced meaning. */
+   announced meaning — same wording as the visible cell. */
 function withVbadge(cogs) {
   // eslint-disable-next-line no-new-func
   const factory = new Function('COGS', `
@@ -105,24 +107,36 @@ test('Margin cell, healthy: food-cost % to one decimal + tick, green', () => {
   assert.equal(out, '<span class="vbadge vgood" aria-label="food cost 27.2% — at or under your target">27.2% ✓</span>');
 });
 
-test('Margin cell, under by less than a dollar: shortfall reads in cents', () => {
+test('Margin cell, amber: the % plus the word "over" — no dollar figure', () => {
   const { analyze, vbadge } = withVbadge(40);
-  const out = vbadge(analyze(6.96, 16.5));                      // suggested 17.40 → 90c short, amber
-  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 42.2% of the menu price — 90c below the suggested price">42.2% · +90c</span>');
+  const out = vbadge(analyze(6.96, 16.5));                      // price 5% below suggested → amber
+  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 42.2% — over your target">42.2% · over</span>');
 });
 
-test('Margin cell, under by a dollar or more: shortfall reads in dollars', () => {
+test('Margin cell, amber even with a dollars-scale shortfall: still just "over"', () => {
   const { analyze, vbadge } = withVbadge(40);
-  // suggested 21.05 → $2.55 short = 12% below suggested → AMBER (the light is analyze()'s
-  // price-shortfall rule, not the food-cost %; the mock painted this row red and the app's law wins)
+  // suggested 21.05, price 18.5 = 12% below → AMBER (the light is analyze()'s price-shortfall
+  // rule, not the food-cost %; the mock painted this row red and the app's law wins)
   const out = vbadge(analyze(8.42, 18.5));
-  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 45.5% of the menu price — $2.55 below the suggested price">45.5% · +$2.55</span>');
+  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 45.5% — over your target">45.5% · over</span>');
 });
 
-test('Margin cell, more than 15% below suggested: red', () => {
+test('Margin cell, more than 15% below suggested: red, and the word escalates to "well over"', () => {
   const { analyze, vbadge } = withVbadge(40);
-  const out = vbadge(analyze(8.42, 15));                        // suggested 21.05 → $6.05 short, 29% below
-  assert.equal(out, '<span class="vbadge vbad" aria-label="food cost 56.1% of the menu price — $6.05 below the suggested price">56.1% · +$6.05</span>');
+  const out = vbadge(analyze(8.42, 15));                        // price 29% below suggested → red
+  // the visible phrase holds together with an nbsp (narrow cells wrap at the ·, never mid-phrase);
+  // the aria-label uses a plain space — screen readers need no wrap control
+  assert.equal(out, '<span class="vbadge vbad" aria-label="food cost 56.1% — well over your target">56.1% · well over</span>');
+});
+
+test('no dollar delta ever renders in the cell — the shortfall really is gone (v3 §8)', () => {
+  const { analyze, vbadge } = withVbadge(40);
+  // a sweep across greens, ambers and reds at cent and dollar shortfall scales
+  [[2.31, 8.5], [6.96, 16.5], [8.42, 18.5], [8.42, 15], [3, 4], [0.5, 1]].forEach(([cost, price]) => {
+    const out = vbadge(analyze(cost, price));
+    assert.ok(!/\+\$?\d/.test(out) && !/\d+c\b/.test(out) && !out.includes('suggested'),
+      `no shortfall figure or suggested-price wording for cost ${cost} @ $${price}: ${out}`);
+  });
 });
 
 test('Margin cell light ALWAYS equals analyze() — colour anchored to the target, not direction', () => {
@@ -140,11 +154,11 @@ test('Margin cell with no menu price: an em-dash, no figure fabricated', () => {
   assert.equal(vbadge(analyze(2, 0)), '<span class="muted-dash">—</span>');
 });
 
-test('Margin cell under by a rounding hair (<0.5c): the % stands alone, never "+0c"', () => {
+test('Margin cell under by a rounding hair: still an honest "over", never a fabricated figure', () => {
   const { vbadge } = withVbadge(30);
-  // hand-built analysis: under, but the gap rounds to 0 cents
+  // hand-built analysis: under by a whisker — the wording no longer depends on the gap's size
   const out = vbadge({ state: 'under', light: 'amber', cost: 3, menuPrice: 10, suggested: 10.004 });
-  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 30.0% of the menu price">30.0%</span>');
+  assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 30.0% — over your target">30.0% · over</span>');
 });
 
 /* ---- Q3 review findings: pins the first cut lacked ------------------------------------------ */

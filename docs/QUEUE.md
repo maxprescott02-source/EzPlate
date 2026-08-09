@@ -50,7 +50,7 @@ Suite green (0 fail) at reconcile time.
 **Standing rules for every item below** (from `CLAUDE.md` and spec §11, which agree):
 one §10 step per batch, one PR, one review · v3 tokens land ONCE in V1 as CSS custom properties and every screen consumes them - never hardcode a hex in a screen batch · keep every id, `data-tab` value (the naming inversion holds: nav labels stay "Ingredients"/"Products"/"Plates" over `pantry`/`ingredients`/`builder`), `data-mid`/`data-pid`/`data-scope`, `lt-*`/`st-*` classes and the `.mi-row` delegate · **fold, don't replace still applies** (Max, 8 Aug, "janky": screenshot the CURRENT screen first and judge the result against it, not only the mock - mocks here have been wrong about touch floors and dead space before) · protected parser region untouched · six-spot cache bump per shipping batch · `npm test` AND the full Playwright suite green per batch · §11.6 definition of not-broken: every pre-existing flow (add plate, edit qty, import invoice, change price, change settings) completes end-to-end after every commit.
 
-## next  Menu verdict cell: drop the dollar shortfall (Max, 9 Aug 2026)
+## doing  Menu verdict cell: drop the dollar shortfall (Max, 9 Aug 2026)
 Problem: Q3 (v122) shipped "42.2% · +90c" (`vbadge`, `js/app.js:1350-1362`, pinned exactly in `tests/menu-margin.test.js`). The dollar delta reads as a price-rise instruction; judging cost is the app's job, pushing price hikes is not.
 Verified live: the cell prints the shortfall today, and amber vs red differ ONLY by hue (v128 session audit) - both premises hold.
 Requirements: the cell states food-cost % vs target only (e.g. "42.2% · over").
