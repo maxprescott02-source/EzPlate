@@ -86,9 +86,22 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       await boot(page, width, theme);
 
       // the verdict header shows the ALL-MENUS figure: mean of 20/40/60 = 40.0%
+      // ⚠ v133: at ≥1024 the hero is display:none (the KPI strip replaces it) and toHaveText
+      // reads textContent regardless of visibility — so on desktop these three lines alone
+      // would verify nothing a user sees (review finding). The strip assertions below are the
+      // desktop half; the hero lines stay because mobile still shows it.
       await expect(page.locator('.verdict-num')).toHaveText('40.0%');
       await expect(page.locator('.dh-scope')).toHaveText('All menus');
       await expect(page.locator('.verdict-line')).toContainText('10.0 pts over your 30% target');
+      if (width >= 1024) {
+        await expect(page.locator('.kpi-strip')).toBeVisible();
+        await expect(page.locator('.kpi-cell').first()).toContainText('40.0%');
+        await expect(page.locator('.kpi-cell').first()).toContainText('10.0 pts over your 30% target');
+        await expect(page.locator('.verdict-num')).not.toBeVisible();
+      } else {
+        await expect(page.locator('.verdict-num')).toBeVisible();
+        await expect(page.locator('.kpi-strip')).not.toBeVisible();
+      }
 
       // v96: the picker is gone; v129: so are the chips — the DROPDOWN is the control, its button
       // carrying the current scope's name and figure

@@ -1107,6 +1107,7 @@ function setCogs(pct, persist){
   // v115: syncCogsRead (the Menu tab's read-only mirror) is gone with the .cogs-meta line — the
   // Suggested column header below follows the target via renderAnalysis instead
   renderAnalysis();
+  try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(e){}   // v133: the target is the one input that changes the badge's answer without changing any data (review finding — it went stale for days otherwise)
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
 function analyze(cost, menuPrice){
@@ -3925,7 +3926,7 @@ function applyPhrasedInsights(lines, insights, refined, animate){
    - The gradient SPARKLE always shows. The feature is AI-assisted whether or not the API answered,
      and this is now the app's only Gemini identity marker. Its gradient is defined once in
      index.html (#ezSparkGrad), not here — this markup is re-rendered on every scope change.
-   - The "Refined by Gemini" CREDIT shows only when Gemini actually phrased a line that is on
+   - The CREDIT ("Phrased by Gemini, computed by EzPlate" since v133) shows only when Gemini actually phrased a line that is on
      screen. Templates rendering (API off, unavailable, or the toggle disabled) → no credit,
      because nothing was refined. applyPhrasedInsights is the only thing that reveals it.
 
@@ -4137,36 +4138,44 @@ function menuCompareHtml(scope, rows){
    Desktop-only by CSS (≥1024): below 1024 today's 44px verdict hero stays until V9 owns mobile
    (§6 keeps a hero there anyway). Every figure is deterministic app arithmetic on the SAME data
    the rest of the dashboard reads. Counts are per publication, the decided headline law.
-   The delta pill renders at ALL-MENUS scope only: dashComparisons' month figure IS the all-menus
-   series, and subtracting it from a narrowed current would fabricate movement across two series —
-   the same law that keeps the since-line all-menus only. */
+   Returns '' when nothing is costed and priced — the hero (whose empty state carries the
+   actionable copy) stays visible at every width in that case; see .has-kpis in renderDashboard.
+   NO delta pill, deliberately: the mock draws one, but "vs last month" is exactly the stat class
+   Max deleted in v98 (tombstone at the dp-stats site — "duplicated what the chart shows"), and
+   its month figure is an unlabelled baseline besides. Reviving a decided deletion is his call,
+   not a restyle's — queued.
+   The over-target count uses the SAME 0.05 epsilon as dashPctClass/the badge/verdictHtml, so the
+   first two cells can never contradict each other on a display-rounding hair. (dishesOverTarget
+   is the insights' own epsilon-free count — left alone on purpose; the strip's law is the
+   dashboard's display law.) */
 function kpiStripHtml(scope, cmp){
   var isAll=(scope==null||scope===DASH_ALL);
   var pct=isAll?cmp.current:avgFoodCostForScope(scope);
-  var over=0, costed=0, uncosted=0;
+  if(pct==null) return '';
+  var over=0, costed=0, unready=0;
   MENU.forEach(function(m){
     if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
     var sp=plateForMenuItem(m);
     var c=sp?costFromLines(sp.lines):0;
-    if(m.price>0 && c>0){ costed++; if(analyze(c, m.price).state==='under') over++; }
-    else uncosted++;
+    // "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
+    // label ("not costed") sent the review hunting phantom ingredient gaps on price-less dishes.
+    // A PARTIAL cost still counts as costed — costFromLines returns the partial sum and the
+    // broken-link states on the Ingredients tab are the surface that owns that problem.
+    if(m.price>0 && c>0){ costed++; if(c/m.price*100 > cogsPct+0.05) over++; }
+    else unready++;
   });
-  var pctCell=(pct==null)
-    ? '<span class="kpi-num"><span class="muted-dash">—</span></span>'
-    : '<span class="kpi-num '+dashPctClass(pct)+'">'+pct.toFixed(1)+'%</span>';
-  var delta='';
-  if(isAll && cmp.current!=null && cmp.lastMonth!=null){
-    var d=cmp.current-cmp.lastMonth;
-    if(Math.abs(d)>=0.05)                                        // below display rounding is not movement
-      delta='<span class="pill '+(d>0?'pill-bad':'pill-good')+'">'+(d>0?'+':'−')+Math.abs(d).toFixed(1)+' pts</span>';
-  }
+  var d=pct-cogsPct;
+  var sub=(d>0.05) ? (d.toFixed(1)+' pts over your '+fmtTargetPct()+' target')
+        : (d<-0.05 ? (Math.abs(d).toFixed(1)+' pts under your '+fmtTargetPct()+' target')
+                   : ('at your '+fmtTargetPct()+' target'));
   return '<div class="kpi-strip">'
-    +'<div class="kpi-cell"><div class="kpi-label">Average food cost</div><div class="kpi-row">'+pctCell+delta+'</div>'
-      +'<div class="kpi-sub">'+(pct==null?'nothing costed and priced yet':('vs your '+fmtTargetPct()+' target'))+'</div></div>'
+    +'<div class="kpi-cell"><div class="kpi-label">Average food cost</div><div class="kpi-row">'
+      +'<span class="kpi-num '+dashPctClass(pct)+'">'+pct.toFixed(1)+'%</span></div>'
+      +'<div class="kpi-sub">'+sub+'</div></div>'
     +'<div class="kpi-cell"><div class="kpi-label">Plates over target</div><div class="kpi-row"><span class="kpi-num'+(over>0?' bad':'')+'">'+over+'</span></div>'
       +'<div class="kpi-sub">of '+costed+' costed'+(isAll?'':' on this menu')+'</div></div>'
-    +'<div class="kpi-cell"><div class="kpi-label">Not costed</div><div class="kpi-row"><span class="kpi-num">'+uncosted+'</span></div>'
-      +'<div class="kpi-sub">plates without a full cost</div></div>'
+    +'<div class="kpi-cell"><div class="kpi-label">Not costed or priced</div><div class="kpi-row"><span class="kpi-num">'+unready+'</span></div>'
+      +'<div class="kpi-sub">plates missing a cost or a sell price</div></div>'
     +'</div>';
 }
 /* v133 (V3): the sidebar Dashboard badge — the ALL-MENUS average, shown only when it is over
@@ -4178,6 +4187,11 @@ function updateDashNavBadge(){
   var over=(pct!=null && pct>cogsPct+0.05);                      // the same epsilon every anchor-to-target site uses
   el.hidden=!over;
   el.textContent=over?(pct.toFixed(1)+'%'):'';
+  // aria-label REPLACES a button's accessible name, so the badge is silent to AT unless the
+  // label itself carries it (review finding). The prefix stays "Dashboard" so nothing keyed to
+  // the name breaks; the suffix states the number AND its meaning — colour is not the carrier.
+  var btn=el.closest('.navbtn');
+  if(btn) btn.setAttribute('aria-label', over?('Dashboard — average food cost '+pct.toFixed(1)+'%, over target'):'Dashboard');
 }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
@@ -4228,8 +4242,9 @@ function renderDashboard(){
      40/44px figure, What moved, the two-column second row. What returns is the one-surface top
      card, number → since → hairline → chart, whose desktop width is set by the grid below so the
      540px chart FILLS it instead of swimming in it. */
-  var html='<div class="panel dash-panel dash-verdict-panel"><h2>'+heading+'</h2><div class="pad">'
-    +kpiStripHtml(scope, cmp)   // v133: ≥1024 shows the strip and hides the hero row's figure; below 1024 CSS hides the strip
+  var kpis=kpiStripHtml(scope, cmp);   // v133: '' when nothing is costed+priced — then the hero (and its actionable empty copy) stays at every width
+  var html='<div class="panel dash-panel dash-verdict-panel'+(kpis?' has-kpis':'')+'"><h2>'+heading+'</h2><div class="pad">'
+    +kpis                              // ≥1024 with .has-kpis: the strip shows and CSS hides the hero's figure; below 1024 CSS hides the strip
     +'<div class="dp-tile dp-verdict">'
     +'<div class="dash-verdict-row">'
     +'<div class="dash-verdict-main">'
@@ -4871,7 +4886,7 @@ function clearCacheAndRefresh(){
   var sp=document.getElementById('settingsPanel');
   if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
   var ci=document.getElementById('setCogsInput');
-  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs already re-renders every consumer (v115: syncCogsRead gone)
+  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs re-renders every consumer, the v133 nav badge included
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: section nav (sidebar / drill-down) + the mobile back arrow

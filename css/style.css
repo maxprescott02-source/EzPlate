@@ -3205,22 +3205,31 @@ html{scrollbar-gutter:stable}
    The band applies at ≥1024 only — below 1024 the dashboard keeps today's
    layout until V9 translates §6.
    ====================================================================== */
-.pill{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
-.pill-good{color:var(--good);background:var(--good-bg)}
-.pill-bad{color:var(--bad);background:var(--bad-bg)}
-/* below 1024 neither the strip nor the badge exists — the bottom bar has no room for a badge
-   and the mobile dashboard keeps its 44px hero (V9 owns the §6 translation) */
+/* below 1024 neither the pills, the strip nor the badge exists — the mobile dashboard keeps
+   today's look untouched until V9 owns the §6 translation (the .pill markup classes are inert
+   there: without these rules the What-moved deltas fall back to their .dig-v colours) */
 .kpi-strip{display:none}
 .nl-badge{display:none}
 @media (min-width:1024px){
-  .tbl-head{
+  .pill{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
+  .pill-good{color:var(--good);background:var(--good-bg)}
+  .pill-bad{color:var(--bad);background:var(--bad-bg)}
+  /* `.mv-row .dig-v` (0-2-0) sets fs-md/700 — restated here so the pill really is the spec's
+     12/500 mono lozenge, not a large bold number wearing a tint */
+  .mv-row .dig-v.pill{font-size:12px;font-weight:500;font-family:var(--mono)}
+  /* h2.tbl-head ties `.panel h2` (0-1-1) and sits later in the file, so the band wins its
+     shared properties; the ID-qualified restatement below is for the density block's
+     `#dashBody .panel h2` (1-1-1), which would otherwise mute it. ⚠ V4a: the four static tabs'
+     48px title-bar rule (`#tab-* > .panel > h2`, 1-0-2) still outranks this class — the Menu
+     batch must reconcile the two when it becomes the second consumer, not paper over it. */
+  h2.tbl-head,.tbl-head{
     background:var(--surface2);border-bottom:1px solid var(--divider);
     padding:12px 20px;margin:0;font-size:13px;font-weight:600;letter-spacing:0;
     text-transform:none;color:var(--text);display:flex;align-items:center;gap:var(--sp-2);
   }
-  /* the density block's `#dashBody .panel h2{color:var(--muted2)}` outranks a bare class —
-     this ID-qualified restatement is what lets the band read at full strength */
-  #dashBody .panel h2.tbl-head{color:var(--text);padding:12px 20px;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none}
+  #dashBody .panel h2.tbl-head{color:var(--text);background:var(--surface2);border-bottom:1px solid var(--divider);padding:12px 20px;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;min-height:0}
+  /* the band IS --surface2, so the back button needs its own hover wash there */
+  .tbl-head .dig-back:hover{background:rgba(42,33,27,.06)}
 
   /* ---- §3.1 KPI strip: three cells, one bordered container, internal hairlines ---- */
   .kpi-strip{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;margin-bottom:var(--sp-5)}
@@ -3233,9 +3242,11 @@ html{scrollbar-gutter:stable}
   .kpi-num.bad{color:var(--bad)}
   .kpi-sub{margin-top:4px;font-size:12px;color:var(--muted2)}
   /* the strip's first cell IS the verdict at desktop — the 44px hero hides here and stays the
-     mobile face until V9 (§6 keeps a hero on phones). The row keeps the scope control. */
-  #dashBody .dash-verdict-main{display:none}
-  #dashBody .dash-verdict-row{justify-content:flex-end}
+     mobile face until V9 (§6 keeps a hero on phones). GATED on .has-kpis: when nothing is
+     costed+priced the strip is absent and the hero (with its actionable empty copy) must stay
+     at every width — an unconditional hide left desktop with no instruction (review finding). */
+  #dashBody .dash-verdict-panel.has-kpis .dash-verdict-main{display:none}
+  #dashBody .dash-verdict-panel.has-kpis .dash-verdict-row{justify-content:flex-end}
 
   /* ---- the sidebar Dashboard badge (§2): all-menus avg %, only when over target ---- */
   .nl-badge{display:inline-block;margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;font-weight:500;color:var(--bad);background:var(--bad-bg);border-radius:var(--radius-pill);padding:1px 7px}

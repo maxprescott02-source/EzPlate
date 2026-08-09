@@ -2,10 +2,15 @@
  * kpi-strip.test.js — v133 (V3): the §3.1 KPI strip + the sidebar Dashboard badge.
  *
  * The strip's three figures are deterministic app arithmetic on the same data the rest of the
- * dashboard reads, counted PER PUBLICATION (the decided headline law). The delta pill is
- * all-menus only — dashComparisons' month figure IS the all-menus series, and subtracting it
- * from a narrowed current would fabricate movement across two series (the change-log law).
- * The badge shows the all-menus average ONLY when over target, with the shared epsilon.
+ * dashboard reads, counted PER PUBLICATION (the decided headline law). The over-target count
+ * shares the 0.05 display epsilon with dashPctClass/the badge/verdictHtml so the first two
+ * cells can never contradict each other on a rounding hair. There is deliberately NO delta
+ * pill: "vs last month" is the stat class Max deleted in v98 — reviving it is queued as his
+ * call. When nothing is costed and priced the strip renders NOTHING, so the hero's actionable
+ * empty copy stays on screen at every width.
+ *
+ * Assertions are scoped PER CELL (split on kpi-cell) — the first cut's whole-string regexes
+ * passed with the counters swapped, which the review caught.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -36,7 +41,7 @@ function harness(dishes, opts = {}) {
     function plateForMenuItem(m){ var ix=Number(m.id.slice(2)); return plateCosts[ix]==null?null:{id:'PL'+ix, lines:[{misc:true,cost:plateCosts[ix]}]}; }
     function costFromLines(lines){ return (lines&&lines[0])?lines[0].cost:0; }
     function foodTarget(){ return cogsPct/100; }
-    function fmtTargetPct(){ return String(cogsPct)+'%'; }   // mirrors the real return shape — it INCLUDES the % (the stub without it hid a "30%%" bug the browser drive caught)
+    function fmtTargetPct(){ return String(cogsPct)+'%'; }   // mirrors the real return shape — it INCLUDES the % (a stub without it hid a "30%%" bug the browser drive caught)
     ${extractFn(APP, 'analyze')}
     ${extractFn(APP, 'avgFoodCostForScope')}
     ${extractFn(APP, 'dashPctClass')}
@@ -46,59 +51,74 @@ function harness(dishes, opts = {}) {
   return factory({ dishes, target: opts.target == null ? 30 : opts.target });
 }
 
-const CMP_FLAT = { current: 33.5, lastMonth: 33.5, lastWeek: null, ytd: null };
+/* the three cells, in order, as separate strings — position-aware on purpose */
+function cells(html) {
+  const parts = html.split('kpi-cell').slice(1);
+  assert.equal(parts.length, 3, 'three cells');
+  return parts;
+}
 
-test('three cells, counted per publication: over-target, costed, and not-costed', () => {
-  // costs at price 10, target 30%: 2.0 → 20% ok · 3.5 → 35% over · 3.5 → over · null → uncosted
+test('three cells, counted per publication: %, over-target, and not-costed-or-priced', () => {
+  // costs at price 10, target 30: 2.0 → 20% ok · 3.5 → 35% over · 3.5 → over · null → unready
   const h = harness([
     { price: 10, cost: 2.0 }, { price: 10, cost: 3.5 }, { price: 10, cost: 3.5 }, { price: 10, cost: null },
   ]);
-  const html = h.kpiStripHtml('all', { current: h.avgFoodCostForScope('all'), lastMonth: null });
-  assert.ok(/Average food cost/.test(html) && /Plates over target/.test(html) && /Not costed/.test(html), 'the three labels');
-  assert.ok(/>2<\/span>/.test(html), 'two plates over target');
-  assert.ok(/of 3 costed/.test(html), 'three costed publications');
-  assert.ok(/>1<\/span>/.test(html), 'one not costed');
-  assert.ok(/vs your 30% target/.test(html) && !/%%/.test(html), 'the target reads once — fmtTargetPct already carries the %');
+  const [c1, c2, c3] = cells(h.kpiStripHtml('all', { current: h.avgFoodCostForScope('all'), lastMonth: null }));
+  assert.ok(/Average food cost/.test(c1) && /30\.0%/.test(c1), 'cell 1: the average (20+35+35)/3');
+  assert.ok(/vs your/.test(c1) === false, 'cell 1 sub states the pts gap, not a bare "vs target"');
+  assert.ok(/Plates over target/.test(c2) && />2<\/span>/.test(c2), 'cell 2: exactly the two over-target publications');
+  assert.ok(/of 3 costed/.test(c2), 'cell 2 sub: three costed publications');
+  assert.ok(/Not costed or priced/.test(c3) && />1<\/span>/.test(c3), 'cell 3: the one unready publication');
+  assert.ok(/missing a cost or a sell price/.test(c3), 'cell 3 sub names BOTH ways a plate can be unready');
+});
+
+test('a fully costed plate with NO sell price counts as unready — the label must not lie about why', () => {
+  const h = harness([{ price: 0, cost: 3.5 }, { price: 10, cost: 2.0 }]);
+  const [, c2, c3] = cells(h.kpiStripHtml('all', { current: 20, lastMonth: null }));
+  assert.ok(/of 1 costed/.test(c2), 'only the priced dish is costed');
+  assert.ok(/>1<\/span>/.test(c3), 'the price-less dish lands in cell 3');
 });
 
 test('a plate published to two menus counts twice — per publication, never distinct-plate', () => {
   const h = harness([
     { menuId: 'M_A', price: 10, cost: 3.5 }, { menuId: 'M_B', price: 10, cost: 3.5 },
   ]);
-  const html = h.kpiStripHtml('all', CMP_FLAT);
-  assert.ok(/>2<\/span>/.test(html) && /of 2 costed/.test(html), 'both publications counted');
+  const [, c2] = cells(h.kpiStripHtml('all', { current: 35, lastMonth: null }));
+  assert.ok(/>2<\/span>/.test(c2) && /of 2 costed/.test(c2), 'both publications counted');
 });
 
-test('the delta pill renders at ALL-MENUS scope only — never against a narrowed current', () => {
+test('the two cells share the 0.05 epsilon — a rounding hair cannot make them contradict', () => {
+  // 3.004 at $10 = 30.04%: inside the epsilon. Cell 1 must be green AND cell 2 must count 0.
+  const h = harness([{ price: 10, cost: 3.004 }]);
+  const [c1, c2] = cells(h.kpiStripHtml('all', { current: 30.04, lastMonth: null }));
+  assert.ok(/kpi-num good/.test(c1), 'cell 1 green at 30.04 vs 30 (display epsilon)');
+  assert.ok(/>0<\/span>/.test(c2), 'cell 2 counts zero — same epsilon, no contradiction in one container');
+  // and just past it, both flip together
+  const h2 = harness([{ price: 10, cost: 3.01 }]);
+  const [d1, d2] = cells(h2.kpiStripHtml('all', { current: 30.1, lastMonth: null }));
+  assert.ok(/kpi-num bad/.test(d1) && />1<\/span>/.test(d2), 'past the epsilon both cells agree the other way');
+});
+
+test('no delta pill, anywhere, at any scope — the v98 deletion stands until Max reopens it', () => {
   const dishes = [{ menuId: 'M_A', price: 10, cost: 3.5 }, { menuId: 'M_B', price: 10, cost: 2.0 }];
   const h = harness(dishes);
-  const all = h.kpiStripHtml('all', { current: 27.5, lastMonth: 25.0 });
-  assert.ok(/pill pill-bad/.test(all) && /\+2\.5 pts/.test(all), 'all-menus shows the rise as a bad pill');
-  const scoped = h.kpiStripHtml('M_A', { current: 27.5, lastMonth: 25.0 });
-  assert.ok(!/pill/.test(scoped), 'a narrowed scope shows NO delta — the month figure is an all-menus number');
+  assert.ok(!/pill/.test(h.kpiStripHtml('all', { current: 27.5, lastMonth: 25.0 })), 'not at all-menus, even with a month figure');
+  assert.ok(!/pill/.test(h.kpiStripHtml('M_A', { current: 27.5, lastMonth: 25.0 })), 'not narrowed either');
 });
 
-test('a fall reads as a good pill; a sub-0.05pt drift shows nothing', () => {
-  const h = harness([{ price: 10, cost: 2.0 }]);
-  const down = h.kpiStripHtml('all', { current: 30.0, lastMonth: 32.5 });
-  assert.ok(/pill pill-good/.test(down) && /2\.5 pts/.test(down), 'a fall is good');
-  const flat = h.kpiStripHtml('all', { current: 30.0, lastMonth: 30.02 });
-  assert.ok(!/pill/.test(flat), 'display-rounding drift is not movement');
+test('cell 1 sub carries the pts gap the hidden hero used to state', () => {
+  const over = harness([{ price: 10, cost: 3.57 }]);
+  assert.ok(/5\.7 pts over your 30% target/.test(over.kpiStripHtml('all', { current: 35.7, lastMonth: null })), 'over');
+  const under = harness([{ price: 10, cost: 2.43 }]);
+  assert.ok(/5\.7 pts under your 30% target/.test(under.kpiStripHtml('all', { current: 24.3, lastMonth: null })), 'under');
+  const at = harness([{ price: 10, cost: 3.0 }]);
+  assert.ok(/at your 30% target/.test(at.kpiStripHtml('all', { current: 30.0, lastMonth: null })), 'at');
+  assert.ok(!/%%/.test(over.kpiStripHtml('all', { current: 35.7, lastMonth: null })), 'fmtTargetPct already carries the %');
 });
 
-test('nothing costed and priced: an honest dash, no fabricated zero', () => {
+test('nothing costed and priced: the strip renders NOTHING — the hero keeps the empty state', () => {
   const h = harness([{ price: 10, cost: null }]);
-  const html = h.kpiStripHtml('all', { current: null, lastMonth: null });
-  assert.ok(/muted-dash/.test(html), 'the % cell is a dash');
-  assert.ok(/nothing costed and priced yet/.test(html), 'and says why');
-  assert.ok(!/pill/.test(html), 'no delta pill without a current figure');
-});
-
-test('the % cell colour follows dashPctClass — the anchor-to-target law, same epsilon', () => {
-  const over = harness([{ price: 10, cost: 3.5 }]);           // 35% vs 30 target
-  assert.ok(/kpi-num bad/.test(over.kpiStripHtml('all', { current: 35, lastMonth: null })), 'over target is bad');
-  const under = harness([{ price: 10, cost: 2.0 }]);          // 20%
-  assert.ok(/kpi-num good/.test(under.kpiStripHtml('all', { current: 20, lastMonth: null })), 'under target is good');
+  assert.equal(h.kpiStripHtml('all', { current: null, lastMonth: null }), '', 'empty string, so .has-kpis is absent and the hero stays');
 });
 
 /* ---- the sidebar badge ---- */
@@ -107,20 +127,28 @@ function badgeHarness(pct, target) {
   const factory = new Function('FIX', `
     "use strict";
     var cogsPct=FIX.target;
-    var el={hidden:true, textContent:''};
+    var btn={attrs:{}, setAttribute:function(k,v){ this.attrs[k]=v; }};
+    var el={hidden:true, textContent:'', closest:function(){ return btn; }};
     var document={ getElementById:function(id){ return id==='dashNavBadge'?el:null; } };
     function computeAvgFoodCost(){ return FIX.pct; }
     ${extractFn(APP, 'updateDashNavBadge')}
     updateDashNavBadge();
-    return el;
+    return { el:el, label:btn.attrs['aria-label'] };
   `);
   return factory({ pct, target });
 }
 
-test('the badge shows the all-menus % only when over target, and hides at/under it', () => {
-  assert.deepEqual({ hidden: badgeHarness(33.5, 30).hidden, text: badgeHarness(33.5, 30).textContent },
-    { hidden: false, text: '33.5%' }, 'over target: shown with the figure');
-  assert.equal(badgeHarness(30.0, 30).hidden, true, 'at target: hidden (the epsilon covers display rounding)');
-  assert.equal(badgeHarness(28.0, 30).hidden, true, 'under target: hidden');
-  assert.equal(badgeHarness(null, 30).hidden, true, 'nothing costed: hidden, never a fabricated figure');
+test('the badge shows the all-menus % only when over target, with the shared epsilon exercised', () => {
+  const over = badgeHarness(33.5, 30);
+  assert.deepEqual({ hidden: over.el.hidden, text: over.el.textContent }, { hidden: false, text: '33.5%' }, 'over target: shown');
+  assert.equal(badgeHarness(30.0, 30).el.hidden, true, 'at target: hidden');
+  assert.equal(badgeHarness(30.03, 30).el.hidden, true, 'INSIDE the epsilon (30.03 vs 30): hidden — this is the case a bare > would already pass, so the next one is the real pin');
+  assert.equal(badgeHarness(30.06, 30).el.hidden, false, 'just past the epsilon: shown');
+  assert.equal(badgeHarness(28.0, 30).el.hidden, true, 'under target: hidden');
+  assert.equal(badgeHarness(null, 30).el.hidden, true, 'nothing costed: hidden, never a fabricated figure');
+});
+
+test('the badge is announced: the nav button aria-label carries the figure AND its meaning', () => {
+  assert.equal(badgeHarness(33.5, 30).label, 'Dashboard — average food cost 33.5%, over target', 'over: the label says what the number means — colour is not the carrier');
+  assert.equal(badgeHarness(28.0, 30).label, 'Dashboard', 'under: back to the plain name');
 });
