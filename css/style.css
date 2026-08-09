@@ -1398,28 +1398,72 @@ body.scroll-locked{position:fixed;left:0;right:0}
         v3 §2: 224px, #FAF7F1 (--surface2), hairline right border. -- */
   .bottomnav{
     top:0;bottom:0;left:0;right:auto;width:224px;
-    flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;
-    padding:18px 14px calc(18px + env(safe-area-inset-bottom));
+    flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;
+    padding:16px 12px calc(16px + env(safe-area-inset-bottom));
     border-top:0;border-right:1px solid var(--border);box-shadow:none;
     background:var(--surface2);
   }
-  /* v3 §2: the sidebar's bottom group — Settings sits above the safe-area edge.
-     (Invoices arrives with V4e; "UI states" and the account row are not built.) */
-  .nav-settings{margin-top:auto}
+  /* v3 §2: the sidebar's bottom group — Invoices then Settings, above a hairline, pushed to the
+     bottom by the first of them. The hairline is the mock's `border-top` on the group; it was
+     missing entirely while Settings was the only member and nothing marked the group as a group. */
+  /* "the first member of the bottom group" = the first .nav-bottom that follows a normal tab.
+     NOT :first-of-type — every nav item is a <button>, so that matches the Dashboard tab.
+     The hairline is a ::before rather than a border-top so it sits in the GAP above the group;
+     on the button itself it would sit inside the hover background and make that one row taller. */
+  .navbtn:not(.nav-bottom) + .nav-bottom{margin-top:auto;position:relative}
+  .navbtn:not(.nav-bottom) + .nav-bottom::before{
+    content:"";position:absolute;left:0;right:0;top:-7px;height:1px;background:var(--border);
+  }
+  /* v137: the brand row — logo + wordmark on the left, the 22px theme toggle on the right. */
+  .side-brand-row{
+    display:flex;align-items:center;gap:var(--sp-2);
+    padding:0 2px 16px;border-bottom:1px solid var(--border);margin-bottom:var(--sp-4);
+  }
   .side-brand{
-    display:flex;align-items:center;gap:var(--sp-2);padding:6px 8px 18px;
-    border-bottom:1px solid var(--border);margin-bottom:var(--sp-4);color:var(--brand);
-    cursor:pointer;border-radius:8px;   /* v39: sidebar logo is a Dashboard shortcut too */
+    display:flex;align-items:center;gap:var(--sp-2);padding:6px 8px;flex:1 1 auto;min-width:0;
+    color:var(--brand);cursor:pointer;border-radius:8px;   /* v39: sidebar logo is a Dashboard shortcut too */
   }
   .side-brand:focus-visible{outline:2px solid var(--accent,#3a6b4f);outline-offset:2px}
-  .side-brand svg{width:34px;height:34px;flex:0 0 auto}
-  .side-brand b{font-size:17px;font-weight:700;letter-spacing:-.015em;color:var(--brand)}
+  .side-brand svg{width:24px;height:24px;flex:0 0 auto}
+  .side-brand b{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--brand)}
   .side-brand b .ez{color:var(--accent-ink)}
-  .side-brand small{display:block;font-size:11px;color:var(--muted2);margin-top:1px}
+  /* The mock's compact toggle: 22px square, hairline, quiet until hovered. It is 22px VISUALLY
+     and 26px to the pointer — the ::after hit area is the .ms-clear / .range-btn technique, and it
+     is here because WCAG 2.5.8's floor is 24x24 CSS px. The app's own 44px thumb floor is not the
+     test for this control: the sidebar renders at >=1024 only, where the input is a mouse. */
+  .side-theme{
+    position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:5px;
+    background:var(--surface);color:var(--text3);cursor:pointer;
+    transition:color var(--t-fast) var(--ease),background var(--t-fast) var(--ease);
+    /* THE 44px FLOOR IS OVERRIDDEN HERE, DELIBERATELY, and this is the whole decision.
+       `button,.btn,.navbtn,input,select{min-height:44px}` (the touch-targets rule near the top
+       of this file) applies to every button in the app, and min-height always beats height —
+       without this line the control renders 22 WIDE by 44 TALL, a lopsided pill that is not the
+       mock's square and not anything else either. Measured in a browser before it shipped.
+       Overriding is safe HERE and nowhere else: .side-theme exists only inside the sidebar,
+       which is CSS-hidden below 1024px, so the only input that can reach it is a mouse. The
+       standard that does apply to a pointer is WCAG 2.5.8 (24x24 CSS px) — met by the ::after
+       below, not by the visual box. */
+    min-height:22px;
+  }
+  /* The hit area: 22px of paint, 32x32 to the pointer. Same ::after technique as .ms-clear and
+     .range-btn; z-index so it out-paints the row it sits in rather than losing the hit test to it.
+     MEASURED, not assumed — a first cut used -2px and the walk-outward probe reported a 24x24
+     effective target: sitting exactly ON WCAG 2.5.8's floor with nothing to spare, while the
+     comment beside it claimed 26. -5px puts it comfortably clear, and the spec pins the number so
+     the next person to touch this does not have to re-measure it. */
+  .side-theme::after{content:"";position:absolute;left:-5px;right:-5px;top:-5px;bottom:-5px;z-index:1}
+  .side-theme svg{width:13px;height:13px}
+  .side-theme:hover{color:var(--accent-ink);background:var(--hover)}
+  .side-theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* v3 §2 nav row grammar: 13px, 7px/10px, radius 6, 2px apart. R1 — the app's 46px rows were
+     the mobile tab bar's touch geometry surviving into a pointer-only sidebar, and they read as
+     a different system beside a 22px control. Still 30px tall, so clear of WCAG 2.5.8's 24px. */
   .navbtn{
-    flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;
-    min-height:46px;padding:11px 14px;border-radius:var(--radius-ctl);
-    font-size:var(--fs-sm);font-weight:500;color:var(--text2);
+    flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:10px;
+    min-height:0;padding:7px 10px;border-radius:6px;
+    font-size:13px;font-weight:500;color:var(--text2);
   }
   .navbtn svg{width:var(--icon-sm);height:var(--icon-sm);padding:0;border-radius:0;background:none}
   /* v136: --hover is the mock's #F2EADD now, distinct from the sidebar's --surface-2, so the
@@ -1444,7 +1488,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
   header{display:none}
 
   /* -- content column -- */
-  .wrap{max-width:1000px;padding:0 var(--sp-6)}
+  .wrap{max-width:960px;padding:0 var(--sp-6)}   /* v3 §2: content max-width 960 (v137) */
 
   /* v55 (§C): the old two-column builder grid is GONE — #tab-builder is now the Plates library, a plain
      single-column .panel that renders the .ing-list card grid full-width, identical to Products. The
@@ -1483,13 +1527,14 @@ body.scroll-locked{position:fixed;left:0;right:0}
 
 /* ============================ DESKTOP ≥1280px ============================ */
 @media (min-width:1280px){
-  .wrap{max-width:1120px}
+  /* v137: 960 holds at every desktop width — v3 §2 gives the content one width, not a
+     per-breakpoint ladder. The wider screen becomes margin, which is the mock's own look. */
   .ing-list{grid-template-columns:repeat(3,1fr)}
 }
 
 /* sidebar brand block + the bottom-group Settings entry are hidden on mobile/tablet
    (the bottom bar shows the five tabs only; the header gear owns Settings until V9) */
-@media (max-width:1023px){ .side-brand,.nav-settings{display:none} }
+@media (max-width:1023px){ .side-brand-row,.side-brand,.side-theme,.nav-bottom{display:none} }
 
 /* ---- cascade-final overrides (must sit after the base control rules) ---- */
 input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:focus{
@@ -1639,7 +1684,9 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   .sync-banner{left:auto;right:24px;transform:none;top:14px}
 }
 .side-brand span{min-width:0}
-.side-brand small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:154px}
+/* v137: `.side-brand small` is GONE with the tagline it truncated. The sidebar brand is one line
+   now (the mock's, and the only shape that fits a control beside it), so the ellipsis rule had no
+   element left to match. Deleted with the markup rather than left behind — protocol §1.4. */
 
 /* ---- I. contrast & detail polish ---- */
 .ing-tag{color:var(--text2)}
@@ -3490,3 +3537,65 @@ html{scrollbar-gutter:stable}
      (the global rule) — §3.3 confirms the shipped colour rather than changing it. The first
      cut re-declared it as a no-op with a wrong scoping story (review finding). */
 }
+
+/* ======================================================================
+   v137 (F1b) — THE MODAL / SHEET PRIMITIVE (v3 §4 desktop, §6 mobile)
+
+   Deliberately at the END of the file: every rule it has to beat
+   (`.modal-overlay{align-items:center}` and `.modal{margin:auto}` in
+   §"margins locked", `#settingsPanel .settings-panel`'s max-height, the
+   §14 modalIn animation) sits earlier, and this file has twice recorded
+   the cost of losing that cascade race quietly.
+
+   TWO CONTAINERS, ONE COMPONENT. >=768 the mock's centred dialog at 12vh;
+   <768 the mobile mock's bottom sheet — grab handle, slide-up, safe-area.
+
+   .modal-builder and .modal-wiz are EXCLUDED from the sheet and keep their
+   full-height takeover. R2, not an oversight: the mobile mock's Builder is
+   a full-screen PUSH, not a sheet, and F7 replaces that shell with a real
+   full page. A wizard mid-flow is the same shape.
+   ====================================================================== */
+@media (min-width:768px){
+  .modal-overlay{
+    align-items:flex-start;
+    padding-top:12vh;                          /* v3 §4: centred at 12vh, not vertically centred */
+  }
+  /* margin:auto on a flex item overrides align-items entirely — it is what re-centres the
+     modal and silently undoes the line above. It has to be margin:0 auto, not just a top of 0. */
+  .modal-overlay > .modal{margin:0 auto}
+  /* The height budget changes with the offset: 12vh above + the overlay's 20px below.
+     Without this a tall modal (invoice review, Settings) grows past the fold and the only
+     thing that scrolls is the overlay, which puts the × off-screen. */
+  .modal-overlay > .modal,
+  #settingsPanel .settings-panel{max-height:calc(88vh - 40px);max-height:calc(88dvh - 40px)}
+}
+
+@media (max-width:767px){
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal-overlay > .modal:not(.modal-builder):not(.modal-wiz),
+  #settingsPanel .settings-panel{
+    width:100%;max-width:none;margin:0;
+    border-radius:16px 16px 0 0;border-left:0;border-right:0;border-bottom:0;
+    max-height:88dvh;
+    padding-bottom:env(safe-area-inset-bottom);   /* the sheet reaches the edge; its content must not */
+    box-shadow:0 -8px 32px var(--shadow-modal);
+  }
+  /* The grab handle. A ::before flex item rather than an extra element in 18 modals — it is
+     decoration, so it stays out of the DOM and out of the accessibility tree. */
+  .modal-overlay > .modal:not(.modal-builder):not(.modal-wiz)::before{
+    content:"";flex:0 0 auto;width:36px;height:4px;margin:8px auto 2px;
+    border-radius:999px;background:var(--border2);
+  }
+  /* Slide-up. The mobile mock's own keyframes. The global reduced-motion kill switch
+     (`*{animation:none!important}`) already covers it — no second guard needed here. */
+  .modal-overlay.open > .modal:not(.modal-builder):not(.modal-wiz),
+  #settingsPanel.open .settings-panel{
+    animation:sheetUp var(--t-slow) var(--ease);
+  }
+  .modal-overlay.closing > .modal:not(.modal-builder):not(.modal-wiz),
+  #settingsPanel.closing .settings-panel{
+    animation:sheetDown var(--t-slow) var(--ease-in-out) forwards;
+  }
+}
+@keyframes sheetUp{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes sheetDown{from{transform:translateY(0);opacity:1}to{transform:translateY(24px);opacity:0}}
