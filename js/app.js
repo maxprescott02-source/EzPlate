@@ -1107,6 +1107,7 @@ function setCogs(pct, persist){
   // v115: syncCogsRead (the Menu tab's read-only mirror) is gone with the .cogs-meta line — the
   // Suggested column header below follows the target via renderAnalysis instead
   renderAnalysis();
+  try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(e){}   // v133: the target is the one input that changes the badge's answer without changing any data (review finding — it went stale for days otherwise)
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
 function analyze(cost, menuPrice){
@@ -1379,6 +1380,7 @@ function currentTab(){
   return 'builder';
 }
 function rerenderCurrentTab(){                                         // re-run the active tab's render (e.g. once boot data lands)
+  try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(e){}   // v133: the sidebar badge follows the data, whichever tab is shown
   var t=currentTab();
   try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
@@ -1823,6 +1825,7 @@ function logHistory(){
    carrying write settles — a beat after logHistory's synchronous repaint — so a user sitting on the
    Dashboard would otherwise see the surface one entry stale until their next navigation. */
 function repaintDashboardIfVisible(){
+  try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(_){ }   // v133: the badge updates even when the dashboard pane is hidden — a price edit on another tab must not leave it stale
   try{ var dash=document.getElementById('tab-dashboard'); if(dash && dash.style.display!=='none') renderDashboard(); }catch(_){ }
 }
 /* v89: the same point-logging contract as logHistory, once per menu that has costed, priced plates.
@@ -3151,12 +3154,12 @@ function digInHtml(scope){
         }).join('')+'</ul>'
       // v58 empty-state system: the ONE place an empty state is built. No bespoke markup, no one-off rule.
       : emptyStateHtml(ICON_MENU_BIG, 'Nothing to rank yet.', 'Cost a plate and put it on a menu to fill this list.');
-    return '<div class="panel dash-dig detail-open"><h2>'
+    return '<div class="panel dash-dig detail-open"><h2 class="tbl-head">'
       +'<button class="dig-back" type="button" id="digBack" aria-label="Back to Dig in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>'
       +esc(d.title)+'</h2>'
       +'<div class="pad"><p class="hint dig-sub">'+esc(d.sub)+'</p>'+body+'</div></div>';
   }
-  return '<div class="panel dash-dig"><h2>Dig in</h2><div class="pad">'
+  return '<div class="panel dash-dig"><h2 class="tbl-head">Dig in</h2><div class="pad">'
     +'<div class="dig-grid">'+DIG_CARDS.map(function(c){ return digCardHtml(c, scope); }).join('')+'</div>'
     +'</div></div>';
 }
@@ -3923,7 +3926,7 @@ function applyPhrasedInsights(lines, insights, refined, animate){
    - The gradient SPARKLE always shows. The feature is AI-assisted whether or not the API answered,
      and this is now the app's only Gemini identity marker. Its gradient is defined once in
      index.html (#ezSparkGrad), not here — this markup is re-rendered on every scope change.
-   - The "Refined by Gemini" CREDIT shows only when Gemini actually phrased a line that is on
+   - The CREDIT ("Phrased by Gemini, computed by EzPlate" since v133) shows only when Gemini actually phrased a line that is on
      screen. Templates rendering (API off, unavailable, or the toggle disabled) → no credit,
      because nothing was refined. applyPhrasedInsights is the only thing that reveals it.
 
@@ -3940,14 +3943,17 @@ function dashInsightsHtml(scope){
   if(!insights.length) return '';
   dashInsPending={insights:insights, scope:scope};
   var sig=insightSig(insights);
-  return '<div class="panel dash-ins"><h2>'+DASH_INS_SPARK+'What needs attention</h2>'
+  return '<div class="panel dash-ins"><h2 class="tbl-head">'+DASH_INS_SPARK+'What needs attention</h2>'
     // aria-live: the templates render first and the Gemini phrasing swaps in afterwards, so the text
     // under a screen-reader user's cursor genuinely changes after load. Polite, because none of it is
     // urgent. A full re-render replaces the region rather than mutating it, so scope changes don't
     // announce — only the phrasing swap does, which is the change worth hearing about.
     +'<div class="pad ins-body" id="dashInsBody" aria-live="polite" data-sig="'+esc(sig)+'">'
     +insights.map(function(ins,ix){ return '<p class="ins-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
-    +'<p class="ins-credit" hidden translate="no">Refined by Gemini</p>'
+    // v133: the v3 spec's fuller wording — it states BOTH halves of the money law. The reveal
+    // mechanics are unchanged: hidden until applyPhrasedInsights proves Gemini phrased a shown
+    // line (the mock paints the credit always-on in the header band; the reveal law wins).
+    +'<p class="ins-credit" hidden translate="no">Phrased by Gemini, computed by EzPlate</p>'
     +'</div></div>';
 }
 /* ===== v89: the verdict header, the menu selector and the By-menu list =====
@@ -4094,12 +4100,14 @@ function whatMovedHtml(){
   var d=digData('movers'), rows=d.rows.slice(0,3);
   var body=rows.length
     ? '<ul class="mv-list">'+rows.map(function(r){
+        // v133 (V2): the delta wears the v3 tinted mono pill — up (a cost rise) is bad, down is good.
+        // Colour is a cost observation, the same anchoring every dashboard colour carries.
         return '<li class="mv-row"><span class="mv-main"><span class="mv-name">'+esc(r.name)+'</span>'
           +(r.sub?'<span class="mv-sub">'+esc(r.sub)+'</span>':'')+'</span>'
-          +'<span class="dig-v'+(r.dir?(' '+r.dir):'')+'">'+esc(r.disp)+'</span></li>';
+          +'<span class="dig-v'+(r.dir?(' '+r.dir+' pill '+(r.dir==='up'?'pill-bad':'pill-good')):'')+'">'+esc(r.disp)+'</span></li>';
       }).join('')+'</ul>'
     : '<p class="hint">No price moves logged yet.</p>';
-  return '<div class="panel dash-moved"><h2>What moved</h2><div class="pad">'+body+'</div></div>';
+  return '<div class="panel dash-moved"><h2 class="tbl-head">What moved</h2><div class="pad">'+body+'</div></div>';
 }
 /* v120 made this the chips' disclosure list; v129 makes it the DROPDOWN's popover — dashScopeHtml
    is still its one caller, and now hands it the FULL selectable set: the All-menus row first (the
@@ -4125,6 +4133,65 @@ function menuCompareHtml(scope, rows){
     +'<ul class="mcmp-list">'+(rows||[]).map(function(r){ return row(r.id, r.name, r.pct); }).join('')+'</ul>'
     +'<p class="hint mcmp-note">Ranked by average food cost % — cost efficiency, not earnings (no sales figures).</p>'
     +'</div>';
+}
+/* v133 (V3): the §3.1 KPI strip — three cells in one bordered container, internal hairlines.
+   Desktop-only by CSS (≥1024): below 1024 today's 44px verdict hero stays until V9 owns mobile
+   (§6 keeps a hero there anyway). Every figure is deterministic app arithmetic on the SAME data
+   the rest of the dashboard reads. Counts are per publication, the decided headline law.
+   Returns '' when nothing is costed and priced — the hero (whose empty state carries the
+   actionable copy) stays visible at every width in that case; see .has-kpis in renderDashboard.
+   NO delta pill, deliberately: the mock draws one, but "vs last month" is exactly the stat class
+   Max deleted in v98 (tombstone at the dp-stats site — "duplicated what the chart shows"), and
+   its month figure is an unlabelled baseline besides. Reviving a decided deletion is his call,
+   not a restyle's — queued.
+   The over-target count uses the SAME 0.05 epsilon as dashPctClass/the badge/verdictHtml, so the
+   first two cells can never contradict each other on a display-rounding hair. (dishesOverTarget
+   is the insights' own epsilon-free count — left alone on purpose; the strip's law is the
+   dashboard's display law.) */
+function kpiStripHtml(scope, cmp){
+  var isAll=(scope==null||scope===DASH_ALL);
+  var pct=isAll?cmp.current:avgFoodCostForScope(scope);
+  if(pct==null) return '';
+  var over=0, costed=0, unready=0;
+  MENU.forEach(function(m){
+    if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+    var sp=plateForMenuItem(m);
+    var c=sp?costFromLines(sp.lines):0;
+    // "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
+    // label ("not costed") sent the review hunting phantom ingredient gaps on price-less dishes.
+    // A PARTIAL cost still counts as costed — costFromLines returns the partial sum and the
+    // broken-link states on the Ingredients tab are the surface that owns that problem.
+    if(m.price>0 && c>0){ costed++; if(c/m.price*100 > cogsPct+0.05) over++; }
+    else unready++;
+  });
+  var d=pct-cogsPct;
+  var sub=(d>0.05) ? (d.toFixed(1)+' pts over your '+fmtTargetPct()+' target')
+        : (d<-0.05 ? (Math.abs(d).toFixed(1)+' pts under your '+fmtTargetPct()+' target')
+                   : ('at your '+fmtTargetPct()+' target'));
+  return '<div class="kpi-strip">'
+    +'<div class="kpi-cell"><div class="kpi-label">Average food cost</div><div class="kpi-row">'
+      +'<span class="kpi-num '+dashPctClass(pct)+'">'+pct.toFixed(1)+'%</span></div>'
+      +'<div class="kpi-sub">'+sub+'</div></div>'
+    +'<div class="kpi-cell"><div class="kpi-label">Plates over target</div><div class="kpi-row"><span class="kpi-num'+(over>0?' bad':'')+'">'+over+'</span></div>'
+      +'<div class="kpi-sub">of '+costed+' costed'+(isAll?'':' on this menu')+'</div></div>'
+    +'<div class="kpi-cell"><div class="kpi-label">Not costed or priced</div><div class="kpi-row"><span class="kpi-num">'+unready+'</span></div>'
+      +'<div class="kpi-sub">plates missing a cost or a sell price</div></div>'
+    +'</div>';
+}
+/* v133 (V3): the sidebar Dashboard badge — the ALL-MENUS average, shown only when it is over
+   target. App-computed and deterministic; hidden at or under target, hidden when nothing is
+   costed, hidden below 1024 by CSS (the mobile bar has no badge until V9 decides one). */
+function updateDashNavBadge(){
+  var el=document.getElementById('dashNavBadge'); if(!el) return;
+  var pct=null; try{ pct=computeAvgFoodCost(); }catch(e){}
+  var over=(pct!=null && pct>cogsPct+0.05);                      // the same epsilon every anchor-to-target site uses
+  el.hidden=!over;
+  el.textContent=over?(pct.toFixed(1)+'%'):'';
+  // aria-label REPLACES a button's accessible name, so the badge is silent to AT unless the
+  // label itself carries it (review finding). The prefix stays "Dashboard" so nothing keyed to
+  // the name breaks; the suffix states the number AND its meaning — colour is not the carrier.
+  var btn=el.closest('.navbtn');
+  if(btn) btn.setAttribute('aria-label', over?('Dashboard — average food cost '+pct.toFixed(1)+'%, over target'):'Dashboard');
 }
 function renderDashboard(){
   var root=document.getElementById('dashBody'); if(!root) return;
@@ -4175,7 +4242,9 @@ function renderDashboard(){
      40/44px figure, What moved, the two-column second row. What returns is the one-surface top
      card, number → since → hairline → chart, whose desktop width is set by the grid below so the
      540px chart FILLS it instead of swimming in it. */
-  var html='<div class="panel dash-panel dash-verdict-panel"><h2>'+heading+'</h2><div class="pad">'
+  var kpis=kpiStripHtml(scope, cmp);   // v133: '' when nothing is costed+priced — then the hero (and its actionable empty copy) stays at every width
+  var html='<div class="panel dash-panel dash-verdict-panel'+(kpis?' has-kpis':'')+'"><h2>'+heading+'</h2><div class="pad">'
+    +kpis                              // ≥1024 with .has-kpis: the strip shows and CSS hides the hero's figure; below 1024 CSS hides the strip
     +'<div class="dp-tile dp-verdict">'
     +'<div class="dash-verdict-row">'
     +'<div class="dash-verdict-main">'
@@ -4333,7 +4402,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v132';
+var APP_VERSION='v133';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -4817,7 +4886,7 @@ function clearCacheAndRefresh(){
   var sp=document.getElementById('settingsPanel');
   if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
   var ci=document.getElementById('setCogsInput');
-  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs already re-renders every consumer (v115: syncCogsRead gone)
+  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs re-renders every consumer, the v133 nav badge included
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: section nav (sidebar / drill-down) + the mobile back arrow

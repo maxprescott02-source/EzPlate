@@ -557,7 +557,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 
   // (c) v90 — insights live INLINE on the DASHBOARD, scoped by its selector. The Menu tab has no
   // suggestions UI at all any more: no pill, no panel, no host element. Templates render immediately;
-  // a valid rephrasing swaps in place and only THEN is the "Refined by Gemini" credit revealed.
+  // a valid rephrasing swaps in place and only THEN is the credit ("Phrased by Gemini, computed by EzPlate" since v133) revealed.
   const stashCI = window.computeInsights;
   window.computeInsights = () => ([
     { kind: 'costbase', facts: { pts: 1.2, ingPct: 18, plates: 5 },
@@ -583,7 +583,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
     !!spark && /url\(#ezSparkGrad\)/.test(spark.innerHTML) && !spark.querySelector('linearGradient'));
   ok('v90: the sparkle gradient is defined EXACTLY once in the document (no duplicate ids from re-renders)',
     window.document.querySelectorAll('#ezSparkGrad').length === 1);
-  ok('v90: the "Refined by Gemini" credit is present but HIDDEN while the template shows (honest attribution)',
+  ok('v90: the Gemini credit is present but HIDDEN while the template shows (honest attribution)',
     di && di.querySelector('.ins-credit') && di.querySelector('.ins-credit').hidden === true);
   ok('v90: the template numbers show verbatim', di && /1\.2 pts higher/.test(di.textContent) && /18%/.test(di.textContent));
   ok('v90: a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);

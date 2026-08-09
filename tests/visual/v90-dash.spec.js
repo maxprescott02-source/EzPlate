@@ -5,7 +5,7 @@
  * Like v89-dash.spec.js this asserts BEHAVIOUR and pins no screenshot baselines, so an unrelated
  * visual tweak can't make it go stale. All off-origin requests are blocked (Supabase never
  * overwrites the seed) and so is /api/*, which means the insight phrasing takes its offline path —
- * deterministic templates, and therefore NO "Refined by Gemini" credit. That is the half of the
+ * deterministic templates, and therefore NO Gemini credit ("Phrased by Gemini, computed by EzPlate" since v133). That is the half of the
  * credit rule jsdom can't show: smoke.js proves it appears when Gemini phrases a line, this proves
  * it stays away when nothing was refined.
  *

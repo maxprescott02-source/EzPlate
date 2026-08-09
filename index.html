@@ -28,7 +28,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=132">
+<link rel="stylesheet" href="css/style.css?v=133">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -41,7 +41,7 @@
     <stop offset="0" stop-color="#4285f4"/><stop offset=".35" stop-color="#9b72cb"/>
     <stop offset=".70" stop-color="#d96570"/><stop offset="1" stop-color="#f2a60c"/>
   </linearGradient>
-  <!-- v98: the sparkle marks AI PROVENANCE (it pairs with the earned "Refined by Gemini" credit),
+  <!-- v98: the sparkle marks AI PROVENANCE (it pairs with the earned Gemini credit),
        so it keeps Gemini's own hues rather than going palette-native — but the stock stops wash
        out at 16px on the cream page. This variant is the same four hues at deeper luminance;
        CSS (.ins-spark) selects it in light mode only. A system decision, not a hex tweak: any
@@ -784,7 +784,7 @@
   </div>
   <!-- v54: workflow order — Dashboard, Products (buy), Ingredients (name), Plates (build), Menu (sell).
        data-tab values are the internal keys and NEVER change; only labels + order do (see glossary). -->
-  <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span></button>
+  <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span><span class="nl-badge" id="dashNavBadge" hidden></span></button>
   <!-- data-tab stays "ingredients" for saved-lastTab compatibility; its LABEL is "Products" -->
   <button class="navbtn" data-tab="ingredients" type="button" aria-label="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Products</span></button>
   <!-- data-tab stays "pantry"; its LABEL is "Ingredients" (the naming inversion) -->
@@ -806,7 +806,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=132"></script>
+<script src="js/app.js?v=133"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
