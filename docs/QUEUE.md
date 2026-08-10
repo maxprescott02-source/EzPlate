@@ -29,7 +29,11 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 ## next  1 · F9 — Settings (desktop §3.8 + mobile §6, one item)  **[B]**
 
 Section cards mapped onto what EXISTS: Costing (target % number input + GST switch, 38×22 orange-on), Data (the JSON backup/restore, restyled). **R4 for everything else the mock shows** — business name, currency, notification toggles (no notification system exists), CSV export, Delete workspace: each is visibly-stubbed-with-reason, absent, or waits for its behaviour spec. Never decorative, never silently invented.
-Mobile: sub-screen under More, back chevron. (**Do with, or immediately after, item 4** — the More screen is what gives this a mobile home.)
+Mobile: convert the panel at phone width now. **Do NOT build the "‹ More" back chevron or move Settings under a More list** — that is the *mobile More screen* item's job, and it cannot run until F9 and F10 have converted the screens it rehomes.
+
+⚠️ **The one thing F9 must not do: remove the header gear (`#settingsBtn`).** It is the ONLY route to Settings on a phone — the sidebar's Invoices/Settings group is CSS-hidden below 1024 — so dropping it before the More screen exists strands the whole screen on the device Max works on. F8 (v147) set the precedent going the other way: it converted Invoices and left the phone route it already had (`#importBtn` on Products) untouched, so the More-screen item inherits a converted screen and an intact route.
+
+*(Corrected 11 Aug 2026. This line read "Do with, or immediately after, item 4 — the More screen is what gives this a mobile home", which was wrong twice. It pointed at a POSITION, and deleting F8 from this file moved that position onto a different item — the exact rot the "name the item, never the number" rule exists for. And the ordering it asserted ran backwards: the More screen carries `Do after: F10`, so F9 waiting on the More screen would have made F9 unreachable.)*
 
 ## next  2 · F10 — Account (desktop §3.9 + mobile §6, one item) — expect this to reduce to ONE QUESTION  **[B]**
 
@@ -65,7 +69,7 @@ Every write is `.upsert()`, so a collision is a **silent overwrite under a green
 Requirements: ids that cannot collide across accounts, plus a migration of the live café's existing rows.
 Multi-tenant prerequisite; harmless with one account. **First of the A items because every other multi-tenant table change inherits it.**
 
-## next  6 · Staging Supabase — mirror the schema and seed it  **[A — the safety net for items 8-10]**
+## next  6 · Staging Supabase — mirror the schema and seed it  **[A — the safety net for Auth, RLS and Roles]**
 
 **DECIDED 8 Aug 2026 (Max): a free second Supabase project**, not paid branching. **Max's part is DONE** — the project exists, `.mcp.json` has carried `supabase-staging` → `pboidoxjghntalovzrke` since v121, and the MCP server LOADS (`list_tables` answered on 10 Aug 2026, empty `public`, as a fresh project should be). Nothing is waiting on him. Do not re-ask.
 ⚠️ **Rehearsal is not real until this item RUNS.** The schema is empty, so there is nothing to rehearse against, and every migration is still unrehearsed — a batch must say so out loud before applying anything that is not a behavioural no-op.
@@ -83,20 +87,20 @@ Login purges local state (v108 removed the heal machinery that made this collide
 Requirements: staged, one table at a time, each migration verified before the next.
 ⚠️ **RLS with no matching policy returns 200 and an empty array, not an error — a policy mistake looks exactly like "no data".** And an anon UPDATE or DELETE returns 204 with no error and touches nothing, so **verify AS THE CLIENT over PostgREST with `Prefer: return=representation`**, never through the MCP, which bypasses RLS entirely.
 Note **`menus` no longer starts from RLS OFF** — corrected 8 Aug 2026 when `20260808_menus_rls.sql` was applied. All eleven public tables now have RLS on with at least one policy, so no table needs ENABLING as well as policying; they all need their permissive `using (true)` policy REPLACED with a `business_id` one.
-Do after: **7** (staging) — this is the largest unrehearsed migration in the project.
+Do after: **Staging Supabase** — this is the largest unrehearsed migration in the project.
 
 ## next  9 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
-Do after: **9** — roles are enforced in the same policies.
+Do after: **`business_id` on every table, plus RLS** — roles are enforced in the same policies.
 
 ## next  10 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
 **Fix here, because it is only reachable at zero:** the zero-ingredients builder hint is an **UNSTYLED link** — `js/app.js:820` emits `No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>`, and `css/style.css` has **no anchor colour rule anywhere**, so it renders browser-default blue: near-illegible on the dark surface, and wrong in light too. One rule fixes it. It is the first thing a brand-new café sees.
-Needs item 7 (staging) to test at all.
+Needs **Staging Supabase** to test at all.
 
 ## next  11 · The privacy gate  **[A — launch blocker]**
 
@@ -115,7 +119,7 @@ Requirements: multi-tenant launch gate. Invoice parsing must still work on the r
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
-Do after: **9, 12, 13** — it is the read-through of the gates, not a substitute for them.
+Do after: **`business_id` + RLS**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
 ## blocked  14 · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
