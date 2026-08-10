@@ -982,7 +982,9 @@ function renderBuilderPublish(sp, on){
   if(b) b.onclick=function(){ openManageMenus(sp.id); };
 }
 
-document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();clearPlateDraft();renderPlate();});   // v82: explicit discard clears the draft
+// v82: explicit discard clears the draft. F7 (v146): it also drops loadedPlateId, so the two
+// saved-plate-only rail controls have to follow it - see syncBuilderPlateActions.
+document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();syncBuilderPlateActions();clearPlateDraft();renderPlate();});
 // v60 item 3: ONE docket renderer, shared by the builder's Print button and the plate card's Print
 // docket action (load-then-print not needed \u2014 it prints straight from the passed lines). "lines" are
 // the working/saved shape: {misc,label,cost} | {kid,qty} | {pid,qty}. Do not fork a second template.
@@ -1230,11 +1232,20 @@ var _draftT=null;
    builder is opened (openBuilder). Boot renders happen with the modal closed and now touch nothing. */
 var _draftArmed=false;
 function armDraftSaves(){ _draftArmed=true; }
+/* F7 (v146) — the builder's EDIT COUNTER, and it is what makes "Saved just now" honest.
+   ⚠️ Retracting the badge on the next edit is NOT enough on its own, and the F7 pre-push review
+   proved it in a browser: save, then edit again WHILE THE WRITE IS STILL IN FLIGHT, then let the
+   write resolve, and the resolver puts the badge up for a push that never contained the new line.
+   On mobile data - the exact condition this app is designed around - that is reachable by anyone
+   who keeps typing after tapping Save.
+   So the save captures this counter and refuses to claim success if it has moved. The counter is
+   bumped by the one function every builder mutation already funnels through. */
+var _builderEdits=0;
 /* debounced: builder mutations funnel through renderPlate/updateTotals.
-   F7 (v146): this is also the one place that knows "the builder just changed", so it is where
-   "Saved just now" is retracted. Leaving it up after an edit would be the same lie as showing it
-   before the server answered. */
-function scheduleDraftSave(){ if(typeof setBuilderSaved==='function') setBuilderSaved(false); if(!_draftArmed) return; clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }
+   This is also the one place that knows "the builder just changed", so it is where "Saved just
+   now" is retracted. Leaving it up after an edit would be the same lie as showing it before the
+   server answered. */
+function scheduleDraftSave(){ _builderEdits++; if(typeof setBuilderSaved==='function') setBuilderSaved(false); if(!_draftArmed) return; clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }
 function clearPlateDraft(){ clearTimeout(_draftT); try{ localStorage.removeItem(DRAFTKEY); }catch(e){} }
 /* v118 — has the plate this draft was taken against MOVED since? A draft can sit for a week, and
    resuming it reinstates its own lines under the same loadedPlateId, so anything edited elsewhere in
@@ -1322,16 +1333,21 @@ function saveCurrentPlate(asNew){
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   var _isNew=(_costBefore==null);
   var _write=dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
-  /* F7 (v146) — "Saved just now" waits for the SERVER. pushWrite resolves to the result or to
-     {error} and never to null (CLAUDE.md Tier 2), so `!r || !r.error` is the ok test and an offline
-     drop lands in the else branch, where pushWrite's own toast has already said it was not saved.
+  /* F7 (v146) — "Saved just now" waits for the SERVER, and for the plate to still BE what was
+     pushed. pushWrite resolves to the result or to {error} and never to null (CLAUDE.md Tier 2),
+     so `!r || !r.error` is the ok test and an offline drop lands in the else branch, where
+     pushWrite's own toast has already said it was not saved.
+     ⚠️ The `_builderEdits` check is the second half and is not optional - without it a write that
+     resolves AFTER a further edit puts the badge up for a state the server has never seen. The
+     counter is read here rather than in the resolver so the comparison is against the moment of
+     the push, not the moment of the answer.
      The rest of this function stays optimistic on purpose - the library, the Menu tab and the log
      all repaint immediately - because it is only the WORDING that must wait. */
+  var _editsAtPush=_builderEdits;
   if(_write && typeof _write.then==='function'){
-    _write.then(function(r){ if(!r || !r.error) setBuilderSaved(true); });
-  } else { setBuilderSaved(true); }
-  var _dup=document.getElementById('bldDuplicate'); if(_dup) _dup.hidden=!loadedPlateId;   // a saved plate can now be duplicated and deleted
-  var _del=document.getElementById('bldDelete'); if(_del) _del.hidden=!loadedPlateId;
+    _write.then(function(r){ if((!r || !r.error) && _builderEdits===_editsAtPush) setBuilderSaved(true); });
+  } else if(_builderEdits===_editsAtPush){ setBuilderSaved(true); }
+  syncBuilderPlateActions();                                         // a saved plate can now be duplicated and deleted
   renderBuilderCost(costFromLines(sp.lines));                        // the Publishing card becomes usable the moment the plate has an id
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   logChangeIfSaved(_write, _isNew?'plate_created':'plate_edited', {plateId:sp.id,
@@ -5719,16 +5735,34 @@ function renderPlatesTab(){
    guardUnfinishedPlate offers it back at the next entry. showTab hides this page for that reason. */
 function builderPageEl(){ return document.getElementById('builderPage'); }
 function builderIsOpen(){ var el=builderPageEl(); return !!(el && !el.hidden); }
+/* F7 (v146) — FOCUS, which the page has to do for itself.
+   Every overlay in this app gets focus handling free from openOverlay/closeOverlay: they capture
+   the opener, move focus into the layer and hand it back on close. A page is not an overlay, so
+   the rewrite silently dropped all three - the F7 pre-push review measured `document.activeElement`
+   landing on <body> in BOTH directions, because the opener's own pane is one of the five that
+   openBuilder hides. For a keyboard or screen-reader user every entry and exit stranded focus at
+   the top of the document. The two functions below are the page's equivalent, deliberately small:
+   remember the opener, put focus on the page's first control, hand it back if it still exists. */
+var _builderOpener=null;
+function focusBuilderPage(){
+  var pg=builderPageEl(); if(!pg) return;
+  var target=document.getElementById('builderClose') || pg.querySelector('input,button,select,[tabindex]');
+  if(target){ try{ target.focus({preventScroll:true}); }catch(e){ try{ target.focus(); }catch(e2){} } }
+}
 function openBuilder(){ armDraftSaves();                              // v84: the user is now IN the builder — draft saves are live from here (see armDraftSaves)
   if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); }
   ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display='none'; });
+  /* the opener is captured BEFORE the panes are hidden - hiding the pane it lives in is what
+     drops focus, so reading activeElement afterwards would only ever find <body>. */
+  var _op=document.activeElement;
+  if(!builderIsOpen()) _builderOpener=(_op && _op!==document.body)?_op:null;
   var pg=builderPageEl(); if(pg) pg.hidden=false;
   document.querySelectorAll('.navbtn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab==='builder'); });   // the Plates entry stays lit while its child page is open
   setBuilderSaved(false);
-  var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!loadedPlateId;   // nothing to duplicate until a plate is saved
-  var del=document.getElementById('bldDelete'); if(del) del.hidden=!loadedPlateId;
+  syncBuilderPlateActions();                                          // nothing to duplicate or delete until a plate is saved
   // v61 item 2: every open (New AND Edit) starts at the top — the page can otherwise retain the previous session's scroll position
   try{ window.scrollTo(0,0); }catch(e){}
+  focusBuilderPage();
   /* Q6 (v125): refresh the cost panel on EVERY open. Three of the four open paths re-render anyway,
      but resumeUnfinishedPlate's same-session branch calls openBuilder alone — a dish price, menu or
      target changed while the builder was hidden would otherwise show stale (the v125 review's
@@ -5740,6 +5774,15 @@ function closeBuilder(){
   var pg=builderPageEl(); if(pg) pg.hidden=true;
   if(typeof hidePlateSuggest==='function') hidePlateSuggest();
   showTab('builder');                                                 // back to the Plates library, the page this one is a child of
+  /* Hand focus back, on the same terms closeOverlay uses: only if the opener still exists, and
+     only if nothing else has claimed focus in the meantime. A row that was re-rendered by the
+     save is gone from the document, so the fallback is the control that gets you back in. */
+  var op=_builderOpener; _builderOpener=null;
+  var ae=document.activeElement;
+  if(!ae || ae===document.body || (pg && pg.contains(ae))){
+    var t=(op && document.contains(op)) ? op : document.getElementById('newPlateBtn');
+    if(t){ try{ t.focus({preventScroll:true}); }catch(e){ try{ t.focus(); }catch(e2){} } }
+  }
 }
 /* "Saved just now" is the mock's, and it renders ONLY when the server has confirmed the write -
    never optimistically. An occasional user on mobile data would rather be told a thing did not
@@ -5749,6 +5792,18 @@ function closeBuilder(){
 function setBuilderSaved(on){
   var el=document.getElementById('bldSaved'); if(!el) return;
   el.hidden=!on; el.textContent=on?'Saved just now':'';
+}
+/* F7 (v146) — ONE owner for the two controls that only mean anything on a SAVED plate.
+   ⚠️ It must be called from every path that changes `loadedPlateId`, not just the ones that open
+   the page. The F7 pre-push review found the gap: "Clear plate" is the app's explicit discard, it
+   sets loadedPlateId=null, and it is nowhere near openBuilder - so both buttons stayed visible and
+   both became silent no-ops (duplicateCurrentPlate returns on `if(!sp)`, the delete handler is
+   gated on loadedPlateId). A visible control that does nothing is exactly what §R4 forbids, and
+   two separate `hidden=` assignments per call site is how it happened. */
+function syncBuilderPlateActions(){
+  var on=!!loadedPlateId;
+  var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!on;
+  var del=document.getElementById('bldDelete'); if(del) del.hidden=!on;
 }
 /* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
    used to bin unfinished work in silence: press ×, go to the Ingredients tab, come back and tap
@@ -5782,7 +5837,7 @@ function startNewPlate(){                                            // open the
   var qq=document.getElementById('q'); if(qq) qq.value='';
   if(typeof hideMatchPrompt==='function') hideMatchPrompt();
   if(typeof hidePlateSuggest==='function') hidePlateSuggest();
-  updateEditTag(); renderPlate(); openBuilder();
+  updateEditTag(); syncBuilderPlateActions(); renderPlate(); openBuilder();
 }
 /* F7 (v146) tombstone: openPlateActions / closePlateActions / paTargetId lived here and drove
    #plateActionsModal, the v54 chooser a plate row used to open. Both are deleted. All four of its

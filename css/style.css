@@ -548,7 +548,13 @@ input[type=checkbox]{
 .bld-head .bld-name:focus{border-color:var(--accent);background:var(--field)}
 .bld-head .bld-name::placeholder{color:var(--muted2);font-weight:500}
 .bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}
-.bld-pill{
+/* ⚠️ `:not([hidden])` IS LOAD-BEARING. renderBuilderCost hides this element on every unpublished
+   plate and on every builder open, and an author `display` rule beats the UA's `[hidden]` because
+   ORIGIN is resolved before specificity - matching specificity achieves nothing here (CLAUDE.md
+   Tier 1's `[hidden]` corollary, the same fix `.plib-controls` and `.plib-note` carry).
+   Without the guard a small empty coloured chip floats in the header on every new plate. Caught by
+   the F7 pre-push review, in a browser: `hidden` was set and `display` computed `block` anyway. */
+.bld-pill:not([hidden]){
   display:inline-block;flex:0 0 auto;font-family:var(--mono);font-size:11.5px;font-weight:500;
   border-radius:999px;padding:2px 9px;white-space:nowrap;
   background:var(--warn-bg);color:var(--warn);

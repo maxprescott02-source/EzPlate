@@ -54,6 +54,8 @@ function savedState(opts) {
     function renderBuilderCost(){}
     function dbPushPlate(){ return S.resolve; }
     var _draftArmed=false, _draftT=null;
+    var _builderEdits=0;   // F7 (v146): the builder's edit counter — real state, the logic that moves it is extracted
+    ${extractFn(SRC, 'syncBuilderPlateActions')}
     function savePlateDraft(){}
     ${extractFn(SRC, 'setBuilderSaved')}
     ${extractFn(SRC, 'scheduleDraftSave')}
@@ -190,6 +192,84 @@ test('F7: deletePlate calls onRemoved once, after the confirm and after the opti
   assert.strictEqual(S.order.filter((x) => x === 'onRemoved').length, 1,
     'the rollback must not re-enter the builder the user has already left');
   assert.ok(S.order.includes('rollback'));
+});
+
+/* ---------------------------------------------- 6. the review's stale-resolution race (fix 3) */
+
+test('F7: a write that resolves AFTER a further edit must NOT claim the plate was saved', async () => {
+  /* Found by the F7 pre-push review, in a browser. Retracting the badge on the next edit is not
+     enough on its own: save, keep typing while the write is in flight, and the resolver puts
+     "Saved just now" up for a push that never contained the new line. On mobile data — the exact
+     condition this app is designed around — that is reachable by anyone who does not stop to
+     watch the spinner. The edit counter is what closes it. */
+  let settle;
+  const pending = new Promise((r) => { settle = r; });
+  const { el, api } = savedState({ resolve: pending });
+
+  api.save();
+  assert.strictEqual(el.hidden, true, 'precondition: nothing claimed while in flight');
+  api.edit();                                     // the user changes something else, mid-write
+  settle({ ok: true });                           // the ORIGINAL write lands, successfully
+  await pending; await Promise.resolve(); await Promise.resolve();
+
+  assert.strictEqual(el.hidden, true,
+    'the write succeeded, but it did not contain the later edit — claiming "Saved just now" here ' +
+    'tells the user their current plate is on the server when it is not');
+});
+
+/* ---------------------------------------------- 7. the saved-plate-only controls (fix 2) */
+
+test('F7: Clear plate hides Duplicate and Delete, because it drops the plate id', () => {
+  /* Found by the F7 pre-push review, end to end including the dead click. Both controls read
+     `loadedPlateId`, "Clear plate" is the app's explicit discard and sets it to null, and neither
+     openBuilder nor saveCurrentPlate runs on that path — so both stayed visible and both became
+     silent no-ops. §R4: never a control that does nothing.
+
+     ⚠️ THIS TEST RUNS THE REAL HANDLER, and the first draft of it did not — it called
+     syncBuilderPlateActions() from its own shim, which tested the helper and not the WIRING, and
+     passed against the unfixed code. The handler is an inline addEventListener with no name, so it
+     is sliced out of the source by its anchor; if that anchor ever stops matching, the slice
+     assertion below fails loudly rather than the test quietly proving nothing. */
+  const anchor = "document.getElementById('clearBtn').addEventListener('click',";
+  const at = SRC.indexOf(anchor);
+  assert.ok(at >= 0, 'the clearBtn handler could not be found — update the anchor, do not delete the test');
+  const body = SRC.slice(at + anchor.length, SRC.indexOf('});', at) + 1);
+  assert.ok(/loadedPlateId=null/.test(body), 'precondition: the discard really does drop the plate id');
+
+  const S = { els: {} };
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('S', 'HANDLER', `
+    "use strict";
+    var plate=[{uid:1}], loadedPlateId='SP1', menuTouched=true, uidc=2;
+    var menuLinkEl={value:'MI1'};
+    var document={getElementById:function(id){
+      if(!S.els[id]) S.els[id]={hidden:false, value:'x', style:{}, textContent:''};
+      return S.els[id];
+    }};
+    function hideMatchPrompt(){} function updateEditTag(){} function clearPlateDraft(){} function renderPlate(){}
+    ${extractFn(SRC, 'syncBuilderPlateActions')}
+    var run=eval('(' + HANDLER + ')');
+    return function(){ syncBuilderPlateActions(); return { before:{d:S.els.bldDuplicate.hidden, x:S.els.bldDelete.hidden}, run:function(){ run(); return {d:S.els.bldDuplicate.hidden, x:S.els.bldDelete.hidden}; } }; };
+  `);
+  const api = factory(S, body)();
+
+  assert.deepStrictEqual(api.before, { d: false, x: false }, 'a saved plate can be duplicated and deleted');
+  assert.deepStrictEqual(api.run(), { d: true, x: true },
+    'after the real Clear-plate handler runs, neither control is left visible — a visible Duplicate ' +
+    'on a discarded plate is a button that silently does nothing');
+});
+
+test('F7 census: nothing outside syncBuilderPlateActions sets those controls hidden', () => {
+  /* The defect was not the missing line, it was that TWO `hidden=` assignments were copied to each
+     call site instead of one function owning them. This is the guard against the third copy. */
+  const owner = extractFn(SRC, 'syncBuilderPlateActions');
+  const elsewhere = SRC.split(owner).join('');
+  for (const id of ['bldDuplicate', 'bldDelete']) {
+    assert.ok(owner.includes(id), `syncBuilderPlateActions must own #${id}`);
+    assert.ok(!new RegExp("getElementById\\('" + id + "'\\)[^;\\n]*hidden\\s*=").test(elsewhere),
+      `#${id}'s hidden state is set outside syncBuilderPlateActions — that is how the Clear-plate ` +
+      'gap happened, and a third call site will reopen it');
+  }
 });
 
 /* ------------------------------------------------------------------ source census */

@@ -53,6 +53,33 @@ That is a real design question and it belongs to whoever revisits publishing, no
 The `.f` label style renders "Category (optional)" in uppercase letter-spaced caps, which is the app's old form idiom and not the mock's sentence case.
 It is app-wide, so changing it here would have converted every other form by accident.
 
+## The pre-push review found four, all reproduced in a browser, all fixed in this branch
+
+**1. The header pill had no `:not([hidden])` guard**, so the renderer's `hidden=true` was overridden and a small empty coloured chip floated in the header of every new plate.
+This is CLAUDE.md's Tier 1 `[hidden]` corollary landing for the third time in the codebase, and the review caught what the spec could not: the spec asserted the DOM `hidden` PROPERTY, which reflects only the attribute.
+It passed while the bug shipped.
+The spec now asserts the computed `display` and the painted box, which is the contract it claimed to pin.
+
+**2. "Clear plate" left Duplicate and Delete visible and dead.**
+Both read `loadedPlateId`, the discard sets it to null, and neither `openBuilder` nor `saveCurrentPlate` runs on that path.
+Clicking either was a silent no-op, which is what §R4 forbids.
+The cause was two `hidden=` assignments copied to each call site rather than one function owning them, so the fix is `syncBuilderPlateActions` plus a census that fails if a third copy appears.
+The bug did not exist before F7: the four actions used to live in a popup Clear-plate could not reach.
+
+**3. "Saved just now" could appear for a state the server had never seen.**
+Save, keep editing while the write is in flight, let the write resolve: the resolver put the badge up for a push that did not contain the later edit.
+Retracting on the next edit cannot help, because the stale write has not resolved yet.
+The save now captures an edit counter and refuses to claim success if it has moved.
+On mobile data, which is the condition this app is designed around, that was reachable by anyone who kept typing after tapping Save.
+
+**4. Focus was dropped in both directions.**
+Every overlay gets opener capture, focus-in and focus-restore free from `openOverlay`/`closeOverlay`; a page is not an overlay, so the rewrite lost all three and `document.activeElement` landed on `<body>` on every entry and exit.
+The opener has to be captured BEFORE the panes are hidden, because hiding the pane it lives in is what drops focus.
+
+Each fix carries a regression test, and each test was checked against the unfixed code first.
+Two of them did not fail on the first attempt: the Clear-plate test called the helper from its own shim rather than the real handler, and the pill test read the property rather than the computed style.
+Both are the shape CLAUDE.md warns about, found by doing the check rather than by reasoning about it.
+
 ## Surprises
 
 **A test was right by accident, and F7 is what exposed it.** `builder-modal.test.js` resolved the CSS cascade for the wizard by extracting classes from `:not(.modal-builder):not(.modal-wiz)` as though they were positive classes.

@@ -140,14 +140,26 @@ for (const size of SIZES) {
 
 test('an unpublished plate shows NO food-cost pill — absent, not zeroed', async ({ page }) => {
   await openOn(page, 1, { width: 1280, height: 900, theme: 'light' });   // PL2, on no menu
-  const state = await page.evaluate(() => ({
-    pill: document.getElementById('bldPill').hidden,
-    menus: document.getElementById('bMenus').style.display,
-    pub: document.getElementById('bPublish').textContent,
-  }));
+  const state = await page.evaluate(() => {
+    const p = document.getElementById('bldPill');
+    return {
+      attr: p.hidden,
+      display: getComputedStyle(p).display,
+      box: p.getBoundingClientRect().width,
+      menus: document.getElementById('bMenus').style.display,
+      pub: document.getElementById('bPublish').textContent,
+    };
+  });
   /* There is no price anywhere for this plate, so there is no food cost. A pill reading "0%"
-     would be a figure the app invented — the money law's whole point. */
-  expect(state.pill, 'no pill without a price to measure against').toBe(true);
+     would be a figure the app invented — the money law's whole point.
+     ⚠️ THE COMPUTED STYLE IS THE ASSERTION, not `.hidden`. The first cut of this test read the DOM
+     property, which reflects only the attribute — and the F7 pre-push review found the CSS
+     rendering the chip anyway, because a bare author `display` rule beats the UA's `[hidden]` on
+     ORIGIN. The test passed while an empty coloured pill shipped in the header of every new plate.
+     A property check here is a test that cannot fail against the thing it claims to pin. */
+  expect(state.attr, 'the renderer hides it').toBe(true);
+  expect(state.display, 'and the CSS agrees — `.bld-pill:not([hidden])` is what makes it so').toBe('none');
+  expect(state.box, 'nothing is painted').toBe(0);
   expect(state.menus, 'and no On-menus list').toBe('none');
   expect(state.pub, 'the Publishing card offers the way out').toMatch(/Add to a menu/);
 });
@@ -161,4 +173,32 @@ test('leaving by tapping another tab hides the page and keeps the work', async (
      memory, so the unfinished-plate guard has something to offer back. */
   const stillLoaded = await page.evaluate(() => window.loadedPlateId || document.getElementById('plateName').value);
   expect(stillLoaded, 'the plate is still loaded behind the scenes').toBeTruthy();
+});
+
+test('focus is carried into the builder page and handed back on the way out', async ({ page }) => {
+  /* Found by the F7 pre-push review, measuring document.activeElement in a real browser: both
+     directions landed on <body>. Every overlay in this app gets this free from
+     openOverlay/closeOverlay; a page is not an overlay, so the rewrite dropped it silently and a
+     keyboard or screen-reader user was stranded at the top of the document on every entry and
+     exit. The opener's own pane is one of the five openBuilder hides, which is WHY focus is lost
+     and why the opener has to be captured before the hiding, not after. */
+  await openOn(page, 0, { width: 1280, height: 900, theme: 'light' });
+
+  const inside = await page.evaluate(() => ({
+    tag: document.activeElement && document.activeElement.tagName,
+    id: document.activeElement && document.activeElement.id,
+    onPage: !!(document.activeElement && document.getElementById('builderPage').contains(document.activeElement)),
+  }));
+  expect(inside.onPage, `focus must land on the page, not on ${inside.tag}#${inside.id}`).toBe(true);
+
+  await page.evaluate(() => window.closeBuilder());
+  await page.waitForTimeout(200);
+  const after = await page.evaluate(() => ({
+    tag: document.activeElement && document.activeElement.tagName,
+    id: document.activeElement && document.activeElement.id,
+    body: document.activeElement === document.body,
+  }));
+  /* The opener was a Plates row, which the save/close re-render replaces, so the honest fallback
+     is the control that gets you back in — never <body>. */
+  expect(after.body, `focus was dropped on the way out (landed on ${after.tag}#${after.id})`).toBe(false);
 });
