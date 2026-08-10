@@ -25,13 +25,27 @@ The header subtitle reads "412 products, 7 suppliers" unfiltered and "12 of 412 
 
 ## Into CLAUDE.md
 
-Nothing new proposed.
-F3's `@media`-specificity rule is still waiting on Max and this batch is more evidence for it: every declaration written at both breakpoints here was given matching specificity deliberately, and the one place that was measured rather than assumed is recorded at the code.
+Nothing new proposed by this batch, but three answers arrived from Max on 10 Aug 2026 while it was in review, and all three are recorded in `docs/QUEUE.md`:
+
+- **The five stale lines are approved**, including the `pushWrite` "null when offline" correction, which is the one that could mislead a batch into sequencing a write after a failure.
+- **Both proposed Tier 1 rules are IN**: the `@media` specificity rule from F3, and the stub-mirrors-contract rule from AUDIT-v135.
+- **Two actions in a mobile header: he did NOT take the recommendation.** §6's "one action max" holds, so the second action gets rehomed on both Ingredients and Products.
+
+None of it is done here.
+That item was already `blocked` and separate, it is docs-only, and folding it into a screen rebuild would break the one-batch-one-PR rule for no gain.
+It is now unblocked and is the obvious next batch.
+
+The rehoming answer does not make what shipped wrong: it is a recorded deviation with both pins written, and the item is sequenced after F10 because every remaining F-item adds another converted header, so a home chosen now would be chosen against a set still growing.
 
 ## New docs/QUEUE.md items
 
 - **The mobile More screen, and Products/Invoices/Settings/Account as sub-screens under it.** The last piece of §6 that no F-item owns; without it the §6.1 parity map is unmet by construction. Do after F10.
 - **The sync pill covers the right edge of every converted screen's primary button.** Pre-existing since F2, measured at 1280 on all three converted screens; not a dead button, but a partly-blocked target while a write is in flight.
+
+No `decide` file this batch.
+Four items read `blocked`, but only two are live questions for Max: the CLAUDE.md corrections, and the two-actions header question this batch made worse by adding a second screen to it.
+The other two are not waiting on him at all - the restore's full-wipe step is scheduled for the end of the phase and the claude-code-action re-pin waits on upstream.
+**Which way it felt: the threshold wants lowering to two.** The two-actions question now describes an inconsistency visible on two shipped screens, its answer is one word, and holding it back to collect a third costs more than asking would.
 
 ## New docs/PHONE.md items
 
@@ -51,6 +65,14 @@ What I would change is that the F-items should have carried the shell gap as its
 
 The row's `aria-label` problem F3 named is not on this screen, but the equivalent is: the five cells are announced as raw text with no column names, so a screen reader gets "DESSERTS — $24.78/kg steady" with nothing to attach it to. That wants one rule across every converted screen, not a per-screen patch.
 Also left alone: the six search bars, the `.ing-empty` family (still dead, still on the dead-CSS sweep), and `.panel`, which now carries three per-screen exceptions and dresses one screen.
+
+## The pre-push review
+
+Three findings, no wrong-condition or data-loss defects. All three fixed in this branch.
+
+- **A deleted spec took live coverage with it.** Retiring `q7-products.spec.js` dropped the only test exercising the boot-time removal of the stale `cafeDB_prodDensity` key, which is still a live line in `js/app.js` and is not unit-testable. Carried forward into the new spec.
+- **A dead title selector.** `#tab-ingredients > .panel > h2` stopped matching when the h2 moved inside `.scr-head`. The finding was right and its scope was short by one: `#tab-pantry` was equally dead and F3 had left it behind in v139. Both dropped, so `#tab-analysis` is the only tab left in that rule and F5 takes the whole thing.
+- **A device check that was not written down.** `#lastImport`'s move off this screen was recorded in the queue and the handover but not in `docs/PHONE.md`, unlike every other user-visible change in the same batch. Added.
 
 ## Surprises
 

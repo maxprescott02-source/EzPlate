@@ -33,6 +33,9 @@ filters and their "Manage list..." doors, and Import invoice.
 - **Two buttons in the header again: "Import" and "New product".** Same question v139 raised on
   Ingredients, and here it is permanent rather than conditional - so answer it once for both
   screens. A failure is the pair crowding the title or wrapping to a second line.
+- **"Prices last updated: ..." has left the Products screen.** The same line still shows inside the
+  Import invoice window, which is one tap from that header. Check that is close enough: a failure is
+  wanting to know when you last imported and having to open the import flow to find out.
 - **The supplier column on your real catalogue.** Most of your products have no supplier recorded,
   so on desktop that column is a lot of dashes. On the phone it simply does not appear. Say if the
   dashes read as broken rather than as empty.

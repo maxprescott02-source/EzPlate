@@ -1506,9 +1506,13 @@ body.scroll-locked{position:fixed;left:0;right:0}
   /* F2 (v138): #tab-builder (Plates) left this rule — its title lives in `.scr-head`, the mock's
      real §2 header bar (title + subtitle + action on ONE row), which owns its own 48px and hairline.
      Each remaining tab drops out of this list as its F-item converts it; when the list is empty the
-     rule goes with it. */
-  #tab-ingredients > .panel > h2,
-  #tab-pantry > .panel > h2, #tab-analysis > .panel > h2{
+     rule goes with it.
+     F4 (v140): #tab-ingredients (Products) leaves it now — AND #tab-pantry (Ingredients), which F3
+     converted in v139 and did not remove. Both selectors were dead rather than wrong, because a
+     converted screen's h2 is a GRANDCHILD of `.panel` (inside `.scr-head`) and `>` stopped matching
+     it. Two batches running, so the note above is worth reading as an instruction: drop your tab.
+     #tab-analysis (Menu) is the last one, and F5 takes this whole rule with it. */
+  #tab-analysis > .panel > h2{
     font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
     min-height:48px;display:flex;align-items:center;gap:var(--sp-2);
     padding:0 var(--sp-5);

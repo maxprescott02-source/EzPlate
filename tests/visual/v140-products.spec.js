@@ -376,6 +376,21 @@ test('the FILTERED empty state keeps its controls — clearing them is the way o
   await expect(page.locator('#ingListNote')).toBeVisible();
 });
 
+/* CARRIED FORWARD from q7-products.spec.js, which F4 retired. Its floating-add and card-language
+   assertions died with the rebuild, but this one did not: `js/app.js` still actively removes a stale
+   `cafeDB_prodDensity` key at boot (the v130 tombstone), and deleting the spec left that line — live,
+   and boot-time so not unit-testable — with no coverage at all. Found by the pre-push review. */
+test('a stale density key from the v130 era is still actively removed at boot', async ({ page }) => {
+  await boot(page, 1280);
+  await page.evaluate(() => localStorage.setItem('cafeDB_prodDensity', 'compact'));
+  await page.reload();
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => localStorage.getItem('cafeDB_prodDensity')),
+    'the retired key is cleaned up, not left as dead storage').toBe(null);
+  // and the toggle it belonged to is still gone — the other half of v130's deletion
+  await expect(page.locator('.seg-density, .segd'), 'no density control anywhere').toHaveCount(0);
+});
+
 test('true-empty: §5\'s composed onboarding card, no band, no dead controls', async ({ page }) => {
   const errs = [];
   await boot(page, 1280, errs, { noProducts: true });

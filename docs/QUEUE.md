@@ -51,7 +51,7 @@ The new law: **the mock is truth for structure, hierarchy and interaction; the a
 
 **§4 acceptance criteria = the definition of done for EVERY F-screen below** (check them off in the PR): structure matches the mock side-by-side at 1360×900 (same regions in order; row grammar identity-left, mono-figures-right, status-pill-rightmost) · every colour/border/shadow from a token, ZERO hard-coded hex in screen code · Geist for UI, Geist Mono `tabular-nums` for every number · all five states (loading skeleton, empty, error, first-run, permission denied) exist and are v3-styled · mobile counterpart converted in the SAME item per the §6.1 parity map · old component + CSS deleted in the same change · focus ring on every interactive; modals trap focus and close on Esc · no behaviour regression without a logged reason.
 
-## blocked  CLAUDE.md corrections from AUDIT-v135 (five lines + TWO candidate traps)
+## next  CLAUDE.md corrections from AUDIT-v135 - five stale lines + TWO new Tier 1 rules (APPROVED 10 Aug 2026)
 Problem: the audit verified ~60 CLAUDE.md claims; five are wrong or stale, and one recurring lesson has earned Tier 1 candidacy. Rules there change only with Max's yes.
 The corrections (full evidence in `docs/audits/AUDIT-v135.md` §2a):
 1. **S1 (the important one):** `pushWrite` "resolves to ... `null` when offline" - NO null path exists; offline resolves `{error}`. A batch following the doc would sequence a dependent write after a failure. The `null` contract belongs to `dbPushMenuAfterPlate`.
@@ -64,7 +64,8 @@ The corrections (full evidence in `docs/audits/AUDIT-v135.md` §2a):
    > **A `@media` block does not win by being later.** Specificity is compared before source order, so a multi-class selector written outside a media query beats a single-class rule written inside one. Putting the narrow selector on the small screen and the plain one on the large screen inverts the cascade, and the symptom is a rule that looks right in the file and does nothing on screen. When a declaration appears at both breakpoints, give the two rules the SAME specificity.
 
    **Five instances in ONE screen in ONE batch** (F3/v139): a 4-class sibling chain threw a cell into the wrong column on broken rows; the desktop `—` placeholders lost to a mobile `.is-nil` rule and rendered blank; a dead grid row appeared under every healthy mobile name; the desktop cancel of a mobile `::before` prefix could never win, so a column headed "Used in" read ", in —" on every row; and the header's right-alignment keyed off one class of button and left the other 393px away. Three were found by looking at the app and two by the review - **and the fourth was written into the fix for the third**, which is the case for making it a rule rather than a lesson. F2 (v138) hit the same class twice more (`[hidden]` overrides).
-Blocked on: Max - a one-word yes covers 1-4 (and now 6) as the same stale-line class as HANDOVER-133; say separately whether 5 and 7 (both NEW rules) get in.
+**APPROVED IN FULL (Max, 10 Aug 2026).** He said yes to the five stale-line corrections (1-4 and 6) as the same class as HANDOVER-133, and yes to BOTH new Tier 1 rules - 5 (the stub-mirrors-contract rule) and 7 (the `@media` specificity rule). Nothing here is waiting on him any more; it is now a docs batch to execute.
+When it runs: item 3 is the one to read twice, because the planned F7 edit covers only the "IS a MODAL" line and NOT the dropdown sentence - fix the sentence here rather than leaving it for a batch whose scope excludes it. Item 6 corrects the "never loaded" clause ONLY; the rest of that line still stands and must survive.
 
 ## done  F1a - Tokens (light + dark) + the theme switch
 Shipped 10 Aug 2026 as **`ezplate-v136`**. See the done section for what landed.
@@ -83,14 +84,17 @@ Shipped 10 Aug 2026 as **`ezplate-v138`**. See the done section.
 ## done  F3 - Ingredients (desktop §3.4 + mobile §6, one item)
 Shipped 10 Aug 2026 as **`ezplate-v139`**. See the done section.
 
-## blocked  Two actions in a mobile screen header, where §6 asks for one - now on TWO screens
+## next  One action in a mobile screen header - rehome the second one (DECIDED 10 Aug 2026)
 Problem: §6's mobile header is "screen title + one action max", and two converted screens ship two.
 - **Ingredients (F3):** "Set up from products" beside "New ingredient". The wizard button is CONDITIONAL (`renderKingProgress` shows it only while products are unlinked or skips exist), so most cafés see one action most of the time - but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
 - **Products (F4, added 10 Aug 2026):** "Import invoice" beside "New product", and here it is UNCONDITIONAL. The sidebar's Invoices entry is desktop-only (`.nav-bottom`, hidden below 1024), so on a phone `#importBtn` is the ONLY route into the import flow. F4 applied F3's existing shape rather than improvising a third pattern, and pinned the pair's BEHAVIOUR instead (one row, primary rightmost, no wrap, both widths - `tests/visual/v140-products.spec.js`).
 Hiding either on mobile was rejected for the same reason both times: it strands a whole flow on the device Max actually works on.
-Requirements: either a v3 home for a secondary action on a phone header (the mock has no pattern), or a recorded decision that these screens keep two. Do not improvise a third pattern. Whatever is decided applies to BOTH screens - they are one question, not two.
-Note both are measured and pinned at DESKTOP AND mobile now (F4's spec asserts the pair at 380 too); what a spec cannot judge is whether two actions read as crowded on a real phone, which is on `docs/PHONE.md`.
-Blocked on: Max - does a converted screen's mobile header get to carry a secondary action? **Recommendation: yes, keep both.** The alternative costs a whole flow on the phone, and the pair measures as one clean row at 380px on both screens.
+**DECIDED (Max, 10 Aug 2026): find another home for the second action. He did NOT take the recommendation to keep both.** So §6's "one action max" holds on a phone, and the header keeps only the primary.
+Requirements: one home, used by BOTH screens - they are one question and must not get two answers. The secondary must stay reachable on a phone in one gesture (this is the whole reason it was not simply hidden): "Import invoice" is the only mobile route into the import flow, and "Set up from products" is the only route into linking a catalogue.
+The mock has no pattern for this, so the first job is to PROPOSE one and get a yes before building - a candidate is not a decision. Do not ship a third pattern by accident, and do not solve it per screen.
+Out of scope: the desktop headers, which the mock does allow to carry both and which measure fine.
+Note the pair is currently pinned at both widths in `tests/visual/v140-products.spec.js` and at desktop in `fresh-states.spec.js`; both pins are consciously changed by whoever builds this, not deleted to go green.
+Do after: **F10** - every remaining F-item adds a converted header, so a home chosen now is chosen against a set that is still growing, and F8/F9 may well arrive wanting the same slot. Nothing about the current state is wrong or lossy in the meantime; it is a deviation from the mock, recorded and visible.
 
 ## done  F4 - Products (desktop §3.5 + mobile §6, one item)
 Shipped 10 Aug 2026 as **`ezplate-v140`**. See the done section.
