@@ -99,7 +99,7 @@ $('setCogsInput').value = '25';
 $('setCogsInput').dispatchEvent(new window.Event('input'));
 ok('editing in Settings changes analyze()', window.analyze(4, null).suggested === 16, `was ${before}, now ${window.analyze(4,null).suggested}`);
 window.renderAnalysis();
-ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 'Suggested (25%)', $('aSuggestedTh').textContent);
+ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 'Suggested at 25%', $('aSuggestedTh').textContent);   // F5 (v142): the mock's §3.2 wording
 $('settingsDone').click();
 
 console.log('\n[3b] v81 — Settings sectioned surface (sidebar / drill-down + AI toggles)');

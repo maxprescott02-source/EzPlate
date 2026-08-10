@@ -29,22 +29,24 @@
  * which is exactly the regression it was written to catch — a per-tab nudge among
  * the old screens — and it keeps its teeth until the set empties.
  *
- * ⚠ F4 (v140) — THE CROSS-TAB COMPARISON IS RETIRED, on the schedule this file set itself.
- * Its own note said "when Products converts (F4) only Menu remains and the whole cross-tab
- * comparison retires with it", and that is now true: of the five tabs, Plates (F2), Ingredients (F3)
- * and Products (F4) render `.scr-head`, Dashboard has never had a `.panel-actions` row, and Menu is
- * the last screen wearing `.panel > h2 > .panel-actions`. One screen cannot be compared with itself,
- * and comparing it with Dashboard would assert nothing the fold-in has not already changed.
- * It is deleted rather than loosened: the regression it caught was a per-tab nudge among the OLD
- * screens, and there is no longer a set of them.
+ * ⚠ F4 (v140) — THE CROSS-TAB COMPARISON WAS RETIRED, on the schedule this file set itself.
+ * Of the five tabs, Plates (F2), Ingredients (F3) and Products (F4) rendered `.scr-head`,
+ * Dashboard has never had a `.panel-actions` row, and Menu was the last screen wearing
+ * `.panel > h2 > .panel-actions`. One screen cannot be compared with itself, so the comparison
+ * went rather than being loosened.
  *
- * WHAT REPLACES IT is the test below, which was always the durable half — a converted screen may
- * have its own header shape, but not its own left edge. Products has moved from being that test's
- * unconverted BASELINE to being one of the screens measured against it; Menu is the baseline now.
- * A converted screen's own spec owns its header (v138-plates, v140-products, fresh-states for F3).
- * When Menu converts (F5) the baseline goes with it and this file should be re-read, not patched:
- * with every screen on `.scr-head` the honest test is "all five agree", which is the ORIGINAL
- * assertion coming back around.
+ * ✅ F5 (v142) — AND NOW IT COMES BACK, which is what this file predicted in writing: "when Menu
+ * converts (F5) the baseline goes with it and this file should be re-read, not patched: with every
+ * screen on `.scr-head` the honest test is 'all agree', which is the ORIGINAL assertion coming back
+ * around." Menu is converted, so there are FOUR screens on one header shape and comparing them is
+ * meaningful again. This is a restoration of teeth, not an addition: the regression it caught for
+ * five years was a per-tab nudge among screens that were supposed to be identical, and there is a
+ * set of them again.
+ *
+ * Dashboard is still OUT, for a reason that is measured and queued rather than assumed: it has no
+ * `.scr-head` until F6, and it sits 4px high at every width where `--sp-5` is 20px (`#dashBody`
+ * opens the tab with `padding-top:16px` while `.panel` uses `margin-top:var(--sp-5)`). That defect
+ * is a queue item carrying `Do with: F6`, and F6's item owns folding Dashboard back into this list.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
@@ -66,46 +68,52 @@ const EDGE_SIZES = SIZES.concat([{ name: 'narrow-desktop', width: 700, height: 9
 const TOL = 1;
 
 /*
- * The half of the old assertion that SURVIVES the fold-in. A converted screen is allowed a
- * different header shape; it is not allowed a different left edge — the v3 mock gives every
- * screen the same content gutter, and "one left edge" is the thing four batches kept nudging.
- * This is what stops the removal above from being a quiet loss of coverage.
+ * The assertion, restored. A converted screen may have its own CONTENT; it may not have its own
+ * left edge — the v3 mock gives every screen the same content gutter, and "one left edge" is the
+ * thing four batches kept nudging. Header, title text and list body are all measured, because the
+ * old spec's comment claimed "the shared left edge" while it stopped at the actions row, and a
+ * surface sitting 4px proud of its own title shipped past it once already (v123, caught by review).
  */
+const SCREENS = [
+  ['builder', 'plateList', 'Plates'],
+  ['pantry', 'kingList', 'Ingredients'],
+  ['ingredients', 'ingList', 'Products'],
+  ['analysis', 'aList', 'Menu'],
+];
+
 for (const size of EDGE_SIZES) {
-  test(`converted screens keep the app's left edge @ ${size.name}`, async ({ page }) => {
+  test(`every converted screen shares ONE left edge @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
 
-    const edge = async (tab, titleSel) => {
+    const edge = async (tab, listId) => {
       await page.locator(`.navbtn[data-tab="${tab}"]`).click();
       await page.waitForTimeout(300);
-      return page.evaluate((sel) => {
+      return page.evaluate((id) => {
         window.scrollTo(0, 0);
         const panel = Array.from(document.querySelectorAll('#appMain .panel'))
           .find((p) => p.getBoundingClientRect().width > 0);
-        const title = panel.querySelector(sel);
-        const cs = getComputedStyle(title.parentElement.matches('.scr-head') ? title.parentElement : title);
+        const head = panel.querySelector(':scope > .scr-head');
+        if (!head) throw new Error('no .scr-head — this screen is not converted');
+        const cs = getComputedStyle(head);
         return {
           panelLeft: panel.getBoundingClientRect().left,
-          textLeft: (title.parentElement.matches('.scr-head') ? title.parentElement : title)
-            .getBoundingClientRect().left + parseFloat(cs.paddingLeft),
+          textLeft: head.getBoundingClientRect().left + parseFloat(cs.paddingLeft),
+          bodyLeft: document.getElementById(id).getBoundingClientRect().left,
         };
-      }, titleSel);
+      }, listId);
     };
 
-    // Menu is the last screen on the OLD skeleton, so it is the app's left edge for now (F4: it
-    // took over from Products, which has joined the converted set below).
-    const old = await edge('analysis', ':scope > h2');
-    for (const [tab, listId, label] of [['builder', 'plateList', 'Plates'], ['pantry', 'kingList', 'Ingredients'], ['ingredients', 'ingList', 'Products']]) {
-      const conv = await edge(tab, ':scope > .scr-head > h2');
-      expect(Math.abs(conv.panelLeft - old.panelLeft), `${label} panel shares the page edge`).toBeLessThanOrEqual(TOL);
-      expect(Math.abs(conv.textLeft - old.textLeft), `${label} title text shares the ONE left edge`).toBeLessThanOrEqual(TOL);
-      // and the screen's own body sits on it too — the gap layout-consistency never measured
-      // (its comment claimed "the shared left edge" but it stopped at the actions row)
-      const bodyLeft = await page.evaluate((id) => document.getElementById(id).getBoundingClientRect().left, listId);
-      expect(Math.abs(bodyLeft - conv.textLeft), `the ${label} list body sits on the title edge`).toBeLessThanOrEqual(TOL);
+    const first = await edge(SCREENS[0][0], SCREENS[0][1]);
+    expect(Math.abs(first.bodyLeft - first.textLeft),
+      `the ${SCREENS[0][2]} list body sits on its own title edge`).toBeLessThanOrEqual(TOL);
+    for (const [tab, listId, label] of SCREENS.slice(1)) {
+      const s = await edge(tab, listId);
+      expect(Math.abs(s.panelLeft - first.panelLeft), `${label} panel shares the page edge`).toBeLessThanOrEqual(TOL);
+      expect(Math.abs(s.textLeft - first.textLeft), `${label} title text shares the ONE left edge`).toBeLessThanOrEqual(TOL);
+      expect(Math.abs(s.bodyLeft - s.textLeft), `the ${label} list body sits on the title edge`).toBeLessThanOrEqual(TOL);
     }
   });
 }

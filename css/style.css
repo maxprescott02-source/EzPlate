@@ -605,86 +605,20 @@ input[type=checkbox]{
 .vbadge.vbad,.vbadge.under{color:var(--bad)}
 .muted-dash{color:var(--muted2)}
 .mi-note{cursor:pointer;color:var(--text2);margin-left:2px}
-.mi-act{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:8px}
-.mi-act .mi-btn{margin-left:0}
-.mi-btn{
-  display:inline-block;font:inherit;font-size:12px;font-weight:700;line-height:1;
-  padding:9px 13px;margin-left:6px;border:1px solid var(--border2);border-radius:var(--radius-chip);
-  background:var(--surface);color:var(--text2);cursor:pointer;min-height:36px;
-  transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease);
-}
-.mi-btn:hover{background:var(--hover);color:var(--text)}
-.mi-btn.del{color:var(--bad);border-color:var(--bad)}
-.mi-btn.del:hover{background:var(--bad);color:var(--on-bad)}
+/* F5 (v142) tombstone: `.mi-act` / `.mi-btn` (+ `.del`) are DELETED. Their last emitter was the
+   Menu row's "→ Builder" chip, removed in v55 (§D2); `menuActions()` has returned '' ever since
+   and went with the rebuild, so these dressed nothing for eighteen versions. */
 
-/* ---- mobile: table becomes cards ---- */
-/* v100 (Menu batch): spacing/type on the --sp/--fs scales, quiet data labels, --radius-card,
-   desktop section rows lose the --surface2 fill (the v98 one-card-tone rule). The WRAP override
-   is #tab-analysis-scoped because the invoice modal reuses .atable-wrap (fragile area — its look
-   must not change until its own batch). */
+/* ---- the shared table WRAP. F5 (v142): `.atable` itself is GONE — the Menu screen was its only
+        emitter and §31 rebuilt it from the mock as a grid, so every `.atable*` rule went with the
+        markup. `.atable-wrap` is NOT `.atable`: it is the DIV, and the invoice review still renders
+        inside one (`renderInvReview`, app.js), as does the drag-guard's closest() test. It stays,
+        with the paint it has always had, and the `#tab-analysis` overrides that used to reshape it
+        went with the screen. Do not fold this into the invoice section: it is load-bearing for a
+        fragile area and the next batch to touch that area should find it where it has always been. */
 .atable-wrap{overflow:visible;padding:var(--sp-2) var(--sp-3) var(--sp-4)}
-#tab-analysis .atable-wrap{padding:var(--sp-2) var(--sp-4) var(--sp-4)}
-.atable{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
-.atable thead{display:none}
-.atable,.atable tbody{display:block}
-.atable tr{display:block}
-.atable td{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);border:0;padding:var(--sp-1) 0}
-.atable td::before{
-  font-size:var(--fs-xs);font-weight:600;   /* v100: quiet data labels — uppercase eyebrows are for section boundaries, not every card row */
-  font-family:var(--ui);                    /* v100: labels in UI face — td.num's mono is for the figures, not their labels */
-  color:var(--muted2);flex:0 0 auto;
-}
-.atable td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-sm)}
-
-/* section headers */
-.atable tr.sec{background:none;margin:var(--sp-4) 0 var(--sp-2)}
-.atable tr.sec td{
-  display:block;padding:0;background:none;font-weight:700;font-size:var(--fs-xs);
-  letter-spacing:.12em;text-transform:uppercase;color:var(--brand);
-}
-
-/* item cards */
-.atable tbody tr:not(.sec):not(.ni-row){
-  position:relative;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);   /* v36: one card system. F4 (v140): `.ing-card` and `.king-row` have BOTH left it for the v3 row grammar (§27/§30) — this rule now serves the unconverted screens only */
-}
-.atable tr.muted td{color:var(--muted2)}
-.atable tbody tr > td:first-child{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text);padding:0 28px 6px 0}
-.atable tr.muted > td:first-child{color:var(--text2);font-weight:600}
-
-/* Q3 (v122): the per-cell "Plate cost / Suggested / Menu price / Variance" labels are GONE — the
-   mobile row is now one line (name · verdict figure) with a "$x cost · $y on menu" sub-line built
-   by the ::after rules in the menu-row section near the end of this file. Tombstone. */
-/* v115: the pip column (td:nth-child(6), the corner-pinned traffic light) is GONE — the row's
-   left stripe (.lt-*) already carried the same light. Tombstone for the deleted rules. */
-
-/* ---- desktop: same markup as a table ---- */
 @media (min-width:640px){
   .atable-wrap{overflow-x:auto;padding:0}
-  #tab-analysis .atable-wrap{padding:0}   /* v100: mirror the base — the mobile override above must not win here on specificity */
-  .atable{display:table;min-width:600px}
-  .atable thead{display:table-header-group}
-  .atable tbody{display:table-row-group}
-  .atable tr,.atable tbody tr:not(.sec):not(.ni-row){
-    display:table-row;position:static;background:none;border:0;border-radius:0;padding:0;margin:0;
-  }
-  .atable td,.atable tbody tr > td:first-child{
-    display:table-cell;padding:var(--sp-3);border-bottom:1px solid var(--border);
-    vertical-align:middle;font-size:var(--fs-sm);font-weight:normal;color:var(--text);
-  }
-  .atable td::before{content:none!important}
-  .atable th{
-    text-align:left;font-size:var(--fs-xs);letter-spacing:.06em;text-transform:uppercase;
-    color:var(--muted2);padding:var(--sp-3);border-bottom:1.5px solid var(--border2);white-space:nowrap;font-weight:700;
-  }
-  .atable td.num{text-align:right;white-space:nowrap;font-family:var(--mono)}
-  .atable tr.sec{margin:0}
-  .atable tr.sec td{
-    display:table-cell;background:none;font-weight:700;font-size:var(--fs-xs);   /* v100: no --surface2 fill — one card tone on one page tone (the v98 rule; this was the last third-tone band outside the dashboard) */
-    letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:var(--sp-4) var(--sp-3) var(--sp-2);
-  }
-  .atable tr.muted td{color:var(--muted2)}
-  .atable:not(.invtable) tbody tr:not(.sec) td:nth-child(6){position:static;top:auto;right:auto;padding:12px}
 }
 
 /* ----------------------------------------------------------------------
@@ -1156,10 +1090,14 @@ body.scroll-locked{position:fixed;left:0;right:0}
      v52: the picker/target/search header moved onto the canonical panel skeleton — the layout
      rules live in the v52 batch section. Tombstoned here: .menu-picker (+label), .cogs-set,
      .cogs-lbl, .cogs-help, .cogs-sep — that markup is gone (target is one .panel-meta line). */
-  .menu-picker-row{display:flex;gap:8px;align-items:center}
-  .menu-picker-row select{flex:1 1 auto;min-width:0;padding:9px 12px;font:inherit;font-weight:600;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
-  .menu-new-btn{white-space:nowrap}   /* v52.1 (Max): size comes from .btn — same as + New ingredient / + New product */
-  .menu-del-btn{flex:0 0 auto;white-space:nowrap;font-size:13px;padding:9px 12px;color:var(--bad);border-color:var(--border2)}
+  /* F5 (v142) tombstone: `.menu-picker-row` (+ its `select`), `.menu-new-btn` and `.menu-del-btn`
+     are DELETED here. The picker row survives as a CLASS — `buildMenuPills` finds it with
+     `closest('.menu-picker-row')` to toggle `pills-on`, so renaming it would be the naming-rule
+     violation CLAUDE.md forbids — but §31 owns its paint now, and the select wears `.plib-filter`
+     like every other converted screen's. Leaving `.menu-picker-row select` here would have
+     out-specified that class (0-1-1 beats 0-1-0) and quietly kept the old control. The two button
+     classes have no markup left at all: New menu is a plain `.btn primary` and Delete is `.mnu-del`
+     in the screen footer. */
   /* v115 tombstone: .cogs-inline / .cogs-read deleted — their markup (the .cogs-meta line) went this batch */
   /* v128 (Q9) tombstone: .cogs-in moved to the Settings block — its ONE consumer is the Settings
      target row (index.html #setCogsInput), and a split definition here is the .cogs-read failure
@@ -1239,13 +1177,12 @@ body.scroll-locked{position:fixed;left:0;right:0}
 
 /* ============ Ingredients page ============ */
 /* v49: .ing-tools layout retired — it carries the shared .panel-actions class now (v49 batch) */
-/* ⚠ `.ing-controls` / `.ing-filter` are the MENU screen's control row too (see `.an-controls
-   .ing-controls`), which is still unconverted — they stay exactly as they are. Products stopped
-   using them in F4 (v140) and took F2's `.plib-*` classes instead, precisely so that converting
-   Products could not restyle Menu by accident (protocol §2). */
-.ing-controls{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
-.ing-controls .menu-search{flex:1 1 200px;min-width:160px}
-.ing-filter{flex:0 1 auto;padding:9px 10px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);max-width:48%}
+/* F5 (v142) tombstone: `.ing-controls`, `.ing-controls .menu-search`, `.ing-filter` and
+   `.ing-clear-filters` are DELETED — the whole family. F4 (v140) left the note that these were
+   "the MENU screen's control row too, which is still unconverted"; F5 converted it, so Menu was
+   the last tenant and the classes have no markup anywhere. `.menu-search` itself SURVIVES on its
+   own rules below: the add-dish modal's search still wears it (`index.html .menu-search
+   .ad-search-wrap`), which is why only the `.ing-controls`-scoped override goes here. */
 /* F4 (v140) tombstone: the v36/v104 CARD LANGUAGE is gone — `.ing-count`, `.ing-list`'s flex/grid
    base, and the `.ing-card` / `.ing-main` / `.ing-name` / `.ing-brand` / `.ing-meta` / `.ing-tag` /
    `.ing-price` / `.ing-per` rules that made a product a bordered card. §30 owns the row at every
@@ -1329,13 +1266,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
   border-radius:var(--radius-ctl);background:var(--field);
 }
 .ms-clear{width:26px;height:26px;right:9px}
-.ing-filter{
-  min-height:44px;padding:10px 34px 10px 12px;border:1.5px solid var(--border2);
-  border-radius:var(--radius-ctl);background-color:var(--field);
-  -webkit-appearance:none;appearance:none;
-  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%238C817D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 11px center;
-}
+/* F5 (v142): the `.ing-filter` sizing rule went with the class. Worth one line on WHY it could
+   never have survived into a converted screen: its chevron was a data-URI carrying a literal
+   `%238C817D`, and a hard-coded hex cannot follow the theme — protocol §6 makes that an automatic
+   dark-mode bug. `.plib-selwrap::after` draws the same arrow from a token instead. */
 .ref-pill{min-height:32px;padding:5px 12px}
 
 /* ---- empty states: Ingredients + Menu (illustrated, matching the Builder plate) ---- */
@@ -1527,16 +1461,15 @@ body.scroll-locked{position:fixed;left:0;right:0}
      converted in v139 and did not remove. Both selectors were dead rather than wrong, because a
      converted screen's h2 is a GRANDCHILD of `.panel` (inside `.scr-head`) and `>` stopped matching
      it. Two batches running, so the note above is worth reading as an instruction: drop your tab.
-     #tab-analysis (Menu) is the last one, and F5 takes this whole rule with it. */
-  #tab-analysis > .panel > h2{
-    font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
-    min-height:48px;display:flex;align-items:center;gap:var(--sp-2);
-    padding:0 var(--sp-5);
-  }
+     #tab-analysis (Menu) is the last one, and F5 takes this whole rule with it.
+     F5 (v142): DONE — `#tab-analysis > .panel > h2` is deleted and the list is empty, so the rule
+     is gone as its own note instructed. Every screen's title is a `.scr-head > h2` now except the
+     Dashboard's panel h2s, which have always had their own idiom and keep it until F6. The
+     surrounding @media block is NOT empty (it still owns `.wrap`, the toast and the install
+     banner), so it stays — the empty-block hazard F4 hit does not apply here. */
 
-  /* -- analysis: roomier table -- */
-  .atable th,.atable td,
-  .atable tbody tr > td:first-child{padding:var(--sp-3) var(--sp-4)}   /* v100: roomier, on the spacing scale (was 13px 14px); first-child listed because the ≥640 rule outranks `.atable td` for it — without it the Plate column misaligns with its header */
+  /* F5 (v142): the `.atable` padding rule went with the table. §31's `.mnu-row`/`.mnu-band` set
+     their own, and both grid containers share ONE template so the columns cannot drift apart. */
 }
 
 /* ============================ DESKTOP ≥1280px ============================ */
@@ -1552,12 +1485,12 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @media (max-width:1023px){ .side-brand-row,.side-brand,.side-theme,.nav-bottom{display:none} }
 
 /* ---- cascade-final overrides (must sit after the base control rules) ---- */
-input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:focus{
+input:focus,textarea:focus,select:focus,.menu-search input:focus{
   outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak);
 }
-@media (min-width:640px){
-  .an-empty td::before{content:"" !important} /* keep the Menu empty illustration when the table view's label reset applies */
-}
+/* F5 (v142): the `.an-empty td::before` reset is DELETED — it existed only to undo `.atable
+   td::before`'s data labels, and both the table and that rule are gone. `.an-empty` itself has had
+   no markup since v58 and stays on the queue's dead-CSS sweep. */
 
 
 /* ==========================================================================
@@ -1645,16 +1578,15 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
 /* ---- D. hover & pointer layer: feedback only where hover truly exists,
         slightly denser controls where a mouse is the primary input ---- */
 @media (hover:hover) and (pointer:fine){
-  .atable:not(.invtable) tbody tr:not(.sec):hover td{background:var(--hover)}
   .ref-pill:hover{border-color:var(--accent-ink);color:var(--accent-ink)}
   .ms-clear:hover{background:var(--border2)}
-  .ing-filter:hover,.menu-search input:hover{border-color:var(--border2)}
-  .invAppr,.ing-filter,select{cursor:pointer}
+  .menu-search input:hover{border-color:var(--border2)}
+  .invAppr,select{cursor:pointer}
 }
 @media (hover:hover) and (pointer:fine) and (min-width:1024px){
   .btn{min-height:40px}
   .btn.small{min-height:34px}
-  input[type="text"],input[type="number"],input[type="search"],select,.ing-filter,.menu-search input{min-height:40px}
+  input[type="text"],input[type="number"],input[type="search"],select,.menu-search input{min-height:40px}
 }
 
 /* ---- E. state coverage: disabled, invalid, loading, skeleton ---- */
@@ -1689,7 +1621,6 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 
 /* ---- G. desktop analysis: sticky column headers while scrolling ---- */
 @media (min-width:1024px){
-  .atable:not(.invtable) thead th{position:sticky;top:0;background:var(--surface);z-index:2}
 }
 
 /* ---- H. desktop chrome: the sync banner is the BOTTOM-LEFT status slot ---- */
@@ -1737,8 +1668,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 
 /* ---- I. contrast & detail polish ---- */
 .dash-chart .ax{font-size:11px}
-.ing-filter{max-width:none;flex:0 1 200px}
-@media (max-width:639px){ .ing-filter{max-width:48%} }
+/* F5 (v142): the last two `.ing-filter` width rules go with the class. */
 
 
 /* ==========================================================================
@@ -1944,8 +1874,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 .misc-hint{font-size:var(--fs-xs);color:var(--muted2)}
 /* v67 item 3: the pre-v67 single-row misc rules were removed here — the misc line now reuses the
    ingredient .line skeleton (see the v67 misc block later in this file). */
-/* item 3: → Builder button in Menu Analysis */
-.mi-act .mi-btn.tobuilder{margin-right:var(--sp-2)}   /* v39: colour moved to the single quiet rule near .an-empty; this stayed for spacing only */
+/* F5 (v142): the “→ Builder” chip's spacing rule is DELETED with `.mi-act`/`.mi-btn`. */
 /* item 1: trend chart point tooltip */
 .dash-chart#trendWrap{position:relative}
 .tp-dot{cursor:pointer;transition:r .1s ease}
@@ -1974,7 +1903,7 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3px;stroke-linejoin:round}  /* white halo so % stays readable over the line */
 .tp-tip{transition:opacity .05s ease}                              /* was .12s — feels instant now */
 /* item 8: don't let taps highlight chart chrome (scoped to the chart + interactive chrome only) */
-.dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .mi-btn, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
+.dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
 /* item 2: misc-cost button sits as part of the builder, not bolted on */
 .misc-add-wrap{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-3) 2px var(--sp-1);padding-top:var(--sp-3);border-top:1px dashed var(--line,#e4dccb)}
 /* item 3: docket/plate hover highlight keeps clear of the card edge */
@@ -2129,12 +2058,10 @@ body{overflow-x:clip}
 .range-btn{border:0;background:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:6px;color:var(--muted2);cursor:pointer}
 .range-btn:hover{color:var(--text)}
 .range-btn.act{background:var(--accent-weak);color:var(--accent-ink)}   /* v115: the chip selected-state language (was inverted --text/--bg, the only such highlight in the app) */
-/* item 5: headers align with their columns (v115: the col-6 pip rules are gone with the column) */
-@media (min-width:640px){
-  .atable:not(.invtable) th:nth-child(2),.atable:not(.invtable) th:nth-child(3),
-  .atable:not(.invtable) th:nth-child(4),.atable:not(.invtable) th:nth-child(5){text-align:right}
-}
-.legend .dot,.atable .dot{width:11px;height:11px;border-radius:50%;box-shadow:none;border:0}
+/* F5 (v142): the numeric-header alignment block is DELETED with the table — §31's `.mb-num`
+   right-aligns the four figure columns on the band, and the band shares ONE grid template with
+   the rows, so a header can no longer sit over the wrong column at all. */
+.legend .dot{width:11px;height:11px;border-radius:50%;box-shadow:none;border:0}
 
 /* ===== v30 additions ===== */
 
@@ -2270,10 +2197,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v58: the Plates/Products/Ingredients search-empties now route through the shared .empty-state
    helper (fork+knife/box/tomato glyph is an inline es-icon SVG), so the old .plate-noresult
    mask-image override is gone. Menu's empty state is one .empty-state div inside a table row. */
-/* v70: at mobile the card-collapse rule `.atable tbody tr > td:first-child{padding:0 28px 6px 0}` (0,2,3)
-   out-specifies a plain `.es-row td` (0,1,1) and pads the empty cell asymmetrically (0 left / 28px right),
-   shoving the centred empty-state 14px off-centre. Match that specificity so the reset actually wins. */
-.atable tbody tr.es-row > td{padding:0;border:0;background:transparent}
+/* F5 (v142): the `.es-row > td` padding reset is DELETED. It existed to out-specify the table's
+   card-collapse padding; `.es-row` is a plain div now with nothing to fight, so the empty state is
+   centred by `.empty-state`'s own `margin:0 auto` at every width. */
 .es-actions .es-clear{font-size:var(--fs-base)}
 
 /* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
@@ -2454,9 +2380,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .an-empty td::before,.an-empty td::after{content:none!important}
 .an-empty .an-empty-box{min-height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-2);text-align:center;color:var(--muted2);padding:18px}
 .an-empty .an-empty-box b{color:var(--text2);font-size:15px}
-/* menu: the Builder shortcut is a quiet action, not an orange highlight */
-.mi-btn.tobuilder{color:var(--text2);border-color:var(--border2);background:var(--surface)}
-.mi-btn.tobuilder:hover{background:var(--hover);color:var(--text)}
+/* F5 (v142): the `.mi-btn.tobuilder` colour pair is DELETED with the rest of the chip — v55 (§D2)
+   removed its markup and v39's “one quiet rule for both themes” has dressed nothing since. */
 /* new-item form (v37 rebuild): label line + control line, chip inline on the label — one rhythm for every field */
 .ni-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;position:static}
 .ni-grid .ni-f{display:flex;flex-direction:column;gap:5px;min-width:0;position:relative}
@@ -2511,11 +2436,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    #settingsPanel (and the ingredient modal) in the DOM and every .modal-overlay shares z-index:80,
    so the LATER sibling paints on top. A confirm is semantically always-on-top — give it its own layer. */
 #confirmModal{z-index:85}
-/* item 4: menu empty state off-centre on mobile. Root cause: the card-collapse rule
-   `.atable tbody tr > td:first-child` (specificity 0-2-3) puts asymmetric padding (0 28px 6px 0)
-   on the empty row's single td — and the later `.an-empty td{padding:0}` reset LOSES on
-   specificity (0-1-1), so the box sits 28px off-centre. Outrank it, don't fight it. */
-.atable tbody tr.an-empty > td:first-child{padding:0;font-weight:400}
+/* F5 (v142): the `.an-empty > td:first-child` outranking rule is DELETED. The cell it outranked
+   went with the table, and `.an-empty` has had no markup since v58 — it stays on the queue's
+   dead-CSS sweep with the rest of its family. The LESSON survives it and is now Tier 1: a rule
+   that loses on specificity is invisible in the file and only shows up on screen. */
 /* item 5: on phones every add-button drops its noun — the tab already names the thing.
    The noun lives in a span, so there's no JS resize logic and desktop keeps the full label.
    #kingNew also stops stretching (the old stacked-design rule) so the pantry pair shares one line. */
@@ -2649,90 +2573,27 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .dash-chart svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
 /* item 6: Menu tab header rhythm — target label, value line, and colour key all breathe on the
    same token (--sp-2). Was 6px label→value but 22px value→key (an-controls pad + akey pad). */
-.an-controls{gap:var(--sp-2);padding-bottom:0}
-/* v52: `.cogs-set > .cogs-lbl` (v48 rhythm) retired — the cogs block is one .panel-meta line now */
+/* ===== F5 (v142): THE v49/v52 PANEL SKELETON AND THE MENU TABLE ARE BOTH DELETED HERE =====
+   Two whole systems went with this screen, and both deserve their epitaph rather than a silent gap.
 
-/* ===== batch (v49): ONE panel skeleton — structural cross-tab consistency ===== */
-/* Every tab is now the same shape: .panel > h2 (the ONE small-caps title, divider on its
-   border-bottom) > optional .panel-actions row (primary .btn first, then plain/ghost, then an
-   inline .panel-sub strapline) > tab controls > body. One left edge — var(--sp-5), collapsing
-   to var(--sp-4) at ≤560px in ONE place below, never per-tab. This exists because five
-   hand-written headers kept drifting apart; the skeleton is enforced by
-   tests/visual/layout-consistency.spec.js (±1px across tabs), so drift fails the suite. */
-.panel-actions{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
-.panel-actions .btn{margin-top:0}   /* .newbtn's legacy margin-top would double the row's own top padding */
-.panel-sub{font-size:var(--fs-xs);color:var(--muted2)}
-@media (min-width:640px){ .panel-sub{flex:1 1 auto;min-width:0} }   /* strapline inline on the buttons row (v46 behaviour, now shared) */
-@media (max-width:639px){ .panel-sub{flex-basis:100%} }             /* …own line under the buttons on phones */
-.panel-meta{margin:var(--sp-2) var(--sp-5) 0;padding:0}             /* replaces the per-tab inline styles on #lastImport/#ingCount */
-.an-controls{padding-top:var(--sp-3);padding-left:var(--sp-5);padding-right:var(--sp-5)}   /* Menu joins the shared edge + divider gap */
-@media (max-width:560px){   /* THE mobile collapse — same breakpoint .pad/.panel h2 already use */
-  .panel-actions,.ing-controls,.an-controls{padding-left:var(--sp-4);padding-right:var(--sp-4)}
-  .panel-meta{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+   1. `.panel-actions` / `.panel-sub` / `.panel-meta` / `.an-controls` / `.an-head` — the v49
+      "ONE panel skeleton" (h2 > actions row > controls > body) that put five hand-written tab
+      headers on one left edge. The v3 fold-in replaced it screen by screen with the mock's §2
+      header bar (`.scr-head`), and Menu was the last tab wearing it, so the skeleton has no markup
+      left anywhere. Its ENFORCEMENT is not lost: `tests/visual/layout-consistency.spec.js` kept the
+      half that survives the fold-in — every screen shares ONE left edge — and F5 restores its
+      cross-screen comparison, which had shrunk to a single screen while the conversion ran.
+
+   2. `.atable tbody tr.mi-row` and the two breakpoint blocks that made a five-`<td>` table into a
+      phone card and back — the Q3 (v122) row. §31 rebuilds the same information as the mock's grid,
+      and the row is a real `<button>` now, so `.mi-name`'s button reset and its own focus ring go
+      too: the ring belongs to the row.
+
+   `.mi-uncosted` and the `.lt-*` classes SURVIVE (§31 restyles the first; the second is pinned
+   wiring the margin-light chips key off). `.king-progress`'s mobile gutter moved into the ≤560
+   collapse in §27 with the rest of that screen. */
+@media (max-width:560px){
   .king-progress{padding-left:var(--sp-4);padding-right:var(--sp-4)}
-}
-
-/* ===== batch (v52): Menu tab on the canonical panel skeleton + tap-to-edit cards ===== */
-/* Page order: h2 "Menu" > .panel-actions (+ New menu primary, + Existing dish, strapline) >
-   .an-controls (menu picker = the page's context filter with Delete glued to it, search under)
-   > two QUIET meta lines (target sentence, colour key) > sectioned card list. One left edge. */
-/* v60 item 7 (Max): full Products parity. Two stacked rows at EVERY width — the menu picker + Delete,
-   then a full-width controls row (search flex + category filter + Clear filters) that IS a nested
-   .ing-controls, so it inherits Products' exact heights/gaps/order. The old ≥640px switch to a single
-   flex-direction:row (picker beside search, ragged widths) and the .menu-search flex:0 0 auto override
-   are gone — the search now grows like Products' (governed by .ing-controls .menu-search). */
-.an-controls{display:flex;flex-direction:column;gap:var(--sp-3);padding-bottom:0}
-.an-controls .menu-picker-row select{font-weight:700}
-.an-controls .ing-controls{padding:0}   /* .an-controls already supplies the gutter; without this the nested row's own sp-5/sp-4 padding double-indents it past the picker row's left edge */
-/* v115 tombstone: .cogs-meta rule deleted with its markup */
-
-/* tap-to-edit rows (Edit button retired — one interaction language with the v46 ingredient cards) */
-.atable tbody tr.mi-row{cursor:pointer;transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}
-.mi-name{display:inline;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
-.mi-name:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-
-/* Q3 (v122): the lt-* stripe paint is RETIRED — the coloured Margin figure is now the row's verdict,
-   so the stripe restated it (the same reason v115 removed the pip). The lt-* classes stay in the
-   markup: they are pinned wiring, and the mlf filter chips still key off the same lights.
-   Tombstone for the border-left / inset-box-shadow stripe rules. */
-.mi-uncosted{font-size:var(--fs-xs);font-weight:600;color:var(--muted2);margin-left:var(--sp-1)}
-
-/* Q3 (v122) phones: ONE surface of one-line rows (was: a card per plate with a 2×2 labelled grid).
-   The tbody is the card; section eyebrows sit inside it; each row is name + coloured verdict with a
-   "$x cost · $y on menu" sub-line. Same 5-td markup as desktop — layout is all grid placement here.
-   `:not(.invtable)` below is SPECIFICITY (to out-rank the shared card rule), not scoping — the
-   invoice table is .invtable, not .atable, and none of this touches it. */
-@media (max-width:639px){
-  #tab-analysis .atable tbody{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden}
-  .atable:not(.invtable) tbody tr:not(.sec):not(.ni-row){position:static;background:none;border:0;border-radius:0;margin:0;padding:var(--sp-3) var(--sp-4)}
-  .atable:not(.invtable) tbody tr.sec{margin:0;padding:var(--sp-3) var(--sp-4) var(--sp-1)}
-  .atable:not(.invtable) tbody tr.mi-row + tr.mi-row,
-  .atable:not(.invtable) tbody tr.mi-row + tr.sec{border-top:1px solid var(--border)}
-  .atable:not(.invtable) tbody tr.mi-row{display:grid;grid-template-columns:max-content max-content 1fr auto;column-gap:var(--sp-1);align-items:center}
-  .atable:not(.invtable) tbody tr.mi-row td{border:0;padding:0}
-  .atable:not(.invtable) tbody tr.mi-row > td:first-child{grid-area:1/1/2/4;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:var(--sp-1) var(--sp-2);padding:0 0 2px;font-size:var(--fs-base);font-weight:700}   /* flex-start: the base td rule's space-between would fling "· not costed yet" to the far edge */
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(2){grid-area:2/1}
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(3){display:none}   /* Suggested is a desktop column; the verdict already carries the target */
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(4){grid-area:2/2}
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(2),
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(4){display:block;font-size:var(--fs-xs);color:var(--text2);font-weight:normal}
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(2)::after{content:" cost ·";font-family:var(--ui);color:var(--muted2)}
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(4)::after{content:" on menu";font-family:var(--ui);color:var(--muted2)}
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(5){grid-area:1/4/3/5;align-self:center;display:block;text-align:right}   /* display:block, or the cell keeps the base flex and text-align is inert */
-  .atable:not(.invtable) tbody tr.mi-row td:nth-child(5) .vbadge{white-space:normal}   /* a pathological verdict (price far under cost) wraps inside the card instead of clipping at its edge */
-  .atable:not(.invtable) tbody tr.mi-row .cost-range{display:none}   /* the min–max band is a desktop detail; the one-line row has no room for it */
-  .atable:not(.invtable) tbody tr.muted td:nth-child(2){display:none}   /* uncosted: "· not costed yet" already rides the name — a bare "— cost" would say it worse */
-  .atable:not(.invtable) tbody tr.muted td:nth-child(4){grid-area:2/1/3/3}   /* with the cost cell hidden, the price takes the sub-line's left edge (no phantom first-column gap) */
-  .atable tbody tr.mi-row .mi-act{margin-top:0;margin-left:auto}   /* the chip rides the name line instead of costing a row */
-}
-@media (min-width:640px){   /* Q3 (v122) desktop: quiet figures, loud price, verdict in the Margin cell */
-  .atable tbody tr.mi-row .mi-act{display:inline-flex;margin:0 0 0 var(--sp-2);vertical-align:middle}   /* chip inline with the name — keeps rows one line tall */
-  .atable:not(.invtable) tbody tr.mi-row td:first-child{font-weight:700}   /* .mi-row, not tr:not(.sec) — the wider selector bolded the empty-state row's body copy */
-  .atable:not(.invtable) tbody tr:not(.sec):not(.muted) td:nth-child(2),
-  .atable:not(.invtable) tbody tr:not(.sec):not(.muted) td:nth-child(3){color:var(--text2)}
-  .atable:not(.invtable) tbody tr:not(.sec) td:nth-child(4){font-size:var(--fs-md);font-weight:700}
-  .atable:not(.invtable) tbody tr:not(.sec):not(.muted) td:nth-child(4){color:var(--text)}
-  .atable tbody tr.mi-row:hover td{background:var(--hover)}
 }
 
 
@@ -3306,9 +3167,11 @@ html{scrollbar-gutter:stable}
 
 /* -- the list surface. Bordered rounded container on desktop; on mobile the mock has
       no container at all, just rows divided by hairlines on the page. -- */
-/* -- the control row (mock §3.3: search grows, category select beside it). Its own classes: the
-      shared `.ing-controls`/`.menu-search`/`.ing-filter` still dress four unconverted screens, and
-      restyling them would convert those screens by accident. -- */
+/* -- the control row (mock §3.3: search grows, category select beside it). Its own classes,
+      because when F2 wrote them the shared `.ing-controls`/`.ing-filter` still dressed four
+      unconverted screens and restyling those would have converted them by accident. F5 (v142)
+      converted the last of them and DELETED that family, so these are now simply the app's control
+      classes, reused by Ingredients, Products and Menu. -- */
 /* `:not([hidden])` for the same reason as `.plib-note` below — a bare `display:flex` outranks the
    UA's `[hidden]{display:none}`, so the renderer's hide would be ignored on the empty state. */
 .plib-controls:not([hidden]){display:flex}
@@ -3399,7 +3262,7 @@ html{scrollbar-gutter:stable}
    under the thing it describes. The renderer still toggles `hidden` at both widths, so the
    empty-state rule holds either way. */
 .plib-note{display:none;margin:var(--sp-3) var(--sp-5) var(--sp-4);font-size:12px;color:var(--text-3)}
-/* THE mobile collapse — the same 560 step .panel-actions/.ing-controls already take */
+/* THE mobile collapse — the same 560 step `.scr-head` / `.plib-controls` already take */
 @media (max-width:560px){
   #plateList{margin-left:var(--sp-4);margin-right:var(--sp-4)}
   .plib-note{margin-left:var(--sp-4);margin-right:var(--sp-4)}
@@ -3658,10 +3521,11 @@ html{scrollbar-gutter:stable}
    renderIngredients emits them (verified across index.html and app.js), so
    there is no shared system to unpick — the rules change, the names do not,
    and every handler, spec and `data-id` reader still finds what it looks for.
-   `.ing-controls` / `.ing-filter` / `.menu-search` are NOT in that set: the
-   Menu screen still wears them, so this screen took F2's `.plib-*` control
-   classes instead. Header bar, control row and footnote reuse `.scr-head` /
-   `.plib-*` rather than being rebuilt.
+   `.ing-controls` / `.ing-filter` were NOT in that set: the Menu screen still
+   wore them in F4, so this screen took F2's `.plib-*` control classes instead.
+   F5 (v142) converted Menu and deleted that family outright. Header bar,
+   control row and footnote reuse `.scr-head` / `.plib-*` rather than being
+   rebuilt.
    ⚠ Every declaration written at BOTH breakpoints below carries the SAME
    specificity. Specificity is compared before source order, so a multi-class
    selector outside a media query beats a single-class rule inside one — the
@@ -3840,13 +3704,197 @@ html{scrollbar-gutter:stable}
   .nl-badge[hidden]{display:none}
 }
 
-/* ======================================================================
-   §V4a (v134) — the Menu screen adopts the v3 table system (spec §3.2)
-   Everything here is #tab-analysis-scoped (the .atable-wrap is shared
-   with the invoice review, a documented fragile area) and ≥640 for the
-   table / ≥1024 for the pills — the phone keeps today's cards until V9.
-   ====================================================================== */
+/* ----------------------------------------------------------------------
+   31. F5 (v142) — THE MENU SCREEN, REBUILT FROM THE v3 MOCK
+   Replaces §V4a (v134), which skinned the shared `.atable` table with
+   #tab-analysis-scoped overrides — a hybrid by protocol §2's definition.
+   Source: `Redesign v3 - SaaS.dc.html` §3.2 desktop, `… Mobile.dc.html` §6.
+   One breakpoint, 768 (v3 §6); the old 640 switch is gone with `.atable`.
+   F2's ported patterns are reused unchanged, not rebuilt: `.scr-head`,
+   `.plib-controls`, `.plib-search`, `.plib-x`, `.plib-selwrap`,
+   `.plib-filter`, `.plib-btn2`, `.plib-note`.
+
+   ⚠ EVERY declaration appearing at BOTH breakpoints is written with the
+   SAME selector specificity on both sides, and every mobile ::before /
+   ::after has a matching-specificity desktop `content:none`. A multi-class
+   selector outside a media query beats a single-class one inside it, and
+   the symptom is a rule that looks right in the file and does nothing on
+   screen — CLAUDE.md Tier 1, five instances in F3 alone, one of them
+   written INTO the fix for another.
+   ---------------------------------------------------------------------- */
+
+/* ---- the switcher row (mock §3.2: switcher left, search right) ---- */
 .menu-pills{display:none}
+/* the picker cluster grows; the search sits at the right. Both `.mnu-switch .plib-search` rules are
+   written at the SAME specificity (0-2-0) at BOTH breakpoints, per the header note — the base one
+   would otherwise be a 0-1-0 `.plib-search` and which rule won would depend on where the file put
+   it rather than on which breakpoint is active. On a phone the search takes its own full-width line
+   (§6 tints and full-widths it); at ≥768 the mock gives it a fixed 200px at the row's right. */
+.menu-picker-row{display:flex;align-items:center;gap:var(--sp-2);flex:1 1 220px;min-width:0}
+.mnu-switch .plib-search{flex:1 1 100%}
+.mnu-selwrap{flex:1 1 auto;max-width:none}
+/* the mobile mock's food-cost pill beside the menu name (R5 note in index.html: the mock puts
+   the trio in the header, which `.scr-head` owns). `:not([hidden])` is load-bearing — an author
+   `display` rule beats the UA's `[hidden]{display:none}` on ORIGIN, which is resolved before
+   specificity, so matching specificity would not help; the guard stops it matching at all. */
+.mnu-pct{
+  flex:0 0 auto;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:11.5px;font-weight:500;border-radius:var(--radius-pill);padding:2px 9px;
+  color:var(--text-2);background:var(--hover-2);
+}
+.mnu-pct:not([hidden]){display:inline-block}
+.mnu-pct.good{color:var(--good);background:var(--good-bg)}
+.mnu-pct.bad{color:var(--bad);background:var(--bad-bg)}
+
+/* ---- the list surface. Bordered rounded container on desktop; on mobile the mock has no
+        container at all, just rows divided by hairlines on the page — as F2/F3/F4. ---- */
+#aList{display:block;margin:var(--sp-2) var(--sp-5) 0}
+.mnu-band{display:none}
+/* the mock's uppercase group row, inside the table container */
+.mnu-sec{
+  padding:var(--sp-5) 0 var(--sp-1);font-size:11.5px;font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);
+}
+.mnu-sec:first-child{padding-top:var(--sp-2)}
+
+/* MOBILE (<768, the v3 breakpoint): §6's two-line row — name over a muted meta line on the
+   left, price over the verdict pill on the right. `.mnu-id` dissolves so the name and the
+   not-costed note can be separate grid children on separate lines; at ≥768 it becomes a real
+   box again and they sit inline, which is the same trick `.plib-id` uses on Plates. */
+/* the third track is CAPPED, not `max-content`, and that is measured rather than chosen: this
+   app's verdict pill carries a WORD as well as a figure ("42.9% · well over"), because hue alone
+   was the only amber/red discriminator before v131. Its unwrapped max-content is 149px on a 380px
+   phone, which left the meta line 95px for 103px of text and silently ellipsed a PRICE — "suggested
+   $10…". Capping the track lets the long verdicts wrap instead, so no number is ever cut; a short
+   verdict is under the cap and still renders on one line. */
+.mnu-row{
+  display:grid;grid-template-columns:max-content minmax(0,1fr) minmax(0,38%);column-gap:0;
+  align-items:center;width:100%;min-height:56px;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--hairline);border-radius:0;
+  padding:var(--sp-3) 0;color:var(--text);cursor:pointer;font:inherit;
+  transition:background var(--t-fast) var(--ease);
+}
+.mnu-row:last-child{border-bottom:0}
+.mnu-id{display:contents}
+.mnu-nm{grid-column:1 / 3;grid-row:1;font-size:var(--fs-base);font-weight:500;line-height:1.3;min-width:0}
+/* the meta line. The mock writes it "$2.31 cost, suggested $5.78" — ONE string built from two
+   cells, so the phone and the desktop columns can never state different numbers. The spaces are
+   escaped NBSPs: a trailing space inside `content` collapses away (F2 found that on a phone). */
+.mnu-cost{grid-column:1;grid-row:2}
+.mnu-sug{grid-column:2;grid-row:2}
+/* ⚠ SIX digits, not four. A CSS hex escape consumes up to SIX hex digits, so `\00a0cost` is read as
+   the single code point U+0A0C followed by "ost" — the phone rendered "$2.00਌ost," and the letter
+   was eaten in silence. `\0000a0` is unambiguous because the escape is already full. (The other
+   legal form, `\a0 cost`, terminates the escape with a space that is then consumed — correct, but
+   it looks like a typo and invites someone to "fix" it.) F2 met the neighbouring trap on Plates: a
+   TRAILING ordinary space inside `content` collapses away, which is why these are NBSPs at all. */
+.mnu-cost::after{content:"\0000a0cost,\0000a0"}
+.mnu-sug::before{content:"suggested\0000a0"}
+.mnu-cost,.mnu-sug{font-size:12.5px;font-weight:400;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* uncosted: the mock's phone row says "not costed yet" on the meta line and nothing else, so the
+   two dashes that ARE the desktop columns stand down rather than reading "— cost, suggested —" */
+.mnu-row.muted .mnu-cost,.mnu-row.muted .mnu-sug{display:none}
+.mi-uncosted{grid-column:1 / 3;grid-row:2;font-size:12.5px;font-weight:400;color:var(--text-3)}
+.mnu-price{
+  grid-column:3;grid-row:1;margin-left:var(--sp-3);align-self:end;
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:500;text-align:right;white-space:nowrap;
+}
+.mnu-verdict{grid-column:3;grid-row:2;margin-left:var(--sp-3);margin-top:3px;text-align:right;white-space:nowrap}
+/* the min–max band is a desktop detail; the phone's meta line has no room for it. Scoped to the
+   cell that holds it, at BOTH breakpoints, so the pair has one specificity and neither can win by
+   file position — the base `.cost-range` rule further up owns the band's font and colour. */
+.mnu-cost .cost-range{display:none}
+/* the verdict pill (mock §3.2's rightmost status pill), at BOTH widths — the mobile mock draws it
+   too. The v122 decision stands: the coloured FIGURE is the row's verdict and reads at table size,
+   so this is tint and shape only and the mock's 11.5/500 is deliberately not taken (a first cut of
+   §V4a shrank it and quietly reversed that decision — review finding). The vbadge markup, wording
+   and aria are the v131 exact-pinned law and are untouched by any of it.
+   Scoped to `.mnu-verdict`: `vbadge()` is the only emitter today, but an unscoped tint would dress
+   any future one by surprise, which is the accident protocol §2 exists to prevent.
+   `white-space:normal` — a pathological verdict (a price far under cost) wraps inside the row
+   instead of clipping at its edge; the base `.vbadge` rule sets `nowrap` for narrower contexts. */
+.mnu-verdict .vbadge{display:inline-block;border-radius:var(--radius-pill);padding:2px 8px;white-space:normal}
+.mnu-verdict .vbadge.vgood{background:var(--good-bg)}
+.mnu-verdict .vbadge.vwarn{background:var(--warn-bg)}
+.mnu-verdict .vbadge.vbad{background:var(--bad-bg)}
+/* as F2: the row's border box coincides with the container's padding box once the surface
+   appears at ≥768, so an outset ring would fall inside `overflow:hidden` and a keyboard user
+   on a one-row list would see nothing. Inset at every width. */
+.mnu-row:focus-visible{outline-offset:-2px}
+@media (hover:hover) and (pointer:fine){   /* gated: an ungated tint sticks after a tap on iOS */
+  .mnu-row:hover{background:var(--hover)}
+}
+
+/* ---- R3: Delete, rehomed from beside the switcher to the screen footer. §2's destructive
+        button (white, danger hairline, red text) — the shape §3.8 gives Delete-workspace.
+        `updateMenuDelBtn` toggles inline `style.display`, which outranks any rule here, so
+        this only has to supply the display it restores. ---- */
+.mnu-del{
+  display:inline-flex;align-items:center;margin:var(--sp-2) var(--sp-5) var(--sp-6);
+  font:inherit;font-size:13px;font-weight:500;min-height:44px;padding:8px 12px;cursor:pointer;
+  border:1px solid var(--danger-border);border-radius:var(--radius-ctl);
+  background:var(--surface);color:var(--bad);
+}
+@media (hover:hover) and (pointer:fine){ .mnu-del:hover{background:var(--bad-bg)} }
+
+/* THE mobile collapse — the same 560 step .scr-head/.plib-controls already take */
+@media (max-width:560px){
+  #aList{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+  .mnu-del{margin-left:var(--sp-4);margin-right:var(--sp-4)}
+}
+
+@media (min-width:768px){
+  /* the bordered rounded container, and the mock's five columns */
+  #aList{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-card);overflow:hidden;
+  }
+  /* the band and the rows are separate grid containers, so BOTH templates are fixed and
+     IDENTICAL — a max-content track resolves per container and drifts columns apart between
+     them (v135's review measured up to 27px on Plates). The spec asserts the resulting
+     alignment rather than the template, so a future re-track that still lines up is allowed. */
+  /* the mock's five columns, with ONE widened: its Food cost column is 130px because its pill is
+     just "45.5%". Ours adds the v131 word, and at 130 the pill wrapped to two lines on every amber
+     and red row — the rows that matter most. 160 fits "42.9% · well over" on one line, measured. */
+  .mnu-band,.mnu-row{grid-template-columns:minmax(0,1fr) 90px 130px 100px 160px;column-gap:var(--sp-4)}
+  .mnu-switch .plib-search{flex:0 1 200px}
+  .mnu-band:not([hidden]){display:grid}
+  .mnu-band{
+    align-items:center;padding:9px var(--sp-4);
+    font-size:11.5px;font-weight:500;color:var(--text-3);
+    background:var(--surface-2);border-bottom:1px solid var(--border);
+  }
+  .mb-num{text-align:right}
+  .mnu-sec{padding:var(--sp-3) var(--sp-4) 6px;border-bottom:1px solid var(--hairline)}
+  .mnu-sec:first-child{padding-top:var(--sp-3)}
+  .mnu-row{min-height:0;padding:10px var(--sp-4);align-items:center;border-bottom:1px solid var(--hairline)}
+  .mnu-row:last-child{border-bottom:0}
+  /* identity left: name and the not-costed note share ONE cell, so `.mnu-id` is a box again */
+  .mnu-id{display:flex;align-items:baseline;column-gap:6px;min-width:0;grid-column:1;grid-row:1}
+  .mnu-nm{grid-column:auto;grid-row:auto;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mi-uncosted{grid-column:auto;grid-row:auto;font-size:12px;white-space:nowrap}
+  /* mono figures right. Cancelling the two meta prefixes needs the SAME specificity as the rules
+     that set them — this is the exact pair F3 got wrong five times in one screen. */
+  .mnu-cost::after{content:none}
+  .mnu-sug::before{content:none}
+  .mnu-cost{grid-column:2;grid-row:1}
+  .mnu-sug{grid-column:3;grid-row:1}
+  .mnu-cost,.mnu-sug{
+    font-family:var(--mono);font-variant-numeric:tabular-nums;
+    font-size:12.5px;color:var(--text-2);text-align:right;overflow:visible;
+  }
+  .mnu-row.muted .mnu-cost,.mnu-row.muted .mnu-sug{display:block}
+  .mnu-cost.is-nil,.mnu-sug.is-nil{color:var(--text-3)}
+  .mnu-price{grid-column:4;grid-row:1;margin-left:0;align-self:center;font-size:13px}
+  .mnu-verdict{grid-column:5;grid-row:1;margin-left:0;margin-top:0}
+  /* desktop has the width for one line, so take it — a wrapped pill makes the row two lines tall
+     and breaks the table's rhythm. The phone keeps the wrap, which is what its cap is for. */
+  .mnu-verdict .vbadge{white-space:nowrap}
+  .mnu-cost .cost-range{display:block}
+  .mnu-row.muted .mnu-nm{color:var(--text-2)}
+  .mnu-del{margin-left:var(--sp-5);margin-right:var(--sp-5)}
+}
 @media (min-width:1024px){
   .menu-pills{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .menu-pills[hidden]{display:none}
@@ -3861,30 +3909,16 @@ html{scrollbar-gutter:stable}
   .mp-pct{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11.5px}
   .mp-pct.good{color:var(--good)}
   .mp-pct.bad{color:var(--bad)}
-  /* with pills up, the select would be a second control for the same switch — it stays the
-     mobile control and the >5-menus fallback. Delete keeps the row's right edge (the select
-     was the row's only growing child; without this the destructive button lands against the
-     most-clicked control — review finding). */
-  .menu-picker-row.pills-on #menuSelect{display:none}
-  .menu-picker-row.pills-on .menu-del-btn{margin-left:auto}
+  /* with pills up the select is a second control for the same switch, so the whole wrapper
+     stands down — hiding the select alone would leave `.plib-selwrap`'s drawn chevron floating
+     beside the pills. It stays the phone's Switch control and the >5-menus overflow.
+     F5: the % pill stands down too — every pill already carries its own menu's figure, and
+     stating the active one twice on one row is the restatement §V4a's pip and stripe were both
+     removed for. */
+  .menu-picker-row.pills-on .mnu-selwrap{display:none}
+  .menu-picker-row.pills-on .mnu-pct:not([hidden]){display:none}
   /* ≥1024 includes iPad portrait — a coarse pointer gets the full touch floor on the ONLY switcher */
   @media (pointer:coarse){ .menu-pill{min-height:44px} }
-}
-@media (min-width:640px){
-  /* the v3 column-label band (V2's remaining primitive, first consumed here) — the header
-     names themselves are pinned by tests and do not change */
-  #tab-analysis .atable thead th{background:var(--surface2);font-size:11.5px;font-weight:500;color:var(--muted2);border-bottom:1px solid var(--border);text-transform:none;letter-spacing:0}
-  /* uppercase group rows per the mock */
-  #tab-analysis .atable tr.sec>td{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);border-bottom:1px solid var(--divider)}
-  /* the verdict cell wears the v3 tint as a PILL — CSS only: the vbadge markup, wording and
-     aria (the v131 law) are exact-pinned and untouched */
-  /* tint ONLY — the v122 decision ("the coloured figure is the row's verdict and reads at
-     table size", fs-sm/700) stands; the first cut shrank it to the mock's 11.5/500, which
-     quietly reversed a recorded decision (review finding) */
-  #tab-analysis .vbadge{display:inline-block;border-radius:var(--radius-pill);padding:2px 8px}
-  #tab-analysis .vbadge.vgood{background:var(--good-bg)}
-  #tab-analysis .vbadge.vwarn{background:var(--warn-bg)}
-  #tab-analysis .vbadge.vbad{background:var(--bad-bg)}
 }
 
 /* §V4b (v135) tombstone — the `#plateList > .ing-colhead` band and its 640px switch are GONE.
