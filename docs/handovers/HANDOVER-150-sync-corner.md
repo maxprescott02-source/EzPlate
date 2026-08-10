@@ -12,8 +12,10 @@ Mobile and tablet are deliberately unchanged and now pinned as unchanged.
 
 ## Into CLAUDE.md
 
-Nothing.
-The one candidate rule I considered proposing is written in the code instead, because it is about this file rather than about the project: deleting a layout element hands its band to whatever is pinned to the viewport at that offset.
+One rule PROPOSED, awaiting Max's yes, queued as a blocked item so it is not lost: a viewport-geometry assertion must measure the fixed-position containing block with a `left:0;right:0` probe rather than read `window.innerWidth` or `documentElement.clientWidth`, because on the CI runner all three disagree and only the probe is right.
+It cost three CI round-trips here and every remaining F-item writes geometry pins, so it will bite again.
+
+Not proposed, and written in the code instead, because it is about this file rather than about the project: deleting a layout element hands its band to whatever is pinned to the viewport at that offset.
 It sits at `css/style.css` on the v132 `header{display:none}` comment, where the next person to delete a layout element will read it.
 
 ## New docs/QUEUE.md items
@@ -53,6 +55,18 @@ No defects.
 One nit, fixed in branch: the spec's chrome selector list carried a `.side` that matches nothing, since the sidebar's controls are `.side-brand` and `.side-theme` and both sit inside `nav.bottomnav`, already covered.
 Verified against the markup before removing it, because a dead selector in a coverage list reads as coverage it does not provide.
 Worth recording that the reviewer re-derived the "7 of 10 tests fail against the pre-fix CSS" claim by mutating the CSS itself rather than believing the handover.
+
+## The CI lesson, which is the batch's own lesson again
+
+The two mobile assertions passed on macOS and failed on the Linux runner three times running.
+Both of my first two fixes were theories about why, written without measuring, and both were wrong.
+Instrumenting the assertion to print its own geometry settled it in one run: the fixed-position containing block on that runner is NARROWER than the viewport, 370 inside 380 and 759 inside 768, while `window.innerWidth` and `document.documentElement.clientWidth` agree with each other and are both wrong.
+`.bottomnav` at 380 is 370 wide too, which is why "is this a left rail or a bottom bar?" answered by comparing widths applied a 185px offset to the bottom bar.
+Both are now measured rather than inferred: a `left:0;right:0` probe for the containing block, and rail orientation (taller than wide) for the offset.
+
+Worth writing down because it is the same mistake as the defect the batch exists to fix, one level up.
+The queue item inferred the collision from the one banner state it happened to see; I inferred the CI failure from the one platform I could run.
+**A viewport measurement that has not been taken on the platform it is asserted on is a guess.**
 
 ## Surprises
 
