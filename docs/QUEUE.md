@@ -26,11 +26,21 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 
 ---
 
-## next  1 · F10 — Account (desktop §3.9 + mobile §6, one item) — expect this to reduce to ONE QUESTION  **[B]**
+## blocked  1 · F10 — Account (desktop §3.9 + mobile §6, one item)  **[B]**
 
-⚠️ R4 nearly in full: profile, team, invite, plan and billing describe auth, roles and billing that DO NOT EXIST. Per §5's stop-and-ask, put the one question to Max with a recommendation when this is reached — ship a minimal honest screen for what exists today, or leave Account entirely to the multi-tenant phase and let More/sidebar omit it. Do not build UI shells for absent capabilities either way.
+⚠️ R4 nearly in full: profile, team, invite, plan and billing describe auth, roles and billing that DO NOT EXIST. **Do not build UI shells for absent capabilities either way.**
 **Delete workspace stays GATED on the multi-tenant phase**: no workspace concept exists to delete, so the control does not ship before the capability. The type-to-confirm design is banked in the mock and §4.
 §4 criteria apply to whatever ships.
+
+**Reached 11 Aug 2026 by the F9 batch, which put the question as the item instructs.** What was checked before asking, so it is not re-checked:
+- Every control the mock's §3.9 shows has NO backing. There is no auth, no user record, no team table, no roles, no plan and no billing. `list_tables` shows eleven public tables and none of them is a user or a business.
+- The app already says so honestly in TWO places: the Settings screen ships an Account card reading "Sign-in and account settings arrive with EzPlate accounts." and a Team card reading "Team roles arrive with EzPlate accounts." Both shipped in `ezplate-v148` and F9 left them for this item to decide.
+- So the real choice is not "what does the Account screen contain" — it is whether an Account SCREEN should exist at all before the capability does.
+
+Blocked on: **ship a minimal Account screen now, or leave Account entirely to the multi-tenant phase?**
+**Recommendation: leave it to the multi-tenant phase.** Every row on that screen would be a sentence saying the feature is coming, and the two cards already on Settings say it in the place a person actually looks. A screen whose whole content is "this arrives later" is the dead end §6 forbids, and it would have to be rebuilt from scratch the moment auth lands.
+⚠️ **A "no" ANSWERS this item rather than deleting it** — the fold-in has no Account screen, the two Settings cards are the whole answer, and `The mobile More screen` drops its `Do after: F10` and rehomes three screens instead of four. Record it here and delete the item.
+A "yes" means one screen with the two existing sentences on it and nothing else; say so and it ships in one batch.
 
 ## next  2 · The mobile More screen, and Products/Invoices/Settings/Account as sub-screens under it  **[B]**
 
