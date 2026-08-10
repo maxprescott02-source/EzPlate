@@ -376,8 +376,8 @@ test('F9: showTab runs the priming on every entry to the screen', () => {
   const showTab = extractFn(APP, 'showTab');
   assert.ok(/if\(t==='settings'\)renderSettingsTab\(\);/.test(showTab),
     'showTab calls renderSettingsTab when it switches to the settings screen');
-  assert.ok(/'invoices','settings','account'\]/.test(showTab),
-    'and the pane-visibility list knows about the settings AND account panes, or a screen never shows');
+  assert.ok(/TAB_PANES\.forEach/.test(showTab),
+    'and it drives pane visibility from the shared TAB_PANES list, not a copy of its own');
   // the boot race: restoreLastTab() runs BEFORE bootstrapSync resolves, so a refresh landing on
   // Settings paints pre-boot defaults unless rerenderCurrentTab re-primes it
   assert.ok(/t==='settings'\)renderSettingsTab\(\)/.test(extractFn(APP, 'rerenderCurrentTab')),
@@ -387,8 +387,8 @@ test('F9: showTab runs the priming on every entry to the screen', () => {
      and this fallback loop is unreachable today. Pinned anyway, because the More-screen item
      rearranges exactly which nav button is lit, and a pane shown with no lit button is what this
      loop is for. The assertion is on the LIST, not on a behaviour, and says so. */
-  assert.ok(/'pantry','settings','account'\]/.test(extractFn(APP, 'currentTab')),
-    "currentTab's fallback name list includes the settings and account panes");
+  assert.ok(/names=TAB_PANES/.test(extractFn(APP, 'currentTab')),
+    "currentTab's fallback reads the shared pane list — load-bearing for #tab-account, which has no nav button");
 });
 
 test('v81: relocating settings kept every id handlers bind to', () => {
@@ -416,6 +416,38 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
   ['Edit profile', 'Invite a teammate', 'Manage billing', 'Sign out'].forEach((dead) => {
     assert.ok(body.indexOf(dead) < 0, `${dead} must not ship — it has nothing behind it`);
   });
+});
+
+/* Found by the F10 pre-push review, which REPRODUCED it in a browser: #builderPage is a sibling of
+   the #tab-* panes in normal flow, not a positioned overlay, so a pane openBuilder forgets to hide
+   renders UNDERNEATH the builder — two screens at once, no error, nothing in the console. Four
+   separate lists named the panes and openBuilder's had never grown past the original five, so it was
+   already live for Invoices (F8) and Settings (F9).
+   This pins the ROOT CAUSE rather than the symptom: one array, read by all four. A test that only
+   checked openBuilder's list contained 'account' would pass the day someone adds a ninth pane and
+   forgets it again, which is exactly how this got here. */
+test('F10: one pane list, read by every place that shows or hides a pane', () => {
+  const decl = APP.match(/var TAB_PANES=\[([^\]]*)\];/);
+  assert.ok(decl, 'TAB_PANES is declared once, as a literal');
+  const panes = decl[1].split(',').map((x) => x.trim().replace(/'/g, ''));
+  assert.deepEqual(panes,
+    ['builder', 'ingredients', 'analysis', 'dashboard', 'pantry', 'invoices', 'settings', 'account'],
+    'every screen that has a #tab-* pane is listed');
+  // …and every listed pane really exists in the markup, or the list is lying
+  panes.forEach((n) => assert.ok(HTML.indexOf(`id="tab-${n}"`) >= 0, `#tab-${n} exists`));
+  // …and no pane in the markup is MISSING from the list, which is the direction that stacks screens
+  [...HTML.matchAll(/id="tab-([a-z]+)"/g)].map((m) => m[1]).forEach((n) => {
+    assert.ok(panes.indexOf(n) >= 0, `#tab-${n} is in TAB_PANES — a pane missing from it renders under the builder page`);
+  });
+  // the four readers. Each must use the shared constant, not a literal of its own.
+  ['showTab', 'restoreLastTab', 'currentTab', 'openBuilder'].forEach((fn) => {
+    const src = extractFn(APP, fn);
+    assert.ok(/TAB_PANES/.test(src), `${fn} reads the shared list`);
+    assert.ok(!/\['builder','ingredients'/.test(src), `${fn} does not carry its own copy of the pane list`);
+  });
+  // TAB_PANES must be declared BEFORE currentTab reads it — `var` hoists the name, not the value
+  assert.ok(APP.indexOf('var TAB_PANES=') < APP.indexOf('function currentTab('),
+    'declared above its first reader, or currentTab sees undefined');
 });
 
 test('F10: the Settings row is the only route to the account screen, so it must exist', () => {

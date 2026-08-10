@@ -1461,16 +1461,27 @@ function bindTips(){
 }
 document.addEventListener('click',()=>document.querySelectorAll('.tip.open').forEach(o=>o.classList.remove('open')));
 /* tabs */
+/* F10 (v149), from the pre-push review, which reproduced this in a browser.
+   FOUR separate lists named the tab panes and they were allowed to disagree: showTab's toggle,
+   restoreLastTab's VALID, currentTab's fallback order, and openBuilder's hide list. #builderPage is
+   a SIBLING of the panes in normal flow, not a positioned overlay, so any pane openBuilder forgets
+   stays rendered UNDER the builder — two screens on top of each other, no error and nothing in the
+   console. openBuilder's list had never grown past the original five, so this was already live for
+   Invoices (F8) and Settings (F9); F10 would have made it three.
+   It is ONE array now. Adding a pane means adding it here and nowhere else.
+   Order matters to currentTab, which returns the first VISIBLE pane, and 'builder' stays first
+   because it is also the default. */
+var TAB_PANES=['builder','ingredients','analysis','dashboard','pantry','invoices','settings','account'];
 function currentTab(){
   var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
-  /* F9 (v148) added 'settings' as a DEFENSIVE entry that was unreachable: #sideSettings carries
-     .navbtn and data-tab at every width, so the branch above already answered it.
-     F10 (v149) added 'account', and that one is LOAD-BEARING — this loop is reached for real now.
-     #tab-account has NO nav button anywhere: its only route is the Open row on the Settings screen,
-     so while it is showing `.navbtn.active` still holds whatever tab was lit before and the branch
-     above answers with the WRONG tab. Without 'account' here, currentTab() reports 'builder' and
-     rerenderCurrentTab repaints the Plates library over the top of a boot. */
-  var names=['builder','ingredients','analysis','dashboard','pantry','settings','account'];
+  /* This loop is LOAD-BEARING for #tab-account, and the pre-push review corrected the mechanism, so
+     it is written out rather than summarised. No .navbtn carries data-tab="account", and showTab
+     toggles `active` on EVERY .navbtn against the target — so showTab('account') CLEARS the class
+     from all of them rather than leaving a stale one lit. The branch above therefore finds nothing
+     and falls through here, which is the only thing stopping currentTab() answering 'builder' while
+     Account is on screen. (It is NOT load-bearing for 'settings': #sideSettings carries .navbtn and
+     data-tab at every width, CSS only hides it, so the branch above answers that one.) */
+  var names=TAB_PANES;
   for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
   return 'builder';
 }
@@ -1495,7 +1506,7 @@ function showTab(t){
      landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
-  ['builder','ingredients','analysis','dashboard','pantry','invoices','settings','account'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  TAB_PANES.forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   /* F7 (v146): the builder is a full PAGE now, a child of Plates rather than a tab of its own, so
      every tab change leaves it. Nothing is lost by that - the in-progress plate stays in memory and
      in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
@@ -1517,7 +1528,7 @@ function showTab(t){
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
-  var VALID=['builder','ingredients','analysis','dashboard','pantry','invoices','settings','account'];
+  var VALID=TAB_PANES;
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
 }
@@ -5784,7 +5795,7 @@ function focusBuilderPage(){
 }
 function openBuilder(){ armDraftSaves();                              // v84: the user is now IN the builder — draft saves are live from here (see armDraftSaves)
   if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); }
-  ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display='none'; });
+  TAB_PANES.forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display='none'; });   // F10 (v149): the SHARED list — a pane missing here renders UNDER the builder page, which is a sibling in normal flow, not an overlay
   /* the opener is captured BEFORE the panes are hidden - hiding the pane it lives in is what
      drops focus, so reading activeElement afterwards would only ever find <body>. */
   var _op=document.activeElement;
