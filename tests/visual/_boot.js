@@ -47,8 +47,13 @@ const PRODUCTS = JSON.parse(
 /* Served as empty-but-fine. Anything not handled explicitly is reported unsupported. */
 const EMPTY_OK = ['app_settings'];
 
+/* `opts.noProducts` serves the ingredients table EMPTY rather than the 393-row fixture. The Products
+   screen's true-empty state is unreachable otherwise — PRODUCTS is module-scoped in app.js, so a spec
+   cannot empty it from outside — and §4 makes that state part of every screen's definition of done.
+   It is a successful EMPTY read, not an error: `noClient` already covers the cannot-reach case, and
+   the two must not be confused (the app answers them differently, on purpose). */
 async function installBoot(page, opts = {}) {
-  const rows = Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
+  const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
     ([ingredientRows, emptyOk, noClient]) => {
       if (noClient) return;                       // opt out: exercise the real "can't reach the database" state

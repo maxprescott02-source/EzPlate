@@ -364,23 +364,31 @@ test('F3: the Ingredients header is the v3 one-row bar, not a stacked skeleton',
   await page.screenshot({ path: 'tests/visual/__shots__/v139-pantry-header.png' });
 });
 
-test('v45 item 4: button copy at both breakpoints', async ({ page }) => {
+/* F4 (v140) HONEST REWRITE. This pinned v45's shortening idiom on the Products primary: `+ New` on
+   a phone, `+ New product` at desktop, via `.btn-noun`. The v3 header supersedes BOTH halves for a
+   converted screen's primary — §7 allows one label per intent, so "New product" reads the same at
+   every width, exactly as Plates says "New plate" and Ingredients says "New ingredient". The idiom
+   is NOT dead: it still shortens SECONDARY actions, which is what the new middle assertion covers,
+   and the unconverted Menu tab's full-label-on-mobile pin is untouched. */
+test('v45 item 4 / F4: primaries say one thing at every width; secondaries still shorten', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
   await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="ingredients"]').click();
   await page.waitForTimeout(300);
-  expect((await page.locator('#newBtn').innerText()).trim(), 'mobile shortens to + New').toBe('+ New');
+  expect((await page.locator('#newBtn').innerText()).trim(), 'the converted primary does not shorten').toBe('New product');
+  expect((await page.locator('#importBtn').innerText()).trim(), 'the SECONDARY still shortens — the idiom survives where the room is tight').toBe('Import');
   await page.locator('.navbtn[data-tab="analysis"]').click();
   await page.waitForTimeout(300);
   // v100: reconciled with the v86 dish→plate terminology pass — the app has said "+ Existing plate"
   // since then; this pin was stale (red on unmodified main from v86 to v99).
-  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'full label survives mobile').toBe('+ Existing plate');
+  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'full label survives mobile (Menu is still unconverted)').toBe('+ Existing plate');
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.locator('.navbtn[data-tab="ingredients"]').click();
   await page.waitForTimeout(300);
-  expect((await page.locator('#newBtn').innerText()).trim(), 'desktop says + New product').toBe('+ New product');
+  expect((await page.locator('#newBtn').innerText()).trim(), 'and the same words at desktop').toBe('New product');
+  expect((await page.locator('#importBtn').innerText()).trim(), 'desktop gives the secondary its noun back').toBe('Import invoice');
 });
 
 // REMOVED (v70): "v45 item 5: dashboard target line keeps consistent headroom on every range" asserted the

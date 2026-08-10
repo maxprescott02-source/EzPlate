@@ -189,6 +189,7 @@ test('the focus ring survives the container clip — the v123 defect must not be
     const cs = getComputedStyle(row);
     const list = document.getElementById('plateList');
     return {
+      style: cs.outlineStyle,
       width: cs.outlineWidth,
       offset: cs.outlineOffset,
       clipped: getComputedStyle(list).overflow,
@@ -199,6 +200,11 @@ test('the focus ring survives the container clip — the v123 defect must not be
   // the container clips, and the row's border box coincides with its padding box — an OUTWARD
   // ring is invisible there. The offset must be negative, i.e. drawn inside the row.
   expect(ring.clipped).toBe('hidden');
+  /* F4 (v140) correction: `outlineWidth > 0` does NOT prove a ring is drawn. The UA default is 3px
+     at `outline-style:none`, so this assertion passed whether or not `:focus-visible` matched — it
+     could not have failed if the rule below it were deleted. Found while writing the same test for
+     Products, where the modality differed and the offset came back 0. Assert the STYLE too. */
+  expect(ring.style, 'a ring is actually painted').not.toBe('none');
   expect(parseFloat(ring.width)).toBeGreaterThan(0);
   expect(parseFloat(ring.offset), 'inset ring — an outward one dies in the clip').toBeLessThan(0);
 });

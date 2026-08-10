@@ -11,6 +11,32 @@ Production state below is measured, not assumed.
 
 ---
 
+## v140 - Products is rebuilt, and the floating "+" is gone
+
+The Products tab is a five-column table on desktop and two-line rows on the phone. Everything it
+could do before it still does: tap a row to edit a product, search, the category and supplier
+filters and their "Manage list..." doors, and Import invoice.
+
+- **The floating orange "+" in the bottom-right corner is DELETED.** "New product" now lives in the
+  screen header, where Plates and Ingredients already keep theirs. This is the one change you might
+  actively miss: the header scrolls away and the "+" never did, and you have ~400 products to
+  scroll. A failure is finding yourself scrolling back to the top to add a product. Say so if it
+  bites - the design forbids two buttons for one action, but it does not forbid the header sticking.
+- **The row no longer shows the BRAND on the phone.** It reads name, then "Category, Supplier"
+  underneath. The brand is still there on desktop and still in the row's own edit form. It came off
+  because keeping it truncated both: "Apple Slice…" next to "Heinz Wa…", neither readable. A failure
+  is not being able to tell two similar products apart in the list - e.g. two "Baked Beans" rows
+  from different brands. That is the exact case this trade risks, so it is worth a real look at your
+  own catalogue.
+- **"steady" where a price has not moved**, replacing the dash. Same word Ingredients now uses for
+  the same number. A failure is it reading as a status you have to act on rather than "no news".
+- **Two buttons in the header again: "Import" and "New product".** Same question v139 raised on
+  Ingredients, and here it is permanent rather than conditional - so answer it once for both
+  screens. A failure is the pair crowding the title or wrapping to a second line.
+- **The supplier column on your real catalogue.** Most of your products have no supplier recorded,
+  so on desktop that column is a lot of dashes. On the phone it simply does not appear. Say if the
+  dashes read as broken rather than as empty.
+
 ## v139 - Ingredients is rebuilt too, and it is now five columns
 
 The screen is a table on desktop and two-line rows on the phone. Everything it could do before it

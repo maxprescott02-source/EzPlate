@@ -111,6 +111,17 @@ function widthDeclarations(chain) {
     if (head.startsWith('@media')) {
       mediaStack.push(head);
       i = open + 1;
+      /* An EMPTY block — including one holding nothing but comments, which are stripped above —
+         closes RIGHT HERE. Without this the next `{` search jumps straight past its `}`, that `}`
+         is swallowed by the following rule's `replace(/^[};]+/,'')`, and the block never pops: every
+         later rule in the file is then resolved as if it were inside this media query. F4 (v140)
+         hit exactly that by leaving a comment where the last rule had been, and it dropped the
+         `.modal` width rule the assertions below depend on. It failed loudly that time; the same
+         slip could as easily make a rule that does not apply look like it does. */
+      while (mediaStack.length && /^\s*\}/.test(stripped.slice(i))) {
+        mediaStack.pop();
+        i = stripped.indexOf('}', i) + 1;
+      }
       continue;
     }
     if (head.startsWith('@')) { // @keyframes etc — skip the whole block

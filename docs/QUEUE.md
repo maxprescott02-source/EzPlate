@@ -75,25 +75,42 @@ Shipped 10 Aug 2026 as **`ezplate-v137`**. See the done section.
 ## done  F2 - Plates (desktop §3.3 + mobile §6, one item)
 Shipped 10 Aug 2026 as **`ezplate-v138`**. See the done section.
 
-⚠️ **Read this before F3.** The F-items describe the LIST and nothing else, so a batch can rebuild the table, satisfy every criterion the item names, and leave the screen's header and control row wearing v3 tokens over old markup - the hybrid §2 forbids. On F2 those two were the larger half of the CSS. **Every F-item includes its screen's header bar and its filter/search row**, with the screen's own classes: `.ing-controls`, `.menu-search`, `.ing-filter`, `.ms-clear` and `.panel` are all still dressing unconverted screens, so restyling any of them converts a screen by accident.
-`.scr-head` (title + muted subtitle + one right-aligned action) is built and is the shared §2 header bar - reuse it, do not rebuild it. `.plib-panel`'s card-suppression rule is the pattern for dropping the old `.panel` card per screen; when the last screen converts, the base `.panel` rule goes.
+⚠️ **Read this before every F-item.** The F-items describe the LIST and nothing else, so a batch can rebuild the table, satisfy every criterion the item names, and leave the screen's header and control row wearing v3 tokens over old markup - the hybrid §2 forbids. On F2 those two were the larger half of the CSS. **Every F-item includes its screen's header bar and its filter/search row**, with the screen's own classes.
+**Updated 10 Aug 2026 (F4):** `.ing-controls`, `.menu-search`, `.ing-filter`, `.ms-clear` and `.panel` now dress **only the Menu screen** - Plates, Ingredients and Products have all left them. So F5 is the batch that empties them, and restyling any of them before F5 still converts Menu by accident.
+`.scr-head` (title + muted subtitle + right-aligned actions) is built and is the shared §2 header bar - reuse it, do not rebuild it. `.plib-panel`'s card-suppression rule is the pattern for dropping the old `.panel` card per screen; when the last screen converts, the base `.panel` rule goes.
+**The `.ing-*` ROW classes are a different set and are NOT shared** - F4 verified every one is emitted only by `renderIngredients`. Keeping a converted screen's class names (F3 for `.king-*`, F4 for `.ing-*`) is the default; renaming for tidiness is what CLAUDE.md's naming rule forbids. F2 introduced `.plib-*` because Plates was BORROWING another screen's classes, which is a different problem.
 
 ## done  F3 - Ingredients (desktop §3.4 + mobile §6, one item)
 Shipped 10 Aug 2026 as **`ezplate-v139`**. See the done section.
 
-## next  Two actions in a mobile screen header, where §6 asks for one
-Problem: F3 put "Set up from products" beside "New ingredient" in the Ingredients header bar. The mock's §6 mobile header is "screen title + one action max". The wizard button is CONDITIONAL (`renderKingProgress` shows it only while products are unlinked or skips exist), so most cafés see one action most of the time - but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
-Hiding it on mobile was rejected: it would strand the whole setup flow on the device Max actually works on.
-Requirements: either a v3 home for a conditional secondary action on a phone header (the mock has no pattern, so this is a stop-and-ask with a recommendation), or a recorded decision that this screen keeps two. Do not improvise a third pattern.
-Note it is measured and pinned at DESKTOP only (`fresh-states.spec.js`, the header test) - the phone case is on `docs/PHONE.md` for Max to judge.
-Ingredient | Category | Unit cost | 30-day change (pill or muted "steady") | Used in N plates.
-**Read `docs/contracts/V4c-ingredients-contract.md` FIRST - it is this screen's §5 handler/read/write contract, already banked:** the drift badge reads `ingLastMovePct` = LAST LOGGED MOVE, not a true 30-day window (changing that breaks the row/What-moved agreement invariant); broken-link states stay loud ("⚠ product missing - relink to keep N plates costed"); the RELINK-PROMISE string stays kid-arm only (a relink cannot heal a bare-pid line - the v124 review caught that lie once); a usage COLUMN may count both arms via `productRefs` - decide per surface and record it. R1: the mock's Category column reverses a recorded Q5 decision and turns `king-rows.test.js:85` red - the mock wins, flip the pin consciously and note it. Muted "steady" replaces today's rendering of nothing.
-§4 criteria are the definition of done.
+## blocked  Two actions in a mobile screen header, where §6 asks for one - now on TWO screens
+Problem: §6's mobile header is "screen title + one action max", and two converted screens ship two.
+- **Ingredients (F3):** "Set up from products" beside "New ingredient". The wizard button is CONDITIONAL (`renderKingProgress` shows it only while products are unlinked or skips exist), so most cafés see one action most of the time - but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
+- **Products (F4, added 10 Aug 2026):** "Import invoice" beside "New product", and here it is UNCONDITIONAL. The sidebar's Invoices entry is desktop-only (`.nav-bottom`, hidden below 1024), so on a phone `#importBtn` is the ONLY route into the import flow. F4 applied F3's existing shape rather than improvising a third pattern, and pinned the pair's BEHAVIOUR instead (one row, primary rightmost, no wrap, both widths - `tests/visual/v140-products.spec.js`).
+Hiding either on mobile was rejected for the same reason both times: it strands a whole flow on the device Max actually works on.
+Requirements: either a v3 home for a secondary action on a phone header (the mock has no pattern), or a recorded decision that these screens keep two. Do not improvise a third pattern. Whatever is decided applies to BOTH screens - they are one question, not two.
+Note both are measured and pinned at DESKTOP AND mobile now (F4's spec asserts the pair at 380 too); what a spec cannot judge is whether two actions read as crowded on a real phone, which is on `docs/PHONE.md`.
+Blocked on: Max - does a converted screen's mobile header get to carry a secondary action? **Recommendation: yes, keep both.** The alternative costs a whole flow on the phone, and the pair measures as one clean row at 380px on both screens.
 
-## next  F4 - Products (desktop §3.5 + mobile §6, one item)
-Search + supplier select · Product (+muted brand) | Category | Supplier | Pack price | Last change. Mobile: sub-screen under More, back chevron "‹ More", never a dead end.
-R2: keep v99's price-basis visibility law (the basis label renders exactly when the figure lacks it - v126's dedupe); the mock doesn't know basis-less figures exist.
-§4 criteria are the definition of done.
+## done  F4 - Products (desktop §3.5 + mobile §6, one item)
+Shipped 10 Aug 2026 as **`ezplate-v140`**. See the done section.
+
+## next  The mobile More screen, and Products/Invoices/Settings/Account as sub-screens under it
+Problem: v3 §6 gives the phone a five-tab bar - Home, Menu, Plates, Ingredients, **More** - with Products, Invoices, Settings and Account as sub-screens reached from a More list, each with a "‹ More" back chevron. The app's bottom bar has five DIRECT tabs (Dashboard, Products, Ingredients, Plates, Menu) and no More screen at all, so the desktop sidebar's bottom group (`.nav-bottom`: Invoices, Settings) is CSS-hidden below 1024 and has no mobile counterpart.
+F4 (10 Aug 2026) refused to build it inside the Products item, R2 + §2: it is shell work, it moves three screens that are not converted yet (F8 Invoices, F9 Settings, F10 Account), and a "‹ More" chevron pointing at a screen that does not exist is exactly the dead end §6 forbids. F1b had already deferred the same thing, its comment pointing at F9.
+So Products ships as a normal bottom-nav tab with its own `.scr-head`, which is honest and complete on its own.
+Requirements: one item that builds the More screen (§6's chevron rows in the §6.1 order) AND restructures the bottom bar, AND gives each sub-screen its back chevron - not four separate half-conversions. Every screen it rehomes must already be converted, or the chevron leads somewhere still wearing old markup.
+Do after: **F10** - it rehomes Invoices, Settings and Account, so running it earlier means running it again for each screen that converts afterwards. F1b's `.nav-bottom` comment naming F9 is superseded by this item.
+Note this is the last piece of §6 that no F-item owns, and without it the desktop↔mobile parity map (§6.1) is unmet by construction - say so if the phase is ever called finished before it lands.
+
+## next  The sync pill covers the right edge of every converted screen's primary button
+Problem: found by F4 (10 Aug 2026) while looking at the rebuilt Products screen with a save in flight.
+`.sync-banner` is `position:fixed` and pinned top-right at ≥1024 (`css/style.css`: `@media (min-width:1024px){.sync-banner{left:auto;right:24px;top:14px}}`) at `z-index:82`. Every converted screen puts its primary action at the top-right of `.scr-head`, in the same place.
+**Measured at 1280px, all three converted screens:** the pill occupies x 1169-1256 / y 14-50; the primary occupies x 1086-1188 / y 6-41 (Plates), 1049-1188 / y 14-49 (Ingredients), 1066-1188 / y 14-49 (Products). It covers the button's right ~19px in each case.
+Not a dead button - `elementFromPoint` at each button's CENTRE still returns the button - so this is a visual collision plus a partly-blocked target, for the ~1.4s an "ok" state shows and for the whole of a "saving"/"error" state.
+Pre-existing since **F2 (v138)**, not introduced by F4: it arrived with `.scr-head`, and only shows while a write is in flight, which is why three batches of screenshots missed it.
+Requirements: one owner for that corner. Either the banner moves (below the header bar, or centred as it is under 1024), or converted headers reserve room for it. It is shared chrome across three screens and rising, so it is NOT a per-screen fix.
+Out of scope: the banner's copy, its states, and the `pushWrite` toast path - only where it sits.
 
 ## next  F5 - Menu (desktop §3.2 + mobile §6, one item)
 Switcher pills (active = tinted + border, mono %) with "N more ▾" overflow at >5 menus, search right; grouped table (uppercase group rows) Plate | Cost | Suggested at 40% | Price | Food cost pill; not-costed row muted with "cost it" pill. Mobile: two-line rows, price + pill stacked right, Switch control in the header.
@@ -376,6 +393,14 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **F4 - Products, rebuilt from the mock** - shipped 10 Aug 2026 as **`ezplate-v140`**, handover `HANDOVER-148-products.md`.
+  Five columns (Product + inline brand | Category | Supplier | Unit cost | Last change); mobile two-line rows with a "Category, Supplier" meta line and the unit cost stacked over the change pill. The `.ing-*` class NAMES are kept (F3's ruling): every one is emitted only by `renderIngredients`, verified across both files, so there was no shared system to unpick - `.ing-controls`/`.ing-filter`/`.menu-search` are NOT in that set and still dress the Menu screen, so the rebuild took F2's `.plib-*` controls instead.
+  **Rulings:** R2 the mock's "Pack price" heading is refused as a LIE - `dispPrice` renders a per-base-unit figure and the pack price is a different number on the edit form; ships as "Unit cost", the word Ingredients already uses · R2 "New product" beats the mock's "Add product" (v45 renamed it app-wide; §7 forbids two labels for one intent) · R1/§7 the `#prodFab` floating add is DELETED - §6.1 puts the primary in the header on both platforms, so it was a duplicate CTA · R3 "Import invoice" survives in the header (the sidebar's Invoices entry is desktop-only) - the second instance of the blocked two-actions question · R3 `#lastImport` is rehomed, not deleted: the identical string already renders as `#lastImport2` inside the invoice modal, one tap away · R2 mobile stays a TAB - the More-screen restructure is shell work and is queued as its own item · R1 the mobile row carries NO brand, per the mock's own fixture data.
+  `#ingCount`'s filtered count is not lost: the header subtitle reads "412 products, 7 suppliers" unfiltered and "12 of 412 products" while a filter is on.
+  **The defect the suite could not see** was a THREE-line mobile row: the brand wrapped onto its own line whenever the name was long, so rows were two lines or three depending on the product. Found by looking at a 380px screenshot. The mock's own mobile fixture settled it - its Products sub is "Category, Supplier" with no brand at all.
+  **A test that could not fail, in a spec shipped two batches ago:** `expect(outlineWidth > 0)` never proved a focus ring existed - the UA default is 3px at `outline-style:none`, which is exactly what the row reports when `:focus-visible` does not match. Fixed in `v138-plates.spec.js` as well as the new spec. (Its sibling: `:focus-visible` keys off the last input MODALITY, so a spec that reaches a tab by clicking must press Tab before asserting a ring.)
+  Also: an `@media` block left holding only a comment made `builder-modal.test.js`'s cascade walker lose track of which media query it was inside for the REST of the file - it failed loudly here, but the same slip could hide a rule. The parser now pops an empty block, verified against a planted one.
 
 - **F3 - Ingredients, rebuilt from the mock** - shipped 10 Aug 2026 as **`ezplate-v139`** (PR #125), handover `HANDOVER-147-ingredients.md`.
   Five columns (Ingredient over its linked-product sentence | Category | Unit cost | Last change | Used in); mobile two-line rows with a "Category, in N plates" meta. The `.king-*` NAMES are kept - the contract records only this pane emits them, so there was no shared system to unpick.
