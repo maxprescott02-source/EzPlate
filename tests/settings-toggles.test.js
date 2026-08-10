@@ -315,12 +315,18 @@ test('v81: bootstrapSync round-trips both AI toggles across devices', () => {
    a screen removes — a screen shows every section at once, so there is no nav to be on. The
    contract survives the conversion; the mechanism does not. */
 test('F9: every settings group has a visible home, and no group was dropped in the conversion', () => {
-  const cards = [...HTML.matchAll(/class="stg-card-h">([^<]+)</g)].map(m => m[1]);
-  // Costing and Data are the mock's §3.8 names; the other five are groups the app has and the
-  // mock does not, kept per §R3 (rehome, never delete). Account/Team are F10's to decide.
+  /* Scoped to #tab-settings: F10 (v149) gave #tab-account its own .stg-card* cards, so an
+     unscoped match now sweeps up both screens and this would silently be asserting the wrong list. */
+  const settingsHtml = HTML.slice(HTML.indexOf('id="tab-settings"'), HTML.indexOf('id="tab-account"'));
+  const cards = [...settingsHtml.matchAll(/class="stg-card-h">([^<]+)</g)].map(m => m[1]);
+  /* Costing and Data are the mock's §3.8 names; the rest are groups the app has and the mock does
+     not, kept per §R3 (rehome, never delete).
+     F10 (v149) took SEVEN from eight: the Account and Team placeholder cards F9 parked here moved
+     to #tab-account, and one Account row replaced them as the door. That row is asserted below —
+     it is the only route to that screen at any width. */
   assert.deepEqual(cards,
-    ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account', 'Team', 'About'],
-    'the eight section cards, in order');
+    ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account', 'About'],
+    'the seven section cards, in order');
   /* The modal's own machinery must be GONE, not merely unstyled — a leftover nav would be a second
      way to reach a section that is already on screen.
      Read with COMMENTS STRIPPED: this repo tombstones what it deletes, so every name below still
@@ -370,8 +376,8 @@ test('F9: showTab runs the priming on every entry to the screen', () => {
   const showTab = extractFn(APP, 'showTab');
   assert.ok(/if\(t==='settings'\)renderSettingsTab\(\);/.test(showTab),
     'showTab calls renderSettingsTab when it switches to the settings screen');
-  assert.ok(/'invoices','settings'\]/.test(showTab),
-    'and the pane-visibility list knows about the settings pane, or the screen never shows');
+  assert.ok(/'invoices','settings','account'\]/.test(showTab),
+    'and the pane-visibility list knows about the settings AND account panes, or a screen never shows');
   // the boot race: restoreLastTab() runs BEFORE bootstrapSync resolves, so a refresh landing on
   // Settings paints pre-boot defaults unless rerenderCurrentTab re-primes it
   assert.ok(/t==='settings'\)renderSettingsTab\(\)/.test(extractFn(APP, 'rerenderCurrentTab')),
@@ -381,8 +387,8 @@ test('F9: showTab runs the priming on every entry to the screen', () => {
      and this fallback loop is unreachable today. Pinned anyway, because the More-screen item
      rearranges exactly which nav button is lit, and a pane shown with no lit button is what this
      loop is for. The assertion is on the LIST, not on a behaviour, and says so. */
-  assert.ok(/'pantry','settings'\]/.test(extractFn(APP, 'currentTab')),
-    "currentTab's fallback name list includes the settings pane");
+  assert.ok(/'pantry','settings','account'\]/.test(extractFn(APP, 'currentTab')),
+    "currentTab's fallback name list includes the settings and account panes");
 });
 
 test('v81: relocating settings kept every id handlers bind to', () => {
@@ -392,13 +398,30 @@ test('v81: relocating settings kept every id handlers bind to', () => {
   });
 });
 
-test('v81: Account/Team ship as coming-feature empty states, not disabled controls', () => {
-  // F9 (v148): the class is .stg-soon now (the screen's card system replaced .set-empty with the
-  // rest of the modal's CSS). The contract is unchanged and is the whole point of the test.
-  assert.ok(/class="stg-soon"/.test(HTML), 'placeholder sections use the coming-feature style');
-  assert.ok(/arrive with EzPlate accounts/.test(HTML), 'the copy frames them as a coming feature');
-  // must not be faked as a real (disabled) control
-  const acct = HTML.slice(HTML.indexOf('>Account</h3>'), HTML.indexOf('>Team</h3>'));
-  assert.ok(acct.length > 0 && !/<(input|select|button)/.test(acct),
-    'Account is a sentence, not a control — disabled or otherwise');
+/* F9 (v148) moved this from .set-empty to .stg-soon; F10 (v149) moved the sections themselves off
+   Settings and onto #tab-account. The CONTRACT has survived both moves unchanged and is the whole
+   point of the test: a capability that does not exist is stated in a sentence, never mimed with a
+   control that does nothing. §R4. */
+test('Account/Team/Plan ship as coming-feature sentences, not disabled controls', () => {
+  const acct = HTML.slice(HTML.indexOf('id="tab-account"'));
+  assert.ok(acct.indexOf('id="tab-account"') === 0, 'the account screen exists');
+  const body = acct.slice(0, acct.indexOf('/tab-account'));
+  assert.deepEqual([...body.matchAll(/class="stg-card-h">([^<]+)</g)].map(m => m[1]),
+    ['Profile', 'Team', 'Plan'], "the mock's §3.9 sections, in the mock's order, ready to be filled");
+  assert.equal((body.match(/class="stg-soon"/g) || []).length, 3, 'one honest sentence per section');
+  /* THE assertion. The mock draws Edit profile, Invite a teammate, Manage billing and Sign out;
+     none has any backing, so none may ship. A shell is not a licence for a dead control. */
+  assert.ok(!/<(input|select|button|a\s)/.test(body.replace(/<!--[\s\S]*?-->/g, '')),
+    'no control of any kind on the account screen — every capability it describes is absent');
+  ['Edit profile', 'Invite a teammate', 'Manage billing', 'Sign out'].forEach((dead) => {
+    assert.ok(body.indexOf(dead) < 0, `${dead} must not ship — it has nothing behind it`);
+  });
+});
+
+test('F10: the Settings row is the only route to the account screen, so it must exist', () => {
+  assert.ok(/id="setAccountOpen"/.test(HTML), 'the door on Settings exists');
+  assert.ok(/showTab\('account'\)/.test(APP), 'and it navigates to the screen');
+  // no nav button carries it — that is WHY currentTab() needs 'account' in its fallback list
+  assert.ok(!/data-tab="account"/.test(HTML),
+    'no nav entry yet: the More-screen item adds the second route, this row is the first');
 });
