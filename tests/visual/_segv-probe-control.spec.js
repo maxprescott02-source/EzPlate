@@ -17,11 +17,17 @@
  *   neither crashes                  → the experiment is underpowered, not a negative result. 60
  *                                      cycles at the estimated 4.5% should crash; if it does not,
  *                                      the estimate is wrong and that is itself worth knowing.
+ *
+ * RUN 1 (31389314382, 60 cycles per arm): tight 1, control 0. The direction predicted, at a third
+ * of the predicted rate, and 1-vs-0 is not a result — Fisher gives p≈0.5, which is indistinguishable
+ * from chance. The same run also crashed `v141-sync-corner.spec.js:90` naturally, occurrence 8 on
+ * the census and another `:105` successor. So the count was raised to 150 per arm rather than the
+ * result being read as confirmation, because 1.7% needs a few hundred cycles to separate from zero.
  */
 const { test } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
-const CYCLES = 60;
+const CYCLES = 150;
 
 for (let i = 0; i < CYCLES; i++) {
   test(`padded cycle ${i}`, async ({ page }) => {

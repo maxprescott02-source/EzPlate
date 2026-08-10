@@ -32,7 +32,7 @@
 const { test } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
-const CYCLES = 60;
+const CYCLES = 150;
 
 for (let i = 0; i < CYCLES; i++) {
   test(`tight cycle ${i}`, async ({ page }) => {
