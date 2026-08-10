@@ -308,7 +308,14 @@ header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
      every screen F5-F10 will add, without anyone having to re-measure.
      ⚠️ The mock's §5 error banner carries a **Retry** button. The day one is added here, this line
      has to come out and the placement has to be re-measured — a control under pointer-events:none
-     is a dead control, which is the exact defect this batch exists to remove. */
+     is a dead control, which is the exact defect this batch exists to remove.
+     v144 CONSIDERED SHIPPING RETRY AND REFUSED, which is why this line survives its own warning.
+     A Retry on a failed WRITE has nothing to retry: `pushWrite` does not keep the builder after it
+     fails, and CLAUDE.md records the absence of a queue as a known gap ("pushWrite DROPS writes when
+     fully offline - no queue, no retry"). The button would either need that queue - a feature, not a
+     restyle - or would be a control that reloads and loses the edit anyway. The one path where Retry
+     IS honest is a failed BOOT, and `#bootGate` already owns that with a full-screen message. So
+     nothing here can be clicked, and this line stays exactly as v141 wrote it. */
   pointer-events:none;
 }
 .sync-banner[hidden]{display:none}
@@ -316,8 +323,29 @@ header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
 .sync-banner[data-state="loading"]::before,
 .sync-banner[data-state="saving"]::before{background:var(--accent);animation:pulse 1.1s ease-in-out infinite}
 .sync-banner[data-state="ok"]::before{background:var(--good)}
-.sync-banner[data-state="offline"],.sync-banner[data-state="error"]{border-color:var(--warn);color:var(--warn)}
-.sync-banner[data-state="offline"]::before,.sync-banner[data-state="error"]::before{background:var(--warn)}
+/* ---- v144: the v3 §5 sync-error treatment, and the DECISION behind it ----
+   §5 designs `#syncBanner`'s failure case as a red-tinted banner: border `#F0D4D1`, bg `#FBEBEA`,
+   persistent until resolved. The app had a white pill with an AMBER border for both persistent
+   states, which is neither the mock's colour nor the right severity: `offline` and `error` both
+   mean WRITES ARE BEING LOST, which is the loudest thing this app ever has to say.
+   THE TOKEN CHOICE IS THE CAREFUL PART, and it changes nothing on screen TODAY. §8 reserves
+   green/amber/red "exclusively for cost semantics", so a sync error wearing `--bad` would be a cost
+   signal that is not about cost. The package draws the distinction itself: `danger-border` is
+   listed for "destructive outline buttons, error banners", separate from `bad`. This takes the
+   DANGER pair — the same one F5's "Delete this menu" button uses.
+   ⚠️ Be clear about what that buys, because the alias layer makes it easy to overstate: this app
+   sets `--bad:var(--danger)`, so the two resolve to the SAME red and no user can tell them apart
+   right now. The choice is about which name this rule depends on. If the palette ever separates a
+   destructive red from a cost red, the sync banner follows the error token instead of silently
+   restyling itself with the cost lights. It is a correctness claim about the dependency, not a
+   visual one.
+   The three TRANSIENT states (loading, saving, ok) keep the quiet surface pill: they are the mock's
+   §3.1 "quiet channel", and the header-text form it draws for them needs a last-sync timestamp this
+   app does not keep. That is a behaviour spec, and it is queued rather than half-built. */
+.sync-banner[data-state="offline"],.sync-banner[data-state="error"]{
+  background:var(--danger-bg);border-color:var(--danger-border);color:var(--danger);
+}
+.sync-banner[data-state="offline"]::before,.sync-banner[data-state="error"]::before{background:var(--danger)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
 /* ----------------------------------------------------------------------

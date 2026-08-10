@@ -209,3 +209,88 @@ test('the banner never takes a click from what it floats over', async ({ page })
   expect(res.pointerEvents).toBe('none');
   expect(res.atOwnCentre).not.toBe('syncBanner');
 });
+
+/* =============================================================================================
+ * v144 — the §5 sync-error TREATMENT. v141 fixed WHERE this element sits and deliberately left
+ * WHAT it is to its own queue item; this is that item.
+ *
+ * The decision, pinned rather than described: the two PERSISTENT states (offline, error) take the
+ * v3 §5 danger tint, because both mean writes are being lost and that is the loudest thing this app
+ * ever has to say. The three TRANSIENT states keep the quiet surface pill — §3.1's header-text form
+ * for them needs a last-sync timestamp the app does not keep, which is queued as a behaviour spec
+ * rather than half-built.
+ * ========================================================================================== */
+
+/* BOTH THEMES, and that is the point rather than thoroughness: the reason this rule takes a TOKEN
+   instead of a hex is that the token follows the theme. A light-only pin would leave the dark
+   palette free to regress the one thing the change is claiming. (Raised by the pre-push review,
+   which had hand-traced the dark cascade and noted nothing pinned it.) */
+for (const theme of ['light', 'dark']) {
+test(`v144: the persistent states are tinted, the transient ones stay quiet @ ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await installBoot(page);
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+  await page.waitForTimeout(120);
+
+  const read = async (state) => {
+    await page.evaluate((s) => window.setSync(s), state);
+    await page.waitForTimeout(80);
+    return page.evaluate(() => {
+      const el = document.getElementById('syncBanner');
+      const cs = getComputedStyle(el);
+      const root = getComputedStyle(document.documentElement);
+      return {
+        bg: cs.backgroundColor, fg: cs.color, border: cs.borderTopColor,
+        dangerBg: root.getPropertyValue('--danger-bg').trim(),
+        surface: root.getPropertyValue('--surface').trim(),
+        // pointer-events is what makes it safe to float over content, and it must survive: no
+        // Retry ships, because a failed write has nothing to retry (pushWrite keeps no queue).
+        pe: cs.pointerEvents,
+      };
+    });
+  };
+
+  const quiet = [], loud = [];
+  for (const s of ['loading', 'saving', 'ok']) quiet.push(await read(s));
+  for (const s of ['offline', 'error']) loud.push(await read(s));
+
+  // the loud pair are TINTED, and identically — one decision for both, never per state
+  expect(loud[0].bg, 'offline and error share one treatment').toBe(loud[1].bg);
+  expect(loud[0].fg).toBe(loud[1].fg);
+  expect(loud[0].border).toBe(loud[1].border);
+  // …and the tint is the danger token, resolved — not a hard-coded hex and not the surface
+  const asRgb = (hex) => page.evaluate((h) => {
+    const d = document.createElement('div'); d.style.color = h; document.body.appendChild(d);
+    const c = getComputedStyle(d).color; d.remove(); return c;
+  }, hex);
+  expect(loud[0].bg, 'the failure tint is --danger-bg').toBe(await asRgb(loud[0].dangerBg));
+
+  // the quiet three are NOT tinted, all three the same, and distinct from the loud pair
+  for (const q of quiet) {
+    expect(q.bg, 'a transient state stays on the quiet surface').toBe(quiet[0].bg);
+    expect(q.bg, 'and is not the failure tint').not.toBe(loud[0].bg);
+  }
+
+  // never clickable: v141's rule survives, because no Retry shipped
+  for (const s of quiet.concat(loud)) expect(s.pe).toBe('none');
+
+  /* AA on the tint, measured in the browser rather than asserted from the palette block. The
+     failure states are the ones a user reads under stress, and `--danger` carries a MEASURED
+     deviation from the mock in light (#C0392F, not #C63C33) precisely because the mock's value
+     fails here — so a future palette edit that reverts it silently is exactly what this catches. */
+  const ratio = await page.evaluate(() => {
+    const lum = (c) => {
+      const [r, g, b] = c.match(/\d+/g).map(Number).map((v) => {
+        const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const el = document.getElementById('syncBanner'), cs = getComputedStyle(el);
+    const a = lum(cs.color), b = lum(cs.backgroundColor);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+  expect(ratio, `failure text on its tint must clear AA in ${theme}`).toBeGreaterThanOrEqual(4.5);
+});
+}
