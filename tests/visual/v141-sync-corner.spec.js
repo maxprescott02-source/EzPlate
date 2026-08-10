@@ -129,15 +129,30 @@ for (const width of [380, 768]) {
       const b = document.getElementById('syncBanner').getBoundingClientRect();
       const head = [...document.querySelectorAll('[id^="tab-"] .scr-head')]
         .find((e) => e.getBoundingClientRect().width > 0);
+      /* Two platform traps here, both of which the first version of this assertion walked into —
+         it passed on macOS and failed on the Linux CI runner, i.e. it was measuring the runner's
+         scrollbar rather than the app.
+         1. `documentElement.clientWidth`, NOT `window.innerWidth`: the banner is centred by
+            `left:50%` + `translateX(-50%)`, and a percentage on a fixed element resolves against
+            the initial containing block, which EXCLUDES a classic scrollbar. `innerWidth` includes
+            it. Identical on macOS (zero-width overlay scrollbars), ~15px apart on Linux.
+         2. The expected offset is DERIVED from the measured rail, not from a hardcoded 39 behind a
+            width test — the same scrollbar makes "is this the 768 breakpoint?" ambiguous in JS.
+            `.bottomnav` is the bottom bar at 380 (full width, no offset) and an 78-pixel left
+            rail at 768 (centre shifts by half its width, which is where the CSS 39 comes from).
+            Derived this way it also fails if the rail is widened without the banner following. */
+      const icb = document.documentElement.clientWidth;
+      const rail = document.querySelector('.bottomnav').getBoundingClientRect();
+      const railOffset = rail.right < icb ? rail.right / 2 : 0;   // left rail vs bottom bar
       return {
         top: Math.round(b.top),
-        centred: Math.abs((b.left + b.right) / 2 - (window.innerWidth / 2 + (window.innerWidth >= 768 ? 39 : 0))) < 2,
+        centreOffset: (b.left + b.right) / 2 - (icb / 2 + railOffset),
         clearsScreenHeader: !head || b.bottom <= head.getBoundingClientRect().top,
       };
     });
-    expect(geo.top).toBeLessThan(30);          // still pinned to the top, not moved to the bottom
-    expect(geo.centred).toBe(true);            // still centred (sidebar-offset at 768)
-    expect(geo.clearsScreenHeader).toBe(true); // sits above `.scr-head`, never on it
+    expect(geo.top).toBeLessThan(30);                       // top-anchored, not moved to the bottom
+    expect(Math.abs(geo.centreOffset)).toBeLessThan(2);     // still centred (rail-offset at 768)
+    expect(geo.clearsScreenHeader).toBe(true);              // sits above `.scr-head`, never on it
   });
 }
 
