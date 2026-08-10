@@ -279,6 +279,46 @@ jobs:
             echo "flaky=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # WHY THIS STEP EXISTS. The step above says a spec passed on a retry. It does NOT say the
+      # browser process died, so the reader's first hypothesis is a regression in their own diff -
+      # the one thing a segfault cannot be. Diagnosing it the first time cost an artifact download,
+      # an unzip, a trace parse and a hex subtraction; the evidence is a single string that was in
+      # the json report the whole time. See docs/handovers/HANDOVER-163-browser-segv.md.
+      #
+      # ⚠️ IT MUST NOT GREP THE FILE. `Received signal` also appears in `config.metadata.gitDiff` -
+      # Playwright captures the branch diff into the report in CI (only on pull_request, which is
+      # this workflow's trigger), and the diff that ADDED this comment contains the string. Measured
+      # against the real report from run 31384057429, where it sits at offset 2087 of the gitDiff.
+      # A file-wide grep would therefore announce a browser crash on a clean green run of this very
+      # batch. So the walk reads ERROR TEXT ONLY, and never the report as a document.
+      #
+      # ⚠️ THERE ARE TWO ERROR CHANNELS AND READING ONLY THE FIRST LOSES THE CASE MOST WORTH
+      # CATCHING. Per-test text - results[].error.message/.stack and results[].errors[].message -
+      # covers a crash that lands mid-test, which is all six occurrences on record. A crash that
+      # lands BETWEEN tests, in the worker respawn Playwright does after every failure, is reported
+      # through the reporter's onError instead and is serialized to the report's own top-level
+      # `errors` array (`errors: this._errors` in playwright/lib/runner/index.js) - attributed to
+      # no spec at all. That is the case where the reader has least to go on, so it is read too and
+      # says plainly that no spec owns it. Found by the pre-push review, verified against the
+      # installed reporter source rather than inferred.
+      #
+      # Fails open exactly like the detector above: node parses inside a try/catch and prints an
+      # empty string for a missing or malformed report, so a broken detector loses the WARNING
+      # rather than the build. It reports on a red run too, not just a flaky one - a crash that
+      # takes both attempts is still infra, and that is the run most likely to be misread.
+      #
+      # tests/ci-workflow.test.js EXTRACTS THIS SCRIPT AND RUNS IT against a real-derived fixture,
+      # so it stays on one line with single quotes only - the extraction ends at the closing double
+      # quote. Mis-slice it and the test throws rather than passing quietly.
+      - name: Did the browser crash?
+        if: always()
+        run: |
+          set -euo pipefail
+          CRASHED=$(node -e "let out='';try{const r=require('./playwright-results.json');const hit=new Set();const txt=o=>[(o||{}).message,(o||{}).stack].join('\n');const sig=t=>String(t).includes('Received signal');const walk=s=>{(s.suites||[]).forEach(walk);(s.specs||[]).forEach(sp=>(sp.tests||[]).forEach(t=>(t.results||[]).forEach(res=>{if(sig([txt(res.error)].concat((res.errors||[]).map(txt)).join('\n')))hit.add(sp.file+':'+sp.line);})));};(r.suites||[]).forEach(walk);(r.errors||[]).forEach(e=>{if(sig(txt(e)))hit.add('a global error, attributed to no spec');});out=Array.from(hit).join(', ');}catch(e){}process.stdout.write(out)")
+          if [ -n "$CRASHED" ]; then
+            echo "::warning::The browser process CRASHED (SIGSEGV - 'Received signal' in the failure text) during: $CRASHED. This is infra, NOT your diff: a segfault cannot be caused by the code under test. Known Chromium bug in the build shipped with this Playwright version - see docs/handovers/HANDOVER-163-browser-segv.md. Record this occurrence and the test that ran immediately before it."
+          fi
+
       # Failures and flakes only - a fully green run's report is megabytes of nothing, which is why
       # this is not `if: always()`. On a red run it is the difference between "something broke" and
       # opening the trace at the failing assertion; on a flaky one it is the only surviving evidence.

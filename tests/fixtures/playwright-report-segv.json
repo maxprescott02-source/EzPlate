@@ -1,0 +1,176 @@
+{
+  "config": {
+    "configFile": "/home/runner/work/EzPlate/EzPlate/playwright.config.js",
+    "metadata": {
+      "gitDiff": "ONG, and was disproved by\n+      #                    measurement on 10 Aug 2026. Nothing is slow: THE BROWSER PROCESS\n+      #                    CRASHES. All five CI occurrences carry `Received signal 11 SEGV_MAPERR\n+      #                    0000000001b0` in the browser log, and all five crash at the IDENTICAL\n+      #                    instruction (binary offset 0x2af9eec, module offset subtracted so it\n+      #                    survives ASLR), in chrome-headless-shell-1228 / Playwright "
+    }
+  },
+  "stats": {
+    "startTime": "2026-08-10T11:34:29.433Z",
+    "duration": 362109.489,
+    "expected": 208,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 2
+  },
+  "suites": [
+    {
+      "title": "v137-modal-layer.spec.js",
+      "file": "v137-modal-layer.spec.js",
+      "line": 0,
+      "column": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "focus",
+          "file": "v137-modal-layer.spec.js",
+          "line": 88,
+          "column": 6,
+          "specs": [
+            {
+              "title": "the sheet traps focus on a phone",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 30002,
+                      "retry": 0,
+                      "error": {
+                        "message": "Error: browser.newContext: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/runner/.cache/ms-playwright/chromium_headless_shell-\n[... browser log trimmed for the fixture ...]\n://localhost:5173/\", source: http://localhost:5173/js/app.js?v=145 (5235)\n[pid=2822][err] Received signal 11 SEGV_MAPERR 0000000001b0\n[pid=2822][err] #0 0x56221d6c1423 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell+0x2eac422)\n[pid=2822][err] #1 0x562221769fa4 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-",
+                        "stack": "Error: Error: browser.newContext: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/runner/.cache/ms-playwright/chromium_headless_shell-\n[... browser log trimmed for the fixture ...]\n://localhost:5173/\", source: http://localhost:5173/js/app.js?v=145 (5235)\n[pid=2822][err] Received signal 11 SEGV_MAPERR 0000000001b0\n[pid=2822][err] #0 0x56221d6c1423 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell+0x2eac422)\n[pid=2822][err] #1 0x562221769fa4 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-"
+                      },
+                      "errors": [
+                        {
+                          "message": "Error: browser.newContext: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/runner/.cache/ms-playwright/chromium_headless_shell-\n[... browser log trimmed for the fixture ...]\n://localhost:5173/\", source: http://localhost:5173/js/app.js?v=145 (5235)\n[pid=2822][err] Received signal 11 SEGV_MAPERR 0000000001b0\n[pid=2822][err] #0 0x56221d6c1423 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell+0x2eac422)\n[pid=2822][err] #1 0x562221769fa4 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "attachments": []
+                    },
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 812,
+                      "retry": 1,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "flaky"
+                }
+              ],
+              "id": "x92",
+              "file": "v137-modal-layer.spec.js",
+              "line": 92,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "v141-sync-corner.spec.js",
+      "file": "v141-sync-corner.spec.js",
+      "line": 0,
+      "column": 0,
+      "suites": [],
+      "specs": [
+        {
+          "title": "desktop 1280: the banner is centred",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 812,
+                  "retry": 0,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "x105",
+          "file": "v141-sync-corner.spec.js",
+          "line": 105,
+          "column": 3
+        },
+        {
+          "title": "mobile/tablet 380: the banner is still top-centred over the app header",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "failed",
+                  "duration": 30002,
+                  "retry": 0,
+                  "error": {
+                    "message": "Error: browser.newContext: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/runner/.cache/ms-playwright/chromium_headless_shell-\n[... browser log trimmed for the fixture ...]\n://localhost:5173/\", source: http://localhost:5173/js/app.js?v=145 (5235)\n[pid=2822][err] Received signal 11 SEGV_MAPERR 0000000001b0\n[pid=2822][err] #0 0x56221d6c1423 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell+0x2eac422)\n[pid=2822][err] #1 0x562221769fa4 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-",
+                    "stack": "Error: Error: browser.newContext: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/runner/.cache/ms-playwright/chromium_headless_shell-\n[... browser log trimmed for the fixture ...]\n://localhost:5173/\", source: http://localhost:5173/js/app.js?v=145 (5235)\n[pid=2822][err] Received signal 11 SEGV_MAPERR 0000000001b0\n[pid=2822][err] #0 0x56221d6c1423 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell+0x2eac422)\n[pid=2822][err] #1 0x562221769fa4 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-"
+                  },
+                  "errors": [
+                    {
+                      "message": "Error: browser.newContext: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/runner/.cache/ms-playwright/chromium_headless_shell-\n[... browser log trimmed for the fixture ...]\n://localhost:5173/\", source: http://localhost:5173/js/app.js?v=145 (5235)\n[pid=2822][err] Received signal 11 SEGV_MAPERR 0000000001b0\n[pid=2822][err] #0 0x56221d6c1423 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell+0x2eac422)\n[pid=2822][err] #1 0x562221769fa4 (/home/runner/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "attachments": []
+                },
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 812,
+                  "retry": 1,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "attachments": []
+                }
+              ],
+              "status": "flaky"
+            }
+          ],
+          "id": "x125",
+          "file": "v141-sync-corner.spec.js",
+          "line": 125,
+          "column": 3
+        }
+      ]
+    }
+  ],
+  "errors": []
+}
