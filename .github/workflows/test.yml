@@ -173,11 +173,11 @@ jobs:
       #                    ⚠️ THE MECHANISM THIS COMMENT ORIGINALLY CLAIMED - "one slow
       #                    browser.newContext under load" - IS WRONG, and was disproved by
       #                    measurement on 10 Aug 2026. Nothing is slow: THE BROWSER PROCESS
-      #                    CRASHES. All five CI occurrences carry `Received signal 11 SEGV_MAPERR
-      #                    0000000001b0` in the browser log, and all five crash at the IDENTICAL
+      #                    CRASHES. All six CI occurrences carry `Received signal 11 SEGV_MAPERR
+      #                    0000000001b0` in the browser log, and all six crash at the IDENTICAL
       #                    instruction (binary offset 0x2af9eec, module offset subtracted so it
       #                    survives ASLR), in chrome-headless-shell-1228 / Playwright 1.61.1.
-      #                    One bug, five times - not a family of crashes.
+      #                    One bug, six times - not a family of crashes.
       #                    `--disable-dev-shm-usage` is already on the launch line above, so the
       #                    usual /dev/shm explanation is excluded.
       #                    The two error strings you will see are ONE event, differing only in

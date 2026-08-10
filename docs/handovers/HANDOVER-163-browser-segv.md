@@ -14,8 +14,8 @@ No code. The item was an investigation and it produced an answer to both halves 
 
 **The browser process segfaults.**
 
-All **five** CI occurrences carry `Received signal 11 SEGV_MAPERR 0000000001b0` in the Chromium stderr, and all five crash at the **identical instruction, binary offset `0x2af9eec`** - computed by subtracting a frame's module offset from its absolute address, so it survives ASLR - with `ax` at 0, `cr2` at `0x1b0`, and `rcx` holding the ASCII `ocalhost`.
-It is one bug, five times, not a family of crashes.
+All **six** CI occurrences carry `Received signal 11 SEGV_MAPERR 0000000001b0` in the Chromium stderr, and all six crash at the **identical instruction, binary offset `0x2af9eec`** - computed by subtracting a frame's module offset from its absolute address, so it survives ASLR - with `ax` at 0, `cr2` at `0x1b0`, and `rcx` holding the ASCII `ocalhost`.
+It is one bug, six times, not a family of crashes.
 That is a null dereference at a fixed member offset in `chrome-headless-shell-1228`, under Playwright 1.61.1.
 `--disable-dev-shm-usage` is already on the launch line, so the usual `/dev/shm` explanation is excluded before it is raised.
 
@@ -27,46 +27,57 @@ For the same reason **the item's "two different errors" are one event**: `Target
 Nothing in the spec's own code is involved.
 The item noticed that the file manages no contexts of its own and called it the thing that made it worth a proper look; it was right, and this is why.
 
-## The census, and why the concentration is left unexplained
+## The census, and the pattern it took seven occurrences to see
 
 **The premise "all in this one file" is false.**
-A census of all 42 `tests` workflow runs of 10 Aug - the `v141-sync-pill-corner` branch runs are *inside* that 42, not additional to it - finds **six** occurrences in **two** spec files, five in CI and one local:
+A census of all 42 `tests` workflow runs of 10 Aug - the `v141-sync-pill-corner` branch runs are *inside* that 42, not additional to it - finds **seven** occurrences in **two** spec files, six in CI and one local:
 
-| run | when | test |
-|---|---|---|
-| `31348972108` | 02:08, branch | `v141-sync-corner.spec.js:90` @1440 |
-| `31349737666` | 02:25, branch | `v141-sync-corner.spec.js:90` @1280 |
-| `31359764333` | 05:48, **main** | **`v142-menu.spec.js:67`** |
-| `31368954663` **attempt 1** | 08:11, branch | `v141-sync-corner.spec.js:174` |
-| `31380462471` | 10:44, PR #144 | `v141-sync-corner.spec.js:125` |
-| — | local | `v141-sync-corner.spec.js:229`, same error string, no log kept |
+| run | when | test | ran immediately before |
+|---|---|---|---|
+| `31348972108` | 02:08, branch | `v141-sync-corner.spec.js:90` @1440 | `:105` |
+| `31349737666` | 02:25, branch | `v141-sync-corner.spec.js:90` @1280 | `:105` |
+| `31359764333` | 05:48, **main** | **`v142-menu.spec.js:67`** | — (first in file) |
+| `31368954663` **attempt 1** | 08:11, branch | `v141-sync-corner.spec.js:174` | `:125` |
+| `31380462471` | 10:44, PR #144 | `v141-sync-corner.spec.js:125` | `:105` |
+| `31384057429` | 11:34, **PR #145 — this batch** | `v141-sync-corner.spec.js:125` | `:105` |
+| — | local | `v141-sync-corner.spec.js:229` | not recorded |
 
 The `v142` one is the run that turned `main` red, and it had been in the record the whole time.
 "Three of three in the 5.7% file" was a count of the occurrences someone had looked at, not a count of the occurrences.
 
-**Two of the six are not independent samples.**
-Both branch-run occurrences come from runs where two other `v141` tests were failing for a known unrelated reason - the ICB-geometry assertions that batch was fixing - and **Playwright discards the worker and launches a fresh browser after every failure.**
-That is not read from the docs: PR #144's own report shows worker 1 dying and the retry running on a worker 2 that had not existed before.
-So those two are conditioned on `v141` already failing.
-The local one has unknown sampling; what was actually run during the rehearsal is not recorded anywhere.
+## The concentration is not chance
 
-**That leaves three clean CI occurrences: `v141` twice, `v142` once.**
-`v141` is 12 of 209 tests, 5.74%, so two-or-more of three landing in it is about **1 in 105**.
-That is a long way from the 1 in 5,400 the item's framing implied, and much too weak an n to call a defect - but it is not "chance, demonstrated" either, and saying so would be the same overreach in the other direction.
+**This section was written twice.**
+The first version argued chance, carefully: two of the branch occurrences are conditioned on `v141` already failing for the unrelated ICB-geometry reason - Playwright discards the worker and launches a fresh browser after every failure, which PR #144's own report shows directly - and the local one has unknown sampling, leaving three clean CI occurrences at about 1 in 105. Weak, honest, and I was ready to ship it.
 
-**Recorded as unexplained.**
-The only testable mechanism was refuted (below), the failure is a browser bug whatever tilts the odds, and the response is a retry either way.
-What the queue now asks for instead is cheap and sufficient: **record the file every time one appears.** A third file closes it.
+**Then this PR's own CI run crashed, in the same file, at the same test.**
+That is the seventh occurrence and it arrived while the batch was waiting to merge.
 
-## The lead that died
+With it, the pattern resolves into something sharper than "this file": **four of the six CI occurrences are the context creation immediately after a `v141-sync-corner.spec.js:105` test.**
+Two of them (`:105` → `:90`) and two of them (`:105` → `:125`).
+A specific predecessor is a much better fact than a file-level count, and it is the column the census table did not have until the sixth data point forced it.
 
-Worth writing down because it was the only substantive one and because it was killed by its own control rather than by argument.
+**What `:105` is: the shortest cycle in the suite.**
+It runs in ~600-1000ms, and in that time it does a full `page.goto('/')` - which registers a service worker against `http://localhost:5173` - and is then torn down.
+The crash register `rcx` holding the ASCII `ocalhost` is consistent with that, which is why the coincidence is worth recording rather than filing as noise.
 
-Crashes land at context boundaries, so the file that creates and destroys the most contexts per second should meet the most of them.
-`v141-sync-corner.spec.js` looked like that file - its `:105` tests run in about 600ms.
+## The lead that half-died
 
-It is not.
-`v137-modal-layer.spec.js` runs **22 tests at a 1215ms mean** against `v141`'s **12 at 2235ms**, so it churns contexts nearly twice as fast, and it has never crashed once.
+Crashes land at context boundaries, so the file that creates and destroys the most per second should meet the most of them.
+`v141-sync-corner.spec.js` looked like that file.
+
+**By average churn it is not, and the control is sound.**
+`v137-modal-layer.spec.js` runs **22 tests at a 1215ms mean** against `v141`'s **12 at 2235ms**, and it does load a fresh page per test - its `boot()` helper at `:69` wraps the `goto`, so it is one page load and one service-worker registration per test, same as `v141`.
+It has never crashed.
+
+I nearly threw that control away.
+A grep for `page.goto('/')` in `v137` returns **2**, against 22 tests, which reads as "it does not reload per test" and would have made the comparison invalid - but the 2 are the helper and one direct call, and every test goes through `boot()`.
+Counting call sites rather than literals is what settled it. **The naive grep would have retracted a correct result.**
+
+**What survives: it is not the AVERAGE cycle, it may still be the TIGHTEST one.**
+`v137`'s shortest test is 770ms; `v141:105` runs at ~605ms and is the shortest in the suite.
+Every crash whose predecessor is recorded followed one of the short ones.
+That hypothesis is live and untested, and the queue now carries the one-line experiment for it - with the instruction to run it *before* the Chromium bump, because a new browser would hide the crash without anyone learning whether the tight cycle caused it.
 
 ## Occurrence 1, and the `gh` trap that hid it
 
@@ -128,7 +139,7 @@ If it bites a second time, that is the argument for promoting it, and this parag
 ## New docs/QUEUE.md items
 
 1. **A browser segfault reads as a mystery flake.** The `flaky` annotation says a spec passed on a retry and not that the browser crashed, so the reader's first hypothesis is their own diff, which is the one thing it cannot be. `Received signal` is already in the json report; surface it in the warning. Must fail open like the existing detector.
-2. **Playwright / Chromium bump.** The only actual fix. Not urgent because retries hide it competently. It cannot be shown to have worked, only to have not recurred - measured rate is 5 CI occurrences across 42 runs - so record the version and the date and treat a later occurrence as evidence against the bump.
+2. **Test the tightest-cycle hypothesis, then bump Playwright / Chromium.** In that order, and the order is the point: a new Chromium may hide the crash without anyone learning whether the short teardown caused it, and the repo would be back to "mystery flake" the next time a spec gets short. Both probes are one line. Neither is a fix to keep. Measured rate is 6 CI occurrences across 42 runs, so nothing here is settled by a green run.
 
 ## New docs/PHONE.md items
 
@@ -151,8 +162,13 @@ The evidence that killed the item's premise was in GitHub the whole time.
 `31359764333` failed on `main` at 05:48 with the identical segfault in `v142-menu.spec.js`, four hours before the item was written asserting that no other file had ever done this.
 Nothing looked, because the file that had failed most recently was the one that got counted.
 
-The second surprise is smaller and more useful: two of the six occurrences are from runs that were already red for an unrelated reason, and a failure causes a browser relaunch.
-So the naive census over-counts the file that was under development at the time, which is exactly the file that then looks cursed.
+**The batch's own PR run then crashed, on a diff of three comments and two markdown files.**
+That is the seventh occurrence, it arrived after the review had returned and while the branch was waiting to merge, and it is the reason this handover argues the opposite of what it argued an hour earlier.
+The previous batch's flaky-artifact gate paid for itself twice in one day: it fired, kept the report, and the report is what supplied the predecessor column.
+
+A related one, smaller and more useful: two of the seven are from runs already red for an unrelated reason, and a failure causes a browser relaunch.
+So a naive census over-counts the file that was under development at the time, which is exactly the file that then looks cursed.
+That correction was right and it was still not enough to rescue "chance" - which is the useful shape here. A good de-biasing argument can be sound and lead nowhere, and the thing that settled it was one more observation rather than one more inference.
 
 The third is the one I would most want to have known at the start.
 I wrote "occurrence 1 cannot be located" into two files, with a fifteen-run search behind it, and it was false - `gh run` hides a re-run's original attempt and reports it as attempt 1.
