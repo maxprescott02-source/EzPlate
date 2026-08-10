@@ -30,7 +30,7 @@ The item noticed that the file manages no contexts of its own and called it the 
 ## The census, and the pattern it took seven occurrences to see
 
 **The premise "all in this one file" is false.**
-A census of all 42 `tests` workflow runs of 10 Aug - the `v141-sync-pill-corner` branch runs are *inside* that 42, not additional to it - finds **seven** occurrences in **two** spec files, six in CI and one local:
+A census of every `tests` workflow run of 10 Aug - 42 at the time of the sweep, 44 once this batch had run its own, and the `v141-sync-pill-corner` branch runs are *inside* that count rather than additional to it - finds **seven** occurrences in **two** spec files, six in CI and one local:
 
 | run | when | test | ran immediately before |
 |---|---|---|---|
@@ -139,7 +139,7 @@ If it bites a second time, that is the argument for promoting it, and this parag
 ## New docs/QUEUE.md items
 
 1. **A browser segfault reads as a mystery flake.** The `flaky` annotation says a spec passed on a retry and not that the browser crashed, so the reader's first hypothesis is their own diff, which is the one thing it cannot be. `Received signal` is already in the json report; surface it in the warning. Must fail open like the existing detector.
-2. **Test the tightest-cycle hypothesis, then bump Playwright / Chromium.** In that order, and the order is the point: a new Chromium may hide the crash without anyone learning whether the short teardown caused it, and the repo would be back to "mystery flake" the next time a spec gets short. Both probes are one line. Neither is a fix to keep. Measured rate is 6 CI occurrences across 42 runs, so nothing here is settled by a green run.
+2. **Test the tightest-cycle hypothesis, then bump Playwright / Chromium.** In that order, and the order is the point: a new Chromium may hide the crash without anyone learning whether the short teardown caused it, and the repo would be back to "mystery flake" the next time a spec gets short. Both probes are one line. Neither is a fix to keep. Measured rate is 6 CI occurrences across 44 runs, so nothing here is settled by a green run.
 
 ## New docs/PHONE.md items
 
