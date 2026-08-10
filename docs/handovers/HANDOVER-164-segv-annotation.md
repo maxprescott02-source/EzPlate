@@ -48,7 +48,10 @@ The lesson here is already the file's rule about checking a literal against a re
 
 ## New docs/QUEUE.md items
 
-None.
+One, in the Small list: all three CI jobs carry a Node 20 deprecation warning and GitHub is already forcing those actions onto Node 24.
+Seen while confirming this batch's own step emitted no annotation.
+Nothing is broken, but a permanent warning on every green run is noise on the exact channel this batch just started writing to.
+
 The two follow-ups from the segfault investigation are already queued and untouched by this batch: the tightest-cycle experiment and the Playwright/Chromium bump.
 
 ## New docs/PHONE.md items
