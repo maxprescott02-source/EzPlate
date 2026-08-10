@@ -34,10 +34,10 @@ for (const [label, w, h] of [['mobile', 380, 780], ['desktop', 1280, 800]]) {
     // FIRST visit arms draft saves (openBuilder runs after loadPlateState's render, so this one
     // was always safe). The SECOND is the one that used to plant a draft of an untouched plate.
     await page.evaluate(() => window.editPlateFromCard('SP7'));
-    await expect(page.locator('#builderModal')).toBeVisible();
+    await expect(page.locator('#builderPage')).toBeVisible();   // F7 (v146): the builder is a page
     await page.evaluate(() => closeBuilder());
     await page.evaluate(() => window.editPlateFromCard('SP8'));
-    await expect(page.locator('#builderModal')).toBeVisible();
+    await expect(page.locator('#builderPage')).toBeVisible();   // F7 (v146): the builder is a page
     await page.waitForTimeout(700);                       // well past the 250ms debounce
 
     const draft = await page.evaluate((k) => localStorage.getItem(k), KEY);

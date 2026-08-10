@@ -784,35 +784,39 @@ function commitPrice(uid,raw){
 }
 
 function miscRowHtml(l){                                              // a removable non-ingredient cost line (spices, boxes, etc.)
-  // v67 item 3: a misc line is a SIBLING of an ingredient line \u2014 it reuses the exact two-row .line
-  // skeleton (.top = label + \u00d7, .costs = leader + amount) so row height and every column line up
-  // pixel-wise. v69 (REVERSAL of the v60 "no name field" rule, Max's call): the name is EDITABLE again so
-  // the user can label the line ("Packaging", "Spices"), occupying the ingredient row's name slot (.nm);
-  // blank shows "Misc" as a placeholder. The $ input stays in the far-right total (.lc) slot; the leader
-  // grows to push it there. The \u00d7 lands in the same top-right column as every ingredient row's \u00d7.
-  // Same ids/handlers (setMiscLabel/setMiscCost/removeLine); the stored label now round-trips through save.
-  return '<div class="line misc-line" data-uid="'+l.uid+'">'
-    +'<div class="top">'
-      +'<span class="nm"><input type="text" class="misc-name" value="'+esc(l.label||'')+'" placeholder="Misc" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
-      +'<button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine('+l.uid+')">\u00d7</button>'
-    +'</div>'
-    +'<div class="costs">'
-      +'<span class="leader"></span>'
-      +'<span class="qtybox misc-costbox"><span class="u">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
-    +'</div>'
+  // v67 item 3: a misc line is a SIBLING of an ingredient line and uses the SAME row skeleton, so
+  // every column lines up. v69 (REVERSAL of the v60 "no name field" rule, Max's call): the name is
+  // EDITABLE so the user can label the line ("Packaging", "Spices"); blank shows "Misc" as a
+  // placeholder. F7 (v146): it now spans the Qty and Unit-cost columns, because a misc line has
+  // neither - an empty qty input on it would be a control that cannot mean anything.
+  // Same ids/handlers (setMiscLabel/setMiscCost/removeLine); the stored label round-trips through save.
+  return '<div class="bld-row is-misc" data-uid="'+l.uid+'">'
+    +'<span class="bld-ing"><input type="text" class="misc-name" value="'+esc(l.label||'')+'" placeholder="Misc" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
+    +'<span class="bld-mid"></span>'
+    +'<span class="bld-lc misc-costbox"><span class="bld-dollar">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
+    +'<button class="bld-rm" type="button" aria-label="Remove" onclick="removeLine('+l.uid+')">Remove</button>'
     +'</div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
   plate.push({uid:uidc++, misc:true, label:'', cost:0});
   renderPlate();
-  var rows=document.querySelectorAll('.misc-line .misc-name'); var last=rows[rows.length-1]; if(last) last.focus();   // v69: name field restored (reverses v60) — focus it so the line can be labelled
+  var rows=document.querySelectorAll('.bld-row.is-misc .misc-name'); var last=rows[rows.length-1]; if(last) last.focus();   // v69: name field restored (reverses v60) — focus it so the line can be labelled
 }
 function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; scheduleDraftSave(); }
 function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
+/* F7 (v146) — the builder's ingredient table, rebuilt from mock §3.7. One markup, two layouts:
+   desktop is the mock's five-column grid (Ingredient | Qty | Unit cost | Cost | remove), mobile is
+   §6's stacked row (name over qty-and-unit-cost, cost right). Same cells in the same reading order
+   at both widths, which is §6.1's rule.
+   ⚠️ The COLUMN NAMED "Unit" IN THE MOCK CARRIES THE UNIT COST HERE, and the band says so. The mock
+   shows a bare unit noun; this app's unit price is an inline editable control (.pchip, click to
+   re-price the product everywhere) with no other home on the screen, so the unit noun rides in the
+   Qty cell after the input - "100 g" - and the third column is the price. Deleting the chip to
+   match the mock would have been R3's forbidden dropped control. */
 function renderPlate(){
   scheduleDraftSave();                                        // v82 D1: persist the in-progress builder (debounced) on every structural change
   var nIng=plate.filter(function(l){return !l.misc;}).length;
-  document.getElementById('dCount').textContent=nIng+(nIng===1?' item':' items');
+  var dc=document.getElementById('dCount'); if(dc) dc.textContent=nIng?(nIng+(nIng===1?' item':' items')):'';
   // v102 fix (CodeRabbit): the hint update must run BEFORE the empty-plate early return — a fresh
   // install has no ingredients AND an empty plate, and that user needs the add-first-ingredient link.
   var bh=document.getElementById('builderHint');
@@ -820,58 +824,42 @@ function renderPlate(){
     if(!kitchenIngredients.length){ bh.style.display=''; bh.innerHTML='No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
     else { bh.style.display='none'; bh.textContent=''; }   // v102 prose cull: the default hint is gone — the search dropdown carries the same guidance (v59: still no create-on-the-spot)
   }
-  if(!plate.length){linesEl.innerHTML='<div class="empty">No ingredients yet.<br>Search above to add the first one.</div>';updateTotals();return;}
+  if(!plate.length){linesEl.innerHTML='<div class="bld-empty">No ingredients yet.<br>Add the first one below.</div>';updateTotals();return;}
   linesEl.innerHTML=plate.map(l=>{
     if(l.misc){ return miscRowHtml(l); }
     const p=lineProduct(l);
     const isKid=!!l.kid;
     const kName=isKid?((kById[l.kid]&&kById[l.kid].name)||'Ingredient'):null;
+    const qtyCell=`<span class="bld-qty"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)">`;
+    const rmCell=`<button class="bld-rm" type="button" aria-label="Remove ingredient" onclick="removeLine(${l.uid})">Remove</button>`;
     if(!p){                                                    // orphaned line: deleted product or broken kitchen link — greyed, still counted as missing
       const title=isKid?esc(kName):'Product';
-      // v44 item 8: two rows per line — name row (.top) then costs row (.costs). Same inputs/ids/handlers, layout only.
-      return `<div class="line missing-line" data-uid="${l.uid}">
-      <div class="top">
-        <span class="nm"><b>${title}</b><span class="sub warn">product missing</span></span>
-        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
-      </div>
-      <div class="costs">
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)"></span>
-        <span class="leader"></span>
-        <span class="lc"><span class=nocost>no cost</span></span>
-      </div></div>`;
+      return `<div class="bld-row is-missing" data-uid="${l.uid}">
+        <span class="bld-ing"><b>${title}</b><span class="bld-sub warn">product missing</span></span>
+        ${qtyCell}</span>
+        <span class="bld-unit"></span>
+        <span class="bld-lc"><span class="nocost">no cost</span></span>
+        ${rmCell}
+      </div>`;
     }
     const lc=lineCost(p,l.qty);
     const editable = ['g','ml','ea'].includes(p.base_unit);
+    // the chip is the app's re-price-everywhere control; a non-editable base unit renders the same
+    // figure as plain text rather than a control that would do nothing (§R4).
     const priceChip = editable
       ? `<span class="pchip" id="pc-${l.uid}" tabindex="0" role="button" title="Click to edit price" onclick="editPrice(${l.uid})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();editPrice(${l.uid})}">${unitCostStr(p)} <span class="pen">✎</span></span>`
       : `<span>${unitCostStr(p)}</span>`;
-    let nameBlock, priceline;
-    // v44 item 8 (Max's mockup): row 1 = name + meta, row 2 = qty + unit price + line cost,
-    // left-aligned on their own line. Same inputs, ids and handlers — the nodes just moved.
-    // v45 items 6/7 (declutter, Max's call): the "· new"/"· edited" badges, the category half of
-    // the subtitle and the orange "ingredient" pill (.row2/.king-tag) are all REMOVED, not hidden.
-    if(isKid){                                                  // kitchen word up top, linked product small underneath
-      nameBlock=`<b>${esc(kName)}</b>
-          <span class="sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>`;
-      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;   // v44 item 8: docket idiom "100 g @ $2.63/kg" — the words "Unit cost:" blew the 380px budget
-    } else {                                                     // legacy direct-product line (pre-v31 saved plates): render + cost, no alternatives
-      nameBlock=`<b>${esc(p.description)}</b>${p.brand?`
-          <span class="sub">${esc(p.brand)}</span>`:''}`;
-      priceline=`<span class="priceline" title="unit cost">@ ${priceChip}</span>`;
-    }
-    return `<div class="line" data-uid="${l.uid}">
-      <div class="top">
-        <span class="nm">
-          ${nameBlock}
-        </span>
-        <button class="x" type="button" title="Remove" aria-label="Remove" onclick="removeLine(${l.uid})">×</button>
-      </div>
-      <div class="costs">
-        <span class="qtybox"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)"><span class="u">${unitNoun(p)}</span></span>
-        ${priceline}
-        <span class="leader"></span>
-        <span class="lc" id="lc-${l.uid}">${lc==null?'<span class=nocost>no cost</span>':money(lc)}</span>
-      </div>
+    // v45 items 6/7 (declutter, Max's call): no "· new"/"· edited" badges and no category — that
+    // stays deleted. The kitchen word leads and its linked product is the muted second line.
+    const nameBlock = isKid
+      ? `<b>${esc(kName)}</b><span class="bld-sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>`
+      : `<b>${esc(p.description)}</b>${p.brand?`<span class="bld-sub">${esc(p.brand)}</span>`:''}`;   // legacy direct-product line (pre-v31 saved plates)
+    return `<div class="bld-row" data-uid="${l.uid}">
+      <span class="bld-ing">${nameBlock}</span>
+      ${qtyCell}<span class="bld-u">${unitNoun(p)}</span></span>
+      <span class="bld-unit">${priceChip}</span>
+      <span class="bld-lc" id="lc-${l.uid}">${lc==null?'<span class="nocost">no cost</span>':money(lc)}</span>
+      ${rmCell}
     </div>`;}).join('');
   updateTotals();
 }
@@ -880,7 +868,9 @@ function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=lineProduct(
 function updateTotals(){
   let tot=0,missing=0;
   plate.forEach(l=>{ if(l.misc){ tot+=Number(l.cost)||0; return; } const lc=lineCost(lineProduct(l),l.qty);if(lc==null)missing++;else tot+=lc;});
-  document.getElementById('total').textContent=money(tot);
+  /* F7 (v146): the docket's own "Total plate cost" row is GONE with the docket. The Cost card's
+     #bTotal is the one on-screen total (§7 forbids the same figure twice on one screen) and
+     renderBuilderCost below writes it from this very number. */
   const flag=document.getElementById('flag');
   if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+' have no cost data and are not in the total.';}else flag.style.display='none';
   renderBuilderCost(tot);                                     // Q6 (v125): the cost panel + mobile footer render from the SAME total this function just displayed
@@ -894,11 +884,20 @@ function updateTotals(){
    DELIBERATE here and deliberately absent from the Menu tab's cell (v131 dropped it there): the
    builder is where a price gets SET, so the gap to suggested is guidance; on the Menu tab it read
    as a price-rise instruction. V5 keeps this panel's under-suggested guidance by design. */
+/* F7 (v146) — the WORST menu leads, everywhere this function names one. Red before amber before
+   green, because that is the one to act on. rank.red is 0, so the lookup must be nullish-checked,
+   never ||'d: `rank[x]||3` rewrites red to LAST (the v125 review caught exactly that shipping). */
+function worstMenuOf(on, cost){
+  var rank={red:0,amber:1,green:2,none:3};
+  var rk=function(l){ return rank[l]!=null?rank[l]:4; };
+  return on.map(function(m){ return {m:m, mp:menuMarginPreview(cost, m.price)}; })
+    .sort(function(a,b){ return rk(a.mp.light)-rk(b.mp.light); })[0];
+}
 function renderBuilderCost(tot){
   var tEl=document.getElementById('bTotal'); if(!tEl) return;
   var cost=Number(tot)||0;
   tEl.textContent=money(cost);
-  var tp=document.getElementById('bTargetPct'); if(tp) tp.textContent='('+cogsPct+'% target)';
+  var tp=document.getElementById('bTargetPct'); if(tp) tp.textContent='at '+cogsPct+'%';
   var sEl=document.getElementById('bSuggest'); if(sEl) sEl.textContent=(cost>0)?money(cost/foodTarget()):'—';
   var sp=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
   var on=sp?menusOfPlate(sp):[];
@@ -908,44 +907,84 @@ function renderBuilderCost(tot){
     if(c<1) return '';
     return ' — '+(c<100?(c+'c'):('$'+(c/100).toFixed(2)))+' under suggested';
   }
+  /* The mock's Cost card has ONE menu-price input, because its plate is on one menu. This app's
+     plate is on any number of menus, each with its own price (menusOfPlate) - R2, and the reason a
+     single input cannot ship: it would have to pick one of them silently. The per-menu list is the
+     app's truth in the mock's card. The under-suggested wording is DELIBERATE here and deliberately
+     absent from the Menu tab's cell (v131 dropped it there): the builder is where a price gets set,
+     so the gap to suggested is guidance; on the Menu tab it read as a price-rise instruction. */
   var box=document.getElementById('bMenus');
   if(box){
     if(!on.length){ box.style.display='none'; box.innerHTML=''; }
     else{
       box.style.display='';
-      box.innerHTML='<div class="bcost-cap2">On menus</div>'+on.map(function(m){
+      box.innerHTML='<div class="bld-k bld-menus-cap">On menus</div>'+on.map(function(m){
         var mp=menuMarginPreview(cost, m.price);
         var v=(mp.pct==null)?'':'<div class="bverdict bv-'+mp.light+'"><b>'+mp.pct+'% food cost</b>'+esc(shortStr(mp))+'</div>';
-        return '<div class="bcost-menu"><span class="bm-name">'+esc(m.name)+'</span><span class="bm-price">'+fmt2(m.price)+'</span></div>'+v;
+        return '<div class="bld-menu"><span class="bm-name">'+esc(m.name)+'</span><span class="bm-price">'+fmt2(m.price)+'</span></div>'+v;
       }).join('');
     }
   }
+  /* The mock's header pill ("42.2% food cost"). With many menus there is no single figure, so it
+     shows the WORST one and names it - the same choice the mobile bar has made since v125. An
+     unpublished plate has no price anywhere, so the pill is absent rather than zero or a dash. */
+  var pill=document.getElementById('bldPill');
+  if(pill){
+    var w=(cost>0 && on.length)?worstMenuOf(on, cost):null;
+    if(w && w.mp.pct!=null){
+      pill.hidden=false;
+      pill.className='bld-pill bv-t-'+w.mp.light;
+      pill.textContent=w.mp.pct+'% food cost'+(on.length>1?(' · '+w.m.name):'');
+    } else { pill.hidden=true; pill.textContent=''; }
+  }
+  /* §6's sticky mobile summary bar: plate cost + suggested, as the mock draws it. Its action is
+     Save (see the markup comment). Empty until the plate costs something - a bar reading $0.00
+     over an empty table is chrome, not information. */
   var foot=document.getElementById('bFootSum');
   if(foot){
-    if(!(cost>0)){ foot.innerHTML=''; }
+    if(!(cost>0)){ foot.innerHTML=''; foot.hidden=true; }
     else{
+      foot.hidden=false;
       var line;
       if(on.length){
-        // the WORST menu leads — red before amber before green — because that is the one to act on.
-        // rank.red is 0, so the lookup must be nullish-checked, never ||'d: `rank[x]||3` rewrites
-        // red to LAST (the v125 review caught exactly that shipping).
-        var rank={red:0,amber:1,green:2,none:3};
-        var rk=function(l){ return rank[l]!=null?rank[l]:4; };
-        var worst=on.map(function(m){ return {m:m, mp:menuMarginPreview(cost, m.price)}; })
-          .sort(function(a,b){ return rk(a.mp.light)-rk(b.mp.light); })[0];
+        var worst=worstMenuOf(on, cost);
         line=(worst.mp.pct==null)
           ? ('suggested '+money(cost/foodTarget())+' at '+cogsPct+'%')
-          : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price)+' — suggested '+fmt2(cost/foodTarget()));
+          : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price));
       } else {
-        line='suggested '+money(cost/foodTarget())+' at a '+cogsPct+'% food cost';
+        line='not on a menu yet';
       }
-      foot.innerHTML='<div class="bfs-top"><span class="bfs-lbl">Total plate cost</span><span class="bfs-total">'+money(cost)+'</span></div>'
+      foot.innerHTML='<div class="bfs-fig"><span class="bfs-lbl">Plate cost</span><span class="bfs-total">'+money(cost)+'</span></div>'
+        +'<div class="bfs-fig"><span class="bfs-lbl">Suggested</span><span class="bfs-total">'+money(cost/foodTarget())+'</span></div>'
         +'<div class="bfs-line">'+line+'</div>';
     }
   }
+  renderBuilderPublish(sp, on);
+}
+/* F7 (v146) — the mock's Publishing card, R2+R3. The mock draws a single "On menu" <select>; this
+   app publishes one plate to MANY menus, each row its own dish with its own price and section, and
+   the machinery for that is openManageMenus / openPublishModal, which this card now owns (it was
+   reached from the plate-action chooser this item deleted).
+   ⚠️ AN UNSAVED PLATE CANNOT BE PUBLISHED and that is not a UI choice: a dish row stores plate_id,
+   so there has to be a plate id first. The card says so in words rather than showing a control that
+   would fail - §R4's rule about never shipping a dead one. */
+function renderBuilderPublish(sp, on){
+  var box=document.getElementById('bPublish'); if(!box) return;
+  if(!sp){
+    box.innerHTML='<p class="bld-note">Save the plate first, then publish it to a menu.</p>';
+    return;
+  }
+  var head=on.length
+    ? ('<div class="bld-k">On '+on.length+' '+(on.length===1?'menu':'menus')+'</div>')
+    : '<div class="bld-k">Not on a menu</div>';
+  box.innerHTML=head+'<button class="btn bld-pubbtn" id="bldPublishBtn" type="button">'+(on.length?'Manage menus':'Add to a menu')+'</button>';
+  var b=document.getElementById('bldPublishBtn');
+  if(b) b.onclick=function(){ openManageMenus(sp.id); };
 }
 
-document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();clearPlateDraft();renderPlate();});   // v82: explicit discard clears the draft
+// v82: explicit discard clears the draft. F7 (v146): it also drops loadedPlateId, so the two
+// saved-plate-only rail controls have to follow it - see syncBuilderPlateActions.
+document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();syncBuilderPlateActions();clearPlateDraft();renderPlate();});
 // v60 item 3: ONE docket renderer, shared by the builder's Print button and the plate card's Print
 // docket action (load-then-print not needed \u2014 it prints straight from the passed lines). "lines" are
 // the working/saved shape: {misc,label,cost} | {kid,qty} | {pid,qty}. Do not fork a second template.
@@ -1193,7 +1232,20 @@ var _draftT=null;
    builder is opened (openBuilder). Boot renders happen with the modal closed and now touch nothing. */
 var _draftArmed=false;
 function armDraftSaves(){ _draftArmed=true; }
-function scheduleDraftSave(){ if(!_draftArmed) return; clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }   // debounced: builder mutations funnel through renderPlate/updateTotals
+/* F7 (v146) — the builder's EDIT COUNTER, and it is what makes "Saved just now" honest.
+   ⚠️ Retracting the badge on the next edit is NOT enough on its own, and the F7 pre-push review
+   proved it in a browser: save, then edit again WHILE THE WRITE IS STILL IN FLIGHT, then let the
+   write resolve, and the resolver puts the badge up for a push that never contained the new line.
+   On mobile data - the exact condition this app is designed around - that is reachable by anyone
+   who keeps typing after tapping Save.
+   So the save captures this counter and refuses to claim success if it has moved. The counter is
+   bumped by the one function every builder mutation already funnels through. */
+var _builderEdits=0;
+/* debounced: builder mutations funnel through renderPlate/updateTotals.
+   This is also the one place that knows "the builder just changed", so it is where "Saved just
+   now" is retracted. Leaving it up after an edit would be the same lie as showing it before the
+   server answered. */
+function scheduleDraftSave(){ _builderEdits++; if(typeof setBuilderSaved==='function') setBuilderSaved(false); if(!_draftArmed) return; clearTimeout(_draftT); _draftT=setTimeout(savePlateDraft, 250); }
 function clearPlateDraft(){ clearTimeout(_draftT); try{ localStorage.removeItem(DRAFTKEY); }catch(e){} }
 /* v118 — has the plate this draft was taken against MOVED since? A draft can sit for a week, and
    resuming it reinstates its own lines under the same loadedPlateId, so anything edited elsewhere in
@@ -1263,7 +1315,7 @@ function saveCurrentPlate(asNew){
   var badLine=plate.find(function(l){ return !l.misc && !(l.qty>0); });
   if(badLine){
     toast('Enter a quantity for every ingredient');
-    var qi=document.querySelector('.line[data-uid="'+badLine.uid+'"] .qtybox input'); if(qi){ qi.focus(); }
+    var qi=document.querySelector('.bld-row[data-uid="'+badLine.uid+'"] .bld-qty input'); if(qi){ qi.focus(); }
     return false;
   }
   var name=rawName;
@@ -1281,15 +1333,35 @@ function saveCurrentPlate(asNew){
   if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   var _isNew=(_costBefore==null);
   var _write=dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
+  /* F7 (v146) — "Saved just now" waits for the SERVER, and for the plate to still BE what was
+     pushed. pushWrite resolves to the result or to {error} and never to null (CLAUDE.md Tier 2),
+     so `!r || !r.error` is the ok test and an offline drop lands in the else branch, where
+     pushWrite's own toast has already said it was not saved.
+     ⚠️ The `_builderEdits` check is the second half and is not optional - without it a write that
+     resolves AFTER a further edit puts the badge up for a state the server has never seen. The
+     counter is read here rather than in the resolver so the comparison is against the moment of
+     the push, not the moment of the answer.
+     The rest of this function stays optimistic on purpose - the library, the Menu tab and the log
+     all repaint immediately - because it is only the WORDING that must wait. */
+  var _editsAtPush=_builderEdits;
+  if(_write && typeof _write.then==='function'){
+    _write.then(function(r){ if((!r || !r.error) && _builderEdits===_editsAtPush) setBuilderSaved(true); });
+  } else if(_builderEdits===_editsAtPush){ setBuilderSaved(true); }
+  syncBuilderPlateActions();                                         // a saved plate can now be duplicated and deleted
+  renderBuilderCost(costFromLines(sp.lines));                        // the Publishing card becomes usable the moment the plate has an id
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   logChangeIfSaved(_write, _isNew?'plate_created':'plate_edited', {plateId:sp.id,
     menuIds:menusOfPlate(sp).map(function(o){ return o.menuId; }),                 // every menu this re-cost moved; empty for an unpublished plate, which is a real state
     avgBefore:_avgBefore, costBefore:_costBefore, costAfter:costFromLines(sp.lines), detail:{name:sp.name}});
   return true;
 }
-// v54: the builder's one primary action. Save writes the plate to the library (menu link unchanged) and,
-// on success, closes the popup and refreshes the Plates tab. Publishing is a separate action from a card.
-function saveFromBuilder(){ if(saveCurrentPlate(false)) closeBuilder(); }
+/* v54: the builder's one primary action. Save writes the plate to the library and refreshes the
+   Plates tab.
+   F7 (v146) — IT NO LONGER LEAVES THE PAGE, and that is a consequence of the rehome rather than a
+   preference: publishing now lives on this page, so a save that navigated away would put the plate
+   one screen from the control the user needs next. The mock agrees - its builder header reports
+   "Saved just now" in place, and this app now renders that line once the server confirms. */
+function saveFromBuilder(){ saveCurrentPlate(false); }
 (function(){ var sb=document.getElementById('saveBtn'); if(sb) sb.addEventListener('click',saveFromBuilder); })();
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 /* menu analysis */
@@ -1396,6 +1468,11 @@ function showTab(t){
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
   ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  /* F7 (v146): the builder is a full PAGE now, a child of Plates rather than a tab of its own, so
+     every tab change leaves it. Nothing is lost by that - the in-progress plate stays in memory and
+     in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
+     pressing × did while it was a modal. */
+  var _bp=document.getElementById('builderPage'); if(_bp) _bp.hidden=true;
   /* F4 (v140) tombstone: the `#prodFab` show/hide line lived here. The floating add is deleted —
      v3 §6.1 puts the primary action in the screen header on both platforms, so a second control for
      the same intent was §7's forbidden duplicate. Nothing replaces the line. */
@@ -4671,7 +4748,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v145';
+var APP_VERSION='v146';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -5644,15 +5721,48 @@ function renderPlatesTab(){
   }).join('');
   /* R2, and F7 changes this consciously: the row opens the ACTION CHOOSER, not the builder. The
      mock's row-click goes straight to the builder, but publishing/printing/deleting live in the
-     chooser until F7 rehouses publishing into the builder page - flipping it here would orphan
-     three controls (§11.6). tests/visual/v138-plates.spec.js pins the current answer. */
-  wrap.querySelectorAll('.plib-row').forEach(function(b){ b.onclick=function(){ openPlateActions(b.getAttribute('data-pid')); }; });
+     chooser. F7 (v146) FLIPS IT, as that note said it would: the chooser is gone and the row opens
+     the builder, which is the mock's §3.3 behaviour. Nothing orphaned - publishing, printing and
+     deleting all live on the builder page now. tests/visual/v138-plates.spec.js is updated in the
+     same change rather than deleted (protocol §4). */
+  wrap.querySelectorAll('.plib-row').forEach(function(b){ b.onclick=function(){ editPlateFromCard(b.getAttribute('data-pid')); }; });
 }
-/* ---- builder popup ---- */
+/* ---- the builder PAGE (a modal from v54 to v145; the 9 Aug 2026 reversal made it a page) ---- */
+/* It is not a tab: `data-tab="builder"` is the Plates library and does not move. openBuilder hides
+   the five panes and shows #builderPage; the Plates nav item stays lit, which is what the mobile
+   mock's own tab logic does. LEAVING BY TAPPING ANOTHER TAB is allowed and loses nothing - it is
+   exactly what pressing × did from v54 to v145: the work stays in memory and in the draft, and
+   guardUnfinishedPlate offers it back at the next entry. showTab hides this page for that reason. */
+function builderPageEl(){ return document.getElementById('builderPage'); }
+function builderIsOpen(){ var el=builderPageEl(); return !!(el && !el.hidden); }
+/* F7 (v146) — FOCUS, which the page has to do for itself.
+   Every overlay in this app gets focus handling free from openOverlay/closeOverlay: they capture
+   the opener, move focus into the layer and hand it back on close. A page is not an overlay, so
+   the rewrite silently dropped all three - the F7 pre-push review measured `document.activeElement`
+   landing on <body> in BOTH directions, because the opener's own pane is one of the five that
+   openBuilder hides. For a keyboard or screen-reader user every entry and exit stranded focus at
+   the top of the document. The two functions below are the page's equivalent, deliberately small:
+   remember the opener, put focus on the page's first control, hand it back if it still exists. */
+var _builderOpener=null;
+function focusBuilderPage(){
+  var pg=builderPageEl(); if(!pg) return;
+  var target=document.getElementById('builderClose') || pg.querySelector('input,button,select,[tabindex]');
+  if(target){ try{ target.focus({preventScroll:true}); }catch(e){ try{ target.focus(); }catch(e2){} } }
+}
 function openBuilder(){ armDraftSaves();                              // v84: the user is now IN the builder — draft saves are live from here (see armDraftSaves)
-  var t=document.getElementById('builderModalTitle'); if(t) t.textContent=loadedPlateId?'Edit plate':'New plate'; if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); } show('builderModal');
-  // v61 item 2: every open (New AND Edit) starts at the top — the scroller (and the full-screen overlay at mobile widths) can otherwise retain the previous session's position
-  var bm=document.getElementById('builderModal'); if(bm){ bm.scrollTop=0; var mb=bm.querySelector('.mbody'); if(mb) mb.scrollTop=0; }
+  if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); }
+  ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display='none'; });
+  /* the opener is captured BEFORE the panes are hidden - hiding the pane it lives in is what
+     drops focus, so reading activeElement afterwards would only ever find <body>. */
+  var _op=document.activeElement;
+  if(!builderIsOpen()) _builderOpener=(_op && _op!==document.body)?_op:null;
+  var pg=builderPageEl(); if(pg) pg.hidden=false;
+  document.querySelectorAll('.navbtn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab==='builder'); });   // the Plates entry stays lit while its child page is open
+  setBuilderSaved(false);
+  syncBuilderPlateActions();                                          // nothing to duplicate or delete until a plate is saved
+  // v61 item 2: every open (New AND Edit) starts at the top — the page can otherwise retain the previous session's scroll position
+  try{ window.scrollTo(0,0); }catch(e){}
+  focusBuilderPage();
   /* Q6 (v125): refresh the cost panel on EVERY open. Three of the four open paths re-render anyway,
      but resumeUnfinishedPlate's same-session branch calls openBuilder alone — a dish price, menu or
      target changed while the builder was hidden would otherwise show stale (the v125 review's
@@ -5660,7 +5770,41 @@ function openBuilder(){ armDraftSaves();                              // v84: th
      writes no draft on a look-only visit. */
   updateTotals();
 }
-function closeBuilder(){ hide('builderModal'); }
+function closeBuilder(){
+  var pg=builderPageEl(); if(pg) pg.hidden=true;
+  if(typeof hidePlateSuggest==='function') hidePlateSuggest();
+  showTab('builder');                                                 // back to the Plates library, the page this one is a child of
+  /* Hand focus back, on the same terms closeOverlay uses: only if the opener still exists, and
+     only if nothing else has claimed focus in the meantime. A row that was re-rendered by the
+     save is gone from the document, so the fallback is the control that gets you back in. */
+  var op=_builderOpener; _builderOpener=null;
+  var ae=document.activeElement;
+  if(!ae || ae===document.body || (pg && pg.contains(ae))){
+    var t=(op && document.contains(op)) ? op : document.getElementById('newPlateBtn');
+    if(t){ try{ t.focus({preventScroll:true}); }catch(e){ try{ t.focus(); }catch(e2){} } }
+  }
+}
+/* "Saved just now" is the mock's, and it renders ONLY when the server has confirmed the write -
+   never optimistically. An occasional user on mobile data would rather be told a thing did not
+   save than find out next week; pushWrite already toasts the failure, so this line's job is to
+   stop CLAIMING success. Any subsequent edit clears it, because it would then be describing a
+   state that is no longer on the server. */
+function setBuilderSaved(on){
+  var el=document.getElementById('bldSaved'); if(!el) return;
+  el.hidden=!on; el.textContent=on?'Saved just now':'';
+}
+/* F7 (v146) — ONE owner for the two controls that only mean anything on a SAVED plate.
+   ⚠️ It must be called from every path that changes `loadedPlateId`, not just the ones that open
+   the page. The F7 pre-push review found the gap: "Clear plate" is the app's explicit discard, it
+   sets loadedPlateId=null, and it is nowhere near openBuilder - so both buttons stayed visible and
+   both became silent no-ops (duplicateCurrentPlate returns on `if(!sp)`, the delete handler is
+   gated on loadedPlateId). A visible control that does nothing is exactly what §R4 forbids, and
+   two separate `hidden=` assignments per call site is how it happened. */
+function syncBuilderPlateActions(){
+  var on=!!loadedPlateId;
+  var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!on;
+  var del=document.getElementById('bldDelete'); if(del) del.hidden=!on;
+}
 /* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
    used to bin unfinished work in silence: press ×, go to the Ingredients tab, come back and tap
    "+ New plate", and the in-progress plate was gone — along with its stored draft (the empty render
@@ -5693,22 +5837,41 @@ function startNewPlate(){                                            // open the
   var qq=document.getElementById('q'); if(qq) qq.value='';
   if(typeof hideMatchPrompt==='function') hideMatchPrompt();
   if(typeof hidePlateSuggest==='function') hidePlateSuggest();
-  updateEditTag(); renderPlate(); openBuilder();
+  updateEditTag(); syncBuilderPlateActions(); renderPlate(); openBuilder();
 }
-/* ---- plate card action menu ---- */
-var paTargetId=null;
-function openPlateActions(pid){
-  var sp=savedPlates.find(function(s){return s.id===pid;}); if(!sp) return;
-  paTargetId=pid;
-  var s=plateMenuSummary(sp), cost=plateIsCosted(sp)?('cost '+fmt2(costFromLines(sp.lines))):'not costed';
-  var title=document.getElementById('plateActionsTitle'); if(title) title.textContent=sp.name||'Plate';
-  var sub=document.getElementById('plateActionsSub'); if(sub) sub.textContent=(s?('On '+s):'Unpublished')+' · '+cost;
-  show('plateActionsModal');
-}
-function closePlateActions(){ hide('plateActionsModal'); }
+/* F7 (v146) tombstone: openPlateActions / closePlateActions / paTargetId lived here and drove
+   #plateActionsModal, the v54 chooser a plate row used to open. Both are deleted. All four of its
+   actions were REHOMED, none dropped: Edit is now the row click itself (below), Add-to-a-menu is
+   the builder's Publishing card, Print docket and Delete plate are the builder's rail actions.
+   ⚠️ `paPublish` was one of CLAUDE.md's two worked examples of "closes the first modal before
+   opening the second"; the other, setSmemOpen, is untouched and still is one. */
 function editPlateFromCard(pid){ guardUnfinishedPlate(function(){ loadPlate(pid); }); }   // v85: guarded — same silent-loss path as "+ New plate"
-// v55: delete a plate AND every menu entry backed by it. Products/ingredients are untouched (§D1 copy).
-function deletePlate(id){
+/* F7 (v146) — Duplicate, the mock's §3.7 header action. Clones the LINES and the CATEGORY into a
+   new, unsaved plate and leaves you in the builder on it.
+   The publish state is deliberately NOT copied: a copy published to the same menu would put two
+   rows of the same dish on it. The unsaved-work guard runs BEFORE the clone, not after, so the
+   plate being duplicated is never the thing the guard is asking about. */
+function duplicateCurrentPlate(){
+  var sp=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null; if(!sp) return;
+  var lines=(sp.lines||[]).slice(), cat=sp.category||'', nm=(sp.name||'Plate')+' (copy)';
+  guardUnfinishedPlate(function(){
+    plate=[]; loadedPlateId=null; menuTouched=false;
+    lines.forEach(function(l){ if(l&&l.misc){ plate.push({uid:uidc++,misc:true,label:l.label||'',cost:Number(l.cost)||0}); } else if(l&&l.kid){ plate.push({uid:uidc++,kid:l.kid,qty:l.qty}); } else if(byId[l.pid]) plate.push({uid:uidc++,pid:l.pid,qty:l.qty}); });
+    var pn=document.getElementById('plateName'); if(pn) pn.value=nm;
+    var pc=document.getElementById('plateCat'); if(pc) pc.value=cat;
+    var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none';
+    if(typeof hidePlateSuggest==='function') hidePlateSuggest();
+    updateEditTag(); renderPlate(); openBuilder();
+    toast('Duplicated — save it to keep the copy');
+  });
+}
+/* v55: delete a plate AND every menu entry backed by it. Products/ingredients are untouched (§D1 copy).
+   F7 (v146): `onRemoved` fires once the optimistic removal has happened and the screen has been
+   repainted - it is how the builder page leaves itself when you delete the plate it is editing.
+   It must NOT be called before the confirm is taken, and it is deliberately not called again if the
+   server rejects the delete: the rollback puts the plate back in the library and says so in a toast,
+   which is a better place to be than re-entering a builder the user has just left. */
+function deletePlate(id, onRemoved){
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
   var nm=sp.name||'plate'; var on=menusOfPlate(sp);
   var msg=on.length
@@ -5728,6 +5891,7 @@ function deletePlate(id){
     savedPlates=savedPlates.filter(function(s){return s.id!==id;});
     if(wasLoaded) loadedPlateId=null;
     repaint();                                                       // the screen keeps up; the WORDS wait for the server
+    if(typeof onRemoved==='function') onRemoved();
     dbDeletePlateAfterDishes(dishIds, id).then(function(r){
       if(r.dishesOk && r.plateOk){
         logChange('plate_deleted', {plateId:id, menuIds:menuIds, avgBefore:avgBefore,
@@ -5789,18 +5953,17 @@ function mmRemove(dishId){
   logHistory();   // v115 path 10: after rebuildMenu() — computeAvgFoodCost reads MENU, which is stale until then
   toast('Removed from the menu — plate kept');
 }
-(function(){                                                         // Plates-tab + popup wiring
+(function(){                                                         // Plates-tab + builder-page wiring
   var nb=document.getElementById('newPlateBtn'); if(nb) nb.addEventListener('click',openBuilderNew);
   var bc=document.getElementById('builderClose'); if(bc) bc.addEventListener('click',closeBuilder);
-  var pac=document.getElementById('plateActionsClose'); if(pac) pac.addEventListener('click',closePlateActions);
   var ps=document.getElementById('plateSearch'); if(ps){ ps.addEventListener('input',renderPlatesTab); ps.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); ps.blur(); } }); }
   var psc=document.getElementById('plateSearchClear'); if(psc) psc.addEventListener('click',function(){ if(ps){ ps.value=''; renderPlatesTab(); ps.focus(); } });
   var pcf=document.getElementById('plateCatFilter'); if(pcf) pcf.addEventListener('change',renderPlatesTab);   // §J category filter
   var pcc=document.getElementById('plateClearFilters'); if(pcc) pcc.addEventListener('click',clearPlateFilters);   // v58: same helper the empty-state action uses
-  var pP=document.getElementById('paPublish'); if(pP) pP.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); openManageMenus(id); });
-  var pE=document.getElementById('paEdit'); if(pE) pE.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); editPlateFromCard(id); });
-  var pPr=document.getElementById('paPrint'); if(pPr) pPr.addEventListener('click',function(){ var sp=savedPlates.find(function(s){return s.id===paTargetId;}); closePlateActions(); if(sp) printDocketFor(sp.name, sp.lines); });   // v60 item 3: print straight from the saved plate
-  var pD=document.getElementById('paDelete'); if(pD) pD.addEventListener('click',function(){ var id=paTargetId; closePlateActions(); deletePlate(id); });
+  // F7 (v146): the four rehomed actions. Delete leaves the page, because the plate it was editing
+  // no longer exists — staying would leave the builder holding a deleted id.
+  var bd=document.getElementById('bldDuplicate'); if(bd) bd.addEventListener('click',duplicateCurrentPlate);
+  var bdel=document.getElementById('bldDelete'); if(bdel) bdel.addEventListener('click',function(){ if(loadedPlateId) deletePlate(loadedPlateId, closeBuilder); });
   var mmc=document.getElementById('manageMenusClose'); if(mmc) mmc.addEventListener('click',closeManageMenus);
   var mmd=document.getElementById('manageMenusDone'); if(mmd) mmd.addEventListener('click',closeManageMenus);
 })();
@@ -8178,9 +8341,11 @@ edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
  if(ca)ca.addEventListener('click',function(){ var fn=__confirmCancelFn; closeConfirm(); if(fn)fn(); });
  if(cx)cx.addEventListener('click',closeConfirm);})();
 
-// backdrop tap closes small dialogs; the builder popup is deliberately NOT backdrop-dismissable (an accidental
-// tap must not throw away a plate in progress) — only its × / Escape close it.
-['menuModal','invModal','confirmModal','editModal','delChoiceModal','plateActionsModal','manageMenusModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+// backdrop tap closes small dialogs. F7 (v146): the builder is a PAGE now, so the note this comment
+// used to carry (it is deliberately not backdrop-dismissable, because an accidental tap must not
+// throw away a plate in progress) is moot — a page has no backdrop. `plateActionsModal` left this
+// list with the chooser.
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
 /* v137 (F1b): ONE Escape handler for every modal in the app, closing the TOP LAYER ONLY.
    It replaces a hard-coded list of 8 ids plus two single-modal listeners. See topOverlay() /
    closeTopOverlay() for why the layer is derived from the DOM rather than named.

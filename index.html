@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=145">
+<link rel="stylesheet" href="css/style.css?v=146">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -156,9 +156,97 @@
       <div id="plateList"></div>
       <!-- mock §3.3's footnote, R2-adapted: publishing lives in the action chooser until F7
            rehouses it into the builder page, so the copy states what this screen actually does -->
-      <p class="plib-note" id="plateListNote" hidden>Select a plate for its actions — edit, add to a menu, print or delete.</p>
+      <p class="plib-note" id="plateListNote" hidden>Select a plate to open it in the builder. Publishing lives in the plate's cost panel.</p>
     </div>
   </div><!-- /tab-builder (LABEL: Plates) -->
+
+  <!-- F7 (v146): the PLATE BUILDER, a full page. REBUILT from `Redesign v3 - SaaS.dc.html` §3.7
+       (desktop) and `… Mobile.dc.html` §6 (mobile) per FOLD-IN-PROTOCOL §1.2. It was a modal from
+       v54 to v145; the 9 Aug 2026 reversal made it a page and CLAUDE.md now records that.
+       It is a SIBLING of the #tab-* panes, not one of them: `data-tab="builder"` is the Plates
+       LIBRARY and that identifier does not move (the naming inversion). openBuilder shows this and
+       hides the panes; the Plates nav item stays active throughout, which is what the mobile mock's
+       own tab logic does (`id==='plates' && S==='builder'`).
+       Every id below is the one the old modal used — q, drop, lines, total, plateName, plateCat,
+       menuLink, saveBtn, bTotal, bFootSum … — because the handlers bind by id and §5 says re-attach,
+       never rediscover. #builderClose is still the id of the leave control; it now reads "‹ Plates". -->
+  <div id="builderPage" hidden>
+    <div class="scr-head bld-head">
+      <button class="bld-back" id="builderClose" type="button" aria-label="Back to Plates"><span class="bld-chev">‹</span>Plates<span class="bld-slash"> /</span></button>
+      <!-- R2: the mock's header shows the plate NAME as static text and names the plate in a
+           separate "New plate" modal. This app names the plate LAST (v69, Max's call: add
+           ingredients, then name, then categorise, then save) and the same field doubles as the
+           load-a-saved-plate search. So the title is an editable field wearing the mock's title
+           type — the mock's structure, the app's flow. -->
+      <span class="bld-namewrap">
+        <input id="plateName" class="bld-name" type="text" placeholder="Name this plate" autocomplete="off" aria-label="Plate name">
+        <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+      </span>
+      <span class="bld-pill" id="bldPill" hidden></span>
+      <span class="scr-gap"></span>
+      <!-- "Saved just now" renders ONLY after the server confirms (see saveCurrentPlate) -->
+      <span class="bld-saved" id="bldSaved" hidden></span>
+      <!-- R5, recorded: the mock's header carries Duplicate and NO Save, because its builder
+           autosaves. This app must not (a write per keystroke), so Save is the header action -
+           and §6 allows exactly ONE on a phone. Duplicate therefore joins Print / Clear / Delete
+           in the rail's action group rather than becoming this screen's second header action,
+           which is the very deviation the queue's mobile-header item exists to stop spreading. -->
+      <button class="btn primary" id="saveBtn" type="button">Save plate</button>
+    </div>
+    <div class="ferr bld-err" id="plateNameErr" style="display:none"></div>
+    <div class="bld-body">
+      <section class="bld-table">
+        <!-- mock §3.7's column band. aria-hidden for the same reason every converted screen's band
+             is: the row's own cells carry labelled controls. -->
+        <div class="bld-band" aria-hidden="true"><span>Ingredient</span><span>Qty</span><span>Unit cost</span><span>Cost</span><span></span></div>
+        <div id="lines"></div>
+        <div class="bld-foot">
+          <div class="search-wrap bld-search">
+            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
+            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+            <div id="drop" class="drop" role="listbox"></div>
+          </div>
+          <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
+        </div>
+        <!-- v102 prose cull: the element stays for the no-ingredients empty state, which JS un-hides -->
+        <p class="hint bld-hint" id="builderHint" style="display:none"></p>
+        <p class="hint bld-hint bld-tip">Tap a unit cost to edit it — the change applies everywhere. <span id="dCount"></span></p>
+        <div class="flag bld-flag" id="flag" style="display:none"></div>
+      </section>
+      <aside class="bld-rail">
+        <section class="bld-card" id="bCost">
+          <h2>Cost</h2>
+          <div class="bld-cardbody">
+            <div class="bld-kv"><span class="bld-k">Plate cost</span><span class="bld-v bld-v-lg" id="bTotal">$0.00</span></div>
+            <div class="bld-kv bld-kv-rule"><span class="bld-k">Suggested <span id="bTargetPct"></span></span><span class="bld-v" id="bSuggest">—</span></div>
+            <div class="bld-menus" id="bMenus" style="display:none"></div>
+          </div>
+        </section>
+        <section class="bld-card">
+          <h2>Publishing</h2>
+          <div class="bld-cardbody">
+            <div class="bld-pub" id="bPublish"></div>
+            <label class="f" for="plateCat">Category <span class="hint">(optional)</span></label>
+            <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
+            <span class="edit-tag" id="editTag" style="display:none"></span>
+          </div>
+        </section>
+        <!-- R3: Print docket and Delete plate are REHOMED here from the plate-action chooser this
+             item deletes. Delete is §2's destructive button and only exists for a saved plate. -->
+        <div class="bld-actions">
+          <button class="btn" id="bldDuplicate" type="button" hidden>Duplicate</button>
+          <button class="btn" id="printBtn" type="button">Print docket</button>
+          <button class="btn" id="clearBtn" type="button">Clear plate</button>
+          <button class="btn danger ghost" id="bldDelete" type="button" hidden>Delete plate</button>
+        </div>
+      </aside>
+    </div>
+    <!-- mock §6's sticky mobile summary bar, above the tab bar. Its ACTION is Save, not the mock's
+         "Set price": this app's price is per MENU (a plate can be on many), so there is no single
+         price to set from here, and Save is the committing action the mock's autosave implies. -->
+    <div class="bld-bar" id="bFootSum"></div>
+    <select id="menuLink" style="display:none" aria-hidden="true"></select>
+  </div><!-- /builderPage -->
 
   <div id="tab-analysis" style="display:none">
     <!-- F5 (v142): REBUILT from `Redesign v3 - SaaS.dc.html` §3.2 (desktop) and `… Mobile.dc.html`
@@ -383,91 +471,12 @@
 </div>
 <div class="toast" id="toast" role="status"></div>
 
-<!-- v54: Plate builder popup. Full-screen takeover on mobile, large modal on desktop. The builder
-     markup is RELOCATED here wholesale (ids/classes/handlers unchanged) — it is not rebuilt. -->
-<div class="modal-overlay builder-overlay" id="builderModal" aria-hidden="true">
-  <div class="modal modal-builder" role="dialog" aria-modal="true" aria-labelledby="builderModalTitle">
-    <div class="mhead"><h3 id="builderModalTitle">New plate</h3><button class="x" id="builderClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="mbody">
-      <!-- v69 (Max): the flow reads top-to-bottom the way a cook works — ADD INGREDIENTS first, THEN name
-           the plate, THEN categorise, THEN save. (Reverses v56's name-first; category still sits just above
-           Save per v67.) All ids/handlers unchanged; makeInlineCombo binds by id in openBuilder. -->
-      <div class="panel" id="docketPanel">
-        <h2>Add ingredients</h2>
-        <div class="pad">
-          <label class="f" for="q">Search your ingredients</label>
-          <div class="search-wrap">
-            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Search ingredients" aria-expanded="false" aria-controls="drop">
-            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
-            <div id="drop" class="drop" role="listbox"></div>
-          </div>
-          <!-- v102 prose cull: the default hint is gone (the search dropdown carries the same guidance,
-               pinned) - the element stays for the no-ingredients empty state, which JS un-hides -->
-          <p class="hint" id="builderHint" style="display:none"></p>
-        </div>
-        <div class="docket-head">
-          <span id="dHead">EZPLATE — DOCKET</span><span id="dCount">0 items</span>
-        </div>
-        <div id="lines"></div>
-        <div class="misc-add-wrap"><button class="btn ghost misc-add" id="addMiscBtn" type="button">+ Add misc cost</button><span class="misc-hint">spices, packaging, one-off extras</span></div>
-        <div class="total"><span class="lbl">Total plate cost</span><span class="amt" id="total">$0.00</span></div>
-        <div class="flag" id="flag" style="display:none"></div>
-        <p class="hint docket-hint">Tap a price to edit — changes apply everywhere.</p>
-      </div>
-
-      <div class="panel" id="platePanel">
-        <!-- Q6 (v125): the cost panel — total, suggested and per-menu verdicts lead the save column.
-             Filled by renderBuilderCost() (called from updateTotals on every change). At <900px the
-             sticky footer's #bFootSum carries the same answer; both render from the same call. -->
-        <div class="bcost" id="bCost">
-          <div class="bcost-head"><span class="bcost-lbl">Total plate cost</span><span class="bcost-total" id="bTotal">$0.00</span></div>
-          <div class="bcost-row"><span class="bcost-cap">Suggested price <span class="bcost-target" id="bTargetPct"></span></span><span class="bcost-suggest" id="bSuggest">—</span></div>
-          <div class="bcost-menus" id="bMenus" style="display:none"></div>
-        </div>
-        <h2>Name &amp; save</h2>
-        <div class="pad">
-          <label class="f" for="plateName">Plate name</label>
-          <input id="plateName" type="text" placeholder="Name this plate, or type to search saved plates…" autocomplete="off">
-          <div class="ferr" id="plateNameErr" style="display:none"></div>
-          <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-          <div class="plate-tools"><span class="edit-tag" id="editTag" style="display:none"></span></div>
-        </div>
-        <!-- category just above Save (v67 rhythm: name up top of this panel, category down low) -->
-        <div class="plate-cat-field">
-          <label class="f" for="plateCat">Category <span class="hint" style="font-weight:400">(optional)</span></label>
-          <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
-        </div>
-        <select id="menuLink" style="display:none" aria-hidden="true"></select>
-        <div class="actions">
-          <button class="btn" id="printBtn" type="button">Print docket</button>
-          <button class="btn ghost" id="clearBtn" type="button">Clear plate</button>
-        </div>
-      </div>
-    </div>
-    <!-- v82 item 4: Save pinned to a sticky footer so it's always reachable without scrolling past the
-         docket + name/category (the name & save section stays; only the button relocates to the pinned bar). -->
-    <!-- Q6 (v125): the mobile footer carries the answer with the action — total + verdict + Save
-         together (the design's mobile frame). #bFootSum is display:none at ≥900px, where the sticky
-         cost panel says the same thing. -->
-    <div class="mfoot builder-foot"><div class="bfoot-sum" id="bFootSum"></div><button class="btn primary" id="saveBtn" type="button">Save plate</button></div>
-  </div>
-</div>
-
-<!-- v54: tap a plate card -> a small action popup (Publish/Move · Edit · Delete). -->
-<div class="modal-overlay" id="plateActionsModal" aria-hidden="true">
-  <div class="modal confirm-modal plate-actions" role="dialog" aria-modal="true" aria-labelledby="plateActionsTitle">
-    <div class="mhead"><h3 id="plateActionsTitle">Plate</h3><button class="x" id="plateActionsClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="mbody">
-      <p class="pa-sub" id="plateActionsSub"></p>
-      <div class="pa-choices">
-        <button class="btn primary" id="paPublish" type="button">Add to a menu</button>
-        <button class="btn" id="paEdit" type="button">Edit plate</button>
-        <button class="btn" id="paPrint" type="button">Print docket</button>
-        <button class="btn danger ghost" id="paDelete" type="button">Delete plate</button>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- F7 (v146) tombstone: #builderModal (v54-v145) and #plateActionsModal (v54-v145) stood here.
+     The builder is now the full page #builderPage above; the action chooser is DELETED because its
+     row-click entry is gone - a plate row opens the builder directly (the mock's §3.3 behaviour,
+     which F2 recorded as R2-deferred to this item). All four of its actions were rehomed, none
+     dropped (R3): Edit is the row click, Add-to-a-menu is the builder's Publishing card, Print
+     docket and Delete plate are the builder's rail actions. -->
 
 <!-- v61 item 4: "Set up from products" is a modal now (was inline in the Ingredients tab). Same chrome as every other popup; full-screen takeover at mobile widths like the builder. -->
 <div class="modal-overlay wiz-overlay" id="kingWizModal" aria-hidden="true">
@@ -966,7 +975,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=145"></script>
+<script src="js/app.js?v=146"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

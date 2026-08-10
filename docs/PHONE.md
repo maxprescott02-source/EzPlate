@@ -401,3 +401,10 @@ Reconciling that inventory against the sections above:
 - **v109: does a price edit land a history point?** Answered.
   `ing_price_history` held 33 points across 33 products at the v109 baseline; it holds **35 across 35** as of 7 Aug. Points are landing.
 - **v106: re-export and confirm all seven groups.** Superseded by v108's `format: 2`/`3` export request above - the older stamped file is no longer the one that matters.
+
+## F7 / v146 - the builder page
+
+**Drive the whole builder on the phone, both themes.**
+Open a plate from Plates, change a quantity, tap a unit cost to re-price it, add a misc line, save, then publish from the Publishing card.
+A failure looks like: the fixed summary bar covering the last table row, the header wrapping to three lines, Save reachable only by scrolling, or the bar sitting on top of the tab bar instead of above it.
+Only a device settles the bar's clearance - the offset is calculated against the real `.bottomnav` height plus the safe-area inset, and the emulator's inset is zero.

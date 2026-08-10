@@ -348,22 +348,27 @@ ok('row 0 Apply tick survived the re-render', !!(ap0b && ap0b.checked));
 // and the summary still counts it as a NEW item, not matched
 ok('row 0 is still an add-new line', window.document.querySelector('#invReview tr.inv-data[data-i="0"]').classList.contains('st-new'));
 
-console.log('\n[12] v54 — Plates library tab + builder popup + publish-from-card');
-// the Builder tab is now the Plates library; the builder lives in a popup.
-// F2 (v138): the library's view layer was rebuilt from the v3 mock, so the row is `.plib-row` and
-// no longer the borrowed Products `.ing-card`. The FLOW pinned here is untouched — every id, every
-// handler and every step below is the same; only the selectors and the row's own words moved.
+console.log('\n[12] v54/F7 — Plates library tab + builder PAGE + publish-from-the-builder');
+// The Builder tab is the Plates library; the builder itself is a full PAGE from F7 (v146) — it was
+// a modal from v54 to v145. The FLOW pinned here is the same one: create, cost, save, publish.
+// What changed with F7: the row opens the builder rather than an action chooser, publishing lives
+// on the builder page, and Save no longer navigates away.
 ok('the tab container keeps data-tab="builder" (identifier unchanged)', !!$('tab-builder'));
 ok('the Plates list exists', !!$('plateList'));
-ok('the builder popup exists as a modal, not the tab body', !!$('builderModal') && !!$('docketPanel'));
+ok('the builder is a page, not a modal', !!$('builderPage') && !$('builderModal'));
+ok('the plate-action chooser is gone', !$('plateActionsModal'));
 ok('the old builder buttons are gone (no Publish-to-Menu / Save-draft)', !$('addMenuBtn'));
-ok('the single Save button remains inside the popup', !!$('saveBtn'));
+ok('the single Save button remains in the builder header', !!$('saveBtn'));
 
 // Build a REAL plate through the actual Save flow (savedPlates/plate are `let`, not window props, so we
 // drive the wired functions rather than poking state — a stronger end-to-end check than seeding).
 $('newPlateBtn').click();
-ok('+ New plate opens the builder popup', $('builderModal').classList.contains('open'));
-ok('the popup opens on an empty, unlinked plate', $('plateName').value === '' && $('menuLink').value === '');
+ok('+ New plate opens the builder page', !$('builderPage').hidden);
+ok('opening the builder hides the Plates library behind it', $('tab-builder').style.display === 'none');
+ok('the Plates nav item stays lit while its child page is open',
+   !!window.document.querySelector('.navbtn[data-tab="builder"].active'));
+ok('the page opens on an empty, unlinked plate', $('plateName').value === '' && $('menuLink').value === '');
+ok('Duplicate and Delete are hidden until the plate is saved', $('bldDuplicate').hidden && $('bldDelete').hidden);
 $('plateName').value = 'Smoke Plate';
 ok('the builder has a category field (§J)', !!$('plateCat'));
 $('plateCat').value = 'Breakfast';                      // §J: the plate's library category
@@ -372,11 +377,19 @@ window.addMiscCost();                                   // a misc line makes the
 // comparing at zero passes even with renderBuilderCost deleted (the v125 review proved it)
 // (jsdom does not compile inline oninput= handlers on innerHTML-created nodes — call the real
 // handler with the row's own uid, the same function the attribute invokes)
-const miscLine = window.document.querySelector('#lines .line.misc-line');
+const miscLine = window.document.querySelector('#lines .bld-row.is-misc');
 window.setMiscCost(Number(miscLine.getAttribute('data-uid')), '1.25');
-ok('the cost panel mirrors the docket total (Q6)', $('bTotal').textContent === '$1.25' && $('total').textContent === '$1.25', $('bTotal').textContent + ' vs ' + $('total').textContent);
-$('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate + closes the popup
-ok('Save closes the builder popup', !$('builderModal').classList.contains('open'));
+// F7 (v146): #total went with the docket — the Cost card's #bTotal is the ONE on-screen total, so
+// there is no second element to compare it against. The check that it is not the static $0.00 the
+// markup ships is what the v125 review's "compare at a non-zero total" lesson was actually about.
+ok('the cost card carries the live total', $('bTotal').textContent === '$1.25', $('bTotal').textContent);
+ok('the Publishing card refuses to publish an unsaved plate',
+   /Save the plate first/.test($('bPublish').textContent), $('bPublish').textContent);
+$('saveBtn').click();                                   // Save -> saves an UNPUBLISHED plate and STAYS on the page
+ok('Save keeps you on the builder page (publishing lives here)', !$('builderPage').hidden);
+ok('Duplicate and Delete appear once the plate is saved', !$('bldDuplicate').hidden && !$('bldDelete').hidden);
+window.closeBuilder();
+ok('leaving the builder returns to the Plates library', $('builderPage').hidden && $('tab-builder').style.display !== 'none');
 let libCard = window.document.querySelector('#plateList .plib-row');
 ok('the saved plate appears as a row', !!libCard && /Smoke Plate/.test(libCard.textContent), libCard && libCard.textContent);
 ok('the row shows its category (§J)', /Breakfast/.test(libCard.textContent), libCard && libCard.textContent);
@@ -393,11 +406,12 @@ ok('the footnote is revealed with the rows', $('plateListNote') && !$('plateList
 ok('the header subtitle counts the library',
    /^1 plate, 1 unpublished$/.test(($('plateHeadSub') || {}).textContent || ''), ($('plateHeadSub') || {}).textContent);
 
-// tapping the row opens the action chooser -> Add to a menu (v82 wording; opens the v55 many-to-many manager)
+// F7 (v146): tapping the row opens the BUILDER on that plate, and publishing is a card on it.
 libCard.click();
-ok('tapping a row opens the action popup', $('plateActionsModal').classList.contains('open'));
-ok('the card offers "Add to a menu"', $('paPublish').textContent === 'Add to a menu', $('paPublish').textContent);
-$('paPublish').click();
+ok('tapping a row opens the builder on that plate', !$('builderPage').hidden && $('plateName').value === 'Smoke Plate');
+ok('the Publishing card offers "Add to a menu"',
+   ($('bldPublishBtn') || {}).textContent === 'Add to a menu', ($('bldPublishBtn') || {}).textContent);
+$('bldPublishBtn').click();
 ok('Add to a menu opens the manage-menus modal', $('manageMenusModal').classList.contains('open'));
 let addBtn = window.document.querySelector('#mmList .mm-add');
 ok('the plate is not yet on any menu (an Add row is offered)', !!addBtn);
@@ -415,7 +429,9 @@ libCard = window.document.querySelector('#plateList .plib-row');
 ok('the plate now shows which menu it is On', !!libCard && /On /.test(libCard.textContent), libCard && libCard.textContent);
 // Manage menus now shows the menu with a price + Remove (published there)
 libCard.click();
-$('paPublish').click();
+ok('the Publishing card now reads "Manage menus"',
+   ($('bldPublishBtn') || {}).textContent === 'Manage menus', ($('bldPublishBtn') || {}).textContent);
+$('bldPublishBtn').click();
 ok('the menu now shows a Remove control (plate is on it)', !!window.document.querySelector('#mmList .mm-remove'));
 ok('the per-menu price is shown', /12\.00/.test($('mmList').textContent), $('mmList').textContent);
 // remove it -> back to unpublished
@@ -788,8 +804,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[20] draft helpers exist and clear cleanly',
      typeof window.savePlateDraft === 'function' && typeof window.offerPlateDraftResume === 'function' && !window.localStorage.getItem('cafeDB_plateDraft'));
 
-  ok('[20] Save is pinned in a builder footer (reachable without scrolling)',
-     !!window.document.querySelector('#builderModal .builder-foot #saveBtn'));
+  // F7 (v146): Save moved from the modal's sticky footer into the page header, where the mock puts
+  // it. It is still reachable without scrolling; the header is what does not scroll now.
+  ok('[20] Save sits in the builder page header (reachable without scrolling)',
+     !!window.document.querySelector('#builderPage .bld-head #saveBtn'));
 
   // v83 item 7 — the builder search dead end, wired end to end.
   window.openBuilderNew();
@@ -815,16 +833,16 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 
   goBtn.click();                                                 // unnamed plate: the save must be REFUSED, not navigated past
   ok('[20] a nameless plate is refused and the builder stays open (work not abandoned)',
-     $('builderModal').classList.contains('open') && $('plateNameErr').style.display === 'block');
+     !$('builderPage').hidden && $('plateNameErr').style.display === 'block');
 
   $('plateName').value = 'Chef Salad';
   // v60: save needs a real quantity on every line. jsdom runs 'outside-only', so the qty box's inline
   // oninput never fires — call the wired handler with the line's own (numeric) uid, as the markup does.
-  window.setQty(Number(window.document.querySelector('#lines .line').getAttribute('data-uid')), 2);
+  window.setQty(Number(window.document.querySelector('#lines .bld-row').getAttribute('data-uid')), 2);
   retype();
   window.document.querySelector('#drop .nomatch-go').click();
   ok('[20] …the builder closes and lands on the Ingredients tab',
-     !$('builderModal').classList.contains('open') && $('tab-pantry').style.display !== 'none');
+     $('builderPage').hidden && $('tab-pantry').style.display !== 'none');
   window.showTab('builder');
   const savedCard = [...window.document.querySelectorAll('#plateList .plib-row')]
     .find(c => /Chef Salad/.test(c.textContent));
@@ -860,11 +878,11 @@ const tick = () => new Promise(r => setTimeout(r, 0));
      w2.document.getElementById('confirmOk').textContent === 'Resume' &&
      w2.document.getElementById('confirmCancel').textContent === 'Discard');
   w2.document.getElementById('confirmOk').click();             // THE reported bug: this used to do nothing
-  ok('[21] Resume opens the builder', w2.document.getElementById('builderModal').classList.contains('open'));
+  ok('[21] Resume opens the builder', !w2.document.getElementById('builderPage').hidden);
   ok('[21] Resume restores name, category and lines',
      w2.document.getElementById('plateName').value === 'Half-built Plate' &&
      w2.document.getElementById('plateCat').value === 'Breakfast' &&
-     w2.document.querySelectorAll('#lines .line').length === 1,
+     w2.document.querySelectorAll('#lines .bld-row').length === 1,
      w2.document.getElementById('plateName').value + ' / ' + w2.document.getElementById('plateCat').value);
   w2.document.getElementById('plateName').value = 'Renamed After Resume';
   w2.document.getElementById('plateName').dispatchEvent(new w2.Event('input'));
@@ -891,7 +909,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   w2 = bootWithDraft({ lines: [{ uid: 1, kid: 'K_GONE', qty: 2 }], name: 'Ghost Plate', cat: '', loadedPlateId: null, ts: Date.now() });
   w2.document.getElementById('confirmOk').click();
   ok('[21] a draft naming a deleted ingredient still resumes (degrades, never crashes)',
-     w2.document.getElementById('builderModal').classList.contains('open') &&
+     !w2.document.getElementById('builderPage').hidden &&
      w2.document.getElementById('plateName').value === 'Ghost Plate');
 
   w2 = bootWithDraft(null);
@@ -922,8 +940,8 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[22] the offer names it', /Half-built Plate/.test($3('confirmMsg').textContent), $3('confirmMsg').textContent);
   $3('confirmOk').click();
   ok('[22] Resume brings the work back',
-     $3('builderModal').classList.contains('open') && $3('plateName').value === 'Half-built Plate' &&
-     w3.document.querySelectorAll('#lines .line').length === 1);
+     !$3('builderPage').hidden && $3('plateName').value === 'Half-built Plate' &&
+     w3.document.querySelectorAll('#lines .bld-row').length === 1);
 
   w3 = bootWithDraft(null);
   await buildThenClose(w3, 'Half-built Plate');
@@ -931,9 +949,9 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   w3.document.getElementById('confirmCancel').click();  // Discard -> a genuinely new plate
   await settle();
   ok('[22] Discard gives a clean builder and clears the draft',
-     w3.document.getElementById('builderModal').classList.contains('open') &&
+     !w3.document.getElementById('builderPage').hidden &&
      w3.document.getElementById('plateName').value === '' &&
-     w3.document.querySelectorAll('#lines .line').length === 0 &&
+     w3.document.querySelectorAll('#lines .bld-row').length === 0 &&
      !w3.localStorage.getItem('cafeDB_plateDraft'));
 
   w3 = bootWithDraft(null);
@@ -948,7 +966,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   w3.openBuilderNew();
   ok('[22] a clean builder opens straight away (no nag)',
      !w3.document.getElementById('confirmModal').classList.contains('open') &&
-     w3.document.getElementById('builderModal').classList.contains('open'));
+     !w3.document.getElementById('builderPage').hidden);
   w3.addMiscCost();
   w3.document.getElementById('plateName').value = 'Done Plate';
   w3.saveCurrentPlate(false);
@@ -957,7 +975,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   w3.openBuilderNew();
   ok('[22] after SAVING, "+ New plate" opens straight away (a saved plate is not unfinished)',
      !w3.document.getElementById('confirmModal').classList.contains('open') &&
-     w3.document.getElementById('builderModal').classList.contains('open'));
+     !w3.document.getElementById('builderPage').hidden);
 
   // ---------------------------------------------------------------------------
   // [23] v87 — the page behind a modal must not scroll (Max: "scrolling whilst having
@@ -1018,7 +1036,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const kw = w4.kitchenIngredients[0];
   const pid4 = w4.kById[kw.id].pid;
   w4.addKitchenLine(kw.id);
-  const uid4 = Number(w4.document.querySelector('#lines .line').getAttribute('data-uid'));
+  const uid4 = Number(w4.document.querySelector('#lines .bld-row').getAttribute('data-uid'));
   const logBefore = (w4.ingPriceLog[pid4] || []).length;
   // The expected value is derived, not guessed: the price chip renders the product's DISPLAY unit
   // (unitCostStr), and a per-kg/per-L product stores 1/1000 of what the box takes. `byId` is a

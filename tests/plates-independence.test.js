@@ -91,6 +91,12 @@ function makeSaveHarness(opts) {
     function logChange(){ return null; }
     function logChangeIfSaved(){ return Promise.resolve(null); }
     function menusOfPlate(){ return []; }   // v114: saveCurrentPlate names the menus its re-cost reached
+    /* F7 (v146): the builder is a page, so saveCurrentPlate now repaints it in place instead of
+       closing a modal. Both are pure UI paint — no contract this file pins goes through them. */
+    function setBuilderSaved(){}
+    var _builderEdits=0;   // F7 (v146): the builder's edit counter — real state, the logic that moves it is extracted
+    function syncBuilderPlateActions(){}
+    function renderBuilderCost(){}
     ${extractFn(SRC, 'saveCurrentPlate')}
     return function(){ var ok=saveCurrentPlate(false); return { ok:ok, savedPlates: savedPlates, calls:S.calls }; };
   `);
