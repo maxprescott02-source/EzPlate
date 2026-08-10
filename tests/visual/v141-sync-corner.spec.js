@@ -146,7 +146,11 @@ for (const width of [380, 768]) {
          is the bottom tab bar at 380 and a 78px LEFT rail at 768. Discriminate on ORIENTATION
          (a left rail is taller than it is wide), never on width — the bottom bar is a few pixels
          narrower than the viewport on CI, which is exactly what broke the previous attempt.
-         Derived this way it also fails if the rail is widened without the banner following. */
+         Derived this way it also fails if the rail is widened without the banner following.
+         Not a GENERAL discriminator, and said so rather than left to be discovered: it holds
+         because the bar is short and full-width at 380 and the rail is narrow and full-height at
+         768, which is unambiguous at both. A future breakpoint that made the rail wider than tall
+         would fool it, so re-check this line before reusing the pattern at a third width. */
       const rail = document.querySelector('.bottomnav').getBoundingClientRect();
       const railOffset = rail.height > rail.width ? rail.right / 2 : 0;
       return {
