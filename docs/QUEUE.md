@@ -58,13 +58,16 @@ What it found, all landed as items below rather than left in the report: the `.l
 ## done  The tint-vs-hover item still points at F5, which disproved its premise (AUDIT-v145 C2)
 **CLOSED 10 Aug 2026 without a fifth re-point: the pair does not exist in the code, and the pattern is now a rule at the top of this file.** See the done section.
 
-## next  `tests/kpi-strip.test.js` hand-stubs `fmtTargetPct` instead of extracting it (AUDIT-v145 D1)
-Problem: `tests/kpi-strip.test.js:44` is `function fmtTargetPct(){ return String(cogsPct)+'%'; }` - a hand-rolled copy of `js/app.js:4212`'s `(cogsPct%1?cogsPct.toFixed(1):cogsPct.toFixed(0))+'%'`.
-It is the exact function `CLAUDE.md`'s Tier 1 stub-mirrors-contract rule cites as incident 140, and the rule was written **this window** and not swept for. Two sibling files already do it right: `tests/dash-persist.test.js:392` and `tests/trend-reframe.test.js:58` both `extractFn` this same function, and three lines below the stub the same harness extracts four others.
-The stub carries the `%` (the "30%%" fix) but not the rounding, so it diverges for any fractional target: `32.53` is `"32.5%"` real, `"32.53%"` stubbed.
-⚠️ **Latent, not live, and the audit's first pass had the mechanism WRONG - do not repeat it.** It is NOT reachable from the Settings input: `js/app.js:5160` is the only Settings path and routes through `setCogs`, which rounds (`js/app.js:1107`). The one path assigning a fractional `cogsPct` is the **boot read** at `js/app.js:514` - `cogsPct=pv` straight from `parseFloat`, no rounding - so a `food_cost_target` of `32.5` from a restore or an older file loads fractional and stays that way until Settings is next touched. The real function's `%1` branch exists for that path.
-Requirements: replace the stub with `${extractFn(APP, 'fmtTargetPct')}`, and add one assertion at a two-decimal target (e.g. `32.53`) that **fails against the stub** - per this repo's own habit of proving a new guard catches a planted defect. Fixing it on the "it's unreachable" reading alone would miss the point of the rule.
-Out of scope: `setCogs`'s rounding and the boot read's lack of it, which is a separate question nobody has asked.
+## done  `tests/kpi-strip.test.js` hand-stubs `fmtTargetPct` instead of extracting it (AUDIT-v145 D1)
+**Shipped 10 Aug 2026, test-only, no deploy version.** See the done section.
+
+## next  `extractFn` is hand-rolled in 48 test files because `tests/_extract.js` does not export it
+Problem: found 10 Aug 2026 by the pre-push review of the `kpi-strip` stub fix, and it is the same theme one level up - the item was about not hand-rolling a copy of a real function, and **the extractor doing the extracting is itself a hand-rolled copy, 48 times over.**
+Measured: **48** of the test files declare their own `function extractFn(src, name)`, byte-identical brace-matching logic; **15** require the shared `tests/_extract.js`.
+**The cause is mechanical, not laziness, and it is the whole fix:** `tests/_extract.js` ends `module.exports = build()`, which returns a HARNESS OBJECT of pre-extracted app functions. `extractFn` (`:51`), `extractVar` (`:34`) and `loadApp` are never exported, so a file that wants to extract something `build()` does not already provide has no way to reach the helper and writes its own.
+Requirements: export the helpers alongside the built harness (or a separate `tests/_extractfn.js`), then migrate the 48. The migration is mechanical but it is 48 files, so it wants its own batch and its own review, not a ride-along.
+⚠️ **The copies have not drifted yet - checked** - and that is the argument for doing it before they do rather than evidence it does not matter. The two error messages already differ (the private copies name their own file, the shared one names `tests/_extract.js`), which is the first millimetre of exactly that drift.
+Out of scope: `build()`'s exported surface, and any change to what the 48 files actually assert.
 
 ## next  The Playwright job has no retries, so one slow context launch fails the whole PR
 Problem: found 10 Aug 2026 by batch 155, which it blocked. `tests/visual/v141-sync-corner.spec.js:174` failed CI with **`Test timeout of 30000ms exceeded while setting up "context"`** / `browser.newContext: Test ended` - 208 passed, 1 died in SETUP before any assertion ran. **Re-run on the identical commit: 209/209 green.** The PR's diff was three `.md` files and zero lines of code, so it could not have caused a browser failure.
@@ -660,6 +663,12 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **`kpi-strip.test.js` hand-stubbed `fmtTargetPct` (AUDIT-v145 D1)** - shipped 10 Aug 2026, **test-only, no deploy version** (`sw.js` stays `ezplate-v145`), handover `HANDOVER-158-kpi-stub.md`.
+  The stub is replaced by `${extractFn(APP, 'fmtTargetPct')}` and a fractional-target test is added at 32.53, which **fails against the planted stub while the other nine still pass** - verified by putting the exact old stub back and running it, not by reasoning about it. Suite 848 → 849.
+  The stub had the right SHAPE and the wrong CONTRACT: it carried the `%` (the "30%%" fix) and not the rounding, and every other test in the file runs at the default target 30, where `cogsPct%1` is 0 and both branches agree. That is why nothing caught it.
+  **The item's reachability note was right and is worth keeping:** the Settings input routes through `setCogs`, which rounds (`js/app.js:1107`); the one path that assigns a fractional `cogsPct` is the BOOT READ (`js/app.js:514`, `cogsPct=pv` straight from `parseFloat`). Both re-verified against the source before the comment citing them was written.
+  **Review (Sonnet, no brief): no defects.** It re-derived the fails-against-the-stub claim itself by reconstructing the stub in a scratch copy rather than taking the diff's word, which is the right instinct for a claim of that shape. Its one observation became the `extractFn`-duplication item above.
 
 - **The tint-vs-hover re-point (AUDIT-v145 C2)** - closed 10 Aug 2026, docs-only, **no deploy version** (`sw.js` stays `ezplate-v145`), handover `HANDOVER-157-tint-hover.md`.
   **Neither of the item's two branches was quite right, and the code decided it.** It offered "re-point at the invoice review (`Do after: F8`)" or "confirm no such row exists". The measured answer is the second, for a reason the item did not anticipate: **the rule the finding NAMED - `.atable tbody tr:hover td{background:var(--hover)}` - was deleted with the whole `.atable` system in F5/`v142`.** Its subject is gone, not pending. So a fifth re-point would have been wrong as well, and the note had been describing a collision that no longer existed while nobody re-read the code.

@@ -41,7 +41,7 @@ function harness(dishes, opts = {}) {
     function plateForMenuItem(m){ var ix=Number(m.id.slice(2)); return plateCosts[ix]==null?null:{id:'PL'+ix, lines:[{misc:true,cost:plateCosts[ix]}]}; }
     function costFromLines(lines){ return (lines&&lines[0])?lines[0].cost:0; }
     function foodTarget(){ return cogsPct/100; }
-    function fmtTargetPct(){ return String(cogsPct)+'%'; }   // mirrors the real return shape — it INCLUDES the % (a stub without it hid a "30%%" bug the browser drive caught)
+    ${extractFn(APP, 'fmtTargetPct')}
     ${extractFn(APP, 'analyze')}
     ${extractFn(APP, 'avgFoodCostForScope')}
     ${extractFn(APP, 'dashPctClass')}
@@ -114,6 +114,26 @@ test('cell 1 sub carries the pts gap the hidden hero used to state', () => {
   const at = harness([{ price: 10, cost: 3.0 }]);
   assert.ok(/at your 30% target/.test(at.kpiStripHtml('all', { current: 30.0, lastMonth: null })), 'at');
   assert.ok(!/%%/.test(over.kpiStripHtml('all', { current: 35.7, lastMonth: null })), 'fmtTargetPct already carries the %');
+});
+
+/* A FRACTIONAL target, which is the case the hand-written stub this harness used to carry got
+   wrong. It returned String(cogsPct)+'%' — the right SHAPE (it carried the %, the "30%%" fix)
+   and the wrong CONTRACT: the real fmtTargetPct rounds to one decimal, so 32.53 renders "32.5%"
+   and the stub rendered "32.53%". The stub could not see it because every other test here runs
+   at the default 30, where cogsPct%1 is 0 and both branches agree.
+   Reachable, and the audit's first pass had the path WRONG — it is NOT the Settings input, which
+   routes through setCogs and rounds. It is the BOOT READ (js/app.js:514, cogsPct=pv straight from
+   parseFloat), so a food_cost_target of 32.53 out of a restore or an older file loads fractional
+   and stays that way until Settings is next touched. The real function's %1 branch exists for it.
+   This test FAILS against the stub, which is the point of it. */
+test('a fractional target renders to ONE decimal — the contract the stub used to get wrong', () => {
+  const h = harness([{ price: 10, cost: 4.0 }], { target: 32.53 });
+  const html = h.kpiStripHtml('all', { current: 40.0, lastMonth: null });
+  assert.ok(/7\.5 pts over your 32\.5% target/.test(html), 'one decimal: 32.53 renders "32.5%"');
+  assert.ok(!/32\.53%/.test(html), 'the raw two-decimal value never reaches the screen');
+  // and a whole target still drops the decimal entirely — the other branch, in the same test
+  const whole = harness([{ price: 10, cost: 4.0 }], { target: 33 });
+  assert.ok(/7\.0 pts over your 33% target/.test(whole.kpiStripHtml('all', { current: 40.0, lastMonth: null })), 'whole target stays "33%", not "33.0%"');
 });
 
 test('nothing costed and priced: the strip renders NOTHING — the hero keeps the empty state', () => {
