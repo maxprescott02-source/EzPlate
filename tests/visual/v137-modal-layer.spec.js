@@ -39,9 +39,12 @@ const DESKTOP = { width: 1280, height: 900 };
 
 /* The eight that had NO Escape handler before v137. Each entry is the id and the app function
    that opens it, so the spec drives the real open path rather than adding .open by hand — a
-   class added by the test would not prove the app can reach the state. */
+   class added by the test would not prove the app can reach the state.
+   F9 (v148): #settingsPanel is DELETED — Settings is a screen, and a screen has no Escape
+   behaviour to guard. Seven remain. It is removed rather than repointed because there is no
+   longer a Settings overlay for the v137 contract to be true or false about; every OTHER
+   modal in the list still carries it, so the contract itself loses nothing. */
 const PREVIOUSLY_UNREACHABLE = [
-  ['settingsPanel', 'openSettings()'],
   ['ingModal', 'openIngEdit(PRODUCTS[0].id)'],
   ['kingModal', 'openKingModal(null)'],
   ['smemModal', 'openSmem()'],
@@ -76,6 +79,13 @@ async function boot(page, viewport = DESKTOP) {
 const isOpen = (page, id) =>
   page.evaluate((i) => !!document.getElementById(i)?.classList.contains('open'), id);
 
+/* The product editor is F9 (v148)'s stand-in for Settings wherever this file needs a real MODAL to
+   stack, trap focus or measure. It has to be opened through eval, exactly as PREVIOUSLY_UNREACHABLE
+   does: `PRODUCTS` is declared `let` at top level (js/app.js), so it is NOT a property of window and
+   `window.PRODUCTS` is undefined — an eval runs in the same global scope and can see it. */
+const openProductEditor = (page) =>
+  page.evaluate(() => eval('openIngEdit(PRODUCTS[0].id)'));
+
 /* Geometry must be read AFTER the entry animation, never during it. The sheet rises through
    translateY(24px), so a boundingBox taken mid-flight puts the sheet 24px below the viewport
    and every "flush to the bottom" assertion fails for a reason that has nothing to do with the
@@ -99,14 +109,20 @@ const fixedFrame = (page) =>
   });
 
 test.describe('Escape closes the top layer only', () => {
-  test('a real stack (Settings -> confirm) closes one layer per press', async ({ page }) => {
+  test('a real stack (the product editor -> its delete confirm) closes one layer per press', async ({ page }) => {
     await boot(page);
 
-    await page.evaluate(() => window.openSettings());
-    await expect.poll(() => isOpen(page, 'settingsPanel')).toBe(true);
+    /* F9 (v148) repointed this from Settings, which is a screen now and therefore not a layer.
+       The base layer is the product editor, and the stack is the app's OWN: #ingDelete lives
+       inside #ingModal and calls deleteIngredient(), which raises exactly this confirm. That is
+       why #confirmModal carries z-index:85 (the v44 finding) — the finding is unchanged, it just
+       no longer has Settings as its example.
+       The confirm is raised directly rather than by clicking #ingDelete because deleteIngredient
+       branches on productRefs and the fixture cannot guarantee which branch; what is under test is
+       the LAYER behaviour, not which sentence the confirm shows. */
+    await openProductEditor(page);
+    await expect.poll(() => isOpen(page, 'ingModal')).toBe(true);
 
-    /* The app's own stack: the clear-cache confirm opens OVER Settings, which is why
-       #confirmModal carries z-index:85 (the v44 finding). */
     await page.evaluate(() => window.askConfirm('Clear cache', 'Are you sure?', 'Clear', () => {}));
     await expect.poll(() => isOpen(page, 'confirmModal')).toBe(true);
 
@@ -115,11 +131,11 @@ test.describe('Escape closes the top layer only', () => {
     // 1. the top layer went...
     await expect.poll(() => isOpen(page, 'confirmModal')).toBe(false);
     // ...and the layer underneath did NOT. This is the assertion the old code failed.
-    expect(await isOpen(page, 'settingsPanel')).toBe(true);
+    expect(await isOpen(page, 'ingModal')).toBe(true);
 
     // 2. one layer per press — a handler that closed nothing would pass #1 alone.
     await page.keyboard.press('Escape');
-    await expect.poll(() => isOpen(page, 'settingsPanel')).toBe(false);
+    await expect.poll(() => isOpen(page, 'ingModal')).toBe(false);
   });
 
   test('a stack of two EQUAL z-index modals closes the visually-top one', async ({ page }) => {
@@ -167,8 +183,8 @@ test.describe('Escape closes the top layer only', () => {
        fewer than two. So the real control cannot be rendered here. Production has several costed
        menus and does render it. Setting the flag isolates the LISTENER INTERACTION, which is the
        thing under test; the popover's own open/close path is covered in v96-menu-select.spec.js. */
-    await page.evaluate(() => window.openSettings());
-    await expect.poll(() => isOpen(page, 'settingsPanel')).toBe(true);
+    await openProductEditor(page);   // F9 (v148): was Settings, which is a screen now
+    await expect.poll(() => isOpen(page, 'ingModal')).toBe(true);
 
     const out = await page.evaluate(async () => {
       window.dashMenusOpen = true;
@@ -176,7 +192,7 @@ test.describe('Escape closes the top layer only', () => {
       await new Promise((r) => setTimeout(r, 150));
       return {
         popover: window.dashMenusOpen,
-        modal: document.getElementById('settingsPanel').classList.contains('open'),
+        modal: document.getElementById('ingModal').classList.contains('open'),
       };
     });
 
@@ -201,7 +217,7 @@ test.describe('Escape closes the top layer only', () => {
   });
 });
 
-test.describe('the eight modals that had no Escape handler', () => {
+test.describe('the modals that had no Escape handler', () => {
   for (const [id, opener] of PREVIOUSLY_UNREACHABLE) {
     test(`${id} closes on Escape`, async ({ page }) => {
       await boot(page);
@@ -220,49 +236,55 @@ test.describe('the eight modals that had no Escape handler', () => {
 test.describe('focus', () => {
   test('is trapped inside the open modal and wraps at both ends', async ({ page }) => {
     await boot(page);
-    await page.evaluate(() => window.openSettings());
-    await expect.poll(() => isOpen(page, 'settingsPanel')).toBe(true);
+    // F9 (v148): the product editor stands in for Settings — a modal with several focusables,
+    // which is what a wrap test needs. Settings is a screen and has no trap to test.
+    await openProductEditor(page);
+    await expect.poll(() => isOpen(page, 'ingModal')).toBe(true);
 
     // Focus must already be inside the dialog — openOverlay moves it there.
     expect(await page.evaluate(() =>
-      document.getElementById('settingsPanel').contains(document.activeElement))).toBe(true);
+      document.getElementById('ingModal').contains(document.activeElement))).toBe(true);
 
     /* Tab all the way round. If the trap is absent, focus leaves for the page behind within a
        handful of presses; the count is generous so this fails on absence, not on tab order. */
     for (let i = 0; i < 60; i++) await page.keyboard.press('Tab');
     expect(await page.evaluate(() =>
-      document.getElementById('settingsPanel').contains(document.activeElement))).toBe(true);
+      document.getElementById('ingModal').contains(document.activeElement))).toBe(true);
 
     for (let i = 0; i < 10; i++) await page.keyboard.press('Shift+Tab');
     expect(await page.evaluate(() =>
-      document.getElementById('settingsPanel').contains(document.activeElement))).toBe(true);
+      document.getElementById('ingModal').contains(document.activeElement))).toBe(true);
   });
 
   test('returns to the control that opened the modal', async ({ page }) => {
     await boot(page);
-    /* The sidebar Settings entry is a real opener at this width and is not inside the modal,
-       so "focus came back" is unambiguous. */
-    await page.locator('#sideSettings').focus();
-    await page.locator('#sideSettings').click();
-    await expect.poll(() => isOpen(page, 'settingsPanel')).toBe(true);
+    /* F9 (v148): #sideSettings no longer opens a modal — it navigates. The Settings screen's
+       own "Tidy lists" button is the replacement opener: a real control, on a real screen, that
+       is not inside the modal it opens, so "focus came back" stays unambiguous. This also covers
+       the thing the conversion could most plausibly have broken — a door OUT of the new screen. */
+    await page.evaluate(() => window.showTab('settings'));
+    await expect(page.locator('#setTidyOpen')).toBeVisible();
+    await page.locator('#setTidyOpen').focus();
+    await page.locator('#setTidyOpen').click();
+    await expect.poll(() => isOpen(page, 'tidyManageModal')).toBe(true);
 
     /* Focus must have MOVED first. Without this line the test cannot fail: strip the whole
-       focus mechanism out and focus simply never leaves #sideSettings, so the final assertion
+       focus mechanism out and focus simply never leaves #setTidyOpen, so the final assertion
        is satisfied by nothing having happened at all. Verified — the plant passed until this
        was added. */
-    expect(await page.evaluate(() => document.activeElement?.id)).not.toBe('sideSettings');
+    expect(await page.evaluate(() => document.activeElement?.id)).not.toBe('setTidyOpen');
     expect(await page.evaluate(() =>
-      document.getElementById('settingsPanel').contains(document.activeElement))).toBe(true);
+      document.getElementById('tidyManageModal').contains(document.activeElement))).toBe(true);
 
     await page.keyboard.press('Escape');
-    await expect.poll(() => isOpen(page, 'settingsPanel')).toBe(false);
-    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('sideSettings');
+    await expect.poll(() => isOpen(page, 'tidyManageModal')).toBe(false);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('setTidyOpen');
   });
 
   test('closing the top of a stack hands focus back to the layer underneath', async ({ page }) => {
     await boot(page);
-    await page.evaluate(() => window.openSettings());
-    await page.evaluate(() => window.askConfirm('Clear cache', 'Sure?', 'Clear', () => {}));
+    await openProductEditor(page);   // F9 (v148): the base layer is a modal again
+    await page.evaluate(() => window.askConfirm('Delete product?', 'Sure?', 'Delete', () => {}));
     await expect.poll(() => isOpen(page, 'confirmModal')).toBe(true);
 
     /* Same trap as the test above: focus has to be IN the confirm before closing it can be
@@ -274,7 +296,7 @@ test.describe('focus', () => {
     await expect.poll(() => isOpen(page, 'confirmModal')).toBe(false);
     // Back in the layer underneath — not left on <body>, which is where it would fall.
     expect(await page.evaluate(() =>
-      document.getElementById('settingsPanel').contains(document.activeElement))).toBe(true);
+      document.getElementById('ingModal').contains(document.activeElement))).toBe(true);
     expect(await page.evaluate(() =>
       document.getElementById('confirmModal').contains(document.activeElement))).toBe(false);
   });
@@ -283,8 +305,8 @@ test.describe('focus', () => {
 test.describe('container: dialog at 12vh, sheet on a phone', () => {
   test('>=768 the modal sits near the top, not vertically centred', async ({ page }) => {
     await boot(page, DESKTOP);
-    await page.evaluate(() => window.openSettings());
-    const el = page.locator('#settingsPanel .modal');
+    await openProductEditor(page);   // F9 (v148): a tall modal that still exists
+    const el = page.locator('#ingModal .modal');
     await settled(el);
     const box = await el.boundingBox();
     /* 12vh of 900 = 108. Asserted as a band rather than a number so a type-scale change does
@@ -295,8 +317,8 @@ test.describe('container: dialog at 12vh, sheet on a phone', () => {
 
   test('<768 the modal is a full-width bottom sheet', async ({ page }) => {
     await boot(page, { width: 390, height: 780 });
-    await page.evaluate(() => window.openSettings());
-    const el = page.locator('#settingsPanel .modal');
+    await openProductEditor(page);   // F9 (v148)
+    const el = page.locator('#ingModal .modal');
     await settled(el);
     const box = await el.boundingBox();
     const frame = await fixedFrame(page);
@@ -385,10 +407,11 @@ test.describe('shell: the sidebar controls the mock added', () => {
        screen. Emulating the OS is the only way to reach that case.
 
        Deliberately NOT asserted here: that clicking the toggle re-syncs the Settings segment.
-       It does, but openSettings() also calls syncThemeSeg(), so the invariant has two guardians
-       and a test cannot tell which one held — verified by deleting the toggle's call and watching
-       an earlier version of this test pass. The segment/toggle agreement is covered below as an
-       INVARIANT, without claiming to pin the mechanism. */
+       It does, but renderSettingsTab() also calls syncThemeSeg() (openSettings() did before F9/v148
+       moved the priming into the screen's render), so the invariant has two guardians and a test
+       cannot tell which one held — verified by deleting the toggle's call and watching an earlier
+       version of this test pass. The segment/toggle agreement is covered below as an INVARIANT,
+       without claiming to pin the mechanism. */
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.setViewportSize(DESKTOP);
     await installBoot(page);
@@ -424,7 +447,7 @@ test.describe('shell: the sidebar controls the mock added', () => {
     const state = await page.evaluate(() => ({
       applied: document.documentElement.getAttribute('data-theme'),
       pressed: document.getElementById('sideThemeToggle').getAttribute('aria-pressed'),
-      seg: [...document.querySelectorAll('#settingsPanel .seg-btn[data-theme-pref]')]
+      seg: [...document.querySelectorAll('#tab-settings .seg-btn[data-theme-pref]')]
         .find((b) => b.getAttribute('aria-checked') === 'true')?.dataset.themePref,
     }));
     expect(state.seg).toBe(state.applied);

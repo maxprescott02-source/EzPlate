@@ -167,7 +167,8 @@ test('changing the AI suggestions toggle adds and removes the insights panel', a
   await page.locator('label.switch:has(#setAiSuggestChk)').click();
   await expect(page.locator('#setAiSuggestChk')).not.toBeChecked();
   await page.waitForTimeout(300);
-  await page.locator('#settingsClose').click();
+  // F9 (v148): Settings is a screen, so leaving it is a navigation, not a Close button
+  await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(400);
   await expect(page.locator('#dashBody .dash-ins'), 'suggestions off → no insights panel').toHaveCount(0);
   // the rest of the Dashboard is untouched by the toggle
@@ -183,7 +184,7 @@ test('changing the AI suggestions toggle adds and removes the insights panel', a
   await page.locator('label.switch:has(#setAiSuggestChk)').click();
   await expect(page.locator('#setAiSuggestChk')).toBeChecked();
   await page.waitForTimeout(300);
-  await page.locator('#settingsClose').click();
+  await page.locator('.navbtn[data-tab="dashboard"]').click();   // F9 (v148)
   await page.waitForTimeout(400);
   await expect(page.locator('#dashBody .dash-ins'), 'suggestions back on → the panel returns').toHaveCount(1);
 

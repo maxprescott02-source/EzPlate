@@ -244,16 +244,41 @@ test('ITEM 6: the Menu tab no longer has a COGS input \u2014 editing really did 
   assert.ok(HTML.indexOf('id="aSuggestedTh"') >= 0, 'the Suggested column header is the surviving statement of the target');
 });
 
-test('ITEM 6: Settings is a header gear, not a nav tab', () => {
-  assert.ok(/id="settingsBtn"[^>]*aria-label="Settings"/.test(HTML), 'gear button with an aria-label');
-  /* F8 (v147) consciously changed this pin, and the change is narrower than it looks. The old
-     assertion counted EVERY .navbtn[data-tab] and demanded 5 — a proxy for "Settings is not a tab"
-     that also forbade any other screen ever becoming one. Invoices became a screen, so the count is
-     6, and the count is not the contract. The contract is: the MAIN nav group stays at five (that is
-     the mobile tab bar, and §6 fixes it at five), and Settings carries no data-tab at all. */
+/* F9 (v148) consciously changed this pin for the second time, and the reason is the same one F8
+   recorded: the assertion was a PROXY. "Settings is not a tab" was never the requirement — it was
+   how v35 happened to keep the mobile tab bar at five. Settings is a screen now, so what has to be
+   guarded is the thing that would actually hurt: the two routes in.
+
+   They do NOT overlap. `header{display:none}` inside @media (min-width:1024px) makes the gear
+   MOBILE-ONLY, and .nav-bottom is CSS-hidden below 1024, making the sidebar entry DESKTOP-ONLY.
+   Deleting either one strands the whole screen at that width — on a phone, that is the device Max
+   works on. The queue item leads with this and it is what this test exists for. */
+test('F9: Settings is a screen, reachable at BOTH widths — neither route may be removed', () => {
+  assert.ok(/id="settingsBtn"[^>]*aria-label="Settings"/.test(HTML),
+    'the header gear survives — below 1024 it is the ONLY route to Settings');
+  assert.ok(/id="sideSettings"/.test(HTML), 'the sidebar entry survives — at 1024+ it is the only route');
+  assert.ok(/data-tab="settings"[^>]*id="sideSettings"|id="sideSettings"[^>]*data-tab="settings"/.test(HTML),
+    'and it navigates to the screen rather than opening an overlay');
+  assert.ok(/id="tab-settings"/.test(HTML), 'the screen itself exists');
+  // the mobile tab bar is still five — that half of the old proxy IS a real §6 requirement
   const mainTabs = (HTML.match(/class="navbtn(?! [^"]*nav-bottom)[^"]*" data-tab=/g) || []).length;
   assert.equal(mainTabs, 5, 'the MAIN nav group stays at five tabs (the mobile tab bar is these five)');
-  assert.ok(!/data-tab="settings"/.test(HTML), 'Settings must not become a tab');
-  assert.ok(/id="sideSettings"/.test(HTML), 'the sidebar Settings entry still exists…');
-  assert.ok(!/data-tab="[^"]*"[^>]*id="sideSettings"/.test(HTML), '…and is still an overlay opener, not a tab');
+  // …and Settings is not one of them: it is reached from the gear, until the More-screen item lands
+  assert.ok(!/class="navbtn(?! [^"]*nav-bottom)[^"]*" data-tab="settings"/.test(HTML),
+    'Settings is not a sixth tab in the main group');
+});
+
+/* The two widths above are asserted from the CSS, not assumed. If either media query moves, one of
+   the routes silently becomes unreachable at some width and no other test would notice. */
+test('F9: the two Settings routes are complementary, with no width that has neither', () => {
+  const CSS = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');   // tombstones name both selectors; a comment must not satisfy this
+  // the gear's side: header hidden from 1024 up
+  const desktopBlock = CSS.slice(CSS.indexOf('@media (min-width:1024px)'));
+  assert.ok(CSS.indexOf('@media (min-width:1024px)') >= 0 && /(^|[;{}\s])header\{display:none\}/.test(desktopBlock),
+    'the header (and its gear) is hidden at 1024+ — so the sidebar entry must cover 1024+');
+  // the sidebar's side: .nav-bottom hidden below 1024. The two edges must MEET (1024 / 1023), or a
+  // band of widths has no route to Settings at all.
+  assert.ok(/@media \(max-width:1023px\)\{[^}]*\.nav-bottom\{display:none\}/.test(CSS.replace(/\s+/g, ' ')),
+    'the sidebar bottom group is hidden below 1024 — so the gear must cover below 1024');
 });

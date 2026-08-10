@@ -317,13 +317,14 @@ for (const width of [380, 1280]) {
         expect(inspected, `${theme} @${width}px, tab ${tab}: the screen actually rendered`).toBeGreaterThan(45);
         expect(findings, `${theme} @${width}px, tab ${tab}`).toEqual([]);
       }
-      // Settings is an overlay rather than a tab, and carries the theme control itself
-      await page.evaluate(() => window.openSettings());
+      /* F9 (v148): Settings is a SCREEN now, so it is swept the same way as every other tab
+         rather than as an overlay. It still gets its own line because it carries the theme
+         control itself — the one screen where a dark-mode regression would be self-inflicted. */
+      await page.evaluate(() => window.showTab('settings'));
       await page.waitForTimeout(200);
       const settings = await page.evaluate(SWEEP);
       expect(settings.inspected, `${theme} @${width}px: Settings rendered`).toBeGreaterThan(45);
       expect(settings.findings, `${theme} @${width}px, Settings`).toEqual([]);
-      await page.evaluate(() => window.closeSettings());
     }
   });
 }
@@ -411,7 +412,7 @@ test('the theme segment is one tab stop and arrow keys move within it', async ({
   await page.waitForTimeout(300);
   // exactly one of the three is reachable by Tab; the others are -1
   const tabindexes = await page.evaluate(() =>
-    [...document.querySelectorAll('#settingsPanel .seg-btn[data-theme-pref]')].map(b => b.getAttribute('tabindex')));
+    [...document.querySelectorAll('#tab-settings .seg-btn[data-theme-pref]')].map(b => b.getAttribute('tabindex')));
   expect(tabindexes.filter(t => t === '0'), 'a radiogroup is ONE tab stop').toHaveLength(1);
   expect(tabindexes.filter(t => t === '-1')).toHaveLength(2);
 
