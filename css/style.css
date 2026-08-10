@@ -991,7 +991,46 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* ----------------------------------------------------------------------
    16. INVOICE IMPORT + REVIEW
    ---------------------------------------------------------------------- */
-.inv-upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px}
+/* F8 (v147) tombstone: `.inv-upload` is DELETED with the old one-panel modal — the flex row that
+   held [Upload PDF or CSV] [or paste text manually] [filename]. Those three now live in three
+   different steps, so a rule that laid them out together has nothing left to lay out.
+
+   THE DROPZONE, worn by BOTH zones (the Invoices screen's §3.6 and the modal's step 1). It is a
+   real <button>, so it keeps the focus ring, Enter/Space and the 44px floor for free; the mock
+   draws a div and gives it a click handler, which would have needed all three re-adding by hand. */
+.invz{
+  display:block;width:100%;box-sizing:border-box;text-align:center;cursor:pointer;
+  border:1.5px dashed var(--border2);border-radius:var(--radius-card);
+  background:transparent;color:var(--text);padding:36px 24px;
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease);
+}
+.invz:hover,.invz.dragover{background:var(--hover);border-color:var(--accent)}
+.invz-t{display:block;font-size:14px;font-weight:600;color:var(--text)}
+.invz-s{display:block;margin-top:6px;font-size:var(--fs-sm);color:var(--muted2);line-height:1.45}
+@media (max-width:767px){ .invz{padding:26px 16px} }
+
+/* the Invoices screen's R4 recents area — see the note on #tab-invoices for why no table */
+.invz-recent{margin-top:var(--sp-5)}
+.invz-recent h3{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text)}
+.invz-none{margin:0;font-size:var(--fs-sm);color:var(--muted2);line-height:1.5;max-width:62ch}
+.invz-last{margin:8px 0 0;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--muted2)}
+
+/* the three steps. NO `display` on .inv-step itself unless it is guarded: an author rule beats the
+   UA's [hidden]{display:none} on ORIGIN, before specificity is even compared, so an unguarded
+   `display:block` here would leave all three panels on screen at once (CLAUDE.md, Tier 1). */
+.inv-step:not([hidden]){display:block}
+.inv-choose-foot{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap;margin-top:var(--sp-3)}
+.inv-choose-foot .hint{margin-left:auto}
+@media (max-width:767px){ .inv-choose-foot .hint{margin-left:0} }
+.inv-scan-t{margin:0;font-size:14px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.inv-scan-s{margin:10px 0 0;font-size:var(--fs-sm);color:var(--muted2);line-height:1.45}
+/* the mock's indeterminate bar. Shared by step 2 and the AI-referee wait inside step 3, because to
+   the person watching they are one wait. Reduced motion parks it as a static 40% fill rather than
+   hiding it — an empty track would read as "stalled". */
+.inv-bar{position:relative;overflow:hidden;height:6px;border-radius:999px;background:var(--line);margin-top:12px}
+.inv-bar > span{position:absolute;top:0;bottom:0;left:0;width:40%;border-radius:999px;background:var(--accent);animation:invBar 1.2s linear infinite}
+@keyframes invBar{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@media (prefers-reduced-motion:reduce){ .inv-bar > span{animation:none} }
 #invFileName{color:var(--muted2);font-size:13px}
 #invCsv{
   width:100%;border:1.5px solid var(--border2);border-radius:var(--radius-ctl);padding:12px;
@@ -1013,24 +1052,38 @@ body.scroll-locked{position:fixed;left:0;right:0}
   font-size:var(--fs-xs);color:var(--muted2);background:transparent;
   border:0;border-radius:0;padding:2px 0 0;margin:0 0 var(--sp-3);line-height:1.45;
 }
-/* v67 item 4: collapsed raw-text paste box — the toggle sits inline with the Upload button (in
-   .inv-upload); the box is revealed below on demand. */
-.inv-manual-toggle{font-size:var(--fs-sm);margin-left:2px}
+/* v67 item 4: collapsed raw-text paste box. F8 (v147): the toggle sits in `.inv-choose-foot` under
+   the step-1 dropzone now — the alternative route, directly beneath the main one. */
+.inv-manual-toggle{font-size:var(--fs-sm)}
 .inv-manual-box{margin-top:var(--sp-3)}
 .inv-manual-box .inv-csv-hint{margin-top:0;margin-bottom:6px}
 /* v69 item 5: spacing for the two header rows moved off inline styles onto classes (desktop unchanged —
    these equal the old inline margin-top:12px) so the mobile breakpoint below can restack them. */
 .inv-parse-row{margin-top:var(--sp-3)}
 @media (max-width:700px){
-  /* v72 (Max): the upload button + the "or paste text manually" link read as one choice, so keep them on
-     ONE row (they fit at phone width; wrap gracefully only if very narrow), and tighten the gap down to
-     Match products — the v69 full-column stack left the link floating and a loose gap to the CTA. */
-  .inv-upload{flex-direction:row;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3);margin-top:var(--sp-2)}
-  .inv-upload .inv-manual-toggle{margin-left:0}
+  /* F8 (v147): the `.inv-upload` half of this block went with the element. `#lastImport2` moved into
+     `.inv-choose-foot`, which handles its own stacking above. */
   .inv-parse-row{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);margin-top:var(--sp-3)}
-  .inv-parse-row #lastImport2{margin-left:0}
 }
-.inv-actions{margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+/* F8 (v147): the mock's §4 footer bar — hint left, Cancel + Confirm right, seated on the surface
+   band and separated by a hairline, so on a long review it reads as the end of the list rather than
+   another row of it. `.inv-actions-gap` is the flex spacer; on a phone the two buttons go
+   full-width and stack under the hint, per §6's 50px primary. */
+.inv-actions{
+  margin-top:var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;
+  border-top:1px solid var(--border);background:var(--surface2);
+  /* the bar spans the modal body's full width: .mbody's padding is --sp-5, so the pull-out and the
+     re-padding are both --sp-5 or the band sits inset and reads as one more card. */
+  margin-left:calc(-1 * var(--sp-5));margin-right:calc(-1 * var(--sp-5));margin-bottom:calc(-1 * var(--sp-5));
+  padding:var(--sp-3) var(--sp-5);
+}
+.inv-actions-gap{flex:1 1 auto}
+@media (max-width:767px){
+  .inv-actions{flex-direction:column;align-items:stretch}
+  .inv-actions-gap{display:none}
+  .inv-actions .btn{width:100%;min-height:50px}
+  .inv-actions .hint{text-align:center}
+}
 .flag-review{
   font-family:var(--ui);font-size:var(--fs-xs);font-weight:700;color:var(--bad);
   background:var(--bad-bg);border:1px solid var(--bad);border-radius:6px;padding:2px 8px;margin-left:6px;
@@ -1055,7 +1108,26 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .match-cell{display:flex;flex-direction:column;gap:8px;align-items:stretch;width:100%}
 .match-cell .invSel{width:100%;max-width:none;min-width:0}
 .ni-add-alt{width:100%;white-space:nowrap;font-size:13px;padding:8px 12px;min-height:40px}
-.invAppr{width:26px;height:26px;min-height:26px}
+/* F8 (v147): the Apply tick was the app's last sub-44px touch target, on its highest-stakes screen.
+   v46 skipped it as "inside the protected invoice review area" — it is not: the region runs from
+   `var INV_EXCLUDE=` to `function unitLabelFor(`, and neither this rule nor the markup is in it.
+   The fix is a real <label> wrapper rather than the `::after` hit-area used for .ms-clear and
+   .range-btn, for two reasons: ::before/::after on a replaced element (input[type=checkbox]) is not
+   dependably rendered, and a 44px LABEL is measurable — a spec reading boundingBox sees the target
+   the thumb sees, which a pseudo-element would not have given it. The box stays 26px visually. */
+.appr-hit{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;min-height:44px;cursor:pointer;
+}
+/* F8 (v147) tombstone: `.invAppr{width:26px;height:26px;min-height:26px}` is DELETED because it has
+   NEVER APPLIED. `input[type=checkbox]` at §5 (line ~402) sets 24px and measures 0-1-1; `.invAppr`
+   measures 0-1-0, so the base rule outranks it and the box has always painted at 24, not 26.
+   Measured in Chromium, on the branch point, before the deletion: computed width 24px.
+   This is the Tier 1 trap in its purest form — a rule that looks right in the file and does nothing
+   — and it is also why the queue item recorded "the .invAppr checkbox is 26×26px". It is 24×24.
+   Nothing changes visually by removing it; what changes is that the file stops asserting a number
+   the screen does not have. The touch target is the `.appr-hit` label above, which is the half that
+   was actually missing. */
 .muted-row td{opacity:.92}
 /* v86 ROOT CAUSE (the Apply tick box painting OVER an open combobox list): opacity below 1
    makes EVERY cell its own stacking context, so .cat-drop's z-index:60 could only stack
@@ -1076,7 +1148,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .invtable td:nth-child(3){display:block;padding:6px 0}
 .invtable td:nth-child(3)::before{display:block;margin-bottom:5px}
 .invtable td:nth-child(2){flex-wrap:wrap}
-.invtable td[style*="text-align:center"]{text-align:left!important}
+.invtable td.apprcell{text-align:left!important}
 
 /* inline "add new item" panel */
 .ni-row td{display:block;padding:0}
@@ -1115,7 +1187,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .invtable td:nth-child(3){display:table-cell;padding:12px}
   .invtable select.invSel{max-width:230px;width:auto;min-height:40px;padding:8px 34px 8px 10px}
   .invtable input.invPrice{width:96px}
-  .invtable td[style*="text-align:center"]{text-align:center!important}
+  .invtable td.apprcell{text-align:center!important}
   /* v72: an add-new row keeps the stacked-CARD layout on desktop too (it already breaks the
      table model by hiding Old/Conf) so the nested form isn't crammed into the narrow Match
      column and Apply sits below it, not beside it. Matched rows keep the desktop table. */
@@ -1224,7 +1296,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* v72 motion: tab switch — a gentle settle, not a hard snap. showTab() flips
    display:none→'' on the panel, which re-triggers this one-shot each switch.
    Kept fast (--t-med) since it happens constantly. */
-#tab-builder,#tab-analysis,#tab-pantry,#tab-ingredients,#tab-dashboard{
+#tab-builder,#tab-analysis,#tab-pantry,#tab-ingredients,#tab-dashboard,#tab-invoices{
   animation:tabIn var(--t-med) var(--ease)}
 @keyframes tabIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
@@ -1276,7 +1348,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
    Guarded twice: inside no-preference AND under the global kill switch above — either
    alone disables it. closeOverlay's reduced-motion early return is untouched. */
 @media (prefers-reduced-motion:no-preference){
-  #tab-builder,#tab-ingredients,#tab-analysis,#tab-dashboard,#tab-pantry{
+  #tab-builder,#tab-ingredients,#tab-analysis,#tab-dashboard,#tab-pantry,#tab-invoices{
     animation:ezRise var(--t-entry) var(--ease-entry);   /* no fill mode: the end frame IS the natural state, and a permanent fill would outrank inline styles forever */
   }
 }
@@ -1400,10 +1472,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* F7 (v146) tombstone: `.builder-foot` styled the modal's sticky Save bar. Save is in the page
    header now (and reachable from the §6 summary bar on a phone), so the bar and its rule are gone. */
 
-/* ============ Invoice intro ============ */
-.inv-intro{position:relative;background:var(--accent-weak);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px 34px 12px 14px;margin-bottom:12px}
-.inv-intro p{margin:0;font-size:13px;line-height:1.45}
-.inv-introx{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:20px;line-height:1;color:var(--muted2);cursor:pointer}
+/* F8 (v147) tombstone: `.inv-intro` / `.inv-intro p` / `.inv-introx` dressed the dismissible banner
+   at the top of the old import modal. The banner is deleted — the step-1 dropzone states "Nothing
+   changes without your review" permanently, which is the one promise the banner made and then
+   offered to hide. Grepped against index.html and js/app.js before removal; no hits remain. */
 
 /* ============ Dashboard ============ */
 /* F6 (v143): `#dashBody{padding-bottom}` and the `.dash-chart` 540px cap are DELETED — the whole
@@ -1717,7 +1789,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus{
 
 /* ---- A. small controls freed from the global 44px touch floor ---- */
 .ms-clear{min-height:0;height:26px;width:26px}
-.inv-introx{min-height:0;height:28px;width:28px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+/* F8 (v147) tombstone: `.inv-introx`'s exemption went with the banner it un-sized. */
 
 /* ---- B. invoice review: cards at EVERY width (the ≥640 table conversion
         made it horizontally scroll inside the modal on desktop) ---- */
@@ -1741,7 +1813,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus{
   .invtable tbody tr > td:first-child{display:block;font-size:14px;font-weight:600;color:var(--text);padding:0 0 8px}
   .invtable td:nth-child(3){display:block;padding:6px 0}
   .invtable td:nth-child(2){flex-wrap:wrap}
-  .invtable td[style*="text-align:center"]{text-align:left!important}
+  .invtable td.apprcell{text-align:left!important}
   .invtable select.invSel{max-width:100%;width:100%;min-height:44px;padding:11px 38px 11px 14px}
   .invtable input.invPrice{width:110px}
   .invtable .ni-row td{display:block;padding:0}
@@ -2311,7 +2383,7 @@ body{overflow-x:clip}
 .ptr-ind{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%) translateY(0);z-index:83;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--elev);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
 .ptr-spin{position:relative;width:26px;height:26px;display:block}
 .ptr-ring,.ptr-arc{position:absolute;inset:0;width:100%;height:100%;display:block}
-.ptr-ring{color:var(--line)}                        /* v115: the TRACK is --line everywhere a ring waits on Supabase (was --brand) — one ring language with #bootGate and .inv-wait-spin, which run the same fetch */
+.ptr-ring{color:var(--line)}                        /* v115: the TRACK is --line everywhere a ring waits on Supabase (was --brand) — one ring language with #bootGate. F8 (v147): the invoice wait left that family for the mock's `.inv-bar`, which is the same --line track in a different shape. */
 .ptr-arc path{stroke:var(--accent)}                 /* orange arc — theme-aware via CSS (SVG presentation attrs can't read a CSS var) */
 .ptr-ind.ready{box-shadow:0 0 0 2px var(--accent-weak), var(--elev-cast)}   /* ring is functional (release affordance) — must survive dark, hence --elev-cast not --elev */
 .ptr-ind.spinning .ptr-arc{animation:ptr-rot .8s linear infinite;transform-origin:50% 50%}   /* ONLY the arc spins; the faint ring stays put */
@@ -2529,6 +2601,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* the invoice tint reads the SAME state machine as the summary: matched / review / new.
    Q8 (v127): review rows wear WARN (the design's tint — they need an eye, they are not errors);
    a new row carries an accent stripe and no wash (its "new item" flag is the signal). */
+/* F8 (v147) — TINT VS HOVER, DECIDED. Every screen F2-F6 converted came out with a row hover wash,
+   and `--warn-bg` is opaque, so giving these rows one would fully mask the tint on exactly the rows
+   the user is scanning. The answer is that INVOICE REVIEW ROWS DELIBERATELY DO NOT HOVER, and the
+   reason is not the masking — it is that a hover wash on this row would be a lie. Everywhere else
+   the whole row IS a <button> and the wash says "press me"; here the row is a form containing a
+   select, a price field, a pack control and a checkbox, and pressing the row itself does nothing.
+   The affordance is carried by those controls, which each hover and focus on their own.
+   The mock agrees: its §4 review rows carry no `style-hover` while every table row in the package
+   does. `tests/inv-tint.test.js` fails if a hover background is ever added here. */
 .invtable tbody tr.inv-data.st-review:not(.sec):not(.ni-row){
   background:var(--warn-bg);border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn)}
 .invtable tbody tr.inv-data.st-new:not(.sec):not(.ni-row){
@@ -3006,20 +3087,17 @@ html{scrollbar-gutter:stable}
 /* v113 — the invoice waiting panel. The review table does not exist until the AI referee has spoken
    (see renderInvWaiting): a match picked, a new item ticked or a pack taught during that window
    SILENCES the referee for that line, so there must be nothing to pick, tick or teach. */
+/* F8 (v147): restyled to the mock's §4 scanning panel — the ring is now the same indeterminate
+   `.inv-bar` step 2 wears, because reading the file and double-checking it are one wait to the
+   person watching them and two spinner idioms for one wait was the drift. The v113 CONTRACT above
+   is untouched: this panel still renders no control of any kind, and `invoice-gate.test.js` pins
+   that against the real function. `.inv-wait-spin` is deleted with its keyframe use. */
 .inv-wait{
-  display:flex;align-items:center;gap:var(--sp-3);
   padding:var(--sp-4);margin-top:var(--sp-3);
   border:1px solid var(--line);border-radius:12px;background:var(--surface2,var(--surface));
 }
 .inv-wait-t{font-weight:600;color:var(--text)}
-.inv-wait-s{font-size:var(--fs-sm);color:var(--muted2);margin-top:2px}
-.inv-wait-spin{
-  flex:0 0 auto;width:22px;height:22px;border-radius:50%;
-  border:2.5px solid var(--line);border-top-color:var(--accent);   /* v115: one ring language (see #bootGate .bg-spin) */
-  animation:bgspin .8s linear infinite;
-}
-/* The message carries the meaning; the spinner is decoration. */
-@media (prefers-reduced-motion: reduce){ .inv-wait-spin{animation:none;border-top-color:var(--line)} }
+.inv-wait-s{font-size:var(--fs-sm);color:var(--muted2);margin-top:10px}
 
 /* ===== batch (v115) — the dashboard the app has been building toward ===== */
 /* Strand 2: the chart reframed. The hero figure grows toward the approved mockup's weight — one

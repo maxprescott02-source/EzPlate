@@ -1423,8 +1423,21 @@ function builderCategoryValue(){ var el=document.getElementById('plateCat'); ret
    agrees). The word after the % is what discriminates amber from red \u2014 "over" vs "well over" \u2014
    because hue was otherwise the ONLY difference between them. The LIGHT (and therefore the word)
    comes from analyze() \u2014 the one place the green/amber/red rule lives \u2014 so the publish-dialog
-   preview, the filter chips and this cell can never disagree ON COLOUR (their words differ:
-   "Slightly under"/"Watch"/"over" all name the same amber \u2014 a queued question, not a drift).
+   preview, the filter chips and this cell can never disagree ON COLOUR.
+
+   F8 (v147) \u2014 THE THREE VOCABULARIES, DECIDED. The queue asked whether "Slightly under" (the
+   publish preview), "Watch" (the filter chips) and "over" (this cell) naming one amber is drift.
+   IT IS DELIBERATE, and the reason is that they have three different SUBJECTS:
+     \u00b7 THIS CELL judges the COST against the target        -> "over" / "well over" is correct.
+     \u00b7 marginLightWord judges the PRICE against suggested  -> "under" is correct, and it is the
+       opposite direction only because it is measuring the opposite thing.
+     \u00b7 The chips are a FILTER over plates, so the word is what you would DO -> "Watch" / "Rework".
+   Unifying them would force one subject onto three questions and make two of the three wrong. The
+   COLOUR is shared because the LIGHT is shared \u2014 all three read analyze(), which is the one place
+   the green/amber/red rule lives \u2014 and that is the invariant that actually matters.
+   The residual, stated rather than hidden: of the nine phrases, "Slightly under" is the only one
+   that does not carry its own subject, so it alone can be misread as being about cost. Recorded in
+   docs/MAINTENANCE.md as a copy question; it is not a colour bug and not this screen's to fix.
    (The dialog rounds its % to a whole
    number; this cell shows one decimal. Same ratio, different display precision \u2014 a display choice,
    not a second computation.) Colour stays anchored to the TARGET, never to direction.
@@ -1467,7 +1480,7 @@ function showTab(t){
      landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
-  ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  ['builder','ingredients','analysis','dashboard','pantry','invoices'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   /* F7 (v146): the builder is a full PAGE now, a child of Plates rather than a tab of its own, so
      every tab change leaves it. Nothing is lost by that - the in-progress plate stays in memory and
      in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
@@ -1481,11 +1494,12 @@ function showTab(t){
   if(t==='dashboard')renderDashboard();
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
   if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
+  if(t==='invoices')renderInvoicesTab();  // F8 (v147): a new key, not a rename — there was no Invoices screen before
   if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
-  var VALID=['builder','ingredients','analysis','dashboard','pantry'];
+  var VALID=['builder','ingredients','analysis','dashboard','pantry','invoices'];
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
 }
@@ -4720,7 +4734,11 @@ function renderDashboard(){
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('ingSave',saveIngEdit); on('ingCancel',closeIngEdit); on('ingClose',closeIngEdit); on('ingDelete',deleteIngredient);
-  on('invIntroX',function(){ try{localStorage.setItem('ezInvIntroDismissed','1');}catch(e){} var el=document.getElementById('invIntro'); if(el)el.style.display='none'; });
+  /* F8 (v147) tombstone: `#invIntroX` dismissed the v67 intro banner. The banner is deleted — the
+     step-1 dropzone carries "Nothing changes without your review" permanently now, which is the
+     one thing the banner said and then let the user hide. `ezInvIntroDismissed` is left in
+     localStorage rather than swept: it is a view preference for a view that no longer exists, and
+     a boot-time delete would be a write on every start to tidy one dead key. */
   on('invManualToggle',toggleInvManual);   // v67 item 4: reveal/hide the collapsed raw-text paste box
   ['ingModal'].forEach(function(id){ var m=document.getElementById(id); if(m) m.addEventListener('click',function(ev){ if(ev.target===m) hide(id); }); });   // v90: hlModal removed with the highlight cards
 })();
@@ -4748,7 +4766,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v146';
+var APP_VERSION='v147';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -5219,7 +5237,9 @@ function clearCacheAndRefresh(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
   on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
   on('sideSettings',openSettings);   // v132: the v3 sidebar's bottom-group Settings entry (desktop only; CSS hides it <1024)
-  on('sideInvoices',openInv);        // v137 (F1b): the same import flow as #importBtn — the mock's placement, not a second capability
+  /* F8 (v147) tombstone: `on('sideInvoices',openInv)` opened the import modal straight from the
+     sidebar. Invoices is a screen now, so the entry carries data-tab="invoices" and the generic
+     .navbtn[data-tab] binding navigates it. Wiring openInv here as well would fire BOTH. */
   // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
@@ -6052,6 +6072,10 @@ function menuMarginPreview(cost, price){
   return {cost:cost, price:(price>0?price:null), suggested:a.suggested, light:a.light,
           pct:(cost>0&&price>0)?Math.round(cost/price*100):null};
 }
+/* The PRICE against the suggested price — a different subject from the Menu cell's cost-vs-target
+   wording and from the filter chips' action wording, which is why all three say different things
+   about the same amber. Decided deliberate in F8 (v147); the reasoning is written out once, at
+   vbadge. Do not "unify" these three without reading it. */
 function marginLightWord(light){ return light==='green'?'Healthy margin':light==='amber'?'Slightly under':light==='red'?'Underpriced':''; }
 function renderMenuMarginPreview(){
   var box=document.getElementById('mi_preview'); if(!box) return;
@@ -6223,18 +6247,26 @@ async function extractPdfText(file){
 }
 function showInvFileErr(msg){ var e=document.getElementById('invFileErr'); if(e){ e.textContent=msg; e.style.display='block'; } }
 var IMG_PDF_MSG="This PDF appears to be image-based and can't be read automatically \u2014 please use the manual entry option instead";
+/* F8 (v147): every failure path returns to step 1, because that is where the controls that could
+   recover it live (browse again, or the paste box). Leaving the scanning panel up with an error
+   under it was the shape this rebuild replaced, and it had nothing to press. */
+function invFileFailed(msg, useToast){
+  invStep('choose');
+  var nameEl=document.getElementById('invFileName'); if(nameEl) nameEl.textContent='';
+  if(useToast) toast(msg); else showInvFileErr(msg);
+}
 function handleInvFile(file){
   if(!file) return;
-  var nameEl=document.getElementById('invFileName'); if(nameEl) nameEl.textContent=file.name;
+  var nameEl=document.getElementById('invFileName'); if(nameEl) nameEl.textContent='Reading '+file.name;
   var errEl=document.getElementById('invFileErr'); if(errEl) errEl.style.display='none';
+  show('invModal');                                  // the screen's dropzone drops a file with the modal shut; the modal is where the 3 steps live
+  invStep('scan');
   var isPdf=/\.pdf$/i.test(file.name)||file.type==='application/pdf';
   if(isPdf){
-    if(nameEl) nameEl.textContent=file.name+' \u2014 reading\u2026';
     extractPdfText(file).then(function(text){
       var cleaned=(text||'').replace(/\s+/g,'');
       if(!cleaned || cleaned.length<15){               // no selectable text = scanned / image-only PDF
-        if(nameEl) nameEl.textContent=file.name;
-        showInvFileErr(IMG_PDF_MSG); return;
+        invFileFailed(IMG_PDF_MSG); return;
       }
       text=normPackNotation(text);                     // v55 §I: normalise "N x M's" -> "(N*M)'s" before parsing (and before it's shown in the textarea, so a manual re-parse stays consistent)
       invGst=invGstDetect(text); invSupplier=invSupplierDetect(text);
@@ -6243,16 +6275,17 @@ function handleInvFile(file){
       // second reader was never firing and the status note never set for uploaded invoices \u2014 which is
       // how Max actually imports. Mirror parseInvoice here: stamp the status, then fire ONE reader.
       if(rows.length){ ta.value=text.trim(); if(nameEl) nameEl.textContent=''; gemStatus='checking'; gemApplied=false; gemCheckStart=Date.now(); buildInvRows(rows); gemFireSecondReader(text); }   // v67 follow-up: no "N lines read, review below" line \u2014 the "X matched \u00b7 X new" summary below already confirms it worked
-      else { ta.value=text.trim(); if(nameEl) nameEl.textContent=file.name+' \u2014 review the extracted text'; toast('Couldn\u2019t auto-detect priced lines \u2014 review the text below or enter manually'); }
+      /* F8 (v147): this path told the user to "review the text below" while the paste box was
+         COLLAPSED - v67 hid the box and never re-pointed the message. It now opens what it names. */
+      else { ta.value=text.trim(); invFileFailed('Couldn\u2019t auto-detect priced lines \u2014 review the extracted text below or enter it manually', true); setInvManual(true); }
     }).catch(function(e){
-      if(nameEl) nameEl.textContent=file.name;
-      if(e && e.message==='pdfjs-load') toast('Could not load the PDF reader \u2014 check your connection and try again');
-      else showInvFileErr(IMG_PDF_MSG);
+      if(e && e.message==='pdfjs-load') invFileFailed('Could not load the PDF reader \u2014 check your connection and try again', true);
+      else invFileFailed(IMG_PDF_MSG);
     });
   } else {
     var r=new FileReader();
     r.onload=function(){ if(nameEl) nameEl.textContent=''; document.getElementById('invCsv').value=String(r.result||''); parseInvoice(); };   // v67 follow-up: no filename line — the "X matched · X new" summary confirms it worked
-    r.onerror=function(){ toast('Could not read that file'); };
+    r.onerror=function(){ invFileFailed('Could not read that file', true); };
     r.readAsText(file);
   }
 }
@@ -6266,8 +6299,21 @@ function setInvManual(open){
   if(open){ var ta=document.getElementById('invCsv'); if(ta) ta.focus(); }
 }
 function toggleInvManual(){ var box=document.getElementById('invManualBox'); setInvManual(!!(box&&box.hidden)); }
-function openInv(){gemStatus=null;gemToken++;gemApplied=false;document.getElementById('invCsv').value='';setInvManual(false);var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';invSupplier='';var _in=document.getElementById('invIntro');if(_in){var _d='';try{_d=localStorage.getItem('ezInvIntroDismissed');}catch(e){}_in.style.display=_d?'none':'';}updateLastImport();show('invModal');}
+/* F8 (v147): the mock's §4 three-step upload. ONE function switches panels, so no caller can
+   leave two of them on screen; every other function keeps writing to the same ids it always did.
+   `hidden` and nothing else — .inv-step deliberately carries no `display` rule, and the one it
+   needs at step level wears the `:not([hidden])` guard (CLAUDE.md's [hidden] corollary). */
+var INV_STEPS={choose:'invStepChoose', scan:'invStepScan', review:'invStepReview'};
+function invStep(step){
+  Object.keys(INV_STEPS).forEach(function(s){
+    var el=document.getElementById(INV_STEPS[s]); if(el) el.hidden=(s!==step);
+  });
+}
+function openInv(){gemStatus=null;gemToken++;gemApplied=false;document.getElementById('invCsv').value='';setInvManual(false);var r=document.getElementById('invReview');r.style.display='none';r.innerHTML='';var fe=document.getElementById('invFileErr');if(fe)fe.style.display='none';var fn=document.getElementById('invFileName');if(fn)fn.textContent='';var fi=document.getElementById('invFile');if(fi)fi.value='';invSupplier='';invStep('choose');updateLastImport();show('invModal');}
 function closeInv(){hide('invModal');}
+/* F8: the Invoices screen. There is nothing to render but the one true fact the app holds about
+   importing — see the R4 note on #tab-invoices for why no recent-imports table is drawn. */
+function renderInvoicesTab(){ updateLastImport(); }
 function inorm(s){return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
 var INV_STOP={kg:1,kgs:1,g:1,gr:1,gram:1,grams:1,l:1,lt:1,ltr:1,litre:1,liter:1,ml:1,ea:1,each:1,unit:1,units:1,pk:1,pack:1,packs:1,packet:1,ctn:1,carton:1,box:1,bag:1,btl:1,bottle:1,tray:1,tub:1,can:1,tin:1,jar:1,x:1,per:1,approx:1,app:1,pcs:1,pce:1,piece:1,pieces:1,portion:1,portions:1,sliced:1,sleeve:1,sleeves:1,case:1,value:1,added:1,premium:1,prem:1,select:1,choice:1,bulk:1,foodservice:1,catering:1,frozen:1,frz:1,fresh:1,raw:1,diced:1,whole:1,pkt:1,or:1,and:1,the:1,of:1,with:1,size:1,pre:1,cut:1,gluten:1,free:1,gf:1};
 function coreTokens(s, brand){
@@ -6688,7 +6734,7 @@ function parseInvoice(){
   var txt=normPackNotation(document.getElementById('invCsv').value);
   invGst=invGstDetect(txt); invSupplier=invSupplierDetect(txt);
   var raw=parseInvoiceCSV(txt);
-  if(!raw.length){toast('No valid rows. Use: product name, unit price per kg/unit');return;}
+  if(!raw.length){invFileFailed('No valid rows. Use: product name, unit price per kg/unit', true);return;}   // F8: reached from the CSV upload too, which is mid-scan — put the user back where the controls are
   // v62: Reader 1 (this parser) renders the review modal IMMEDIATELY below. Reader 2 (Gemini) then runs
   // ONE background request and merges when it lands — AI adds latency nowhere. gemStatus is set BEFORE
   // buildInvRows so the very first render already shows "AI double-checking…".
@@ -7075,11 +7121,14 @@ function invPackPreviewText(r, q, u){
    its own), so a summary now would be a number that silently rewrites itself. */
 function renderInvWaiting(box){
   var n=invRows.length;
+  // F8 (v147): the mock's §4 scanning bar, reused verbatim from step 2 — reading the file and
+  // double-checking it are one wait to the person watching, so they wear one visual.
   box.innerHTML='<div class="inv-wait" role="status" aria-live="polite">'
-    +'<span class="inv-wait-spin" aria-hidden="true"></span>'
-    +'<div><div class="inv-wait-t">Double-checking '+n+' line'+(n===1?'':'s')+' with the AI reader…</div>'
-    +'<div class="inv-wait-s">Nothing has been saved. The lines appear once the check is done.</div></div></div>';
+    +'<div class="inv-wait-t">Double-checking '+n+' line'+(n===1?'':'s')+' with the AI reader…</div>'
+    +'<div class="inv-bar" aria-hidden="true"><span></span></div>'
+    +'<div class="inv-wait-s">Nothing has been saved. The lines appear once the check is done.</div></div>';
   box.style.display='block';
+  invStep('review');
 }
 /* Q8 (v127): the footer counts what will actually apply — "Confirm N changes", recounted on every
    tick and every re-render from the live checkboxes (the same boxes confirmApplyInvoice reads). */
@@ -7195,7 +7244,7 @@ function renderInvReview(){
       '<td>'+matchCell+'</td>'+
       oldCell+
       confCell+
-      '<td style="text-align:center"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></td></tr>';
+      '<td class="apprcell"><label class="appr-hit"><input type="checkbox" class="invAppr"'+(checked?' checked':'')+'></label></td></tr>';
     // v72: the form panel moved INTO the row's Match cell (.ni-slot, see matchCell above) — no separate row.
   });
   // v113: no `disabled` binding here on purpose. Reaching this line means gemPending() was false, so it
@@ -7203,8 +7252,19 @@ function renderInvReview(){
   // one. The real gate is the early return above; invConfirmState still supplies the HINT, which is how
   // the user learns the lines were never AI-checked when the referee timed out.
   var cst=invConfirmState(gemStatus, aiInvoiceCheck);
-  html+='</tbody></table></div><div class="inv-actions"><button class="btn primary" id="invApply" type="button">Confirm All</button> <span class="hint'+(cst.unverified?' hint-unverified':'')+'" aria-live="polite">'+esc(cst.hint)+'</span></div>';
+  /* F8 (v147): the mock's §4 footer bar — hint left, Cancel + primary right. Cancel is NEW and is
+     the mock's, not an invention: until now the only way out of a review was the × in the header,
+     which on a phone sits above a screenful of scrolled rows. It closes, it never applies.
+     The mock's "3 price updates, 30 unchanged" line is NOT reproduced (R5, the loss stated): the
+     .inv-sum verdict at the top already counts the app's THREE real states, and two summaries that
+     partition the same rows differently is how the summary and the cards came to disagree once. */
+  html+='</tbody></table></div><div class="inv-actions">'
+    +'<span class="hint'+(cst.unverified?' hint-unverified':'')+'" aria-live="polite">'+esc(cst.hint)+'</span>'
+    +'<span class="inv-actions-gap"></span>'
+    +'<button class="btn" id="invCancel" type="button">Cancel</button>'
+    +'<button class="btn primary" id="invApply" type="button">Confirm All</button></div>';
   var box=document.getElementById('invReview'); box.innerHTML=html; box.style.display='block';
+  invStep('review');
   box.querySelectorAll('.invSel').forEach(function(sel){ sel.onchange=function(){invSelChanged(sel.closest('tr'));}; });
   box.querySelectorAll('.invPrice').forEach(function(inp){                 // ITEM 7 root cause: editing the price never recomputed needs-attention, so a clearly-different price failed to turn red
     inp.addEventListener('change', function(){
@@ -7263,11 +7323,27 @@ function renderInvReview(){
     var ap=fresh&&fresh.querySelector('.invAppr'); if(ap) ap.checked=false;   // v39: new items are ticked by the user once the form is filled
   }; });
   document.getElementById('invApply').addEventListener('click',confirmApplyInvoice);
+  var _ic=document.getElementById('invCancel'); if(_ic) _ic.addEventListener('click',closeInv);
   // Q8 (v127): persist the human's tick (the truth table at `checked`), and keep the footer count live
   box.querySelectorAll('.invAppr').forEach(function(cb){
     cb.addEventListener('change', function(){
       var tr=cb.closest('tr'); if(!tr) return; var i=parseInt(tr.dataset.i,10); var r=invRows[i]; if(!r) return;
-      if(r.addNew){ if(r.newItem) r.newItem.approved=cb.checked; }   // the v50 home for the add-new tick
+      if(r.addNew){
+        /* F8 (v147) — THE TICK WITH NOWHERE TO LIVE. r.newItem is the v50 home for an add-new tick,
+           and it does not exist until the form is opened. An AI-appended add-new row (rule 5) renders
+           with a checkbox and no form, so ticking it stored the decision ONLY in the DOM: the next
+           re-render read `!!(r.newItem && r.newItem.approved)` = false and dropped it, and if the tick
+           survived to Confirm, collectNewItem returned null and the whole import failed on "Fix the
+           highlighted new item" pointing at nothing highlighted. Opening the form on the first tick is
+           the fix rather than refusing the tick, because a form is what the user needs next either way
+           — and expandNewItem's own first-open snapshot reads this very checkbox, so `approved` is
+           already true by the time the assignment below runs. */
+        if(!r.newItem && cb.checked){
+          expandNewItem(i);
+          var fb=tr.querySelector('.ni-add-btn'); if(fb){ fb.classList.add('open'); fb.textContent='Editing new item ↓'; }
+        }
+        if(r.newItem) r.newItem.approved=cb.checked;
+      }
       else r.userTick=cb.checked;
       updateInvApplyCount();
     });
@@ -7751,7 +7827,7 @@ function showImportSummary(changes, added, overBefore, overAfter, kings){   // c
 function updateLastImport(){
   var d=null; try{d=localStorage.getItem('cafeDB_lastImport');}catch(e){}
   var txt=d?('Prices last updated: '+new Date(d).toLocaleDateString()):'No invoice imported yet';
-  ['lastImport','lastImport2'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=txt;});
+  ['lastImport','lastImport2','lastImport3'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=txt;});   // F8 (v147): lastImport3 is the Invoices screen — the only import fact the app actually stores
 }
 
 /* ---- redefined analysis (groups custom menu items by section; shows notes) ---- */
@@ -8300,9 +8376,28 @@ function doDeleteEverything(){
 /* ---- wiring ---- */
 document.getElementById('importBtn').addEventListener('click',openInv);
 document.getElementById('invParse').addEventListener('click',parseInvoice);
-(function(){var fb=document.getElementById('invFileBtn'), fi=document.getElementById('invFile');
- if(fb&&fi){ fb.addEventListener('click',function(){ fi.click(); });
-   fi.addEventListener('change',function(){ if(fi.files&&fi.files[0]) handleInvFile(fi.files[0]); }); }})();
+/* F8 (v147): TWO dropzones, ONE file input and ONE parse route — the modal's step-1 zone and the
+   Invoices screen's. Both click through to #invFile and both accept a drop; handleInvFile shows the
+   modal itself, so dropping on the screen with the modal shut still lands on the scanning step.
+   The drag listeners live on the zone, not the window: a full-window drop target on a costing app
+   is how a mis-aimed drag becomes an import nobody asked for. */
+(function(){
+  var fi=document.getElementById('invFile');
+  if(!fi) return;
+  fi.addEventListener('change',function(){ if(fi.files&&fi.files[0]) handleInvFile(fi.files[0]); });
+  ['invFileBtn','invDropZone'].forEach(function(id){
+    var z=document.getElementById(id); if(!z) return;
+    z.addEventListener('click',function(){ fi.click(); });
+    ['dragenter','dragover'].forEach(function(ev){ z.addEventListener(ev,function(e){ e.preventDefault(); z.classList.add('dragover'); }); });
+    ['dragleave','dragend'].forEach(function(ev){ z.addEventListener(ev,function(){ z.classList.remove('dragover'); }); });
+    z.addEventListener('drop',function(e){
+      e.preventDefault(); z.classList.remove('dragover');
+      var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+      if(f) handleInvFile(f);
+    });
+  });
+  var ub=document.getElementById('invUploadBtn'); if(ub) ub.addEventListener('click',openInv);   // the screen header's primary — the mock's §3.6 "Upload invoice"
+})();
 document.getElementById('invClose').addEventListener('click',closeInv);
 document.getElementById('menuClose').addEventListener('click',closeMenuModal);
 document.getElementById('menuCancel').addEventListener('click',closeMenuModal);

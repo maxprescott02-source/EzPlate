@@ -244,9 +244,16 @@ test('ITEM 6: the Menu tab no longer has a COGS input \u2014 editing really did 
   assert.ok(HTML.indexOf('id="aSuggestedTh"') >= 0, 'the Suggested column header is the surviving statement of the target');
 });
 
-test('ITEM 6: Settings is a header gear, not a sixth nav tab', () => {
+test('ITEM 6: Settings is a header gear, not a nav tab', () => {
   assert.ok(/id="settingsBtn"[^>]*aria-label="Settings"/.test(HTML), 'gear button with an aria-label');
-  const navTabs = (HTML.match(/class="navbtn[^"]*" data-tab=/g) || []).length;
-  assert.equal(navTabs, 5, 'the nav bar stays at five tabs');
+  /* F8 (v147) consciously changed this pin, and the change is narrower than it looks. The old
+     assertion counted EVERY .navbtn[data-tab] and demanded 5 — a proxy for "Settings is not a tab"
+     that also forbade any other screen ever becoming one. Invoices became a screen, so the count is
+     6, and the count is not the contract. The contract is: the MAIN nav group stays at five (that is
+     the mobile tab bar, and §6 fixes it at five), and Settings carries no data-tab at all. */
+  const mainTabs = (HTML.match(/class="navbtn(?! [^"]*nav-bottom)[^"]*" data-tab=/g) || []).length;
+  assert.equal(mainTabs, 5, 'the MAIN nav group stays at five tabs (the mobile tab bar is these five)');
   assert.ok(!/data-tab="settings"/.test(HTML), 'Settings must not become a tab');
+  assert.ok(/id="sideSettings"/.test(HTML), 'the sidebar Settings entry still exists…');
+  assert.ok(!/data-tab="[^"]*"[^>]*id="sideSettings"/.test(HTML), '…and is still an overlay opener, not a tab');
 });

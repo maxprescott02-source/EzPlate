@@ -27,7 +27,10 @@ const SRC = loadApp();
 
 // The <tr> build lives contiguously inside renderInvReview's forEach body.
 const ROW_START = 'var conf=Math.round(r.conf*100);';
-const ROW_END = "'<td style=\"text-align:center\"><input type=\"checkbox\" class=\"invAppr\"'+(checked?' checked':'')+'></td></tr>';";
+// F8 (v147): the Apply cell gained a <label> wrapper so the 26px checkbox gets a 44px target, and
+// its inline `style="text-align:center"` became `class="apprcell"`. Consciously changed, not
+// deleted to go green — every assertion below still runs against the real shipped row build.
+const ROW_END = "'<td class=\"apprcell\"><label class=\"appr-hit\"><input type=\"checkbox\" class=\"invAppr\"'+(checked?' checked':'')+'></label></td></tr>';";
 
 function sliceRowBuild(src) {
   const i = src.indexOf(ROW_START);
