@@ -88,8 +88,31 @@ If a screen cannot be fully rebuilt in this change, leave it entirely alone — 
 old chrome — and let it look like the old app. A visibly old screen next to a v3 screen is fine and
 temporary. A screen that is 60% v3 is permanent damage, because nobody can tell what is left to do.
 
-Enforce mechanically: the old stylesheet is scoped to a `.legacy` wrapper on unconverted screens
-only. New screens live outside it. When `.legacy` has no children left, delete the stylesheet.
+> **Amendment (10 Aug 2026): the `.legacy` wrapper is STRUCK. It was never built, and it cannot be
+> built now.** `grep -rn "\.legacy" css/style.css index.html js/app.js` returns **zero hits** and
+> always has. Two reasons it is unbuildable rather than merely skipped, both measured:
+>
+> - **There is no unconverted screen left to wrap.** All five `#tab-*` panels are converted (F2-F6).
+>   A wrapper scoped to "unconverted screens only" would have no children at all — and by the struck
+>   sentence's own test, no children means *delete the stylesheet*, while most of the old stylesheet
+>   is still live.
+> - **The residue is shared chrome, and a per-screen wrapper cannot scope it.** What is still
+>   unconverted is three MODALS — `#builderModal` (F7), `#invModal` (F8), `#settingsPanel` (F9) —
+>   which open *from* converted screens, plus Account (F10), which does not exist as markup at all.
+>
+> **The real mechanism, used since F2, is per-screen manual deletion:** a converted screen deletes its
+> own markup and its own CSS in the same change, each selector grepped against both `index.html` and
+> `js/app.js` before the rule comes out. It has held for five screens and the shell, and it catches
+> what a wrapper would have missed — F5 found `.menu-search`/`.ms-clear` still worn by three modal
+> search boxes and `.panel` still dressing the Dashboard, none of which belonged to the screen being
+> converted. §1.4 ("delete as you go") already states this; the struck sentence was the only thing
+> claiming a second, mechanical layer existed underneath it.
+>
+> **§2's RULE is untouched** — a screen is fully v3 or fully untouched, no NEW skinning ever. Only the
+> enforcement sentence goes.
+
+~~Enforce mechanically: the old stylesheet is scoped to a `.legacy` wrapper on unconverted screens
+only. New screens live outside it. When `.legacy` has no children left, delete the stylesheet.~~
 
 ## 3. Conflict rubric — how to decide which UI/UX wins
 
