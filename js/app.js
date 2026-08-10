@@ -7454,8 +7454,13 @@ function aRow(name,a,m){
   var ref=m?(' data-mid="'+esc(m.id)+'"'):'';
   return '<button type="button" class="mnu-row mi-row lt-'+(a.light||'none')+'"'+ref+'>'+
     '<span class="mnu-id"><span class="mnu-nm"><span class="mi-name">'+esc(name)+'</span>'+note+'</span></span>'+
-    '<span class="mnu-cost">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</span>'+
-    '<span class="mnu-sug">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</span>'+
+    /* `is-nil` marks a PLACEHOLDER, not missing data, and it travels with the dash rather than with
+       the row: a plate that HAS lines totalling zero (a misc line at $0, or lines whose products are
+       all gone) is "costed" by this screen's test, so it takes the costed branch and renders the same
+       em-dash the uncosted row does. Without this it rendered that dash a shade darker than the
+       identical dash one row above it \u2014 two colours for one meaning. Review finding, v142. */
+    '<span class="mnu-cost'+(a.cost>0?'':' is-nil')+'">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</span>'+
+    '<span class="mnu-sug'+(a.suggested>0?'':' is-nil')+'">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</span>'+
     '<span class="mnu-price">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</span>'+
     '<span class="mnu-verdict">'+vbadge(a)+'</span></button>';
 }

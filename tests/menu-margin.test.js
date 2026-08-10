@@ -202,6 +202,21 @@ test('uncosted row: 5 cells, "not costed yet", an honest dash — never a "cost 
   assert.ok(!row[0].includes('cost it'), 'no "cost it" call to action in the emitted row (a code comment may still explain why)');
 });
 
+test('a dash and its `is-nil` marker always travel together — one meaning, one colour', () => {
+  // Review finding, v142. `it.costed` is "the plate HAS lines", not "the lines cost something", so a
+  // plate whose lines total zero (a misc line at $0, or lines whose products have all been deleted)
+  // takes the COSTED branch and renders the same em-dash the uncosted row renders one row above it.
+  // The uncosted branch hard-codes `is-nil`; the costed one has to derive it, and did not.
+  const src = SRC.slice(SRC.indexOf('function aRow('), SRC.indexOf('function renderAnalysis('));
+  ['mnu-cost', 'mnu-sug'].forEach((c) => {
+    const cell = src.slice(src.indexOf('"' + c));
+    const decl = cell.slice(0, cell.indexOf('</span>'));
+    assert.ok(/is-nil/.test(decl), `${c} can render the muted placeholder class`);
+    // and it is CONDITIONAL, not unconditional — an always-on is-nil would mute real figures
+    assert.ok(/\?'':' is-nil'/.test(decl), `${c}'s is-nil is conditional on there being no figure`);
+  });
+});
+
 test('the row is ONE button — no nested control, so Enter and tap reach the same handler', () => {
   // F5: `.mi-name` was a <button> inside a <tr>. The mock makes the whole row the button (§2, §7),
   // and a <button> inside a <button> is invalid HTML — the browser's own parser would close the
