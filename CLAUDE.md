@@ -15,7 +15,8 @@ If a line here disagrees with the code, **the code is right and this file is a f
 
 | | |
 |---|---|
-| Outstanding work | `docs/QUEUE.md` |
+| Outstanding work - tier A and B only, capped at 20 | `docs/QUEUE.md` |
+| Tier C - internal quality, worked only when the queue is empty | `docs/MAINTENANCE.md` |
 | Device checks | `docs/PHONE.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
 
@@ -339,7 +340,8 @@ Changing a version means recomputing its `sha384` in the same commit; a stale ha
 **Adding a third needs Max's yes, not a judgement call.**
 
 No analytics, no tracking.
-**Implement what was agreed, nothing more.** If you spot extra work worth doing, put it in `docs/QUEUE.md` - don't build it.
+**Implement what was agreed, nothing more.** If you spot extra work worth doing, write it down - don't build it.
+**Where it goes is decided by the tier test in `docs/QUEUE.md`'s header, and the default is `docs/MAINTENANCE.md`.** The queue holds only work that would stop, embarrass or hurt a paying customer at launch. (Max, 11 Aug 2026, after the queue reached 979 lines and 47 open items with the launch blockers at the bottom.)
 
 ## Server-side (`api/`)
 
@@ -489,7 +491,7 @@ Every finding gets a decision Max can see: fixed, or explained as intentional, o
 ### Where a finding gets fixed
 
 **Fix it in the SAME branch, before merge.
-A finding does NOT get its own PR unless it is wrong data or silent loss.** Everything else - a missing test, a stale comment, a nit, a real-but-not-urgent improvement - goes in `docs/QUEUE.md` and rides the next batch.
+A finding does NOT get its own PR unless it is wrong data or silent loss.** Everything else - a missing test, a stale comment, a nit, a real-but-not-urgent improvement - is written down and rides a later batch. **It goes in `docs/MAINTENANCE.md` unless it passes the queue's tier test**; a missing test, a stale comment and a nit are all C by construction.
 
 **⚠️ And it does not become PR-worthy because the work is already written, because it is small, or because a commit needs re-landing.** Those are the three ways the rule gets rationalised around, and they are named here because the rule above did not stop the assistant that wrote it.
 **If you catch yourself explaining why this particular small PR is different, stop and add it to the queue instead.**
@@ -511,6 +513,9 @@ The evidence is a sentence that sat here after the decision that falsified it: *
 - **Standing procedure INSIDE one piece of work** - "staging first, then production", "order the statements so the dangerous intermediate state cannot exist", "push the plate, confirm it, then the dish" → **here.** It names no item, it never expires, and it is true every time the work is done.
 
 If you cannot name the queue item, you are probably writing the second kind and it belongs here.
+
+**And a note aimed at ONE FUTURE ITEM lives in that item's own body, in the imperative, ending "answer it here, do not route it onward."** Never in a general list with a pointer at the item. Moved here 11 Aug 2026 from the queue preamble, where it could not survive a queue reset.
+The failure is specific and is not the same as a stale `Do after:`: a line saying *"decide this in F5"* sits in a section the F5 batch never opens, so F5 ships without answering it and the next audit finds the note pointing at a batch that has gone past. The tint-vs-hover note did it **four times** (V2 → F1 → F2 → F5), was wrong the last two, and the fifth re-point would have been wrong too - the collision it described had been deleted underneath it while nobody re-read the code. AUDIT-v135 C2 named the shape and it recurred **twice more in the same file after being named**.
 
 **The worked example, because the boundary is where this gets decided wrongly:** the privacy gate above says to revisit the Gemini tier *before any multi-tenant customer's data flows through those endpoints.* That LOOKS like the first kind and is the second. It names no queue item, it never expires, and it binds **any** future endpoint that ships user data to a third-party model - so it is a standing precondition on a class of work, not "item A before item B", and it stays here.
 Contrast the sentence this rule was written for: *"the dropdown placement work is therefore UNBLOCKED"* named specific work, was falsified by one decision, and nothing here could notice.
