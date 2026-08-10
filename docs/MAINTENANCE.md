@@ -271,10 +271,10 @@ Decide once: hide it while the field is empty (an input listener on each search 
 `#3E2C26` / `#F7F3EC` — pre-existing, found by the v136 pre-push review while fixing the `theme-color` meta. The meta now follows the chosen theme correctly; the manifest is a separate static declaration used for the install splash and the task-switcher card, and it names colours from a palette two redesigns ago.
 A manifest cannot be theme-aware, so this is a decision: pick the LIGHT palette values (`#FFFFFF` / `#FFFFFF`) as the install-time default, or the dark ones. Only seen at install and in the app-switcher, but wrong today either way.
 
-### Three vocabularies name the same three lights
-(v131 pre-push review) The Add-to-menu preview says "Slightly under"/"Underpriced" (price framing, `marginLightWord`), the filter chips say "Watch"/"Rework", and the Menu cell says "over"/"well over" (cost framing).
-Colour can never disagree (all read `analyze()`); the words meet seconds apart in one flow and frame opposite directions.
-Unify to one vocabulary or record the split as deliberate at all three sites. **Best decided inside F8** — that note also lives on the F8 item, which is the batch that must answer it.
+### ~~Three vocabularies name the same three lights~~ — ANSWERED, F8 (v147)
+Raised by the v131 pre-push review and carried since. **The split is deliberate: three subjects, one shared light.** The reasoning is written out once at `vbadge` in `js/app.js`, with pointers at `marginLightWord` and at the chips in `index.html`.
+Struck rather than deleted so the decision is visible where the question was asked.
+The only residual is **"Slightly under" is the one verdict phrase that does not carry its own subject**, above in this file — a smaller question than this one was, and named rather than pointed at, because a pointer to a position rots the moment anything is inserted.
 
 ### The publish dialog and the Menu row print the same ratio at different precision
 Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.
