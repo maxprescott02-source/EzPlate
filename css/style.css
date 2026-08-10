@@ -151,13 +151,13 @@ html[data-theme="dark"]{ color-scheme:dark; }
    silently invert (a black wash over a dark surface does nothing). */
 :root{
   --accent-weak:rgba(184,78,12,.10);   /* focus rings, selected rows, active nav icon */
-  --tag-bg:rgba(0,0,0,.05);            /* .ing-tag and friends: a neutral chip over a card */
+  /* F4 (v140): `--tag-bg` is DELETED. Its only consumer was `.ing-tag`'s chip look, which §30
+     retires — a product's category and supplier are plain quiet text in the mock, not chips. */
   --illus-cast:rgba(56,38,30,.07);     /* the drop-shadow under empty-state art */
   --shadow-float-c:rgba(24,24,27,.12); /* the floating button sits ON content, so it casts harder than a dropdown */
 }
 html[data-theme="dark"]{
   --accent-weak:rgba(233,139,76,.18);
-  --tag-bg:rgba(255,255,255,.07);
   --illus-cast:rgba(0,0,0,.30);
   --shadow-float-c:rgba(0,0,0,.46);
 }
@@ -636,7 +636,7 @@ input[type=checkbox]{
 /* item cards */
 .atable tbody tr:not(.sec):not(.ni-row){
   position:relative;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);   /* v36: one card system — matches .ing-card / .king-row */
+  border-radius:var(--radius-card);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);   /* v36: one card system. F4 (v140): `.ing-card` and `.king-row` have BOTH left it for the v3 row grammar (§27/§30) — this rule now serves the unconverted screens only */
 }
 .atable tr.muted td{color:var(--muted2)}
 .atable tbody tr > td:first-child{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text);padding:0 28px 6px 0}
@@ -1229,29 +1229,21 @@ body.scroll-locked{position:fixed;left:0;right:0}
 
 /* ============ Ingredients page ============ */
 /* v49: .ing-tools layout retired — it carries the shared .panel-actions class now (v49 batch) */
+/* ⚠ `.ing-controls` / `.ing-filter` are the MENU screen's control row too (see `.an-controls
+   .ing-controls`), which is still unconverted — they stay exactly as they are. Products stopped
+   using them in F4 (v140) and took F2's `.plib-*` classes instead, precisely so that converting
+   Products could not restyle Menu by accident (protocol §2). */
 .ing-controls{display:flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center;padding:var(--sp-3) var(--sp-5) var(--sp-1)}
 .ing-controls .menu-search{flex:1 1 200px;min-width:160px}
 .ing-filter{flex:0 1 auto;padding:9px 10px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);max-width:48%}
-.ing-count{color:var(--muted2);font-size:12px}
-.ing-list{display:flex;flex-direction:column;gap:var(--sp-2);padding:var(--sp-2) var(--sp-4) var(--sp-1)}
-/* v104 (Products batch): the v102 #plateList-scoped seam + radius are PROMOTED to base — Products
-   now adopts the same values, so the shared .ing-list/.ing-card system carries them for both tabs
-   (8px seam, --radius-card, on-scale ≥1024 padding). Plates' computed values are unchanged. */
-.ing-card{display:grid;grid-template-columns:1fr auto;gap:var(--sp-1) var(--sp-2);align-items:center;width:100%;text-align:left;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:var(--sp-3) var(--sp-4);cursor:pointer;font:inherit;color:var(--text);
-  transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
-.ing-card:hover{border-color:var(--accent)}
-.ing-card:active{transform:scale(.985)}   /* v72: shared tap press — see .dig-card */
-.ing-main{display:flex;flex-direction:column;gap:2px;min-width:0}
-.ing-name{font-weight:700;line-height:1.2}
-.ing-brand{font-size:var(--fs-xs);color:var(--muted2)}
-.ing-meta{grid-column:1;display:flex;gap:var(--sp-2);flex-wrap:wrap}
-.ing-tag{font-size:11px;font-weight:600;color:var(--muted2);background:var(--tag-bg);border-radius:6px;padding:1px 7px}
-.ing-tag.sup{color:var(--accent)}
-.ing-price{grid-column:2;grid-row:1 / span 2;text-align:right;white-space:nowrap}
-.ing-price b{font-size:15px}
-.ing-price .ing-per{display:block;font-size:11px;color:var(--muted2)}
-.ing-empty{padding:24px 12px;text-align:center;color:var(--muted2)}
+/* F4 (v140) tombstone: the v36/v104 CARD LANGUAGE is gone — `.ing-count`, `.ing-list`'s flex/grid
+   base, and the `.ing-card` / `.ing-main` / `.ing-name` / `.ing-brand` / `.ing-meta` / `.ing-tag` /
+   `.ing-price` / `.ing-per` rules that made a product a bordered card. §30 owns the row at every
+   width now. The base `.ing-empty` rule that sat here was a dead DUPLICATE of the one further down;
+   the `.ing-empty` family itself is untouched and stays on the queue's dead-CSS sweep.
+   The CLASS NAMES are kept (F3's ruling for `.king-*`): only renderIngredients emits them, so
+   there is no shared system to unpick, and every handler, test and `data-id` reader still finds
+   what it looks for. Renaming for tidiness is what CLAUDE.md's naming rule forbids. */
 
 /* v82 item 3 — live margin preview in the Add-to-menu dialog. Reuses the .dot colour key; tints per light. */
 .margin-preview{font-size:13px;color:var(--muted2);display:flex;align-items:center;flex-wrap:wrap;gap:2px 5px;
@@ -1377,7 +1369,7 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* ============================ TABLET ≥640px ============================ */
 @media (min-width:640px){
   .wrap{max-width:760px;padding:0 var(--sp-5)}
-  .ing-list{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}
+  /* F4 (v140): the `.ing-list` 2-up card grid is deleted with the card language it laid out. */
   .stat-row{gap:var(--sp-3)}
   .actions{grid-template-columns:1fr 1fr}
   .btn-stack{grid-column:auto}
@@ -1495,7 +1487,6 @@ body.scroll-locked{position:fixed;left:0;right:0}
      Plates panel to ~400px (the mobile-width-on-desktop bug). */
 
   /* -- ingredients + plates: card grid -- */
-  .ing-list{grid-template-columns:repeat(2,1fr);gap:var(--sp-2);padding:var(--sp-2) var(--sp-5) var(--sp-2)}
   /* v49: .ing-tools/.ing-controls sit on the shared sp-5 edge at every width now — no desktop special-case */
 
   /* v98: the v89 dashboard rules (7fr/5fr grid, panel placement, pad) that sat here are DELETED,
@@ -1515,9 +1506,13 @@ body.scroll-locked{position:fixed;left:0;right:0}
   /* F2 (v138): #tab-builder (Plates) left this rule — its title lives in `.scr-head`, the mock's
      real §2 header bar (title + subtitle + action on ONE row), which owns its own 48px and hairline.
      Each remaining tab drops out of this list as its F-item converts it; when the list is empty the
-     rule goes with it. */
-  #tab-ingredients > .panel > h2,
-  #tab-pantry > .panel > h2, #tab-analysis > .panel > h2{
+     rule goes with it.
+     F4 (v140): #tab-ingredients (Products) leaves it now — AND #tab-pantry (Ingredients), which F3
+     converted in v139 and did not remove. Both selectors were dead rather than wrong, because a
+     converted screen's h2 is a GRANDCHILD of `.panel` (inside `.scr-head`) and `>` stopped matching
+     it. Two batches running, so the note above is worth reading as an instruction: drop your tab.
+     #tab-analysis (Menu) is the last one, and F5 takes this whole rule with it. */
+  #tab-analysis > .panel > h2{
     font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
     min-height:48px;display:flex;align-items:center;gap:var(--sp-2);
     padding:0 var(--sp-5);
@@ -1529,11 +1524,12 @@ body.scroll-locked{position:fixed;left:0;right:0}
 }
 
 /* ============================ DESKTOP ≥1280px ============================ */
-@media (min-width:1280px){
-  /* v137: 960 holds at every desktop width — v3 §2 gives the content one width, not a
-     per-breakpoint ladder. The wider screen becomes margin, which is the mock's own look. */
-  .ing-list{grid-template-columns:repeat(3,1fr)}
-}
+/* F4 (v140): this @media block is GONE, not left empty. Its last rule was `.ing-list`'s 3-up card
+   grid, deleted with the card language (§30); v137 had already removed the width ladder, since v3
+   §2 gives the content one width and the wider screen becomes margin. An empty block is not
+   harmless here — tests/builder-modal.test.js resolves the cascade by walking braces, and a block
+   holding nothing but comments made it lose track of which @media it was inside for the REST of
+   the file. It failed loudly this time; the same slip could as easily hide a rule. */
 
 /* sidebar brand block + the bottom-group Settings entry are hidden on mobile/tablet
    (the bottom bar shows the five tabs only; the header gear owns Settings until V9) */
@@ -1566,7 +1562,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
 
 /* v99: .ing-per stays VISIBLE — it carries the price basis (per kg/unit/litre), correctness info
    in a costing app (the v20 eggs bug surfaced exactly here). Do not re-hide it for density. */
-.ing-price b{font-size:16px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+/* F4 (v140): `.ing-price b`'s mono/size rule moved into §30, which sets it per breakpoint. */
 
 
 /* ==========================================================================
@@ -1638,7 +1634,6 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus,.ing-filter:foc
   .ms-clear:hover{background:var(--border2)}
   .ing-filter:hover,.menu-search input:hover{border-color:var(--border2)}
   .invAppr,.ing-filter,select{cursor:pointer}
-  .ing-card:active{transform:scale(.985)}   /* v72: matches the base press */
 }
 @media (hover:hover) and (pointer:fine) and (min-width:1024px){
   .btn{min-height:40px}
@@ -1692,7 +1687,6 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
    element left to match. Deleted with the markup rather than left behind — protocol §1.4. */
 
 /* ---- I. contrast & detail polish ---- */
-.ing-tag{color:var(--text2)}
 .dash-chart .ax{font-size:11px}
 .ing-filter{max-width:none;flex:0 1 200px}
 @media (max-width:639px){ .ing-filter{max-width:48%} }
@@ -1965,10 +1959,10 @@ svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 /* item 6 UI: the before/after preview — the user sees exactly what will be written */
 .pt-preview{font-size:var(--fs-xs);font-weight:600;color:var(--accent-ink);margin-top:4px;min-height:1em;font-variant-numeric:tabular-nums}
 /* skill audit: aligned numerals wherever money/percentages column up */
-.num,.total .amt,.lc,.invPrice,.ing-price b,.qtybox input{font-variant-numeric:tabular-nums}
+.num,.total .amt,.lc,.invPrice,.qtybox input{font-variant-numeric:tabular-nums}   /* F4 (v140): .ing-price b left this list — §30 sets tabular-nums on it with the rest of the row's mono */
 /* skill audit: pressed feedback + visible keyboard focus (was missing) */
-/* v115: the translateY(1px) press is gone — .btn:active scale(.98) (§6) is the ONE press language, matching .mlf-chip/.ing-card/.dig-card */
-button:focus-visible,input:focus-visible,select:focus-visible,.ing-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* v115: the translateY(1px) press is gone — .btn:active scale(.98) (§6) is the ONE press language, matching .mlf-chip/.dig-card (`.ing-card` left the press language in F4, v140) */
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}   /* F4 (v140): `.ing-card:focus-visible` left this list — it IS a <button>, so it was always redundant, and §30 insets its ring anyway */
 
 /* ===== dashboard+features batch (v25) ===== */
 /* item 2: import summary banner */
@@ -2530,9 +2524,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* ===== batch (v46): Fable UX polish ===== */
 /* item 1 (v49): retired — the inline-strapline behaviour is the shared .panel-sub rule now
    (see the v49 batch); .king-sub just carries that class in the markup. */
-/* item 3: ingredient cards join the Products card GRID — same column story as .ing-list at
-   every breakpoint (stacked <640, 2-up ≥640, 3-up ≥1280; same gaps and padding). The grid gap
-   owns the spacing, so the per-card side margins go; empty states span the full grid width. */
+/* item 3 — F4 (v140) tombstone: that shared card GRID is gone at both ends. §27 made Ingredients
+   one surface of rows and §30 has now done the same to Products, so `.ing-list` and its 2-up/3-up
+   media rules were deleted with it. */
 /* Q5 (v124) tombstone: the #kingList flex/gap/padding base and its 2-up grid media rules below are
    retired — §27 makes the list one display:block surface at every width. */
 /* v54: empty/no-match states span the whole grid on every card list, so the centred empty-state icon
@@ -2856,7 +2850,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .mcmp-row{display:flex;align-items:center;gap:var(--sp-3);width:100%;min-height:44px;   /* 44px: the app's touch-target floor */
   padding:var(--sp-3) var(--sp-1);background:none;border:0;border-radius:8px;font:inherit;color:var(--text);text-align:left;cursor:pointer}
 .mcmp-row:hover{color:var(--accent-ink)}
-.mcmp-row:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .dig-card */
+.mcmp-row:active{transform:scale(.985)}       /* the same press treatment as .dig-card */
 .mcmp-row.act{font-weight:700}
 .mcmp-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm)}
 /* v98 revision: a fixed-width, right-aligned figure column. Percentages only shared a right
@@ -2917,7 +2911,7 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-ctl);
   transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
 .dig-card:hover{border-color:var(--accent)}
-.dig-card:active{transform:scale(.985)}       /* the same press treatment as .ing-card / .mcmp-row */
+.dig-card:active{transform:scale(.985)}       /* the same press treatment as .mcmp-row */
 .dig-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dig-k{font-size:var(--fs-xs);color:var(--muted2);line-height:1.3}
 /* min-width:0 so a long plate name can actually ellipsis inside the flex column */
@@ -3606,61 +3600,128 @@ html{scrollbar-gutter:stable}
 }
 
 /* ----------------------------------------------------------------------
-   29. Q7 (v126) — THE PRODUCTS LIST: card grid becomes ONE surface of rows,
-   with a Change (drift) column and a mobile floating add (its density
-   preference was deleted in v130). #ingList-scoped like §26/§27; markup
-   classes and the openIngEdit wiring are untouched.
+   30. F4 (v140) — THE PRODUCTS LIST, REBUILT FROM THE v3 MOCK
+   Replaces §29 (Q7, v126), which made the card grid one surface of rows but
+   kept the card language underneath it and stepped at 640/900/1024. Source:
+   `Redesign v3 - SaaS.dc.html` §3.5 desktop, `… Mobile.dc.html` §6. Five
+   columns, the one v3 breakpoint (768).
+   The `.ing-*` names are KEPT on purpose, exactly as F3 kept `.king-*`: only
+   renderIngredients emits them (verified across index.html and app.js), so
+   there is no shared system to unpick — the rules change, the names do not,
+   and every handler, spec and `data-id` reader still finds what it looks for.
+   `.ing-controls` / `.ing-filter` / `.menu-search` are NOT in that set: the
+   Menu screen still wears them, so this screen took F2's `.plib-*` control
+   classes instead. Header bar, control row and footnote reuse `.scr-head` /
+   `.plib-*` rather than being rebuilt.
+   ⚠ Every declaration written at BOTH breakpoints below carries the SAME
+   specificity. Specificity is compared before source order, so a multi-class
+   selector outside a media query beats a single-class rule inside one — the
+   mistake F3 made five times on one screen, three of them visible only once
+   the page was on a screen.
    ---------------------------------------------------------------------- */
-#ingList{display:block;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-card);overflow:hidden;padding:0;margin:var(--sp-2) var(--sp-4) var(--sp-3)}
-@media (min-width:1024px){ #ingList{margin:var(--sp-2) var(--sp-5) var(--sp-2)} }
-#ingList > .ing-card{background:none;border:0;border-radius:0;box-shadow:none;margin:0;
-  padding:var(--sp-3) var(--sp-4);transition:background var(--t-fast) var(--ease)}
-#ingList > .ing-card + .ing-card{border-top:1px solid var(--border)}
-#ingList > .ing-card:focus-visible{outline-offset:-2px}   /* the §26 lesson: an outward ring dies in the surface clip */
-@media (hover:hover) and (pointer:fine){ #ingList > .ing-card:hover{background:var(--hover)} }
-#ingList > .ing-card:active{transform:none}
-/* name · brand inline; category/supplier as plain quiet text (the chip look retires here) */
-#ingList .ing-main{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:var(--sp-2)}
-#ingList .ing-name{font-size:var(--fs-base)}
-#ingList .ing-brand::before{content:"· "}
-#ingList .ing-tag{background:none;padding:0;border-radius:0;font-size:var(--fs-sm);font-weight:normal;color:var(--text2)}
-#ingList .ing-tag.sup{color:var(--text2)}
-.ing-drift{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums;font-size:var(--fs-sm);text-align:right;white-space:nowrap}
-.ing-drift.up{color:var(--bad)}      /* price up = worse — same semantics as .king-drift/.dig-v */
-.ing-drift.down{color:var(--good)}
-.ing-drift.none{color:var(--muted2);font-weight:normal}
-/* mobile (<900): name+brand / "category · supplier" sub-line, price with drift stacked right */
-#ingList > .ing-card{grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3)}
-#ingList .ing-meta{grid-column:1;gap:2px var(--sp-1)}
-#ingList .ing-meta .ing-tag + .ing-tag::before{content:"· ";color:var(--muted2)}
-#ingList .ing-price{grid-column:2;grid-row:1;text-align:right}
-#ingList .ing-price .ing-per{display:inline;margin-left:4px;color:var(--warn)}   /* v99's rule survives by DEDUPE in the renderer: the label only renders when the figure does NOT carry the basis (unknown/dim unit, missing cost) — exactly when it is the correctness flag, so it renders loud */
-#ingList .ing-drift{grid-column:2;grid-row:2;justify-self:end}
-/* v130: the density-compact and .seg-density/.segd rules are DELETED with the toggle (Max,
-   9 Aug 2026) — one row height everywhere, the comfortable one the control defaulted to. */
-/* the floating add — mobile only, clear of the bottom nav */
-.fab{display:none}
-@media (max-width:639px){
-  .fab{display:flex;position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:40;
-    width:52px;height:52px;border-radius:50%;border:0;background:var(--accent);color:var(--on-accent);
-    align-items:center;justify-content:center;font-size:26px;font-weight:700;box-shadow:var(--shadow-lg);cursor:pointer}
-  #tab-ingredients #ingList{margin-bottom:calc(76px + env(safe-area-inset-bottom))}   /* the last row scrolls clear of the floating add — it must never cover a price */
+#ingList{display:block;margin:var(--sp-2) var(--sp-5) 0}
+.ing-band{display:none}
+/* MOBILE (<768, the v3 breakpoint): two-line rows on the page canvas, no container.
+   Line 1 name (+brand), line 2 "Category · Supplier", unit cost mono right with the change
+   pill stacked under it — the mobile mock's row exactly. */
+.ing-card{
+  display:grid;grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3);
+  align-items:center;width:100%;min-height:56px;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--hairline);border-radius:0;box-shadow:none;
+  margin:0;padding:var(--sp-3) 0;color:var(--text);cursor:pointer;font:inherit;
+  transition:background var(--t-fast) var(--ease);
 }
-@media (min-width:640px) and (max-width:899px){   /* the §26/§27 band: single-line rows — name+sub stacked / price / change (5 columns need ≥900) */
-  #ingList > .ing-card{grid-template-columns:minmax(0,1fr) max-content 72px;column-gap:var(--sp-4)}
-  #ingList .ing-price{grid-column:2;grid-row:1 / span 2;align-self:center}
-  #ingList .ing-drift{grid-column:3;grid-row:1 / span 2;align-self:center;justify-self:end}
+.ing-card:last-child{border-bottom:0}
+/* `nowrap` is load-bearing at DESKTOP, where the brand shows: wrapping put it on a line of its own
+   whenever the name was long, so a row was two lines on short names and three on long ones. */
+.ing-main{grid-column:1;grid-row:1;display:flex;flex-wrap:nowrap;align-items:baseline;column-gap:6px;min-width:0}
+/* `0 1` not `1 1`: a growing name pushes the brand to the column's far right edge, and the mock
+   draws them adjacent ("Cheese Tasty Block  Bidfood"). It still SHRINKS, so a long name ellipsises. */
+.ing-name{flex:0 1 auto;font-size:var(--fs-base);font-weight:500;line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* R1: the mobile mock's Products row is name + "Category, Supplier" and carries NO brand — its own
+   fixture data says so ("Avocado Tray 23ct" / "Produce, The Fruit Wagon"). Keeping it here cost the
+   NAME its room: at 380px a long name and a long brand truncated each other to "Apple Slice…" and
+   "Heinz Wa…", and neither could be read. The brand is one tap away in the row's own edit form,
+   which is the same reasoning F3 used to make the linked-product sentence desktop-only. */
+.ing-brand{display:none;flex:0 1 auto;font-size:12px;color:var(--text-3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the meta line is a real flex box on the phone (one line, two values) and dissolves into two grid
+   cells at desktop — one grid cell cannot hold two elements, and `display:contents` is what lets the
+   SAME markup be a sentence here and two columns there. Both rules are (0,1,0). */
+.ing-meta{grid-column:1;grid-row:2;display:flex;min-width:0;column-gap:0}
+.ing-tag{font-size:12.5px;font-weight:400;color:var(--text-3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* a placeholder dash is a TABLE affordance: a column needs a cell. On the phone there are no
+   columns, so an absent value is simply absent rather than a row of dashes. (0,2,0) here and
+   (0,2,0) at desktop — F3 shipped this pair at (0,1,0) vs (0,2,0) and lost. */
+.ing-tag.is-nil{display:none}
+/* the separator rides the SUPPLIER, so hiding the supplier hides the middot with it. `.no-cat` is
+   set by the renderer rather than inferred with a sibling chain — the chain is what out-ranked a
+   desktop column rule on F3 and moved a cell. */
+.ing-tag.sup::before{content:"\002c\00a0"}
+.ing-card.no-cat .ing-tag.sup::before{content:""}
+.ing-price{
+  grid-column:2;grid-row:1;justify-self:end;margin-left:var(--sp-3);
+  text-align:right;white-space:nowrap;
 }
-@media (min-width:900px){   /* desktop: the mock's five columns — product / category / supplier / price / change */
-  #ingList > .ing-card{grid-template-columns:minmax(0,1fr) 150px 130px 130px 80px;column-gap:var(--sp-4)}
-  #ingList .ing-meta{display:contents}
-  #ingList .ing-meta .ing-tag + .ing-tag::before{content:none}
-  #ingList .ing-tag{grid-column:2;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #ingList .ing-tag.sup{grid-column:3;grid-row:1}
-  #ingList .ing-price{grid-column:4;grid-row:1}
-  #ingList .ing-drift{grid-column:5;grid-row:1;justify-self:end;align-self:center}
+.ing-price b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500}
+/* v99's law, unchanged by the rebuild: `.ing-per` carries the price basis and renders EXACTLY when
+   dispPrice's figure does not (unknown/dim unit, missing cost) — the v20 eggs bug made that a
+   correctness flag, so it renders loud rather than quiet. v126 deduped it; F4 does not touch it. */
+.ing-price .ing-per{display:inline;margin-left:4px;font-size:11.5px;color:var(--warn)}
+/* the change is a tinted mono PILL (mock §3.5), or the muted word "steady" when nothing moved —
+   the same treatment F3 gave the same figure, since both read ingLastMovePct */
+.ing-drift{
+  grid-column:2;grid-row:2;justify-self:end;margin-left:var(--sp-3);
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:11.5px;font-weight:500;white-space:nowrap;
+  border-radius:var(--radius-pill);padding:2px 8px;
 }
+.ing-drift.up{color:var(--danger);background:var(--danger-bg)}    /* price up = worse — semantic, matching .king-drift/.dig-v */
+.ing-drift.down{color:var(--good);background:var(--good-bg)}
+.ing-drift.none{color:var(--text-3);background:none;padding:2px 0;font-weight:400}
+/* inset: once the container appears at ≥768 the row's border box IS its padding box, so an outward
+   ring dies in the overflow clip. Inset at every width so the rebuild cannot re-earn the defect. */
+.ing-card:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ing-card:active{transform:none}
+@media (hover:hover) and (pointer:fine){ .ing-card:hover{background:var(--hover)} }
+
+@media (min-width:768px){
+  #ingList{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-card);overflow:hidden;
+  }
+  /* band and rows are separate grid containers, so both carry the SAME fixed tracks — a max-content
+     track resolves per container and drifts the columns apart (v135's review measured 27px). */
+  .ing-band,.ing-card{
+    grid-template-columns:minmax(0,1fr) 120px 140px 110px 100px;column-gap:var(--sp-4);
+  }
+  .ing-band{
+    display:grid;align-items:center;padding:9px var(--sp-4);
+    font-size:11.5px;font-weight:500;color:var(--text-3);
+    background:var(--surface-2);border-bottom:1px solid var(--border);
+  }
+  .ib-num{text-align:right}
+  .ing-card{min-height:0;padding:10px var(--sp-4);align-items:center}
+  .ing-main{font-size:13.5px}
+  .ing-name{font-size:13.5px}
+  .ing-brand{display:block;font-size:12px}
+  .ing-meta{display:contents}
+  .ing-tag{grid-column:2;grid-row:1;font-size:12.5px;color:var(--text-2)}
+  .ing-tag.sup{grid-column:3;grid-row:1}
+  .ing-tag.is-nil{display:block;color:var(--text-3)}
+  /* the mobile prefix rules are (0,2,0) and (0,3,0), so a plain `.ing-tag.sup::before` here cancels
+     the first and NEVER the second, whatever the media query. Said honestly, because it was MEASURED
+     rather than assumed: dropping the second cancel changes nothing on screen TODAY, since the
+     no-cat rule's value is the empty string and an empty string renders as nothing in a column too.
+     It is kept because it is what keeps that true the day that value becomes a real character —
+     which is exactly how F3 earned the (0,3,1) version of this one screen earlier, printing a
+     separator into a column that already had a header. Cancel both, at their own specificity. */
+  .ing-tag.sup::before,
+  .ing-card.no-cat .ing-tag.sup::before{content:none}
+  .ing-price{grid-column:4;grid-row:1;margin-left:0}
+  .ing-price b{font-size:13px}
+  .ing-drift{grid-column:5;grid-row:1;margin-left:0}
+}
+@media (max-width:560px){ #ingList{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
 /* v132 (v3 shell): the dashboard verdict panel's h2 joins the 48px title bars at desktop —
    the five tabs share ONE title type (layout-consistency.spec.js pins it). Sits at the end

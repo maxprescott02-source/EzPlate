@@ -1396,7 +1396,9 @@ function showTab(t){
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
   ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
-  var _fab=document.getElementById('prodFab'); if(_fab) _fab.style.display=(t==='ingredients' && (typeof PRODUCTS==='undefined' || PRODUCTS.length))?'':'none';   // Q7 (v126): body-level (transform ancestors capture fixed children); hidden on the zero-products empty state, whose card already offers the same action
+  /* F4 (v140) tombstone: the `#prodFab` show/hide line lived here. The floating add is deleted —
+     v3 §6.1 puts the primary action in the screen header on both platforms, so a second control for
+     the same intent was §7's forbidden duplicate. Nothing replaces the line. */
   if(t==='analysis')renderAnalysis();
   if(t==='ingredients')renderIngredients();
   if(t==='dashboard')renderDashboard();
@@ -2004,16 +2006,38 @@ function fillFilter(sel, list, label){
   if(sel.dataset && sel.dataset.tidyField) html+='<option value="'+TIDY_DOOR+'">✎ Manage list…</option>';   // one door per category/supplier filter
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
+/* F4 (v140): the mock's §3.5 header subtitle. The mock's own slot holds a strapline; this app's
+   catalogue is ~400 products, where the count is the more useful sentence — and while a filter is on
+   it answers the question #ingCount used to, so deleting that line loses nothing. Unfiltered it
+   counts the WHOLE library (what you have), not the filtered view (what you searched), which is the
+   rule F2 and F3 already set. */
+function prodHeadSummary(total, shown, filtered){
+  if(!total) return '';
+  if(filtered) return shown+' of '+total+' product'+(total===1?'':'s');
+  var sup=prodSuppliers().length;
+  var bits=[total+' product'+(total===1?'':'s')];
+  if(sup) bits.push(sup+' '+(sup===1?'supplier':'suppliers'));
+  return bits.join(', ');
+}
 function renderIngredients(){
   var wrap=document.getElementById('ingList'); if(!wrap) return;
-  var cntEl=document.getElementById('ingCount');
+  var sub=document.getElementById('ingHeadSub');
+  var note=document.getElementById('ingListNote');
+  var showNote=function(on){ if(note) note.hidden=!on; };
+  var ctl=document.getElementById('ingControls');
+  var showControls=function(on){ if(ctl) ctl.hidden=!on; };
   if(!PRODUCTS.length){                                               // brand-new user: no products at all -> full empty state (gate on the store, not the filtered rows)
-    if(cntEl) cntEl.textContent='';
-    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet.',"Import an invoice or tap '+ New product'.",
+    if(sub) sub.textContent='';
+    showNote(false); showControls(false);   // nothing to search, and fillFilter has not run — an option-less select is a control that does nothing (F2's true-empty defect)
+    /* §5's composed empty state, and this screen's FIRST-RUN state (§5 makes them one).
+       "New product" without the "+": §7 allows one label per intent, and the header's primary now
+       carries it. Import stays the primary here — a new café gets its catalogue from invoices. */
+    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet.','Import an invoice to fill your catalogue, or add one product by hand.',
       '<button class="btn primary" type="button" onclick="document.getElementById(\'importBtn\').click()">Import invoice</button>'
-      +'<button class="btn" type="button" onclick="openModal()">+ New product</button>');   // v45 item 4: "Add product" -> "New product" everywhere
+      +'<button class="btn" type="button" onclick="openModal()">New product</button>');   // v45 item 4: "Add product" -> "New product" everywhere
     return;
   }
+  showControls(true);
   fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
   fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
   var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
@@ -2027,28 +2051,45 @@ function renderIngredients(){
     if(toks.length){ var hay=((p.description||'')+' '+(p.brand||'')+' '+(p.category||'')+' '+(p.supplier||'')).toLowerCase(); if(!matchTokens(toks,hay)) return false; }
     return true;
   }).slice().sort(function(a,b){return (a.description||'').toLowerCase().localeCompare((b.description||'').toLowerCase());});
-  if(cntEl) cntEl.textContent=items.length+' product'+(items.length===1?'':'s');
-  if(!items.length){ wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
-  wrap.innerHTML=items.map(function(p){
-    /* Q7 (v126): the Change column — drift from the last LOGGED move, by the same ingLastMovePct
-       rule the Ingredients rows and the What-moved panel use, "—" when untouched. Semantic colour:
-       up is bad. Everything else in the row is the same markup; the columns are CSS. */
+  if(sub) sub.textContent=prodHeadSummary(PRODUCTS.length, items.length, !!(q||cat||sup));
+  if(!items.length){ showNote(false); wrap.innerHTML=emptySearchState(ICON_BOX_BIG,'products','clearProductFilters'); return; }   // v58: variant A via the shared helper
+  showNote(true);
+  /* The column band labels the desktop table (mock §3.5), rows-present branch only.
+     ⚠ The mock's fourth heading is "Pack price" and THAT LABEL WOULD BE A LIE HERE (R2).
+     `dispPrice` renders a per-base-unit figure ("$3.45/kg"); the pack price is a different number,
+     living on the edit form as `ig_price` against `ig_packQty`. So the column ships with the mock's
+     position and the honest heading — the same word Ingredients uses for the same kind of figure, so
+     the two screens cannot teach a chef two names for one number. Same refusal F3 made of the
+     mock's "30-day change". */
+  var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span><span>Supplier</span>'
+    +'<span class="ib-num">Unit cost</span><span class="ib-num">Last change</span></div>';
+  wrap.innerHTML=band+items.map(function(p){
+    /* Q7 (v126) unchanged in substance: the change column reads the last LOGGED move, by the same
+       ingLastMovePct rule the Ingredients row and the dashboard's What-moved panel use, so the three
+       can never disagree. F4 changes only how it LOOKS — a tinted mono pill (mock §3.5), and the
+       muted word "steady" where there is no logged move, replacing the bare dash. "steady" is not
+       "no change": it is "no move worth reporting", which the aria-label says. Semantic colour: a
+       price rise is bad. */
     var pct=ingLastMovePct(p.id);
-    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">—</span>'
+    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">steady</span>'
       :('<span class="ing-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
     /* v99's rule survives Q7 by DEDUPING, not hiding: dispPrice's figure carries the basis for the
        normal units ("$3.45/kg"), so the label only renders when it ADDS information — an unknown/dim
        base_unit or a missing cost, exactly the rows where the label is the correctness flag the v20
-       eggs bug made law. */
+       eggs bug made law. Untouched by the rebuild; the queue item names it as an R2 to keep. */
     var basisKnown=(['g','ml','ea'].indexOf(p.base_unit)>=0) && (cpbu(p)!=null);
-    return '<button class="ing-card" type="button" data-id="'+esc(p.id)+'">'
-      +'<div class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
-      +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</div>'
-      +'<div class="ing-meta">'
-      +(p.category?'<span class="ing-tag">'+esc(p.category)+'</span>':'')
-      +(p.supplier?'<span class="ing-tag sup">'+esc(p.supplier)+'</span>':'')
-      +'</div>'
-      +'<div class="ing-price"><b>'+dispPrice(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</div>'
+    /* `is-nil` marks a PLACEHOLDER, not missing data: a desktop column needs a cell, so an absent
+       category or supplier renders a dash there and is simply absent on the phone, where there are
+       no columns to keep. The class is what the breakpoint rules key off, so it goes on both paths.
+       `no-cat` rides the ROW so the phone's meta separator can be chosen in CSS without a sibling
+       chain — the chain it replaces is the one that out-ranked a desktop column rule on F3 (§27). */
+    var catCell='<span class="ing-tag'+(p.category?'':' is-nil')+'">'+esc(p.category||'—')+'</span>';
+    var supCell='<span class="ing-tag sup'+(p.supplier?'':' is-nil')+'">'+esc(p.supplier||'—')+'</span>';
+    return '<button class="ing-card'+(p.category?'':' no-cat')+'" type="button" data-id="'+esc(p.id)+'">'
+      +'<span class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
+      +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</span>'
+      +'<span class="ing-meta">'+catCell+supCell+'</span>'
+      +'<span class="ing-price"><b>'+dispPrice(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
       +drift
       +'</button>';
   }).join('');
@@ -4439,8 +4480,7 @@ function renderDashboard(){
 (function(){
   var e=document.getElementById('ingSearch'); if(e) e.addEventListener('input',renderIngredients);
   ['ingCatFilter','ingSupFilter'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',renderIngredients); });
-  // Q7 (v126): mobile floating add (its density toggle was deleted in v130)
-  var pf=document.getElementById('prodFab'); if(pf) pf.addEventListener('click',function(){ openModal(); });
+  /* F4 (v140) tombstone: Q7's `#prodFab` click listener is gone with the button — see the header. */
   var isc=document.getElementById('ingSearchClear'); if(isc) isc.addEventListener('click',function(){ var s=document.getElementById('ingSearch'); if(s){ s.value=''; renderIngredients(); s.focus(); } });
   var icf=document.getElementById('ingClearFilters'); if(icf) icf.addEventListener('click',clearProductFilters);   // v58: same helper the empty-state action uses
   var _is=document.getElementById('ingSearch'); if(_is) _is.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); _is.blur(); } });   // v37: Enter commits
@@ -4474,7 +4514,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v139';
+var APP_VERSION='v140';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

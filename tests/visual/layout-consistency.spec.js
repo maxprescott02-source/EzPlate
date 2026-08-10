@@ -29,15 +29,26 @@
  * which is exactly the regression it was written to catch — a per-tab nudge among
  * the old screens — and it keeps its teeth until the set empties.
  *
- * CONVERTED, and removed from TABS with their F-item: builder (Plates, F2), pantry
- * (Ingredients, F3).
- * A converted screen's own spec owns its header (tests/visual/v138-plates.spec.js).
- * When TABS is down to one entry, this spec has nothing left to compare and goes.
+ * ⚠ F4 (v140) — THE CROSS-TAB COMPARISON IS RETIRED, on the schedule this file set itself.
+ * Its own note said "when Products converts (F4) only Menu remains and the whole cross-tab
+ * comparison retires with it", and that is now true: of the five tabs, Plates (F2), Ingredients (F3)
+ * and Products (F4) render `.scr-head`, Dashboard has never had a `.panel-actions` row, and Menu is
+ * the last screen wearing `.panel > h2 > .panel-actions`. One screen cannot be compared with itself,
+ * and comparing it with Dashboard would assert nothing the fold-in has not already changed.
+ * It is deleted rather than loosened: the regression it caught was a per-tab nudge among the OLD
+ * screens, and there is no longer a set of them.
+ *
+ * WHAT REPLACES IT is the test below, which was always the durable half — a converted screen may
+ * have its own header shape, but not its own left edge. Products has moved from being that test's
+ * unconverted BASELINE to being one of the screens measured against it; Menu is the baseline now.
+ * A converted screen's own spec owns its header (v138-plates, v140-products, fresh-states for F3).
+ * When Menu converts (F5) the baseline goes with it and this file should be re-read, not patched:
+ * with every screen on `.scr-head` the honest test is "all five agree", which is the ORIGINAL
+ * assertion coming back around.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
-const TABS = ['dashboard', 'ingredients', 'analysis'];
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
   { name: 'desktop', width: 1280, height: 900 },
@@ -45,80 +56,14 @@ const SIZES = [
 /* 700 is the band between the app's two gutter steps (sp-4 at/below 560, sp-5 above) and below
  * the v3 desktop breakpoint (768). Nothing measured it until F2, whose first cut was misaligned
  * by 4px there and nowhere else — so the left-edge test below runs at this width too.
- * It is NOT in SIZES because the full cross-tab comparison fails there on a PRE-EXISTING
+ * It is NOT in SIZES because the full cross-tab comparison used to fail there on a PRE-EXISTING
  * Dashboard defect: `#dashBody` opens the tab with `padding-top:16px` while every other tab's
  * panel uses `margin-top:var(--sp-5)` = 20px, so Dashboard sits 4px high at every width where
- * sp-5 is 20px. The two coincide at <=560, which is why 380 and 1280 never caught it.
- * Queued for F6 (Dashboard); adding this size to SIZES is part of that item. */
+ * sp-5 is 20px. That comparison is gone as of F4, but the defect is not — it is queued with F6
+ * (Dashboard), whose item still owns adding this size to SIZES.
+ */
 const EDGE_SIZES = SIZES.concat([{ name: 'narrow-desktop', width: 700, height: 900 }]);
 const TOL = 1;
-
-for (const size of SIZES) {
-  test(`panel skeleton identical across all five tabs @ ${size.name}`, async ({ page }) => {
-    await page.setViewportSize({ width: size.width, height: size.height });
-    await installBoot(page);
-    await page.goto('/');
-    await page.waitForTimeout(1500);
-
-    const metrics = {};
-    for (const tab of TABS) {
-      await page.locator(`.navbtn[data-tab="${tab}"]`).click();
-      await page.waitForTimeout(300);
-      metrics[tab] = await page.evaluate(() => {
-        window.scrollTo(0, 0);
-        const panel = Array.from(document.querySelectorAll('#appMain .panel'))
-          .find(p => p.getBoundingClientRect().width > 0);   // the visible tab's first panel
-        const h2 = panel.querySelector(':scope > h2');
-        const cs = getComputedStyle(h2);
-        const pr = panel.getBoundingClientRect();
-        const hr = h2.getBoundingClientRect();
-        const actions = panel.querySelector(':scope > .panel-actions');
-        const ar = actions ? actions.getBoundingClientRect() : null;
-        const btn = actions ? actions.querySelector('.btn') : null;
-        return {
-          panelTop: pr.top, panelLeft: pr.left,
-          titleTop: hr.top, titleBottom: hr.bottom, titleLeft: hr.left,
-          titleTextLeft: hr.left + parseFloat(cs.paddingLeft),
-          titleFont: cs.fontSize + '/' + cs.fontWeight + '/' + cs.textTransform,
-          dividerW: cs.borderBottomWidth,
-          actionsTop: ar ? ar.top : null,
-          btnLeft: btn ? btn.getBoundingClientRect().left : null,
-        };
-      });
-    }
-
-    const base = metrics[TABS[0]];
-    for (const tab of TABS.slice(1)) {
-      const m = metrics[tab];
-      expect(Math.abs(m.panelTop - base.panelTop), `${tab}: panel top offset matches ${TABS[0]}`).toBeLessThanOrEqual(TOL);
-      expect(Math.abs(m.panelLeft - base.panelLeft), `${tab}: panel left matches`).toBeLessThanOrEqual(TOL);
-      expect(Math.abs(m.titleTop - base.titleTop), `${tab}: title y matches`).toBeLessThanOrEqual(TOL);
-      expect(Math.abs(m.titleBottom - base.titleBottom), `${tab}: divider y matches`).toBeLessThanOrEqual(TOL);
-      expect(Math.abs(m.titleTextLeft - base.titleTextLeft), `${tab}: title text left edge matches`).toBeLessThanOrEqual(TOL);
-      expect(m.titleFont, `${tab}: ONE title type (size/weight/case)`).toBe(base.titleFont);
-      expect(m.dividerW, `${tab}: divider on the title`).toBe(base.dividerW);
-    }
-
-    // actions rows (the three tabs that have one): same y, same button left edge,
-    // and the buttons share the title's left edge — ONE left edge, structurally
-    // F3: pantry was the third member of this comparison and has converted, so Products is the
-    // baseline now. Two tabs left; when Products converts (F4) only Menu remains and the whole
-    // cross-tab comparison retires with it.
-    const i = metrics.ingredients, a = metrics.analysis;
-    expect(i.actionsTop, 'Products has an actions row').not.toBeNull();
-    expect(a.actionsTop, 'Menu has an actions row (v52)').not.toBeNull();
-    expect(Math.abs(i.actionsTop - a.actionsTop), 'Menu actions row y matches').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(i.btnLeft - a.btnLeft), 'primary button left edge identical').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(i.btnLeft - i.titleTextLeft), 'buttons sit on the title text edge (Products)').toBeLessThanOrEqual(TOL);
-    expect(Math.abs(a.btnLeft - a.titleTextLeft), 'buttons sit on the title text edge (Menu)').toBeLessThanOrEqual(TOL);
-
-    // header meta lines share the same edge (Products' were inline styles pre-v49)
-    await page.locator('.navbtn[data-tab="ingredients"]').click();
-    await page.waitForTimeout(200);
-    const metaLeft = await page.evaluate(() => document.getElementById('lastImport').getBoundingClientRect().left);
-    expect(Math.abs(metaLeft - i.titleTextLeft), 'meta hint sits on the title text edge').toBeLessThanOrEqual(TOL);
-  });
-}
 
 /*
  * The half of the old assertion that SURVIVES the fold-in. A converted screen is allowed a
@@ -150,8 +95,10 @@ for (const size of EDGE_SIZES) {
       }, titleSel);
     };
 
-    const old = await edge('ingredients', ':scope > h2');   // Products, still unconverted
-    for (const [tab, listId, label] of [['builder', 'plateList', 'Plates'], ['pantry', 'kingList', 'Ingredients']]) {
+    // Menu is the last screen on the OLD skeleton, so it is the app's left edge for now (F4: it
+    // took over from Products, which has joined the converted set below).
+    const old = await edge('analysis', ':scope > h2');
+    for (const [tab, listId, label] of [['builder', 'plateList', 'Plates'], ['pantry', 'kingList', 'Ingredients'], ['ingredients', 'ingList', 'Products']]) {
       const conv = await edge(tab, ':scope > .scr-head > h2');
       expect(Math.abs(conv.panelLeft - old.panelLeft), `${label} panel shares the page edge`).toBeLessThanOrEqual(TOL);
       expect(Math.abs(conv.textLeft - old.textLeft), `${label} title text shares the ONE left edge`).toBeLessThanOrEqual(TOL);

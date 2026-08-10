@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=139">
+<link rel="stylesheet" href="css/style.css?v=140">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -255,24 +255,48 @@
   </div><!-- /tab-pantry (LABEL: Ingredients) -->
 
   <div id="tab-ingredients" style="display:none">
-    <div class="panel">
-      <h2>Products</h2>
-      <div class="ing-tools panel-actions">
-        <button class="btn primary newbtn" id="newBtn" type="button">+ New<span class="btn-noun"> product</span></button>
-        <button class="btn newbtn" id="importBtn" type="button">Import invoice</button>
+    <!-- F4 (v140): REBUILT from `Redesign v3 - SaaS.dc.html` §3.5 and `… Mobile.dc.html` §6 per
+         FOLD-IN-PROTOCOL §1.2. data-tab stays "ingredients"; its LABEL is "Products" (the naming
+         inversion). Every id and handler below is unchanged; only the shape is new.
+         `.scr-head` / `.plib-*` are F2's ported mock patterns, reused not rebuilt — the old
+         `.ing-controls`/`.menu-search`/`.ing-filter` classes still dress the Menu screen, so
+         restyling them here would convert that screen by accident. -->
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Products</h2>
+        <!-- filled by renderIngredients: "412 products, 7 suppliers", or "12 of 412 products" while a
+             filter is on. The mock's slot holds a strapline; this app has a catalogue big enough that
+             the count is the more useful sentence, and the filtered form replaces the #ingCount line
+             this rebuild deletes rather than losing what it said. -->
+        <span class="scr-sub" id="ingHeadSub"></span>
+        <span class="scr-gap"></span>
+        <!-- R3: the mock's Products header carries only "Add product". Import invoice survives here
+             because the sidebar's Invoices entry is DESKTOP-ONLY (≥1024) — on a phone this button is
+             the only route into the import flow, and dropping it would strand the app's highest-value
+             feature on the device Max works on. It is the same two-actions-on-a-mobile-header question
+             F3 raised; both are folded into that one queued decision rather than answered twice. -->
+        <button class="plib-btn2" id="importBtn" type="button">Import<span class="btn-noun"> invoice</span></button>
+        <!-- R2: the mock says "Add product"; v45 renamed this control "New product" app-wide and §7
+             forbids two labels for one intent. The app's word wins. -->
+        <button class="btn primary" id="newBtn" type="button">New product</button>
       </div>
-      <p class="hint panel-meta" id="lastImport">No invoice imported yet</p>
-      <div class="ing-controls">
-        <div class="menu-search">
-          <input id="ingSearch" type="search" placeholder="Search products…" autocomplete="off">
-          <button id="ingSearchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+      <!-- mock §3.5's control row: search (grows) + category + supplier selects -->
+      <div class="plib-controls" id="ingControls">
+        <div class="plib-search">
+          <input id="ingSearch" type="search" placeholder="Search products or suppliers" aria-label="Search products" autocomplete="off">
+          <!-- R3, as F2: the mock draws no clear ×, and `type="search"` renders no native one on iOS
+               Safari — Max's phone. The control survives, restyled. -->
+          <button id="ingSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
         </div>
-        <select id="ingCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
-        <select id="ingSupFilter" class="ing-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select>
-        <button class="btn ghost ing-clear-filters" id="ingClearFilters" type="button" style="display:none">Clear filters</button>
+        <span class="plib-selwrap"><select id="ingCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
+        <span class="plib-selwrap"><select id="ingSupFilter" class="plib-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select></span>
+        <button class="plib-btn2" id="ingClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
-      <p class="hint ing-count panel-meta" id="ingCount"></p>
-      <div id="ingList" class="ing-list"></div>
+      <div id="ingList"></div>
+      <!-- the mock's §3.5 footnote, R2-adapted: its second sentence promises history and linked
+           ingredients, and this row opens the EDIT form, which shows neither. The copy states what
+           the screen actually does. -->
+      <p class="plib-note" id="ingListNote" hidden>Prices come straight from imported invoices. Select a product to edit its details or correct its pack size.</p>
     </div>
   </div><!-- /tab-ingredients (LABEL: Products) -->
 
@@ -839,12 +863,11 @@
 </div>
 
 <!-- Bottom navigation -->
-<!-- Q7 (v126): the Products tab's floating add. BODY-level on purpose: the tabs animate transform
-     on entry (tabIn), and a transform ancestor becomes the containing block for fixed descendants —
-     inside the tab the button spent every entry parked thousands of px below the fold (the v126
-     review measured it). showTab shows it only while the Products tab is active; CSS keeps it
-     mobile-only. -->
-<button class="fab" id="prodFab" type="button" aria-label="New product" style="display:none">+</button>
+<!-- F4 (v140) tombstone: Q7's floating add (`#prodFab`, `.fab`) is DELETED, not hidden. v3 §6.1 puts
+     the primary action top-right of the screen header on BOTH platforms — which is where "New product"
+     now lives, as it already does on Plates and Ingredients — so a floating "+" for the same action was
+     the duplicate CTA intent §7 forbids. Nothing was lost but the second copy of the button; its
+     `#ingList{margin-bottom}` clearance rule went with it. -->
 
 <nav class="bottomnav" aria-label="Main sections">
   <!-- NEW: sidebar brand — visible only on desktop (≥1024px); bottom bar unchanged on mobile -->
@@ -888,7 +911,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=139"></script>
+<script src="js/app.js?v=140"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

@@ -93,8 +93,12 @@ test('no inline empty-state variant survives anywhere in app.js', () => {
 
 test('copy pins: each true-empty names its OWN tab\'s primary action', () => {
   const prod = extractFn(SRC, 'renderIngredients');
-  assert.ok(/\+ New product/.test(prod), 'Products true-empty references "+ New product"');
-  assert.ok(!/\+ New ingredient/.test(prod), 'Products true-empty must NOT reference "+ New ingredient"');
+  /* F4 (v140): the "+" is gone from the label. §7 allows ONE label per intent and the rebuilt
+     header's primary button is "New product", so the empty state matches it rather than shipping a
+     second spelling of the same action. The pin's purpose is unchanged and its negative half is
+     stronger: this screen's true-empty must never offer the OTHER tab's noun. */
+  assert.ok(/New product/.test(prod), 'Products true-empty references "New product"');
+  assert.ok(!/New ingredient/.test(prod), 'Products true-empty must NOT reference "New ingredient"');
 
   const menu = extractFn(SRC, 'renderAnalysis');   // v111: only one definition exists now
   assert.ok(/Publish a plate from the Plates tab/.test(menu), 'Menu true-empty points at the Plates tab (not the removed Builder)');
