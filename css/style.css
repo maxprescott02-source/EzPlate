@@ -622,9 +622,12 @@ input[type=checkbox]{
 .bld-row.is-misc .bld-lc input::-webkit-outer-spin-button,.bld-row.is-misc .bld-lc input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .bld-row.is-misc .bld-lc input{-moz-appearance:textfield;appearance:textfield}
 .bld-empty{padding:var(--sp-6) var(--sp-4);text-align:center;color:var(--muted2);font-size:13.5px;line-height:1.6}
-.bld-foot{display:flex;gap:8px;padding:12px var(--sp-4);background:var(--surface2);border-top:1px solid var(--border)}
-.bld-search{flex:1;min-width:0}
-.bld-misc{flex:0 0 auto;white-space:nowrap}
+/* §6's phone add-row is a single full-width control. Sharing the row with "+ Misc cost" left the
+   search 195px wide at 380px - and the ingredient dropdown is anchored to the FIELD, so it
+   inherited that width and listed product names in a 195px column. Measured, then wrapped. */
+.bld-foot{display:flex;flex-wrap:wrap;gap:8px;padding:12px var(--sp-4);background:var(--surface2);border-top:1px solid var(--border)}
+.bld-search{flex:1 1 100%;min-width:0}
+.bld-misc{flex:1 1 100%;white-space:nowrap}
 .bld-hint{padding:var(--sp-3) var(--sp-4) 0;margin:0;font-size:var(--fs-xs);color:var(--muted2)}
 .bld-tip #dCount:not(:empty)::before{content:" · "}
 .bld-flag{padding:var(--sp-2) var(--sp-4) 0}
@@ -722,6 +725,9 @@ input[type=checkbox]{
   .bld-row.is-misc .bld-mid{display:block;grid-column:2 / 4;grid-row:1}
   .bld-row.is-misc .bld-lc{grid-column:4;grid-row:1;justify-content:flex-end}
   .bld-row.is-misc .bld-lc input{width:76px;min-height:0}
+  .bld-foot{flex-wrap:nowrap}
+  .bld-search{flex:1 1 auto}
+  .bld-misc{flex:0 0 auto}
   .bld-actions{flex-direction:column}
   .bld-actions .btn{flex:0 0 auto;width:100%}
   /* §7: the summary bar and the Cost card would print the same two figures. The card wins on the

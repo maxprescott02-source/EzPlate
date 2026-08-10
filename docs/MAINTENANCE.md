@@ -48,6 +48,20 @@ Found by the v144 batch, which decided the sync treatment and could not build th
 Trigger: a successful boot load, and every successful `pushWrite`. Data: one timestamp, in memory — a derived cache of "when did the server last answer", so not a third localStorage category and not Supabase either. State: a relative time that must re-render as it ages — a ticking element in every screen header, which is the real cost.
 ⚠️ **Placement is the unsolved half, not the timestamp.** The mock puts it in the §2 header bar between the title spacer and the actions. This app's `.scr-head` is PER-SCREEN markup, five copies, and the sync element is deliberately ONE element — so either it becomes five (which the sync item's "never per screen" rule forbids) or a single fixed element is aligned into the header band, which v141 measured as unworkable there. Solve that before writing code.
 
+### Recent range on the builder's cost card — the queue item's stated data source DOES NOT EXIST
+F7 (11 Aug 2026) was asked to build the mock's "Recent range · $6.61 to $7.28" row as a "read-only
+derivation from `priceHistory`". **`priceHistory` is the ALL-MENUS food-cost average series**
+(`{t, v}` points, one per logged change, `js/app.js:1435`) — not a per-plate cost history. There is
+no series of "what this plate cost over time" anywhere in the app, so the derivation the item named
+is impossible and the row did not ship (R4: absent, never a decorative control).
+Requirements if it is wanted: reconstruct a plate's cost at time T from `ing_price_history`, which
+holds each PRODUCT's price series — for each of the plate's lines, the product's price at T, times
+the quantity. That is a real feature with a real cost (N products × the window), and it needs a
+window and a copy decision. It is not a display tweak.
+⚠️ **Do not "fix" this by reading `priceHistory` anyway.** It would render the café's average food
+cost as though it were this plate's cost range — a wrong number on a costing screen, which is the
+one thing this app must never do.
+
 ### Command palette (⌘K) — behaviour spec, §11.5
 Trigger: ⌘K and the sidebar button. Data: the live in-memory arrays (plates, menus, ingredients) + static actions (upload invoice, new plate); no new storage. State: selecting navigates to the screen or opens the action's modal; Esc closes; focus returns to the opener. Error: an honest zero-results row.
 **The chord binds only once the palette exists — never a dead chord.** F1b put the 22px theme toggle in the mock's ⌘K slot, so nothing is dead today.
