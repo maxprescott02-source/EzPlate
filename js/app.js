@@ -1463,7 +1463,14 @@ document.addEventListener('click',()=>document.querySelectorAll('.tip.open').for
 /* tabs */
 function currentTab(){
   var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
-  var names=['builder','ingredients','analysis','dashboard','pantry','settings'];   // F9 (v148): below 1024 NO .navbtn carries data-tab="settings" (the route is the header gear), so without this entry the fallback reports 'builder' while Settings is on screen
+  /* F9 (v148) added 'settings'. ⚠️ It is DEFENSIVE, and the pre-push review was right that the
+     first reason written here was wrong: #sideSettings carries BOTH .navbtn and data-tab="settings"
+     at every width — CSS only hides it below 1024, and querySelectorAll still matches a hidden
+     element — so showTab lights it on mobile too and the branch above already answers 'settings'.
+     This loop is therefore unreachable today for every tab, not just this one. It is extended
+     anyway because it is the fallback for exactly the case where a pane is shown with no lit nav
+     button, which is what the More-screen item will be rearranging. Listed, not relied on. */
+  var names=['builder','ingredients','analysis','dashboard','pantry','settings'];
   for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
   return 'builder';
 }
@@ -3364,9 +3371,11 @@ function trendChart(scope){
     +'<p class="hint chart-hint">'+capScope+' \u00b7 '+capPos+'.'+capMk+'</p>'+scopeNote+'</div>';
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
-   Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
-   the same one Settings uses on mobile (a `.detail-open` class swap, no modal): tapping a card
-   replaces the grid in place and a back arrow returns. A modal for a sorted list is a heavier
+   Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back —
+   a `.detail-open` class swap, no modal: tapping a card replaces the grid in place and a back
+   arrow returns. (It cited Settings' mobile drill-down as the precedent; F9/v148 deleted that with
+   the Settings modal, so this is now the app's only instance and owns the pattern outright. The
+   class name is shared with nothing — grep confirms one consumer.) A modal for a sorted list is a heavier
    surface than the content needs, and it stacked another dismissable layer on a screen the 26 Jul
    audit already wanted fewer of.
 
@@ -5411,8 +5420,12 @@ function syncBodyScrollLock(){
    THE TOP LAYER IS DERIVED FROM THE DOM, never from a list. The old Escape handler closed a
    hard-coded set of 8 ids, which broke in BOTH directions at once: Escape over a stacked confirm
    also closed everything listed underneath it, while 8 other modals had no Escape at all. Stacks
-   are deliberate here (Settings→confirm for clear-cache and restore, ingModal→confirm on product
-   delete, kingWizModal→confirm on Add all) — #confirmModal carries z-index:85 for exactly that.
+   are deliberate here (ingModal→confirm on product delete, kingWizModal→confirm on Add all,
+   tidyManageModal→confirm) — #confirmModal carries z-index:85 for exactly that.
+   F9 (v148) removed "Settings→confirm for clear-cache and restore" from that list, and the removal
+   is the point rather than tidying: Settings is a SCREEN now, so those two confirms open over
+   ordinary page content and cannot lose the z-index race at all. The rule is unchanged and the
+   remaining examples are all still live.
 
    `topOverlay()` reads what the BROWSER would paint on top: highest computed z-index among the
    open overlays, tie-broken by document order, because equal z-index means the later sibling wins

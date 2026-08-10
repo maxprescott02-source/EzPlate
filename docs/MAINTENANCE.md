@@ -165,6 +165,18 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 ## C — code hygiene and latent defects
 
+### The Invoices screen has the boot-race priming gap that F9 fixed for Settings
+Found 11 Aug 2026 while building F9, in the shell code F9 had to touch anyway. Not fixed, because it is a different screen and §5 is one screen per change set.
+`restoreLastTab()` runs at `js/app.js` *before* `bootstrapSync()` resolves, so a refresh that lands on a remembered screen renders it against pre-boot state. `rerenderCurrentTab` exists to repaint once the data arrives, and its `if/else` chain names `analysis`, `ingredients`, `dashboard`, `pantry`, `settings` and falls through to `renderPlatesTab()` for everything else — so **`invoices` gets `renderPlatesTab()`**, and `#lastImport3` keeps whatever pre-boot value it had. `currentTab()`'s fallback name list has the matching hole.
+Latent rather than live, for one reason only: Invoices has no route below 1024 and `#sideInvoices` carries `data-tab`, so at desktop widths `currentTab()` finds `.navbtn.active` and returns `'invoices'` before reaching the list — and then falls through to `renderPlatesTab()` anyway. **The mobile More-screen item gives Invoices a phone route and makes this reachable**, so fix it then or before.
+Requirements: one decision for the whole chain rather than a third special case — a screen→render map that `showTab` and `rerenderCurrentTab` both read would end the class. Note `renderPlatesTab()` being the fallback means a wrong tab is repainted silently, with no error, which is why nothing has ever noticed.
+
+### The mock's Business and Notifications sections are R4 with no spec written
+F9 (v148) declined to draw either, per §R4 — no business name or currency is stored anywhere, and there is no notification system, no email and no scheduler behind "price rise alerts" or "weekly summary". Both are recorded here so the absence is a decision rather than a gap somebody re-discovers against the mock.
+Business name and currency are cheap and near-useless with one café; **currency is the one with teeth**, because every money display in the app hard-codes `$` and a second café outside Australia makes that wrong everywhere at once, not just in Settings. Treat it as a costing question, not a Settings row.
+Notifications are a server-side feature (a scheduler, an email sender, a subscriber list) and reopen the privacy gate the moment they carry plate or supplier names off-device. **Do not build them as a UI shell.**
+Related: the CSV-export behaviour spec above, which came from the same section of the same mock.
+
 ### `isBuilderDirty` compares against the raw saved lines, not what was loaded
 Found by the v118 pre-push review and **considered, not fixed** — an asymmetry rather than a reproducible bug.
 `loadPlateState` silently DROPS a `pid` line whose product is gone (a `kid` line degrades to "product missing"), but `isBuilderDirty` compares `currentLinesSig()` — built from the filtered `plate` — against `sp.lines` mapped straight through `lineSig`. So a plate carrying such an orphan reads as dirty the instant it loads, re-arming the very "Unfinished plate" prompt v118 removed, for that plate only.

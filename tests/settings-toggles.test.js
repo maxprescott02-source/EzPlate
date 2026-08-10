@@ -376,8 +376,13 @@ test('F9: showTab runs the priming on every entry to the screen', () => {
   // Settings paints pre-boot defaults unless rerenderCurrentTab re-primes it
   assert.ok(/t==='settings'\)renderSettingsTab\(\)/.test(extractFn(APP, 'rerenderCurrentTab')),
     'and rerenderCurrentTab re-primes it once boot data lands');
+  /* Defensive, and deliberately kept: the pre-push review established that #sideSettings carries
+     .navbtn AND data-tab at every width, so currentTab's first branch already answers 'settings'
+     and this fallback loop is unreachable today. Pinned anyway, because the More-screen item
+     rearranges exactly which nav button is lit, and a pane shown with no lit button is what this
+     loop is for. The assertion is on the LIST, not on a behaviour, and says so. */
   assert.ok(/'pantry','settings'\]/.test(extractFn(APP, 'currentTab')),
-    'currentTab must recognise the settings pane — below 1024 no .navbtn carries data-tab="settings"');
+    "currentTab's fallback name list includes the settings pane");
 });
 
 test('v81: relocating settings kept every id handlers bind to', () => {

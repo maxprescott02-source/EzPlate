@@ -11,6 +11,36 @@ Production state below is measured, not assumed.
 
 ---
 
+## F9 / v148 - Settings is a screen, not a panel
+
+The gear in the header is still the way in and is unchanged. What opens is different: instead of a
+panel with a list of seven sections you tap into one at a time, it is a full screen with all eight
+sections stacked, and you scroll.
+
+- **There is no Done button any more.** Leaving is tapping another tab, the same as any screen.
+  The thing only you can judge: after changing the target %, does it FEEL saved without a button to
+  press? It is written the moment you type it, and it always was - the old Done button never saved
+  anything, it just closed the panel. But "always was" is not the same as "reads that way on the
+  phone". A failure is hesitating, or going back in to check it stuck.
+- **The "Changes save as you make them" line is desktop-only** (it is in the shared screen header,
+  which hides its subtitle below 768, like every other screen). So the reassurance above is exactly
+  the thing the phone does NOT get. If the point above bothers you, this is the fix and it is one
+  line - say so.
+- **The two AI switches are physically smaller** - the coloured track went from 48x28 to 44x26 on the
+  phone, which is the mock's number. The tappable area around each is deliberately still 44px tall.
+  Tap them with a thumb, not a fingertip. A failure is missing, or having to aim.
+- **Everything that was in the panel is still there**, regrouped: the target % and GST default are
+  under Costing, both AI toggles under AI features, Theme under Appearance, Remembered packs and
+  Tidy lists under Lists, and export/restore/clear under Data. If you go looking for something and
+  cannot find it, that is the finding - name what you were looking for and where you looked.
+- **Tidy lists and Remembered packs open over the screen and close back onto it.** They used to shut
+  Settings and re-open it on the right section. A failure is closing one of them and landing
+  somewhere that is not Settings.
+- **Both themes.** The screen is eight bordered cards with tinted header bands; in dark those bands
+  are a shade lighter than the card. Check nothing reads as a disabled or greyed-out section.
+
+---
+
 ## F8 / v147 - Invoices is a screen, and the upload is three steps
 
 **Import a real supplier PDF end to end on the phone, both themes.** This is the batch's whole point
