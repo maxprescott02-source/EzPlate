@@ -9,7 +9,6 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const path = require('path');
 const { loadApp, extractFn } = require('./_extractfn');
 
 const SRC = loadApp();
