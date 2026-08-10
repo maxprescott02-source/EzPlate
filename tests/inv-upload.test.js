@@ -101,18 +101,52 @@ test('every render path lands the user on a step, and the two wait surfaces both
   assert.match(extractFn(SRC, 'handleInvFile'), /invStep\('scan'\)/, 'choosing a file shows scanning');
 });
 
-test('a file dropped on the SCREEN starts from a clean modal, not the last import’s leftovers', () => {
+/* THE REAL handleInvFile, run against stubs, so the guard's CONDITION is exercised rather than its
+   spelling. The first version of this test matched three substrings and asserted their left-to-right
+   order, and the pre-push review proved it green against an INVERTED guard — the polarity flipped,
+   the substrings unmoved. That is this project's oldest trap ("a test that records call ORDER passes
+   against the broken code"), and the remedy it has always had is to call the real function.
+   Only the synchronous head runs: a non-PDF reaches `new FileReader()` and returns, and the stub's
+   readAsText does nothing, which is exactly the part under test. */
+function runHandleInvFile({ modalOpen }) {
+  const calls = { openInv: 0, steps: [] };
+  const el = (extra) => Object.assign({ textContent: '', style: {}, classList: { contains: () => !!modalOpen } }, extra);
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('CALLS', 'EL', `
+    "use strict";
+    var document = { getElementById: function(){ return EL(); } };
+    function openInv(){ CALLS.openInv++; }
+    function invStep(s){ CALLS.steps.push(s); }
+    function invFileFailed(){ CALLS.steps.push('choose'); }
+    function show(){}
+    function setInvManual(){}
+    function toast(){}
+    function extractPdfText(){ return new Promise(function(){}); }   // never settles: the async tail is not what this test is about
+    function FileReader(){ this.readAsText=function(){}; }
+    var IMG_PDF_MSG='';
+    ${extractFn(SRC, 'handleInvFile')}
+    return handleInvFile;
+  `);
+  factory(calls, el)({ name: 'bidfood.csv', type: 'text/csv' });
+  return calls;
+}
+
+test('a file arriving with the modal SHUT resets it; one arriving mid-flow does not', () => {
   /* The screen's dropzone can start an import with the modal shut, which is a route openInv() never
-     sees. Without this, #invCsv still holds the previous invoice's text and #invReview its rendered
-     rows, so a file that fails to parse lands the user on step 1 beside a paste box full of the LAST
-     invoice - one "Match products" from silently re-importing it. */
-  // comments stripped: the explanation above the guard names openInv() before the code does
-  const handle = noComments(extractFn(SRC, 'handleInvFile'), 'block', 'line');
-  const guard = handle.indexOf("classList.contains('open')");
-  const reset = handle.indexOf('openInv()');
-  assert.ok(guard >= 0, 'handleInvFile checks whether the modal is already open');
-  assert.ok(reset > guard, 'and resets only when it is not - openInv wipes state, so running it mid-flow would clear the import in progress');
-  assert.ok(reset < handle.indexOf("invStep('scan')"), 'the reset happens before the step moves, or openInv would put the user back on choose');
+     sees. Without the reset, #invCsv still holds the previous invoice's text and #invReview its
+     rendered rows, so a file that then fails to parse lands the user on step 1 beside a paste box
+     full of the LAST invoice - one "Match products" from silently re-importing it. */
+  const shut = runHandleInvFile({ modalOpen: false });
+  assert.equal(shut.openInv, 1, 'a file arriving with the modal shut starts from a clean modal');
+
+  /* The other half, and the half an order-only test cannot see: openInv WIPES state, so running it
+     when the modal is already open would clear an import the user is in the middle of. */
+  const open = runHandleInvFile({ modalOpen: true });
+  assert.equal(open.openInv, 0, 'a file chosen from inside the open modal must NOT reset it');
+
+  // and either way the user ends on the scanning panel, not still looking at the dropzone
+  assert.equal(shut.steps[shut.steps.length - 1], 'scan', 'closed-modal path ends on scanning');
+  assert.equal(open.steps[open.steps.length - 1], 'scan', 'open-modal path ends on scanning');
 });
 
 /* -------------------------------------------------------------------------
@@ -164,8 +198,14 @@ test('the add-new tick still has exactly ONE home, and it is not the DOM', () =>
   const render = extractFn(SRC, 'renderInvReview');
   assert.match(render, /r\.addNew \? !!\(r\.newItem && r\.newItem\.approved\)/,
     'the renderer still reads the tick from r.newItem.approved and nowhere else');
-  assert.ok(!/r\.userTick=cb\.checked;\s*\}\s*$/.test(render.slice(render.indexOf("querySelectorAll('.invAppr')"))),
-    'an add-new row must not fall through to userTick — two homes for one tick is the bug this fixes, inverted');
+  /* The branch STRUCTURE, not a trailing-text pattern. The first version of this assertion looked
+     for `r.userTick=cb.checked;` at the very end of the handler source, which nothing could ever
+     match — there is always code after it — so it passed whatever the branch did. Pinning the
+     if/else shape instead fails if the addNew branch is removed or the else is widened to cover it,
+     which is the actual "two homes for one tick" regression. */
+  const handler = noComments(render.slice(render.indexOf("box.querySelectorAll('.invAppr')")), 'block', 'line');
+  assert.match(handler, /if\(r\.addNew\)\{[\s\S]*?\}\s*else r\.userTick=cb\.checked;/,
+    'userTick is the ELSE of addNew — an add-new row must never also write one, or one tick has two homes');
 });
 
 /* -------------------------------------------------------------------------

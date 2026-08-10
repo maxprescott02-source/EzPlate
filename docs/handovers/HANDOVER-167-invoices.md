@@ -49,6 +49,26 @@ The specific asks: does the new scanning panel read as progress or as the app ha
 A failure looks like two step panels on screen at once, a blank sheet, or the import feeling slower than it did even though nothing extra is computed.
 Also noted there: the Invoices screen has no phone route until the More-screen item lands, and Import invoice on Products still opens the flow in one tap, unchanged.
 
+## The pre-push review found two, both in this batch's own tests, both fixed here
+
+Neither was in the app code.
+Both were tests that could not fail, which is the failure mode this repo has recorded four times and which is never a red test.
+
+**1. The regression test for the clean-modal fix was order-only, and the reviewer proved it green against an INVERTED guard.**
+It matched three substrings and asserted their left-to-right order, so flipping `if(!(mo && open))` to `if(mo && open)` — reset when the modal IS open, skip it on the one path the fix exists for — left every substring in place and the test passing.
+This is the "a test that records call ORDER passes against the broken code" trap, in the diff written to guard against that class.
+The remedy is the one the repo already had: the test now RUNS the real `handleInvFile` against stubs and asserts that `openInv` is called once with the modal shut and **zero** times with it open.
+Checked against three mutations, not one: the reviewer's inversion, dropping the guard entirely, and the correct code. Only the correct code passes.
+
+**2. A second assertion in the same file could never fail.**
+It looked for `r.userTick=cb.checked;` at the very END of the tick handler's source, and there is always code after it, so it passed whatever the branch did.
+It now pins the if/else STRUCTURE, and fails if the `addNew` branch is removed or the `else` widened to cover it — which is the real "two homes for one tick" regression.
+Also mutation-checked.
+
+The reviewer also traced and cleared the two things I most wanted a second opinion on: the step machine against the v113 referee gate, and whether the checkbox and `r.newItem.approved` can disagree.
+It reached the same conclusion I had on the one theoretical gap in the second (an `addNew` row rendered without its `.ni-slot` would leave the tick unstored) and, like me, did not report it, because nothing in the diff can produce that state.
+Recorded here rather than acted on, because a deliberately unreachable branch is its own debt and this file already carries one.
+
 ## Probe
 
 **What did the queue item tell you to do that you would have done differently?**
