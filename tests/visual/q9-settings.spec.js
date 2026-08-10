@@ -31,7 +31,9 @@ async function boot(page, width) {
    so each test drives the route that is actually visible there. */
 const routeFor = (width) => (width >= 1024 ? '#sideSettings' : '#settingsBtn');
 
-const CARDS = ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account', 'Team', 'About'];
+// F10 (v149): seven, not F9's eight — Account and Team moved to #tab-account, and the Account card
+// left behind is the door to it rather than a third copy of the same sentence.
+const CARDS = ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account', 'About'];
 
 // 380 is the phone Max works on; 1280 is the desktop the mock is drawn at; 900 sits between the
 // v3 768 breakpoint and the 1024 nav breakpoint, which is the band where a route mistake hides.
@@ -150,4 +152,45 @@ test('1280px: leaving Settings for another tab really leaves it, and coming back
   expect(await page.evaluate(() =>
     document.getElementById('sideSettings').classList.contains('active')),
   ).toBe(true);
+});
+
+test('380px: the Settings row is the whole route to Account, and it works with a thumb', async ({ page }) => {
+  /* #tab-account has no nav entry at any width — the More-screen item adds one later. So this row
+     is the only way in, and on a phone it is the only way in on the device Max works on. Driven,
+     not read: a broken handler and a missing row look identical in the markup. */
+  await boot(page, 380);
+  await page.click('#settingsBtn');
+  await page.waitForTimeout(400);
+  const door = page.locator('#setAccountOpen');
+  await expect(door).toBeVisible();
+  expect((await door.boundingBox()).height, 'tap height').toBeGreaterThanOrEqual(43.5);
+
+  await door.click();
+  await page.waitForTimeout(400);
+  await expect(page.locator('#tab-account')).toBeVisible();
+  await expect(page.locator('#tab-settings')).toBeHidden();
+  await expect(page.locator('#tab-account .stg-card-h')).toHaveText(['Profile', 'Team', 'Plan']);
+
+  /* Not a dead end: the bottom bar still navigates away, which is the §6 requirement a sub-screen
+     with no back chevron has to meet some other way until the More screen gives it one. */
+  await page.click('.navbtn[data-tab="dashboard"]');
+  await page.waitForTimeout(400);
+  await expect(page.locator('#tab-account')).toBeHidden();
+  await expect(page.locator('#tab-dashboard')).toBeVisible();
+});
+
+test('1280px: the account screen renders and carries no control', async ({ page }) => {
+  await boot(page, 1280);
+  await page.click('#sideSettings');
+  await page.waitForTimeout(300);
+  await page.click('#setAccountOpen');
+  await page.waitForTimeout(400);
+  await expect(page.locator('#tab-account')).toBeVisible();
+  // §R4: the mock draws Edit profile / Invite a teammate / Manage billing / Sign out. None ships.
+  await expect(page.locator('#tab-account button, #tab-account input, #tab-account select, #tab-account a')).toHaveCount(0);
+  for (const label of ['Profile', 'Team', 'Plan']) {
+    const box = await page.locator('#tab-account .stg-card', { hasText: label }).first().boundingBox();
+    expect(box, `${label} card`).not.toBeNull();
+    expect(box.height).toBeGreaterThan(20);
+  }
 });

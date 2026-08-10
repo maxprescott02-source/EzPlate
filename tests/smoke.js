@@ -120,12 +120,24 @@ ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 
    assertions below are unchanged, because the toggles are. */
 console.log('\n[3b] Settings screen — all sections visible at once + the AI toggles');
 $('settingsBtn').click();
-ok('eight section cards, all rendered at once', (() => {
+/* F10 (v149): SEVEN, not F9's eight — the Account and Team placeholders moved to #tab-account and
+   one Account row replaced them as the door. */
+ok('seven section cards, all rendered at once', (() => {
   const hs = [...window.document.querySelectorAll('#tab-settings .stg-card-h')].map(h => h.textContent);
-  return hs.join('|') === 'Costing|AI features|Appearance|Lists|Data|Account|Team|About';
+  return hs.join('|') === 'Costing|AI features|Appearance|Lists|Data|Account|About';
 })(), [...window.document.querySelectorAll('#tab-settings .stg-card-h')].map(h => h.textContent).join('|'));
 ok('none of them is hidden — there is no section to be "on"',
    [...window.document.querySelectorAll('#tab-settings .stg-card')].every(c => !c.hidden));
+/* F10: the door works and lands on the screen, driven rather than read. This is the whole route —
+   nothing else reaches #tab-account at any width. */
+$('setAccountOpen').click();
+ok('the Settings row opens the Account screen', $('tab-account').style.display !== 'none');
+ok('and Settings is hidden behind it', $('tab-settings').style.display === 'none');
+ok('the account screen carries the three mock sections',
+   [...window.document.querySelectorAll('#tab-account .stg-card-h')].map(h => h.textContent).join('|') === 'Profile|Team|Plan');
+ok('and no control of any kind', window.document.querySelectorAll('#tab-account button, #tab-account input, #tab-account select, #tab-account a').length === 0);
+ok('currentTab reports account, not the tab that is still lit in the nav', window.currentTab() === 'account');
+$('settingsBtn').click();
 ok('AI invoice check prefills from state (ON by default)', $('setAiInvoiceChk').checked === window.aiInvoiceCheck && window.aiInvoiceCheck === true);
 ok('AI suggestions prefills from state (ON by default)', $('setAiSuggestChk').checked === window.aiSuggestions && window.aiSuggestions === true);
 $('setAiInvoiceChk').checked = false; $('setAiInvoiceChk').dispatchEvent(new window.Event('change'));

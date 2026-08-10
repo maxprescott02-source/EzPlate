@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=148">
+<link rel="stylesheet" href="css/style.css?v=149">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -645,19 +645,24 @@
           </div>
         </section>
 
-        <!-- kept verbatim: F10 (the Account screen) owns whether these two stay, and it is the next
-             queue item. Honest one-liners, not disabled controls. -->
+        <!-- F10 (v149): the two placeholder cards F9 left here — Account and Team — MOVED to
+             #tab-account, which is what F9 said this item owned. One row replaces them, and it is a
+             door rather than a third statement of the same sentence.
+             ⚠️ This row is the ONLY route to the Account screen at EVERY width. There is no sidebar
+             entry (the mock's §2 account row is an avatar + a name, and neither exists) and no phone
+             tab. Deleting it strands the screen exactly the way removing the gear would have
+             stranded Settings, which is the trap F9 recorded. The More-screen item adds the second
+             route; it does not replace this one. -->
         <section class="stg-card">
           <h3 class="stg-card-h">Account</h3>
           <div class="stg-body">
-            <p class="stg-soon">Sign-in and account settings arrive with EzPlate accounts.</p>
-          </div>
-        </section>
-
-        <section class="stg-card">
-          <h3 class="stg-card-h">Team</h3>
-          <div class="stg-body">
-            <p class="stg-soon">Team roles arrive with EzPlate accounts.</p>
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Account &amp; team</span>
+                <p class="stg-help">Sign-in, team roles and billing.</p>
+              </div>
+              <button class="btn stg-ctl" id="setAccountOpen" type="button">Open</button>
+            </div>
           </div>
         </section>
 
@@ -674,6 +679,60 @@
       </div>
     </div>
   </div><!-- /tab-settings -->
+
+  <!-- F10 (v149): the ACCOUNT screen. Built from `Redesign v3 - SaaS.dc.html` §3.9 (desktop) and
+       `… Mobile.dc.html` §6 (mobile) per FOLD-IN-PROTOCOL §1.2, reusing F9's `.stg-*` card system
+       rather than a second one — same component, one more consumer.
+
+       ⚠️ DECIDED BY MAX, 11 Aug 2026, AGAINST THE RECOMMENDATION ON THE QUEUE ITEM: "ship minimal
+       account screen and fill out during multitenant". The recommendation was to leave Account to
+       the multi-tenant phase entirely, because every row here is a sentence saying the feature is
+       coming. He chose the shell so the sections exist to be filled. His call, made — do NOT
+       re-litigate it, and do NOT quietly delete this screen in a later tidy.
+
+       WHAT THAT DOES AND DOES NOT LICENCE. The mock's three sections ship, in the mock's order, so
+       multi-tenant fills them in place. The mock's CONTROLS do not: "Edit profile", "Invite a
+       teammate", "Manage billing" and "Sign out" would each be §R4's dead control — a button that
+       does nothing is worse than no button, and a shell is not a licence for one. So every section
+       is a heading plus one honest sentence, and the sentence says what arrives, not "coming soon".
+       When auth lands, each sentence is replaced by its section's real content and nothing here
+       has to be unpicked.
+
+       There is no data to render, so this screen has no render function and no §4 loading, empty or
+       error state. It is static markup by construction; when it stops being static it needs all
+       three, and the F9 comment above says the same thing about Settings for the same reason. -->
+  <div id="tab-account" style="display:none">
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Account</h2>
+        <span class="scr-sub">Arrives with EzPlate accounts</span>
+      </div>
+      <div class="stg-cards">
+
+        <section class="stg-card">
+          <h3 class="stg-card-h">Profile</h3>
+          <div class="stg-body">
+            <p class="stg-soon">Your name, email and sign-in arrive with EzPlate accounts. Until then this app has one user and no login.</p>
+          </div>
+        </section>
+
+        <section class="stg-card">
+          <h3 class="stg-card-h">Team</h3>
+          <div class="stg-body">
+            <p class="stg-soon">Two roles are planned: an owner, and working staff who can import invoices and edit ingredients and plates but not delete menus, change the target or restore a backup.</p>
+          </div>
+        </section>
+
+        <section class="stg-card">
+          <h3 class="stg-card-h">Plan</h3>
+          <div class="stg-body">
+            <p class="stg-soon">EzPlate is not billed yet. Nothing here costs anything and there is no card on file.</p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div><!-- /tab-account -->
 </div>
 
 <!-- Add-ingredient modal -->
@@ -1083,7 +1142,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=148"></script>
+<script src="js/app.js?v=149"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

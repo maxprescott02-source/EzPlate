@@ -246,10 +246,15 @@ test('Invoices is a screen: the sidebar navigates to it and does not also open t
   assert.ok(HTML.indexOf('id="tab-invoices"') >= 0, 'and the pane it names exists');
   assert.ok(!/on\('sideInvoices'/.test(SRC_CODE),
     'wiring openInv here as well would fire BOTH the navigation and the modal');
-  assert.match(SRC, /'builder','ingredients','analysis','dashboard','pantry','invoices'/,
-    'showTab must hide the new pane like every other, or it stays on screen under the next tab');
-  assert.match(extractFn(SRC, 'restoreLastTab'), /'invoices'/,
-    'and a refresh on Invoices must come back to Invoices, not silently to Plates');
+  /* F10 (v149) moved the pane list into a shared TAB_PANES constant, because FOUR places named it
+     and openBuilder's copy had never grown — leaving Invoices rendered UNDER the builder page.
+     This still asserts what it always did (the Invoices pane is hidden like every other) and now
+     asserts it where the answer actually lives. tests/settings-toggles.test.js pins that all four
+     readers use the constant. */
+  assert.match(SRC, /var TAB_PANES=\[[^\]]*'invoices'/,
+    'the shared pane list carries invoices, or it stays on screen under the next tab and the builder');
+  assert.match(extractFn(SRC, 'restoreLastTab'), /VALID=TAB_PANES/,
+    'and a refresh on Invoices must come back to Invoices, not silently to Plates — the valid-tab list is the shared one, which the assertion above proves carries invoices');
 });
 
 test('the screen states what it cannot do rather than drawing a table with no data behind it', () => {

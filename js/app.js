@@ -1461,16 +1461,27 @@ function bindTips(){
 }
 document.addEventListener('click',()=>document.querySelectorAll('.tip.open').forEach(o=>o.classList.remove('open')));
 /* tabs */
+/* F10 (v149), from the pre-push review, which reproduced this in a browser.
+   FOUR separate lists named the tab panes and they were allowed to disagree: showTab's toggle,
+   restoreLastTab's VALID, currentTab's fallback order, and openBuilder's hide list. #builderPage is
+   a SIBLING of the panes in normal flow, not a positioned overlay, so any pane openBuilder forgets
+   stays rendered UNDER the builder — two screens on top of each other, no error and nothing in the
+   console. openBuilder's list had never grown past the original five, so this was already live for
+   Invoices (F8) and Settings (F9); F10 would have made it three.
+   It is ONE array now. Adding a pane means adding it here and nowhere else.
+   Order matters to currentTab, which returns the first VISIBLE pane, and 'builder' stays first
+   because it is also the default. */
+var TAB_PANES=['builder','ingredients','analysis','dashboard','pantry','invoices','settings','account'];
 function currentTab(){
   var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
-  /* F9 (v148) added 'settings'. ⚠️ It is DEFENSIVE, and the pre-push review was right that the
-     first reason written here was wrong: #sideSettings carries BOTH .navbtn and data-tab="settings"
-     at every width — CSS only hides it below 1024, and querySelectorAll still matches a hidden
-     element — so showTab lights it on mobile too and the branch above already answers 'settings'.
-     This loop is therefore unreachable today for every tab, not just this one. It is extended
-     anyway because it is the fallback for exactly the case where a pane is shown with no lit nav
-     button, which is what the More-screen item will be rearranging. Listed, not relied on. */
-  var names=['builder','ingredients','analysis','dashboard','pantry','settings'];
+  /* This loop is LOAD-BEARING for #tab-account, and the pre-push review corrected the mechanism, so
+     it is written out rather than summarised. No .navbtn carries data-tab="account", and showTab
+     toggles `active` on EVERY .navbtn against the target — so showTab('account') CLEARS the class
+     from all of them rather than leaving a stale one lit. The branch above therefore finds nothing
+     and falls through here, which is the only thing stopping currentTab() answering 'builder' while
+     Account is on screen. (It is NOT load-bearing for 'settings': #sideSettings carries .navbtn and
+     data-tab at every width, CSS only hides it, so the branch above answers that one.) */
+  var names=TAB_PANES;
   for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
   return 'builder';
 }
@@ -1480,6 +1491,11 @@ function rerenderCurrentTab(){                                         // re-run
   /* F9 (v148): Settings is listed because restoreLastTab() runs BEFORE bootstrapSync resolves — a
      refresh landing on Settings would otherwise paint cogsPct/gstDefault/the AI flags at their
      pre-boot defaults and never correct them, which is the priming failure in its quietest form. */
+  /* F10 (v149): 'account' returns early rather than falling through. The screen is static markup
+     with nothing to render, and the fallthrough is renderPlatesTab() — which would repaint a HIDDEN
+     Plates library every time boot data lands while Account is showing. Harmless today and wrong,
+     which is the shape docs/MAINTENANCE.md records for 'invoices' on this same line. */
+  if(t==='account') return;
   try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else if(t==='settings')renderSettingsTab(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
 function showTab(t){
@@ -1490,7 +1506,7 @@ function showTab(t){
      landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
-  ['builder','ingredients','analysis','dashboard','pantry','invoices','settings'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  TAB_PANES.forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   /* F7 (v146): the builder is a full PAGE now, a child of Plates rather than a tab of its own, so
      every tab change leaves it. Nothing is lost by that - the in-progress plate stays in memory and
      in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
@@ -1512,7 +1528,7 @@ function showTab(t){
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
-  var VALID=['builder','ingredients','analysis','dashboard','pantry','invoices','settings'];
+  var VALID=TAB_PANES;
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
 }
@@ -4786,7 +4802,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v148';
+var APP_VERSION='v149';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -5301,6 +5317,7 @@ function clearCacheAndRefresh(){
   }
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
+  on('setAccountOpen',function(){ showTab('account'); });        // F10 (v149): the ONLY route to #tab-account at any width — see the markup comment before deleting it
   on('setTidyOpen',function(){ openTidyManage('category'); });   // F9 (v148): opens OVER the Settings screen; closing it reveals the screen, so nothing has to be reopened
   on('setSmemOpen',openSmem);                                    // v71 item 5 moved remembered packs here
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
@@ -5778,7 +5795,7 @@ function focusBuilderPage(){
 }
 function openBuilder(){ armDraftSaves();                              // v84: the user is now IN the builder — draft saves are live from here (see armDraftSaves)
   if(typeof makeInlineCombo==='function'){ var d=document.getElementById('plateCatDrop'); if(d)d.style.display='none'; makeInlineCombo('plateCat','plateCatDrop',plateCategories); }
-  ['builder','ingredients','analysis','dashboard','pantry'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display='none'; });
+  TAB_PANES.forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display='none'; });   // F10 (v149): the SHARED list — a pane missing here renders UNDER the builder page, which is a sibling in normal flow, not an overlay
   /* the opener is captured BEFORE the panes are hidden - hiding the pane it lives in is what
      drops focus, so reading activeElement afterwards would only ever find <body>. */
   var _op=document.activeElement;

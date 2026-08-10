@@ -165,11 +165,11 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 ## C — code hygiene and latent defects
 
-### The Invoices screen has the boot-race priming gap that F9 fixed for Settings
-Found 11 Aug 2026 while building F9, in the shell code F9 had to touch anyway. Not fixed, because it is a different screen and §5 is one screen per change set.
-`restoreLastTab()` runs at `js/app.js` *before* `bootstrapSync()` resolves, so a refresh that lands on a remembered screen renders it against pre-boot state. `rerenderCurrentTab` exists to repaint once the data arrives, and its `if/else` chain names `analysis`, `ingredients`, `dashboard`, `pantry`, `settings` and falls through to `renderPlatesTab()` for everything else — so **`invoices` gets `renderPlatesTab()`**, and `#lastImport3` keeps whatever pre-boot value it had. `currentTab()`'s fallback name list has the matching hole.
-Latent rather than live, for one reason only: Invoices has no route below 1024 and `#sideInvoices` carries `data-tab`, so at desktop widths `currentTab()` finds `.navbtn.active` and returns `'invoices'` before reaching the list — and then falls through to `renderPlatesTab()` anyway. **The mobile More-screen item gives Invoices a phone route and makes this reachable**, so fix it then or before.
-Requirements: one decision for the whole chain rather than a third special case — a screen→render map that `showTab` and `rerenderCurrentTab` both read would end the class. Note `renderPlatesTab()` being the fallback means a wrong tab is repainted silently, with no error, which is why nothing has ever noticed.
+### The Invoices screen still has the boot-race priming gap that F9 fixed for Settings
+Filed 11 Aug 2026 by the F9 batch. **Half of it was fixed by F10 (v149) and this is the surviving half** — the original entry also described `currentTab()`'s fallback list, which is now the shared `TAB_PANES` constant and no longer has a hole.
+What remains: `rerenderCurrentTab`'s `if/else` chain names `analysis`, `ingredients`, `dashboard`, `pantry` and `settings`, returns early for `account`, and falls through to `renderPlatesTab()` for everything else — so **`invoices` gets `renderPlatesTab()`**. `restoreLastTab()` runs before `bootstrapSync()` resolves, so a refresh landing on Invoices renders `#lastImport3` against pre-boot state and never corrects it, while a hidden Plates library is repainted instead.
+Latent rather than live only because Invoices has no route below 1024; **the mobile More-screen item gives it one and makes this reachable.**
+Requirements: one decision for the whole chain rather than a fourth special case. A screen-to-renderer map that `showTab` and `rerenderCurrentTab` both read would end the class, exactly as `TAB_PANES` ended the four-pane-lists class. Note the fallback being `renderPlatesTab()` means a wrong screen is repainted silently, with no error, which is why nothing has ever noticed.
 
 ### The mock's Business and Notifications sections are R4 with no spec written
 F9 (v148) declined to draw either, per §R4 — no business name or currency is stored anywhere, and there is no notification system, no email and no scheduler behind "price rise alerts" or "weekly summary". Both are recorded here so the absence is a decision rather than a gap somebody re-discovers against the mock.
