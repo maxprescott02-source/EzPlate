@@ -173,12 +173,19 @@ test('mobile: two-line rows — no band, no container border, meta reads "catego
   expect(head.noteShown, 'the desktop footnote does not follow onto the phone').toBe('none');
 });
 
-test('a row click opens the ACTION CHOOSER — the builder handoff is F7\'s, not this batch\'s', async ({ page }) => {
+/* CONSCIOUSLY CHANGED BY F7 (v146), which is what this test's own name said would happen. F2 held
+   the row at the action chooser because flipping it then would have orphaned Publish, Print and
+   Delete; F7 rehomed all three onto the builder page, so the row now goes where the mock's §3.3
+   sends it. The chooser no longer exists, which is asserted here rather than assumed. */
+test('a row click opens the BUILDER on that plate (F7 took the handoff F2 deferred)', async ({ page }) => {
   await boot(page, true);
   await page.click('#plateList .plib-row >> nth=0');
   await page.waitForTimeout(300);
-  await expect(page.locator('#plateActionsModal')).toBeVisible();
-  await expect(page.locator('#builderModal')).not.toBeVisible();
+  await expect(page.locator('#builderPage')).toBeVisible();
+  await expect(page.locator('#plateActionsModal')).toHaveCount(0);
+  // it opens ON that plate, not on a blank one — the row's name is in the builder's name field
+  const name = await page.inputValue('#plateName');
+  expect(name.length, 'the builder opened on the row it was asked for').toBeGreaterThan(0);
 });
 
 test('the focus ring survives the container clip — the v123 defect must not be re-earned', async ({ page }) => {

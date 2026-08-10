@@ -10,7 +10,7 @@
  * of reaching Max's phone.
  *
  * v55: the "builder" tab is now the PLATES LIBRARY (data-tab unchanged) — a plain
- * .panel > h2 > .panel-actions card grid; the builder itself moved to #builderModal.
+ * .panel > h2 > .panel-actions card grid; the builder itself is the full page #builderPage (F7/v146; it was #builderModal from v54 to v145).
  * So the old "Publish/Save/Print/Clear at the bottom of the docket" exception is GONE;
  * the panel/title/divider assertions below cover it like any other tab.
  *

@@ -208,7 +208,7 @@ for (const width of [380, 1360]) {
     // Derived from data, not a stored flag — and it opens the real builder, not a lookalike.
     await page.locator('#dashPathCta').click();
     await page.waitForTimeout(300);
-    await expect(page.locator('#builderModal.open, #builderModal[aria-hidden="false"]')).toHaveCount(1);
+    await expect(page.locator('#builderPage')).toBeVisible();   // F7 (v146): the builder is a page, not a modal
   });
 }
 

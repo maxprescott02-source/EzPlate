@@ -483,59 +483,20 @@ input[type=checkbox]{
 .suggest-drop .sug-opt .ca{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
 
 /* ----------------------------------------------------------------------
-   8. THE DOCKET — signature element
-   The plate panel reads like a till receipt: mono docket header,
-   dashed rules, receipt total, and a perforated tear along the bottom.
+   8-9. THE PLATE BUILDER — a full page (F7 / v146)
+   Rebuilt from `Redesign v3 - SaaS.dc.html` §3.7 and `… Mobile.dc.html` §6.
+   The v49 DOCKET (#docketPanel's receipt paper, its perforated ::after tear,
+   .docket-head, .total, .line/.top/.costs/.leader) is DELETED in the same
+   change, per protocol §2: it was the builder's whole visual metaphor and
+   nothing else wore any of it (each selector grepped against index.html AND
+   js/app.js first). The printed docket is a SEPARATE thing and survives
+   untouched — see @media print and printDocketFor().
+   KEPT from that block because other screens still emit them: .pchip (the
+   re-price control, now in the Unit-cost column), .nocost, .edit-tag,
+   .flag (worn by .bld-flag), .suggest-drop, .use, .edited.
    ---------------------------------------------------------------------- */
-#docketPanel{
-  position:relative;
-  border-radius:var(--radius-card) var(--radius-card) 0 0;
-  border-bottom:0;margin-bottom:30px;
-}
-#docketPanel::after{ /* the tear */
-  content:"";position:absolute;top:100%;left:0;right:0;height:12px;pointer-events:none;
-  background-image:radial-gradient(circle at 8px 12px, transparent 5px, var(--surface) 5.5px);
-  background-size:16px 12px;background-repeat:repeat-x;
-  filter:drop-shadow(0 3px 3px var(--illus-cast));
-}
-.plate-tools{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
 .edit-tag{font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700;font-family:var(--mono)}
-.docket-head{
-  display:flex;justify-content:space-between;align-items:center;
-  margin-top:var(--sp-4);   /* v49: was an inline style in index.html */
-  padding:12px var(--sp-5);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);
-  font-family:var(--mono);font-size:var(--fs-xs);letter-spacing:.08em;color:var(--muted2);
-  background:var(--surface2);
-}
-#docketPanel > .pad{padding-bottom:0}   /* v49: was an inline style — the docket-head's dashed rule owns the gap */
-.total{
-  display:flex;justify-content:space-between;align-items:baseline;
-  padding:var(--sp-4) var(--sp-5);border-top:2px solid var(--text);font-family:var(--mono);
-}
-.total .lbl{font-size:var(--fs-sm);letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);font-family:var(--ui);font-weight:700}
-.total .amt{font-size:28px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
-.flag{font-size:var(--fs-sm);color:var(--warn);padding:0 var(--sp-5) var(--sp-3);font-family:var(--mono)}
-/* ===== batch (v67) — builder top section + relocated category (items 1 & 2) ===== */
-/* item 2: the plate's top section (heading → name) reads cramped. Give it even rhythm on the
-   standard --sp scale — no invented token, just stop under-spacing. */
-#platePanel .pad{padding:var(--sp-6) var(--sp-5) 0}                  /* v71 item 7: keep the heading→name breathing (sp-6 top) but drop the bottom padding — name→category is a field gap owned by .plate-cat-field, not a stacked section gap (the old sp-6 bottom + sp-5 cat-top summed to ~56px) */
-.modal-builder label.f{margin-bottom:var(--sp-2)}                   /* even 8px label→field gap across the builder (was 6px) */
-/* item 1: the category field is relocated to the BOTTOM of the plate flow (below the docket/total,
-   just above Save) so it follows the app's "name up top, category down low" card rhythm. It's a
-   direct child of #docketPanel like .total/.actions, so it carries the same horizontal padding and
-   an even vertical gap above (from the total) and below (the actions). */
-.plate-cat-field{padding:var(--sp-2) var(--sp-5) 0}                  /* v71 item 7: tightened top sp-5→sp-2 so name→category reads as one field step (~20px with the plate-tools margin above), not a disconnected section break */
-@media (max-width:700px){ .plate-cat-field{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
-
-/* ----------------------------------------------------------------------
-   9. PLATE LINES
-   ---------------------------------------------------------------------- */
-.line{padding:var(--sp-4) var(--sp-5);border-bottom:1px dashed var(--border)}
-.line .top{display:flex;align-items:flex-start;gap:var(--sp-2)}
-.line .nm{flex:1;min-width:0}
-.line .nm b{font-size:15px;font-weight:700;display:block;line-height:1.3;color:var(--text)}
-.line .nm .sub{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;display:block}
-.priceline{display:block;font-family:var(--mono);font-size:var(--fs-sm);color:var(--muted2);margin-top:var(--sp-2)}
+.flag{font-size:var(--fs-sm);color:var(--warn);font-family:var(--mono)}
 .pchip{
   display:inline-flex;align-items:center;gap:5px;cursor:pointer;
   border:1px dashed var(--border2);border-radius:var(--radius-chip);padding:3px 9px;
@@ -547,21 +508,6 @@ input[type=checkbox]{
 .pchip .pen{opacity:.55;font-size:11px}
 .pchip .pin{width:72px;border:0;outline:none;font-family:var(--mono);font-size:13px!important;padding:2px 0;background:transparent;color:var(--text);min-height:0}
 .edited{color:var(--warn);font-size:var(--fs-xs);font-family:var(--ui);margin-left:4px;font-weight:600}
-.qtybox{display:flex;align-items:center;gap:var(--sp-2);flex:0 0 auto}
-.qtybox input{width:82px;text-align:right;padding:9px 10px;border-radius:var(--radius-chip);font-variant-numeric:tabular-nums}
-/* v61 item 1: hide the number spinners so 4–5 digit quantities aren't clipped by the arrow gutter (same reasoning as .invPackQty — staff type, they don't step) */
-.qtybox input::-webkit-outer-spin-button,.qtybox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.qtybox input{-moz-appearance:textfield;appearance:textfield}
-.qtybox .u{font-family:var(--mono);font-size:13px;color:var(--muted2);width:32px}
-.lc{
-  font-family:var(--mono);font-weight:700;font-size:16px;min-width:78px;text-align:right;
-  color:var(--text);font-variant-numeric:tabular-nums;
-}
-.leader{flex:1;border-bottom:1px dotted var(--border2);transform:translateY(-4px);margin:0 4px}
-.row2{display:flex;align-items:center;gap:var(--sp-2);margin-top:var(--sp-3)}
-/* v115 tombstone: .alt-btn / .cheapest / .alts / .alt / .save are DELETED — the pre-v34
-   alternatives UI they styled was already dead, and the "Cheaper like-for-like" list that kept
-   .save alive went this batch (see alternatives() in app.js). */
 .use{
   border:0;background:var(--good-bg);color:var(--good);font-weight:700;font-size:12px;
   padding:8px 13px;border-radius:var(--radius-chip);cursor:pointer;min-height:36px;
@@ -569,6 +515,225 @@ input[type=checkbox]{
 }
 .use:hover{filter:brightness(.95)}
 .nocost{font-size:var(--fs-sm);color:var(--warn);font-family:var(--mono)}
+
+/* ---- the page shell ---- */
+/* MOBILE FIRST, and deliberately: §6's phone layout is the stacked one, so the grid and the
+   five-column row are added at >=768 rather than unwound there. The `@media does not win by
+   being later` trap is why every declaration that appears at both breakpoints is written at the
+   SAME specificity on both. */
+#builderPage:not([hidden]){display:block}
+.bld-head{position:relative;z-index:2}
+.bld-back{
+  display:inline-flex;align-items:center;gap:2px;border:0;background:none;cursor:pointer;
+  padding:6px 8px 6px 0;min-height:44px;font-size:13px;font-weight:500;color:var(--muted2);
+  font-family:var(--ui);transition:color var(--t-fast) var(--ease);
+}
+.bld-back:hover{color:var(--text)}
+.bld-chev{font-size:16px;line-height:1}
+.bld-slash{color:var(--muted2)}
+.bld-namewrap{position:relative;flex:1 1 auto;min-width:0}
+/* R2: an editable field wearing the mock's static title type. No box until you touch it, so the
+   header still READS as a title — the affordance arrives on hover/focus. */
+/* ⚠️ `.bld-head .bld-name`, NOT `.bld-name`. The base rule is `input[type=text]` — 0-1-1 — so a
+   single class LOSES to it and the title renders as a full-width bordered form box inside a 48px
+   header. Measured in a browser, not reasoned about. The descendant form is 0-2-0 and wins.
+   The 16px size is the app-wide `input{font-size:16px!important}` iOS zoom guard, so the title
+   reads a point larger than the mock's 15 and there is no way to match it without reintroducing
+   the zoom bug. Deliberate. */
+.bld-head .bld-name{
+  width:100%;min-width:0;border:1.5px solid transparent;background:none;border-radius:var(--radius-ctl);
+  padding:5px 8px;font-family:var(--ui);font-weight:600;color:var(--text);line-height:1.4;
+}
+.bld-head .bld-name:hover{border-color:var(--border)}
+.bld-head .bld-name:focus{border-color:var(--accent);background:var(--field)}
+.bld-head .bld-name::placeholder{color:var(--muted2);font-weight:500}
+.bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}
+.bld-pill{
+  display:inline-block;flex:0 0 auto;font-family:var(--mono);font-size:11.5px;font-weight:500;
+  border-radius:999px;padding:2px 9px;white-space:nowrap;
+  background:var(--warn-bg);color:var(--warn);
+}
+.bld-pill.bv-t-green{background:var(--good-bg);color:var(--good)}
+.bld-pill.bv-t-amber{background:var(--warn-bg);color:var(--warn)}
+.bld-pill.bv-t-red{background:var(--bad-bg);color:var(--bad)}
+.bld-saved{font-size:12px;color:var(--muted2);white-space:nowrap}
+/* §6's mobile header. The name takes the whole first row so the title is never squeezed to a
+   stub, and the second row carries the pill (which the mobile mock draws directly under the bar),
+   the saved state and the ONE action. Three things on that row, one of them a button — §6's
+   "one action max" is about actions, and Save is the only one; Duplicate went to the rail. */
+.bld-head .bld-namewrap{flex:1 1 100%;order:1}
+.bld-head .bld-pill{order:2;flex:0 0 auto}
+.bld-head .scr-gap{order:3}
+.bld-head .bld-saved{order:4}
+.bld-head #saveBtn{order:5}
+.bld-err{margin:var(--sp-3) 0 0}
+.bld-body{display:flex;flex-direction:column;gap:var(--sp-4);padding:var(--sp-4) 0 132px}   /* the tail clears the fixed summary bar */
+
+/* ---- the ingredient table ---- */
+.bld-table{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+.bld-band{display:none}
+/* §6's phone row, two bands. Band 1: the name (with its linked product under it) and the line
+   cost. Band 2: qty, unit cost, Remove. Giving each of those five a line of its own measured
+   148px a row at 380px - a two-ingredient plate filled the screen - so the mono facts pair up.
+   Three columns, because band 2 has three things in it and band 1 has two. */
+#lines .bld-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px var(--sp-3);align-items:center;
+  border-bottom:1px solid var(--border);padding:10px var(--sp-4);min-height:52px;
+}
+#lines .bld-row:last-child{border-bottom:0}
+.bld-ing{min-width:0;grid-column:1;grid-row:1}
+.bld-ing b{display:block;font-size:15px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis}
+.bld-sub{display:block;font-size:12.5px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis}
+.bld-sub.warn{color:var(--bad)}
+.bld-qty{display:flex;align-items:center;gap:6px;grid-column:1;grid-row:2}
+.bld-qty input{
+  width:88px;text-align:right;padding:6px 8px;border-radius:6px;
+  font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;
+}
+/* v61 item 1: hide the number spinners so 4-5 digit quantities aren't clipped by the arrow gutter */
+.bld-qty input::-webkit-outer-spin-button,.bld-qty input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.bld-qty input{-moz-appearance:textfield;appearance:textfield}
+.bld-u{font-family:var(--mono);font-size:12.5px;color:var(--muted2)}
+.bld-unit{grid-column:2;grid-row:2;justify-self:start;font-size:12.5px;color:var(--text2)}
+.bld-lc{
+  grid-column:2 / 4;grid-row:1;justify-self:end;align-self:center;
+  font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500;color:var(--text);
+}
+.bld-rm{
+  grid-column:3;grid-row:2;justify-self:end;
+  border:0;background:none;font-size:12.5px;color:var(--muted2);cursor:pointer;padding:4px;min-height:36px;
+  transition:color var(--t-fast) var(--ease);
+}
+.bld-rm:hover{color:var(--danger)}
+.bld-row.is-missing{opacity:.72}
+.bld-row.is-misc .misc-name{
+  width:100%;border:0;border-bottom:1px dashed var(--border2);border-radius:0;background:none;
+  padding:2px 0;font-size:15px;font-weight:500;color:var(--text);min-height:0;
+}
+.bld-row.is-misc .misc-name::placeholder{color:var(--muted2);font-weight:500}
+.bld-row.is-misc .misc-name:focus{outline:none;box-shadow:none;border-bottom-color:var(--accent)}
+.bld-row.is-misc .bld-mid{display:none}
+.bld-row.is-misc .bld-lc{display:flex;align-items:center;gap:2px}
+.bld-dollar{font-family:var(--mono);font-size:12.5px;color:var(--muted2)}
+.bld-row.is-misc .bld-lc input{
+  width:92px;text-align:right;padding:6px 8px;border-radius:6px;min-height:44px;
+  font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;
+}
+.bld-row.is-misc .bld-lc input::-webkit-outer-spin-button,.bld-row.is-misc .bld-lc input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.bld-row.is-misc .bld-lc input{-moz-appearance:textfield;appearance:textfield}
+.bld-empty{padding:var(--sp-6) var(--sp-4);text-align:center;color:var(--muted2);font-size:13.5px;line-height:1.6}
+.bld-foot{display:flex;gap:8px;padding:12px var(--sp-4);background:var(--surface2);border-top:1px solid var(--border)}
+.bld-search{flex:1;min-width:0}
+.bld-misc{flex:0 0 auto;white-space:nowrap}
+.bld-hint{padding:var(--sp-3) var(--sp-4) 0;margin:0;font-size:var(--fs-xs);color:var(--muted2)}
+.bld-tip #dCount:not(:empty)::before{content:" · "}
+.bld-flag{padding:var(--sp-2) var(--sp-4) 0}
+
+/* ---- the right rail ---- */
+.bld-rail{display:flex;flex-direction:column;gap:var(--sp-4)}
+.bld-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+.bld-card > h2{
+  margin:0;font-size:13px;font-weight:600;color:var(--text);
+  padding:12px var(--sp-4);border-bottom:1px solid var(--border);background:var(--surface2);
+}
+.bld-cardbody{padding:14px var(--sp-4);display:flex;flex-direction:column;gap:10px}
+.bld-kv{display:flex;align-items:baseline;gap:var(--sp-3)}
+.bld-kv-rule{border-top:1px solid var(--border);padding-top:10px}
+.bld-k{font-size:12.5px;color:var(--text2)}
+.bld-v{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:500;color:var(--text)}
+.bld-v-lg{font-size:18px;font-weight:600}
+/* §7: below 768 the fixed summary bar carries Plate cost and Suggested, so the Cost card must not
+   print the same two figures again — the same call Q6 (v125) made when it hid `.bcost` under 900.
+   "On menus" is NOT duplicated by the bar (which names only the worst) and stays at both widths,
+   which is why the rule targets the two figure rows rather than the whole card. */
+@media (max-width:767px){
+  #bCost > h2,#bCost .bld-kv{display:none}
+  #bCost .bld-cardbody{padding-top:0}
+  #bCost .bld-menus{border-top:0;padding-top:0}
+}
+.bld-menus{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);padding-top:10px}
+.bld-menus-cap{font-weight:500}
+.bld-menu{display:flex;justify-content:space-between;gap:var(--sp-3);font-size:12.5px;color:var(--text2)}
+.bld-menu .bm-price{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--text)}
+.bverdict{margin-top:2px;padding:var(--sp-2) var(--sp-3);border-radius:var(--radius-chip);font-size:var(--fs-sm);color:var(--text)}
+.bverdict b{font-family:var(--mono)}
+.bverdict.bv-green{background:var(--good-bg)}.bverdict.bv-green b{color:var(--good)}
+.bverdict.bv-amber{background:var(--warn-bg)}.bverdict.bv-amber b{color:var(--warn)}
+.bverdict.bv-red{background:var(--bad-bg)}.bverdict.bv-red b{color:var(--bad)}
+.bv-t-green{color:var(--good)}.bv-t-amber{color:var(--warn)}.bv-t-red{color:var(--bad)}
+.bld-pub{display:flex;flex-direction:column;gap:8px}
+.bld-pubbtn{width:100%}
+.bld-note{margin:0;font-size:12.5px;color:var(--muted2);line-height:1.5}
+.bld-cardbody label.f{margin-bottom:0}
+.bld-actions{display:flex;flex-wrap:wrap;gap:8px}
+.bld-actions .btn{flex:1 1 auto}
+
+/* ---- §6's sticky mobile summary bar, above the tab bar ---- */
+.bld-bar{
+  position:fixed;left:0;right:0;bottom:calc(var(--bottomnav-h, 64px) + env(safe-area-inset-bottom));
+  z-index:25;display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;
+  padding:10px var(--sp-4);background:var(--surface);border-top:1px solid var(--border);
+}
+.bld-bar[hidden]{display:none}
+.bfs-fig{display:flex;flex-direction:column}
+.bfs-lbl{font-size:11.5px;color:var(--muted2)}
+.bfs-total{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:600;color:var(--text)}
+.bfs-line{flex:1 1 100%;font-size:12.5px;color:var(--text2)}
+.bfs-line b{font-family:var(--mono)}
+
+/* ---- >=768: the mock's §3.7 desktop shape ----
+   Two columns (table + 300px rail) and the five-column row. Written as an ADDITION to the mobile
+   rules above, never as an unwind of them, and every declaration that appears at both breakpoints
+   is at the same specificity on both — `@media` does not win by being later. */
+@media (min-width:768px){
+  .bld-body{
+    display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--sp-5);align-items:start;
+    max-width:1040px;padding:var(--sp-5) 0 var(--sp-6);
+  }
+  .bld-band{
+    display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 90px 72px;gap:0 12px;
+    padding:9px var(--sp-4);font-size:11.5px;font-weight:500;color:var(--muted2);
+    border-bottom:1px solid var(--border);background:var(--surface2);
+  }
+  .bld-band span:not(:first-child):not(:last-child),.bld-band span:nth-child(4){text-align:right}
+  .bld-head .bld-namewrap,.bld-head .bld-pill,.bld-head .scr-gap,
+  .bld-head .bld-saved,.bld-head #saveBtn{order:0;flex:0 0 auto}
+  /* content-width-ish, not the whole bar: the mock's title sits beside its pill, and a title
+     field stretched to the spacer reads as a form rather than a heading. */
+  .bld-head .bld-namewrap{flex:0 1 auto;min-width:120px;max-width:360px}
+  /* the 48px bar cannot hold a 44px control plus its own rhythm — the touch floor is a phone
+     rule and this breakpoint has a pointer. */
+  .bld-head .bld-name{min-height:34px}
+  /* FIXED tracks, not auto — each row is its own grid, so auto tracks would size per-row and the
+     columns would not line up down the table. Q6 (v125) measured exactly that on the docket; the
+     v3 table has the same shape and the same exposure, and fresh-states.spec.js pins the result. */
+  #lines .bld-row{
+    grid-template-columns:minmax(0,1fr) 110px 110px 90px 72px;gap:0 12px;align-items:center;
+    padding:8px var(--sp-4);min-height:0;
+  }
+  .bld-ing{grid-column:1;grid-row:1}
+  .bld-ing b{font-size:13.5px}
+  .bld-qty{grid-column:2;grid-row:1;justify-content:flex-end}
+  .bld-qty input{width:66px}
+  .bld-unit{grid-column:3;grid-row:1;justify-self:end;text-align:right}
+  .bld-lc{grid-column:4;grid-row:1;justify-self:end;font-size:13px}
+  .bld-rm{grid-column:5;grid-row:1;justify-self:end}
+  .bld-row.is-misc .bld-ing{grid-column:1}
+  .bld-row.is-misc .bld-mid{display:block;grid-column:2 / 4;grid-row:1}
+  .bld-row.is-misc .bld-lc{grid-column:4;grid-row:1;justify-content:flex-end}
+  .bld-row.is-misc .bld-lc input{width:76px;min-height:0}
+  .bld-actions{flex-direction:column}
+  .bld-actions .btn{flex:0 0 auto;width:100%}
+  /* §7: the summary bar and the Cost card would print the same two figures. The card wins on the
+     desktop the mock draws it for, and the bar is a phone element. */
+  .bld-bar{display:none}
+}
+/* Below 640 the tab bar is a real bottom bar and the summary sits above it; from 640 up it is a
+   left rail, so the bar sits on the viewport floor. The offset is measured against .bottomnav
+   rather than assumed - `--bottomnav-h` is not a token this sheet defines. */
+@media (min-width:640px){
+  .bld-bar{bottom:env(safe-area-inset-bottom)}
+}
 
 /* ----------------------------------------------------------------------
    10. PLATE ACTIONS — one clear primary, quiet destructive
@@ -710,30 +875,26 @@ body.scroll-locked{position:fixed;left:0;right:0}
 #confirmOk:hover{background:var(--accent-press);border-color:var(--accent-press)}
 .del-choice-foot{flex-wrap:wrap;gap:8px;justify-content:flex-end}
 
-/* ===== plates library + builder popup (v54) ===== */
-/* The builder popup: a large modal on desktop, a full-screen takeover on phones (the full builder in a
-   floating 380px modal won't work). The relocated .panels stack in the body; their card chrome is softened
-   so the popup doesn't read as boxes-within-a-box. */
-.modal-builder{max-width:720px}
-.modal-builder .mbody{display:flex;flex-direction:column;gap:12px;padding:var(--sp-4)}
-.modal-builder .panel{margin:0}
+/* ===== plates library (v54) ===== */
+/* F7 (v146) tombstone: .modal-builder and .builder-overlay stood here — the builder was a modal
+   from v54 to v145 and is a page now (§8-9 above). The v119 edge-to-edge fight they were in is
+   over with them; .modal-wiz keeps its half of it below, which is why that half is not deleted. */
 @media (max-width:560px){
-  .builder-overlay,.wiz-overlay{padding:0}                                  /* v61 item 4: the wizard takes over full-screen at mobile like the builder */
-  .modal-builder,.modal-wiz{width:100%;max-width:none;min-height:100dvh;max-height:none;border:0;border-radius:0}
-  /* v119: the `width:100%` above was silently losing. `.modal{width:min(640px,calc(100vw - 24px))}`
+  .wiz-overlay{padding:0}                                  /* v61 item 4: the wizard takes over full-screen at mobile */
+  .modal-wiz{width:100%;max-width:none;min-height:100dvh;max-height:none;border:0;border-radius:0}
+  /* v119: the `width:100%` above silently LOSES on its own. `.modal{width:min(640px,calc(100vw - 24px))}`
      in §"margins locked — modals pinned centre" is LATER in this file and the same specificity
-     (0,1,0), so it won: the takeover kept its square corners and 100dvh height but sat 24px narrow,
-     a 12px gutter down each side. Re-asserted with a descendant selector (0,2,0) so the takeover is
-     genuinely edge-to-edge. Do not "tidy" this back to a bare class — that is the losing form.
-     tests/builder-modal.test.js pins the ordering that makes it necessary. */
-  .builder-overlay .modal-builder,.wiz-overlay .modal-wiz{width:100%}
+     (0,1,0), so it wins: the takeover keeps its square corners and 100dvh height but sits 24px
+     narrow, a 12px gutter down each side. Re-asserted with a descendant selector (0,2,0) so the
+     takeover is genuinely edge-to-edge. Do not "tidy" this back to a bare class — that is the
+     losing form. tests/wiz-takeover.test.js pins the ordering that makes it necessary. */
+  .wiz-overlay .modal-wiz{width:100%}
 }
 /* F2 (v138) tombstone: `.ing-tag.pub-on/.pub-off` are gone with the plate card that emitted them.
    Published-where is `.plib-pub` / `.plib-pub.is-on` in §26 now, and it is the Plates screen's own. */
-/* plate card action chooser */
-.plate-actions .pa-sub,.manage-menus .pa-sub{margin:0 0 var(--sp-4);font-size:13px;color:var(--muted2)}
-.pa-choices{display:flex;flex-direction:column;gap:8px}
-.pa-choices .btn{width:100%;min-height:44px}
+/* F7 (v146): `.plate-actions` and `.pa-choices` went with the chooser. `.pa-sub` did NOT — the
+   manage-menus modal wears it too, which a per-family grep would have missed. */
+.manage-menus .pa-sub{margin:0 0 var(--sp-4);font-size:13px;color:var(--muted2)}
 /* manage-menus: one row per menu (name · price/Add/Remove) */
 .mm-list{display:flex;flex-direction:column;gap:8px}
 .mm-row{display:flex;align-items:center;gap:var(--sp-2);padding:10px 12px;border:1px solid var(--border);border-radius:10px}
@@ -1037,17 +1198,12 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .panel{margin-top:var(--sp-4)}
   .panel h2{padding:var(--sp-3) var(--sp-4) var(--sp-3)}
   .grid{grid-template-columns:1fr}
-  .line,.total,.docket-head,.flag{padding-left:var(--sp-4);padding-right:var(--sp-4)}
   .actions{padding:var(--sp-3) var(--sp-4) var(--sp-4)}
   .atable-wrap{padding:var(--sp-2) var(--sp-2) var(--sp-3)}
-  .line .top{flex-wrap:wrap}
-  .qtybox{order:3}
-  .lc{order:4;margin-left:auto}
   .pricing-head,.pricing,.margin{padding-left:var(--sp-4);padding-right:var(--sp-4)}
 }
 @media (max-width:380px){
   header h1{font-size:18px}
-  .total .amt{font-size:24px}
   .navbtn{font-size:11px}
   .install-banner .ib-text span{font-size:12px}
   .actions{grid-template-columns:1fr}
@@ -1148,14 +1304,13 @@ body.scroll-locked{position:fixed;left:0;right:0}
 
 /* ----------------------------------------------------------------------
    23. EMPTY STATE — the plate waiting for its first ingredient
-   (pure CSS: app.js still renders <div class="empty">…; we add the
-   illustration above the text with a themed data-URI, no JS changes)
+   F7 (v146): the class is `.bld-empty` now; the illustration is unchanged.
    ---------------------------------------------------------------------- */
-#lines .empty::before{
+#lines .bld-empty::before{
   content:"";display:block;width:156px;height:112px;margin:4px auto 14px;
   background:var(--empty-illust) center/contain no-repeat;
 }
-@media print{#lines .empty::before{display:none}}
+@media print{#lines .bld-empty::before{display:none}}
 
 /* ----------------------------------------------------------------------
    24. SPLASH — v115 rebuild (Max): ONE first-open screen that holds until the
@@ -1230,10 +1385,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .margin-preview.mp-amber{background:color-mix(in srgb,var(--warn) 14%,var(--surface2))}
 .margin-preview.mp-red{background:color-mix(in srgb,var(--bad) 14%,var(--surface2))}
 
-/* v82 item 4 — builder Save pinned to a footer bar so it never hides below the fold. The modal is a flex
-   column with a scrolling .mbody and a flex:0 0 auto .mfoot, so this bar stays visible while the docket +
-   name/category scroll. One full-width primary CTA — the builder's single primary action. */
-.builder-foot .btn.primary{width:100%;min-height:52px}
+/* F7 (v146) tombstone: `.builder-foot` styled the modal's sticky Save bar. Save is in the page
+   header now (and reachable from the §6 summary bar on a phone), so the bar and its rule are gone. */
 
 /* ============ Invoice intro ============ */
 .inv-intro{position:relative;background:var(--accent-weak);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:12px 34px 12px 14px;margin-bottom:12px}
@@ -1898,12 +2051,8 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   .flag-mismatch{display:inline-block;font-size:11px;font-weight:700;color:var(--on-bad);background:var(--bad);border-radius:6px;padding:1px 6px;margin-left:4px}
 
 /* ===== bugfix batch (v22) ===== */
-/* item 4: misc cost lines + add button */
-.misc-add-wrap{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-2) 0 2px}
-.btn.misc-add{padding:7px 12px;font-size:var(--fs-base)}
-.misc-hint{font-size:var(--fs-xs);color:var(--muted2)}
-/* v67 item 3: the pre-v67 single-row misc rules were removed here — the misc line now reuses the
-   ingredient .line skeleton (see the v67 misc block later in this file). */
+/* F7 (v146) tombstone: `.misc-add-wrap`, `.btn.misc-add` and `.misc-hint` are gone — "+ Misc cost"
+   is a plain button in the table's add row now (`.bld-misc`), and its hint went with the docket. */
 /* F5 (v142): the “→ Builder” chip's spacing rule is DELETED with `.mi-act`/`.mi-btn`. */
 /* item 1: trend chart point tooltip */
 .dash-chart#trendWrap{position:relative}
@@ -1934,12 +2083,6 @@ svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 .tp-tip{transition:opacity .05s ease}                              /* was .12s — feels instant now */
 /* item 8: don't let taps highlight chart chrome (scoped to the chart + interactive chrome only) */
 .dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
-/* item 2: misc-cost button sits as part of the builder, not bolted on */
-.misc-add-wrap{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-3) 2px var(--sp-1);padding-top:var(--sp-3);border-top:1px dashed var(--line,#e4dccb)}
-/* item 3: docket/plate hover highlight keeps clear of the card edge */
-#lines .line{border-radius:10px}
-#lines .line:hover{background:var(--hover,#f6f1e7);box-shadow:inset 0 0 0 1px var(--line,#efe7d6)}
-#lines{padding:2px}
 /* item 4: delete button styling + footer layout */
 .mfoot.ig-foot{display:flex;align-items:center;gap:8px}
 .mfoot.ig-foot .mfoot-spacer{flex:1}
@@ -1952,22 +2095,14 @@ svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 .tp-tip{transition:none;background:var(--text);color:var(--bg)}
 .tp-tip::after{border-top-color:var(--text)}
 .tp-dot{stroke-width:22px;touch-action:manipulation}
-/* item 4 + screenshot 3: misc row aligns with the docket's own line padding; receipt rule softened */
-.misc-add-wrap{margin:0;padding:var(--sp-4) var(--sp-5) var(--sp-3);border-top:1px dashed var(--border)}
-.total{border-top:2px solid var(--border2)}
-@media (max-width:700px){ .misc-add-wrap{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
-/* item 5: the docket hint, anchored inside the card */
-.docket-hint{padding:0 var(--sp-5) var(--sp-4);margin:2px 0 0;font-size:var(--fs-xs);color:var(--muted2)}
-@media (max-width:700px){ .docket-hint{padding-left:var(--sp-4);padding-right:var(--sp-4)} }
 /* item 1: dark-mode fixes for hardcoded colours introduced in v22/v23 */
 /* v39: tobuilder colour removed here too — .mi-btn.tobuilder (near .an-empty) is now the single quiet rule for both themes */
 .btn.danger{color:var(--bad);border-color:var(--bad-bg)}
 .btn.danger:hover{background:var(--bad);color:var(--on-bad);border-color:var(--bad)}
-#lines .line:hover{background:var(--hover);box-shadow:inset 0 0 0 1px var(--border)}
 /* item 6 UI: the before/after preview — the user sees exactly what will be written */
 .pt-preview{font-size:var(--fs-xs);font-weight:600;color:var(--accent-ink);margin-top:4px;min-height:1em;font-variant-numeric:tabular-nums}
 /* skill audit: aligned numerals wherever money/percentages column up */
-.num,.total .amt,.lc,.invPrice,.qtybox input{font-variant-numeric:tabular-nums}   /* F4 (v140): .ing-price b left this list — §30 sets tabular-nums on it with the rest of the row's mono */
+.num,.invPrice{font-variant-numeric:tabular-nums}   /* F4 (v140): .ing-price b left this list — §30 sets it with the rest of the row's mono. F7 (v146): .total/.lc/.qtybox left with the docket — .bld-lc, .bld-v and .bld-qty input each set it at their own site. */
 /* skill audit: pressed feedback + visible keyboard focus (was missing) */
 /* v115: the translateY(1px) press is gone — .btn:active scale(.98) (§6) is the ONE press language, matching .mlf-chip/.dig-card (`.ing-card` left the press language in F4, v140) */
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}   /* F4 (v140): `.ing-card:focus-visible` left this list — it IS a <button>, so it was always redundant, and §30 insets its ring anyway */
@@ -2008,8 +2143,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 }
 /* item 2: "+ New" — the plus sits on the same line-box as its label */
 .ni-add-btn,.ni-add-alt{display:inline-flex;align-items:center;justify-content:center;gap:4px;line-height:1.1}
-/* item 4: docket hint — smaller, quieter, tighter (copy also shortened) */
-.docket-hint{font-size:11px;letter-spacing:.01em;opacity:.85;padding-top:2px}
 /* item 5: a finger sliding across the chart scrubs the tooltip, never selects text */
 .dash-chart svg{touch-action:none;-webkit-touch-callout:none}
 .dash-chart ::selection{background:transparent}
@@ -2030,10 +2163,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pt-group .invPackUnit{width:86px;min-width:86px}
 .uprice-edit .upu{display:inline-block;min-width:42px}            /* "/unit" and "/kg" occupy the same space — the price box stays put */
 .pt-preview{min-height:1.25em}
-/* item 6: builder row hover = the Menu section's flat rectangular treatment (line 1309), nothing card-shaped */
-#lines .line{border-radius:0}
-#lines{padding:0}
-#lines .line:hover{background:var(--hover);box-shadow:none}
 /* item 1: corner toasts — bottom-right, fixed overlay, stack upward, shift nothing */
 #cornerToasts{position:fixed;right:16px;bottom:16px;z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
 .corner-toast{pointer-events:auto;position:relative;max-width:340px;min-width:240px;padding:10px 30px 10px 14px;
@@ -2122,8 +2251,6 @@ body{overflow-x:clip}
 .king-empty{padding:var(--sp-4) var(--sp-5);color:var(--muted2);font-size:var(--fs-sm)}
 .king-tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--accent-weak);color:var(--accent-ink);border-radius:5px;padding:1px 6px;margin-left:6px}
 .opt.king-opt .nm{display:flex;align-items:center;flex-wrap:wrap;gap:2px}
-.line.missing-line{opacity:.72}
-.line.missing-line .sub.warn{color:var(--bad)}
 @media (max-width:700px){
   .king-link{white-space:normal}   /* v67: the old flex-basis/order hack was for the inline-category layout, now gone */
 }
@@ -2200,7 +2327,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    accents. Replace the artwork with each tab's OWN nav-button glyph, rendered in the
    muted theme colour via mask-image (theme-safe, no orange). White-stroke SVGs are
    used as luminance masks; the visible colour comes from background:var(--muted2). */
-#lines .empty::before,
+#lines .bld-empty::before,
 .an-empty td::before,
 .ing-empty::before{
   width:64px;height:64px;margin:4px auto 14px;
@@ -2211,7 +2338,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 }
 /* Builder empty docket -> the Plates nav glyph (fork + knife), monochrome & static.
    v56: was the clipboard/docket icon; v57: the tab's glyph became fork + knife (matches ICON_PLATE_BIG). */
-#lines .empty::before{
+#lines .bld-empty::before{
   -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3v4'/%3E%3Cpath d='M9 3v4'/%3E%3Cpath d='M12 3v4'/%3E%3Cpath d='M6 7h6'/%3E%3Cpath d='M9 7v14'/%3E%3Cpath d='M18 3v18'/%3E%3Cpath d='M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'/%3E%3C/svg%3E");
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3v4'/%3E%3Cpath d='M9 3v4'/%3E%3Cpath d='M12 3v4'/%3E%3Cpath d='M6 7h6'/%3E%3Cpath d='M9 7v14'/%3E%3Cpath d='M18 3v18'/%3E%3Cpath d='M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2'/%3E%3C/svg%3E");
 }
@@ -2481,13 +2608,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    name text + pill into baseline-aligned items: same line when space allows (6px gap),
    and a wrapped pill starts at the card's left edge instead of hanging mid-air. */
 .invtable tr.inv-data > td:first-child{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
-/* item 8: builder lines are two rows — name row (.top: name + remove) and costs row
-   (.costs: qty, unit price, dotted leader, line total). Same controls, new geometry. */
-.line .costs{display:flex;align-items:center;gap:8px;margin-top:8px}
-.line .costs .qtybox{order:-1}   /* qty first per Max's mockup — beats the legacy mobile `.qtybox{order:3}` from the one-row era */
-.line .costs .qtybox input{width:72px}   /* a hair narrower than the one-row era so qty + unit price + line total all fit at 380px */
-.line .costs .priceline{margin-top:0;white-space:nowrap}
-.line .costs .lc{font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* item 6b: ingredient cards are tap-to-edit (Products pattern) — cursor + focus ring for the
    button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
 /* F3 (v139) tombstone: `.king-row`'s cursor and its OUTWARD focus ring moved into §27, which
@@ -2513,15 +2633,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .invtable .pack-teach{justify-content:center}
   .invtable .pt-preview{text-align:center}
 }
-/* items 6/7: builder costs-row declutter. The badge/category/pill markup is gone (app.js).
-   Here: the misc "$" hugs its input (the fixed 32px .u width WAS the gap), the dotted leader
-   gets no extra margin, and the price column takes a fixed basis so the leader starts at a
-   consistent column instead of drifting with each row's price width. */
-.line .costs{gap:var(--sp-2)}
-.line .costs .leader{margin:0;min-width:14px}   /* the dotted connector must survive at 380px */
-.line .costs .qtybox input{width:76px}   /* v61 item 1: fits 4–5 digit quantities comfortably (spinners hidden above) — the leader absorbs the extra 10px */
-.line .costs .priceline{flex:0 0 116px}          /* fixed price column = the leader starts at the same x on every row */
-.line .costs .lc{min-width:0}                    /* the one-row era's .lc{min-width:78px} inflated small totals past the card edge */
 /* item 3 (v49): retired — the negative-margin divider trick is gone; the divider lives on the
    real .panel h2 like every other tab. See the v49 batch. */
 
@@ -2559,14 +2670,6 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .invtable td:first-child .flag-review,
 .invtable td:first-child .flag-mismatch,
 .invtable td:first-child .flag-new{display:inline-block;vertical-align:2px;margin:0 0 0 4px}
-/* item 6 ROOT CAUSE: .leader's translateY(-4px) is a stale nudge from the ONE-ROW line era,
-   applied inside v44's centre-aligned two-row .costs — it parked the dotted rule 9px above the
-   total's baseline (above even the text's middle). Fix at the root: the costs row aligns by
-   BASELINE — the qty input, unit price, and bold total share one text baseline, and the empty
-   leader's synthesized baseline is its bottom edge, so the dots sit exactly ON that shared
-   baseline (the classic docket look). No nudges left. */
-.line .costs{align-items:baseline}
-.line .costs .leader{transform:none}
 /* item 7 (scoped audit): the two sub-44px touch targets outside the invoice area get INVISIBLE
    hit-area extensions — pseudo-elements participate in hit testing, so the look and layout stay
    exactly as they are while the tappable area reaches 44px. (.ms-clear covers every search bar's
@@ -2629,30 +2732,9 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 }
 
 
-/* ===== batch (v67) — misc line is a SIBLING of the ingredient line (item 3) ===== */
-/* The misc line reuses the ingredient .line two-row skeleton (.top = name + ×, .costs = dotted leader +
-   the $ amount). It INHERITS .line / .line .top / .line .costs / .leader from the ingredient rules, so
-   row height, the × column and the total column all align pixel-wise for free. Only the costs row differs:
-   the amount is an editable $ box (not static text), it must NOT take .qtybox's order:-1 (that's for qty,
-   which leads an ingredient row — a misc line has none), and the $ hugs the field (no 32px unit gutter).
-   v69 (Max, reversing v60): the name is an editable field again, but it must READ like the line's label
-   ("Misc") on the top row — not a heavy form box. So it's styled as the ingredient name (bold text, same
-   15/700) with only a faint underline to signal it's editable; the $ amount stays on the .costs row in the
-   total column. Top row = name + ×; bottom row = the $ field, in line with every ingredient's cost. */
-.line.misc-line .nm{align-self:center}                              /* single-line field: centre it against the × in the top row */
-.line.misc-line .nm .misc-name{
-  width:100%;max-width:100%;font-size:15px;font-weight:700;color:var(--text);line-height:1.3;
-  background:transparent;border:0;border-bottom:1px solid var(--border);border-radius:0;
-  padding:4px 0;min-height:32px;
-}
-.line.misc-line .nm .misc-name::placeholder{color:var(--muted2);font-weight:700}
-.line.misc-line .nm .misc-name:focus{outline:none;box-shadow:none;border-bottom-color:var(--accent)}   /* editable affordance without the boxy ring */
-.line.misc-line .costs .misc-costbox{order:0;flex:0 0 auto;max-width:none;gap:2px}  /* beats .line .costs .qtybox{order:-1}; leader (flex:1) pushes it to the total column */
-.line.misc-line .costs .misc-costbox .u{width:auto;min-width:0;color:var(--muted2)} /* $ hugs the field — no 32px unit-column gutter */
-.line.misc-line .costs .misc-costbox input{width:92px;text-align:right}             /* right-aligned in the total slot; spinners hidden via the base .qtybox input rule */
-@media (max-width:700px){
-  .line.misc-line .costs .misc-costbox input{min-height:44px}       /* phone hit target, matching the qty inputs */
-}
+/* F7 (v146) tombstone: the v67 misc-line block styled the misc row against the ingredient .line
+   two-row skeleton (.top / .costs / .leader). Both are gone; the misc row is `.bld-row.is-misc` in
+   §8-9 and still reuses the ingredient row's geometry, which is what v67 was for. */
 /* item 5 (Max): no red "pressed" fill on Delete. On touch, :hover sticks after a tap, so the destructive
    button reads as flashing solid red on press. Where hover isn't a real pointer state, neutralise the
    danger hover fill back to the resting outline. Resting styling and desktop (real-hover) fill unchanged. */
@@ -2954,19 +3036,10 @@ html{scrollbar-gutter:stable}
 .ins-line.ins-swap,.ins-credit.ins-swap{animation:ins-arrive .28s var(--ease)}
 @keyframes ins-arrive{from{opacity:.15}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){ .ins-line.ins-swap,.ins-credit.ins-swap{animation:none} }
-/* Strand 4: builder ingredient rows at 380px. Measured, not guessed: the .costs row needs ~328px
-   (qtybox 76+8+32 + priceline 116 + leader 14 + cost ~58 + three 8px gaps) against ~310px of card
-   at a 380px viewport, and neither .qtybox (flex:0 0 auto) nor .priceline (flex:0 0 116px) can
-   shrink — so the price chip and cost escaped the card (Max's screenshot). Every fixed width gives
-   a little back; no wrapping, the dotted-leader line stays one line. */
-@media (max-width:380px){
-  .line{padding:12px}
-  .line .costs{gap:6px}
-  .line .costs .qtybox input{width:64px}
-  .qtybox .u{width:26px}
-  .line .costs .priceline{flex:0 0 106px}
-  .line .costs .leader{min-width:10px}   /* the fresh-states spec holds the leader to ≥10px of visible dots */
-}
+/* F7 (v146) tombstone: the v101 380px squeeze existed because the one-row .costs layout could not
+   shrink (fixed qtybox + a 116px price column + the dotted leader). The v3 row STACKS at phone
+   widths - name, then qty, then unit cost, each on its own grid row - so there is nothing to
+   squeeze and the block is deleted rather than re-tuned. */
 /* v115: the earlier same-batch desktop-hide of #splash was REVERSED by Max the same day — the
    splash was rebuilt instead (see §24) as the one first-open loading screen on every width. */
 
@@ -3307,64 +3380,18 @@ html{scrollbar-gutter:stable}
 @media (max-width:560px){ #kingList{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
 /* ----------------------------------------------------------------------
-   28. Q6 (v125) — THE BUILDER'S COST PANEL + DOCKET COLUMNS
-   The modal SHELL is untouched (Max, twice, 8 Aug 2026: the builder is a
-   modal). Inside it: at ≥900px the body becomes docket + sticky cost
-   panel; docket lines flatten to one row of columns; under 900px the
-   sticky footer carries total + verdict + Save together. All ids and
-   handlers unchanged; the v118 draft machinery is not touched.
+   28. F7 (v146) tombstone — Q6's (v125) BUILDER COST PANEL + DOCKET COLUMNS
+   That section made the MODAL's body a docket + sticky cost panel at >=900px
+   and flattened .line into columns there. Every selector in it (.bcost*,
+   .bfoot-sum, #docketPanel .total, #platePanel, the .modal-builder grid,
+   the #lines .line column tracks) belonged to the modal and is deleted with
+   it. What it decided SURVIVES and is rebuilt in §8-9: one renderer for the
+   panel and the phone summary, the worst menu leading, and the total never
+   printed twice on one screen.
+   .bm-name / .bm-price are kept - the per-menu rows still emit them.
    ---------------------------------------------------------------------- */
-/* the cost block leading #platePanel — a ≥900px presentation: under 900 the sticky footer is the
-   one carrier of the total + verdict (showing both duplicated the figure on every phone row) */
-.bcost{border-bottom:1px solid var(--border);padding-bottom:var(--sp-3);margin-bottom:var(--sp-2)}
-@media (max-width:899px){ .bcost{display:none} }
-.bcost-head{padding:var(--sp-4) var(--sp-5) var(--sp-2);border-bottom:2px solid var(--text)}
-.bcost-lbl{display:block;font-size:var(--fs-xs);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2)}
-.bcost-total{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
-.bcost-row{display:flex;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-3) var(--sp-5) 0}
-.bcost-cap{font-size:var(--fs-sm);color:var(--text2)}
-.bcost-target{color:var(--muted2)}
-.bcost-suggest{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-base);font-weight:700}
-.bcost-menus{padding:var(--sp-3) var(--sp-5) 0}
-.bcost-cap2{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-bottom:var(--sp-2)}
-.bcost-menu{display:flex;justify-content:space-between;gap:var(--sp-3)}
-.bm-name{font-size:var(--fs-sm);font-weight:700}
-.bm-price{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-base);font-weight:700}
-.bverdict{margin-top:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-radius:var(--radius-chip);font-size:var(--fs-sm);color:var(--text)}
-.bverdict b{font-family:var(--mono)}
-.bverdict.bv-green{background:var(--good-bg)}.bverdict.bv-green b{color:var(--good)}
-.bverdict.bv-amber{background:var(--warn-bg)}.bverdict.bv-amber b{color:var(--warn)}
-.bverdict.bv-red{background:var(--bad-bg)}.bverdict.bv-red b{color:var(--bad)}
-/* the docket's own total row retires — the panel (≥900) and the footer (<900) carry the figure now */
-#docketPanel .total{display:none}
-/* mobile footer: the answer rides with the action */
-.builder-foot{flex-direction:column;gap:var(--sp-2);align-items:stretch}
-.bfoot-sum:empty{display:none}
-.bfs-top{display:flex;justify-content:space-between;align-items:baseline}
-.bfs-lbl{font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2)}
-.bfs-total{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:700}
-.bfs-line{font-size:var(--fs-sm);color:var(--text2)}
-.bfs-line b{font-family:var(--mono)}
-.bv-t-green{color:var(--good)}.bv-t-amber{color:var(--warn)}.bv-t-red{color:var(--bad)}
-@media (min-width:900px){
-  .builder-overlay .modal-builder{width:min(980px,calc(100vw - 48px));max-width:none}   /* .modal's width:min(640px,…) AND .modal-builder's own 720px max-width both cap the shell — override both (descendant selector: the §"margins locked" lesson) */
-  .modal-builder .mbody{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--sp-4);align-items:start}
-  #platePanel{position:sticky;top:0}                        /* sticks within the scrolling .mbody — the queue plan's own suggestion */
-  .bfoot-sum{display:none}                                  /* the panel says it; the footer holds Save alone */
-  /* docket lines flatten to the design's columns: name / qty / unit cost / line cost / ×.
-     FIXED tracks, not auto — each .line is its own grid, so auto tracks would size per-row and the
-     columns would not line up down the docket (the v125 review measured it). 44px for the × matches
-     .x's min-width; a 24px track was fiction the button overflowed. */
-  #lines .line{display:grid;grid-template-columns:minmax(0,1fr) 124px 116px 84px 44px;gap:0 10px;align-items:center}   /* col2 fits the qtybox's real min-content (~116px measured) — a narrower track overflowed leftward into the name column */
-  #lines .line .top,#lines .line .costs{display:contents}   /* the two-row skeleton's children join the row grid; DOM unchanged */
-  #lines .line .nm{grid-column:1;grid-row:1}
-  #lines .line .qtybox{grid-column:2;grid-row:1;justify-self:end}
-  #lines .line .priceline{grid-column:3;grid-row:1;justify-self:end}
-  #lines .line .lc{grid-column:4;grid-row:1;justify-self:end}
-  #lines .line .top .x{grid-column:5;grid-row:1}
-  #lines .line .leader{display:none}                        /* the dotted leader belongs to the stacked layout */
-  #lines .line.misc-line .misc-costbox{grid-column:4;grid-row:1;justify-self:end}
-}
+.bm-name{font-size:var(--fs-sm);font-weight:500}
+.bm-price{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-base);font-weight:500}
 
 /* ----------------------------------------------------------------------
    30. F4 (v140) — THE PRODUCTS LIST, REBUILT FROM THE v3 MOCK
@@ -3757,10 +3784,11 @@ html{scrollbar-gutter:stable}
    TWO CONTAINERS, ONE COMPONENT. >=768 the mock's centred dialog at 12vh;
    <768 the mobile mock's bottom sheet — grab handle, slide-up, safe-area.
 
-   .modal-builder and .modal-wiz are EXCLUDED from the sheet and keep their
-   full-height takeover. R2, not an oversight: the mobile mock's Builder is
-   a full-screen PUSH, not a sheet, and F7 replaces that shell with a real
-   full page. A wizard mid-flow is the same shape.
+   .modal-wiz is EXCLUDED from the sheet and keeps its full-height takeover.
+   R2, not an oversight: a wizard mid-flow is a push, not a sheet.
+   F7 (v146) removed .modal-builder from these selectors along with the
+   modal itself - the builder is a real full page now, which is what this
+   comment said it would become.
    ====================================================================== */
 @media (min-width:768px){
   .modal-overlay{
@@ -3779,7 +3807,7 @@ html{scrollbar-gutter:stable}
 
 @media (max-width:767px){
   .modal-overlay{align-items:flex-end;padding:0}
-  .modal-overlay > .modal:not(.modal-builder):not(.modal-wiz),
+  .modal-overlay > .modal:not(.modal-wiz),
   #settingsPanel .settings-panel{
     width:100%;max-width:none;margin:0;
     border-radius:16px 16px 0 0;border-left:0;border-right:0;border-bottom:0;
@@ -3789,17 +3817,17 @@ html{scrollbar-gutter:stable}
   }
   /* The grab handle. A ::before flex item rather than an extra element in 18 modals — it is
      decoration, so it stays out of the DOM and out of the accessibility tree. */
-  .modal-overlay > .modal:not(.modal-builder):not(.modal-wiz)::before{
+  .modal-overlay > .modal:not(.modal-wiz)::before{
     content:"";flex:0 0 auto;width:36px;height:4px;margin:8px auto 2px;
     border-radius:999px;background:var(--border2);
   }
   /* Slide-up. The mobile mock's own keyframes. The global reduced-motion kill switch
      (`*{animation:none!important}`) already covers it — no second guard needed here. */
-  .modal-overlay.open > .modal:not(.modal-builder):not(.modal-wiz),
+  .modal-overlay.open > .modal:not(.modal-wiz),
   #settingsPanel.open .settings-panel{
     animation:sheetUp var(--t-slow) var(--ease);
   }
-  .modal-overlay.closing > .modal:not(.modal-builder):not(.modal-wiz),
+  .modal-overlay.closing > .modal:not(.modal-wiz),
   #settingsPanel.closing .settings-panel{
     animation:sheetDown var(--t-slow) var(--ease-in-out) forwards;
   }

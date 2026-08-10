@@ -54,11 +54,11 @@ for (const size of SIZES) {
     await page.locator('.navbtn[data-tab="builder"]').click();   // the Plates library
     await page.waitForTimeout(400);
     await page.screenshot({ path: `tests/visual/__shots__/plates-${size.name}.png`, fullPage: true });
-    // open the builder popup on a new plate
+    // open the builder PAGE on a new plate (F7 / v146 — it was a popup to v145)
     await page.locator('#newPlateBtn').click();
     await page.waitForTimeout(400);
-    if (await page.locator('#builderModal.open').count()) {
-      await page.screenshot({ path: `tests/visual/__shots__/builder-popup-${size.name}.png` });
+    if (await page.locator('#builderPage:not([hidden])').count()) {
+      await page.screenshot({ path: `tests/visual/__shots__/builder-page-${size.name}.png`, fullPage: true });
     }
     await expect(page.locator('body')).toBeVisible();
   });

@@ -93,6 +93,7 @@ function harness(opts) {
     function logHistory(){} function menuNameById(){ return 'Original'; } function updateLine(){}
     function repaintDashboardIfVisible(){}   // v115: the dashboard renders the log now; logChange repaints through this helper (the DOM census below stays honest — the helper owns the DOM touch)
     function updateTotals(){} function scheduleDraftSave(){} function parkRepointedProduct(){}
+    function setBuilderSaved(){} function renderBuilderCost(){}   // F7 (v146): the builder page's own paint
     function saveKingWizSkips(){} function unitCatWord(){ return 'weight'; }
     function menuCats(){ return ['Mains']; } function setCurrentMenuId(id){ currentMenuId=id; }
     function rebuild(){}

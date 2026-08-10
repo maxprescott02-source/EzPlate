@@ -314,18 +314,24 @@ test.describe('container: dialog at 12vh, sheet on a phone', () => {
     expect(parseFloat(radii[1])).toBe(0);
   });
 
-  test('the builder keeps its full-height takeover and does NOT become a sheet', async ({ page }) => {
+  /* F7 (v146): this test's subject was the BUILDER MODAL's exclusion from the sheet grammar.
+     The builder is a full page now, so there is no modal to exclude and nothing here to keep —
+     re-pointing it at the wizard would have duplicated the test below it, which already drives
+     `#kingWizModal` through the same question. RE-POINTED, not deleted: what it was really
+     protecting is that a full-height TAKEOVER does not get the sheet's rounded top and grab
+     handle, and the wizard is the last element that needs that. */
+  test('the wizard keeps its full-height takeover and does NOT become a sheet', async ({ page }) => {
     await boot(page, { width: 390, height: 780 });
-    await page.evaluate(() => window.openBuilder && window.openBuilder());
-    const el = page.locator('#builderModal .modal');
+    await page.evaluate(() => { const m = document.getElementById('kingWizModal'); if (m) window.show('kingWizModal'); });
+    const el = page.locator('#kingWizModal .modal');
     await settled(el);
     const box = await el.boundingBox();
     const frame = await fixedFrame(page);
     expect(box.width).toBeCloseTo(frame.w, 1);
     expect(box.height).toBeGreaterThan(frame.h * 0.95);
 
-    /* SIZE IS NOT THE TEST, and asserting it alone was a test that could not fail — verified by
-       dropping the :not(.modal-builder) exclusion and watching this pass. The builder carries
+    /* SIZE IS NOT THE TEST, and asserting it alone was a test that could not fail — verified on
+       the builder half by dropping the exclusion and watching it pass. The takeover carries
        `min-height:100dvh` from its own ≤560 rule, and min-height beats max-height in CSS, so the
        sheet's 88dvh cap could never shrink it and the width was already 100%.
        What the exclusion ACTUALLY protects is the sheet grammar: square corners (a takeover runs

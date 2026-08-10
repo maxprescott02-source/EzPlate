@@ -18,7 +18,8 @@ const SIZES = [
   { name: 'desktop', width: 1280, height: 900 },
 ];
 
-// v54: the Builder became the Plates library + a #builderModal popup. Tests that drive #lines must OPEN
+// v54: the Builder tab became the Plates library. F7 (v146): the builder is the full page #builderPage
+// (it was the #builderModal popup from v54 to v145). Tests that drive #lines must OPEN
 // that popup first (openBuilder resets the plate, so open BEFORE adding lines). This helper navigates to
 // the Plates tab and opens a fresh builder.
 async function openFreshBuilder(page) {
@@ -56,37 +57,41 @@ test('v44 item 8: builder lines render as name row + costs row @ 380px', async (
   });
   await page.waitForTimeout(300);
   await page.locator('#lines').screenshot({ path: 'tests/visual/__shots__/builder-lines-mobile.png' });
-  // ingredient lines keep the v44 two-row split: the line total renders in the costs row
+  /* F7 (v146): the v44 two-row `.top`/`.costs` split is gone with the docket. §6's phone row
+     stacks name / qty / unit cost down the left with the line cost right, so the line total is
+     still on the row and still has to fit — that is what these two assertions were for, and they
+     are re-pointed rather than dropped. */
   const lc = await page.evaluate(() => {
-    const el = document.querySelector('.line .costs .lc');
+    const el = document.querySelector('.bld-row .bld-lc');
     return el ? { right: el.getBoundingClientRect().right, w: el.getBoundingClientRect().width } : null;
   });
-  expect(lc, 'line total must render in the costs row').not.toBeNull();
+  expect(lc, 'line total must render on the row').not.toBeNull();
   expect(lc.w, 'line total must have real width').toBeGreaterThan(10);
   expect(lc.right, 'line total must fit inside the 380px viewport').toBeLessThanOrEqual(380);
-  // v69 (Max, reverses v60's "no name field"): the misc line keeps the v67 two-row .line skeleton (matching
-  // ingredient rows) — .top holds the EDITABLE name field + ×, .costs holds the dotted leader + the $ input
-  // (which is the line total; there is no separate .lc). The name field must read without truncation at 380px.
+  /* v69 (Max, reverses v60's "no name field"): the misc line's name is EDITABLE and must read
+     without truncation at 380px. F7 keeps the v67 principle — a misc line is a SIBLING of an
+     ingredient row, same skeleton — and the assertions follow it into the new one: the name field
+     shares its band with the $ input, and the $ input IS the line total (there is no second one). */
   const misc = await page.evaluate(() => {
-    const line = document.querySelector('.line.misc-line');
+    const line = document.querySelector('.bld-row.is-misc');
     const mid = el => { const r = el.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
     const name = line.querySelector('.misc-name'), box = line.querySelector('.misc-costbox'),
-          x = line.querySelector('.x');
+          rm = line.querySelector('.bld-rm');
     return {
-      rows: line.querySelectorAll('.top,.costs').length,   // v67 two-row skeleton (.top + .costs)
-      lc: line.querySelectorAll('.lc').length,             // misc has no separate bold total — the $ input is it
+      totals: line.querySelectorAll('.bld-lc').length,     // the $ input's cell is the only total
+      qtyCells: line.querySelectorAll('.bld-qty').length,  // a misc line has no quantity
       nameW: name.getBoundingClientRect().width,
-      nameXRow: Math.abs(mid(name) - mid(x)),              // the name field + × share the top row
-      boxRight: box.getBoundingClientRect().right, xRight: x.getBoundingClientRect().right,
+      nameBoxRow: Math.abs(mid(name) - mid(box)),          // name field and $ share a band
+      boxRight: box.getBoundingClientRect().right, rmRight: rm.getBoundingClientRect().right,
       lineRight: line.getBoundingClientRect().right,
     };
   });
-  expect(misc.rows, 'v69: two-row skeleton (.top name+×, .costs leader+$) matching ingredient rows').toBe(2);
-  expect(misc.lc, 'no duplicate bold total — the $ input is the total').toBe(0);
+  expect(misc.totals, 'no duplicate total — the $ input is the total').toBe(1);
+  expect(misc.qtyCells, 'a misc line offers no quantity control').toBe(0);
   expect(misc.nameW, 'restored name field keeps usable width at 380px (no truncation)').toBeGreaterThan(120);
-  expect(misc.nameXRow, 'name field and × share the top row').toBeLessThanOrEqual(3);
-  expect(misc.boxRight, '$ input sits inside the card edge').toBeLessThanOrEqual(misc.lineRight);
-  expect(misc.xRight, 'nothing clips the card').toBeLessThanOrEqual(misc.lineRight);
+  expect(misc.nameBoxRow, 'name field and $ input share a band').toBeLessThanOrEqual(3);
+  expect(misc.boxRight, '$ input sits inside the row edge').toBeLessThanOrEqual(misc.lineRight);
+  expect(misc.rmRight, 'nothing clips the row').toBeLessThanOrEqual(misc.lineRight);
 });
 
 test('v44 items 1+3: unified pack control (both moods) + pills on the title baseline', async ({ page }) => {
@@ -279,31 +284,30 @@ test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient 
   await expect(page.locator('#lines .edited')).toHaveCount(0);
   await expect(page.locator('#lines .king-tag')).toHaveCount(0);
   await expect(page.locator('#lines .row2')).toHaveCount(0);
-  const directSub = await page.locator('.line:not(.misc-line):not([data-uid="1"]) .sub').nth(0).textContent();
+  const directSub = await page.locator('.bld-row:not(.is-misc):not([data-uid="1"]) .bld-sub').nth(0).textContent();
   expect(directSub, 'direct-product subtitle is supplier only').not.toContain('·');
-  // overflow regression: every total fits inside its CARD's content box (viewport-only checks
-  // let a 78px-min-width total sit on the card border and still "pass"), and the dotted leader
-  // keeps real width so the docket connector survives at 380px
+  /* overflow regression: every total fits inside its ROW's content box. A viewport-only check
+     lets a total sit on the row's border and still "pass", which is what let it escape once.
+     F7: the dotted leader half of this went with the docket — there is no connector to keep. */
   const fit = await page.evaluate(() => {
     const out = [];
-    document.querySelectorAll('#lines .line').forEach(line => {
+    document.querySelectorAll('#lines .bld-row').forEach(line => {
       const lr = line.getBoundingClientRect(), cs = getComputedStyle(line);
-      const lc = line.querySelector('.costs .lc'), ld = line.querySelector('.costs .leader');
-      if (lc) out.push({
-        overflow: lc.getBoundingClientRect().right - (lr.right - parseFloat(cs.paddingRight)),
-        leaderW: ld ? ld.getBoundingClientRect().width : null,
-      });
+      const lc = line.querySelector('.bld-lc');
+      if (lc) out.push({ overflow: lc.getBoundingClientRect().right - (lr.right - parseFloat(cs.paddingRight)) });
     });
     return { rows: out, scrollW: document.scrollingElement.scrollWidth };
   });
+  expect(fit.rows.length, 'rows rendered to measure').toBeGreaterThan(0);
   for (const r of fit.rows) {
-    expect(r.overflow, 'line total stays inside the card content box').toBeLessThanOrEqual(0.5);
-    if (r.leaderW != null) expect(r.leaderW, 'dotted leader keeps visible width').toBeGreaterThanOrEqual(10);
+    expect(r.overflow, 'line total stays inside the row content box').toBeLessThanOrEqual(0.5);
   }
   expect(fit.scrollW, 'no horizontal scroll at 380px').toBeLessThanOrEqual(380);
-  // misc $ hugs its input
+  /* the misc "$" hugs its input. v45's version reached for `.misc-costbox .u`, the 32px unit
+     gutter the ingredient row lent it; F7 (v146) gives the $ its own class rather than borrowing
+     a width that then has to be un-set (`.bld-dollar`). Same assertion, same reason. */
   const gap = await page.evaluate(() => {
-    const u = document.querySelector('.misc-costbox .u').getBoundingClientRect();
+    const u = document.querySelector('.misc-costbox .bld-dollar').getBoundingClientRect();
     const inp = document.querySelector('.misc-costbox input').getBoundingClientRect();
     return inp.left - u.right;
   });
@@ -613,7 +617,16 @@ for (const size of SIZES) {
     await trs.nth(1).screenshot({ path: `tests/visual/__shots__/v46-pill-wrapped-${size.name}.png` });
   });
 
-  test(`v46 item 6: builder dots sit on the shared text baseline @ ${size.name}`, async ({ page }) => {
+  /* F7 (v146) — RETIRED, and the honest replacement is a different assertion, not a re-pointed one.
+     v46 item 6's subject was the DOTTED LEADER sitting on the line total's text baseline, the
+     docket's signature detail. The docket is gone and so is the leader, so there is no baseline
+     relationship left to measure and re-pointing this at the v3 row would have been a test written
+     to keep a file alive rather than to catch anything.
+     What replaces it is the thing the v3 row can get wrong: the mock's five columns must line up
+     DOWN the table, not per row. Q6 (v125) recorded exactly that risk when it moved to fixed
+     tracks ("each row is its own grid, so auto tracks would size per-row and the columns would not
+     line up"), and the v3 table has the same shape and the same exposure. */
+  test(`the builder's columns line up down the table @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
     await page.goto('/');
@@ -628,48 +641,22 @@ for (const size of SIZES) {
       const ib = document.querySelector('.install-banner, #installBanner'); if (ib) ib.remove();
     });
     await page.waitForTimeout(300);
-    const rows = await page.evaluate(() => {
-      const out = [];
-      // v56: only ingredient lines carry a text .lc total whose baseline the dotted rule tracks.
-      // The misc line's "total" is now the $ input (no .lc text), so it is checked in the misc test above.
-      document.querySelectorAll('#lines .line .costs').forEach(costs => {
-        const leader = costs.querySelector('.leader'), lc = costs.querySelector('.lc');
-        if (!leader || !lc) return;
-        const r = document.createRange(); r.selectNodeContents(lc);
-        const t = r.getClientRects()[0];
-        out.push({ rule: leader.getBoundingClientRect().bottom, textTop: t.top, textBottom: t.bottom });
-      });
-      return out;
+    const geom = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('#lines .bld-row')];
+      return {
+        n: rows.length,
+        // the right edge of the cost column, per row — one shared column means one shared edge
+        costRights: rows.map(r => { const c = r.querySelector('.bld-lc'); return c ? Math.round(c.getBoundingClientRect().right) : null; }),
+        // and every row's own right edge stays inside the table
+        overflow: rows.map(r => Math.round(r.getBoundingClientRect().right - r.parentElement.getBoundingClientRect().right)),
+      };
     });
-    expect(rows.length, 'builder ingredient lines rendered').toBeGreaterThanOrEqual(2);
-    if (size.name === 'desktop') {
-      /* Q6 (v125): at ≥900px the docket lines are COLUMNS (name/qty/price/cost/×) and the dotted
-         leader is display:none — there is no rule to sit on a baseline. The stacked layout, and
-         this spec's original baseline check, live on under 900px. Assert the new premise. */
-      // settle-proof: under full-suite load a fixed wait raced the layout — wait for the column
-      // geometry itself; a genuine regression still fails loudly via the timeout
-      /* Q6 (v125): at ≥900px the docket lines are COLUMNS and the dotted leader is display:none.
-         Only the STYLE-LEVEL fact is asserted here: under full-suite load this test's page has
-         repeatedly measured 380px-wide geometry in its @desktop run (the addProduct dead-path
-         fixture again — see the queued spec-meaning audit), so geometry assertions flake. The
-         column GEOMETRY is pinned behaviourally in tests/visual/q6-builder.spec.js, which drives
-         the real plate-edit path and holds green under load. */
-      const style = await page.evaluate(() => {
-        const l = document.querySelector('#lines .line:not(.misc-line)');
-        return { leaderHidden: getComputedStyle(l.querySelector('.leader')).display === 'none' };
-      });
-      expect(style.leaderHidden, 'the dotted leader belongs to the stacked layout').toBe(true);
-    } else {
-      for (const row of rows) {
-        // the dotted rule sits at the total's BASELINE: below the text's vertical centre
-        // (never strikethrough) and above its descender bottom
-        const centre = (row.textTop + row.textBottom) / 2;
-        expect(row.rule, 'rule below the text centre').toBeGreaterThan(centre);
-        expect(row.textBottom - row.rule, 'rule within the descent band').toBeGreaterThanOrEqual(2);
-        expect(row.textBottom - row.rule, 'rule not sunk under the text').toBeLessThanOrEqual(6);
-      }
-    }
-    await page.locator('#lines').screenshot({ path: `tests/visual/__shots__/v46-builder-baseline-${size.name}.png` });
+    expect(geom.n, 'builder rows rendered').toBeGreaterThanOrEqual(2);
+    const rights = geom.costRights.filter(v => v !== null);
+    const spread = Math.max(...rights) - Math.min(...rights);
+    expect(spread, 'the cost column has ONE right edge down the whole table').toBeLessThanOrEqual(1);
+    for (const o of geom.overflow) expect(o, 'no row escapes the table').toBeLessThanOrEqual(0);
+    await page.locator('#lines').screenshot({ path: `tests/visual/__shots__/v146-builder-columns-${size.name}.png` });
   });
 }
 
