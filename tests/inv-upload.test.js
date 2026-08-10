@@ -101,6 +101,20 @@ test('every render path lands the user on a step, and the two wait surfaces both
   assert.match(extractFn(SRC, 'handleInvFile'), /invStep\('scan'\)/, 'choosing a file shows scanning');
 });
 
+test('a file dropped on the SCREEN starts from a clean modal, not the last import’s leftovers', () => {
+  /* The screen's dropzone can start an import with the modal shut, which is a route openInv() never
+     sees. Without this, #invCsv still holds the previous invoice's text and #invReview its rendered
+     rows, so a file that fails to parse lands the user on step 1 beside a paste box full of the LAST
+     invoice - one "Match products" from silently re-importing it. */
+  // comments stripped: the explanation above the guard names openInv() before the code does
+  const handle = noComments(extractFn(SRC, 'handleInvFile'), 'block', 'line');
+  const guard = handle.indexOf("classList.contains('open')");
+  const reset = handle.indexOf('openInv()');
+  assert.ok(guard >= 0, 'handleInvFile checks whether the modal is already open');
+  assert.ok(reset > guard, 'and resets only when it is not - openInv wipes state, so running it mid-flow would clear the import in progress');
+  assert.ok(reset < handle.indexOf("invStep('scan')"), 'the reset happens before the step moves, or openInv would put the user back on choose');
+});
+
 /* -------------------------------------------------------------------------
    2. Failure paths
    ------------------------------------------------------------------------- */

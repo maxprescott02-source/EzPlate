@@ -6257,9 +6257,17 @@ function invFileFailed(msg, useToast){
 }
 function handleInvFile(file){
   if(!file) return;
+  /* F8 (v147): the Invoices screen's dropzone can start an import with the modal SHUT, which is a
+     route openInv() never sees. Everything openInv resets then survives from the previous import —
+     #invCsv still holds the last invoice's text and #invReview still holds its rendered rows — so a
+     file that fails to parse drops the user onto step 1 beside a paste box full of the PREVIOUS
+     invoice, one "Match products" away from re-importing it. Start from a clean modal instead.
+     openInv is idempotent for focus (openOverlay does not re-capture an opener it already has), but
+     it wipes state, so it must not run when the modal is already open mid-flow. */
+  var mo=document.getElementById('invModal');
+  if(!(mo && mo.classList.contains('open'))) openInv();
   var nameEl=document.getElementById('invFileName'); if(nameEl) nameEl.textContent='Reading '+file.name;
   var errEl=document.getElementById('invFileErr'); if(errEl) errEl.style.display='none';
-  show('invModal');                                  // the screen's dropzone drops a file with the modal shut; the modal is where the 3 steps live
   invStep('scan');
   var isPdf=/\.pdf$/i.test(file.name)||file.type==='application/pdf';
   if(isPdf){
