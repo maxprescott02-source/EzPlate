@@ -19,6 +19,11 @@ The audit found no new durable rule to propose, and it found no error in `CLAUDE
 - **`tests/kpi-strip.test.js` hand-stubs `fmtTargetPct` instead of extracting it** (D1). The exact function the new Tier 1 stub rule cites as its origin incident.
 - **"Abbreviation matching in search" has been recorded as shipped for three audits and is not built** (D2).
 - Not a new item, but recorded on the existing one: **Mutation testing (Stryker) did NOT earn the earlier slot** the audit item offered it, because the fourth cannot-fail test was searched for deliberately and not found.
+- **The Playwright job has no retries, so one slow context launch fails the whole PR.** Added after the CI run, below.
+
+**Added after the sections above were written, on the same batch, after CI ran.** Marked rather than folded in silently: everything above was written before the PR's checks came back, and the write-once rule protects the record from being tidied, not from being finished.
+Max caught that PR #137 had a failed check and asked why it was not flagged. **It was not flagged because I verified the suite locally (848 unit, 221 Playwright, both green) and never looked at CI after pushing** - I read step 9's "the suite is green" as my own run. That is the process miss, and it is mine rather than the harness's.
+The failure itself was a flake: `tests/visual/v141-sync-corner.spec.js:174` died with `Test timeout of 30000ms exceeded while setting up "context"` before any assertion ran, 208 passed, and a re-run on the identical commit went 209/209 green. The diff is three `.md` files and zero lines of code, so it could not have caused a browser failure. Root cause is `playwright.config.js` setting no `retries` and no `workers`; it is queued.
 
 ## New docs/PHONE.md items
 None.
