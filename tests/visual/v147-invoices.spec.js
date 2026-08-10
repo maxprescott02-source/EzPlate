@@ -173,3 +173,47 @@ for (const theme of ['light', 'dark']) {
     expect(errs, errs.join('|')).toHaveLength(0);
   });
 }
+
+/* The whole flow, driven the way a person drives it: a real file through the real <input>, starting
+   from the SCREEN with the modal shut. Everything above pokes one part; this is the only test that
+   proves the parts connect, and it is the one that catches "the modal never opened itself" and "the
+   previous invoice was still in the paste box".
+   `aiInvoiceCheck = false` because the harness aborts every off-origin request: with it on, the
+   referee gate holds the review at the waiting panel forever and the test would be measuring the
+   harness. The gate itself is pinned by tests/invoice-gate.test.js against the real function. */
+for (const [label, w, h] of [['desktop', 1360, 900], ['phone', 380, 780]]) {
+  test(`a real file imported from the screen walks choose -> scanning -> review @ ${label}`, async ({ page }) => {
+    const errs = [];
+    page.on('pageerror', (e) => errs.push(String(e)));
+    await boot(page, w, h);
+    await page.evaluate(() => { window.aiInvoiceCheck = false; });
+    await page.evaluate(() => window.showTab('invoices'));
+    await page.waitForTimeout(300);
+    const visible = () => page.evaluate(() => ['invStepChoose', 'invStepScan', 'invStepReview']
+      .filter((id) => getComputedStyle(document.getElementById(id)).display !== 'none'));
+
+    await page.setInputFiles('#invFile', {
+      name: 'bidfood.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('Chips Straight Cut, 2.68\nTasty Cheese Block, 9.80\nMystery Widget, 4.10\n'),
+    });
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => document.getElementById('invModal').classList.contains('open')),
+      'a file dropped on the screen opens the modal it needs — the three steps live there').toBe(true);
+    expect(await visible()).toEqual(['invStepReview']);
+    expect(await page.locator('#invReview tr.inv-data').count(), 'every line became a row').toBe(3);
+
+    /* Now a file with nothing parseable, started from the screen again with the modal shut. Before
+       the reset this landed on step 1 beside a paste box holding the PREVIOUS invoice's text and an
+       #invReview still full of its rows — one "Match products" from silently re-importing it. */
+    await page.evaluate(() => window.closeInv());
+    await page.waitForTimeout(300);
+    await page.setInputFiles('#invFile', { name: 'junk.csv', mimeType: 'text/csv', buffer: Buffer.from('nothing here\n') });
+    await page.waitForTimeout(900);
+    expect(await visible(), 'an unparseable file returns to the panel with the controls on it').toEqual(['invStepChoose']);
+    expect(await page.locator('#invCsv').inputValue(), 'and the paste box holds THIS file, not the last import').toBe('nothing here\n');
+    expect(await page.evaluate(() => document.getElementById('invReview').innerHTML.length),
+      'and the previous review is gone, not merely hidden behind a panel').toBe(0);
+    expect(errs, errs.join('|')).toHaveLength(0);
+  });
+}
