@@ -177,6 +177,16 @@ jobs:
       #                    0000000001b0` in the browser log, and all six crash at the IDENTICAL
       #                    instruction (binary offset 0x2af9eec, module offset subtracted so it
       #                    survives ASLR), in chrome-headless-shell-1228 / Playwright 1.61.1.
+      #                    ⚠️ THE BUMP WAS TRIED AND DID NOT FIX IT, so read those two numbers as
+      #                    the ORIGINAL census and not as the affected set. Playwright is now
+      #                    1.62.1 and the browser chrome-headless-shell-1234 (Chromium
+      #                    151.0.7922.34); a reproducer crashed it 3 times in 150 tight cycles,
+      #                    against 2.9% on 1228 - indistinguishable. Do not read a newer build as
+      #                    evidence the class is fixed. The mechanism IS now known: a context
+      #                    teardown racing the service worker registration that every spec starts
+      #                    on window load. A padded arm crashed 0 times in 360 cycles, and fixing
+      #                    that in tests/visual/_boot.js is queued.
+      #                    Details: docs/handovers/HANDOVER-165-segv-reproducer.md.
       #                    One bug, six times - not a family of crashes.
       #                    `--disable-dev-shm-usage` is already on the launch line above, so the
       #                    usual /dev/shm explanation is excluded.
