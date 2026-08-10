@@ -70,7 +70,8 @@ Requirements: export the helpers alongside the built harness (or a separate `tes
 ⚠️ **"The copies have not drifted yet - checked" was WRONG, and the measurement is the whole story of this batch.** They had drifted three ways: **37** took `(src, name)`, **10** closed over a module-level `SRC` and took `(name)`, **1** took `(src, name, occ)`; and - the one that mattered - **THREE carried the parse guard and FORTY-FIVE did not.** That guard (CodeRabbit, PR #50) exists because the depth counter is brace-naive, so a `}` inside a string ends the slice early and hands back a TRUNCATED function instead of raising. In 45 files that mis-slice was silent.
 Out of scope: `build()`'s exported surface, and any change to what the 48 files actually assert.
 
-## next  A flaky-but-GREEN Playwright run throws away the only trace worth having
+## done  A flaky-but-GREEN Playwright run throws away the only trace worth having
+**Shipped 10 Aug 2026, CI-only, no deploy version. The item's PREMISE was confirmed by measurement and its stated MECHANISM was wrong - see the done section before reusing either.**
 Problem: found 10 Aug 2026 by the pre-push review of the `--retries=1` change, as a direct consequence of it.
 `.github/workflows/test.yml`'s `Upload Playwright report` step is gated `if: failure()`. With retries on, a run where a test fails once and passes on retry **exits 0 and goes green**, so that step never fires - and the trace for the failed attempt, which Playwright DID retain (`--trace=retain-on-failure` keeps it), is discarded with the runner.
 **That is precisely the run you most want to open.** A green-with-flaky run is the only evidence that distinguishes an infra hiccup from an intermittent real regression, and right now it survives as one annotation and a log line, with no DOM snapshot.
@@ -80,6 +81,17 @@ Note this is machinery in a job kept deliberately minimal, which is why it was q
 
 ## done  The Playwright job has no retries, so one slow context launch fails the whole PR
 **Shipped 10 Aug 2026, CI-only, no deploy version - and the item's own honesty premise was DISPROVED by the review; read the done entry before citing it.** See the done section.
+
+## next  `v141-sync-corner.spec.js` has failed IN SETUP three times, on three independent runs, and the volume explanation does NOT hold
+Problem: three setup-phase failures, all in this one spec file, none anywhere else.
+1. `Test timeout of 30000ms exceeded while setting up "context"` - the incident that bought `--retries=1` (batch 159).
+2. `browser.newContext: Target page, context or browser has been closed` - **found locally**, 10 Aug 2026, while rehearsing the flaky-upload gate; the rehearsal itself went flaky, which is the first flake this repo has ever caught outside CI. Test at `:229`.
+3. **`Test timeout of 30000ms exceeded while setting up "context"` again** - CI, on PR #144, the flaky-upload gate's own first live run. Test at `:125`, a DIFFERENT test in the same file. Attempt 0 timed out at **30002ms**; attempt 1 passed in **1671ms**, so the 30 seconds is consumed entirely by context creation and not by the test.
+⚠️ **THE VOLUME EXPLANATION WAS THE FIRST THING CHECKED AND IT DOES NOT SURVIVE.** Measured from the CI json report: 209 tests across 21 spec files, and `v141-sync-corner.spec.js` is only the **SEVENTH largest at 12 tests (5.7%)**. `fresh-states.spec.js` has **33 (15.8%)**, nearly three times as many, and has never flaked. All three flakes are in the 5.7% file. Small n, but that is not what volume looks like.
+The spec does NOT manage contexts itself: no `newContext`, no `browser.close()`, only the standard `page` fixture, so nothing in the file's own code is an obvious cause - which is what makes this worth a proper look rather than a patch.
+Requirements: find what is different about this file's context setup (worker assignment and scheduling position, `installBoot`, the viewport loop, anything it does before the first `page` call), then either name the cause or record positively that it is chance with the arithmetic that says so. Note two of the three are the SAME error, which is a stronger lead than three different ones.
+The trace for occurrence 3 is preserved - `playwright-report` artifact on run `31380462471`, **7-day retention**, so fetch it early or work from the numbers above.
+Out of scope: the retry count, and the flaky-upload gate, which is done.
 
 ## next  "Abbreviation matching in search" has been recorded as shipped for three audits and is not built (AUDIT-v145 D2)
 Problem: `docs/QUEUE.md:30` and `:758` both cite "abbreviation search" as a past example of a queue item that described something as missing which had already shipped - one of the three that motivated this file's own "check an item against the code before working it" warning.
@@ -656,6 +668,14 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 ---
 
 ## done - clear weekly
+
+- **The flaky-but-green Playwright trace** - shipped 10 Aug 2026, **CI-only, no deploy version** (`sw.js` stays `ezplate-v145`), handover `HANDOVER-162-flaky-trace.md`.
+  The upload now fires on `failure() || steps.flaky.outputs.flaky == 'true'`, fed by the json reporter and a detection step. `tests/ci-workflow.test.js` is new, because CI config had **no harness at all** and a wrong gate here does not fail, it goes quiet. Suite 865 → 870.
+  ⚠️ **THE ITEM'S PREMISE WAS CONFIRMED AND ITS MECHANISM WAS WRONG. Do not reuse the mechanism.** It specified grepping the report for `"status":"flaky"`; measured against a real flaky report that literal matches **ZERO** times, because the reporter **pretty-prints** - the file says `"status": "flaky"`, with a space - and the bare word `flaky` hits 11 times in a one-test report. Either grep ships a gate that looks right and never fires, which is worse than the hole it replaces. **`stats.flaky` is the honest signal and it is a number.**
+  Measured on a real flaky run, not reasoned about: the job exits 0, `stats.flaky` is 1, and the failed attempt's `trace.zip` **is** retained, so the item was right that the evidence existed and was being discarded. Two more facts worth keeping: `PLAYWRIGHT_JSON_OUTPUT_NAME` resolves relative to the **CONFIG's** directory, not the cwd; and without it the json reporter prints the entire report to stdout and buries the github reporter's summary.
+  The detector cannot turn a green run red - node parses in a try/catch and prints 0 for a missing or malformed report, so a broken detector loses the artifact rather than the build. With retries removed the coupling tests correctly go QUIET rather than failing.
+  ⚠️ **"All five were mutation-checked" was written here and was FALSE, and the review disproved it - the correction is the more useful record.** Four were. The fifth, the one asserting that the detector reads the file the reporter writes, **could not fail**: it searched the whole job block for a filename it had just extracted from that same block, so the `||` chain ended in a tautology. A future edit pointing the detector at the wrong file would have left it green while the gate went permanently quiet - the exact failure class the test was written to police, inside the test policing it. Repaired to compare the DETECTOR'S OWN block against the env line, and mutation-checked both ways (detector re-pointed at another file; env var renamed with the detector left alone).
+  **The rehearsal went flaky by itself**, on the same spec file as the incident that bought `--retries=1`, which is queued above with the arithmetic that has to come before calling it a defect.
 
 - **One extractor, shared (`tests/_extractfn.js`)** - shipped 10 Aug 2026, **test-only, no deploy version** (`sw.js` stays `ezplate-v145`), handover `HANDOVER-161-shared-extractor.md`.
   48 files migrated, `tests/_extract.js` rewired to the same helper with its exported surface unchanged, and `tests/extractfn.test.js` added because the extractor everything depends on had **no tests at all**. Suite 849 → 865.
