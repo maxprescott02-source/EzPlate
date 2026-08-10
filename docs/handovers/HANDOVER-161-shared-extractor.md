@@ -20,6 +20,12 @@ That guard is now on for every caller, and the suite is green with it on, so not
 Two call sites were `.map(extractFn)`, which passed the array index as the second argument the moment the signature changed.
 They failed loudly when the suite ran, which is the only reason to trust the other 351.
 
+**Review (Sonnet, no brief): one finding, real, fixed.**
+Two dead `require('path')` lines survived in `dash-digin` and `plate-draft`.
+The cause is worth recording because it is a trap in the tool rather than in the code: the migration script decided a module was still used by grepping `\bpath\.`, and PROSE satisfies that pattern when a comment ends a sentence with the word ("the pid path. \*/").
+Re-checked across all 49 files with a pattern that matches the API rather than the word; those two were the only ones.
+It read the rest of the diff call site by call site and found no defect.
+
 ## Into CLAUDE.md
 
 Nothing.
