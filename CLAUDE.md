@@ -215,6 +215,10 @@ Green = at or under target, the Menu-Analysis meaning; sparklines match.
 The older "green = improving" rule made the chart permanently red during ordinary trading.
 `tests/trend-reframe.test.js` holds the pair that catches a revert: rising-under stays green AND falling-over stays red.
 
+**The Dashboard's KPI figures carry the same anchoring** - at or under target is good, over is bad - so the strip, the chart, the sparklines and the Menu rows can never disagree.
+**Colour on a headline figure is a target reading, not a delta.** (Max, 10 Aug 2026.)
+This is also why a "vs last month" delta keeps being the wrong answer to "what does this colour mean": it has now been declined three times (deleted in v98, declined 9 Aug 2026, declined again 10 Aug 2026 as the mechanism a colour-free KPI would have needed).
+
 ## `addProduct` is dead in the app and DELIBERATELY KEPT
 
 The `fresh-states` Playwright specs have no other handle on the pid-line shape, and Playwright is not in `npm test` - so deleting it fails **silently**.
@@ -250,6 +254,24 @@ F2/v138 hit the same class twice more, as `[hidden]` overrides: a single-class r
 An author rule beats the UA's `[hidden]{display:none}` because **author origin wins over UA origin, and origin is decided BEFORE specificity is even compared** - so `.thing{display:block}` overrides it no matter how the selectors measure. Matching specificity therefore achieves nothing here.
 **The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. It is used twice in `css/style.css` (`.plib-controls`, `.plib-note`), both after the renderer's hide was silently ignored and an element sat visible under an empty state.
 **So: any `display` rule on an element the JS hides with `hidden` needs the guard.**
+
+## A viewport-geometry assertion must MEASURE its reference, never name it
+
+**When a Playwright assertion depends on the width of the viewport - anything centred, anything positioned by percentage, anything compared against "the whole screen" - measure the fixed-position containing block with a `position:fixed;left:0;right:0` probe.**
+Never `window.innerWidth`, never `document.documentElement.clientWidth`.
+
+On the Linux CI runner all three disagree: the containing block is **370 inside a 380 viewport and 759 inside 768**, while `innerWidth` and `clientWidth` agree with each other and are both wrong.
+Anything resolved against the block - `left:50%` and friends - is then off by half the difference, so the assertion **passes on macOS, where overlay scrollbars make the three agree, and fails only in CI.**
+Two fixes written from theory without measuring were both wrong; instrumenting the assertion to print its own geometry settled it in one run.
+
+**Scope, stated honestly:** the measurement is one runner and one browser, so read this as a rule about **how to obtain the reference**, not as a claim that the three values differ everywhere.
+The probe is correct wherever they agree too, which is why it is the default rather than a CI workaround.
+
+**The corollary bit twice in the same batch and is a separate trap:** `.bottomnav` measures **370 wide at a 380 viewport**, so discriminating "left rail vs bottom tab bar" by comparing its width against the viewport misfires.
+**Discriminate on ORIENTATION** - a left rail is taller than it is wide.
+
+Worked example and comment: `tests/visual/v141-sync-corner.spec.js` (which states the 370/380 and 759/768 figures at the probe).
+The `.bottomnav` number is recorded in `docs/handovers/HANDOVER-150-sync-corner.md`, not in the spec - cited separately because a reader sent to the spec for it will not find it.
 
 ---
 
@@ -356,7 +378,8 @@ Read the relevant tests first, diagnose with a truth table before patching, lock
   Apply the same pattern to any future rename of a name used as a lookup key elsewhere.
 - **The builder IS a MODAL and has been since v54; Max confirmed this shape on 8 Aug 2026 against a recommendation to change it, and Q6 (v125) shipped its redesign inside the modal.**
   (Tense corrected 9 Aug 2026, Max's yes - the old future-tense wording cost a whole batch hunting a conversion that had shipped two years of versions earlier.)
-  **This line describes TODAY and is scheduled to be reversed** - the 9 Aug decision makes the builder a full page, and the batch that builds it replaces this bullet with that decision and its history.
+  **This line describes TODAY, and the 9 Aug decision reverses it: the builder becomes a full page.** Both facts are true now, which is why both are here.
+  **Which batch does that, and when, is NOT recorded here** - it is the queue item's job, and that item carries the instruction to replace this bullet. (Narrowed 10 Aug 2026 by the sweep the new sequencing rule below required: the old wording ended "the batch that builds it replaces this bullet", which is a scheduling claim nothing in this file could ever check.)
   **A sentence here claiming the dropdown placement work is "UNBLOCKED" because "the positioning context is already final" was DELETED 10 Aug 2026** (Max's yes, AUDIT-v135): both halves were false the moment that reversal was taken.
   The scheduling it asserted lives on the queue item, which re-checks it every batch.
 - **Mobile visual consistency:** one card system, compact header pills not full-width bars, one primary CTA per screen.
@@ -474,6 +497,25 @@ A finding does NOT get its own PR unless it is wrong data or silent loss.** Ever
 **Why (Max, 6 Aug 2026):** one batch merged before its review was readable, so every finding afterwards needed a *new* PR, and each new PR drew its own review, which found its own smaller thing - severity decaying each round, cost not.
 Six PRs and ten review runs from one mistake.
 **The steady state is ONE batch, ONE PR, ONE review.** A docs-only PR is free, so moving something to the queue loses nothing.
+
+## Which item runs before which belongs in the QUEUE, never here
+
+**A claim that one piece of WORK should happen before another piece of WORK lives in `docs/QUEUE.md`, as a `Do after:` line.** The queue re-checks its ordering every batch through the step-1 sweep and deletes the line the moment it is satisfied; this file has no mechanism that can notice a scheduling claim going stale, so one rots here silently and is then trusted.
+
+The evidence is a sentence that sat here after the decision that falsified it: *"the dropdown placement work is therefore UNBLOCKED - the positioning context is already final"*, both halves false from the day the builder reversal was taken, and nothing could catch it.
+`Do after:` exists at all because the same rot in QUEUE prose left one item waiting two years of versions on a conversion that had already shipped.
+
+⚠️ **This is NOT a ban on sequencing language, and reading it as one would contradict rules elsewhere in this file.** The distinction is what the sequence is about:
+
+- **Which queue item runs before which** - "do the dropdowns after F10", "this gets cheaper once F8 lands" → **the queue.** It names items, it expires, and something checks it.
+- **Standing procedure INSIDE one piece of work** - "staging first, then production", "order the statements so the dangerous intermediate state cannot exist", "push the plate, confirm it, then the dish" → **here.** It names no item, it never expires, and it is true every time the work is done.
+
+If you cannot name the queue item, you are probably writing the second kind and it belongs here.
+
+**The worked example, because the boundary is where this gets decided wrongly:** the privacy gate above says to revisit the Gemini tier *before any multi-tenant customer's data flows through those endpoints.* That LOOKS like the first kind and is the second. It names no queue item, it never expires, and it binds **any** future endpoint that ships user data to a third-party model - so it is a standing precondition on a class of work, not "item A before item B", and it stays here.
+Contrast the sentence this rule was written for: *"the dropdown placement work is therefore UNBLOCKED"* named specific work, was falsified by one decision, and nothing here could notice.
+
+(Approved by Max 10 Aug 2026, taking the recommendation, with this narrower wording rather than the original "sequencing lives in the queue, **never** in `CLAUDE.md`" - which its own pre-push review found too broad, because Tier 3's Migrations section legitimately states standing sequencing.)
 
 ## Changing this file
 
