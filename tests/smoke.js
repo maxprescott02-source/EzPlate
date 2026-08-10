@@ -78,15 +78,28 @@ if (!loaded) { console.log('\nsmoke: aborting — nothing else can be trusted.\n
 
 const $ = id => window.document.getElementById(id);
 
-console.log('\n[2] item 6 — Settings');
-ok('#settingsPanel exists', !!$('settingsPanel'));
-ok('gear opens it', (() => { $('settingsBtn').click(); return $('settingsPanel').classList.contains('open'); })());
+/* F9 (v148): Settings is a SCREEN. Every assertion below used to open a modal and read its state;
+   they now navigate and read the same state, because what they were ever really checking is that
+   the controls arrive PRIMED — which the modal did on open and the screen does in its render. */
+console.log('\n[2] Settings screen');
+ok('#tab-settings exists', !!$('tab-settings'));
+ok('the header gear navigates to it', (() => { $('settingsBtn').click(); return $('tab-settings').style.display !== 'none'; })());
+ok('and every other pane is hidden', ['builder','ingredients','analysis','dashboard','pantry','invoices']
+   .every(n => $('tab-' + n).style.display === 'none'));
 // derive the expected version from sw.js's CACHE so this never rots again (settings.test.js pins the full six-spot mirror)
 const swVer = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/ezplate-(v\d+)/) || [])[1];
 ok('About shows the version, matching sw.js', $('setVersion').textContent === swVer, $('setVersion').textContent + ' vs ' + swVer);
 ok('COGS input prefills from cogsPct', $('setCogsInput').value === String(window.cogsPct), $('setCogsInput').value);
 ok('GST default prefills', ['ex','inc'].indexOf($('setGstDefault').value) >= 0, $('setGstDefault').value);
-ok('Done closes it', (() => { $('settingsDone').click(); return !$('settingsPanel').classList.contains('open'); })());
+/* The priming is the screen's one fragile spot, so drive it the way the bug would happen: leave the
+   screen, change the value underneath it, come back. The modal re-primed on every open; if the
+   screen ever stops re-priming on every entry, this is what goes stale. */
+ok('leaving the screen hides it', (() => { window.showTab('builder'); return $('tab-settings').style.display === 'none'; })());
+ok('re-entering RE-PRIMES from state, it does not keep what was on screen', (() => {
+  $('setCogsInput').value = '99';                 // scribble on the DOM without touching the state
+  window.showTab('settings');
+  return $('setCogsInput').value === String(window.cogsPct);
+})(), $('setCogsInput').value + ' vs ' + window.cogsPct);
 
 console.log('\n[3] item 6 — COGS moved to Settings and still drives the maths');
 ok('Menu tab has no editable #cogsTarget', !$('cogsTarget'));
@@ -100,20 +113,19 @@ $('setCogsInput').dispatchEvent(new window.Event('input'));
 ok('editing in Settings changes analyze()', window.analyze(4, null).suggested === 16, `was ${before}, now ${window.analyze(4,null).suggested}`);
 window.renderAnalysis();
 ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 'Suggested at 25%', $('aSuggestedTh').textContent);   // F5 (v142): the mock's §3.2 wording
-$('settingsDone').click();
 
-console.log('\n[3b] v81 — Settings sectioned surface (sidebar / drill-down + AI toggles)');
-const setPanel = window.document.querySelector('#settingsPanel .settings-panel');
-const navItem = g => window.document.querySelector(`.set-navitem[data-goto="${g}"]`);
+/* F9 (v148): the section nav, the mobile drill-down and the back arrow are GONE — they were the
+   modal's way of showing one section at a time, and a screen shows all eight at once. What replaces
+   those four assertions is that every section is present and visible simultaneously; the AI-toggle
+   assertions below are unchanged, because the toggles are. */
+console.log('\n[3b] Settings screen — all sections visible at once + the AI toggles');
 $('settingsBtn').click();
-ok('opens on the General section', $('setSec-general') && !$('setSec-general').hidden && $('setSec-invoices').hidden);
-ok('General nav item is current on open', navItem('general').getAttribute('aria-current') === 'page');
-ok('seven section nav items', window.document.querySelectorAll('#settingsPanel .set-navitem').length === 7);
-navItem('invoices').click();
-ok('tapping a section drills in (detail-open) and swaps the content', setPanel.classList.contains('detail-open') && !$('setSec-invoices').hidden && $('setSec-general').hidden);
-ok('the drilled-into section is marked current', navItem('invoices').getAttribute('aria-current') === 'page');
-$('settingsBack').click();
-ok('back arrow returns to the list (detail-open cleared)', !setPanel.classList.contains('detail-open'));
+ok('eight section cards, all rendered at once', (() => {
+  const hs = [...window.document.querySelectorAll('#tab-settings .stg-card-h')].map(h => h.textContent);
+  return hs.join('|') === 'Costing|AI features|Appearance|Lists|Data|Account|Team|About';
+})(), [...window.document.querySelectorAll('#tab-settings .stg-card-h')].map(h => h.textContent).join('|'));
+ok('none of them is hidden — there is no section to be "on"',
+   [...window.document.querySelectorAll('#tab-settings .stg-card')].every(c => !c.hidden));
 ok('AI invoice check prefills from state (ON by default)', $('setAiInvoiceChk').checked === window.aiInvoiceCheck && window.aiInvoiceCheck === true);
 ok('AI suggestions prefills from state (ON by default)', $('setAiSuggestChk').checked === window.aiSuggestions && window.aiSuggestions === true);
 $('setAiInvoiceChk').checked = false; $('setAiInvoiceChk').dispatchEvent(new window.Event('change'));
@@ -124,7 +136,7 @@ ok('turning AI suggestions off removes the Dashboard insights panel', !window.do
 $('setAiSuggestChk').checked = true; $('setAiSuggestChk').dispatchEvent(new window.Event('change'));   // restore ON
 // v136 (F1a): dark returns — these two assertions pinned its absence and are rewritten,
 // not dropped. They now drive the live mechanism rather than reading the markup.
-ok('v136: all three theme choices are in Settings', window.document.querySelectorAll('#settingsPanel .seg-btn[data-theme-pref]').length === 3);
+ok('v136: all three theme choices are in Settings', window.document.querySelectorAll('#tab-settings .seg-btn[data-theme-pref]').length === 3);
 (function(){
   var root = window.document.documentElement;
   window.applyThemePref('dark');
@@ -142,7 +154,7 @@ ok('v136: all three theme choices are in Settings', window.document.querySelecto
   window.applyThemePref('light');
   ok('v136: switching back to Light leaves no stale dark attribute', root.getAttribute('data-theme') === 'light');
 })();
-$('settingsDone').click();
+window.showTab('builder');   // F9: no Done button to press — leaving is a tab change
 
 console.log('\n[4] item 6 — backup export');
 let exported = null;

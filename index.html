@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=147">
+<link rel="stylesheet" href="css/style.css?v=148">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -492,6 +492,188 @@
       </div>
     </div>
   </div><!-- /tab-invoices -->
+
+  <!-- F9 (v148): Settings is a SCREEN. Rebuilt from `Redesign v3 - SaaS.dc.html` §3.8 (desktop) and
+       `… Mobile.dc.html` §6 (mobile) per FOLD-IN-PROTOCOL §1.2; the v81 #settingsPanel modal — its
+       sidebar nav, its mobile list→detail drill, its Done footer and all of its CSS — is deleted in
+       this same change. The drill was a MODAL affordance: a screen has room to show every section at
+       once, so there is no nav to be on and no back arrow to press.
+       `.scr-head` / `.plib-panel` are F2's ported mock patterns, reused not rebuilt.
+
+       BOTH routes in survive, and neither may be removed. `header{display:none}` inside
+       `@media (min-width:1024px)` makes #settingsBtn (the gear) MOBILE-ONLY and #sideSettings
+       DESKTOP-ONLY — two routes with no overlap and no width without one. They navigate now instead
+       of opening an overlay. The queue's More-screen item adds a third; it does not replace these.
+
+       R4 — the mock shows five things with no backing, and none is drawn as a control:
+        · Business name + currency: neither is stored anywhere.
+        · Notifications (price-rise alerts, weekly summary): no notification system, no email, no
+          scheduler. Two switches wired to nothing would be §R4's dead control.
+        · "Export everything as CSV": a behaviour spec, in docs/MAINTENANCE.md.
+        · "Delete workspace": no workspace concept exists to delete — gated on the multi-tenant phase.
+        · "Sign out": waits on auth.
+       R2 — the mock's header carries a "Save changes" button. This app writes on change, so the
+       button would do nothing; the header says so in one line instead.
+       §4's five states: this screen performs NO fetch. It renders from settings already in memory
+       when bootstrapSync finished, so it has no skeleton, no empty and no error state to draw — the
+       boot gate already owns the only load this data has. First run is the seeded defaults. -->
+  <div id="tab-settings" style="display:none">
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Settings</h2>
+        <span class="scr-sub">Changes save as you make them</span>
+      </div>
+      <div class="stg-cards">
+
+        <section class="stg-card">
+          <h3 class="stg-card-h">Costing</h3>
+          <div class="stg-body">
+            <div class="stg-row">
+              <div class="stg-text">
+                <label class="stg-lbl" for="setCogsInput">Target food cost</label>
+                <p class="stg-help">Share of the sell price going to ingredients. Drives suggested prices and the target line.</p>
+              </div>
+              <div class="stg-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
+            </div>
+            <!-- the mock's Costing card carries "Prices include GST" as a switch. R2: the app's control
+                 is a two-option SELECT and it means "assume this when the invoice does not say", which
+                 a boolean cannot express. The mock's PLACEMENT is taken; the select's meaning is kept. -->
+            <div class="stg-row">
+              <div class="stg-text">
+                <label class="stg-lbl" for="setGstDefault">GST default</label>
+                <p class="stg-help">Used only when an invoice doesn&rsquo;t say. Costs are always stored ex-GST.</p>
+              </div>
+              <select id="setGstDefault" class="stg-ctl">
+                <option value="ex">GST-exclusive</option>
+                <option value="inc">GST-inclusive</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- one card, because these two switches are the app's ONLY calls to a third party and the
+             About card's privacy sentence names exactly this pair. Splitting them across an Invoices
+             card and a Dashboard card hid that. -->
+        <section class="stg-card">
+          <h3 class="stg-card-h">AI features</h3>
+          <div class="stg-body">
+            <div class="stg-row">
+              <div class="stg-text">
+                <label class="stg-lbl" for="setAiInvoiceChk">AI invoice check</label>
+                <p class="stg-help">A second AI read of invoice matches. Off = imports stay fully offline.</p>
+              </div>
+              <label class="switch stg-ctl"><input type="checkbox" id="setAiInvoiceChk"><span class="switch-track" aria-hidden="true"></span></label>
+            </div>
+            <div class="stg-row">
+              <div class="stg-text">
+                <label class="stg-lbl" for="setAiSuggestChk">AI suggestions</label>
+                <p class="stg-help">Shows margin insights on the Dashboard. Off = no AI calls.</p>
+              </div>
+              <label class="switch stg-ctl"><input type="checkbox" id="setAiSuggestChk"><span class="switch-track" aria-hidden="true"></span></label>
+            </div>
+          </div>
+        </section>
+
+        <!-- R3: the theme segment has no home in the mock, which puts a compact toggle in the
+             desktop-only sidebar (F1b shipped that too). It is rehomed, not dropped — the sidebar
+             toggle is invisible below 1024 and this is the only theme control a phone has. -->
+        <section class="stg-card">
+          <h3 class="stg-card-h">Appearance</h3>
+          <div class="stg-body">
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl" id="setThemeLbl">Theme</span>
+                <p class="stg-help">System follows your phone&rsquo;s setting.</p>
+              </div>
+              <div class="seg stg-ctl" role="radiogroup" aria-labelledby="setThemeLbl">
+                <button type="button" class="seg-btn" id="setThemeLight" data-theme-pref="light" role="radio" aria-checked="false">Light</button>
+                <button type="button" class="seg-btn" id="setThemeDark" data-theme-pref="dark" role="radio" aria-checked="false">Dark</button>
+                <button type="button" class="seg-btn" id="setThemeSystem" data-theme-pref="system" role="radio" aria-checked="true">System</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- R3: both doors survive the conversion. They used to close Settings and reopen it on the
+             way back (reopenSettingsSection); a modal opening OVER a screen needs none of that —
+             closing it reveals the screen underneath, already rendered. -->
+        <section class="stg-card">
+          <h3 class="stg-card-h">Lists</h3>
+          <div class="stg-body">
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Remembered packs</span>
+                <p class="stg-help">Pack sizes learned from invoices &mdash; remove a wrong one and the next invoice re-teaches it.</p>
+              </div>
+              <button class="btn stg-ctl" id="setSmemOpen" type="button">Open</button>
+            </div>
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Tidy lists</span>
+                <p class="stg-help">Rename, merge or clear categories, brands and suppliers &mdash; applies everywhere at once.</p>
+              </div>
+              <button class="btn stg-ctl" id="setTidyOpen" type="button">Open</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="stg-card">
+          <h3 class="stg-card-h">Data</h3>
+          <div class="stg-body">
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Export backup</span>
+                <p class="stg-help">Products, ingredients, plates, menus and settings, as one dated JSON file.</p>
+              </div>
+              <button class="btn stg-ctl" id="setExport" type="button">Export</button>
+            </div>
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Restore from backup</span>
+                <p class="stg-help">Replaces your products, ingredients, plates and menus with the contents of a backup file. Can&rsquo;t be undone.</p>
+              </div>
+              <input type="file" id="setRestoreFile" accept="application/json,.json" style="display:none">
+              <button class="btn stg-ctl stg-danger" id="setRestore" type="button">Restore</button>
+            </div>
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Clear cache &amp; refresh</span>
+                <p class="stg-help">Re-downloads the app. Your data is untouched.</p>
+              </div>
+              <button class="btn stg-ctl" id="setClearCache" type="button">Clear</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- kept verbatim: F10 (the Account screen) owns whether these two stay, and it is the next
+             queue item. Honest one-liners, not disabled controls. -->
+        <section class="stg-card">
+          <h3 class="stg-card-h">Account</h3>
+          <div class="stg-body">
+            <p class="stg-soon">Sign-in and account settings arrive with EzPlate accounts.</p>
+          </div>
+        </section>
+
+        <section class="stg-card">
+          <h3 class="stg-card-h">Team</h3>
+          <div class="stg-body">
+            <p class="stg-soon">Team roles arrive with EzPlate accounts.</p>
+          </div>
+        </section>
+
+        <section class="stg-card stg-about">
+          <h3 class="stg-card-h">About</h3>
+          <div class="stg-body">
+            <p><b>EzPlate</b> &mdash; Plate costing made easy</p>
+            <p class="hint">Version <span id="setVersion">&mdash;</span></p>
+            <p class="hint">Contact: <a class="linklike" href="tel:0423960797">0423 960 797</a></p>
+            <p class="hint">Privacy &mdash; data stays on this device and EzPlate&rsquo;s synced database. AI features (both optional, above) send invoice text and plate names to Google Gemini.</p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div><!-- /tab-settings -->
 </div>
 
 <!-- Add-ingredient modal -->
@@ -785,155 +967,11 @@
 
 
 
-<!-- Settings (ITEM 6, v35): header gear, not a sixth nav tab — five is the max at readable label sizes -->
-<div class="modal-overlay" id="settingsPanel" aria-hidden="true">
-  <div class="modal settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <div class="mhead">
-      <button class="set-back" id="settingsBack" type="button" aria-label="Back to sections"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
-      <h3 id="settingsTitle">Settings</h3>
-      <button class="x" id="settingsClose" type="button" aria-label="Close">&times;</button>
-    </div>
-    <!-- v81: sectioned Settings — sidebar (desktop ≥640) / list→detail drill-down (mobile ≤639). One nav, one
-         content column; #settingsBtn/openSettings/all control ids preserved so the smoke + settings tests hold. -->
-    <div class="mbody set-shell">
-      <nav class="set-nav" aria-label="Settings sections">
-        <button class="set-navitem" type="button" data-goto="general" aria-current="page">General<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="set-navitem" type="button" data-goto="invoices">Invoices<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="set-navitem" type="button" data-goto="lists">Lists<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="set-navitem" type="button" data-goto="data">Data<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="set-navitem" type="button" data-goto="account">Account<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="set-navitem" type="button" data-goto="team">Team<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="set-navitem" type="button" data-goto="about">About<svg class="set-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      </nav>
-
-      <div class="set-content">
-
-        <section class="set-section" id="setSec-general" data-section="general">
-          <h4 class="set-sec-title">General</h4>
-          <div class="set-item">
-            <div class="set-item-text">
-              <label class="set-item-label" for="setCogsInput">Target food cost</label>
-              <p class="set-item-help">Share of the sell price going to ingredients. Drives suggested prices and the target line.</p>
-            </div>
-            <div class="set-item-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
-          </div>
-          <!-- v136 (F1a): the Theme segment RETURNS. v132 removed it because the app was light
-               only; the replacement design package ships both palettes and FOLD-IN-PROTOCOL §6
-               orders both ported, so the condition v132 set ("its own designed package") is met.
-               Settings is deliberately the home: it is reachable at every screen size, whereas
-               the mock's compact toggle lives in the desktop-only sidebar and lands with F1b. -->
-          <div class="set-item">
-            <div class="set-item-text">
-              <span class="set-item-label" id="setThemeLbl">Theme</span>
-              <p class="set-item-help">System follows your phone’s setting.</p>
-            </div>
-            <div class="seg set-item-ctl" role="radiogroup" aria-labelledby="setThemeLbl">
-              <button type="button" class="seg-btn" id="setThemeLight" data-theme-pref="light" role="radio" aria-checked="false">Light</button>
-              <button type="button" class="seg-btn" id="setThemeDark" data-theme-pref="dark" role="radio" aria-checked="false">Dark</button>
-              <button type="button" class="seg-btn" id="setThemeSystem" data-theme-pref="system" role="radio" aria-checked="true">System</button>
-            </div>
-          </div>
-          <div class="set-item">
-            <div class="set-item-text">
-              <label class="set-item-label" for="setAiSuggestChk">AI suggestions</label>
-              <p class="set-item-help">Shows margin insights on the Dashboard. Off = no AI calls.</p>
-            </div>
-            <label class="switch set-item-ctl"><input type="checkbox" id="setAiSuggestChk"><span class="switch-track" aria-hidden="true"></span></label>
-          </div>
-        </section>
-
-        <section class="set-section" id="setSec-invoices" data-section="invoices" hidden>
-          <h4 class="set-sec-title">Invoices</h4>
-          <div class="set-item">
-            <div class="set-item-text">
-              <label class="set-item-label" for="setGstDefault">GST default</label>
-              <p class="set-item-help">Used only when an invoice doesn’t say. Costs are always stored ex-GST.</p>
-            </div>
-            <select id="setGstDefault" class="set-item-ctl">
-              <option value="ex">GST-exclusive</option>
-              <option value="inc">GST-inclusive</option>
-            </select>
-          </div>
-          <div class="set-item">
-            <div class="set-item-text">
-              <label class="set-item-label" for="setAiInvoiceChk">AI invoice check</label>
-              <p class="set-item-help">A second AI read of invoice matches. Off = imports stay fully offline.</p>
-            </div>
-            <label class="switch set-item-ctl"><input type="checkbox" id="setAiInvoiceChk"><span class="switch-track" aria-hidden="true"></span></label>
-          </div>
-          <div class="set-item">
-            <div class="set-item-text">
-              <span class="set-item-label">Remembered packs</span>
-              <p class="set-item-help">Pack sizes learned from invoices — remove a wrong one and the next invoice re-teaches it.</p>
-            </div>
-            <button class="btn set-item-ctl" id="setSmemOpen" type="button">Open</button>
-          </div>
-        </section>
-
-        <section class="set-section" id="setSec-lists" data-section="lists" hidden>
-          <h4 class="set-sec-title">Lists</h4>
-          <div class="set-item">
-            <div class="set-item-text">
-              <span class="set-item-label">Tidy lists</span>
-              <p class="set-item-help">Rename, merge or clear categories, brands and suppliers — applies everywhere at once.</p>
-            </div>
-            <button class="btn set-item-ctl" id="setTidyOpen" type="button">Open</button>
-          </div>
-        </section>
-
-        <section class="set-section" id="setSec-data" data-section="data" hidden>
-          <h4 class="set-sec-title">Data</h4>
-          <div class="set-item">
-            <div class="set-item-text">
-              <span class="set-item-label">Export backup</span>
-              <p class="set-item-help">Products, ingredients, plates, menus and settings, as one dated JSON file.</p>
-            </div>
-            <button class="btn set-item-ctl" id="setExport" type="button">Export</button>
-          </div>
-          <div class="set-item">
-            <div class="set-item-text">
-              <span class="set-item-label">Restore from backup</span>
-              <p class="set-item-help">Replaces your products, ingredients, plates and menus with the contents of a backup file. Can’t be undone.</p>
-            </div>
-            <input type="file" id="setRestoreFile" accept="application/json,.json" style="display:none">
-            <button class="btn set-item-ctl" id="setRestore" type="button">Restore</button>
-          </div>
-          <div class="set-item">
-            <div class="set-item-text">
-              <span class="set-item-label">Clear cache &amp; refresh</span>
-              <p class="set-item-help">Re-downloads the app. Your data is untouched.</p>
-            </div>
-            <button class="btn set-item-ctl" id="setClearCache" type="button">Clear</button>
-          </div>
-        </section>
-
-        <section class="set-section" id="setSec-account" data-section="account" hidden>
-          <h4 class="set-sec-title">Account</h4>
-          <div class="set-empty">
-            <p class="set-empty-title">Sign-in and account settings arrive with EzPlate accounts.</p>
-          </div>
-        </section>
-
-        <section class="set-section" id="setSec-team" data-section="team" hidden>
-          <h4 class="set-sec-title">Team</h4>
-          <div class="set-empty">
-            <p class="set-empty-title">Team roles arrive with EzPlate accounts.</p>
-          </div>
-        </section>
-
-        <section class="set-section set-about" id="setSec-about" data-section="about" hidden>
-          <h4 class="set-sec-title">About</h4>
-          <p><b>EzPlate</b> — Plate costing made easy</p>
-          <p class="hint">Version <span id="setVersion">—</span></p>
-          <p class="hint">Contact: <a class="linklike" href="tel:0423960797">0423 960 797</a></p>
-          <p class="hint">Privacy — data stays on this device and EzPlate’s synced database. AI features (both optional, in Settings) send invoice text and plate names to Google Gemini.</p>
-        </section>
-
-      </div>
-    </div>
-    <div class="mfoot"><button class="btn primary" id="settingsDone" type="button">Done</button></div>
-  </div>
-</div>
+<!-- F9 (v148) tombstone: the #settingsPanel MODAL is gone. Settings is #tab-settings, a screen,
+     built from the v3 mock's §3.8 / §6 above. Deleted with it: the .set-nav sidebar, the seven
+     .set-navitem sections, the mobile list→detail drill (.detail-open / #settingsBack) and the Done
+     footer — every one of them a modal affordance a screen has no need for. Both routes IN survive:
+     #settingsBtn (mobile) and #sideSettings (desktop) now navigate. -->
 
 <!-- v60 item 8: Tidy-lists MANAGER modal — the field picker + values list moved out of Settings so
      Settings stays short. Opened from the Settings row AND from each category/supplier filter's
@@ -1023,17 +1061,18 @@
   <!-- data-tab stays "builder"; its LABEL is now "Plates" (v54 — the tab is the plates library) -->
   <button class="navbtn active" data-tab="builder" type="button" aria-label="Plates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v4"/><path d="M9 3v4"/><path d="M12 3v4"/><path d="M6 7h6"/><path d="M9 7v14"/><path d="M18 3v18"/><path d="M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2"/></svg><span class="nl">Plates</span></button>
   <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
-  <!-- v132: the v3 sidebar's bottom group. Desktop-only (≥1024, CSS-hidden below) — mobile keeps
-       the header gear until F9. No data-tab on purpose: these are overlays, not tabs.
+  <!-- v132: the v3 sidebar's bottom group. Desktop-only (≥1024, CSS-hidden below); the header gear
+       is the mobile route and stays.
        v137 (F1b): Invoices joins it, opening the SAME import flow as the Products tab's button —
        placement only, no new capability. The mock's "UI states" entry is a spec screen for the
        designer and is not an app screen; the account row is R4 (no workspace concept exists) and
        F10 owns the one question about it.
-       F8 (v147): Invoices is a SCREEN now, so this entry navigates rather than opening the modal —
-       `data-tab="invoices"` is a NEW key, not a rename of an existing one. Settings has no data-tab
-       and still does not: it is an overlay until F9. -->
+       F8 (v147) then F9 (v148): both are SCREENS now, so both entries navigate rather than opening
+       a modal. `data-tab="invoices"` and `data-tab="settings"` are NEW keys, not renames of existing
+       ones — nothing was renamed to make this work. The earlier "no data-tab on purpose: these are
+       overlays" note is what these two lines replace, and it is no longer true of either. -->
   <button class="navbtn nav-bottom" data-tab="invoices" id="sideInvoices" type="button" aria-label="Invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg><span class="nl">Invoices</span></button>
-  <button class="navbtn nav-bottom nav-settings" id="sideSettings" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span class="nl">Settings</span></button>
+  <button class="navbtn nav-bottom nav-settings" data-tab="settings" id="sideSettings" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span class="nl">Settings</span></button>
 </nav>
 
 <div id="printDocket" aria-hidden="true"></div>
@@ -1044,7 +1083,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=147"></script>
+<script src="js/app.js?v=148"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

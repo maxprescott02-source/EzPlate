@@ -2495,45 +2495,69 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .tidy-warn{margin:var(--sp-2) 0 0;color:var(--text2);font-size:var(--fs-sm);line-height:1.5}
 @media (max-width:560px){ .tidy-row{flex-wrap:wrap} .tidy-acts{flex-basis:100%;justify-content:flex-end} }
 
-/* ===== batch (v81) — Settings: sectioned surface (sidebar desktop / list→detail mobile) ===== */
-.settings-panel{max-width:760px;width:100%}
-#settingsPanel .settings-panel{max-height:86vh;max-height:86dvh}
-/* the mbody IS the shell: a two-column row on desktop, a single column on mobile */
-.set-shell{flex:1 1 auto;min-height:0;display:flex;align-items:stretch;padding:0;overflow:hidden}
-/* nav — sidebar on desktop */
-.set-nav{flex:0 0 184px;display:flex;flex-direction:column;gap:2px;padding:var(--sp-4) var(--sp-3);border-right:1px solid var(--border);overflow:auto;background:var(--surface2)}
-.set-navitem{display:flex;align-items:center;gap:var(--sp-2);width:100%;text-align:left;padding:10px 12px;min-height:44px;border:0;border-radius:var(--radius-ctl);background:transparent;color:var(--text2);font-size:var(--fs-base);font-weight:700;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
-.set-navitem:hover{background:var(--hover);color:var(--text)}
-.set-navitem[aria-current="page"]{background:var(--accent-weak);color:var(--accent-ink);font-weight:700}
-.set-chev{display:none;width:18px;height:18px;flex:0 0 auto;margin-left:auto;color:var(--muted2)}
-/* content pane */
-.set-content{flex:1 1 auto;min-width:0;padding:var(--sp-5) var(--sp-6);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.set-section[hidden]{display:none}
-.set-sec-title{margin:0 0 var(--sp-4);font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text)}
-/* Q9: on desktop the title duplicates the highlighted nav item, so it is sr-only'd rather than
-   removed — AT keeps the section heading, and mobile detail (≤639) still shows it as the ONLY
-   visible section label there. Declarations mirror .sr-only — if that utility's technique ever
-   changes, change this block too (a class can't be applied per-viewport, hence the copy) */
-@media (min-width:640px){
-  .set-sec-title{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* ======================================================================
+   F9 (v148) — SETTINGS, AS A SCREEN
+   Source: `Redesign v3 - SaaS.dc.html` §3.8 desktop, `… Mobile.dc.html` §6.
+
+   Replaces the whole v81 modal surface, deleted in this same change: .settings-panel,
+   .set-shell, .set-nav, .set-navitem, .set-chev, .set-content, .set-section,
+   .set-sec-title (and its sr-only @media), .set-item*, .set-empty*, .set-about,
+   .set-back, the max-width:639 drill-down block, .set-group (already dead — no markup
+   used it since v36) and the four `#settingsPanel .settings-panel` selectors paired into
+   the sheet primitive at the end of this file. Grepped against index.html AND js/app.js
+   before each deletion.
+
+   The mock's card: 1px border, 10px radius, a tinted header band on a hairline, then a
+   body of label/control rows. The desktop mock uses a 180px label column; the mobile
+   mock stacks. One rule set, one breakpoint (768, the v3 breakpoint the rest of the
+   file uses), and the two states of every declaration are written at the SAME
+   specificity — a multi-class selector outside a media query beats a single-class one
+   inside it, which this file has now paid for seven times.
+   ====================================================================== */
+.stg-cards{display:flex;flex-direction:column;gap:var(--sp-4);max-width:680px}
+.stg-card{border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);overflow:hidden}
+.stg-card-h{margin:0;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface2);font-size:var(--fs-sm);font-weight:700;letter-spacing:0;color:var(--text)}
+.stg-body{padding:4px 20px}
+/* the ONE settings-row pattern: label + help left, control right */
+.stg-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) 0;border-top:1px solid var(--hairline)}
+.stg-row:first-child{border-top:0}
+.stg-text{flex:1 1 auto;min-width:0}
+.stg-lbl{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.stg-help{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:400;color:var(--text2);line-height:1.5}   /* Q9: --text2, not --muted2 — this copy is needed to act on the control beside it */
+.stg-ctl{flex:0 0 auto}
+.stg-ctl.btn{min-height:44px}
+.stg-body select.stg-ctl{width:auto;min-width:150px;max-width:220px;padding:10px 34px 10px 12px;min-height:44px;border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
+/* Restore replaces everything and cannot be undone, so it is the one control here that reads as a
+   consequence. Outline, not fill: it is not the screen's primary action, and the mock styles its own
+   destructive control exactly this way (border + text in --danger over the plain surface). */
+.stg-ctl.stg-danger{border-color:var(--bad);color:var(--bad)}
+.stg-ctl.stg-danger:hover{background:var(--bad-bg)}
+/* Q9's target-% input, moved with its row: matches the GST select beside it (border2, ctl radius,
+   44px) and the app's numeral idiom (mono, right-aligned). The WHOLE .cogs-in definition lives here —
+   sole consumer is this row; the old menu-analysis block holds only a tombstone. */
+.stg-ctl.cogs-in{display:inline-flex;align-items:center;gap:6px}
+.stg-ctl.cogs-in input{width:74px;min-height:44px;padding:10px;text-align:right;font:inherit;font-family:var(--mono);font-weight:600;font-size:var(--fs-base);border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
+.stg-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
+/* Account / Team — a coming feature, not a disabled control (F10 owns whether they stay) */
+.stg-soon{margin:var(--sp-4) 0;font-size:var(--fs-base);color:var(--text2)}
+.stg-about p{margin:0 0 4px}
+.stg-about p:first-child{margin-top:var(--sp-4)}
+.stg-about p:last-child{margin-bottom:var(--sp-4)}
+.stg-about .hint{font-weight:400}
+
+@media (max-width:767px){
+  /* the mobile mock stacks label above control and gives every row a 44px reach */
+  .stg-cards{gap:var(--sp-3);max-width:none}
+  .stg-body{padding:2px 16px}
+  .stg-card-h{padding:12px 16px}
+  .stg-row{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
+  .stg-ctl{align-self:flex-start}
+  .stg-body select.stg-ctl{width:100%;max-width:none}
 }
-/* the ONE settings-row pattern app-wide: label + help on the left, control on the right */
-.set-item{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) 0;border-top:1px solid var(--border)}
-.set-item:first-of-type{border-top:0;padding-top:0}
-.set-item-text{flex:1 1 auto;min-width:0}
-.set-item-label{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text)}
-.set-item-help{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);font-weight:400;color:var(--text2);line-height:1.5}   /* Q9: --text2, not --muted2 — this copy is needed to act on the control beside it */
-.set-item-ctl{flex:0 0 auto}
-.set-content select.set-item-ctl{width:auto;min-width:150px;max-width:220px;padding:10px 34px 10px 12px;min-height:44px;border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
-.set-item-ctl.btn{min-height:44px}
-/* Q9: the target-% input matches the GST select beside it (border2, ctl radius, 44px) and the
-   app's numeral idiom (mono, right-aligned). The WHOLE .cogs-in definition lives here — sole
-   consumer is this row; the old menu-analysis block holds only a tombstone */
-.set-item-ctl.cogs-in{display:inline-flex;align-items:center;gap:6px}
-.set-item-ctl.cogs-in input{width:74px;min-height:44px;padding:10px;text-align:right;font:inherit;font-family:var(--mono);font-weight:600;font-size:var(--fs-base);border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
-.set-item-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
+
 /* segmented control (theme) */
 /* v136 (F1a): .seg / .seg-btn RESTORED with the Settings theme segment, its only consumer
+   (F9/v148 moved that segment from the modal to #tab-settings; same component, new home)
    (v132 deleted both together). Q9's quiet-selected reasoning is carried over verbatim
    because it still holds in light — and now holds in dark too, since every value here is a
    token: --accent-weak is the one that flips (a 10% black-orange wash over white becomes an
@@ -2543,48 +2567,28 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .seg-btn{appearance:none;-webkit-appearance:none;border:0;border-left:1px solid var(--border);background:transparent;color:var(--text2);font-size:var(--fs-sm);font-weight:700;padding:9px 12px;min-height:44px;cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
 .seg-btn:first-child{border-left:0}
 .seg-btn:hover{background:var(--hover);color:var(--text)}
-.seg-btn[aria-checked="true"]{background:var(--accent-weak);color:var(--text);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--accent)}   /* Q9: quiet selected state — solid accent competed with Done, the modal's one primary CTA. --text not --accent-ink (accent-ink on accent-weak is 4.37:1 in light — fails AA at 13px), and the inset ring is what keeps selected ≠ hover (--hover and composited --accent-weak are near-identical in light) */
-/* switch */
-.switch{position:relative;display:inline-flex;flex:0 0 auto;cursor:pointer}
+.seg-btn[aria-checked="true"]{background:var(--accent-weak);color:var(--text);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--accent)}   /* Q9: quiet selected state — solid accent competed with the modal's one primary CTA (a Done button F9/v148 deleted with the modal; the reasoning survives it, because a solid-accent segment would now be the loudest thing on a screen that has no primary CTA at all). --text not --accent-ink (accent-ink on accent-weak is 4.37:1 in light — fails AA at 13px), and the inset ring is what keeps selected ≠ hover (--hover and composited --accent-weak are near-identical in light) */
+/* switch — F9 (v148) resized to the mock: 38x22 with an 18px knob sliding 2px->18px (§3.8), and
+   44x26 with a 22px knob below 768 (the mobile mock's own numbers). It shipped 48x28 at both, which
+   was larger than either.
+   ⚠️ The TRACK shrinks; the TARGET does not. `.switch` keeps min-height:44px and centres the track
+   inside it, so the label a thumb hits stays 44px tall at every width — shrinking a control to match
+   a desktop mock must never shrink a phone's tap area. Both breakpoints are written at the same
+   specificity (single class in and out of the media query). */
+.switch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;min-height:44px;cursor:pointer}
 .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
-.switch-track{position:relative;display:block;width:48px;height:28px;border-radius:var(--radius-pill);background:var(--border2);transition:background var(--t-med) var(--ease)}
-.switch-track::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--knob);box-shadow:0 1px 2px var(--knob-cast);transition:transform var(--t-med) var(--ease),background var(--t-med) var(--ease)}
+.switch-track{position:relative;display:block;width:38px;height:22px;border-radius:var(--radius-pill);background:var(--border2);transition:background var(--t-med) var(--ease)}
+.switch-track::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--knob);box-shadow:0 1px 2px var(--knob-cast);transition:transform var(--t-med) var(--ease),background var(--t-med) var(--ease)}
 .switch input:checked + .switch-track{background:var(--accent)}
 /* the knob becomes ink ON the accent track, which is what keeps it legible in dark, where
    --accent is light and a light knob would vanish into it (1.98:1) */
-.switch input:checked + .switch-track::after{transform:translateX(20px);background:var(--on-accent)}
+.switch input:checked + .switch-track::after{transform:translateX(16px);background:var(--on-accent)}
 .switch input:focus-visible + .switch-track{outline:2px solid var(--accent);outline-offset:2px}
-/* placeholder empty state (Account / Team — a coming feature, not a disabled control) */
-.set-empty{padding:var(--sp-6) var(--sp-4);text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-card);background:var(--surface2)}
-.set-empty-title{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--text)}
-.set-empty-sub{margin:var(--sp-2) 0 0;font-size:var(--fs-sm);color:var(--muted2)}
-.set-about p{margin:0 0 4px}
-.set-about .hint{font-weight:400}
-/* back arrow — visible only in mobile detail view */
-.set-back{display:none;align-items:center;justify-content:center;width:40px;height:40px;margin-right:var(--sp-1);padding:0;border:0;background:transparent;color:var(--text2);cursor:pointer;border-radius:var(--radius-ctl)}
-.set-back svg{width:22px;height:22px}
-.set-back:hover{background:var(--hover);color:var(--text)}
-
-@media (max-width:639px){
-  .settings-panel{max-width:none}
-  /* ONE scroller on mobile: the shell (=mbody) scrolls; the content pane does NOT (nested overflow:auto
-     containers are the iOS Safari "can't scroll inside settings" trap — momentum scroll sticks on the inner
-     non-scrollable pane). v81 fix. */
-  .set-shell{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-  .set-nav{flex:none;width:auto;border-right:0;background:transparent;gap:var(--sp-1);padding:var(--sp-3)}
-  .set-navitem{border:1px solid var(--border);background:var(--surface)}
-  .set-navitem[aria-current="page"]{background:var(--surface);color:var(--text2);font-weight:700}   /* the list view has no persistent selection — neutralise ALL of the desktop active styling (bg, colour AND weight) back to the resting values, or settingsBack leaves the last section highlighted */
-  .set-chev{display:inline-flex}
-  .set-content{padding:var(--sp-4);overflow:visible}   /* not a second scroller — the shell scrolls */
-  .settings-panel:not(.detail-open) .set-content{display:none}
-  .settings-panel.detail-open .set-nav{display:none}
-  .settings-panel.detail-open .set-back{display:inline-flex}
-  .set-item{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
-  .set-item-ctl{align-self:flex-start}
-  .set-content select.set-item-ctl{width:100%;max-width:none}
-  #settingsPanel .mfoot .btn{width:100%;min-height:48px}
+@media (max-width:767px){
+  .switch-track{width:44px;height:26px}
+  .switch-track::after{width:22px;height:22px}
+  .switch input:checked + .switch-track::after{transform:translateX(18px)}
 }
-
 /* ===== batch (v36) — Fable visual pass ===== */
 /* menu empty state: centred, no orphaned quotes */
 .an-empty td{text-align:center;color:var(--muted2);padding:18px 12px;display:block}
@@ -2592,10 +2596,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v98 revision: the .stat-line/.stat-bit comparison rows are gone with the compares block. */
 .range-bar{gap:4px}
 .range-btn{padding:4px 10px;font-size:12px;min-height:32px;border-radius:999px}
-/* settings: quiet grouped cards */
-.set-group{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--sp-4);margin-bottom:var(--sp-3)}
-.set-group h4{margin-top:0}
-.settings-panel .mfoot{position:sticky;bottom:0;background:var(--surface)}
+/* F9 (v148) tombstone: .set-group / .set-group h4 / .settings-panel .mfoot deleted here. The first
+   two had had NO markup since v81 replaced the grouped cards with the sectioned panel; the third
+   stuck the Done button to the bottom of a modal F9 deleted. The screen's card system is .stg-* in
+   §"F9 (v148) — SETTINGS, AS A SCREEN". */
 
 /* ===== batch (v37) — Fable consistency patch (Max notes 15 Jul) ===== */
 /* the invoice tint reads the SAME state machine as the summary: matched / review / new.
@@ -2685,7 +2689,10 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* ===== batch (v44) ===== */
 /* item 6: the clear-cache confirm opened UNDER Settings. Root cause: #confirmModal precedes
    #settingsPanel (and the ingredient modal) in the DOM and every .modal-overlay shares z-index:80,
-   so the LATER sibling paints on top. A confirm is semantically always-on-top — give it its own layer. */
+   so the LATER sibling paints on top. A confirm is semantically always-on-top — give it its own layer.
+   F9 (v148) deleted #settingsPanel, so that ONE pairing is gone; the rule is not. Every other modal
+   that can raise a confirm (the ingredient modal, tidy, the invoice review) still follows it, and
+   the clear-cache confirm now opens over a screen, which cannot lose the race at all. */
 #confirmModal{z-index:85}
 /* F5 (v142): the `.an-empty > td:first-child` outranking rule is DELETED. The cell it outranked
    went with the table, and `.an-empty` has had no markup since v58 — it stays on the queue's
@@ -3867,7 +3874,7 @@ html{scrollbar-gutter:stable}
 
    Deliberately at the END of the file: every rule it has to beat
    (`.modal-overlay{align-items:center}` and `.modal{margin:auto}` in
-   §"margins locked", `#settingsPanel .settings-panel`'s max-height, the
+   §"margins locked", the
    §14 modalIn animation) sits earlier, and this file has twice recorded
    the cost of losing that cascade race quietly.
 
@@ -3889,16 +3896,18 @@ html{scrollbar-gutter:stable}
      modal and silently undoes the line above. It has to be margin:0 auto, not just a top of 0. */
   .modal-overlay > .modal{margin:0 auto}
   /* The height budget changes with the offset: 12vh above + the overlay's 20px below.
-     Without this a tall modal (invoice review, Settings) grows past the fold and the only
-     thing that scrolls is the overlay, which puts the × off-screen. */
-  .modal-overlay > .modal,
-  #settingsPanel .settings-panel{max-height:calc(88vh - 40px);max-height:calc(88dvh - 40px)}
+     Without this a tall modal (the invoice review) grows past the fold and the only thing
+     that scrolls is the overlay, which puts the × off-screen.
+     F9 (v148) dropped the paired `#settingsPanel .settings-panel` selector from this rule and
+     from the three below it. It was NOT redundant while it existed — `#settingsPanel .settings-panel`
+     had to be repeated because an ID selector earlier in the file already set a max-height and
+     would have won on specificity. Its target is deleted, so the plain rules are the whole story. */
+  .modal-overlay > .modal{max-height:calc(88vh - 40px);max-height:calc(88dvh - 40px)}
 }
 
 @media (max-width:767px){
   .modal-overlay{align-items:flex-end;padding:0}
-  .modal-overlay > .modal:not(.modal-wiz),
-  #settingsPanel .settings-panel{
+  .modal-overlay > .modal:not(.modal-wiz){
     width:100%;max-width:none;margin:0;
     border-radius:16px 16px 0 0;border-left:0;border-right:0;border-bottom:0;
     max-height:88dvh;
@@ -3913,12 +3922,10 @@ html{scrollbar-gutter:stable}
   }
   /* Slide-up. The mobile mock's own keyframes. The global reduced-motion kill switch
      (`*{animation:none!important}`) already covers it — no second guard needed here. */
-  .modal-overlay.open > .modal:not(.modal-wiz),
-  #settingsPanel.open .settings-panel{
+  .modal-overlay.open > .modal:not(.modal-wiz){
     animation:sheetUp var(--t-slow) var(--ease);
   }
-  .modal-overlay.closing > .modal:not(.modal-wiz),
-  #settingsPanel.closing .settings-panel{
+  .modal-overlay.closing > .modal:not(.modal-wiz){
     animation:sheetDown var(--t-slow) var(--ease-in-out) forwards;
   }
 }

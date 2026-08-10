@@ -310,13 +310,79 @@ test('v81: bootstrapSync round-trips both AI toggles across devices', () => {
 
 /* ---------- the sectioned surface exists and kept every control id ---------- */
 
-test('v81: Settings is a sectioned surface — a nav plus one section per group', () => {
-  assert.ok(/class="set-nav"/.test(HTML), 'the section nav exists');
-  ['general', 'invoices', 'lists', 'data', 'account', 'team', 'about'].forEach(id => {
-    assert.ok(new RegExp(`data-goto="${id}"`).test(HTML), `nav has a ${id} item`);
-    assert.ok(new RegExp(`id="setSec-${id}"`).test(HTML), `content has the ${id} section`);
+/* F9 (v148) consciously changed this pin. What it MEANT was "every group has a visible home and
+   none was silently dropped"; what it ASSERTED was the modal's nav markup, which is the affordance
+   a screen removes — a screen shows every section at once, so there is no nav to be on. The
+   contract survives the conversion; the mechanism does not. */
+test('F9: every settings group has a visible home, and no group was dropped in the conversion', () => {
+  const cards = [...HTML.matchAll(/class="stg-card-h">([^<]+)</g)].map(m => m[1]);
+  // Costing and Data are the mock's §3.8 names; the other five are groups the app has and the
+  // mock does not, kept per §R3 (rehome, never delete). Account/Team are F10's to decide.
+  assert.deepEqual(cards,
+    ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account', 'Team', 'About'],
+    'the eight section cards, in order');
+  /* The modal's own machinery must be GONE, not merely unstyled — a leftover nav would be a second
+     way to reach a section that is already on screen.
+     Read with COMMENTS STRIPPED: this repo tombstones what it deletes, so every name below still
+     appears in prose explaining why it is gone. A raw grep would fail on the tombstone and, worse,
+     would PASS if someone deleted the tombstone and left the markup. */
+  const HTML_CODE = HTML.replace(/<!--[\s\S]*?-->/g, '');
+  ['set-nav', 'set-navitem', 'data-goto=', 'id="settingsBack"', 'id="settingsDone"',
+   'id="settingsClose"', 'id="settingsPanel"'].forEach(dead => {
+    assert.ok(HTML_CODE.indexOf(dead) < 0, `${dead} went with the modal`);
   });
-  assert.ok(/id="settingsBack"/.test(HTML), 'a back control exists for the mobile drill-down');
+});
+
+/* The single most likely silent break, named as such in the queue item's §5 contract: openSettings()
+   primed the form on every OPEN, and a screen has no open event. If renderSettingsTab stops writing
+   one of these, that control renders its markup default for ever — 0%, GST-exclusive, an AI switch
+   showing off while it is on — with no error anywhere.
+   Asserted against the REAL function, driven with stub elements, not by reading its source: a
+   substring check would pass against a line that computed the value and threw it away. */
+test('F9: renderSettingsTab primes every control the modal used to prime on open', () => {
+  const els = {};
+  const mk = () => ({ value: '', checked: false, textContent: '' });
+  ['setCogsInput', 'setGstDefault', 'setVersion', 'setAiInvoiceChk', 'setAiSuggestChk']
+    .forEach(id => { els[id] = mk(); });
+  let themeSynced = 0;
+  const run = new Function('els', 'state', `
+    const { cogsPct, gstDefault, APP_VERSION, aiInvoiceCheck, aiSuggestions, syncThemeSeg } = state;
+    const document = { getElementById: id => els[id] || null };
+    ${extractFn(APP, 'renderSettingsTab')}
+    renderSettingsTab();
+  `);
+  run(els, {
+    cogsPct: 31, gstDefault: 'inc', APP_VERSION: 'v999',
+    aiInvoiceCheck: true, aiSuggestions: true,
+    syncThemeSeg: () => { themeSynced++; },
+  });
+  assert.equal(els.setCogsInput.value, 31, 'the target % comes from memory, not the markup default');
+  assert.equal(els.setGstDefault.value, 'inc', 'the GST default comes from memory');
+  assert.equal(els.setVersion.textContent, 'v999', 'the About version is filled in');
+  assert.equal(els.setAiInvoiceChk.checked, true, 'the AI invoice switch reflects the stored flag');
+  assert.equal(els.setAiSuggestChk.checked, true, 'the AI suggestions switch reflects the stored flag');
+  assert.equal(themeSynced, 1, 'the theme segment is synced too');
+});
+
+/* …and that showTab is what calls it. Priming that exists but is never invoked is the same bug with
+   an extra step, and this is the line that a future edit to showTab would quietly drop. */
+test('F9: showTab runs the priming on every entry to the screen', () => {
+  const showTab = extractFn(APP, 'showTab');
+  assert.ok(/if\(t==='settings'\)renderSettingsTab\(\);/.test(showTab),
+    'showTab calls renderSettingsTab when it switches to the settings screen');
+  assert.ok(/'invoices','settings'\]/.test(showTab),
+    'and the pane-visibility list knows about the settings pane, or the screen never shows');
+  // the boot race: restoreLastTab() runs BEFORE bootstrapSync resolves, so a refresh landing on
+  // Settings paints pre-boot defaults unless rerenderCurrentTab re-primes it
+  assert.ok(/t==='settings'\)renderSettingsTab\(\)/.test(extractFn(APP, 'rerenderCurrentTab')),
+    'and rerenderCurrentTab re-primes it once boot data lands');
+  /* Defensive, and deliberately kept: the pre-push review established that #sideSettings carries
+     .navbtn AND data-tab at every width, so currentTab's first branch already answers 'settings'
+     and this fallback loop is unreachable today. Pinned anyway, because the More-screen item
+     rearranges exactly which nav button is lit, and a pane shown with no lit button is what this
+     loop is for. The assertion is on the LIST, not on a behaviour, and says so. */
+  assert.ok(/'pantry','settings'\]/.test(extractFn(APP, 'currentTab')),
+    "currentTab's fallback name list includes the settings pane");
 });
 
 test('v81: relocating settings kept every id handlers bind to', () => {
@@ -327,9 +393,12 @@ test('v81: relocating settings kept every id handlers bind to', () => {
 });
 
 test('v81: Account/Team ship as coming-feature empty states, not disabled controls', () => {
-  assert.ok(/class="set-empty"/.test(HTML), 'placeholder sections use the empty-state style');
+  // F9 (v148): the class is .stg-soon now (the screen's card system replaced .set-empty with the
+  // rest of the modal's CSS). The contract is unchanged and is the whole point of the test.
+  assert.ok(/class="stg-soon"/.test(HTML), 'placeholder sections use the coming-feature style');
   assert.ok(/arrive with EzPlate accounts/.test(HTML), 'the copy frames them as a coming feature');
   // must not be faked as a real (disabled) control
-  assert.ok(!/id="setSec-account"[\s\S]*?<(input|select|button)[^>]*disabled/.test(HTML),
-    'Account is an empty state, not a disabled fake control');
+  const acct = HTML.slice(HTML.indexOf('>Account</h3>'), HTML.indexOf('>Team</h3>'));
+  assert.ok(acct.length > 0 && !/<(input|select|button)/.test(acct),
+    'Account is a sentence, not a control — disabled or otherwise');
 });

@@ -1,10 +1,18 @@
 /*
- * q9-settings.spec.js — Q9 (v128). The Settings restyle's one load-bearing invariant, behaviourally.
- * The section title (.set-sec-title) is sr-only'd on desktop, where it duplicates the highlighted
- * nav item — but on mobile detail it is the ONLY visible section label (the modal header still says
- * "Settings"). So: present in the DOM at both widths for AT, visually hidden ONLY ≥640px.
- * Deleting the h4 outright ("it's hidden anyway") would strip mobile of its section label —
- * this spec is what fails first.
+ * q9-settings.spec.js — REWRITTEN for F9 (v148), when Settings became a screen.
+ *
+ * What this file used to guard was the v128 modal's one load-bearing invariant: the section title
+ * was sr-only on desktop (where it duplicated the highlighted nav item) and the ONLY visible label
+ * on mobile detail. Both halves of that are gone with the modal — there is no nav to duplicate and
+ * no detail view to be the only label of. Rewritten rather than deleted, because the QUESTION it
+ * was asking survives the conversion: does every section have a visible, correctly-labelled home at
+ * both widths, and does the screen render its values from state rather than from the markup?
+ *
+ * The one thing this file exists to catch is the priming. openSettings() primed the form on every
+ * OPEN; a screen has no open event, so a navigation that forgets to render leaves every control
+ * showing its markup default — 0%, GST-exclusive, a switch reading off while the flag is on — with
+ * no error anywhere and a green unit suite. tests/settings-toggles.test.js pins the function; this
+ * pins what a user actually sees after a real navigation in a real browser.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
@@ -17,73 +25,129 @@ async function boot(page, width) {
   await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
 }
 
-// 640 is the LOWER EDGE of the two-pane layout (the mobile media is max-width:639) — testing it as
-// well as 1280 pins that the hide-title rule shares the layout's boundary; a drifted breakpoint
-// (say min-width:900) would show sidebar + duplicate title at 640–899 and fail here.
-for (const width of [640, 1280]) {
-  test(`desktop ${width}px: section title is in the DOM for AT but takes no visible space`, async ({ page }) => {
+/* The route depends on the width and the two do NOT overlap: `header{display:none}` inside
+   @media (min-width:1024px) makes the gear mobile-only, and .nav-bottom is hidden below 1024,
+   making the sidebar entry desktop-only. Clicking the wrong one for the width tests nothing —
+   so each test drives the route that is actually visible there. */
+const routeFor = (width) => (width >= 1024 ? '#sideSettings' : '#settingsBtn');
+
+const CARDS = ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account', 'Team', 'About'];
+
+// 380 is the phone Max works on; 1280 is the desktop the mock is drawn at; 900 sits between the
+// v3 768 breakpoint and the 1024 nav breakpoint, which is the band where a route mistake hides.
+for (const width of [380, 900, 1280]) {
+  test(`${width}px: every section card is visible at once, correctly labelled`, async ({ page }) => {
     await boot(page, width);
-    // v132: at ≥1024 the header is gone — Settings lives in the sidebar's bottom group
-    await page.click(width >= 1024 ? '#sideSettings' : '#settingsBtn');
+    await page.click(routeFor(width));
     await page.waitForTimeout(400);
-    if (width >= 1024) {
-      // the sidebar entry wears .navbtn for styling but must NOT behave as a tab: the first cut
-      // let the blanket .navbtn wiring run showTab(undefined), which blanked every pane and wrote
-      // the string "undefined" into cafeDB_lastTab (review finding). Pin the round trip.
-      await page.click('#settingsClose');
-      await page.waitForTimeout(300);
-      const state = await page.evaluate(() => ({
-        visiblePanes: ['builder', 'ingredients', 'analysis', 'dashboard', 'pantry']
-          .filter(n => document.getElementById('tab-' + n).style.display !== 'none').length,
-        lastTab: localStorage.getItem('cafeDB_lastTab'),
-        settingsActive: document.getElementById('sideSettings').classList.contains('active'),
-      }));
-      expect(state.visiblePanes, 'exactly one tab pane stays visible after the settings round trip').toBe(1);
-      expect(state.lastTab, 'the remembered tab survives opening Settings').not.toBe('undefined');
-      expect(state.settingsActive, 'the Settings entry never takes the active pill').toBe(false);
-      await page.click('#sideSettings');
-      await page.waitForTimeout(300);
+
+    await expect(page.locator('#tab-settings')).toBeVisible();
+    const heads = page.locator('#tab-settings .stg-card-h');
+    await expect(heads).toHaveText(CARDS);
+
+    /* All eight AT ONCE is the whole point of the conversion — the modal showed one at a time and
+       that drill is what a screen replaces. Asserted as "every card has a real box", not as a
+       count of DOM nodes, because a hidden card still counts. */
+    for (const label of CARDS) {
+      const card = page.locator('#tab-settings .stg-card', { hasText: label }).first();
+      const box = await card.boundingBox();
+      expect(box, `${label} card must be rendered`).not.toBeNull();
+      expect(box.height, `${label} card must have height`).toBeGreaterThan(20);
     }
-    const title = page.locator('#setSec-general .set-sec-title');
-    await expect(title).toHaveText('General');
-    const box = await title.boundingBox();
-    expect(box, 'title must stay rendered (sr-only clip), not display:none — AT still announces it').not.toBeNull();
-    expect(box.width).toBeLessThanOrEqual(1);
-    // and the first row starts the pane: its top is at the content pane's padding edge, not below a heading
-    const row = await page.locator('#setSec-general .set-item').first().boundingBox();
-    const pane = await page.locator('.set-content').boundingBox();
-    expect(row.y - pane.y).toBeLessThan(40);
+  });
+
+  test(`${width}px: the screen renders values from state, not from the markup defaults`, async ({ page }) => {
+    await boot(page, width);
+    /* Set the state to something no markup default could produce, THEN navigate. If the priming is
+       dropped the target renders empty (the input has no value attribute) and the GST select falls
+       to its first option — both of which are exactly what a user would see and disbelieve. */
+    await page.evaluate(() => {
+      window.setCogs(37, false);
+      window.setGstDefault('inc', false);
+      window.setAiInvoiceCheck(false, false);
+    });
+    await page.click(routeFor(width));
+    await page.waitForTimeout(400);
+
+    await expect(page.locator('#setCogsInput')).toHaveValue('37');
+    await expect(page.locator('#setGstDefault')).toHaveValue('inc');
+    await expect(page.locator('#setAiInvoiceChk')).not.toBeChecked();
+    await expect(page.locator('#setVersion')).not.toHaveText('—');
+
+    /* And AGAIN after leaving and coming back, with the state changed while the screen was off.
+       This is the regression a "render once on first show" optimisation would introduce, and it is
+       invisible until a user changes the target on one device and opens Settings on another. */
+    await page.evaluate(() => { window.showTab('builder'); window.setCogs(29, false); });
+    await page.click(routeFor(width));
+    await page.waitForTimeout(400);
+    await expect(page.locator('#setCogsInput')).toHaveValue('29');
   });
 }
 
-test('mobile list after back: no persistent selection — all nav items render identically', async ({ page }) => {
-  // The v128 review caught the desktop active styling (weight 800 / accent colour) leaking into the
-  // mobile list: settingsBack removes .detail-open but leaves aria-current, so anything the mobile
-  // override fails to neutralise marks the last-visited section as "selected" in a list documented
-  // to have no persistent selection.
+test('380px: the theme segment is reachable and usable on a phone — it is the only theme control there', async ({ page }) => {
+  /* The sidebar's compact toggle (F1b) is inside .side-theme, which @media (max-width:1023px)
+     hides. So below 1024 this segment is the ONLY way to change theme, which is why R3 rehomed it
+     onto the screen rather than letting the mock's silence delete it. */
   await boot(page, 380);
+  await expect(page.locator('.side-theme')).toBeHidden();
   await page.click('#settingsBtn');
+  await page.waitForTimeout(400);
+
+  const seg = page.locator('#tab-settings .seg-btn[data-theme-pref]');
+  await expect(seg).toHaveCount(3);
+  await page.locator('#setThemeDark').click();
   await page.waitForTimeout(300);
-  await page.click('.set-navitem[data-goto="data"]');
-  await page.waitForTimeout(300);
-  await page.click('#settingsBack');
-  await page.waitForTimeout(300);
-  const styles = await page.evaluate(() =>
-    [...document.querySelectorAll('#settingsPanel .set-navitem')].map(b => {
-      const s = getComputedStyle(b);
-      return s.fontWeight + '|' + s.color + '|' + s.backgroundColor;
-    }));
-  expect(new Set(styles).size).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('dark');
+  await expect(page.locator('#setThemeDark')).toHaveAttribute('aria-checked', 'true');
 });
 
-test('mobile detail: section title is the visible section label', async ({ page }) => {
+test('380px: every control on the screen clears a 44px tap target', async ({ page }) => {
+  /* F9 shrank the switch TRACK to the mock's 44x26 on mobile (from 48x28). The track is decoration;
+     the label around it is what a thumb hits, and it must not have shrunk with it. Measured rather
+     than read, because the whole point of the change was a number in the CSS. */
   await boot(page, 380);
   await page.click('#settingsBtn');
   await page.waitForTimeout(400);
-  await page.click('.set-navitem[data-goto="general"]');
-  await page.waitForTimeout(400);
-  const title = page.locator('#setSec-general .set-sec-title');
-  await expect(title).toBeVisible();
-  const box = await title.boundingBox();
-  expect(box.width).toBeGreaterThan(40);   // genuinely rendered, not clipped
+  const ids = ['setCogsInput', 'setGstDefault', 'setSmemOpen', 'setTidyOpen',
+    'setExport', 'setRestore', 'setClearCache', 'setThemeLight'];
+  for (const id of ids) {
+    const box = await page.locator('#' + id).boundingBox();
+    expect(box, `#${id} must be on screen`).not.toBeNull();
+    expect(box.height, `#${id} tap height`).toBeGreaterThanOrEqual(43.5);
+  }
+  for (const id of ['setAiInvoiceChk', 'setAiSuggestChk']) {
+    // the <label class="switch"> is the target, not the visually-hidden input
+    const box = await page.locator(`#${id}`).locator('xpath=ancestor::label[1]').boundingBox();
+    expect(box, `#${id} switch label`).not.toBeNull();
+    expect(box.height, `#${id} switch tap height`).toBeGreaterThanOrEqual(43.5);
+  }
+});
+
+test('1280px: leaving Settings for another tab really leaves it, and coming back is one click', async ({ page }) => {
+  /* The v128 review's finding, repointed: the sidebar entry wears .navbtn, and the first cut of the
+     Invoices conversion let the blanket wiring run showTab(undefined), blanking every pane and
+     writing the string "undefined" into cafeDB_lastTab. Settings carries a data-tab now, so it goes
+     through the same path and needs the same round trip pinned. */
+  await boot(page, 1280);
+  await page.click('#sideSettings');
+  await page.waitForTimeout(300);
+  await page.click('.navbtn[data-tab="dashboard"]');
+  await page.waitForTimeout(300);
+
+  const state = await page.evaluate(() => ({
+    visiblePanes: ['builder', 'ingredients', 'analysis', 'dashboard', 'pantry', 'invoices', 'settings']
+      .filter((n) => document.getElementById('tab-' + n).style.display !== 'none'),
+    lastTab: localStorage.getItem('cafeDB_lastTab'),
+    settingsActive: document.getElementById('sideSettings').classList.contains('active'),
+  }));
+  expect(state.visiblePanes, 'exactly one pane is visible').toEqual(['dashboard']);
+  expect(state.lastTab).toBe('dashboard');
+  expect(state.settingsActive, 'the Settings entry gives up the active pill when you leave').toBe(false);
+
+  await page.click('#sideSettings');
+  await page.waitForTimeout(300);
+  await expect(page.locator('#tab-settings')).toBeVisible();
+  expect(await page.evaluate(() =>
+    document.getElementById('sideSettings').classList.contains('active')),
+  ).toBe(true);
 });

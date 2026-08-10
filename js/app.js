@@ -1463,14 +1463,24 @@ document.addEventListener('click',()=>document.querySelectorAll('.tip.open').for
 /* tabs */
 function currentTab(){
   var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
-  var names=['builder','ingredients','analysis','dashboard','pantry'];
+  /* F9 (v148) added 'settings'. ⚠️ It is DEFENSIVE, and the pre-push review was right that the
+     first reason written here was wrong: #sideSettings carries BOTH .navbtn and data-tab="settings"
+     at every width — CSS only hides it below 1024, and querySelectorAll still matches a hidden
+     element — so showTab lights it on mobile too and the branch above already answers 'settings'.
+     This loop is therefore unreachable today for every tab, not just this one. It is extended
+     anyway because it is the fallback for exactly the case where a pane is shown with no lit nav
+     button, which is what the More-screen item will be rearranging. Listed, not relied on. */
+  var names=['builder','ingredients','analysis','dashboard','pantry','settings'];
   for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
   return 'builder';
 }
 function rerenderCurrentTab(){                                         // re-run the active tab's render (e.g. once boot data lands)
   try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(e){}   // v133: the sidebar badge follows the data, whichever tab is shown
   var t=currentTab();
-  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
+  /* F9 (v148): Settings is listed because restoreLastTab() runs BEFORE bootstrapSync resolves — a
+     refresh landing on Settings would otherwise paint cogsPct/gstDefault/the AI flags at their
+     pre-boot defaults and never correct them, which is the priming failure in its quietest form. */
+  try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else if(t==='settings')renderSettingsTab(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
 function showTab(t){
   var _retap=(currentTab()===t);                                       // v115: re-tapping the active tab is a "take me to the top" gesture, not a navigation
@@ -1480,7 +1490,7 @@ function showTab(t){
      landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
   if(!_retap){ try{ window.scrollTo(0,0); }catch(e){} }
-  ['builder','ingredients','analysis','dashboard','pantry','invoices'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
+  ['builder','ingredients','analysis','dashboard','pantry','invoices','settings'].forEach(function(name){ var el=document.getElementById('tab-'+name); if(el) el.style.display=(t===name)?'':'none'; });
   /* F7 (v146): the builder is a full PAGE now, a child of Plates rather than a tab of its own, so
      every tab change leaves it. Nothing is lost by that - the in-progress plate stays in memory and
      in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
@@ -1495,11 +1505,14 @@ function showTab(t){
   if(t==='pantry')renderKitchenPanel();   // data-tab="pantry" is the user-invisible key; its LABEL is "Ingredients" (see glossary)
   if(t==='builder')renderPlatesTab();     // data-tab="builder" is unchanged; its LABEL is now "Plates" (v54)
   if(t==='invoices')renderInvoicesTab();  // F8 (v147): a new key, not a rename — there was no Invoices screen before
+  /* F9 (v148): the priming that openSettings() used to do on every open. A screen has no open event,
+     so this line IS the priming — drop it and every control renders its markup default. */
+  if(t==='settings')renderSettingsTab();
   if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
-  var VALID=['builder','ingredients','analysis','dashboard','pantry','invoices'];
+  var VALID=['builder','ingredients','analysis','dashboard','pantry','invoices','settings'];
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
   if(lt && VALID.indexOf(lt)>=0 && lt!=='builder') showTab(lt);        // Builder is already shown by default markup; only switch if different & valid
 }
@@ -1998,7 +2011,7 @@ function renderSmemList(){
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
-function closeSmem(){ hide('smemModal'); backToSettingsSection(); }   // v81: if opened from Settings, return to the Invoices section
+function closeSmem(){ hide('smemModal'); }   // F9 (v148): no reopen — the Settings screen is still there underneath
 function invSupplierDetect(text){
   var lines=(text||'').split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean).slice(0,20);
   function clean(s){ return s.replace(/\s+/g,' ').replace(/\b(pty\.?\s*ltd\.?|p\/l|ltd\.?)\b\.?$/i,'').replace(/[|,;].*$/,'').trim(); }
@@ -3358,9 +3371,11 @@ function trendChart(scope){
     +'<p class="hint chart-hint">'+capScope+' \u00b7 '+capPos+'.'+capMk+'</p>'+scopeNote+'</div>';
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
-   Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back,
-   the same one Settings uses on mobile (a `.detail-open` class swap, no modal): tapping a card
-   replaces the grid in place and a back arrow returns. A modal for a sorted list is a heavier
+   Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back —
+   a `.detail-open` class swap, no modal: tapping a card replaces the grid in place and a back
+   arrow returns. (It cited Settings' mobile drill-down as the precedent; F9/v148 deleted that with
+   the Settings modal, so this is now the app's only instance and owns the pattern outright. The
+   class name is shared with nothing — grep confirms one consumer.) A modal for a sorted list is a heavier
    surface than the content needs, and it stacked another dismissable layer on a screen the 26 Jul
    audit already wanted fewer of.
 
@@ -4443,7 +4458,9 @@ document.addEventListener('keydown', function(e){
        itself, and stopPropagation only stops the walk to the NEXT node, never a sibling listener
        on the same one. (The combobox and price-chip handlers can use the plain form — they sit on
        their own inner elements, so the event genuinely still has a walk to stop.)
-       Reproduced before fixing: one Escape took the popover flag AND #settingsPanel down together. */
+       Reproduced before fixing: one Escape took the popover flag AND #settingsPanel down together.
+       (That id no longer exists — F9/v148 made Settings a screen. The reproduction stands as the
+       record of why this line is here; any other open modal reproduces it identically.) */
     e.stopImmediatePropagation();
   }
 });
@@ -4756,51 +4773,44 @@ window.addEventListener('offline', function(){ setSync('offline'); });
 
 
 /* ============================================================
-   ITEM 6 (v35) — Settings surface
-   Entry is a header gear, not a sixth nav tab (five is the max at readable label
-   sizes). The panel reuses the existing modal pattern; CSS makes it full-screen at
-   mobile widths. Every setting here follows the house rule: one dbSetSetting write
-   + a localStorage mirror, loaded idempotently in bootstrapSync.
+   Settings — F9 (v148): a SCREEN (#tab-settings), not the v35 modal.
+   Every setting here follows the house rule: one dbSetSetting write + a
+   localStorage mirror, loaded idempotently in bootstrapSync.
+
+   TWO ROUTES IN, and each is the only one at its width: #settingsBtn (the header
+   gear) is MOBILE-ONLY because `header{display:none}` inside @media (min-width:1024px),
+   and #sideSettings is DESKTOP-ONLY because .nav-bottom is CSS-hidden below 1024.
+   Both navigate; removing either strands the screen at that width.
    ============================================================ */
 /* The version string. sw.js's CACHE constant is the source of truth; this is a mirror,
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v147';
-function openSettings(){
+var APP_VERSION='v148';
+/* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
+   open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
+   the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
+   switches off, version "—") and silently misreports every setting. `renderSettingsTab` is the ONE
+   place these six values are read out of memory; nothing else may prime them.
+   It reads live globals rather than the DB: bootstrapSync has already loaded them, and a screen
+   that re-fetched would show stale-then-correct on a slow connection. */
+function renderSettingsTab(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
   var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
   var ai=document.getElementById('setAiInvoiceChk'); if(ai) ai.checked=aiInvoiceCheck;   // v81
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
   syncThemeSeg();                                                                       // v136
-  setSettingsSection('general', false);   // v81: state isn't persisted between opens — always land on the first section / the mobile list
-  show('settingsPanel');
 }
-function closeSettings(){ hide('settingsPanel'); }
-/* v81: sectioned Settings. One nav + one content column; on desktop (≥640) both are visible (sidebar),
-   on mobile (≤639) the list shows first and a nav tap drills to a detail view with a back arrow. `drill`
-   adds `.detail-open` (the mobile detail state); it's a no-op on desktop where CSS shows content always. */
-function setSettingsSection(id, drill){
-  var shell=document.querySelector('#settingsPanel .set-shell'); if(!shell) return;
-  var panel=document.querySelector('#settingsPanel .settings-panel');
-  var secs=shell.querySelectorAll('.set-section');
-  for(var i=0;i<secs.length;i++){ secs[i].hidden = (secs[i].getAttribute('data-section')!==id); }
-  var items=shell.querySelectorAll('.set-navitem');
-  for(var j=0;j<items.length;j++){ if(items[j].getAttribute('data-goto')===id) items[j].setAttribute('aria-current','page'); else items[j].removeAttribute('aria-current'); }
-  if(panel){ if(drill) panel.classList.add('detail-open'); else panel.classList.remove('detail-open'); }
-  var content=shell.querySelector('.set-content'); if(content) content.scrollTop=0;   // fresh section starts at the top
-}
-function settingsBack(){ var panel=document.querySelector('#settingsPanel .settings-panel'); if(panel) panel.classList.remove('detail-open'); }   // v81: mobile back arrow → return to the section list
-/* v81: a sub-surface (Tidy lists / Remembered packs) opened FROM Settings returns to its parent section in
-   one tap (Max: "opening Tidy by mistake must be one tap to get back"). The same doors reached from a filter's
-   "Manage list…" leave this null, so those close back to the app as before. */
-var reopenSettingsSection=null;
-function backToSettingsSection(){
-  if(!reopenSettingsSection) return;
-  var s=reopenSettingsSection; reopenSettingsSection=null;
-  openSettings(); setSettingsSection(s, true);
-}
+/* The single entry point, kept under its old name because both routes and the specs call it.
+   showTab runs renderSettingsTab, so navigation and priming cannot come apart. */
+function openSettings(){ showTab('settings'); }
+/* F9 (v148) tombstone: closeSettings / setSettingsSection / settingsBack / reopenSettingsSection /
+   backToSettingsSection are all GONE. The first three were the modal's own machinery. The last two
+   existed so a sub-surface opened FROM Settings could reopen Settings on its own section when it
+   closed — a modal-over-modal problem. A modal over a SCREEN has none of it: closing Tidy or
+   Remembered packs reveals the Settings screen still rendered underneath, which is what Max asked
+   for in v81 ("opening Tidy by mistake must be one tap to get back") and is now free. */
 // v60 item 8: Tidy lists is a modal now (not an inline Settings section) so Settings stays short.
 // One modal, multiple doors: the Settings row opens it on Category; a filter's "Manage list…" door
 // opens it pre-scoped to that field. renderTidyValues reads the #tidyField select, so we set it first.
@@ -4809,7 +4819,7 @@ function openTidyManage(field){
   renderTidyValues();
   show('tidyManageModal');
 }
-function closeTidyManage(){ hide('tidyManageModal'); backToSettingsSection(); }   // v81: if opened from Settings, return to the Lists section
+function closeTidyManage(){ hide('tidyManageModal'); }   // F9 (v148): no reopen — the Settings screen is still there underneath
 
 /* ===== v59 item 6b: Tidy lists UI (Settings) — the Settings surface for the v40 pure core =====
    Category spans products + plate categories; Brand/Supplier are product-only. Every action goes
@@ -5235,11 +5245,10 @@ function clearCacheAndRefresh(){
 }
 (function(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
-  on('settingsBtn',openSettings); on('settingsClose',closeSettings); on('settingsDone',closeSettings);
-  on('sideSettings',openSettings);   // v132: the v3 sidebar's bottom-group Settings entry (desktop only; CSS hides it <1024)
-  /* F8 (v147) tombstone: `on('sideInvoices',openInv)` opened the import modal straight from the
-     sidebar. Invoices is a screen now, so the entry carries data-tab="invoices" and the generic
-     .navbtn[data-tab] binding navigates it. Wiring openInv here as well would fire BOTH. */
+  on('settingsBtn',openSettings);   // the header gear — the ONLY route below 1024, where the sidebar's bottom group is hidden
+  /* F8 (v147) then F9 (v148) tombstone: `on('sideInvoices',openInv)` and `on('sideSettings',openSettings)`
+     opened a modal straight from the sidebar. Both are screens now, so both entries carry a data-tab and
+     the generic .navbtn[data-tab] binding navigates them. Wiring the opener here as well would fire BOTH. */
   // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
@@ -5251,16 +5260,10 @@ function clearCacheAndRefresh(){
     b.addEventListener('click', function(){ f.value=''; f.click(); });
     f.addEventListener('change', function(){ var fl=f.files&&f.files[0]; if(fl) restoreFromBackupFile(fl); });
   })();
-  var sp=document.getElementById('settingsPanel');
-  if(sp) sp.addEventListener('click',function(ev){ if(ev.target===sp) closeSettings(); });
   var ci=document.getElementById('setCogsInput');
   if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs re-renders every consumer, the v133 nav badge included
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
-  // v81: section nav (sidebar / drill-down) + the mobile back arrow
-  var setNav=document.querySelector('#settingsPanel .set-nav');
-  if(setNav) setNav.addEventListener('click',function(ev){ var b=ev.target.closest('.set-navitem'); if(b) setSettingsSection(b.getAttribute('data-goto'), true); });
-  on('settingsBack', settingsBack);
   // v81: AI feature toggles
   var aic=document.getElementById('setAiInvoiceChk'); if(aic) aic.addEventListener('change',function(){ setAiInvoiceCheck(aic.checked,true); });
   var asg=document.getElementById('setAiSuggestChk'); if(asg) asg.addEventListener('change',function(){ setAiSuggestions(asg.checked,true); });
@@ -5275,7 +5278,7 @@ function clearCacheAndRefresh(){
     applyThemePref(next); syncThemeSeg(next);
   });
   syncThemeToggle();                                                                    // v137: boot state — Settings may never be opened
-  var seg=document.querySelector('#settingsPanel .seg');
+  var seg=document.querySelector('#tab-settings .seg');
   if(seg){
     var segPick=function(b){ if(!b) return; var pref=b.getAttribute('data-theme-pref'); applyThemePref(pref); syncThemeSeg(pref); b.focus(); };
     seg.addEventListener('click',function(ev){ segPick(ev.target.closest('.seg-btn[data-theme-pref]')); });
@@ -5298,8 +5301,8 @@ function clearCacheAndRefresh(){
   }
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
-  on('setTidyOpen',function(){ reopenSettingsSection='lists'; closeSettings(); openTidyManage('category'); });     // v81: return to Lists on close (one-tap back)
-  on('setSmemOpen',function(){ reopenSettingsSection='invoices'; closeSettings(); openSmem(); });                  // v81: return to Invoices on close; v71 item 5 moved remembered packs here
+  on('setTidyOpen',function(){ openTidyManage('category'); });   // F9 (v148): opens OVER the Settings screen; closing it reveals the screen, so nothing has to be reopened
+  on('setSmemOpen',openSmem);                                    // v71 item 5 moved remembered packs here
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
   var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
@@ -5417,8 +5420,12 @@ function syncBodyScrollLock(){
    THE TOP LAYER IS DERIVED FROM THE DOM, never from a list. The old Escape handler closed a
    hard-coded set of 8 ids, which broke in BOTH directions at once: Escape over a stacked confirm
    also closed everything listed underneath it, while 8 other modals had no Escape at all. Stacks
-   are deliberate here (Settings→confirm for clear-cache and restore, ingModal→confirm on product
-   delete, kingWizModal→confirm on Add all) — #confirmModal carries z-index:85 for exactly that.
+   are deliberate here (ingModal→confirm on product delete, kingWizModal→confirm on Add all,
+   tidyManageModal→confirm) — #confirmModal carries z-index:85 for exactly that.
+   F9 (v148) removed "Settings→confirm for clear-cache and restore" from that list, and the removal
+   is the point rather than tidying: Settings is a SCREEN now, so those two confirms open over
+   ordinary page content and cannot lose the z-index race at all. The rule is unchanged and the
+   remaining examples are all still live.
 
    `topOverlay()` reads what the BROWSER would paint on top: highest computed z-index among the
    open overlays, tie-broken by document order, because equal z-index means the later sibling wins
@@ -6427,7 +6434,7 @@ function syncThemeSeg(pref){
      failure, the theme would flip, and the segment would snap back to the old choice with no
      explanation — the control disagreeing with the screen. */
   if(pref!=='light'&&pref!=='dark'&&pref!=='system') pref=loadThemePref();
-  var btns=document.querySelectorAll('#settingsPanel .seg-btn[data-theme-pref]');
+  var btns=document.querySelectorAll('#tab-settings .seg-btn[data-theme-pref]');
   for(var i=0;i<btns.length;i++){
     var on=btns[i].getAttribute('data-theme-pref')===pref;
     btns[i].setAttribute('aria-checked', on?'true':'false');

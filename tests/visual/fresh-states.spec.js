@@ -190,24 +190,35 @@ test('v44 dark theme: builder lines + pack control still read correctly', async 
 // state"). There is no Save-draft button and no MENU_UNASSIGNED option anymore — the test asserted a feature
 // that no longer exists, so it is dropped rather than rewritten.
 
-test('v44 item 6: a confirm dialog stacks ABOVE the Settings panel', async ({ page }) => {
+/* F9 (v148) rewrote this test, and the rewrite is stricter than the original in two ways.
+   The v44 finding was that the clear-cache confirm opened UNDER the Settings modal; Settings is a
+   SCREEN now, so the confirm opens over ordinary page content and the z-index race it lost cannot
+   happen the same way. What still has to be true is that the confirm reached from this screen is
+   the thing the user can tap.
+   Stricter, because the original added `.open` BY HAND — a state the app itself was never driven
+   into, which is the "a test that asserts against a state no user can reach" defect this repo has
+   recorded before. This drives the real button, and the real button is on the real screen. */
+test('v44 item 6: the clear-cache confirm reached from Settings is what the user can tap', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 780 });
   await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
-  await page.evaluate(() => {
-    document.getElementById('settingsPanel').classList.add('open');
-    window.askConfirm('Clear cached data?', 'This signs you out of nothing and deletes nothing shared.', 'Clear', function(){});
-  });
-  await page.waitForTimeout(300);
-  // whichever overlay owns the centre pixel is the one the user can tap
+  await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
+  await page.locator('#settingsBtn').click();          // the gear is the phone's route to the screen
+  await page.waitForTimeout(400);
+  await expect(page.locator('#tab-settings')).toBeVisible();
+  await page.locator('#setClearCache').click();        // the real control, not a hand-set class
+  await page.waitForTimeout(400);
+  // whichever layer owns the centre pixel is the one the user can tap
   const topOwner = await page.evaluate(() => {
     const el = document.elementFromPoint(190, 390);
     return el && el.closest('#confirmModal') ? 'confirm'
-         : el && el.closest('#settingsPanel') ? 'settings' : (el ? el.id || el.className : 'none');
+         : el && el.closest('#tab-settings') ? 'settings-screen' : (el ? el.id || el.className : 'none');
   });
   await page.screenshot({ path: 'tests/visual/__shots__/confirm-over-settings.png' });
-  expect(topOwner, 'the confirm must be tappable above Settings').toBe('confirm');
+  expect(topOwner, 'the confirm must be tappable above the Settings screen').toBe('confirm');
+  // and it must NOT be confirmed here — Clear reloads the app
+  await page.keyboard.press('Escape');
 });
 
 /* ===== v45 finishing touches ===== */
