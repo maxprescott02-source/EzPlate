@@ -103,10 +103,14 @@ for (const width of [1024, 1280, 1440]) {
     const geo = await page.evaluate(() => {
       window.setSync('error');
       const b = document.getElementById('syncBanner').getBoundingClientRect();
-      return { top: b.top, half: window.innerHeight / 2, left: b.left, sidebar: 224 };
+      /* the sidebar is `.bottomnav` — the same element as the mobile tab bar, re-laid-out at
+         >=1024 (css/style.css). Measured rather than assumed 224, so widening the sidebar without
+         moving the banner fails here instead of tucking it underneath. */
+      const rail = document.querySelector('.bottomnav').getBoundingClientRect();
+      return { top: b.top, half: window.innerHeight / 2, left: b.left, railRight: rail.right };
     });
     expect(geo.top).toBeGreaterThan(geo.half);
-    expect(geo.left).toBeGreaterThanOrEqual(geo.sidebar);   // clear of the sidebar, not under it
+    expect(geo.left).toBeGreaterThanOrEqual(geo.railRight);   // clear of the sidebar, not under it
   });
 }
 
