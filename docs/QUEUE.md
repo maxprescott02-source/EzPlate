@@ -34,6 +34,127 @@ Suite green (0 fail) at reconcile time.
 
 ---
 
+# UI defects — desktop shell & tables
+
+Reported 10 Aug 2026 from screenshots of the shipped dark desktop build (Dashboard and Products), read at a 1208px CSS viewport.
+**Every number below was re-measured in a real browser at 1208×900, dark, against `ezplate-v144`**, because a queue entry carrying a wrong measurement is worse than no entry (the reconcile warning at the top of this file).
+Where a re-measurement disagrees with the report, the measured value is the one recorded and the disagreement is stated.
+
+⚠️ **THE REPORT'S FRAMING NEEDS ONE CORRECTION BEFORE ANY OF THIS IS SCHEDULED, and it changes the whole set.**
+It says the shell fixes are "prerequisites for converting any screen" and that most of these "should be resolved by converting the screen rather than patching it".
+**Both screens named are already converted, and so is the shell**: shell F1a/F1b (`ezplate-v136`/`v137`), Products F4 (`v140`), Dashboard F6 (`v143`).
+There is no pending conversion left to fold any of this into - F7-F10 are the Builder, Invoices, Settings and Account.
+So these are **defects in converted code, or deliberate mock-faithful choices**, and each entry below says which. Nothing here is subsumed; nothing here blocks F7.
+
+**Four of the sixteen do not reproduce as described** (2, 3, 9, 10) and one is already queued (14b). They are kept as entries rather than dropped, because the thing the reporter SAW is usually real even when the stated cause is not - `CLAUDE.md`'s rule about never dismissing a finding for a wrong mechanism.
+
+**R-numbers below are FOLD-IN-PROTOCOL.md §3**: R1 presentational, mock wins · R2 real constraint, old behaviour in new dress · R3 dropped control, rehome · R4 missing backend · R5 tie, mock wins.
+
+## next  UI-1  The header bar sits flush to the top of the main region
+Measured at 1208: `.scr-head` top **0**, height 48; the title's box runs y12-35 and the scope control's y5-43; `#dashBody` starts at y80.
+So there is no clearance above the header bar, which is what was seen.
+⚠️ **The AC as written cannot be taken: "≥24px clearance above" contradicts the mock (R1).** The v3 §2 header is a 48px bar flush to the top of `<main>` with a bottom hairline - `<main style="padding:0"><div style="border-bottom:...; padding:14px 32px">` - and all four other converted screens now match it.
+⚠️ **The second half of the AC is ALREADY TRUE and should not be "fixed":** title and control are both centred on y≈23.5 in the 48px bar (12+23/2 = 23.5; 5+38/2 = 24). They share a centre line to within half a pixel.
+Requirements: decide whether this app deviates from the mock's flush header. If yes it is one change for all five converted screens and it moves every screen's content down; if no, close this and record that the flush bar is deliberate so it is not re-reported.
+Out of scope: the header's internal padding, which is the mock's.
+
+## next  UI-2  The header hairline and the content column have different left edges
+Measured at 1208: `.scr-head` spans x**260-1172** (912 wide); `#dashBody` and `#ingList` span x**280-1152** (872 wide). Left edges differ by **20px**, widths by 40px.
+The report's figures (309→1100 vs 326→1070, 17px and 47px) do not reproduce; the shape of the observation does.
+The 20px is `.scr-head`'s own `padding:0 var(--sp-5)`, so the header's TEXT edge is x280 - identical to the content edge. It is the **hairline** that is wider, not the text.
+⚠️ **The AC inverts an existing queue item.** "Header rule and all cards share identical left/right edges" is the opposite of the queued *"The v3 screen header bar is not full-bleed"*, which records that the mock's §2 hairline spans the whole main area while content sits at max-width, and that the app is currently too NARROW. Both cannot ship.
+Requirements: settle the direction once, for all five converted screens, and close whichever of the two items loses. Note the mock's own header hairline is full-bleed, so R1 favours widening rather than narrowing.
+
+## next  UI-3  MEASURED AGAINST THE REPORT AND DOES NOT REPRODUCE - content is not width-starved
+Report: "~135px gutters each side leave ~744px usable inside a 1017px region (73%)".
+Measured at 1208 dark: main region x236-1196 = **960 wide**; content x280-1152 = **872 wide**. Gutters are **44px** a side, and content is **91%** of the region, not 73%.
+The mock specifies content `max-width` 960 with 24-32px padding, i.e. ~896 usable - so the app is 24px tighter than the mock, not 273px.
+Kept as an entry rather than deleted for two reasons: the reporter's screenshot may have been taken at a different effective width or with a scrollbar, and 44px is still 12px wider than the mock's upper bound.
+Requirements: reconcile the gutter to the mock's 24-32px, which reclaims **24px** of column width - and record here what viewport actually produced the reported 73%, because if a real width does, that is a separate and much larger defect than this one.
+
+## next  UI-4  Sidebar nav labels are the same weight as the page title
+Measured: page title **15px/600**; sidebar nav label **13px/600**. Two pixels apart at identical weight, which is the reported symptom.
+**The cause is the nav, not the title, and it is an R1 deviation already in the code.** The mock's title is 15/600 - the app matches it exactly - while the mock's inactive nav items are `font-size:13px; font-weight:500`, with 600 reserved for the ACTIVE item (`t.weight`). The app renders every nav label at 600, so the active state carries no weight signal either.
+AC: inactive nav labels at 500, active at 600, title unchanged at 15/600. Fixing the nav fixes the hierarchy and restores the active-item signal in the same change.
+
+## next  UI-5  Sidebar rhythm, and the gap that is not unexplained
+Reported: ~31px nav spacing, an unexplained gap before Invoices/Settings, and a theme toggle crowding the wordmark.
+**The gap is `.nav-bottom` and it is the mock's (R1):** v3 §2 specifies "Bottom group above hairline: Invoices, Settings", and F1b shipped it under the mock's own hairline. It is a deliberate section separation, so the AC ("deliberate section separation") is already met - the defect, if any, is that it does not READ as deliberate.
+**The toggle is also the mock's:** §2 puts the ⌘K control in the logo row, and F1b put the 22px theme toggle in that slot instead (recorded at the time, because no palette exists to open).
+Requirements: measure the nav item spacing against the mock's `padding:7px 10px` and correct only what deviates; then decide whether the bottom group needs a visible hairline it currently lacks. Do not delete the gap.
+
+## next  UI-6  The trend section has no card, and that is the mock (R1)
+Measured: `.dash-trend` computed `border-top-width` **0px**, while `.dash-ins`, `.dash-moved` and `.dash-dig` are all bordered containers. The page does read card / not-card / card.
+⚠️ **The AC contradicts the mock and should not be built as written.** §3.1 draws the trend as a bare `<section style="margin-top:36px">` on the page canvas with no border, no band and no fill; only tables and lists are bordered containers in v3 (§2). F6 (`v143`) implemented it that way deliberately and the CSS says so at the site.
+The second half of the AC is already true: the range control **is** inside the section header (`.ds-head`), measured at x903-1152 y240, with the section starting at y240 and the chart at y286. It is above the chart because the mock puts it there.
+Requirements: this is a decision for Max, not a fix - either the app deviates from the mock and every dashboard section becomes a card, or the mixed rhythm is the design and this closes. Do not resolve it by patching one section.
+
+## next  UI-7  The trend chart has no x-axis at all, and its marker annotation is bare
+Measured: the only `<text>` elements in the chart are **"36%", "38%", "40%", "42%"** - four y-axis ticks and nothing else. There is no time axis at any range.
+The marker annotation is confirmed bare: `trendChart` emits `'−'+mag` with no unit and no subject, so a marker reads "−0.2".
+**Split, because the two halves have different rule numbers.** The mock ALSO draws no x-axis (§3.1's chart has three y labels and one annotation), so "add date ticks" is a deviation from the mock and a genuine readability argument - a trend chart whose x-axis is unlabelled cannot be read against the range control that governs it. The annotation is different: the mock's reads **"price change, -0.7"**, so the app's bare "−0.2" is a plain R1 shortfall and is the cheaper half.
+AC: the annotation states what it measures and its unit, matching the mock's grammar. Date ticks appropriate to the selected range are a separate decision, because they are not in the mock.
+⚠️ The scrub tooltip already carries the full sentence including the date, so the axis gap is partly covered on hover and not at all on a phone.
+
+## next  UI-8  The chart's y-domain collapses the series into a band when the target is near the data
+**REPRODUCED, with the mechanism.** Measured at 1208 with target 30 and data 31.0-32.5: ticks render **25% / 30% / 35%** and the series occupies fractions **0.33 to 0.43** of the plot height - about **10% of the plot, with ~57% dead below it**, which is what was reported.
+Control case, target 30 with data 36-42: ticks 36/38/40/42 and the series occupies 0.13-0.88, i.e. 75% of the plot. Healthy.
+Cause: `targetInView` is true whenever the target sits within one tick of the data, and `tcTicks(cogsPct, min(dmn,cogsPct), max(dmx,cogsPct))` then stretches the domain to cover the target AND a tick beyond it. **The v60 comment at the site says the opposite** - "the DOMAIN fits the DATA (target excluded), so small margin moves read as movement" - and that sentence is false in exactly the case Max's own data produces, because his target is 30 and his averages sit near it.
+AC: with the target inside the domain, the series occupies a majority of the plot height and the target line is still drawn. Fix the comment in the same change; it is currently a stale fact that would send the next reader the wrong way.
+Note this is the highest-value entry in the set: it is the state Max's real data is in, on the screen he opens first.
+
+## next  UI-9  MEASURED AND DOES NOT REPRODUCE - the dark palette is the spec, and there is no hard-coded hex
+Report: "near-black sidebar against a warm dark-grey canvas, inverted from the soft neutral scheme (canvas #232528, sidebar #1E1F22). Almost certainly hard-coded hex."
+Measured at 1208 dark: canvas `rgb(35,37,40)` = **#232528**; sidebar `rgb(30,31,34)` = **#1E1F22**.
+Those are the two values the report itself names as the spec, in the roles the report assigns them, so the palette is exactly right and is not inverted.
+Hard-coded hex, checked across the whole stylesheet below the token block: the only literals outside comments are two `var(--accent,#3a6b4f)` fallbacks, one `var(--card,#fff)` fallback, and the `@media print` block, which is deliberately literal for the printed docket and says so.
+Kept as an entry only to record the negative result, so the same screenshot does not produce the same report twice. **Close on read unless a real hex is produced.**
+What may actually be behind the observation: sidebar-darker-than-canvas is correct per the mock but is a low tonal step (#1E1F22 vs #232528), so the two planes can read as one on a dim display. That is a legitimate and different question, and it is the one worth asking.
+
+## next  UI-10  The Products Supplier column is empty on every fixture row - measure it against production
+Measured, 15 visible rows: the Supplier cell is **"—" on 15 of 15**, and the column band reads Product | Category | Supplier | Unit cost | Last change.
+⚠️ **The stated cause is wrong and the correction matters.** The secondary text beside the product name is the **BRAND** (Priestleys, Heinz Watties, Caterers Choice), not the supplier - F4 shipped "Product + inline brand" per the mock's §3.5. Nothing is duplicated, so "one supplier location" would remove a column that is not a duplicate of anything.
+The real question is whether Supplier is empty on **Max's** catalogue, which the Playwright fixture cannot answer - it carries no supplier data at all, which is why every row shows a dash.
+Requirements: count non-empty `supplier` values across the live `ingredients` table before deciding anything. If most rows are empty the column is dead weight and its width goes to the name column; if they are populated the column is correct and this closes.
+Out of scope: the brand, which the mock puts beside the name deliberately.
+
+## next  UI-11  "Last change" prints "steady" on every unchanged row
+Measured: **15 of 15** visible rows print "steady".
+⚠️ **The AC contradicts the mock (R1).** Both the §3.4 Ingredients and §3.5 Products rows in `Redesign v3 - SaaS.dc.html` render a muted `steady` for the no-change case - `<span style="font-family:'Geist Mono'; font-size:12px; color:var(--text-3)">steady</span>` - so blank-or-dash is a deviation, not a correction.
+The observation is still worth acting on: a column that reads "steady" fifteen times is carrying no information, and the mock's own fixture data has only three of eight rows unchanged, so it never shows what fifteen looks like.
+Requirements: Max's decision between the mock's "steady" and a blank. If blank wins it applies to Ingredients too, since they share the wording, and the change is one function.
+
+## next  UI-12  Category values render raw, in mixed case, and truncate mid-word
+Measured across 15 rows: `DESSERTS`, `BAKING SUPPLIES`, `SMALLGOODS`, `CLEANING & JANITORIAL`, `HERBS SPICES & SEASONINGS`, `BEEF PORTIONED` sit beside sentence-case `Fish`.
+These are supplier-supplied strings stored verbatim, so the mixture is in the data rather than in the rendering.
+AC: one casing rule applied at display time, and no mid-word truncation in the category column.
+⚠️ Display-time only. The stored value is what the invoice parser and the category derivation both match against, so normalising at rest would be a data migration with a blast radius well beyond this column.
+
+## next  UI-13  A long product name truncates the name and its brand together
+Both `.ing-name` and the brand beside it are `flex:0 1 auto` with `min-width:0`, so a long name shrinks both and a row can lose the end of the name AND the brand at once.
+AC: a truncation strategy that keeps one label whole - the name is the identifier, so the brand should yield first.
+Note F4 already fixed the mobile half of this by dropping the brand below 768 per the mock's own fixture; this is the desktop residue.
+
+## next  UI-14  The Products filter row is wider than it needs to be
+Measured at 1208: the control row spans the full 912, with search **365px**, category select **329px**, supplier select **162px**.
+The mock's §3.5 control row is a search that grows plus a select sized to content, not three controls sharing the full width.
+AC: controls sized to content against the mock, with the reclaimed width going to the table.
+⚠️ **The second half of the report - "search shows its clear button while empty" - is ALREADY A QUEUE ITEM** and is not duplicated here. See *"The search ✕ shows on every search bar even when the field is empty"*, which records that it is app-wide across six search bars and must be decided in one place. Confirmed still true while writing this: measured `display:flex` with the field value `""`.
+
+## blocked  UI-15  DECISION - KPI values are colour-coded, so the metric carries sentiment
+Measured: the first two KPI figures render `rgb(229,135,125)` (`--danger`) and the third `rgb(228,227,225)` (`--text`), so "Average food cost" and "Plates over target" are red while "Not costed or priced" is neutral.
+The mock does the same: §3.1's `kpis` carry a `color` per cell, red on the first two.
+**Recommendation: keep it.** The colour is anchored to the TARGET, not to direction, which is the `trend-reframe` law this app already paid for once - green means at or under target everywhere on this screen, and the KPI figure agreeing with the chart and the sparklines is the point. A delta indicator instead would reintroduce the "vs last month" baseline Max deleted in v98 and declined again on 9 Aug 2026.
+Blocked on: Max, and it is a genuine taste call about whether a number should carry a verdict.
+
+## blocked  UI-16  DECISION - three accent hues in the trend section
+Confirmed: the chart line is `--good` or `--bad` by target, the intervention markers are `--accent` orange, and the active range pill is `--accent-weak`/`--accent-ink` orange.
+So a healthy section shows green line + orange marker + orange pill.
+**Recommendation: keep the marker orange, restyle the range pill.** The marker and the line mean different things and must not share a hue - the marker says "you did this", the line says "this is where you are against target" - and §8 reserves green/amber/red for cost semantics, which is why the marker is accent rather than green. The pill is the odd one out: it is a control, not data, and it is the only element making the count three.
+Blocked on: Max, because it is a taste call on a screen he reads daily.
+
+---
+
 # THE V3 FOLD-IN (queue reset 10 Aug 2026 per FOLD-IN-PROTOCOL.md §0a/§0b)
 
 **The law of this phase: `docs/design_handoff_ezplate_redesign/FOLD-IN-PROTOCOL.md`.** It supersedes spec §11 (where they disagree, the protocol wins). The spec is `V3-Design-Package.md`; the mocks are `Redesign v3 - SaaS.dc.html` (desktop, 10 screens + 4 modals, light AND dark) and `Redesign v3 - Mobile.dc.html` (9 screens + sheets). Both were clicked through screen-by-screen on 10 Aug 2026 before this reset.
