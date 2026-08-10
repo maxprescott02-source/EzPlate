@@ -47,6 +47,13 @@ It puts a quiet "Synced 4 min ago" inside the §2 header row, before the actions
 That is the right answer and it is a states-and-copy change, which the item fenced off, so I did not build it.
 It should ride F5 or F6 as an R1, and the `pointer-events:none` comment names the Retry button as the thing that forces a re-measure when it arrives.
 
+## Review
+
+No defects.
+One nit, fixed in branch: the spec's chrome selector list carried a `.side` that matches nothing, since the sidebar's controls are `.side-brand` and `.side-theme` and both sit inside `nav.bottomnav`, already covered.
+Verified against the markup before removing it, because a dead selector in a coverage list reads as coverage it does not provide.
+Worth recording that the reviewer re-derived the "7 of 10 tests fail against the pre-fix CSS" claim by mutating the CSS itself rather than believing the handover.
+
 ## Surprises
 
 The first version of the regression spec asserted the banner overlaps no interactive element anywhere, and failed.

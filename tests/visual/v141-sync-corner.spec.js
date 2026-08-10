@@ -55,7 +55,11 @@ async function boot(page, width) {
  * `pointer-events:none` pinned at the bottom of this file: a row under the banner is still
  * clickable, so covering one costs a look, never an action.
  */
-const CHROME = '.scr-head, header, .side, .bottomnav, .toast, .install-banner';
+/* No `.side` here, deliberately: it matches nothing. The sidebar's own controls are `.side-brand`
+   and `.side-theme` (index.html), and both live INSIDE `nav.bottomnav` — the same element as the
+   mobile tab bar, re-laid-out at >=1024 — so `.bottomnav` already catches them through `closest()`.
+   A dead selector in this list would read as coverage it does not provide. */
+const CHROME = '.scr-head, header, .bottomnav, .toast, .install-banner';
 
 /* Returns every interactive CHROME element the banner's rect intersects. Scoped by role, not by
    screen: `.scr-head` is the shared §2 header bar that F5-F10 each adopt, so a later screen that
