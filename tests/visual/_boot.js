@@ -109,6 +109,30 @@ async function installBoot(page, opts = {}) {
            seeds it the same way it seeds the rest. Specs that do not seed the key get `{}` and the
            empty state, i.e. today's behaviour, unchanged. */
         if (table === 'ing_price_history') return { data: pts(ls('cafeDB_ingPriceLog', {}), 'cost_per_base_unit', 'product_id'), error: null };
+        /* v145: `menu_change_log` was in `emptyOk` for the same reason `ing_price_history` was, and
+           with the same consequence — it is the ONLY feeder for the trend chart's intervention
+           markers and for the dashboard's since-line, so neither could be driven in a browser at
+           all. The marker label was changed in this batch and could be verified only in a unit test
+           until this existed.
+           Served from `cafeDB_changeLog` in the ROW shape `rowToChange` expects (it needs `id` and
+           a parseable `recorded_at`, and drops the entry otherwise), so a spec seeds plain
+           `{t, kind, avgBefore, avgAfter}` objects and this maps them. Specs that do not seed the
+           key get `[]` and today's behaviour, unchanged. */
+        if (table === 'menu_change_log') {
+          const src = ls('cafeDB_changeLog', []);
+          return { data: (Array.isArray(src) ? src : []).map((e, i) => ({
+            id: e.id || ('CL' + i),
+            recorded_at: new Date(e.t).toISOString(),
+            kind: e.kind || 'plate_edited',
+            plate_id: e.plateId || null, dish_id: e.dishId || null,
+            menu_ids: e.menuIds || [],
+            avg_before: e.avgBefore == null ? null : e.avgBefore,
+            avg_after: e.avgAfter == null ? null : e.avgAfter,
+            cost_before: e.costBefore == null ? null : e.costBefore,
+            cost_after: e.costAfter == null ? null : e.costAfter,
+            detail: e.detail || {},
+          })), error: null };
+        }
         if (table === 'app_settings') return { data: settingRows(), error: null };
         if (emptyOk.includes(table)) return { data: [], error: null };
         return { data: null, error: { message: 'fixture: table not served' } };

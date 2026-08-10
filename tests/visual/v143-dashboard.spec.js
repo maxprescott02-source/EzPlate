@@ -406,3 +406,118 @@ test('the What-moved delta wears the mock\'s 12px lozenge, not .dig-v\'s 13px', 
   expect(got.classes).toContain('dig-v');
   expect(got.size, 'the §3.1 lozenge is 12px').toBe('12px');
 });
+
+/* ============================================================================================
+ * 8. v145 — the intervention markers, drivable in a browser for the FIRST TIME
+ *
+ * `menu_change_log` was in `_boot.js`'s always-empty list until this batch, so the markers and the
+ * dashboard's since-line had never rendered in a Playwright run at all — the marker label was
+ * changed here and could be checked only in a unit test. The unit test pins the label's TEXT; this
+ * pins the thing it cannot see, which is whether two labels collide once they are ~8 characters
+ * wide. The collision gap moved 30 → 52 viewBox units for exactly that reason: since v143 a unit is
+ * about a rendered pixel, so 30 no longer clears the label it was tuned for.
+ * ========================================================================================= */
+
+const SEED_MARKERS = () => {
+  localStorage.clear();
+  localStorage.setItem('cafeDB_cogsPct', '30');
+  localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MENU_ORIGINAL', name: 'Original' }]));
+  localStorage.setItem('cafeDB_plates', JSON.stringify([
+    { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 3 }] },
+  ]));
+  localStorage.setItem('cafeDB_menu', JSON.stringify([
+    { id: 'MI1', name: 'Toastie', section: 'Lunch', price: 10, custom: true, menuId: 'MENU_ORIGINAL', plateId: 'PL1' },
+  ]));
+  const d = 86400000, now = Date.now();
+  localStorage.setItem('cafeDB_priceHistory', JSON.stringify(
+    [31, 31.6, 32.4, 32.0, 31.7, 32.5].map((v, i, a) => ({ t: now - (a.length - 1 - i) * 6 * d, v }))));
+  // WELL SEPARATED: both keep their label, so over-aggressive thinning fails here.
+  localStorage.setItem('cafeDB_changeLog', JSON.stringify([
+    { t: now - 24 * d, kind: 'dish_price', avgBefore: 32.6, avgAfter: 31.9, detail: {} },
+    { t: now - 6 * d, kind: 'plate_edited', avgBefore: 32.4, avgAfter: 32.0, detail: {} },
+  ]));
+};
+
+/* The SAME series with the two interventions ONE DAY apart, which is the case the collision gap
+   exists for. `trendMarkers` dedups to one marker per calendar day, so a day apart is the closest
+   two markers can legitimately be. Kept as its own seed because the far-apart case above and this
+   one assert opposite things and a single seed cannot do both. */
+/* ⚠️ Inlined, NOT composed from SEED_MARKERS. `addInitScript` serialises the function and runs it
+   in the page, where the closure it was defined in does not exist — calling a sibling seed from
+   inside one throws a ReferenceError in the browser, the seeding silently does nothing, and the
+   test then fails for a reason that has nothing to do with what it is testing. Cost twenty
+   minutes here; every seed in this file is self-contained for that reason. */
+const SEED_MARKERS_CLOSE = () => {
+  localStorage.clear();
+  localStorage.setItem('cafeDB_cogsPct', '30');
+  localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MENU_ORIGINAL', name: 'Original' }]));
+  localStorage.setItem('cafeDB_plates', JSON.stringify([
+    { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 3 }] },
+  ]));
+  localStorage.setItem('cafeDB_menu', JSON.stringify([
+    { id: 'MI1', name: 'Toastie', section: 'Lunch', price: 10, custom: true, menuId: 'MENU_ORIGINAL', plateId: 'PL1' },
+  ]));
+  const d = 86400000, now = Date.now();
+  localStorage.setItem('cafeDB_priceHistory', JSON.stringify(
+    [31, 31.6, 32.4, 32.0, 31.7, 32.5].map((v, i, a) => ({ t: now - (a.length - 1 - i) * 6 * d, v }))));
+  localStorage.setItem('cafeDB_changeLog', JSON.stringify([
+    /* 1.5 days apart, and the figure is DERIVED rather than picked: readings sit 6 days apart, the
+       plot is ~166 units per reading at 1360, so 1.5 days is ~41 units between markers — inside the
+       band where the old 30-unit gap drew both (and they overprinted, labels being ~48 units wide)
+       and the new 52-unit gap thins the second. At one day apart they are ~28 units and BOTH gaps
+       thin, which is why the first attempt at this test could not fail. */
+    { t: now - 7.5 * d, kind: 'dish_price', avgBefore: 32.6, avgAfter: 31.9, detail: {} },
+    { t: now - 6 * d, kind: 'plate_edited', avgBefore: 32.4, avgAfter: 32.0, detail: {} },
+  ]));
+};
+
+for (const width of [380, 1360]) {
+  test(`marker labels carry their unit and never overprint @ ${width}`, async ({ page }) => {
+    await boot(page, width, SEED_MARKERS);
+    const m = await page.evaluate(() => {
+      const svg = document.querySelector('.dash-chart svg');
+      const lbls = Array.from(svg.querySelectorAll('.mk-lbl'));
+      const boxes = lbls.map((t) => t.getBoundingClientRect());
+      const plot = svg.getBoundingClientRect();
+      let overlap = false;
+      for (let i = 1; i < boxes.length; i++) if (boxes[i].left < boxes[i - 1].right) overlap = true;
+      return {
+        texts: lbls.map((t) => t.textContent),
+        dots: svg.querySelectorAll('.mk-pt').length,
+        overlap,
+        escapes: boxes.some((b) => b.left < plot.left - 1 || b.right > plot.right + 1),
+      };
+    });
+    expect(m.dots, 'both interventions draw a dot').toBe(2);
+    expect(m.texts.length, 'well separated, so neither label is thinned away').toBe(2);
+    m.texts.forEach((t) => expect(t, 'a magnitude with no unit states nothing').toMatch(/pts$/));
+    expect(m.overlap).toBe(false);
+    expect(m.escapes, 'a label may not run outside the plot').toBe(false);
+  });
+
+  test(`two markers a day and a half apart never overprint @ ${width}`, async ({ page }) => {
+    /* THE DISCRIMINATING CASE, and the first cut of this test could not fail: its markers were 18
+       days apart, so the collision gap was never exercised and reverting 52 → 30 passed. A day and a half
+       apart at 1360 is ~41 rendered px between markers against a label ~48px wide, so the old gap
+       drew both and they overprinted; the new one thins the second away. */
+    await boot(page, width, SEED_MARKERS_CLOSE);
+    const m = await page.evaluate(() => {
+      const svg = document.querySelector('.dash-chart svg');
+      const lbls = Array.from(svg.querySelectorAll('.mk-lbl'));
+      const boxes = lbls.map((t) => t.getBoundingClientRect());
+      let overlap = false;
+      for (let i = 1; i < boxes.length; i++) if (boxes[i].left < boxes[i - 1].right) overlap = true;
+      return { dots: svg.querySelectorAll('.mk-pt').length, labels: lbls.length, overlap };
+    });
+    expect(m.dots, 'both dots still draw — only the LABEL thins, never the marker').toBe(2);
+    expect(m.overlap, 'labels this close must not overprint').toBe(false);
+    expect(m.labels, 'so at most one of the two is labelled').toBeLessThanOrEqual(1);
+  });
+}
+
+test('v145: the since-line renders, which no browser spec could show before', async ({ page }) => {
+  // It reads the change log, so it was unreachable in Playwright until `menu_change_log` was served.
+  await boot(page, 1360, SEED_MARKERS);
+  await expect(page.locator('.since')).toBeVisible();
+  await expect(page.locator('.since')).toContainText('Your last change cut');
+});

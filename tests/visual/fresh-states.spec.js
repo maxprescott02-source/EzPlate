@@ -776,6 +776,15 @@ for (const size of SIZES) {
           focusable: svg.getAttribute('tabindex') === '0',
         };
       });
+      /* ⚠️ v145 LOOSENED THIS AND THEN PUT IT BACK, which is worth recording because the loosening
+         was the mistake. The first cut of that batch's y-domain fix generated ticks over a padded
+         domain and then FILTERED out the ones that fell outside it — and for ordinary data like
+         [28,30,32] against a 30% target, tcTicks widens to step 5 and returns [25,30,35], so the
+         filter left ONE label on the whole axis. This assertion was rewritten to permit that,
+         which is fitting the spec to the regression instead of closing it; the pre-push review
+         caught both halves. The domain is now the TICK EXTENT plus a hair, so tcTicks' own
+         guarantees hold end to end: at least three ticks (it pads outward below three) and never
+         more than four (it widens the step above four). Restored verbatim. */
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeGreaterThanOrEqual(3);
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
       expect(st.xLbls, `${rg}: x-axis date labels removed (v48)`).toBe(0);
