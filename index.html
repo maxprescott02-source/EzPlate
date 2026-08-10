@@ -165,9 +165,14 @@
          §6 (mobile) per FOLD-IN-PROTOCOL §1.2 — the old `.atable` table, its `.an-head`/`.an-controls`
          skeleton and the §V4a skin are gone in the same change. data-tab stays "analysis"; its LABEL
          is "Menu" (the naming inversion). Every id and handler below is unchanged; only the shape is new.
-         `.scr-head` / `.plib-*` are F2's ported mock patterns, reused not rebuilt. This screen was the
-         LAST tenant of `.ing-controls` / `.menu-search` / `.ing-filter` / `.ms-clear` / the base
-         `.panel` card, so F5 empties them — see the CSS tombstones. -->
+         `.scr-head` / `.plib-*` are F2's ported mock patterns, reused not rebuilt.
+         This screen was the last tenant of `.ing-controls` / `.ing-filter`, of the whole v49/v52
+         panel skeleton (`.panel-actions` / `.panel-sub` / `.panel-meta` / `.an-head` /
+         `.an-controls`) and of the `.atable` table system, and F5 deletes all three — see the CSS
+         tombstones. ⚠ `.menu-search`, `.ms-clear` and the base `.panel` card did NOT empty and are
+         NOT deleted: the modal search boxes still wear the first two, and the Dashboard still wears
+         `.panel` until F6. (F4's queue note listed all five together; two of them were wrong, which
+         is exactly the kind of line that gets trusted.) -->
     <div class="panel plib-panel">
       <div class="scr-head">
         <h2>Menu</h2>
