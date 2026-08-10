@@ -148,11 +148,15 @@ for (const width of [380, 768]) {
         top: Math.round(b.top),
         centreOffset: (b.left + b.right) / 2 - (icb / 2 + railOffset),
         clearsScreenHeader: !head || b.bottom <= head.getBoundingClientRect().top,
+        raw: `banner=[${Math.round(b.left)},${Math.round(b.right)},${Math.round(b.top)},${Math.round(b.bottom)}] `
+           + `icb=${icb} innerW=${window.innerWidth} rail=[${Math.round(rail.left)},${Math.round(rail.right)}] `
+           + `railOffset=${railOffset} hidden=${document.getElementById('syncBanner').hidden} `
+           + `disp=${getComputedStyle(document.getElementById('syncBanner')).display}`,
       };
     });
-    expect(geo.top).toBeLessThan(30);                       // top-anchored, not moved to the bottom
-    expect(Math.abs(geo.centreOffset)).toBeLessThan(2);     // still centred (rail-offset at 768)
-    expect(geo.clearsScreenHeader).toBe(true);              // sits above `.scr-head`, never on it
+    expect(geo.top, geo.raw).toBeLessThan(30);                    // top-anchored, not at the bottom
+    expect(Math.abs(geo.centreOffset), geo.raw).toBeLessThan(2);  // still centred (rail-offset at 768)
+    expect(geo.clearsScreenHeader, geo.raw).toBe(true);           // above `.scr-head`, never on it
   });
 }
 
