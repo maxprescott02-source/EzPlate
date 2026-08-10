@@ -70,7 +70,8 @@ Requirements: export the helpers alongside the built harness (or a separate `tes
 ⚠️ **"The copies have not drifted yet - checked" was WRONG, and the measurement is the whole story of this batch.** They had drifted three ways: **37** took `(src, name)`, **10** closed over a module-level `SRC` and took `(name)`, **1** took `(src, name, occ)`; and - the one that mattered - **THREE carried the parse guard and FORTY-FIVE did not.** That guard (CodeRabbit, PR #50) exists because the depth counter is brace-naive, so a `}` inside a string ends the slice early and hands back a TRUNCATED function instead of raising. In 45 files that mis-slice was silent.
 Out of scope: `build()`'s exported surface, and any change to what the 48 files actually assert.
 
-## next  A flaky-but-GREEN Playwright run throws away the only trace worth having
+## done  A flaky-but-GREEN Playwright run throws away the only trace worth having
+**Shipped 10 Aug 2026, CI-only, no deploy version. The item's PREMISE was confirmed by measurement and its stated MECHANISM was wrong - see the done section before reusing either.**
 Problem: found 10 Aug 2026 by the pre-push review of the `--retries=1` change, as a direct consequence of it.
 `.github/workflows/test.yml`'s `Upload Playwright report` step is gated `if: failure()`. With retries on, a run where a test fails once and passes on retry **exits 0 and goes green**, so that step never fires - and the trace for the failed attempt, which Playwright DID retain (`--trace=retain-on-failure` keeps it), is discarded with the runner.
 **That is precisely the run you most want to open.** A green-with-flaky run is the only evidence that distinguishes an infra hiccup from an intermittent real regression, and right now it survives as one annotation and a log line, with no DOM snapshot.
@@ -80,6 +81,15 @@ Note this is machinery in a job kept deliberately minimal, which is why it was q
 
 ## done  The Playwright job has no retries, so one slow context launch fails the whole PR
 **Shipped 10 Aug 2026, CI-only, no deploy version - and the item's own honesty premise was DISPROVED by the review; read the done entry before citing it.** See the done section.
+
+## next  `v141-sync-corner.spec.js` has now failed IN SETUP twice, on two independent runs
+Problem: found 10 Aug 2026 while rehearsing the flaky-upload gate locally - the rehearsal itself went flaky, which is the first time this repo has caught one outside CI.
+`v144: the persistent states are tinted, the transient ones stay quiet @ light` failed attempt 0 with **`browser.newContext: Target page, context or browser has been closed`** and passed attempt 1.
+**That is the SECOND setup-phase failure in this one spec file.** The first was `Test timeout of 30000ms exceeded while setting up "context"` in the same file, and it is the incident that bought `--retries=1` in the first place. Two independent runs, two different setup errors, one file.
+⚠️ **The innocent explanation is real and must be checked before anything else: this file has the most contexts of any spec** - 12 tests from its width and theme loops, against a handful elsewhere - so being the file that meets an infra hiccup is what you would expect from volume alone. Do the arithmetic (failures per context created, not per file) before calling it a defect.
+The spec does NOT manage contexts itself: no `newContext`, no `browser.close()`, only the standard `page` fixture, so nothing in the file's own code is an obvious cause.
+Requirements: count setup-phase failures per context across the whole visual suite, then either name a cause in this file or record positively that it is volume and close it. The trace for this exact failure is the kind the gate shipped in this batch now preserves, so the next CI occurrence will come with a DOM snapshot rather than a log line.
+Out of scope: the retry count, and the flaky-upload gate, which is done.
 
 ## next  "Abbreviation matching in search" has been recorded as shipped for three audits and is not built (AUDIT-v145 D2)
 Problem: `docs/QUEUE.md:30` and `:758` both cite "abbreviation search" as a past example of a queue item that described something as missing which had already shipped - one of the three that motivated this file's own "check an item against the code before working it" warning.

@@ -180,10 +180,9 @@ jobs:
       #                    So the annotation is the whole safety net, and it only works if someone
       #                    reads it: **a `flaky` annotation on a green check is a FINDING, not
       #                    noise.** Treat it as a defect report against the spec it names.
-      #                    ⚠️ And the trace for the failed attempt is NOT kept - the upload step
-      #                    below is `if: failure()`, which does not fire on a flaky-but-green run,
-      #                    so what survives is the annotation and this log, never the DOM
-      #                    snapshot. Fixing that gate is queued as its own item.
+      #                    (The trace for the failed attempt used to be discarded with the runner
+      #                    for the same reason - the upload gate was `if: failure()`. Fixed 10 Aug
+      #                    2026; see the detection step below.)
       #                    The alternative considered and REFUSED was raising the global test
       #                    timeout, which would mask a real hang outright and give no annotation
       #                    at all.
@@ -206,6 +205,14 @@ jobs:
       # only the number lied. Re-measure it when you next touch this block rather than
       # trusting it - `ls tests/visual/*.spec.js | wc -l`.)
       - name: Run hermetic browser specs
+        env:
+          # LOAD-BEARING, not tidiness. Without it the `json` reporter writes the ENTIRE report
+          # to stdout and buries the github reporter's summary in it. Measured 10 Aug 2026: the
+          # path resolves relative to the CONFIG's directory, not the working directory -
+          # playwright.config.js is at the repo root, so a bare filename lands at the repo root,
+          # which is what the step below reads. A relative path with directories in it will not
+          # go where you expect.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-results.json
         run: |
           set -euo pipefail
           SPECS=$(ls tests/visual/*.spec.js | grep -v screenshots.spec.js || true)
@@ -216,23 +223,48 @@ jobs:
             exit 1
           fi
           echo "Running these specs:"; echo "$SPECS"
-          npx playwright test --forbid-only --workers=2 --retries=1 --trace=retain-on-failure --reporter=github,html $SPECS
+          npx playwright test --forbid-only --workers=2 --retries=1 --trace=retain-on-failure --reporter=github,html,json $SPECS
 
-      # Only on failure - a green run's report is megabytes of nothing. On a red run this
-      # is the difference between "something broke" and opening the trace at the failing
-      # assertion. Download it and run: npx playwright show-trace <the .zip inside>.
-      # ⚠️ SINCE --retries=1 (10 Aug 2026) THIS GATE HAS A HOLE, found by the pre-push review:
-      # a flaky-but-green run produces a trace for the failed attempt and then discards it,
-      # because `failure()` is false. That is the one run you most want to look at. Queued as
-      # its own item rather than fixed here - it needs a json reporter plus a step that detects
-      # `"status":"flaky"`, which is real machinery in a job kept deliberately minimal.
+      # WHY THIS STEP EXISTS. With --retries=1 a test that fails once and passes on retry is
+      # classified `flaky` and THE JOB EXITS 0, so `failure()` is false and the upload below never
+      # fired - while `--trace=retain-on-failure` HAD written the failed attempt's trace, with its
+      # DOM snapshot, to test-results/. It was then thrown away with the runner. That is the one
+      # run you most want to open: a green-with-flaky run is the only evidence that separates an
+      # infra hiccup from an intermittent REAL regression, which is exactly what these specs catch.
+      #
+      # ⚠️ IT READS stats.flaky, NOT A GREP FOR `"status":"flaky"`. The queue item specified that
+      # grep and it matches ZERO times - the JSON reporter pretty-prints, so the literal in the file
+      # is `"status": "flaky"`, with a space. A grep for the bare word `flaky` hits 11 times in a
+      # one-test report. Both were measured before this was written; the first would have been a
+      # gate that looks right and never fires, which is worse than the hole it replaces.
+      #
+      # It cannot turn a green run red: node parses inside a try/catch and prints 0 for a missing or
+      # malformed report, so a broken detector loses the artifact rather than failing the build.
+      - name: Did any spec pass only on a retry?
+        id: flaky
+        if: always()
+        run: |
+          set -euo pipefail
+          COUNT=$(node -e "try{process.stdout.write(String(require('./playwright-results.json').stats.flaky||0))}catch(e){process.stdout.write('0')}")
+          if [ "$COUNT" != "0" ]; then
+            echo "::warning::$COUNT spec(s) passed only on a retry. A flaky annotation on a green check is a FINDING, not noise - the uploaded report has the trace for the failed attempt."
+            echo "flaky=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flaky=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Failures and flakes only - a fully green run's report is megabytes of nothing, which is why
+      # this is not `if: always()`. On a red run it is the difference between "something broke" and
+      # opening the trace at the failing assertion; on a flaky one it is the only surviving evidence.
+      # Download it and run: npx playwright show-trace <the .zip inside>.
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.flaky.outputs.flaky == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: |
             playwright-report/
             test-results/
+            playwright-results.json
           retention-days: 7
           if-no-files-found: ignore

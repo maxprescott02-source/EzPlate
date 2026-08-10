@@ -1,6 +1,7 @@
 node_modules/
 test-results/
 playwright-report/
+playwright-results.json
 tests/visual/__shots__/
 .DS_Store
 .agents/
