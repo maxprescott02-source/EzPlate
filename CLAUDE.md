@@ -219,6 +219,38 @@ The older "green = improving" rule made the chart permanently red during ordinar
 
 The `fresh-states` Playwright specs have no other handle on the pid-line shape, and Playwright is not in `npm test` - so deleting it fails **silently**.
 
+## A stub that mirrors a real function must mirror its CONTRACT - so extract the real function instead
+
+A test that re-implements a shipped function in order to test around it **passes against the very defect it was written to catch**, because the stub is written from the same wrong belief as the code.
+
+**The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
+
+Four incidents, one remedy, three of them consecutive:
+
+- **v113** - a passthrough stub hid a real escaping bug.
+- **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
+- **140** - a stub mirrored `fmtTargetPct` wrongly and hid a `30%%`.
+- **141** - a hand-rolled `esc` was missing `>`; the fix was to use the app's own `esc`, which is what v113 had already concluded.
+
+**If a stub is genuinely unavoidable, assert the stub against the real function first** - one test that they agree - so the copy cannot drift silently.
+This is the same family as **"a test that records call ORDER passes against the broken code"** above and as `addProduct`: the failure is never a red test, it is a green one.
+
+## A `@media` block does not win by being later
+
+**Specificity is compared BEFORE source order**, so a multi-class selector written outside a media query beats a single-class rule written inside one.
+Putting the narrow selector on the small screen and the plain one on the large screen inverts the cascade, and **the symptom is a rule that looks right in the file and does nothing on screen** - which is why this is never caught by reading, only by measuring.
+
+**When a declaration appears at both breakpoints, give the two rules the SAME specificity.**
+
+**Five instances in ONE screen in ONE batch** (F3/v139) - a cell thrown into the wrong column on broken rows; desktop `—` placeholders losing to a mobile `.is-nil` rule and rendering blank; a dead grid row under every healthy mobile name; a column headed "Used in" reading ", in —" on every row because the desktop cancel of a mobile `::before` could never win; and a header right-alignment keyed off one class of button.
+Three were found by looking at the app and two by the review - **and the fourth was written INTO the fix for the third**, which is what makes this a rule and not a lesson.
+F2/v138 hit the same class twice more, as `[hidden]` overrides: a single-class rule beats the UA's `[hidden]`, so an element told to hide stays visible.
+
+**The `[hidden]` corollary is a DIFFERENT mechanism with the same symptom, and the specificity advice above does not fix it.**
+An author rule beats the UA's `[hidden]{display:none}` because **author origin wins over UA origin, and origin is decided BEFORE specificity is even compared** - so `.thing{display:block}` overrides it no matter how the selectors measure. Matching specificity therefore achieves nothing here.
+**The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. It is used twice in `css/style.css` (`.plib-controls`, `.plib-note`), both after the renderer's hide was silently ignored and an element sat visible under an empty state.
+**So: any `display` rule on an element the JS hides with `hidden` needs the guard.**
+
 ---
 
 # Tier 2 - Constraints
@@ -244,6 +276,9 @@ Describing without naming is fine - "the name you'll use when building plates" i
 - **Supabase is the source of truth; the app is online-only.**
 - **localStorage holds view preferences and derived caches ONLY** - never data.
   If something new resists that classification, **ask: there is no third category.**
+  **The one standing exception is the plate draft** (`cafeDB_plateDraft`), which is authored content and not a preference: it is the in-progress builder plate, held so an interrupted user can resume, and it is deliberately NOT a third category - it is unsaved work on its way to Supabase, deleted by `clearPlateDraft` the moment it lands or stops being dirty.
+  **A `localStorage.getItem('...')` grep finds the other nine keys and MISSES this one**, because every use goes through the `DRAFTKEY` constant - which is why two audits in a row rediscovered it as an unexplained violation. Named here so the third one doesn't.
+  (Grepping the key STRING still finds the constant at `js/app.js:1152`. It is the call-site grep that misses it, which is the one an auditor reaches for.)
 - Products come from the Supabase `ingredients` table and nowhere else.
   Custom ids are `CX*`.
 - NEW plate lines are written `{kid, qty}`; legacy `{pid, qty}` and `{misc, label, cost}` lines are LIVE data (84 of 179 lines at the v125 count) that every reader must keep resolving. Kitchen-word renames are display-only. (The word "only" was dropped 9 Aug 2026, Max's yes - it invited a refactor or importer to discard the legacy shapes on the authority of a hard rule.)
@@ -254,10 +289,13 @@ Describing without naming is fine - "the name you'll use when building plates" i
 - **Every Supabase write goes through the `pushWrite`-wrapped helpers** (`dbPushPlate`, `dbPushMenu`, `dbPushIngredient`, `dbSetSetting`, `saveKitchenIngredients`, …).
   They set sync state and surface the REAL error to a toast.
   Never call the client raw.
-- **`pushWrite` returns its settled promise** - resolves to the result, `{error}`, or `null` when offline.
+- **`pushWrite` returns its settled promise** - resolves to the result or to `{error}`, and **NEVER to `null`**.
   Use it whenever write B depends on write A landing.
-- **Known gap, flagged not fixed:** `pushWrite` drops writes silently when fully offline - no queue, no retry.
+  **`null` is `dbPushMenuAfterPlate`'s contract, not `pushWrite`'s** (corrected 10 Aug 2026, Max's yes, after AUDIT-v135 - this file claimed `pushWrite` resolved `null` when offline, and it has no such path: every exit is the result or `{error}`).
+  The distinction decides real code: **a caller that treats only `null` as failure sequences its dependent write straight after an error.**
+- **Known gap, flagged not fixed:** `pushWrite` **drops** writes when fully offline - no queue, no retry.
   Don't assume a write happened because the call was made.
+  **It is not SILENT, and don't write a "tell the user" fix for a case already covered** (corrected 10 Aug 2026, same audit): the fail handler toasts *"you're offline. It has NOT been saved."* - offline changes the WORDING only, never whether the user is told.
 - **Rounding (Max, 15 Jul):** currency DISPLAYS round to the cent (`toFixed(2)`); stored costs (`cost_per_base_unit` etc.) stay exact.
   **Never round stored values.**
 
@@ -317,8 +355,10 @@ Read the relevant tests first, diagnose with a truth table before patching, lock
   `tidySupplierMemMigration` rebuilds keys from each entry's already-normalised `phrase_norm`.
   Apply the same pattern to any future rename of a name used as a lookup key elsewhere.
 - **The builder IS a MODAL and has been since v54; Max confirmed this shape on 8 Aug 2026 against a recommendation to change it, and Q6 (v125) shipped its redesign inside the modal.**
-  The dropdown placement work is therefore UNBLOCKED - the positioning context is already final.
   (Tense corrected 9 Aug 2026, Max's yes - the old future-tense wording cost a whole batch hunting a conversion that had shipped two years of versions earlier.)
+  **This line describes TODAY and is scheduled to be reversed** - the 9 Aug decision makes the builder a full page, and the batch that builds it replaces this bullet with that decision and its history.
+  **A sentence here claiming the dropdown placement work is "UNBLOCKED" because "the positioning context is already final" was DELETED 10 Aug 2026** (Max's yes, AUDIT-v135): both halves were false the moment that reversal was taken.
+  The scheduling it asserted lives on the queue item, which re-checks it every batch.
 - **Mobile visual consistency:** one card system, compact header pills not full-width bars, one primary CTA per screen.
   A previous density pass was rolled back wholesale - visual changes are surgical, one screen at a time.
 
@@ -360,7 +400,8 @@ Its highest-value output is "this is the wrong question": one request asked whic
 
 **The safeguards are not optional - the old rule's protection has to be replaced, not just deleted:**
 
-- **Staging first, then production - BUT staging has never yet loaded in any session.** `.mcp.json` carries both projects (`supabase-staging`), and the server does not come up - see the queue's diagnosis item. **Until it demonstrably loads, every migration is UNREHEARSED against production: say so out loud before applying anything that is not a behavioural no-op, and defer destructive ones.** (Marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available.)
+- **Staging first, then production - BUT staging is EMPTY, so there is still nothing to rehearse against.** `.mcp.json` carries both projects (`supabase-staging`) and **the server now loads and answers** - `list_tables` returns an empty `public` schema, as a fresh project should. **The schema has not been mirrored and no seeds exist, so every migration is still UNREHEARSED against production: say so out loud before applying anything that is not a behavioural no-op, and defer destructive ones.** The safeguard becomes real when the queue's staging item RUNS, not when the server connects.
+  (Marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available. **The "has never yet loaded" clause was corrected 10 Aug 2026, Max's yes** - the cause was server approval, not connectivity, as AUDIT-v135 D1 said; the rest of the warning stands unchanged and must not be deleted with it.)
 - **Order the statements so the dangerous intermediate state cannot exist**, rather than trusting the transaction alone to prevent it. Keep the transaction as well. (Worked example in `20260808_menus_rls.sql`: create the inert policy first, enable RLS second, so a failure between them leaves today's behaviour.)
 - **Verify AS THE CLIENT, over PostgREST with the anon key.** The MCP and the SQL editor run as `postgres` and bypass RLS, so they cannot see a policy mistake - see "The client's role is not the MCP's role".
   On a write, send `Prefer: return=representation` and check a row came back: **a blocked anon write returns success and touches nothing**, so an empty response, not an error, is the failure signal.
