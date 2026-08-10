@@ -162,6 +162,35 @@ jobs:
       #                    layout regressions these specs exist to catch. retain-on-failure
       #                    keeps the trace (with DOM snapshots) only for tests that failed.
       #                    Measured cost of tracing everything: 2.2 min vs 2.1 min.
+      #   --retries=1      added 10 Aug 2026. A batch whose diff was three .md files and zero
+      #                    lines of code was failed by `Test timeout of 30000ms exceeded while
+      #                    setting up "context"` in v141-sync-corner.spec.js - 208 passed, 1 died
+      #                    in SETUP before any assertion ran; re-run on the identical commit,
+      #                    209/209 green. Retries default to 0, so one slow browser.newContext
+      #                    under load fails the whole PR.
+      #                    ⚠️ THIS DOES HIDE A CLASS OF REAL FAILURE, and saying otherwise was the
+      #                    first draft of this comment - corrected by the pre-push review before
+      #                    merge, so read it as the cost being ACCEPTED rather than avoided.
+      #                    Playwright cannot tell an infra hiccup from an INTERMITTENT REAL BUG:
+      #                    a race or timing regression that fails one run in three - exactly what
+      #                    these visual specs exist to catch - presents identically to a slow
+      #                    context launch. Fails attempt 1, passes attempt 2, classified `flaky`,
+      #                    and THE JOB EXITS 0 AND GOES GREEN. There is no retry-exhaustion-only
+      #                    path: if every test eventually passes, the run is a pass.
+      #                    So the annotation is the whole safety net, and it only works if someone
+      #                    reads it: **a `flaky` annotation on a green check is a FINDING, not
+      #                    noise.** Treat it as a defect report against the spec it names.
+      #                    ⚠️ And the trace for the failed attempt is NOT kept - the upload step
+      #                    below is `if: failure()`, which does not fire on a flaky-but-green run,
+      #                    so what survives is the annotation and this log, never the DOM
+      #                    snapshot. Fixing that gate is queued as its own item.
+      #                    The alternative considered and REFUSED was raising the global test
+      #                    timeout, which would mask a real hang outright and give no annotation
+      #                    at all.
+      #                    Workers stay at 2 DELIBERATELY. Contention is a plausible cause and it
+      #                    was not measured, so it was not acted on: the job runs ~7 min against a
+      #                    15 min timeout, and halving parallelism to chase a rare flake risks
+      #                    trading it for a routine timeout.
       # ⚠️ THE EMPTY-LIST CASE MUST FAIL CLOSED, and the obvious one-liner fails OPEN.
       # Inlining `$(ls ... | grep -v ...)` directly as arguments looks fine and is a trap: if the
       # pipeline ever matches nothing, it expands to an EMPTY STRING, and neither `set -e` nor
@@ -171,7 +200,11 @@ jobs:
       # spec in that directory - INCLUDING screenshots.spec.js, the one spec excluded above because
       # it reads the cafe's live production database. So the failure mode is not "runs nothing and
       # goes green"; it is "silently runs the non-hermetic spec in a job documented as hermetic".
-      # Latent today (9 specs, 8 survive the filter) - pinned here so it stays that way.
+      # Latent today (22 specs, 21 survive the filter) - pinned here so it stays that way.
+      # (That count read "9 specs, 8 survive" until 10 Aug 2026 and had been wrong for ten
+      # batches, flagged by two consecutive audits. The GUARD is correct and fails closed;
+      # only the number lied. Re-measure it when you next touch this block rather than
+      # trusting it - `ls tests/visual/*.spec.js | wc -l`.)
       - name: Run hermetic browser specs
         run: |
           set -euo pipefail
@@ -183,11 +216,16 @@ jobs:
             exit 1
           fi
           echo "Running these specs:"; echo "$SPECS"
-          npx playwright test --forbid-only --workers=2 --trace=retain-on-failure --reporter=github,html $SPECS
+          npx playwright test --forbid-only --workers=2 --retries=1 --trace=retain-on-failure --reporter=github,html $SPECS
 
       # Only on failure - a green run's report is megabytes of nothing. On a red run this
       # is the difference between "something broke" and opening the trace at the failing
       # assertion. Download it and run: npx playwright show-trace <the .zip inside>.
+      # ⚠️ SINCE --retries=1 (10 Aug 2026) THIS GATE HAS A HOLE, found by the pre-push review:
+      # a flaky-but-green run produces a trace for the failed attempt and then discards it,
+      # because `failure()` is false. That is the one run you most want to look at. Queued as
+      # its own item rather than fixed here - it needs a json reporter plus a step that detects
+      # `"status":"flaky"`, which is real machinery in a job kept deliberately minimal.
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
