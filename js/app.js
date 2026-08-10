@@ -1106,7 +1106,7 @@ function foodTarget(){ return cogsPct/100; }               // as a fraction for 
 function setCogs(pct, persist){
   pct=Math.max(1,Math.min(99, Math.round(pct))); cogsPct=pct;
   if(persist) dbSetSetting('food_cost_target', pct);       // shared across devices
-  var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+pct+'%)';
+  var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested at '+pct+'%';   // F5: the mock's §3.2 wording (R1)
   // v115: syncCogsRead (the Menu tab's read-only mirror) is gone with the .cogs-meta line — the
   // Suggested column header below follows the target via renderAnalysis instead
   renderAnalysis();
@@ -4514,7 +4514,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v141';
+var APP_VERSION='v142';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
@@ -7442,25 +7442,50 @@ function costRangeCell(m, cost){                                     // ITEM 3: 
   if(r.max-r.min < 0.005) return '';
   return '<span class="cost-range" title="Cost at each ingredient\u2019s lowest and highest recorded price">'+fmt2(r.min)+'\u2013'+fmt2(r.max)+'</span>';
 }
-function aRow(name,a,m,actions){
-  // v52: rows are tap-to-edit cards. The tr carries data-mid for the row-click delegate, an lt-* class
-  // for the margin stripe, and the name is a real <button> so keyboard users get the same edit path the
-  // tap gives fingers.
-  // v112: the 5th `pid` param and its data-pid branch are gone. No call site ever passed it, so the
-  // attribute was never emitted and the openPlateEdit delegate it fed could never fire.
-  var note=(m&&m.notes)?' <span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
+/* F5 (v142) \u2014 the mock's \u00a73.2 row grammar: identity left, mono figures right, verdict pill rightmost.
+   The ROW IS THE BUTTON now (mock \u00a72 "whole row is a <button>", \u00a77 "Enter on row opens it"), so
+   `.mi-name` is a span and the focus ring belongs to the row \u2014 a button inside a button is invalid
+   HTML and was only ever there to give keyboard users the tap path the row now carries itself.
+   `.mnu-nm` wraps name + note so the pair is ONE grid child; `.mnu-id` is the display:contents
+   wrapper that lets the SAME markup be a two-line phone row and a five-column desktop row.
+   v112: the 5th `pid` param and its data-pid branch are gone. No call site ever passed it. */
+function aRow(name,a,m){
+  var note=(m&&m.notes)?'<span class="mi-note" title="'+esc(m.notes)+'">\u24d8</span>':'';
   var ref=m?(' data-mid="'+esc(m.id)+'"'):'';
-  // v115: the pip column is GONE \u2014 the row's left stripe (.lt-*) already carries the same light, so
-  // the dot restated what the surface said. Five columns now; the sec/empty rows' colspans match.
-  return '<tr class="mi-row lt-'+(a.light||'none')+'"'+ref+'><td><button type="button" class="mi-name">'+esc(name)+'</button>'+note+(actions!==undefined?actions:menuActions(m))+'</td>'+
-    '<td class="num">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</td>'+
-    '<td class="num">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</td>'+
-    '<td class="num">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</td>'+
-    '<td class="num">'+vbadge(a)+'</td></tr>';
+  return '<button type="button" class="mnu-row mi-row lt-'+(a.light||'none')+'"'+ref+'>'+
+    '<span class="mnu-id"><span class="mnu-nm"><span class="mi-name">'+esc(name)+'</span>'+note+'</span></span>'+
+    /* `is-nil` marks a PLACEHOLDER, not missing data, and it travels with the dash rather than with
+       the row: a plate that HAS lines totalling zero (a misc line at $0, or lines whose products are
+       all gone) is "costed" by this screen's test, so it takes the costed branch and renders the same
+       em-dash the uncosted row does. Without this it rendered that dash a shade darker than the
+       identical dash one row above it \u2014 two colours for one meaning. Review finding, v142. */
+    '<span class="mnu-cost'+(a.cost>0?'':' is-nil')+'">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</span>'+
+    '<span class="mnu-sug'+(a.suggested>0?'':' is-nil')+'">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</span>'+
+    '<span class="mnu-price">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</span>'+
+    '<span class="mnu-verdict">'+vbadge(a)+'</span></button>';
 }
 function renderAnalysis(){
   var tb=document.getElementById('aBody'); if(!tb) return;
-  var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested ('+cogsPct+'%)';
+  var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested at '+cogsPct+'%';
+  /* F5: the mock's §3.2 header sub-line is the current menu's name, and its footnote states the
+     target the Food cost column is measured against. Both are live, so neither can go stale
+     against Settings; the footnote's second sentence describes what the row tap actually does. */
+  var cur=null; menusList.forEach(function(mm){ if(mm.id===currentMenuId) cur=mm; });
+  var hs=document.getElementById('menuHeadSub'); if(hs) hs.textContent=cur?(cur.name||''):'';
+  var nt=document.getElementById('menuListNote');
+  if(nt) nt.textContent='Food cost is measured against your '+cogsPct+'% target. Select a row to edit price, category or menu.';
+  /* the mobile mock's food-cost pill beside the menu name. Desktop states the same figure on every
+     switcher pill, so CSS hides this one there rather than printing it twice. `avgFoodCostForScope`
+     is the dashboard's figure for that menu — one source, so the two screens cannot disagree. */
+  var sp=document.getElementById('menuScopePct');
+  if(sp){
+    var spct=currentMenuId?avgFoodCostForScope(currentMenuId):null;
+    sp.hidden=(spct==null);
+    if(spct!=null){ sp.textContent=spct.toFixed(1)+'%'; sp.className='mnu-pct '+dashPctClass(spct); }
+  }
+  /* zero menus is a legitimate state (there is no last-menu guard), and an option-less <select>
+     beside a hidden Delete is a control that does nothing — F2's true-empty defect. */
+  var swRow=document.getElementById('menuSwitchRow'); if(swRow) swRow.hidden=!menusList.length;
   var qEl=document.getElementById('menuSearch'); var q=(qEl?qEl.value:'').trim().toLowerCase();
   var toks=searchTokens(q);   // v59: shared token matcher
   var catSel=(document.getElementById('menuCatFilter')||{}).value||'';   // v59: category filter = dish section
@@ -7487,34 +7512,50 @@ function renderAnalysis(){
       })
       .filter(function(it){ return lightFilterPass(menuLightFilter, it.a.light); });   // v68: active chips narrow to those margin lights
     if(!items.length) return;
-    html+='<tr class="sec"><td colspan="5">'+esc(sec)+'</td></tr>';
+    html+='<div class="mnu-sec">'+esc(sec)+'</div>';   // the mock's uppercase group row, inside the table container
     items.forEach(function(it){
       shown++;
       if(it.costed){ html+=aRow(it.m.name||it.sp.name, it.a, it.m); }
-      else{ var note=it.m.notes?' <span class="mi-note" title="'+esc(it.m.notes)+'">ⓘ</span>':'';
-        // Q3 (v122): uncosted is MUTED, never red — "· not costed yet" rides the name and the verdict
-        // cell stays an honest dash. The design's "cost it →" was dropped on review: the row tap opens
-        // the price/category editor (openMenuEdit), which has no route to the builder since v55, so the
-        // arrow promised navigation that doesn't exist. Same 5-td shape as aRow so the CSS grid treats
-        // both alike.
-        html+='<tr class="muted mi-row lt-none" data-mid="'+esc(it.m.id)+'"><td><button type="button" class="mi-name">'+esc(it.m.name)+'</button><span class="mi-uncosted">· not costed yet</span>'+note+menuActions(it.m)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+fmt2(it.m.price)+'</td><td class="num"><span class="muted-dash">—</span></td></tr>'; }
+      else{ var note=it.m.notes?'<span class="mi-note" title="'+esc(it.m.notes)+'">ⓘ</span>':'';
+        // Q3 (v122), unchanged in substance by F5: uncosted is MUTED, never red — "not costed yet"
+        // rides the identity and the verdict stays an honest dash. R4 on the mock's "cost it" pill:
+        // the row tap opens the price/category editor (openMenuEdit), which has no route to the
+        // builder since v55, so the pill would promise navigation that does not exist. F7 owns that
+        // route. Same five cells as aRow, so one set of grid rules serves both.
+        html+='<button type="button" class="mnu-row mi-row muted lt-none" data-mid="'+esc(it.m.id)+'">'
+          +'<span class="mnu-id"><span class="mnu-nm"><span class="mi-name">'+esc(it.m.name)+'</span>'+note+'</span>'
+          +'<span class="mi-uncosted">not costed yet</span></span>'
+          +'<span class="mnu-cost is-nil">—</span><span class="mnu-sug is-nil">—</span>'
+          +'<span class="mnu-price">'+fmt2(it.m.price)+'</span>'
+          +'<span class="mnu-verdict"><span class="muted-dash">—</span></span></button>'; }
     });
   });
   // v55: unpublished plates are NOT dishes — they live only in the Plates tab, never on the Menu tab.
-  if(!shown){                                                       // v58: routed through the shared empty-state system, wrapped in a table row
+  if(!shown){                                                       // v58: routed through the shared empty-state system
     var dishesOnMenu=MENU.filter(inMenu).length;                    // variant A only when the menu HAS dishes but the search matched none; else variant B (truly empty menu)
-    var es=dishesOnMenu
-      ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
-      : emptyStateHtml(ICON_MENU_BIG,'Nothing on this menu yet.','Publish a plate from the Plates tab to see it here.');
-    html='<tr class="es-row"><td colspan="5">'+es+'</td></tr>';
+    /* F5 adds the THIRD variant. With no menus at all, "Nothing on this menu yet" named a menu that
+       does not exist — zero menus is a legitimate state, not a broken one, so it gets its own copy
+       and the one action that resolves it. */
+    var es=!menusList.length
+      ? emptyStateHtml(ICON_MENU_BIG,'No menus yet.','A menu is a set of plates with sell prices. Create one, then publish plates onto it.',
+          '<button class="btn primary" type="button" onclick="document.getElementById(\'menuNewBtn\').click()">New menu</button>')
+      : dishesOnMenu
+        ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
+        : emptyStateHtml(ICON_MENU_BIG,'Nothing on this menu yet.','Publish a plate from the Plates tab to see it here.');
+    html='<div class="es-row">'+es+'</div>';
   }
+  /* the column band labels rows; with none it labels nothing, and the filter row filters nothing.
+     Both hide on the same signal the list itself uses, so they cannot disagree with it. */
+  var band=document.getElementById('menuBand'); if(band) band.hidden=!shown;
+  var fRow=document.getElementById('menuFilterRow'); if(fRow) fRow.hidden=!(shown||q||catSel||menuLightFilter.length);
+  if(nt) nt.hidden=!shown;
   tb.innerHTML=html; bindTips();
   // v58: the empty-state clear action routes through clearMenuFilters() via onclick — no per-render binding.
   // v55 (§D2): the "→ Builder" chip is gone — no handler to bind.
-  // v52 tap-to-edit (replaces the per-card Edit button): the whole card/row opens the edit
-  // modal; .tip and .mi-btn clicks stopPropagation so they never fall through to the row.
-  tb.querySelectorAll('tr.mi-row').forEach(function(tr){
-    tr.onclick=function(){ var mid=tr.getAttribute('data-mid'); if(mid) openMenuEdit(mid); };   // v112: the data-pid/openPlateEdit branch is gone with the orphan-plate editor
+  // v52 tap-to-edit, F5 unchanged in behaviour: the whole row opens the edit modal. It is a real
+  // <button> now, so Enter and Space reach the same handler the tap does without a nested control.
+  tb.querySelectorAll('.mnu-row').forEach(function(row){
+    row.onclick=function(){ var mid=row.getAttribute('data-mid'); if(mid) openMenuEdit(mid); };   // v112: the data-pid/openPlateEdit branch is gone with the orphan-plate editor
   });
   // v90: nothing insight-related runs here any more — the Menu tab has no suggestions UI at all.
   // v134: the switcher pills refresh with every render — a switch moves the active pill and a
@@ -7708,12 +7749,12 @@ function dbDeleteMenu(id){ return pushWrite(function(){ return SUPA.from('menu_i
 /* v108: isBaseMenuId was `BASE_MENU.some(...)` and is deleted with the literal. There are no built-in
    dishes any more, so removeMenuItem's tombstone branch is unreachable by construction — a deleted
    dish is a deleted ROW, which is the whole point of D3. */
-function menuActions(m){
-  if(!m) return '';
-  // v55 (\u00a7D2): the "\u2192 Builder" chip is removed. A dish's recipe is edited from its plate in the Plates
-  // tab (tap the card \u2192 Edit plate); the Menu-tab row stays tap-to-edit for price/category/menu only.
-  return '';
-}
+/* F5 (v142) tombstone: `menuActions(m)` is DELETED. v55 (\u00a7D2) emptied it when the "\u2192 Builder" chip
+   was removed \u2014 a dish's recipe is edited from its plate in the Plates tab, and the Menu row stays
+   tap-to-edit for price/category/menu only \u2014 so it had returned '' for eighteen versions and its two
+   call sites concatenated nothing. The rebuild dropped the call sites, which left it orphaned
+   (protocol \u00a71.4: a converted screen deletes its now-orphaned helpers). `.mi-act` / `.mi-btn` went
+   with it \u2014 nothing has emitted either since v55. */
 // v112: the in-memory half, split out so a caller that must SEQUENCE the server deletes (deletePlate /
 // doDeleteEverything) can drop the rows locally and drive the writes itself, instead of firing them here.
 function forgetMenuItems(ids){

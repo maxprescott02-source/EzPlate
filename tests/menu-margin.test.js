@@ -169,33 +169,89 @@ test('Margin cell under by a rounding hair: the word follows the TRUE state, not
 
 /* ---- Q3 review findings: pins the first cut lacked ------------------------------------------ */
 
-test('uncosted row: 5 tds, "· not costed yet" on the name, an honest dash — never "cost it →"', () => {
-  // the row tap opens the price/category editor, which has no route to the builder (v55) — an
-  // arrow inviting "cost it" would promise navigation that does not exist
-  const menu = (() => {
-    const sig = 'function renderAnalysis(';
-    const i = SRC.indexOf(sig); const start = SRC.indexOf('{', i);
-    let d = 0;
-    for (let n = start; n < SRC.length; n++) { if (SRC[n] === '{') d++; else if (SRC[n] === '}' && --d === 0) return SRC.slice(i, n + 1); }
-  })();
-  const row = menu.match(/<tr class="muted mi-row lt-none"[^]*?<\/tr>/);
+/* F5 (v142) rewrote the two pins below against the rebuilt markup — the screen is a grid of
+ * <button> rows now, not a <table>, so a pin phrased in <tr>/<td>/<thead> could only be satisfied
+ * by NOT converting the screen. Both keep exactly what they were written to protect; only the
+ * shape they read changed. Rewritten, never deleted to go green (FOLD-IN-PROTOCOL §"standing
+ * rules"): a spec quietly dropped during a conversion is coverage lost with nothing to notice. */
+
+function renderAnalysisSrc() {
+  const sig = 'function renderAnalysis(';
+  const i = SRC.indexOf(sig);
+  if (i < 0) throw new Error('menu-margin: renderAnalysis not found; app.js changed');
+  const start = SRC.indexOf('{', i);
+  let d = 0;
+  for (let n = start; n < SRC.length; n++) { if (SRC[n] === '{') d++; else if (SRC[n] === '}' && --d === 0) return SRC.slice(i, n + 1); }
+  throw new Error('menu-margin: unbalanced braces for renderAnalysis');
+}
+
+test('uncosted row: 5 cells, "not costed yet", an honest dash — never a "cost it" pill', () => {
+  // R4, carried from Q3 (v122) through the F5 rebuild: the mock draws a "cost it" pill here, but
+  // the row tap opens the price/category editor and there is no route to the builder from this
+  // screen (v55). A pill saying "cost it" would promise navigation that does not exist. F7 owns
+  // that route, and re-reading this test is how that batch will know the promise is now keepable.
+  const row = renderAnalysisSrc().match(/<button type="button" class="mnu-row mi-row muted lt-none"[^]*?<\/button>'/);
   assert.ok(row, 'the uncosted row branch exists');
-  assert.ok(row[0].includes('mi-uncosted'), 'the name carries the not-costed note');
+  assert.ok(row[0].includes('mi-uncosted'), 'the row carries the not-costed note');
   assert.ok(row[0].includes('not costed yet'), 'in those words');
-  assert.equal((row[0].match(/<td/g) || []).length, 5, 'same 5-td shape as aRow — the mobile grid depends on it');
-  assert.ok(/muted-dash/.test(row[0].split('<td').pop()), 'the verdict cell is a muted dash');
+  // five cells, same as aRow — one set of grid rules serves both, so a missing cell silently
+  // shifts every later one into the wrong column
+  const cells = ['mnu-id', 'mnu-cost', 'mnu-sug', 'mnu-price', 'mnu-verdict'];
+  cells.forEach((c) => assert.ok(row[0].includes('class="' + c), `the ${c} cell is emitted`));
+  assert.ok(/muted-dash/.test(row[0].split('mnu-verdict').pop()), 'the verdict cell is a muted dash');
   assert.ok(!row[0].includes('cost it'), 'no "cost it" call to action in the emitted row (a code comment may still explain why)');
 });
 
-test('Menu tab headers: Plate / Cost / Suggested / Menu price / Food cost — never "Margin"', () => {
+test('a dash and its `is-nil` marker always travel together — one meaning, one colour', () => {
+  // Review finding, v142. `it.costed` is "the plate HAS lines", not "the lines cost something", so a
+  // plate whose lines total zero (a misc line at $0, or lines whose products have all been deleted)
+  // takes the COSTED branch and renders the same em-dash the uncosted row renders one row above it.
+  // The uncosted branch hard-codes `is-nil`; the costed one has to derive it, and did not.
+  const src = SRC.slice(SRC.indexOf('function aRow('), SRC.indexOf('function renderAnalysis('));
+  ['mnu-cost', 'mnu-sug'].forEach((c) => {
+    const cell = src.slice(src.indexOf('"' + c));
+    const decl = cell.slice(0, cell.indexOf('</span>'));
+    assert.ok(/is-nil/.test(decl), `${c} can render the muted placeholder class`);
+    // and it is CONDITIONAL, not unconditional — an always-on is-nil would mute real figures
+    assert.ok(/\?'':' is-nil'/.test(decl), `${c}'s is-nil is conditional on there being no figure`);
+  });
+});
+
+test('the row is ONE button — no nested control, so Enter and tap reach the same handler', () => {
+  // F5: `.mi-name` was a <button> inside a <tr>. The mock makes the whole row the button (§2, §7),
+  // and a <button> inside a <button> is invalid HTML — the browser's own parser would close the
+  // outer one early and the row would stop being clickable past the name.
+  const src = renderAnalysisSrc() + SRC.slice(SRC.indexOf('function aRow('), SRC.indexOf('function renderAnalysis('));
+  const rows = src.match(/<button type="button" class="mnu-row[^]*?<\/button>'/g) || [];
+  assert.ok(rows.length >= 2, 'both the costed and uncosted branches emit a row');
+  rows.forEach((r) => {
+    const inner = r.slice(r.indexOf('>') + 1);
+    assert.ok(!/<button/.test(inner), 'no nested <button> inside a row');
+    assert.ok(/class="mi-name"/.test(r), 'the name is still findable by .mi-name (specs and the pills spec read it)');
+  });
+});
+
+test('Menu column band: Plate / Cost / Suggested at N% / Price / Food cost — never "Margin"', () => {
   // "Margin" over a food-cost % misreads badly (27.2% food cost is a 72.8% margin); the honest
-  // header matches the Dashboard's own word for the same figure
+  // header matches the Dashboard's own word for the same figure. F5 took the mock's wording for
+  // the other two (R1): "Suggested at 40%" and "Price" — the column band's own `#aSuggestedTh`
+  // still carries the LIVE target, which is the app's only remaining statement of it outside
+  // Settings, so the text is written by renderAnalysis and only the placeholder lives in the HTML.
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const thead = html.match(/<thead><tr><th>Plate<\/th>[^]*?<\/thead>/);
-  assert.ok(thead, 'the Menu tab thead is findable by its first column');
-  assert.ok(thead[0].includes('<th>Cost</th>'), 'Cost column');
-  assert.ok(thead[0].includes('<th>Menu price</th>'), 'Menu price column');
-  assert.ok(thead[0].includes('<th>Food cost</th>'), 'the verdict column is named for the number it shows');
-  assert.ok(!thead[0].includes('Margin'), 'not called Margin');
-  assert.ok(!thead[0].includes('Variance'), 'the old Variance header is gone');
+  const band = html.match(/<div class="mnu-band"[^]*?<\/div>/);
+  assert.ok(band, 'the Menu column band is findable');
+  assert.ok(band[0].includes('<span>Plate</span>'), 'Plate column');
+  assert.ok(band[0].includes('>Cost</span>'), 'Cost column');
+  assert.ok(band[0].includes('id="aSuggestedTh"'), 'the Suggested column is the live-target slot');
+  assert.ok(band[0].includes('>Price</span>'), 'Price column');
+  assert.ok(band[0].includes('>Food cost</span>'), 'the verdict column is named for the number it shows');
+  assert.ok(!band[0].includes('Margin'), 'not called Margin');
+  assert.ok(!band[0].includes('Variance'), 'the old Variance header is gone');
+  // both writers of the live target agree on the mock's wording — they are 6000 lines apart and
+  // have drifted before
+  const writers = SRC.match(/textContent='Suggested[^']*'/g) || [];
+  assert.equal(writers.length, 2, 'exactly the two known writers of the Suggested header');
+  writers.forEach((w) => assert.equal(w, "textContent='Suggested at '", 'both write the mock\'s "Suggested at N%" wording'));
+  assert.ok(/textContent='Suggested at '\+cogsPct\+'%'/.test(SRC), 'the renderer follows the live target');
+  assert.ok(/textContent='Suggested at '\+pct\+'%'/.test(SRC), 'setCogs writes it the moment the target changes');
 });

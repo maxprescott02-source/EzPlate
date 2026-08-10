@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=141">
+<link rel="stylesheet" href="css/style.css?v=142">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -138,7 +138,8 @@
         <button class="btn primary" id="newPlateBtn" type="button">New plate</button>
       </div>
       <!-- mock §3.3's control row: search (grows) + category select. Plates-owned classes, because
-           `.ing-controls`/`.menu-search`/`.ing-filter` still dress the four unconverted screens. -->
+           `.ing-controls`/`.ing-filter` still dressed the four unconverted screens then; F5 (v142)
+           converted the last of them and deleted that family. -->
       <div class="plib-controls" id="plateControls">
         <div class="plib-search">
           <input id="plateSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
@@ -160,66 +161,98 @@
   </div><!-- /tab-builder (LABEL: Plates) -->
 
   <div id="tab-analysis" style="display:none">
-    <div class="panel">
-      <!-- v52: Menu tab conforms to the v49 canonical panel skeleton — h2, then the shared
-           .panel-actions row (primary + plain + strapline), then controls (menu picker as the
-           page's context filter, like Products' filter row, with search under it), then two
-           quiet meta lines (target sentence + colour key). All ids/handlers unchanged. -->
-      <h2>Menu</h2>
-      <div class="an-head panel-actions">
-        <button id="menuNewBtn" type="button" class="btn primary menu-new-btn">+ New<span class="btn-noun"> menu</span></button>
-        <button id="menuAddDishBtn" type="button" class="btn menu-new-btn">+ Existing plate</button>
-        <!-- v100 prose cull: the strapline is gone — the Healthy/Watch/Rework chips ARE the colour key -->
-        <!-- v90 (Max): the "EzPlate Insights" pill and its panel are GONE from this tab. Insights now live
-             inline on the Dashboard, scoped by its menu selector — one home, not two. This was the tenth
-             version of this one control (26 Jul audit) and removing it also retires .msug-panel, one of the
-             five independent owners of floating-layer placement the audit blames for the recurring
-             dropdown-position bug. Nothing replaces it here; do not add a floating layer back. -->
+    <!-- F5 (v142): REBUILT from `Redesign v3 - SaaS.dc.html` §3.2 (desktop) and `… Mobile.dc.html`
+         §6 (mobile) per FOLD-IN-PROTOCOL §1.2 — the old `.atable` table, its `.an-head`/`.an-controls`
+         skeleton and the §V4a skin are gone in the same change. data-tab stays "analysis"; its LABEL
+         is "Menu" (the naming inversion). Every id and handler below is unchanged; only the shape is new.
+         `.scr-head` / `.plib-*` are F2's ported mock patterns, reused not rebuilt.
+         This screen was the last tenant of `.ing-controls` / `.ing-filter`, of the whole v49/v52
+         panel skeleton (`.panel-actions` / `.panel-sub` / `.panel-meta` / `.an-head` /
+         `.an-controls`) and of the `.atable` table system, and F5 deletes all three — see the CSS
+         tombstones. ⚠ `.menu-search`, `.ms-clear` and the base `.panel` card did NOT empty and are
+         NOT deleted: the modal search boxes still wear the first two, and the Dashboard still wears
+         `.panel` until F6. (F4's queue note listed all five together; two of them were wrong, which
+         is exactly the kind of line that gets trusted.) -->
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Menu</h2>
+        <!-- filled by renderAnalysis: the current menu's name, exactly as the mock's §3.2 header
+             draws it ("Menu" · "Winter Menu"). On a phone `.scr-sub` is hidden by F2's rule, so
+             the name is carried by the switcher control below instead — see the R5 note there. -->
+        <span class="scr-sub" id="menuHeadSub"></span>
+        <span class="scr-gap"></span>
+        <!-- R4 + R3: the mock's header primary is "New plate", which on THIS screen would be a
+             control that does nothing — a Menu row has no route to the builder (v55), and §7
+             forbids a second label for an intent the Plates screen already owns. The app's own
+             two actions survive in the mock's header grammar; F7 owns the builder route. -->
+        <!-- R1 with a measured limit: the mock's desktop label is "Add existing plate", and at 380px
+             that verb wraps this header onto two lines, which no other converted screen does. The
+             mock's MOBILE Menu header carries no such action at all, so there is nothing to be
+             faithful to at that width — and a label that changes between breakpoints is the thing §7
+             forbids. The app's shipped wording since v86 fits both. Measured at 380 and 1280, not
+             chosen: `tests/visual/v142-menu.spec.js` pins the header to one row at both. -->
+        <button id="menuAddDishBtn" type="button" class="plib-btn2">Existing plate</button>
+        <button id="menuNewBtn" type="button" class="btn primary">New menu</button>
       </div>
-      <div class="an-controls">
+      <!-- mock §3.2's control row, verbatim: switcher left, search right. -->
+      <div class="plib-controls mnu-switch" id="menuSwitchRow">
         <div class="menu-picker-row">
           <!-- v134 (V4a): the switcher pills. Desktop-only (CSS) and only when every menu fits (≤5) —
-               the mock's "N more ▾" overflow needs a floating layer, queued behind V6 where the layer
+               the mock's "N more ▾" overflow needs a floating layer, queued behind F10 where the layer
                system settles; with more menus the native select IS the overflow-capable control.
                Pills and select share the one switch path; #menuSelect stays the mobile control. -->
           <div class="menu-pills" id="menuPills" role="group" aria-label="Menu" hidden></div>
-          <select id="menuSelect" aria-label="Menu"></select>
-          <button id="menuDelBtn" type="button" class="btn menu-del-btn" title="Delete this menu">Delete</button>
+          <!-- R5: the MOBILE mock's header is menu name + food-cost pill + "Switch ▾". That header
+               slot is taken by the shared `.scr-head`, whose "one action max on a phone" question is
+               ONE queued item and must not be answered per screen — so the mock's trio lands here
+               instead, one line lower, with the native select as the Switch control. Recorded loss. -->
+          <span class="plib-selwrap mnu-selwrap"><select id="menuSelect" class="plib-filter" aria-label="Menu"></select></span>
+          <!-- the mobile mock's % pill beside the menu name; desktop carries the same figure on each
+               pill, so this is hidden there rather than stated twice -->
+          <span class="mnu-pct" id="menuScopePct" hidden></span>
         </div>
-        <!-- v59: search + category filter + Clear filters on their own controls row, matching Products/Plates -->
-        <div class="ing-controls">
-          <div class="menu-search">
-            <input id="menuSearch" type="search" placeholder="Search plates…" autocomplete="off">
-            <button id="menuSearchClear" type="button" aria-label="Clear search" class="ms-clear">&times;</button>
-          </div>
-          <select id="menuCatFilter" class="ing-filter" aria-label="Filter by category" data-tidy-field="category"></select>
-          <!-- v68: margin-light filter — multi-select chips reusing the row colour-key dots; they double as the light key.
-               Tap red for red only; tap amber too for amber+red (everything needing attention). Folds into Clear filters. -->
-          <div class="mlf" id="menuLightChips" role="group" aria-label="Filter by margin light">
-            <!-- v115 (Max): dots STAY — they are the colour key tying the chips to the card stripes; the active chip additionally tints with its own light -->
-            <button type="button" class="mlf-chip" data-light="green" aria-pressed="false"><span class="dot green" aria-hidden="true"></span>Healthy</button>
-            <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false"><span class="dot amber" aria-hidden="true"></span>Watch</button>
-            <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Rework</button>
-          </div>
-          <button class="btn ghost ing-clear-filters" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
+        <span class="scr-gap"></span>
+        <div class="plib-search">
+          <input id="menuSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
+          <!-- R3, as F2/F4: the mock draws no clear ×, and `type="search"` renders no native one on
+               iOS Safari — Max's phone. The control survives, restyled. -->
+          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
         </div>
       </div>
-      <!-- v115: the .cogs-meta suggested-prices line is gone (Max) — the Suggested column header
-           already carries the live target %, and the target itself lives in Settings -->
-      <!-- v59: the traffic-light key legend was removed (Max); v115 removed the row dots too -->
-      <div class="atable-wrap">
-        <table class="atable">
-          <!-- v115: the Light column is gone — the row's left stripe carries the light -->
-          <!-- Q3 (v122): header copy tightened to the redesign's column set. The design called the
-               last column "Margin" and needed a footnote to admit the number is food-cost % — the
-               honest header needs no footnote, and matches the Dashboard's own word for the same
-               figure. Human-read text only; the id and the live target % in it are unchanged. -->
-          <thead><tr><th>Plate</th><th>Cost</th><th id="aSuggestedTh">Suggested (40%)</th><th>Menu price</th><th>Food cost</th></tr></thead>
-          <tbody id="aBody"></tbody>
-        </table>
+      <!-- R3: the mock's Menu screen has no filters at all, so it has nothing to say about this row.
+           The app's three survive, in the `.plib-controls` grammar every converted screen uses. -->
+      <div class="plib-controls" id="menuFilterRow">
+        <span class="plib-selwrap"><select id="menuCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
+        <!-- v68: margin-light filter — multi-select chips reusing the row colour-key dots; they double as the light key.
+             Tap red for red only; tap amber too for amber+red (everything needing attention). Folds into Clear filters. -->
+        <div class="mlf" id="menuLightChips" role="group" aria-label="Filter by margin light">
+          <!-- v115 (Max): dots STAY — they are the colour key tying the chips to the row verdicts; the active chip additionally tints with its own light -->
+          <button type="button" class="mlf-chip" data-light="green" aria-pressed="false"><span class="dot green" aria-hidden="true"></span>Healthy</button>
+          <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false"><span class="dot amber" aria-hidden="true"></span>Watch</button>
+          <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Rework</button>
+        </div>
+        <button class="plib-btn2" id="menuClearFilters" type="button" style="display:none">Clear filters</button>
       </div>
+      <div id="aList">
+        <!-- the mock's column band. R1: its headings are "Suggested at 40%" and "Price"; the app said
+             "Suggested (40%)" and "Menu price". "Margin"/"Variance" stay forbidden — a food-cost % is
+             not a margin (27.2% food cost is a 72.8% margin), which is why Q3 (v122) named the column
+             for the number it shows. The live target % is written into #aSuggestedTh by renderAnalysis. -->
+        <div class="mnu-band" id="menuBand" aria-hidden="true">
+          <span>Plate</span><span class="mb-num">Cost</span><span class="mb-num" id="aSuggestedTh">Suggested at 40%</span><span class="mb-num">Price</span><span class="mb-num">Food cost</span>
+        </div>
+        <div id="aBody"></div>
+      </div>
+      <!-- the mock's §3.2 footnote. Its second sentence describes exactly what the row tap does, so it
+           ships as written; the target % is live. Desktop only (`.plib-note`), as the mobile mock has none. -->
+      <p class="plib-note" id="menuListNote" hidden></p>
+      <!-- R3: the mock has no Delete. It survives, rehomed from beside the switcher to the screen
+           footer as §2's destructive outline button — the same shape §3.8 gives Delete-workspace, and
+           it takes a destructive control out from beside the most-clicked one (a v134 review worry the
+           old row patched around with `margin-left:auto`). updateMenuDelBtn still owns its visibility. -->
+      <button id="menuDelBtn" type="button" class="mnu-del">Delete this menu</button>
     </div>
-  </div><!-- /tab-analysis -->
+  </div><!-- /tab-analysis (LABEL: Menu) -->
 
   <div id="tab-pantry" style="display:none">
     <!-- F3 (v139): REBUILT from `Redesign v3 - SaaS.dc.html` §3.4 and `… Mobile.dc.html` §6 per
@@ -259,8 +292,8 @@
          FOLD-IN-PROTOCOL §1.2. data-tab stays "ingredients"; its LABEL is "Products" (the naming
          inversion). Every id and handler below is unchanged; only the shape is new.
          `.scr-head` / `.plib-*` are F2's ported mock patterns, reused not rebuilt — the old
-         `.ing-controls`/`.menu-search`/`.ing-filter` classes still dress the Menu screen, so
-         restyling them here would convert that screen by accident. -->
+         `.ing-controls`/`.ing-filter` classes still dressed the Menu screen then, so restyling
+         them here would have converted that screen by accident. F5 (v142) converted it. -->
     <div class="panel plib-panel">
       <div class="scr-head">
         <h2>Products</h2>
@@ -911,7 +944,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=141"></script>
+<script src="js/app.js?v=142"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

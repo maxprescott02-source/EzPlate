@@ -381,9 +381,13 @@ test('v45 item 4 / F4: primaries say one thing at every width; secondaries still
   expect((await page.locator('#importBtn').innerText()).trim(), 'the SECONDARY still shortens — the idiom survives where the room is tight').toBe('Import');
   await page.locator('.navbtn[data-tab="analysis"]').click();
   await page.waitForTimeout(300);
-  // v100: reconciled with the v86 dish→plate terminology pass — the app has said "+ Existing plate"
+  // v100: reconciled with the v86 dish→plate terminology pass — the app has said "Existing plate"
   // since then; this pin was stale (red on unmodified main from v86 to v99).
-  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'full label survives mobile (Menu is still unconverted)').toBe('+ Existing plate');
+  // F5 (v142): Menu is converted, so the "+" goes the way it went on every other converted screen
+  // (the mock's buttons carry no plus). The WORDS stay put at both widths, which is the assertion
+  // that matters here: the mock's own "Add existing plate" wrapped the 380px header onto two lines,
+  // and a label that changes between breakpoints is exactly what §7 forbids.
+  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'the converted secondary does not shorten either — it already fits').toBe('Existing plate');
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.locator('.navbtn[data-tab="ingredients"]').click();
   await page.waitForTimeout(300);
@@ -1034,72 +1038,153 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
     'arrow keys still scrub after the focus rework').toBe(true);
 });
 
-// v52 (replaces the v48 rhythm test — its .cogs-set/.cogs-help block no longer exists):
-// the Menu header is now h2 > panel-actions > picker+search > two quiet meta lines. Pin the
-// page order and the one left edge, and that the target sentence kept its live value + link.
+/* F5 (v142) rewrote both Menu tests below. The screen is the mock's §3.2 now — `.scr-head`,
+ * a switcher row, a filter row, a grid list — so `.an-head` / `.an-controls` / `.atable-wrap`
+ * no longer exist and a pin phrased in them could only pass by NOT converting the screen.
+ *
+ * ⚠ THE SECOND ONE ALSO HAD A FALSE PREMISE, and F5 is what exposed it. This file seeds NO menus,
+ * so it was driving "search matches nothing" (variant A) on a screen that has no menus to search —
+ * the old code rendered a search box and a bare table over zero menus regardless. F5 gives zero
+ * menus their own honest state ("No menus yet", with the one action that resolves it) and stands
+ * the switcher and filter rows down, because an option-less select beside a hidden Delete is a
+ * control that does nothing. So the fresh-install test now pins THAT state, and variant A gets a
+ * menu seeded so it is reachable at all. Two states, each tested where it actually occurs.
+ */
 for (const size of SIZES) {
-  test(`v52: menu header structure — skeleton order, one left edge, target line intact @ ${size.name}`, async ({ page }) => {
+  test(`v142: menu header structure — skeleton order, one left edge, live target @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
+    await page.addInitScript(() => {
+      if (localStorage.getItem('__f5_seeded')) return;
+      localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MENU_ORIGINAL', name: 'Original menu' }]));
+      localStorage.setItem('__f5_seeded', '1');
+    }, {});
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.locator('.navbtn[data-tab="analysis"]').click();
     await page.waitForTimeout(400);
     const st = await page.evaluate(() => {
+      // ⚠ SCOPED to #tab-analysis. Four screens carry `.scr-head` now and the others are
+      // display:none, so a bare `.scr-head` selector returns the Plates header with a zero rect —
+      // which reads as a 822px edge mismatch, not as "you selected the wrong element".
       const L = s => document.querySelector(s).getBoundingClientRect().left;
       const T = s => document.querySelector(s).getBoundingClientRect().top;
+      const head = document.querySelector('#tab-analysis .scr-head');
+      const cs = getComputedStyle(head);
       return {
-        // v115: .cogs-meta (the suggested-prices line) is REMOVED (Max) — the live target moved to
-        // the Suggested column header, asserted below instead of the meta line's text.
-        order: [T('.an-head'), T('.an-controls'), T('.atable-wrap')],   // v59: .akey (traffic-light key) removed
-        // v134: with menus seeded, desktop hides #menuSelect behind the switcher pills — this
-      // spec seeds NONE, so the select is genuinely the visible switcher here. If a menu is
-      // ever seeded into this file, measure `.menu-pill` instead (v134-menu-pills.spec.js
-      // already pins the pills' left edge at 1280).
-      edges: [L('.an-head .btn'), L('#menuSelect')],
-        meta: !!document.querySelector('.cogs-meta'),
+        order: [head.getBoundingClientRect().top, T('#menuSwitchRow'), T('#aList')],
+        // the header's text edge is its padding edge; the switcher and rows sit on the same gutter.
+        // The SEARCH is deliberately not measured — the mock puts it at the RIGHT of that row.
+        // `.menu-picker-row`, not `#menuPills` — the pills are a ≥1024 control and measure 0 on a
+        // phone, which reads as a 28px edge break rather than "that element is not here".
+        edges: [head.getBoundingClientRect().left + parseFloat(cs.paddingLeft), L('#tab-analysis .menu-picker-row'), L('#aList')],
+        // ONE row, at both widths: two actions in a mobile header is a known, queued deviation, but
+        // a header that WRAPS is a defect — the mock's own "Add existing plate" caused one at 380.
+        // Counted by distinct child CENTRE LINES. Two earlier metrics were wrong for reasons worth
+        // recording, because both looked right: dividing the height by a line height reads 2 on a
+        // one-row header (44px button + 24px padding = 69px), and grouping by TOP reads 4 because
+        // `.scr-head` centres children of four different heights. The centre is the only y that is
+        // shared by everything on one row and differs the moment something wraps.
+        headRows: [...new Set([...head.children]
+          .filter(el => el.offsetParent !== null && el.getBoundingClientRect().height > 0)
+          .map((el) => { const r = el.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }))].length,
         suggestedTh: document.getElementById('aSuggestedTh').textContent,
+        sub: document.getElementById('menuHeadSub').textContent,
+        note: document.getElementById('menuListNote').textContent,
+        // v115 (Max): the suggested-prices meta line stays deleted
+        meta: !!document.querySelector('.cogs-meta'),
       };
     });
     for (let k = 1; k < st.order.length; k++)
-      expect(st.order[k], `header block ${k} sits below block ${k - 1}`).toBeGreaterThan(st.order[k - 1]);
+      expect(st.order[k], `block ${k} sits below block ${k - 1}`).toBeGreaterThan(st.order[k - 1]);
     for (const e of st.edges.slice(1))
-      expect(Math.abs(e - st.edges[0]), 'header blocks share ONE left edge').toBeLessThanOrEqual(1.5);
+      expect(Math.abs(e - st.edges[0]), 'header, controls and list share ONE left edge').toBeLessThanOrEqual(1.5);
     expect(st.meta, 'v115: the suggested-prices meta line stays deleted').toBe(false);
-    expect(st.suggestedTh, 'the Suggested column header carries the live target').toMatch(/Suggested \(\d+(\.\d+)?%\)/);
-    await page.locator('#tab-analysis .panel').screenshot({ path: `tests/visual/__shots__/v52-menu-header-${size.name}.png` });
+    // the column band is the app's only statement of the target outside Settings, in the mock's words
+    expect(st.suggestedTh, 'the Suggested column carries the live target').toMatch(/^Suggested at \d+(\.\d+)?%$/);
+    expect(st.note, 'the footnote states the same target, live').toMatch(/measured against your \d+(\.\d+)?% target/);
+    expect(st.headRows, 'the header stays ONE row — its actions must not wrap').toBe(1);
+    expect(st.sub, 'the header sub-line names the current menu (mock §3.2)').toBe('Original menu');
+    await page.locator('#tab-analysis .panel').screenshot({ path: `tests/visual/__shots__/v142-menu-header-${size.name}.png` });
   });
-
-  // REMOVED (v70): "v52: tap-to-edit — card opens the edit modal, chip still routes to the Builder" tested
-  // the Menu row's "→ Builder" CHIP (.mi-btn.tobuilder), which v55 §D removed ("removed Menu '→ Builder'
-  // chip"). It also required seeded menu dishes that a fresh install doesn't have (tr.mi-row is empty). Both
-  // premises are gone, so the test is dropped rather than rewritten.
 }
 
 for (const size of SIZES) {
-  test(`fresh analysis empty state @ ${size.name}`, async ({ page }) => {
+  test(`v142: a fresh install has NO menus — its own state, and no dead controls @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
     await page.locator('.navbtn[data-tab="analysis"]').click();
     await page.waitForTimeout(400);
-    // v58: a search that matches nothing renders the shared .empty-state (es-built) inside a
-    // .es-row, the same system every tab now uses (variant A: "No menu items match.")
+    await page.screenshot({ path: `tests/visual/__shots__/v142-menu-nomenus-${size.name}.png`, fullPage: true });
+    const st = await page.evaluate(() => {
+      const vis = s => { const e = document.querySelector(s); return !!(e && e.offsetParent !== null); };
+      const box = document.querySelector('.es-row .empty-state.es-built');
+      return {
+        built: !!box,
+        copy: box ? box.textContent : '',
+        switcher: vis('#menuSwitchRow'),
+        filters: vis('#menuFilterRow'),
+        band: vis('.mnu-band'),
+        del: vis('#menuDelBtn'),
+        note: vis('#menuListNote'),
+      };
+    });
+    expect(st.built, 'zero menus routes through the shared empty-state helper').toBe(true);
+    expect(st.copy, 'and says so in its own words, not "this menu"').toContain('No menus yet');
+    expect(st.copy, 'with the one action that resolves it').toContain('New menu');
+    // every control that would do nothing here is stood down — F2's true-empty defect, which was
+    // an option-less <select> left rendering beside an empty list
+    expect(st.switcher, 'no switcher over zero menus').toBe(false);
+    expect(st.filters, 'no filter row over zero rows').toBe(false);
+    expect(st.band, 'no column band over zero rows').toBe(false);
+    expect(st.del, 'no Delete when there is no menu to delete').toBe(false);
+    expect(st.note, 'no footnote about a target no row is measured against').toBe(false);
+  });
+}
+
+for (const size of SIZES) {
+  test(`v142: menu search-empty (variant A) @ ${size.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await installBoot(page);
+    // a menu and one dish, so "search matches nothing" is REACHABLE. Without a seed this drove
+    // variant A against zero menus, which is a different state with different copy (above).
+    await page.addInitScript(() => {
+      if (localStorage.getItem('__f5_seeded')) return;
+      localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MENU_ORIGINAL', name: 'Original menu' }]));
+      localStorage.setItem('cafeDB_plates', JSON.stringify([
+        { id: 'PL1', name: 'Toastie', category: 'Lunch', lines: [{ misc: true, name: 'x', cost: 2 }] }]));
+      localStorage.setItem('cafeDB_menu', JSON.stringify([
+        { id: 'MI1', name: 'Toastie', section: 'Lunch', price: 10, custom: true, menuId: 'MENU_ORIGINAL', plateId: 'PL1' }]));
+      localStorage.setItem('__f5_seeded', '1');
+    }, {});
+    await page.goto('/');
+    await page.waitForTimeout(1500);
+    await page.locator('.navbtn[data-tab="analysis"]').click();
+    await page.waitForTimeout(400);
     await page.fill('#menuSearch', 'zzz-no-such-dish');
     await page.waitForTimeout(400);
-    await page.screenshot({ path: `tests/visual/__shots__/fresh-analysis-${size.name}.png`, fullPage: true });
-    // the real check is the image, but pin the fix structurally too: the empty cell centres its
-    // .empty-state (td padding is zeroed by .es-row, so left/right are symmetric)
+    await page.screenshot({ path: `tests/visual/__shots__/v142-menu-searchempty-${size.name}.png`, fullPage: true });
     const es = await page.evaluate(() => {
-      const td = document.querySelector('tr.es-row td');
-      const box = document.querySelector('tr.es-row .empty-state.es-built');
-      if (!td || !box) return null;
-      const cs = getComputedStyle(td);
-      return { left: cs.paddingLeft, right: cs.paddingRight, marker: !!box };
+      const box = document.querySelector('.es-row .empty-state.es-built');
+      if (!box) return null;
+      const r = box.getBoundingClientRect();
+      const p = document.querySelector('#aBody').getBoundingClientRect();
+      return {
+        // centred: the old pin measured the td's padding symmetry, a proxy for this. .es-row is a
+        // plain div now with nothing to out-specify it, so measure the thing itself.
+        leftGap: r.left - p.left,
+        rightGap: p.right - r.right,
+        // the filter row STAYS up here — a filter is active and Clear filters is the way out.
+        // That is the difference from the zero-menus state, and the reason both are tested.
+        filters: !!document.querySelector('#menuFilterRow').offsetParent,
+        clear: getComputedStyle(document.getElementById('menuClearFilters')).display !== 'none',
+      };
     });
-    expect(es, 'es-row td with an es-built empty-state must exist').not.toBeNull();
-    expect(es.marker, 'Menu empty routes through the shared helper (es-built)').toBe(true);
-    expect(es.left, 'empty-state cell must not be padded asymmetrically').toBe(es.right);
+    expect(es, 'an es-built empty-state must exist').not.toBeNull();
+    expect(Math.abs(es.leftGap - es.rightGap), 'the empty state is centred in the list').toBeLessThanOrEqual(1.5);
+    expect(es.filters, 'the filter row stays up while a filter is on — it is the way out').toBe(true);
+    expect(es.clear, 'and Clear filters is showing').toBe(true);
   });
 }

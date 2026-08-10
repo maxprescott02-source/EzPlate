@@ -11,6 +11,37 @@ Production state below is measured, not assumed.
 
 ---
 
+## v142 - Menu is rebuilt, and Delete has moved
+
+The Menu tab is a five-column table on desktop and two-line rows on the phone. Everything it could
+do before it still does: tap a row to edit its price, category or menu; search; the category filter;
+the Healthy / Watch / Rework chips; switch menus; New menu; Existing plate.
+
+- **"Delete" has moved out of the menu-switcher row and to the BOTTOM of the screen**, under the
+  list, labelled "Delete this menu". A phone is the only judge of whether that reads as safer (a
+  destructive control no longer sits beside the control you tap most) or as lost (you now scroll a
+  long menu to reach it). A failure looks like you hunting for it, or finding it by accident while
+  scrolling. Say which, because the reasoning cuts both ways and only you use this screen daily.
+- **The row's second line now reads "$3.00 cost, suggested $10.00"** — the phone used to say
+  "$3.00 cost · $9.00 on menu". The price itself moved to the right, above the food-cost pill. Is
+  the suggested price the more useful of the two to have on the line, or do you want the menu price
+  back there? This changed because the mock designs it that way; it is a real change in what the
+  row tells you at a glance.
+- **An amber or red verdict pill wraps onto two lines on a phone** ("42.9% ·" / "well over"), which
+  makes those rows taller than green ones. Deliberate: the alternative was truncating the "suggested
+  $17.40" figure beside it, and a cut-off price is worse than a tall row. Check it does not make a
+  menu of mostly-red plates feel ragged.
+- **The menu name is no longer in the screen header** — the header says "Menu", and the current
+  menu's name is in the switcher control below it, with its food-cost % beside it. On the real
+  catalogue with your real menu names, does that still tell you which menu you are looking at
+  quickly enough?
+- **Two actions still share the mobile header** ("Existing plate" and "New menu"). Same known
+  deviation as Ingredients and Products; it is queued as one question for all three. What is worth
+  reporting is whether the header ever WRAPS to two lines on your phone with your font settings —
+  a spec pins it at 380px, but iOS text scaling is not something a spec can see.
+
+---
+
 ## v140 - Products is rebuilt, and the floating "+" is gone
 
 The Products tab is a five-column table on desktop and two-line rows on the phone. Everything it

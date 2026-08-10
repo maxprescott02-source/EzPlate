@@ -73,7 +73,7 @@ test('the Menu tab still WORKS with its suggestions UI removed', async ({ page }
 
   // counts are RELATIVE, not absolute: the app ships a base demo menu on top of the seed, so the
   // absolute row count is not something this spec should pin.
-  const rows = () => page.locator('#aBody tr.mi-row').count();
+  const rows = () => page.locator('#aBody .mnu-row').count();   // F5 (v142): rows are <button> grid rows, not <tr>
   const all = await rows();
   expect(all, 'the menu table renders').toBeGreaterThan(0);
 
@@ -100,13 +100,18 @@ test('the Menu tab still WORKS with its suggestions UI removed', async ({ page }
   await page.waitForTimeout(400);
   expect(await rows(), 'the Winter menu shows its own, smaller set').toBeLessThan(all);
 
-  // the actions row has not been left with a hole where the pill was
+  // the header row has not been left with a hole where the removed control was.
+  // F5 (v142): the row is `.scr-head` now, and `.scr-gap` is EXEMPT — it is the mock's explicit
+  // flex spacer, deliberately empty, and the reason a screen with two actions in different classes
+  // still right-aligns them (F3 shipped a header with 393px of dead space by using margin-left:auto
+  // instead). Excluding it by class keeps the original question answerable: is there anything empty
+  // here that nobody meant to leave?
   const gap = await page.evaluate(() => {
-    const row = document.querySelector('#tab-analysis .an-head');
-    const kids = [...row.children].filter(el => el.offsetParent !== null);
+    const row = document.querySelector('#tab-analysis .scr-head');
+    const kids = [...row.children].filter(el => el.offsetParent !== null && !el.classList.contains('scr-gap'));
     return { count: kids.length, empties: kids.filter(el => !el.textContent.trim() && !el.querySelector('svg')).length };
   });
-  expect(gap.empties, 'no empty leftover element in the actions row').toBe(0);
+  expect(gap.empties, 'no empty leftover element in the header row').toBe(0);
   expect(gap.count).toBeGreaterThan(0);
 
   expect(w.crashes, 'no uncaught exceptions on the Menu tab').toEqual([]);
