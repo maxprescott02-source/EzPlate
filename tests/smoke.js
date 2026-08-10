@@ -603,8 +603,11 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v90: it is INLINE in the dashboard flow, not a floating layer', !!di && !!di.closest('#dashBody') && !di.closest('[role="dialog"]'));
   ok('v90: the deterministic templates render immediately (no input box, no chat)',
     di && di.querySelectorAll('.ins-line').length === 2 && !di.querySelector('input,textarea'));
-  ok('v90: the heading reads "What needs attention"',
-    !!window.document.querySelector('#dashBody .dash-ins h2') && /What needs attention/.test(window.document.querySelector('#dashBody .dash-ins h2').textContent));
+  /* F6 (v143): the heading takes the mock's §3.1 wording, "Needs attention", and the panel is a
+     `<section class="dash-sec dash-ins">` rather than a `.panel`. The class the assertion keys off
+     is unchanged, so this is a copy change, not a structural one. */
+  ok('v143: the heading reads "Needs attention" (the mock\'s §3.1 wording)',
+    !!window.document.querySelector('#dashBody .dash-ins h2') && /Needs attention/.test(window.document.querySelector('#dashBody .dash-ins h2').textContent));
   // both halves of the AI marker: the sparkle always, the credit only when earned
   const spark = window.document.querySelector('#dashBody .dash-ins h2 svg.ins-spark');
   ok('v90: the gradient sparkle sits beside the heading (the app\'s only Gemini identity marker)', !!spark);
@@ -612,8 +615,17 @@ const tick = () => new Promise(r => setTimeout(r, 0));
     !!spark && /url\(#ezSparkGrad\)/.test(spark.innerHTML) && !spark.querySelector('linearGradient'));
   ok('v90: the sparkle gradient is defined EXACTLY once in the document (no duplicate ids from re-renders)',
     window.document.querySelectorAll('#ezSparkGrad').length === 1);
+  /* ⚠ F6 (v143): the credit moved OUT of #dashInsBody into the section's header band, which is the
+     mock's placement — so it is queried from the SECTION now. This assertion and the two below are
+     the only thing standing between that move and a credit that silently never appears again:
+     applyPhrasedInsights used to look it up from the line host, and a `host.querySelector` left in
+     place would have found nothing, thrown nothing, and left every test green. jsdom is where that
+     is caught, and jsdom is NOT in `npm test` — which is exactly why it is asserted here. */
+  const creditOf = () => window.document.querySelector('#dashInsPanel .ins-credit');
+  ok('v143: the credit sits in the section HEADER BAND, not among the lines (the mock\'s placement)',
+    !!creditOf() && !di.querySelector('.ins-credit'));
   ok('v90: the Gemini credit is present but HIDDEN while the template shows (honest attribution)',
-    di && di.querySelector('.ins-credit') && di.querySelector('.ins-credit').hidden === true);
+    !!creditOf() && creditOf().hidden === true);
   ok('v90: the template numbers show verbatim', di && /1\.2 pts higher/.test(di.textContent) && /18%/.test(di.textContent));
   ok('v90: a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   // v90 quota guard: the Dashboard re-renders on every scope change and every drill-down open, and each
@@ -631,7 +643,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   const dl = $('dashInsBody');
   ok('v90: a valid rephrasing (numbers intact) swaps into the block in place', dl && /Beef is up 18% across 5 plates/.test(dl.textContent));
   ok('v90: once Gemini actually phrased a shown line, the credit is revealed',
-    dl && dl.querySelector('.ins-credit') && dl.querySelector('.ins-credit').hidden === false);
+    !!creditOf() && creditOf().hidden === false);
   // v69 cache: a re-render within the period must not hit Gemini again (the quota is limited)
   const fetchesBefore = pending.filter((p) => /\/api\/insight/.test(p.url)).length;
   window.renderDashboard();
@@ -639,7 +651,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v90: a re-render within the period reuses the cache — no second Gemini call',
     pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
   ok('v90: the cached phrasing (and its credit) apply immediately on the cache hit',
-    dj && /Beef is up 18%/.test(dj.textContent) && dj.querySelector('.ins-credit') && dj.querySelector('.ins-credit').hidden === false);
+    dj && /Beef is up 18%/.test(dj.textContent) && !!creditOf() && creditOf().hidden === false);
 
   // the Menu tab is CLEAN — the whole v69–v81 suggestions surface is gone, not merely hidden
   ok('v90: the Menu tab has NO suggestions pill, panel or host left behind',

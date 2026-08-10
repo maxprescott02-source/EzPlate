@@ -11,6 +11,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
+const { verdictFigure, verdictContext, isFirstRun, scopeName, scopeState } = require('./_dash');
 
 // Two menus, three costed+priced dishes: Original at 30%/30% (avg 30), Winter at 60%.
 // v92: Original's two dishes were 20%/40%. Same average, same every asserted figure — but they now
@@ -85,21 +86,21 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       page.on('pageerror', e => crashes.push(String(e)));
       await boot(page, width, theme);
 
-      // the verdict header shows the ALL-MENUS figure: mean of 20/40/60 = 40.0%
-      // ⚠ v133: at ≥1024 the hero is display:none (the KPI strip replaces it) and toHaveText
-      // reads textContent regardless of visibility — so on desktop these three lines alone
-      // would verify nothing a user sees (review finding). The strip assertions below are the
-      // desktop half; the hero lines stay because mobile still shows it.
-      await expect(page.locator('.verdict-num')).toHaveText('40.0%');
-      await expect(page.locator('.dh-scope')).toHaveText('All menus');
-      await expect(page.locator('.verdict-line')).toContainText('10.0 pts over your 30% target');
+      // the verdict shows the ALL-MENUS figure: mean of 20/40/60 = 40.0%
+      /* ⚠ v133's finding, and F6 (v143) is the fix for it rather than a workaround. At ≥1024 the
+         hero is display:none and the KPI strip carries the figure; `toHaveText` reads textContent
+         regardless of visibility, so a bare `.dh-num` assertion verifies nothing a user sees on
+         desktop. `verdictFigure` reads whichever surface is SHOWING — see tests/visual/_dash.js.
+         The explicit both-ways check below is what keeps the two from ever appearing together. */
+      expect(await verdictFigure(page)).toBe('40.0%');
+      expect(await verdictContext(page)).toContain('10.0 pts over your 30% target');
+      // v143: scope is stated once, and the control that sets it is where it is stated (was .dh-scope)
+      expect(await scopeName(page)).toBe('All menus');
       if (width >= 1024) {
         await expect(page.locator('.kpi-strip')).toBeVisible();
-        await expect(page.locator('.kpi-cell').first()).toContainText('40.0%');
-        await expect(page.locator('.kpi-cell').first()).toContainText('10.0 pts over your 30% target');
-        await expect(page.locator('.verdict-num')).not.toBeVisible();
+        await expect(page.locator('.dash-hero')).not.toBeVisible();
       } else {
-        await expect(page.locator('.verdict-num')).toBeVisible();
+        await expect(page.locator('.dash-hero')).toBeVisible();
         await expect(page.locator('.kpi-strip')).not.toBeVisible();
       }
 
@@ -122,14 +123,15 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       // switching scope by tapping a row drives the header (the dropdown is already open)
       await page.locator('.mcmp-row[data-scope="MENU_WINTER"]').click();
       await page.waitForTimeout(300);
-      await expect(page.locator('.verdict-num')).toHaveText('60.0%');
-      await expect(page.locator('.dh-scope')).toHaveText('Winter');
+      expect(await verdictFigure(page)).toBe('60.0%');
+      expect(await scopeName(page)).toBe('Winter');
       /* v97: the chart title no longer appends "— all menus" when narrowed, and the scope caption beside
-         the number is gone — scope is stated ONCE, in the card heading (.dh-scope, asserted above). What
+         the number is gone — scope is stated ONCE, by the control that sets it (asserted above). What
          still differs between scopes is .scope-note, which is not a restatement but the v89 honesty
          CORRECTION: the line under a menu's name still covers every menu. That distinction is the point
-         of this pair of assertions, so keep both. */
-      await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
+         of this pair of assertions, so keep both. (v143: `.chart-title` became the trend section's own
+         heading — same string, same job, new chrome.) */
+      await expect(page.locator('.dash-trend .ds-head h2')).toHaveText('Food cost trend');
       await expect(page.locator('.scope-note')).toBeVisible();
       // v129: picking CLOSED the dropdown — the button label is what confirms the selection
       await expect(page.locator('.dash-menus-pop')).toHaveCount(0);
@@ -138,7 +140,7 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
 
       // and another row moves it again — exactly one row is ever marked
       await pickScope(page, 'MENU_ORIGINAL');
-      await expect(page.locator('.verdict-num')).toHaveText('30.0%');
+      expect(await verdictFigure(page)).toBe('30.0%');
       await openScope(page);
       await expect(page.locator('.mcmp-row.act')).toHaveCount(1);
       await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_ORIGINAL');
@@ -146,9 +148,9 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       // v96: and back to All menus via its row — the state the picker's first option used to reach
       await page.locator('.mcmp-row[data-scope="all"]').click();
       await page.waitForTimeout(300);
-      await expect(page.locator('.verdict-num')).toHaveText('40.0%');
-      await expect(page.locator('.dh-scope')).toHaveText('All menus');
-      await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
+      expect(await verdictFigure(page)).toBe('40.0%');
+      expect(await scopeName(page)).toBe('All menus');
+      await expect(page.locator('.dash-trend .ds-head h2')).toHaveText('Food cost trend');
       await expect(page.locator('.scope-note')).toHaveCount(0);
       await pickScope(page, 'MENU_ORIGINAL');
 
@@ -156,28 +158,30 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       const cur = await page.evaluate(() => window.currentMenuId);
       expect(cur).toBe('MENU_ORIGINAL');
 
-      // desktop: v98 grid (SUPERSEDES the v95 terminal-row bento, per the grid brief) — the
-      /* v121: the top card is ONE surface again (verdict + chips + chart), with What moved as the
-         right-hand row-1 card — the v98 7/5 split, kept because it is the layout that already
-         looked right; v120's two full-width cards were reverted as janky on Max's screenshot.
-         Light stacking check only; v98-grid.spec.js owns the full contract at three content
-         levels. Asserted unconditionally so it can't pass vacuously (CodeRabbit, v90). */
+      /* F6 (v143) REPLACES the v98/v121 grid assertions in place — the 12-track desktop grid they
+         pinned is deleted, so asserting it would assert the fold-in had not happened. What is
+         pinned instead is the mock's §6.1 promise, which is a STRONGER statement than the old one
+         because it holds at BOTH widths rather than only at ≥1024: "Dashboard hierarchy identical:
+         verdict number → trend → Needs attention → What moved". There is no CSS reordering left
+         anywhere on this screen, so a re-ordering regression has nowhere to hide.
+         Edge pins, not width comparisons (CodeRabbit, v98): a width check could pass while offset. */
+      const geo = await page.evaluate(() => {
+        const r = (s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect() : null; };
+        return { top: r('#dashBody .dash-top'), trend: r('#dashBody .dash-trend'),
+                 ins: r('#dashBody .dash-ins'), moved: r('#dashBody .dash-moved'),
+                 body: r('#dashBody') };
+      });
+      for (const k of ['top', 'trend', 'ins', 'moved', 'body']) {
+        expect(geo[k], `${k} renders`).not.toBeNull();
+      }
+      expect(geo.trend.top, 'the trend reads below the verdict').toBeGreaterThanOrEqual(geo.top.bottom - 1);
+      expect(geo.ins.top, 'Needs attention reads below the trend').toBeGreaterThanOrEqual(geo.trend.bottom - 1);
+      expect(geo.moved.top, 'What moved reads below Needs attention').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
+      expect(geo.ins.left, 'every region shares the column\'s left edge').toBeLessThanOrEqual(geo.body.left + 1);
+      expect(geo.ins.right, 'and Needs attention spans it').toBeGreaterThanOrEqual(geo.body.right - 1);
       if (width >= 1024) {
-        await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);
-        const geo = await page.evaluate(() => {
-          const r = (s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect() : null; };
-          return { panel: r('#dashBody .dash-panel'), moved: r('#dashBody .dash-moved'),
-                   ins: r('#dashBody .dash-ins') };
-        });
-        for (const k of ['panel', 'moved', 'ins']) {
-          expect(geo[k], `${k} renders`).not.toBeNull();
-        }
-        expect(geo.moved.left, 'What moved is the right-hand row-1 card').toBeGreaterThanOrEqual(geo.panel.right - 1);
-        expect(Math.abs(geo.moved.top - geo.panel.top), 'row-1 cards top-aligned').toBeLessThanOrEqual(2);
-        expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
-        // edge pins, not a width comparison (CodeRabbit, v98): a width check could pass offset
-        expect(geo.ins.left, 'insights start at the top card edge').toBeLessThanOrEqual(geo.panel.left + 1);
-        expect(geo.ins.right, 'insights span through the What-moved edge').toBeGreaterThanOrEqual(geo.moved.right - 1);
+        const dig = await page.evaluate(() => document.querySelector('#dashBody .dash-dig').getBoundingClientRect());
+        expect(dig.left, 'Dig in sits beside What moved, not under it').toBeGreaterThanOrEqual(geo.moved.right - 1);
       }
 
       // nothing overflows horizontally
@@ -205,7 +209,7 @@ test('every chart range still renders with the list present, and the range never
     await expect(page.locator('#dashScopeBtn'), 'the scope control survives a range change').toBeVisible();
     // the selection survives every range change — the button label is the closed-state truth
     await expect(page.locator('#dashScopeBtn .dsb-name'), `range ${rg} reset the scope`).toHaveText('Winter');
-    await expect(page.locator('.dh-scope')).toHaveText('Winter');
+    expect(await scopeName(page)).toBe('Winter');
     const of = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(of, `range ${rg} overflows`).toBeLessThanOrEqual(0);
@@ -234,7 +238,7 @@ test('the whole scope control is absent when only one menu exists', async ({ pag
   await page.waitForTimeout(400);
   await expect(page.locator('#dashScopeSelect')).toHaveCount(0);
   await expect(page.locator('.dash-scope-btn'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
-  await expect(page.locator('.verdict-num')).toBeVisible();
+  expect(await verdictFigure(page), 'the headline still renders without a scope control').not.toBeNull();
 });
 
 /* ===== Priorities the flow-tester could not run against Max's real café data =====
@@ -273,7 +277,7 @@ test('deleting the OTHER menu while scoped leaves no trapped scope', async ({ pa
   await boot(page, 380, 'light');
   // scope the dashboard to Winter via the dropdown, then delete Original from the Menu tab
   await pickScope(page, 'MENU_WINTER');
-  await expect(page.locator('.dh-scope')).toHaveText('Winter');
+  expect(await scopeName(page)).toBe('Winter');
 
   await page.locator('.navbtn[data-tab="analysis"]').click();
   await page.waitForTimeout(300);
@@ -288,10 +292,16 @@ test('deleting the OTHER menu while scoped leaves no trapped scope', async ({ pa
   await page.waitForTimeout(400);
   // one menu left -> the list is gone, so the scope must have collapsed to all-menus with it
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
-  await expect(page.locator('.dh-scope')).toHaveText('All menus');
   await expect(page.locator('.dash-scope-btn'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
+  /* v143: the assertion here used to read `.dh-scope`, the eyebrow heading, which rendered "All
+     menus" whether or not a control existed. That heading is gone, and with ONE costed menu the
+     screen deliberately states no scope at all — there is nothing to switch between, and "all
+     menus" versus "that menu" is the same number. So the recovery is pinned on the STATE, which
+     is what "no trapped scope" ever meant, rather than on a label that could only agree with the
+     line above it by accident. */
+  expect(await scopeState(page), 'the scope collapsed with the control').toBe('all');
   // and the figure is the surviving menu's own, not a stale cached one
-  await expect(page.locator('.verdict-num')).toHaveText('60.0%');
+  expect(await verdictFigure(page)).toBe('60.0%');
 });
 
 test('deleting the menu the dashboard is scoped TO recovers cleanly', async ({ page }) => {
@@ -309,8 +319,8 @@ test('deleting the menu the dashboard is scoped TO recovers cleanly', async ({ p
 
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(400);
-  await expect(page.locator('.dh-scope')).toHaveText('All menus');
-  await expect(page.locator('.verdict-num')).toHaveText('30.0%', { timeout: 3000 });   // only Original's dishes remain
+  expect(await scopeState(page), 'the deleted menu is not still the scope').toBe('all');
+  await expect.poll(() => verdictFigure(page), { timeout: 3000 }).toBe('30.0%');   // only Original's dishes remain
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
 });
 
@@ -318,8 +328,12 @@ test('zero menus is a legitimate state, not a broken dashboard', async ({ page }
   await bootWith(page, [], [], PLATES3);
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
   await expect(page.locator('.dash-scope-btn'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
-  await expect(page.locator('.verdict-num')).toHaveText('—');
-  await expect(page.locator('.verdict-line')).toContainText('Nothing costed and priced yet');
+  /* v143: the empty verdict is §5's first-run PATH CARD now, not a "—" in the figure slot. The
+     contract is unchanged and is the point of these tests: no figure is invented from a state that
+     does not exist. `verdictFigure` returns null because neither surface renders. */
+  expect(await isFirstRun(page)).toBe(true);
+  expect(await verdictFigure(page), 'no figure is fabricated').toBeNull();
+  expect(await verdictContext(page)).toContain('Nothing is costed and priced');
   const of = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(of, 'no overflow with nothing to show').toBeLessThanOrEqual(0);
 });
@@ -329,8 +343,12 @@ test('a menu whose plates have no sell price shows the empty verdict, not 0%', a
     [{ id: 'MENU_ORIGINAL', name: 'Original' }],
     [{ id: 'MI1', name: 'Toastie', section: 'Lunch', price: 0, custom: true, menuId: 'MENU_ORIGINAL', plateId: 'PL1' }],
     PLATES3);
-  await expect(page.locator('.verdict-num')).toHaveText('—');
-  await expect(page.locator('.verdict-line')).toContainText('Nothing costed and priced yet');
+  /* v143: the empty verdict is §5's first-run PATH CARD now, not a "—" in the figure slot. The
+     contract is unchanged and is the point of these tests: no figure is invented from a state that
+     does not exist. `verdictFigure` returns null because neither surface renders. */
+  expect(await isFirstRun(page)).toBe(true);
+  expect(await verdictFigure(page), 'no figure is fabricated').toBeNull();
+  expect(await verdictContext(page)).toContain('Nothing is costed and priced');
 });
 
 test('a menu with prices but no costed plates shows the empty verdict, not 0%', async ({ page }) => {
@@ -338,7 +356,8 @@ test('a menu with prices but no costed plates shows the empty verdict, not 0%', 
     [{ id: 'MENU_ORIGINAL', name: 'Original' }],
     [{ id: 'MI1', name: 'Ghost', section: 'Lunch', price: 12, custom: true, menuId: 'MENU_ORIGINAL', plateId: 'NOPE' }],
     PLATES3);
-  await expect(page.locator('.verdict-num')).toHaveText('—');
+  expect(await isFirstRun(page)).toBe(true);
+  expect(await verdictFigure(page), 'no figure is fabricated').toBeNull();
 });
 
 /* v96 CHANGES THIS ONE, deliberately (Max, 29 Jul). An uncosted menu was never a By-menu ROW, but it
@@ -356,8 +375,8 @@ test('an uncosted menu is excluded from By-menu, and is no longer a reachable sc
   // one costed menu -> no list, and therefore no control: the dashboard stays at all-menus
   await expect(page.locator('.dash-scope-btn'), 'fewer than two costed menus: no scope control at all').toHaveCount(0);
   await expect(page.locator('.mcmp-row')).toHaveCount(0);
-  await expect(page.locator('.dh-scope')).toHaveText('All menus');
-  await expect(page.locator('.verdict-num')).toHaveText('30.0%');   // Toastie: 3/10
+  expect(await scopeState(page), 'with no control, the dashboard stays at all-menus').toBe('all');
+  expect(await verdictFigure(page)).toBe('30.0%');   // Toastie: 3/10
 });
 
 /* The other half of the same decision: with BOTH menus costed the uncosted-menu case disappears and
@@ -378,6 +397,6 @@ test('v96: every menu with a row is reachable, and the All-menus row returns fro
     await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', id);
     await page.locator('.mcmp-row[data-scope="all"]').click();
     await page.waitForTimeout(250);
-    await expect(page.locator('.dh-scope')).toHaveText('All menus');
+    expect(await scopeName(page)).toBe('All menus');
   }
 });

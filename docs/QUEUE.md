@@ -121,17 +121,18 @@ The app instead has ONE floating pill for all five `setSync` states, phone-shape
 Requirements: decide whether the healthy states become header text (per §3.1) and the error becomes an in-flow banner (per §5), or whether the floating pill stays and is dressed. Either way it is one decision for all five states across every screen, never per screen.
 ⚠️ **If Retry ships, `css/style.css`'s `.sync-banner{pointer-events:none}` must come out in the same change and the placement must be re-measured** - v141 added that line precisely because the element has never held a control, and a control underneath it would be a dead control. The comment at the site says so.
 Out of scope: `pushWrite`'s error handling and the `toast()` pairing, which are correct and are the loud channel; this is about the quiet one.
-Do after: **F6** - the Dashboard is where §3.1's header status text is drawn, so the first real consumer of the healthy-state treatment arrives with that screen, and deciding it earlier decides it against a header that has not been built yet.
+**F6 has SHIPPED (`ezplate-v143`), so the `Do after:` line is deleted** - that is the field working, not housekeeping. The header it was waiting for exists: `.scr-head` on the Dashboard, title + `.scr-gap` + the scope dropdown, with the mock's "Synced 4 min ago" slot deliberately EMPTY and a comment at the markup saying this item owns it. Decide the treatment against that header.
 
 ## done  F5 - Menu (desktop §3.2 + mobile §6, one item)
 Shipped 10 Aug 2026 as **`ezplate-v142`** (PR #130). See `docs/handovers/HANDOVER-151-menu.md`.
 Rubric decisions recorded at their sites: R4+R3 on the mock's "New plate" header primary (no builder route from this screen until F7) · R5 on the mobile header (the mock's name+pill+Switch trio moved one row down, because `.scr-head`'s two-actions question is ONE queued item) · R3 on the filter row and on Delete (rehomed to the screen footer as §2's destructive button) · R4 on "cost it" (the honest dash stays) · R1 on "Suggested at 40%" and "Price".
 **The "Switch control in the header" line above was NOT followed literally, and that is deliberate** - the mobile mock's header carries no create actions at all because its IA publishes plates from the builder's Publishing card, which is F7. Following it today would have stranded "Existing plate" and "New menu". If F7 rehomes publishing, revisit rather than inherit.
 
-## next  F6 - Dashboard (desktop §3.1 + mobile §6, one item)
-KPI strip (3 cells, internal hairlines), trend chart (red line, shaded over-target band, dashed 40% line, orange ring markers + mono annotations on user changes), Needs-attention briefing (read-only rows, bold lead + ONE link each, credit "Phrased by Gemini, computed by EzPlate", reveal law untouched), What moved / Dig in two-up, menu-scope dropdown in the header (ranked, mono %, colour-coded - v129's substance re-housed). Mobile: hero 44 mono + delta pill + one-sentence context, simplified sparkline, stacked cards.
-R2 carries: chart colour anchors to the TARGET (`trend-reframe` law - rising-under stays green, falling-over stays red); the since-line renders at all-menus scope only (arithmetic across two series fabricates movement); per-publication counting is DECIDED, not a bug. First-run IS this screen's empty state: the path card replaces the verdict hero while nothing is costed, derived from data, no stored flag.
-§4 criteria are the definition of done.
+## done  F6 - Dashboard (desktop §3.1 + mobile §6, one item)
+Shipped 10 Aug 2026 as **`ezplate-v143`**. See the done section and `docs/handovers/HANDOVER-152-dashboard.md`.
+**Two lines of this item were wrong when it was written, and the code won both times** (recorded here because the item read as settled):
+- "hero 44 mono + **delta pill**" - the delta pill was **DECIDED NO** (Max, 9 Aug 2026, `docs/decisions/2026-08-09-ANSWERS.md` Q1, "the chart is the one trend surface", closed without building, do not re-propose). The line inherited it from the mock at the queue reset. R2: no pill, at either width; the since-line carries movement and is honest about which series it read.
+- "Needs-attention briefing (read-only rows, **bold lead + ONE link each**)" - the app has none of the three. An insight is ONE deterministic sentence with no navigation target, and `applyPhrasedInsights` replaces `textContent` WHOLESALE, so a lead/body split could not survive the Gemini swap that is the point of the panel. R4: single paragraphs in the mock's row chrome; a per-insight link needs a subject the engine does not compute and would be a behaviour spec.
 
 ## next  F7 - Plate Builder (desktop §3.7 + mobile §6, one item - full page; the 9 Aug reversal STANDS)
 Modal → full-screen page: breadcrumb "Plates /", header = plate name + live food-cost pill + saved state + Duplicate*, left ingredient table (Ingredient | Qty input mono | Unit | Cost | Remove) with add-ingredient footer row, 300px right rail (Cost card: plate cost, recent range*, suggested at 40%, menu price input, amber under-suggested guidance; Publishing card: menu + category selects). Mobile: full-screen push "‹ Plates", sticky bottom summary bar (plate cost + suggested + set-price action) above the tab bar.
@@ -308,12 +309,8 @@ Requirements: make the ordering a rule that can fail — either a test that asse
 Out of scope: reordering `index.html` for its own sake, and any change to `topOverlay`.
 Do after: **F10** - the fold-in rebuilds this markup screen by screen and F7 removes the builder overlay entirely, so a pairing enumerated now is enumerated against modals about to move.
 
-## next  The Dashboard panel sits 4px high at every width where `--sp-5` is 20px
-Problem: found by F2 (10 Aug 2026) while adding a 700px size to `layout-consistency.spec.js` - the new width failed the cross-tab comparison on a PRE-EXISTING defect that 380 and 1280 both miss.
-Measured at 700px: Dashboard's first panel top is 85.02, every other tab's is 89.02.
-Cause: `#dashBody` opens the tab with `padding-top:16px` while every other tab's panel uses `.panel{margin-top:var(--sp-5)}` = 20px. The two coincide only at ≤560, where `--sp-5`'s panel rule drops to `var(--sp-4)` = 16px - which is exactly why the spec's two existing sizes never saw it.
-Requirements: one owner for the tab's top gap, not two; then add `{name:'narrow-desktop', width:700}` to `layout-consistency.spec.js`'s `SIZES` (F2 left it in `EDGE_SIZES` only, with the reason written at the code).
-Do with: **F6** - the Dashboard is rebuilt from the mock there and `#dashBody`'s padding goes with it, so fixing it separately means fixing it twice.
+## done  The Dashboard panel sits 4px high at every width where `--sp-5` is 20px
+Shipped 10 Aug 2026 with **F6 / `ezplate-v143`**, which is what its `Do with:` line was for. Both halves landed: one owner for the tab's top gap (`.plib-panel` zeroes the panel margin for every converted screen alike, and `#dashBody`'s own margin is the content inset below the header bar - the same job `#ingList`/`#plateList`/`#aList` do), and 700px promoted from `EDGE_SIZES` into `SIZES` in `layout-consistency.spec.js`, with Dashboard folded into the compared set. `EDGE_SIZES` is gone rather than left as a satisfied exception.
 
 ## blocked  PROPOSED CLAUDE.md rule: work-item sequencing lives in the queue, never in CLAUDE.md
 Problem: proposed by the batch of 10 Aug 2026, written into `CLAUDE.md`, then **REMOVED before merge by its own pre-push review** and parked here, because `CLAUDE.md`'s closing section requires Max's yes for a new durable rule and this one never had it. Recording it rather than dropping it: the finding behind it is real and was the whole substance of the audit's S3/C1.
@@ -340,6 +337,14 @@ On MOBILE the meta line's `::after`/`::before` do supply the words "cost," and "
 Requirements: ONE decision for all four screens. Two candidates, neither obviously right: visually-hidden per-cell labels inside each row (verbose - it is repeated on every row of a long list), or a per-row `aria-label` built by the renderer from the same values the cells show (concise, but a second string that can drift from the visible one, which is the failure mode `CLAUDE.md` names for stubs). Whichever wins, the band's `aria-hidden` is then correct rather than a gap - it is decoration once the row carries its own meaning.
 Out of scope: the `vbadge` markup, wording and aria, which are exact-pinned and already correct.
 Note this is the reason to keep `aria-hidden` for now rather than simply removing it: an announced floating row of five words before every list is worse than silence, and does not label anything.
+
+## next  The trend chart does not re-measure on resize, so its type is off-scale until the next render
+Problem: found and created by F6 (10 Aug 2026), and it is the residue of that batch's own fix rather than a pre-existing bug.
+Everything inside the trend SVG is in viewBox units - `font-size:11px` in CSS is 11 USER UNITS on an SVG `<text>`, not 11 device px - so the plot's type and stroke scale with its rendered width. F6 fixed the cause by sizing the viewBox to the column at render time (`trendPlotSize`, reading `#dashBody.clientWidth`), which took the desktop chart from a 2.7x enlargement (axis labels ~30px, line ~6.8px) to 1:1.
+**But `renderDashboard` does not run on resize.** Drag a desktop window from 1360 to 900 and the viewBox stays at the old width: the SVG rescales smoothly (`width:100%;height:auto`), so nothing breaks and nothing looks wrong at a glance, but the type is off by the ratio of the two widths until the next re-render - which any scope or range change performs.
+Requirements: decide between a debounced `resize` listener that calls `repaintDashboardIfVisible()` only when the plot width has actually changed, and leaving it as a known, documented limit. If a listener ships, it must not fire mid-scrub (the scrub holds state on the live SVG) and must not re-render while the tab is hidden.
+Out of scope: `trendPlotSize`'s ratios and clamps, which are pinned in `tests/trend-reframe.test.js`.
+Note the intermittent-user rule cuts BOTH ways here: Max on a phone never resizes, which is why this is not urgent - and is also why nothing else will ever notice it.
 
 ## next  Two CSS comments state the `[hidden]` override mechanism wrongly
 Problem: found 10 Aug 2026 by the pre-push review of the CLAUDE.md batch, which caught the same error in the new Tier 1 rule and then the same error in the code it was describing.

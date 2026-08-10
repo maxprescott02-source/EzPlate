@@ -1213,13 +1213,14 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .inv-introx{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:20px;line-height:1;color:var(--muted2);cursor:pointer}
 
 /* ============ Dashboard ============ */
-#dashBody{padding-bottom:var(--sp-2)}
-/* v49: `.dash-panel h2{margin-bottom:0}` removed — .panel h2 already has margin:0 (a no-op since v3x) */
+/* F6 (v143): `#dashBody{padding-bottom}` and the `.dash-chart` 540px cap are DELETED — the whole
+   dashboard layout is one owner now, §27 at the end of this file. Only the chart's INTERNALS stay
+   here, because they belong to trendChart's settled geometry rather than to the screen's layout. */
 /* v98 revision: .stat-attach/.stat-lead deleted with the compares block (see renderDashboard).
    NOTE for the dead-code audit: the .stat-row/.stat-card/.stat-v rules further down predate the
    block and were ALREADY unreferenced; left in place because clearing pre-existing dead CSS is
    the audit's scope, not this batch's. */
-.dash-chart{position:relative;max-width:540px;margin:0 auto}
+.dash-chart{position:relative}
 .dash-chart svg{width:100%;height:auto;display:block}
 .dash-chart .ax{fill:var(--muted2);font-size:11px}
 .chart-hint{margin:var(--sp-2) 2px 0;font-size:var(--fs-xs);color:var(--muted2);font-weight:400}
@@ -1716,8 +1717,9 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
 /* ---- Fix 3: mobile dashboard rhythm — the trend chart leads, stats compact ---- */
 /* v49: no bespoke top offsets — the dash panel starts where every other tab's panel starts
    (.panel's own margin-top; the old 2px pad + sp-4 margin put it 18px down vs 16 elsewhere) */
-#dashBody{display:flex;flex-direction:column;gap:var(--sp-4);padding:0 0 var(--sp-3)}
-#dashBody .stat-row{padding:0;margin:0;gap:var(--sp-3)}
+/* F6 (v143): the `#dashBody` flex-column that sat here is DELETED with the rest of the dashboard's
+   layers — §27 is the one owner at every width. The .stat-* rules below it are pre-existing dead
+   CSS (queued for the sweep), left exactly as they were. */
 .stat-card{padding:var(--sp-3) var(--sp-4)}
 .stat-v{font-size:24px}
 .stat-sub{font-size:11px}
@@ -2065,15 +2067,16 @@ body{overflow-x:clip}
 
 /* ===== v30 additions ===== */
 
-/* BUG 2A — stable range-bar header above the chart (can't collide with the Target pill) */
-.chart-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px}
-.chart-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);white-space:nowrap}
+/* F6 (v143): `.chart-controls` and `.chart-title` are DELETED — the trend's heading row is the
+   shared `.ds-head` now and its title is that section's h2. Nothing emits either class (grepped
+   across index.html and js/app.js), so these were dead rules the moment the markup changed.
+   ⚠ THE v40 RULE UNDER THEM WAS FIXING A REAL PROBLEM AND IT CAME STRAIGHT BACK. It read: "on
+   narrow phones the 6-button range bar squeezed the title into a 3-line stack — give the title its
+   own row above the range bar." F6's first cut made the trend heading a flex row and reproduced
+   that exact three-line stack at 380px, found by looking at a screenshot. §32 solves it the same
+   way v40 did (`display:block` below 768, one line above it) and `v143-dashboard.spec.js` now pins
+   the title to ONE line at 380 — which v40 never did, which is why it could return. */
 .range-bar{margin:0}
-/* v40: on narrow phones the 6-button range bar squeezed the title into a 3-line stack — give the title its
-   own row above the (still right-aligned) range bar. */
-@media (max-width:639px){
-  .chart-controls{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
-}
 
 /* FEATURE 1 — "My ingredients" (kitchen words) */
 .king-panel{margin-bottom:var(--sp-4)}
@@ -2562,7 +2565,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* items 2+3: ONE left edge down the whole chart block — title, y-axis labels (now start-anchored
    at x=0 in app.js), caption. Labels use the app's existing mono token (same stack the scrub
    tooltip's value and the docket prices already use — no new font, no new token). */
-.chart-controls{max-width:540px;margin-left:auto;margin-right:auto}   /* .dash-chart is 540px centred; the title row must share its edge on wide screens */
+/* F6 (v143): `.chart-controls` is DELETED with its markup — the trend's heading row is `.ds-head`
+   now, shared with every other dashboard section, and nothing is centred against a 540px cap. */
 .dash-chart .ax{font-family:var(--mono)}
 .chart-hint{margin-left:0;margin-right:0}
 /* item 5: making the plot focusable (v47) handed it the browser's default tap highlight — a blue
@@ -2646,17 +2650,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    The Dashboard is the manager's surface. These three pieces answer "am I OK?" for a chosen scope.
    Everything here reuses existing tokens and the existing .panel/.menu-picker-row skeletons — no new
    layout system, no new elevation language, and nothing that touches the chart's settled geometry. */
-.verdict{display:flex;align-items:baseline;gap:var(--sp-2);flex-wrap:wrap}
-.verdict-num{font-family:var(--mono);font-size:var(--fs-xl);font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--text)}
-.verdict-num.good{color:var(--good)}
-.verdict-num.bad{color:var(--bad)}
-/* v97: .verdict-cap is gone with the rule that styled it — the scope moved into the card heading
-   (.dh-scope, in the #dashBody density block below). A tombstone so the old name stays greppable. */
-.verdict-line{margin:var(--sp-1) 0 0;font-size:var(--fs-sm);line-height:1.45;color:var(--text2)}
-.verdict-trend{font-weight:700}
-.verdict-trend.good{color:var(--good)}
-.verdict-trend.bad{color:var(--bad)}
-.verdict-trend.flat{color:var(--muted2)}
+/* F6 (v143) TOMBSTONE: `.verdict` / `.verdict-num` / `.verdict-line` / `.verdict-trend` and their
+   rules are DELETED with the markup that emitted them. verdictHtml still exists and is still the
+   one function that decides this screen's headline — it now emits the mobile mock's §6 hero
+   (`.dash-hero` / `.dh-num`) or §5's first-run path card (`.dash-path`). See §27.
+   `.verdict-trend` had already lost its emitter in v115 (scopeTrend's deletion) and was dead CSS. */
 
 /* ===== v120 — Q2 dashboard redesign =====
    Structure only: every colour, duration and easing below is an existing token, and every class the
@@ -2664,25 +2662,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    .dh-scope) keeps its name. The design's 44px/40px figure and 12px/11px eyebrow are the two sizes
    the type scale does not already carry, so they are set here on the elements that own them rather
    than promoted to tokens — the package's "no new tokens" rule is about the palette. */
-.dash-verdict-panel h2{font-size:var(--fs-xs);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.dash-verdict-row{display:flex;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap}
-.dash-verdict-main{min-width:0}
-.dash-verdict-panel .verdict-num{line-height:1}   /* size is set once, under #dashBody below */
-.dash-verdict-panel .verdict-line{font-size:var(--fs-sm);font-weight:600}
-@media (min-width:700px){
-  .dash-verdict-panel .verdict-line{font-size:var(--fs-base)}
-  /* the target sentence sits on the FIGURE'S baseline, per the mock. v120 set display:inline on
-     the <p> — which does nothing, because it is a SIBLING of the .verdict div and an inline cannot
-     join another block's line box; Max's production screenshot showed the two stacked. Flex on the
-     container that holds both is what joins them — WHEN the sentence fits. flex-wrap is deliberate:
-     the empty state's long "Nothing costed and priced yet…" sentence drops below the dash at
-     700–820px rather than overflowing, which is the right degradation, not a failure of this fix. */
-  .dash-verdict-main{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap}
-  .dash-verdict-main .verdict-line{margin:0}
-}
-/* v129: the scope DROPDOWN — the chips are reversed (Max, 9 Aug 2026). One button, right of the
-   verdict, carrying the current scope's name + food-cost %; the ranked list opens under it. */
-.dash-scope-wrap{position:relative;margin-left:auto;min-width:0}
+/* F6 (v143) TOMBSTONE: `.dash-verdict-panel` / `.dash-verdict-row` / `.dash-verdict-main` and the
+   700px baseline-join block are DELETED with the card they dressed. The v3 hero stacks label →
+   figure → context at every width (mobile mock §6), so there is no sentence to join to a baseline
+   and no eyebrow heading to style. */
+/* v129: the scope DROPDOWN — the chips are reversed (Max, 9 Aug 2026). One button carrying the
+   current scope's name + food-cost %; the ranked list opens under it. F6 (v143) rehoused it from
+   the verdict row into the mock's §3.1 HEADER slot; the control itself is unchanged, so
+   `margin-left:auto` goes (`.scr-gap` does that job now for every action in the header). */
+.dash-scope-wrap{position:relative;min-width:0}
 .dash-scope-btn{display:flex;align-items:center;gap:var(--sp-2);padding:8px 16px;border-radius:var(--radius-ctl);
   border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font:inherit;
   font-weight:700;font-size:var(--fs-sm);cursor:pointer;max-width:100%;
@@ -2716,9 +2704,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* v129: .dmp-head is GONE — with the All-menus row inside the popover a "Ranked by…" heading was
    false of its first row, and the honesty note below already states the basis once.
    The dropdown list keeps the shipped row markup, so sparklines survive the redesign.
-   Row padding is #dashBody-qualified because the density block's `#dashBody .mcmp-row` (1,1,0)
-   out-specifies a bare descendant pair — the bare form that sat here was dead on arrival. */
-#dashBody .dash-menus-pop .mcmp-row{padding:var(--sp-2) var(--sp-2)}
+   ⚠ F6 (v143): this rule used to be written `#dashBody .dash-menus-pop .mcmp-row`, because the
+   v94 density block's `#dashBody .mcmp-row` (0,1,1 with the id: 1,1,0) out-specified a bare
+   descendant pair. BOTH the density block and the #dashBody ancestry are gone — the popover now
+   opens inside `.scr-head`, which is not in `#dashBody` at all — so the id-qualified form would
+   have stopped matching silently and the rows would have inherited the base 44px-floor padding.
+   The bare form is correct now BECAUSE nothing out-specifies it any more; it is not a tidy-up. */
+.dash-menus-pop .mcmp-row{padding:var(--sp-2) var(--sp-2)}
 /* v129 selected row: tinted fill, text stays --text — deliberately NOT the --accent-ink-on-accent-weak
    pair, which sits below the AA floor app-wide (queued for one decision in Q10). */
 .dash-menus-pop .mcmp-row.act{background:var(--accent-weak)}
@@ -2727,32 +2719,21 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 /* minmax(0,1fr), not 1fr: the bare keyword is minmax(AUTO,1fr), so a long product name in What
    moved sizes its own column and the two stop being halves. Same reason .dash-row2's children
    carry min-width:0 — a grid item's default min-width:auto refuses to shrink below its content. */
-.dash-row2{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4)}
-@media (min-width:900px){ .dash-row2{grid-template-columns:repeat(2,minmax(0,1fr))} .dash-row2.is-open{grid-template-columns:minmax(0,1fr)} }
-.dash-row2 > .panel{margin:0;min-width:0}
-/* Dig in is half-width ONLY where the row actually splits, so the two-up override is gated to the
-   same 900px breakpoint. Ungated it also fired at 640-899px, where the row is still stacked and
-   Dig in has the full width it had before — measured on this branch: 2 tracks at 700px against 4
-   on main. Caught by the v120 pre-push review.
-   There is deliberately no `.is-open` variant: digInHtml emits .dig-grid only when the drill-down
-   is CLOSED and .dash-row2 only gets .is-open when it is OPEN, so the two can never co-occur. */
-@media (min-width:900px){ .dash-row2:not(.is-open) .dig-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
-.dash-row2 .dig-card{min-width:0}
-.mv-list{list-style:none;margin:0;padding:0}
-.mv-row{display:flex;align-items:center;gap:var(--sp-3);min-height:44px;padding:var(--sp-2) 0}
-.mv-row + .mv-row{border-top:1px solid var(--border)}
-.mv-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
-.mv-name{font-size:var(--fs-sm);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mv-sub{font-size:var(--fs-xs);color:var(--text2)}
-.mv-row .dig-v{flex:0 0 auto;font-size:var(--fs-md);font-weight:700}
+/* F6 (v143): `.dash-row2` and the `.mv-*` rows are REBUILT in §27 — the two-up is the mock's, the
+   rows carry its grammar, and the breakpoint is v3's 768 rather than the app's old 900. The
+   tombstone matters for one thing: the 900px gate on the Dig-in grid existed because an ungated
+   two-up rule also fired at 640-899 where the row was still stacked (v120 pre-push review). The
+   replacement has no separate grid to gate — Dig in is a list of rows at every width now — so the
+   defect class is gone rather than re-gated. */
 @media (prefers-reduced-motion:reduce){ .dash-menus-pop{animation:none} }
 
 /* v96: .dash-scope is gone — the scope picker was deleted and the By-menu list is the control. Its
    rules (here, in the #dashBody density block, and both bento bands) went with it. */
 
-/* Sits under the chart when a single menu is selected: says, in words, that the line above still covers
-   every menu. Constrained to the chart's own 540px column so it can't run wider than what it explains. */
-.scope-note{max-width:540px;margin:var(--sp-2) auto 0;color:var(--text2)}
+/* Sits under the chart when a single menu is selected: says, in words, that the line above still
+   covers every menu. F6 (v143): the 540px cap and the auto margins went with the chart's own cap —
+   it now shares the trend section's width, which is what it explains. */
+.scope-note{margin:var(--sp-2) 0 0;color:var(--text2)}
 
 /* ----- By menu ----- */
 .mcmp-list{list-style:none;margin:0;padding:0}
@@ -2800,201 +2781,50 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    gradient by id instead. Both hues are Gemini's own, deliberately not palette-native. */
 .ins-spark path{fill:url(#ezSparkGradDeep)}
 html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
-.ins-line{margin:0;padding:var(--sp-3) 0;font-size:var(--fs-base);line-height:1.55;color:var(--text2)}
-.ins-line:first-child{padding-top:0}
-.ins-line:last-of-type{padding-bottom:0}
-.ins-line + .ins-line{border-top:1px solid var(--border)}
-/* Honest AI credit: hidden until applyPhrasedInsights proves Gemini phrased a line that is on
-   screen. Template fallback keeps the sparkle (the feature IS AI-assisted) but never this. */
-.ins-credit{display:block;margin:var(--sp-3) 0 0;text-align:right;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:.02em}
-/* v115: the credit's line box is RESERVED (visibility, the .scope-note precedent) — revealing it
-   used to add a whole line to the panel after paint, shifting every panel below. */
-.ins-credit[hidden]{display:block;visibility:hidden}
+/* F6 (v143): `.ins-line`, `.ins-credit` and the whole Dig-in card system are REBUILT in §27 — the
+   lines become the mock's hairline-divided rows inside a bordered section, the credit moves into
+   the section's header band, and the four Dig-in tiles become the mock's four label/subject/figure
+   ROWS. The colour semantics survive verbatim there (`.dig-v.up` = bad, `.dig-v.down` = good — a
+   cost going up is bad news, not "positive"), and so does the 44px touch floor on `.dig-back`.
+   The v115 line-box RESERVATION is deleted with them, and the reason is worth writing down.
+   v115 wrote `.ins-credit[hidden]{display:block;visibility:hidden}` because the credit sat BELOW
+   the insight lines: revealing it added a whole line after paint and shifted every section beneath.
+   The `display:block` was the load-bearing half of that pair — `visibility:hidden` on its own
+   reserves nothing, because the UA's `[hidden]{display:none}` still removes the box (author origin
+   wins only for the property the author rule actually SETS, and that one sets `visibility`).
+   In the mock's header band the reservation is not needed at all, and this was MEASURED rather than
+   reasoned: the band's height comes from its h2 (13px/600 inside 12px padding) and the credit is
+   11.5px, so it cannot lengthen the band. Revealing it moves `.dash-row2` by 0.00px.
+   Carrying the rule forward would have left a declaration that does nothing under a comment saying
+   it does something — so it is gone, and `tests/visual/v143-dashboard.spec.js` pins the no-shift
+   property directly instead. If the credit ever grows past the h2, that fails. */
 
-/* ----- Dig in ----- */
-.dig-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
-.dig-card{display:flex;flex-direction:column;gap:2px;min-height:44px;   /* 44px: the app's touch-target floor */
-  padding:var(--sp-3) var(--sp-4);text-align:left;font:inherit;color:var(--text);cursor:pointer;
-  /* v98: --surface, not --surface2 — the beige third tone made light mode read cream page →
-     white card → beige card-in-card (dark hid it: tonal deltas compress at the dark end).
-     The hairline border alone separates the tile from the panel it sits in, at every width. */
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-ctl);
-  transition:border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
-.dig-card:hover{border-color:var(--accent)}
-.dig-card:active{transform:scale(.985)}       /* the same press treatment as .mcmp-row */
-.dig-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.dig-k{font-size:var(--fs-xs);color:var(--muted2);line-height:1.3}
-/* min-width:0 so a long plate name can actually ellipsis inside the flex column */
-.dig-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm);font-weight:700}
-.dig-v{font-family:var(--mono);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
-.dig-v.up{color:var(--bad)}                   /* a cost going UP is bad news, not "positive" */
-.dig-v.down{color:var(--good)}
-.dig-v.muted{color:var(--muted2)}
-/* v98: an empty tile reads quieter than a populated one — same card style, quieter CONTENT.
-   "Nothing yet" used to carry the same bold ink as three tiles of real data. */
-.dig-card.is-empty .dig-n{color:var(--muted2);font-weight:400}
+/* ===== F6 (v143) — THE v94 DENSITY BLOCK AND THE v98/v121 DESKTOP GRID ARE BOTH DELETED =====
+   Two whole layers, and deleting both together is the point. The v94 block re-stated padding,
+   type sizes and margins for eight dashboard classes under `#dashBody`; the v98 block placed
+   four cards into a 12-track grid at >=1024 and was itself the third such layer (v49's, v89's and
+   v95's two bento bands were each deleted by their successor). §27 rebuilds the screen from the
+   mock with ONE owner and no width-dependent reordering at all, so there is nothing left for a
+   density pass or a placement layer to correct.
+   ⚠ What that means for anyone reading the tombstones above: every rule those blocks contained is
+   gone, INCLUDING the ones they had been written to out-specify. Two survivors are kept below
+   because they were never dashboard layout — read their own comments for why.
+   The v89 lesson the v98 block carried forward ("EXPLICIT rows, never auto-flow — auto-placement
+   pushed a panel below the fold when a third child appeared") is not lost: §27 has no grid of
+   panels for a fourth child to fall out of. It is a document stack at every width. */
 
-/* detail view: the back arrow rides in the panel heading, mirroring Settings' .set-back */
-.dash-dig h2{display:flex;align-items:center;gap:var(--sp-1)}
-/* 44px, the app's own touch-target floor — not the 32px a glyph this size suggests. Negative block
-   margins keep it from inflating the panel heading, so it reads the same and taps bigger. (Settings'
-   .set-back is 40px and predates the floor; this is new code, so it meets it.) */
-.dig-back{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;
-  margin:-6px 0 -6px calc(var(--sp-3) * -1);padding:0;border:0;background:transparent;color:var(--text2);
-  cursor:pointer;border-radius:var(--radius-ctl)}
-.dig-back svg{width:20px;height:20px}
-.dig-back:hover{background:var(--hover);color:var(--text)}
-.dig-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.dig-sub{margin:0 0 var(--sp-2)}
-.dig-list{list-style:none;margin:0;padding:0}
-.dig-row{display:flex;align-items:center;gap:var(--sp-3);min-height:44px;padding:var(--sp-2) 0;font-size:var(--fs-sm)}
-.dig-row + .dig-row{border-top:1px solid var(--border)}
-.dig-rn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dig-rv{flex:0 0 auto;font-family:var(--mono);font-variant-numeric:tabular-nums}
-.dig-rv.up{color:var(--bad)}
-.dig-rv.down{color:var(--good)}
-@media (prefers-reduced-motion:reduce){ .dig-card:active{transform:none} }
-@media (min-width:640px){ .dig-grid{grid-template-columns:repeat(4,1fr)} }
-
-/* ===== batch (v94) — Dashboard density: match the approved mockup ============================
-   Presentation only. Stages 1/2 (v89/v90) shipped the right structure at roughly 3–4× the
-   mockup's density; a manager's surface should be scannable in one glance. Every rule here is
-   scoped under #dashBody so no other tab moves, and everything is existing tokens — no new
-   spacing, sizes or elevation. The chart's own shrink (viewBox H 210→104, fill opacity) lives
-   in trendChart in app.js; its x-gutter geometry, axis fonts, domain/tick logic, target-line
-   rule and scrubbing are all deliberately untouched. */
-/* zones sit close (mockup: 7px seams), not 16px+20px apart: the flex gap IS the seam, and the
-   container's top padding keeps the FIRST panel exactly where every other tab's first panel sits
-   (sp-5 — layout-consistency.spec.js pins the one panel skeleton across all five tabs, so the h2
-   geometry below is deliberately NOT overridden; only its colour goes quiet, which isn't skeleton) */
-#dashBody{gap:var(--sp-2);padding-top:var(--sp-4)}   /* sp-4: other tabs' first panel lands 16px down on mobile (collapsed margin — measured, and pinned by layout-consistency) */
-#dashBody .panel{margin-top:0}
-/* v98: dashboard cards draw the two-mode elevation token (shadow in light, none in dark — the
-   surface step carries dark depth). One value for every card; the other tabs keep --shadow
-   until their own pass (follow-up, listed). */
-#dashBody .panel{box-shadow:var(--elev)}
-#dashBody .panel h2{color:var(--muted2)}
-/* v97 — the ONE deliberate exception to the v94/v95 density pass. Scope is now stated once, in this
-   heading, so the heading carries metric + menu name together. The metric stays quiet like every other
-   dashboard heading; the MENU NAME does not, because it is the only heading content on this tab that
-   CHANGES, and a scope indicator quieter than the target line beneath it is exactly how someone reads a
-   specials figure as a whole-menu figure. Do not flatten both to muted for consistency. */
-#dashBody .dash-panel h2 .dh-scope{color:var(--text);font-weight:inherit}
-#dashBody .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}   /* left/right stay sp-5: one text edge with the h2 title (pinned) */
-#dashBody .chart-controls{margin-bottom:var(--sp-1)}
-/* v121: the hairline between the verdict zone and the trend applies at EVERY width now, not just
-   desktop — with the chips and their note in the verdict zone, the two regions need the seam on a
-   phone too (Max's screenshot had the note running straight into FOOD COST TREND). */
-#dashBody .dp-chart{margin-top:var(--sp-3);border-top:1px solid var(--border);padding-top:var(--sp-3)}
-#dashBody .chart-hint{margin-top:var(--sp-1);font-size:var(--fs-xs)}
-#dashBody .scope-note{font-size:var(--fs-xs)}
-/* the comparison block attaches tight under the chart */
-/* (v98 revision: the stat-attach/stat-lead/stat-line density overrides died with the block) */
-/* insights: the mockup's 12.5px lines with tight rhythm */
-#dashBody .ins-line{padding:var(--sp-2) 0;font-size:var(--fs-sm);line-height:1.5}
-#dashBody .ins-credit{margin-top:var(--sp-2)}
-/* By-menu rows: slim visually, 44px touch floor kept (the row is a button) */
-#dashBody .mcmp-row{padding:var(--sp-2) var(--sp-1)}
-#dashBody .mcmp-note{margin-top:var(--sp-2);font-size:var(--fs-xs)}
-/* Dig in: cards were close but over-padded; rows are display-only, so they may sit slimmer */
-#dashBody .dig-grid{gap:var(--sp-2)}
-#dashBody .dig-card{padding:var(--sp-2) var(--sp-3)}
-#dashBody .dig-row{min-height:36px;padding:var(--sp-1) 0}
-/* mobile: the .dp-tile wrappers (v95) add nothing — the phone stack renders exactly as before */
-.dp-tile{min-width:0}
-/* v95: the By-menu sparkline (the approved mockup's row: name · sparkline · figure). Semantic
-   colour pair matches the chart: cost falling = good. Absent entirely when a menu has <2 points. */
+/* v95: the By-menu sparkline (the mock's row: name · sparkline · figure). Semantic colour pair
+   matches the chart: at or under target = good. Absent entirely when a menu has <2 points.
+   NOT dashboard layout — it is emitted by mcmpSparkHtml inside the scope popover, which is now in
+   the screen header, so it outlived the block that used to sit beside it. */
 .mcmp-spark{flex:0 0 auto;width:54px;height:16px;color:var(--muted2)}
 .mcmp-spark.good{color:var(--good)}
 .mcmp-spark.bad{color:var(--bad)}
 /* a classic scrollbar appearing/disappearing (content height crossing the viewport) narrows the
    viewport a few px and reflows the page — on the dashboard it read as cards jumping on scope
    change. Reserving the gutter kills the whole class, on every tab and at every width; it is
-   independent of the bento grid and survives any layout revert. Overlay-scrollbar platforms
-   (iOS, macOS default) are unaffected. */
+   independent of any dashboard layout and its own comment said it survives a revert. It does. */
 html{scrollbar-gutter:stable}
-
-/* ===== v98 — desktop grid: variable-height rows are full-width ==============================
-   The v95 bento still asked a fixed-height element to agree with variable ones; it was retuned
-   twice and the dead space moved rather than closed. v98 stops asking: anything whose height
-   cannot be predicted gets a FULL-WIDTH row where nothing sits beside it.
-     row 1  .dash-panel (7 tracks) | .dash-compare (5 tracks), top-aligned. The CHART CARD ALONE
-            sets the row height. The selector card is absolutely positioned into its grid area
-            (an abs-pos grid child's containing block IS its placed area) and — v98 revision,
-            Max's call on seeing it — SIZES TO ITS CONTENT, capped at the row: a short list ends
-            where its rows end (the void below was card-interior emptiness asserting content
-            that doesn't exist; page background there is just page, like rows 2–3 sit on), and
-            a long list hits the cap and scrolls inside the card. Giving the void "a job" was
-            rejected: any job is new content, and this batch adds no metrics, tiles or cards.
-            The ranking is WORST-first (flipped with this grid, Max's call — pinned by
-            dash-scope.test.js), so overflow hides the healthiest menus: the right thing to lose.
-     row 2  .dash-ins — full width; 1–5 insights BY DESIGN, its height is free here.
-     row 3  .dash-dig — full width, the four tiles.
-   ONE SEAM: every gap between cards is the v95 8px seam, both axes, every adjacent pair; the
-   16px card-to-page-edge (.wrap padding) is deliberately 2× the seam, not a third rhythm.
-   ONE ELEVATION: every card draws var(--elev) — the two-mode token (shadow in light, none in
-   dark, where the surface step carries depth). No per-card shadow values.
-   THE ONLY desktop placement layer: v89's 7fr/5fr rules, the v49 grid re-declare and both v95
-   bento bands are DELETED, not overridden — a third stacked layer is how this file bred repeat
-   breakages. EXPLICIT rows, never auto-flow (v89's lesson: auto-placement pushed a panel below
-   the fold when a third child appeared).
-   Markup: the .dp-tile wrappers are chrome-free grouping handles — no fill, no border at any
-   width (the cards-in-cards fix). With the compares tile deleted (v98 revision) the DOM order
-   verdict → chart IS the card order; the CSS `order` re-cut is gone. */
-@media(min-width:1024px){
-  /* v121 REPLACES the v120 row map, in place — this block stays the ONE desktop owner, because a
-     second stacked layer is what the comment above says bred repeat breakages.
-     v120 gave the verdict and the chart a full-width card each, and the chart — capped at 540px on
-     purpose, because rendering the 320-unit viewBox wider scales the axis type out of bounds —
-     floated in the middle of its card with dead space either side. Max called it janky from a
-     production screenshot, and the fix is the layout that was already proven: the v98 7/5 split,
-     with WHAT MOVED now sitting where the By-menu selector card used to, so the right column is
-     earning its keep again and the 540px chart fills its 7-track card instead of swimming.
-       row 1  .dash-panel (1/8) — verdict + chips + since + hairline + chart | .dash-moved (8/13),
-              top-aligned, ends at its content (align-self:start — What moved is ≤3 rows, so the
-              old selector card's abs-pos + internal-scroll machinery is not needed)
-       row 2  .dash-ins — full width
-       row 3  .dash-dig — full width, four tiles across again
-     .dash-row2 dissolves at this width (display:contents) so its children join THIS grid — the
-     wrapper is the under-1024 two-column layout's box, and keeping it here would mean a grid
-     inside a grid fighting over the same tracks. */
-  #dashBody{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-2);padding:0 0 var(--sp-3)}
-  #dashBody .dash-panel{grid-column:1/8;grid-row:1;margin:var(--sp-5) 0 0;min-height:0}
-  #dashBody .dash-row2{display:contents}
-  #dashBody .dash-moved{grid-column:8/13;grid-row:1;align-self:start;margin:var(--sp-5) 0 0}
-  #dashBody .dash-ins{grid-column:1/13;grid-row:2;margin:0}
-  #dashBody .dash-dig{grid-column:1/13;grid-row:3;margin:0}
-  /* dig's tiles go four-across again now that the panel has the full row to itself (the 2-track
-     rule at 900px belongs to the under-1024 side-by-side layout, which no longer exists here) */
-  #dashBody .dig-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-  /* absent panels: the row closes up / the neighbour takes the width (rows stay EXPLICIT — v89's
-     lesson was that auto-flow pushed a panel below the fold when a third child appeared).
-     .dash-moved is absent only while a Dig-in drill-down is open (whatMovedHtml always renders
-     its panel otherwise, empty state included); the top card then takes the full width. */
-  #dashBody:not(:has(.dash-moved)) .dash-panel{grid-column:1/13}
-  #dashBody:not(:has(.dash-ins)) .dash-dig{grid-row:2}
-
-  /* --- the top card: ONE surface again — number, chips, since, then the trend below a hairline.
-     The hairline itself is set once, in the density block (it applies at every width now). --- */
-  #dashBody .dash-panel .pad{display:flex;flex-direction:column;padding:var(--sp-3) var(--sp-5) var(--sp-4)}
-  /* the chart KEEPS its 540px cap and centred controls: rendering the 320-unit viewBox any
-     wider scales the axis type with it (axis fonts are out of bounds for this batch). */
-  /* the scope caption's line is RESERVED at the card's floor and the note absolutely positioned
-     into it — selecting a menu changes zero geometry (the no-jump rule, kept from v95). Empty
-     on "All menus", the band reads as bottom padding. 18px = one fs-xs line. */
-  #dashBody .dp-chart{position:relative;padding-bottom:calc(var(--sp-2) + 18px)}
-  #dashBody .dp-chart .scope-note{position:absolute;left:0;right:0;bottom:0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-  /* --- DIG IN: the wrapper loses its chrome so the four tiles read as direct children of the
-     page (kept from v95); a drill-down is a full list again and gets the chrome back --- */
-  #dashBody .dash-dig{background:none;border:0;box-shadow:none;border-radius:0}
-  #dashBody .dash-dig > h2{border-bottom:0;padding:var(--sp-2) 2px var(--sp-1)}
-  #dashBody .dash-dig > .pad{padding:0}
-  #dashBody .dig-card{border-radius:var(--radius-card);box-shadow:var(--elev);padding:var(--sp-3) var(--sp-4)}
-  #dashBody .dash-dig.detail-open{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--elev)}
-  #dashBody .dash-dig.detail-open > h2{border-bottom:1px solid var(--border);padding:var(--sp-4) var(--sp-5) var(--sp-3)}
-  #dashBody .dash-dig.detail-open > .pad{padding:var(--sp-2) var(--sp-5) var(--sp-4)}
-}
 
 /* ===== online-only data layer (v108) ===== */
 /* The boot gate. Supabase is the source of truth now, so between first paint and the first fetch
@@ -3073,13 +2903,10 @@ html{scrollbar-gutter:stable}
 /* Strand 2: the chart reframed. The hero figure grows toward the approved mockup's weight — one
    deliberate size for the one number the dashboard exists to answer; everything else keeps the
    token scale. */
-/* v120: 34px was v115's step toward the approved mockup; the Q2 redesign lands on its final pair,
-   40px phone / 44px desktop. THIS is the only place the size is set. The v120 block above styles
-   the same element but cannot outrank an id, so duplicating the size there just created two rules
-   that happened to agree — the pre-push review flagged it, and the loser has been removed rather
-   than left to drift. That block keeps only line-height, which nothing here sets. */
-#dashBody .dash-verdict-panel .verdict-num{font-size:40px}
-@media(min-width:700px){ #dashBody .dash-verdict-panel .verdict-num{font-size:44px} }
+/* F6 (v143) TOMBSTONE: the id-qualified `#dashBody .dash-verdict-panel .verdict-num` size pair
+   (40px phone / 44px desktop) is DELETED with its element. The v3 mobile mock sets the hero at 44
+   flat and the desktop KPI figure at 26, and both are set once in §27 — the phone/desktop split
+   is now which SURFACE shows, not what size one element is. */
 /* The since-line: the achievement, then the gap. The warm tint marks accumulating drift (the thing
    worth glancing at); .calm drops the tint when there is no drift to report. Deliberately NOT a
    traffic-light colour — drift is normal trading, not failure (that judgement lives on the chart's
@@ -3636,69 +3463,34 @@ html{scrollbar-gutter:stable}
 }
 @media (max-width:560px){ #ingList{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
-/* v132 (v3 shell): the dashboard verdict panel's h2 joins the 48px title bars at desktop —
-   the five tabs share ONE title type (layout-consistency.spec.js pins it). Sits at the end
-   of the file so it beats the v98 dashboard eyebrow rule at equal specificity. */
-@media (min-width:1024px){
-  .dash-verdict-panel h2{
-    font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
-    min-height:48px;display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-5);
-  }
-}
+/* F6 (v143) TOMBSTONE: the v132 rule that gave `.dash-verdict-panel h2` the 48px title bar is
+   DELETED with that element. The Dashboard's title is a `.scr-head > h2` now, exactly like the
+   other four converted screens, so the shared title type comes from one rule instead of a
+   per-screen restatement that had to sit at the end of the file to win. */
 
 /* ======================================================================
    §V2 + §V3 (v133) — the v3 table system, first consumed by the Dashboard
-   Shipped HERE: the header band (.tbl-head) and the tinted mono pills
-   (.pill-good/.pill-bad). NOT shipped yet, each waiting for its first real
-   consumer (the no-dead-CSS law): the row-button base and .pill-warn (V4a's
-   Menu rows), the column-label band and uppercase group rows (also V4a).
-   The band applies at ≥1024 only — below 1024 the dashboard keeps today's
-   layout until V9 translates §6.
+   ⚠ REWRITTEN BY F6 (v143). What v133 shipped was correct and is kept; what
+   changed is the GATE. v133 wrote the pills, the KPI strip and the header
+   band behind `@media (min-width:1024px)` with the reason stated in its own
+   comment: "below 1024 the dashboard keeps today's layout until V9
+   translates §6". F6 IS that translation, so the gate has done its job.
+   - .pill / .pill-good / .pill-bad now apply at EVERY width. The mobile mock
+     draws the same tinted mono lozenge on the What-moved rows (§6), so the
+     1024 gate would have left the phone showing bare coloured numbers.
+   - .kpi-strip stays desktop-only, but that is now a DESIGN fact rather than
+     a deferral: §6 gives the phone a 44px hero instead of a three-cell strip.
+   - .tbl-head and its #dashBody restatement are DELETED. The dashboard was
+     the only thing that ever emitted the class (grepped, both files), and
+     §27's `.ds-head` is the band now — for every dashboard section, not
+     just the ones that happened to be panels.
    ====================================================================== */
-/* below 1024 neither the pills, the strip nor the badge exists — the mobile dashboard keeps
-   today's look untouched until V9 owns the §6 translation (the .pill markup classes are inert
-   there: without these rules the What-moved deltas fall back to their .dig-v colours) */
-.kpi-strip{display:none}
+/* the tinted mono delta lozenge (§1.2's fg/bg pairs). One rule, every width. */
+.pill{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
+.pill-good{color:var(--good);background:var(--good-bg)}
+.pill-bad{color:var(--bad);background:var(--bad-bg)}
 .nl-badge{display:none}
 @media (min-width:1024px){
-  .pill{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
-  .pill-good{color:var(--good);background:var(--good-bg)}
-  .pill-bad{color:var(--bad);background:var(--bad-bg)}
-  /* `.mv-row .dig-v` (0-2-0) sets fs-md/700 — restated here so the pill really is the spec's
-     12/500 mono lozenge, not a large bold number wearing a tint */
-  .mv-row .dig-v.pill{font-size:12px;font-weight:500;font-family:var(--mono)}
-  /* h2.tbl-head ties `.panel h2` (0-1-1) and sits later in the file, so the band wins its
-     shared properties; the ID-qualified restatement below is for the density block's
-     `#dashBody .panel h2` (1-1-1), which would otherwise mute it. ⚠ V4a: the four static tabs'
-     48px title-bar rule (`#tab-* > .panel > h2`, 1-0-2) still outranks this class — the Menu
-     batch must reconcile the two when it becomes the second consumer, not paper over it. */
-  h2.tbl-head,.tbl-head{
-    background:var(--surface2);border-bottom:1px solid var(--divider);
-    padding:12px 20px;margin:0;font-size:13px;font-weight:600;letter-spacing:0;
-    text-transform:none;color:var(--text);display:flex;align-items:center;gap:var(--sp-2);
-  }
-  #dashBody .panel h2.tbl-head{color:var(--text);background:var(--surface2);border-bottom:1px solid var(--divider);padding:12px 20px;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;min-height:0}
-  /* v136: --hover is the mock's #F2EADD and no longer equals --surface2, so the band's back
-     button can use the shared token; the local wash this comment used to justify is gone. */
-  .tbl-head .dig-back:hover{background:var(--hover)}
-
-  /* ---- §3.1 KPI strip: three cells, one bordered container, internal hairlines ---- */
-  .kpi-strip{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;margin-bottom:var(--sp-5)}
-  .kpi-cell{padding:18px 22px;border-right:1px solid var(--divider);min-width:0}
-  .kpi-cell:last-child{border-right:0}
-  .kpi-label{font-size:12.5px;font-weight:500;color:var(--text2)}
-  .kpi-row{display:flex;align-items:baseline;gap:var(--sp-2);margin-top:6px}
-  .kpi-num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
-  .kpi-num.good{color:var(--good)}
-  .kpi-num.bad{color:var(--bad)}
-  .kpi-sub{margin-top:4px;font-size:12px;color:var(--muted2)}
-  /* the strip's first cell IS the verdict at desktop — the 44px hero hides here and stays the
-     mobile face until V9 (§6 keeps a hero on phones). GATED on .has-kpis: when nothing is
-     costed+priced the strip is absent and the hero (with its actionable empty copy) must stay
-     at every width — an unconditional hide left desktop with no instruction (review finding). */
-  #dashBody .dash-verdict-panel.has-kpis .dash-verdict-main{display:none}
-  #dashBody .dash-verdict-panel.has-kpis .dash-verdict-row{justify-content:flex-end}
-
   /* ---- the sidebar Dashboard badge (§2): all-menus avg %, only when over target ---- */
   .nl-badge{display:inline-block;margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;font-weight:500;color:var(--bad);background:var(--bad-bg);border-radius:var(--radius-pill);padding:1px 7px}
   .nl-badge[hidden]{display:none}
@@ -3986,3 +3778,258 @@ html{scrollbar-gutter:stable}
 }
 @keyframes sheetUp{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes sheetDown{from{transform:translateY(0);opacity:1}to{transform:translateY(24px);opacity:0}}
+
+/* ----------------------------------------------------------------------
+   32. F6 (v143) — THE DASHBOARD, REBUILT FROM THE v3 MOCK
+   Source: `Redesign v3 - SaaS.dc.html` §3.1 desktop, `… Mobile.dc.html` §6.
+   One breakpoint, 768 (v3 §6).
+
+   This block REPLACES five stacked layers, all deleted in this change: the
+   v89 verdict rules, the v120/v121 verdict-panel rules, the v94 density
+   block, the v98/v121 desktop grid, and v132's per-screen title-bar rule.
+   Every one of them existed to correct the layer under it. There is nothing
+   to correct here: the screen is a document stack in ONE order at every
+   width, and the only width-dependent swap is WHICH verdict surface shows —
+   the mobile mock's 44px hero, or the desktop mock's three-cell KPI strip.
+   No `order`, no grid of panels, no `#dashBody`-qualified restatements.
+
+   ⚠ EVERY declaration appearing at BOTH breakpoints is written with the
+   SAME selector specificity on both sides. A multi-class selector outside a
+   media query beats a single-class one inside it, and the symptom is a rule
+   that looks right in the file and does nothing on screen — CLAUDE.md
+   Tier 1, five instances in F3 alone.
+   ---------------------------------------------------------------------- */
+
+/* ---- the page column, under the §2 header bar.
+   MARGIN, not padding, and that is the queued "Dashboard panel sits 4px high" item being fixed
+   rather than styled around. The old defect was TWO owners of the tab's top gap: `#dashBody` opened
+   the tab with `padding-top:16px` while every other tab's first panel used `margin-top:var(--sp-5)`
+   = 20px, so Dashboard sat 4px high at every width where sp-5 is 20px — invisible at 380 and 1280
+   (where the two coincide) and visible at 700. There is now ONE owner at every width: `.plib-panel`
+   zeroes the panel margin for every converted screen alike, and this margin is the content inset
+   BELOW the header bar, which is the same job `#ingList` / `#plateList` / `#aList` do on the other
+   four. Measuring it as a margin is also what lets layout-consistency compare this screen's body
+   edge with theirs — a padding would put the box's edge at the panel's, not at the title's. ---- */
+#dashBody{margin:var(--sp-5) var(--sp-5) var(--sp-8)}
+/* THE mobile collapse — the same 560 step `.scr-head` / `.plib-controls` already take */
+@media (max-width:560px){ #dashBody{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
+
+/* ---- the verdict zone: strip (desktop) or hero (mobile), then the since-line ---- */
+.dash-top{min-width:0}
+
+/* the mobile mock's §6 hero — label, 44px mono figure, one-sentence context */
+.dash-hero{min-width:0}
+.dh-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-2)}
+.dh-fig{display:flex;align-items:baseline;gap:var(--sp-3);margin-top:var(--sp-1)}
+.dh-num{
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:44px;font-weight:600;letter-spacing:-.02em;line-height:1;color:var(--text);
+}
+.dh-num.good{color:var(--good)}
+.dh-num.bad{color:var(--bad)}
+.dh-ctx{margin:var(--sp-2) 0 0;font-size:var(--fs-sm);line-height:1.5;color:var(--text-2)}
+
+/* §5's first-run / empty state. A COMPOSED card — bold one-liner, how, one primary CTA — which is
+   what §5 asks for and what the bare "—" it replaces never was. Shown at every width, because
+   kpiStripHtml returns '' whenever the figure is absent, so `.has-kpis` cannot hide it. */
+.dash-path{
+  border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:var(--sp-6) var(--sp-5);max-width:34em;
+}
+.dp-lead{margin:0;font-size:var(--fs-md);font-weight:600;color:var(--text)}
+.dp-body{margin:var(--sp-2) 0 0;font-size:var(--fs-sm);line-height:1.55;color:var(--text-2)}
+.dash-path .btn{margin-top:var(--sp-4)}
+
+/* ---- a dashboard SECTION. Bordered container with a tinted header band, per §2's table rules;
+       the trend is the one section the mock draws with no container, so it opts out below. ---- */
+.dash-sec{
+  margin-top:var(--sp-6);min-width:0;
+  border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden;
+}
+.ds-head{
+  display:flex;align-items:center;gap:var(--sp-2);
+  padding:12px 20px;border-bottom:1px solid var(--hairline);background:var(--surface-2);
+}
+.ds-head h2{
+  margin:0;padding:0;border:0;font-size:13px;font-weight:600;letter-spacing:0;
+  text-transform:none;color:var(--text);display:flex;align-items:center;gap:var(--sp-2);min-width:0;
+}
+.ds-gap{flex:1 1 auto;min-width:0}
+
+/* ---- the trend. The mock draws it on the page canvas: a plain heading row over the plot, no
+       container, no band. Written as an override of `.dash-sec` at the SAME specificity (0-2-0
+       both sides) so which one wins does not depend on file order. ---- */
+.dash-trend.dash-sec{border:0;border-radius:0;overflow:visible}
+/* `display:block`, not the inherited flex, and that is measured: the six-button range bar is ~200px
+   wide, so on a 340px column the flex row squeezed the title to ~60px and "Food cost trend" set on
+   THREE lines. The mock's own mobile dashboard has no range control at all (§6), so there is nothing
+   to be faithful to at this width — the control the app keeps (R3) takes its own line beneath the
+   title, which is where a wrapped flex row would have put it anyway, without wrecking the title. */
+.dash-trend .ds-head{display:block;padding:0 0 var(--sp-2);border-bottom:0;background:none}
+.dash-trend .ds-head h2{font-size:14px}
+.dash-trend .ds-head .range-bar{margin-top:var(--sp-2)}
+.dash-trend .chart-hint{margin-top:var(--sp-2)}
+
+/* ---- Needs attention (§3.1). Rows divided by hairlines inside the container. ---- */
+.ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
+/* v98/v136: the sparkle is the AI-provenance marker and keeps Gemini's own hues. "Deep" exists
+   because the light page is pale; on the dark canvas the deepened stops are the ones that
+   disappear, so dark takes the stock brighter set. The one place in this file where dark is not a
+   token flip — the stops live in an SVG <defs>, which cannot read a custom property. */
+.ins-spark path{fill:url(#ezSparkGradDeep)}
+html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
+/* the credit in the header band, the mock's placement. Its line box is RESERVED while hidden
+   (the `[hidden]{visibility:hidden}` rule in the v90 section) so revealing it shifts nothing. */
+.ins-credit{font-size:11.5px;color:var(--text-3);letter-spacing:.02em;white-space:nowrap}
+.ins-line{
+  margin:0;padding:13px 20px;font-size:13.5px;line-height:1.55;color:var(--text-2);
+  border-bottom:1px solid var(--hairline);
+}
+.ins-line:last-child{border-bottom:0}
+
+/* ---- What moved / Dig in: the mock's two-up second row ---- */
+/* minmax(0,1fr), not 1fr: the bare keyword is minmax(AUTO,1fr), so a long product name would size
+   its own column and the two would stop being halves. Same reason the children carry min-width:0 —
+   a grid item's default min-width:auto refuses to shrink below its content. */
+/* ⚠ `margin-top` HERE, on the wrapper, and it is load-bearing rather than tidy. `.dash-row2` is the
+   only top-level child of #dashBody that is NOT a `.dash-sec`, so it misses `.dash-sec`'s margin —
+   and the rule below explicitly zeroes its children's, because a grid item's own margin would sit
+   INSIDE the row and misalign the two halves. Without this the "Needs attention" card's border sat
+   flush against "What moved"'s at every width under 768: gap measured 0.0px at 380 and at 700,
+   against 20px at 1360, so it was a phone-only defect on the app's only real device.
+   Found by the pre-push review, then MEASURED before fixing — and the reason it got that far is
+   worth keeping: every geometry assertion in this batch compares `b.top >= a.bottom - 1`, which
+   pins the reading ORDER and passes identically whether the gap is 20px or nothing. The spec now
+   measures the gap itself. 20px is the mock's own value for this seam at both widths. */
+.dash-row2{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4);margin-top:var(--sp-5)}
+/* `align-self:start` is load-bearing, not tidiness: a grid item stretches to its row by default, so
+   an empty "What moved" grew a column of white to match Dig in's four rows. Each section ends where
+   its own content ends, which is what the mock draws. */
+.dash-row2 > .dash-sec{margin-top:0;min-width:0;align-self:start}
+
+/* the What-moved row: identity left over its muted meta, tinted mono pill hard right (§6.1's row
+   grammar). Not a button — see whatMovedHtml's R4 note. */
+.mv-list{list-style:none;margin:0;padding:0}
+.mv-row{
+  display:flex;align-items:center;gap:var(--sp-3);min-height:56px;
+  padding:11px 20px;border-bottom:1px solid var(--hairline);
+}
+.mv-row:last-child{border-bottom:0}
+.mv-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.mv-name{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mv-sub{font-size:var(--fs-xs);color:var(--text-3)}
+/* ⚠ `.dig-v.pill` (0-2-0), because `.pill{font-size:12px}` and `.dig-v{font-size:13px}` are BOTH
+   single-class and `.dig-v` is declared later in the file, so the lozenge rendered at 13px while
+   the comment above `.pill` claimed 12. v133 shipped this same override for the same collision
+   (`.dig-v` was 16px/700 then) and it was deleted with that block as no-longer-needed; it is
+   needed, just less loudly. Caught by the pre-push review. `.pill` keeps its own weight and family
+   — only the size is contested. */
+.mv-row .dig-v{flex:0 0 auto}
+.mv-row .dig-v.pill{font-size:12px}
+.mv-empty{margin:0;padding:13px 20px}
+
+/* the Dig-in row: label · subject · figure, the mock's own three columns. Still a button, still
+   opening the same inline drill-down — `.dig-card` is the hook renderDashboard wires. */
+.dig-grid{display:block}
+/* MOBILE (<768) is §6's two-line row — label over its muted subject, mono figure right — because
+   the desktop mock's three-column row does not survive a 340px column: measured, the subject
+   truncated to "Seafood Bas…" on the second card while the label kept its full width. §6.1's
+   parity map is the rule being followed, not broken: same names, same order, same reading
+   direction; the phone stacks the meta under the identity, exactly as every other converted
+   screen's rows do. The mock's own single row returns at >=768, where it fits. */
+.dig-card{
+  display:grid;grid-template-columns:minmax(0,1fr) max-content;column-gap:var(--sp-3);
+  align-items:center;width:100%;min-height:56px;
+  padding:12px 20px;text-align:left;font:inherit;color:var(--text);cursor:pointer;
+  background:none;border:0;border-bottom:1px solid var(--hairline);border-radius:0;
+  transition:background var(--t-fast) var(--ease);
+}
+.dig-card:last-child{border-bottom:0}
+.dig-card:hover{background:var(--surface-2)}
+.dig-card:active{transform:scale(.99)}
+.dig-card:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.dig-k{grid-column:1;grid-row:1;min-width:0;font-size:13.5px;font-weight:500;line-height:1.3}
+.dig-n{grid-column:1;grid-row:2;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs);color:var(--text-3)}
+.dig-v{grid-column:2;grid-row:1/3;align-self:center;font-family:var(--mono);font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.dig-v.up{color:var(--bad)}                   /* a cost going UP is bad news, not "positive" */
+.dig-v.down{color:var(--good)}
+.dig-v.muted{color:var(--text-3)}
+/* v98's rule, carried into the mock's row grammar: an empty row reads QUIETER than a populated one
+   — same chrome, quieter content. The property that carries it had to change. In the old tile the
+   subject was bold `--text` and the empty state dropped to muted 400; here the subject is muted for
+   every row, so a weight or a colour on `.dig-n` would be a rule doing nothing. The LABEL recedes
+   instead, and `.dig-v.muted` already quiets the figure. Pinned by colour in v98-grid.spec.js. */
+.dig-card.is-empty .dig-k{color:var(--text-2)}
+@media (prefers-reduced-motion:reduce){ .dig-card:active{transform:none} }
+
+/* the drill-down: the back chevron rides in the section's band, as it did in the panel heading */
+/* 44px, the app's touch-target floor — not the 32px a glyph this size suggests. Negative block
+   margins keep it from inflating the band, so it reads the same and taps bigger. */
+.dig-back{
+  display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;
+  margin:-11px 0 -11px -12px;padding:0;border:0;background:transparent;color:var(--text-2);
+  cursor:pointer;border-radius:var(--radius-ctl);flex:0 0 auto;
+}
+.dig-back svg{width:20px;height:20px}
+.dig-back:hover{background:var(--hover);color:var(--text)}
+.dig-back:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dig-sub{margin:0;padding:12px 20px 0}
+.dig-list{list-style:none;margin:0;padding:0}
+.dig-row{
+  display:flex;align-items:center;gap:var(--sp-3);min-height:44px;
+  padding:10px 20px;font-size:13.5px;border-bottom:1px solid var(--hairline);
+}
+.dig-row:last-child{border-bottom:0}
+.dig-rn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dig-rv{flex:0 0 auto;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.dig-rv.up{color:var(--bad)}
+.dig-rv.down{color:var(--good)}
+
+/* ---- the scope control in the header. `.scr-head` is a flex row, so the wrap needs no
+       margin-left:auto — `.scr-gap` pushes it. ---- */
+.scr-head > #dashScopeSlot{display:flex;align-items:center;min-width:0;flex:0 1 auto}
+
+/* ---- DESKTOP (>=768: the v3 breakpoint) ---- */
+@media (min-width:768px){
+  /* top/bottom only — the horizontal inset is the shared gutter and is set once, above. */
+  #dashBody{margin-top:var(--sp-8);margin-bottom:64px}
+  .dash-sec{margin-top:36px}
+  /* the trend's heading row rejoins the title and the range control on one line — it fits here */
+  .dash-trend .ds-head{display:flex}
+  .dash-trend .ds-head .range-bar{margin-top:0}
+  /* the mock's §3.1 Dig-in row: label · muted subject · figure, all on one line */
+  .dig-card{display:flex;align-items:baseline;column-gap:var(--sp-3)}
+  .dig-k{flex:0 0 auto}
+  .dig-n{flex:1 1 auto;text-align:right;font-size:12px}
+  /* `align-self:auto` is not tidying: the mobile rule spans the figure across both grid rows and
+     centres it, and `align-self` on a FLEX item outranks the container's `align-items:baseline`.
+     Left in, the figure sat a few px below the label's baseline — visible on screen, invisible to
+     any test that only checks the row exists. */
+  .dig-v{flex:0 0 auto;align-self:auto}
+  /* the two-up splits here; `margin-top` is NOT restated — it is set once at the base rule, which is
+     what stopped it being width-dependent by accident in the first place. */
+  .dash-row2{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5)}
+  /* a drill-down is a LIST, and a list gets the full row — the two-up is for the summary rows.
+     Written at the same specificity as the rule above it, both 0-1-0 + 0-2-0 pairs matched. */
+  .dash-row2.is-open{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ---- the KPI strip is the DESKTOP verdict surface (>=1024, where the shell is the sidebar
+       layout). §6 gives the phone a 44px hero instead — a design fact, not a deferral. ---- */
+.kpi-strip{display:none}
+@media (min-width:1024px){
+  .kpi-strip{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--border);border-radius:var(--radius-card);overflow:hidden}
+  .kpi-cell{padding:18px 22px;border-right:1px solid var(--hairline);min-width:0}
+  .kpi-cell:last-child{border-right:0}
+  .kpi-label{font-size:12.5px;font-weight:500;color:var(--text-2)}
+  .kpi-row{display:flex;align-items:baseline;gap:var(--sp-2);margin-top:6px}
+  .kpi-num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+  .kpi-num.good{color:var(--good)}
+  .kpi-num.bad{color:var(--bad)}
+  .kpi-sub{margin-top:4px;font-size:12px;color:var(--text-3)}
+  /* the strip's first cell IS the verdict here, so the hero hides — GATED on .has-kpis, because
+     when nothing is costed and priced the strip is absent and the path card in the hero's slot
+     must stay at every width. An unconditional hide left desktop with no instruction (v133
+     review finding, and the gate is why that is still true). */
+  .dash-top.has-kpis .dash-hero{display:none}
+}

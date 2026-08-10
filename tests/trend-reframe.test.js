@@ -37,7 +37,12 @@ function extractFn(name) {
 }
 
 /* The chart sandbox: real geometry, real markers, real caption. Only the DOM measurers are stubbed
-   (axCharW's canvas has a documented 6.6 fallback — the stub IS the fallback). */
+   (axCharW's canvas has a documented 6.6 fallback — the stub IS the fallback).
+   F6 (v143): trendPlotSize is the second DOM measurer, and it is EXTRACTED rather than stubbed —
+   it decides the plot's whole size, so a hand-rolled copy here would agree with whatever this file
+   believed rather than with the shipped arithmetic (CLAUDE.md's stub-mirrors-contract rule). It
+   needs no stub at all: `document` is absent in the sandbox, its try/catch turns that into the
+   documented no-layout case, and the tests below drive the width cases directly. */
 function chart(opts) {
   opts = opts || {};
   // eslint-disable-next-line no-new-func
@@ -61,6 +66,7 @@ function chart(opts) {
     ${extractFn('trendMarkers')}
     ${extractFn('lastChangeEntry')}
     ${extractFn('sinceLineHtml')}
+    ${extractFn('trendPlotSize')}
     ${extractFn('trendChart')}
     return { trendChart: trendChart, trendMarkers: trendMarkers, sinceLineHtml: sinceLineHtml,
              geo: function(){ return TREND_GEO; } };
@@ -291,4 +297,71 @@ test('a scoped draw shows NO markers, however droppy the log — their figures a
 test('the all-menus chart is byte-identical whether called with no scope or DASH_ALL', () => {
   const opts = { pts: series([20, 21, 22]), target: 30 };
   assert.strictEqual(chart(opts).trendChart(), chart(opts).trendChart('all'));
+});
+
+/* ===== F6 (v143): the plot is sized in RENDERED PIXELS ======================================
+ * Everything inside the SVG — the axis type (`font-size:11px` in CSS is 11 USER UNITS on an SVG
+ * <text>, not 11 device px), the 2.5 stroke, the marker radii — is in viewBox units and scales
+ * with the rendered width. The old fixed 320-unit box therefore enlarged the whole chart 2.7× on
+ * an 872px desktop column: the axis labels measured ~30px against the mock's 10.5. Sizing the
+ * viewBox to the column keeps the scale at 1 and is what lets the chart fill the mock's width.
+ *
+ * These drive the REAL trendPlotSize (the same one trendChart calls) against a stubbed element,
+ * rather than re-deriving its arithmetic here — a copy would agree with this file's belief instead
+ * of with the shipped function, which is the failure mode CLAUDE.md names for stubs.
+ */
+function plotSize(clientWidth) {
+  // eslint-disable-next-line no-new-func
+  return new Function('W', `
+    "use strict";
+    var document = { getElementById: function(){ return W == null ? null : { clientWidth: W }; } };
+    ${extractFn('trendPlotSize')}
+    return trendPlotSize();
+  `)(clientWidth);
+}
+
+test('F6: the plot sizes itself to the column, so its type renders at 1:1', () => {
+  const desk = plotSize(872);
+  assert.strictEqual(desk.W, 872, 'the viewBox is the column width — scale 1, so 11 units render as 11px');
+  assert.strictEqual(desk.H, Math.round(872 * (190 / 900)),
+    "and the height is the desktop mock's own 190/900 ratio");
+});
+
+test('F6: a phone column keeps the mock\'s taller ratio', () => {
+  const phone = plotSize(340);
+  assert.strictEqual(phone.W, 340);
+  assert.strictEqual(phone.H, Math.round(340 * (110 / 350)),
+    "the mobile mock is 350x110 — a desktop ratio would leave a 71px-tall chart on a phone");
+});
+
+test('F6: no layout (hidden tab at boot) falls back to the phone-sized box, never zero', () => {
+  // A zero-width viewBox is not a smaller chart, it is an SVG that cannot draw: every x/y below
+  // divides by (W - padL - padR). showTab re-renders once the pane is visible.
+  [null, 0].forEach((w) => {
+    const s = plotSize(w);
+    assert.strictEqual(s.W, 320, `clientWidth ${w} falls back`);
+    assert.ok(s.H > 0, 'and the height with it');
+  });
+});
+
+test('F6: the width is clamped at both ends', () => {
+  assert.strictEqual(plotSize(80).W, 300, 'a hair-thin column still has a drawable gutter');
+  assert.strictEqual(plotSize(4000).W, 960, 'and an ultrawide monitor does not stretch the line to nothing');
+});
+
+test('F6: the ratio switches on CONTENT width, not viewport — 559 is still a phone column', () => {
+  // Below 1024 there is no sidebar, so a 600px viewport is already a ~560px column. The threshold
+  // is measured on what this function actually reads.
+  assert.strictEqual(plotSize(559).H, Math.round(559 * (110 / 350)));
+  assert.strictEqual(plotSize(560).H, Math.round(560 * (190 / 900)));
+});
+
+test('F6: the chart really consumes it — the viewBox follows the column, not a constant', () => {
+  // The pin that would have caught a trendPlotSize wired up but never read: this drives the whole
+  // chart, not the sizer, and fails if trendChart goes back to a literal.
+  const app = chart({ pts: series([20, 21, 22]), target: 30 });
+  assert.match(app.trendChart('all'), /viewBox="0 0 320 \d+"/,
+    'the sandbox has no document, so the chart takes the documented fallback size');
+  const g = app.geo();
+  assert.strictEqual(g.W, 320, 'and TREND_GEO carries the same W the scrub maps against');
 });

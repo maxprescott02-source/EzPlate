@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=142">
+<link rel="stylesheet" href="css/style.css?v=143">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -334,8 +334,30 @@
   </div><!-- /tab-ingredients (LABEL: Products) -->
 
 
+  <!-- F6 (v143): REBUILT from `Redesign v3 - SaaS.dc.html` §3.1 (desktop) and `… Mobile.dc.html`
+       §6 (mobile) per FOLD-IN-PROTOCOL §1.2. Every id, handler and computation below is unchanged;
+       only the shape is new. `.scr-head` / `.plib-panel` are F2's ported mock patterns, reused not
+       rebuilt — and this is the LAST screen to adopt `.plib-panel`, so the base `.panel` card now
+       dresses nothing but modals. -->
   <div id="tab-dashboard" style="display:none">
-    <div id="dashBody"></div>
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Dashboard</h2>
+        <!-- The mock's §3.1 header draws no subtitle here (unlike every other screen): the slot to
+             the right of the title holds "Synced 4 min ago" and then the scope dropdown. The synced
+             text is deliberately NOT built — the v3 sync/status treatment is its own queue item,
+             which is `Do after: F6` precisely so it is decided against this header rather than a
+             hypothetical one. R3, recorded. -->
+        <span class="scr-gap"></span>
+        <!-- v129's scope dropdown, REHOUSED from the verdict row into the mock's header slot. It is
+             filled by renderDashboard (dashScopeHtml) rather than living here statically, because
+             the button carries the current scope's name and food-cost % and is rebuilt on every
+             render — which is what `refocusScopeBtn` exists for. Empty when fewer than two menus
+             are costed: one costed menu has nothing to switch between. -->
+        <div id="dashScopeSlot"></div>
+      </div>
+      <div id="dashBody"></div>
+    </div>
   </div><!-- /tab-dashboard -->
 </div>
 
@@ -944,7 +966,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=142"></script>
+<script src="js/app.js?v=143"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

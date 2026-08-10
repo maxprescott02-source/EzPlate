@@ -14,6 +14,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
+const { verdictFigure, verdictContext, scopeName } = require('./_dash');
 
 const MENUS = [
   { id: 'MENU_ORIGINAL', name: 'Original' },
@@ -94,17 +95,18 @@ async function pickScope(page, id) {
    remains CLAUDE.md's outstanding item 5, blocked on per-menu points. */
 test('one tap moves every scope-following region at once, with no partial update', async ({ page }) => {
   await boot(page);
-  await expect(page.locator('.verdict-num')).toHaveText('40.0%');
+  expect(await verdictFigure(page)).toBe('40.0%');
   const insAll = await page.locator('#dashBody .ins-line').allTextContents();
 
   await pickScope(page, 'MENU_WINTER');
 
   // headline, its target line, and the control marking all moved together (v129: the closed
   // dropdown's label is the visible marking; the row's aria-current is asserted re-opened)
-  await expect(page.locator('.verdict-num')).toHaveText('60.0%');
-  await expect(page.locator('.dh-scope')).toHaveText('Winter');
-  await expect(page.locator('.verdict-line')).toContainText('30.0 pts over your 30% target');
-  await expect(page.locator('#dashScopeBtn .dsb-name')).toHaveText('Winter');
+  expect(await verdictFigure(page)).toBe('60.0%');
+  expect(await verdictContext(page)).toContain('30.0 pts over your 30% target');
+  // v143: `.dh-scope` (the card's eyebrow heading) is gone; the control that sets the scope is the
+  // one place it is stated, and `scopeName` reads exactly that.
+  expect(await scopeName(page)).toBe('Winter');
   await openScope(page);
   await expect(page.locator('.mcmp-row.act')).toHaveCount(1);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
@@ -112,7 +114,7 @@ test('one tap moves every scope-following region at once, with no partial update
   await page.waitForTimeout(250);
 
   // the chart is honest that it did NOT narrow, rather than silently redrawing as the menu
-  await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
+  await expect(page.locator('.dash-trend .ds-head h2')).toHaveText('Food cost trend');
   await expect(page.locator('.scope-note')).toBeVisible();
 
   // and the insight set is genuinely different, not a stale panel left behind. On this seed the
@@ -148,7 +150,7 @@ test('a scope with insufficient history shows the not-enough-history copy, not N
   await pickScope(page, 'MENU_WINTER');
 
   // the headline still computes from live costing — only the HISTORY is missing
-  await expect(page.locator('.verdict-num')).toHaveText('60.0%');
+  expect(await verdictFigure(page)).toBe('60.0%');
   /* v98 revision: the comparison cards (and their "not enough history yet" line) were DELETED
      with the compares block — the chart empty state below is now the one place thin history
      speaks, and the no-NaN sweep keeps the honesty this test exists for. */
@@ -171,17 +173,18 @@ test('a scope with insufficient history shows the not-enough-history copy, not N
 test('v97: the selection survives a reload, and the range survives it independently', async ({ page }) => {
   await boot(page);
   await pickScope(page, 'MENU_WINTER');
-  await expect(page.locator('.dh-scope')).toHaveText('Winter');
+  expect(await scopeName(page)).toBe('Winter');
   await page.locator('.range-btn[data-rg="1y"]').click();              // change the OTHER persisted preference
   await page.waitForTimeout(300);
-  await expect(page.locator('.dh-scope')).toHaveText('Winter', { timeout: 3000 });  // …which must not reset the scope
+  await expect.poll(() => scopeName(page), { timeout: 3000 }).toBe('Winter');   // …which must not reset the scope
 
   await page.reload();
   await page.waitForTimeout(1600);
   await page.locator('.navbtn[data-tab="dashboard"]').click();
   await page.waitForTimeout(500);
 
-  await expect(page.locator('.dh-scope')).toHaveText('Winter');
+  // v143: the `.dh-scope` heading assertion that stood here is gone with the heading. The line
+  // below already pinned the same fact against the control, which is now the only statement of it.
   await expect(page.locator('#dashScopeBtn .dsb-name')).toHaveText('Winter');
   await openScope(page);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'MENU_WINTER');
@@ -207,13 +210,12 @@ test('v97: a stored scope for a deleted menu falls back to All menus, silently',
   page.on('console', m => { if (m.type() === 'error' && !isBlockedByHarness(m)) errors.push(m.text()); });
 
   await boot(page, { scope: 'MENU_DELETED' });
-  await expect(page.locator('.dh-scope')).toHaveText('All menus');
   await expect(page.locator('#dashScopeBtn .dsb-name')).toHaveText('All menus');
   await openScope(page);
   await expect(page.locator('.mcmp-row.act')).toHaveAttribute('data-scope', 'all');
   await page.locator('#dashScopeBtn').click();   // close again: the silence assertions read the resting state
   await page.waitForTimeout(250);
-  await expect(page.locator('.verdict-num')).not.toHaveText('—');      // a real figure, not a blank card
+  expect(await verdictFigure(page), 'a real figure, not the first-run card').not.toBeNull();
   // #toast is always in the DOM; .show is what makes it visible, so THAT is what "nothing surfaced" means
   await expect(page.locator('#toast')).not.toHaveClass(/\bshow\b/);
   await expect(page.locator('#toast')).toHaveText('');
@@ -226,44 +228,33 @@ test('v97: a stored scope for a deleted menu falls back to All menus, silently',
    indicator quieter than the target line beneath it is how someone reads a specials figure as a
    whole-menu figure. Measured rather than asserted from the source, because what matters is which rule
    actually WINS — a muted-by-default h2 out-specifying the exception would be silent and invisible. */
-test('v97: the menu name is full strength while the metric stays muted, and scope is stated once', async ({ page }) => {
+test('v97: scope is stated exactly ONCE, and it is the control that states it', async ({ page }) => {
   await boot(page);
   await pickScope(page, 'MENU_WINTER');
 
-  const seen = await page.evaluate(() => {
-    const h2 = document.querySelector('#dashBody .dash-panel h2');
-    const span = h2.querySelector('.dh-scope');
-    return {
-      heading: h2.textContent.trim(),
-      metric: getComputedStyle(h2).color,
-      name: getComputedStyle(span).color,
-      body: getComputedStyle(document.body).color
-    };
+  /* ⚠ REWRITTEN BY F6 (v143), not loosened — the element this test measured is deleted. It used to
+     assert that the card's eyebrow heading read "Average food cost — Winter" with the METRIC muted
+     and the NAME at full strength, a deliberate v97 exception to the density pass. The v3 screen has
+     no eyebrow heading: it has a §2 header bar whose title is the screen name, and the scope lives
+     in the control beside it. There is no muted-metric/full-strength-name pair left to measure, so
+     that half is gone WITH ITS SUBJECT rather than re-pointed at something it never described.
+     What SURVIVES is the rule that mattered and that this file exists for: v97 removed the scope
+     being stated three times over, and "stated once" is now checkable in its strongest form — the
+     descriptive mentions are ZERO and the control is the single statement. The old version had to
+     EXCLUDE the control to make the rule satisfiable; it no longer does, because the control is the
+     only place left. */
+  const mentions = await page.evaluate(() => {
+    // innerText, because it returns CSS-TRANSFORMED text — a heading uppercased by CSS would
+    // otherwise slip a mention past a case-sensitive match.
+    const body = document.getElementById('dashBody').innerText;
+    const head = document.querySelector('#tab-dashboard .scr-head').innerText;
+    return { body: (body.match(/winter/gi) || []).length, head: (head.match(/winter/gi) || []).length };
   });
+  expect(mentions.body, 'the body describes the scope nowhere — the control carries it').toBe(0);
+  expect(mentions.head, 'and the control states it exactly once').toBe(1);
 
-  expect(seen.heading).toBe('Average food cost — Winter');       // metric + scope, together, in one place
-  expect(seen.name, 'the exception must WIN over #dashBody .panel h2').not.toBe(seen.metric);
-  expect(seen.name, 'and land on the full-strength text colour').toBe(seen.body);
-
-  /* …and the scope appears exactly once across the region that owns the number and the chart.
-     v120 split that region into two cards (verdict, then chart), so the check reads BOTH — the
-     rule is "stated once", and satisfying it by moving the second mention into a sibling card
-     would be exactly the redundancy v97 removed. */
-  const card = await page.evaluate(() => {
-    /* The SCOPE CONTROL is excluded, exactly as it was before v120 — it used to be a separate
-       By-menu card that this selector never reached, and it is now a chip row inside the card.
-       A control naming its own options is not a restatement: the v97 rule this pins is about
-       DESCRIPTIVE mentions (the highlighted row, "on <menu>" beside the number, "— ALL MENUS"
-       on the chart title), and counting the control would make the rule unsatisfiable. */
-    const el = document.querySelector('#dashBody .dash-panel');
-    const clone = el.cloneNode(true);
-    clone.querySelectorAll('.dash-scope-wrap').forEach((n) => n.remove());
-    return clone.innerText;
-  });
-  // case-insensitive: innerText returns CSS-TRANSFORMED text, and dashboard headings are uppercased
-  expect(card.match(/winter/gi), 'scope stated once in this card').toHaveLength(1);
   await expect(page.locator('.verdict-cap')).toHaveCount(0);
-  await expect(page.locator('.chart-title')).toHaveText('Food cost trend');
+  await expect(page.locator('.dash-trend .ds-head h2')).toHaveText('Food cost trend');
 });
 
 /* ---- 5. the rows are controls now, so the 44px floor applies to them ----
@@ -302,8 +293,12 @@ test('v129: outside click and Escape close the dropdown, and the open state cann
   await openScope(page);
   await expect(page.locator('.dash-menus-pop')).toHaveCount(1);
 
-  // outside click — the verdict figure is inert and never covered by the right-aligned popover
-  await page.locator('.verdict-num').click();
+  /* outside click. v143: was `.verdict-num`, which no longer exists — and neither of the obvious
+     replacements works. `.dh-num` is display:none at ≥1024, and the trend heading sits UNDER the
+     popover at 380 (280px wide, opening from the header's right edge), so Playwright waits for an
+     obscured element and times out. The Dig-in heading is far enough down the page to be inert at
+     every width, which is what this assertion needs and all it needs. */
+  await page.locator('.dash-dig .ds-head h2').click();
   await page.waitForTimeout(250);
   await expect(page.locator('.dash-menus-pop'), 'outside click closes it').toHaveCount(0);
 

@@ -734,7 +734,10 @@ for (const size of SIZES) {
         const svg = document.querySelector('#trendWrap svg');
         const texts = Array.from(svg.querySelectorAll('text.ax'));
         const yLbls = texts.filter(t => /%$/.test(t.textContent));
-        const title = document.querySelector('.chart-title').getBoundingClientRect();
+        // v143: the trend's heading is the section's own h2 now (`.chart-title` went with the
+        // `.chart-controls` row it lived in). Same element, same job — the label's left edge is
+        // still measured against it below.
+        const title = document.querySelector('.dash-trend .ds-head h2').getBoundingClientRect();
         return {
           pts: window.dashRangePts().length,
           yTicks: yLbls.length,
@@ -864,10 +867,16 @@ for (const size of SIZES) {
     const rest = await page.evaluate(() => ({
       cross: document.querySelector('#tcCross').getAttribute('visibility'),
       brightW: parseFloat(document.querySelector('#tcRectB').getAttribute('width')),
+      vbW: parseFloat(document.querySelector('#trendWrap svg').getAttribute('viewBox').split(/\s+/)[2]),
       tipShown: document.getElementById('trendTip').classList.contains('show'),
     }));
     expect(rest.cross, 'crosshair hidden at rest').toBe('hidden');
-    expect(rest.brightW, 'full brightness at rest').toBe(320);
+    /* v143: the plot is sized in RENDERED PIXELS, so the viewBox is the column width rather than
+       the old fixed 320. `rest()` sets the bright clip rect to the FULL viewBox width, whatever it
+       is — so the pin reads that width from the chart rather than hardcoding a constant that was
+       only ever right at one breakpoint. Hardcoding 320 here would now pass on a phone and fail on
+       a desktop for a chart behaving identically. */
+    expect(rest.brightW, 'full brightness at rest').toBe(rest.vbW);
     expect(rest.tipShown, 'tooltip hidden at rest').toBe(false);
     // keyboard: the plot is one focusable control; arrows step readings
     await page.evaluate(() => document.querySelector('#trendWrap svg').focus());

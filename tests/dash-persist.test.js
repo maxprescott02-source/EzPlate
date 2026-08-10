@@ -417,10 +417,18 @@ test('v97 REGRESSION: nothing costed + existing history shows “—”, not the
     'the headline figure is absent, not inherited from a state that no longer exists');
 
   const html = app.verdictHtml('all', cmp);
-  assert.match(html, /verdict-num">—</, 'the headline renders an em dash');
-  assert.doesNotMatch(html, /31\.7/, 'the last logged point does not leak into the headline');
-  assert.match(html, /Nothing costed and priced yet/,
-    'and the copy that explains it is reachable again at all-menus scope');
+  /* F6 (v143): the surface changed, the contract did not. verdictHtml used to render "—" in a
+     `.verdict-num`; §5's first-run state replaces that with a composed path card (bold one-liner,
+     how, one primary CTA). What is under test here is unchanged and is what actually mattered:
+     NO FIGURE at all, and specifically not the stale one from priceHistory. The assertions are
+     rewritten to the new markup rather than deleted — a pin that only knew the old class name
+     would have gone green against a card that printed 31.7%. */
+  assert.match(html, /class="dash-path"/, 'the first-run path card renders in the hero\'s place');
+  assert.doesNotMatch(html, /dash-hero|dh-num/, 'and the figure surface is absent, not blanked');
+  assert.doesNotMatch(html, /31\.7|\d+\.\d%/, 'no figure of any kind leaks into the empty state');
+  assert.match(html, /Nothing is costed and priced yet/,
+    'the copy that explains it is reachable at all-menus scope');
+  assert.match(html, /id="dashPathCta"/, 'and §5 asks for one primary CTA, not a dead end');
 });
 
 /* v98 revision: the "stat cards recover too" test is GONE WITH ITS SUBJECT — statCard and the
@@ -460,7 +468,7 @@ test('v97: with plates costed and priced, the headline is the live figure, not h
   const app = withComparisons(TWO_COSTED(), RECENT_HISTORY());
   const cmp = app.dashComparisons();
   near(cmp.current, 30, '(20+40+30)/3, computed live');
-  assert.match(app.verdictHtml('all', cmp), /verdict-num[^>]*">30\.0%</);
+  assert.match(app.verdictHtml('all', cmp), /dh-num[^>]*">30\.0%</);   // F6 (v143): .verdict-num → the §6 hero's .dh-num
 });
 
 test('v97: the scope caption is gone from beside the headline number', () => {
