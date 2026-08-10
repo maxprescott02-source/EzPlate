@@ -82,13 +82,15 @@ Note this is machinery in a job kept deliberately minimal, which is why it was q
 ## done  The Playwright job has no retries, so one slow context launch fails the whole PR
 **Shipped 10 Aug 2026, CI-only, no deploy version - and the item's own honesty premise was DISPROVED by the review; read the done entry before citing it.** See the done section.
 
-## next  `v141-sync-corner.spec.js` has now failed IN SETUP twice, on two independent runs
-Problem: found 10 Aug 2026 while rehearsing the flaky-upload gate locally - the rehearsal itself went flaky, which is the first time this repo has caught one outside CI.
-`v144: the persistent states are tinted, the transient ones stay quiet @ light` failed attempt 0 with **`browser.newContext: Target page, context or browser has been closed`** and passed attempt 1.
-**That is the SECOND setup-phase failure in this one spec file.** The first was `Test timeout of 30000ms exceeded while setting up "context"` in the same file, and it is the incident that bought `--retries=1` in the first place. Two independent runs, two different setup errors, one file.
-⚠️ **The innocent explanation is real and must be checked before anything else: this file has the most contexts of any spec** - 12 tests from its width and theme loops, against a handful elsewhere - so being the file that meets an infra hiccup is what you would expect from volume alone. Do the arithmetic (failures per context created, not per file) before calling it a defect.
-The spec does NOT manage contexts itself: no `newContext`, no `browser.close()`, only the standard `page` fixture, so nothing in the file's own code is an obvious cause.
-Requirements: count setup-phase failures per context across the whole visual suite, then either name a cause in this file or record positively that it is volume and close it. The trace for this exact failure is the kind the gate shipped in this batch now preserves, so the next CI occurrence will come with a DOM snapshot rather than a log line.
+## next  `v141-sync-corner.spec.js` has failed IN SETUP three times, on three independent runs, and the volume explanation does NOT hold
+Problem: three setup-phase failures, all in this one spec file, none anywhere else.
+1. `Test timeout of 30000ms exceeded while setting up "context"` - the incident that bought `--retries=1` (batch 159).
+2. `browser.newContext: Target page, context or browser has been closed` - **found locally**, 10 Aug 2026, while rehearsing the flaky-upload gate; the rehearsal itself went flaky, which is the first flake this repo has ever caught outside CI. Test at `:229`.
+3. **`Test timeout of 30000ms exceeded while setting up "context"` again** - CI, on PR #144, the flaky-upload gate's own first live run. Test at `:125`, a DIFFERENT test in the same file. Attempt 0 timed out at **30002ms**; attempt 1 passed in **1671ms**, so the 30 seconds is consumed entirely by context creation and not by the test.
+⚠️ **THE VOLUME EXPLANATION WAS THE FIRST THING CHECKED AND IT DOES NOT SURVIVE.** Measured from the CI json report: 209 tests across 21 spec files, and `v141-sync-corner.spec.js` is only the **SEVENTH largest at 12 tests (5.7%)**. `fresh-states.spec.js` has **33 (15.8%)**, nearly three times as many, and has never flaked. All three flakes are in the 5.7% file. Small n, but that is not what volume looks like.
+The spec does NOT manage contexts itself: no `newContext`, no `browser.close()`, only the standard `page` fixture, so nothing in the file's own code is an obvious cause - which is what makes this worth a proper look rather than a patch.
+Requirements: find what is different about this file's context setup (worker assignment and scheduling position, `installBoot`, the viewport loop, anything it does before the first `page` call), then either name the cause or record positively that it is chance with the arithmetic that says so. Note two of the three are the SAME error, which is a stronger lead than three different ones.
+The trace for occurrence 3 is preserved - `playwright-report` artifact on run `31380462471`, **7-day retention**, so fetch it early or work from the numbers above.
 Out of scope: the retry count, and the flaky-upload gate, which is done.
 
 ## next  "Abbreviation matching in search" has been recorded as shipped for three audits and is not built (AUDIT-v145 D2)

@@ -56,5 +56,12 @@ I also did not chase the flaky spec the rehearsal surfaced; it is queued with th
 ## Surprises
 
 The local rehearsal went flaky by itself, on the first run, on the same spec file as the incident that bought `--retries=1`.
-So the gate this batch shipped was exercised by a real occurrence within minutes of being written, and the trace it now preserves is the one that named `browser.newContext: Target page, context or browser has been closed`.
 Nothing else in this repo has ever caught a flake outside CI.
+
+Then this PR's own CI run went flaky as well, on a third occasion and in the same file, so the gate was exercised by a real occurrence before it had even merged.
+It fired: the warning annotation appeared on a green check, and the artifact survived at 957KB.
+Downloading it gave the thing the old gate threw away - attempt 0 timed out at 30002ms in context setup, attempt 1 passed in 1671ms, so the whole 30 seconds goes on creating the context and none of it on the test.
+
+That evidence also killed the innocent explanation I had written into the queue item an hour earlier.
+The file is only the seventh largest at 12 tests of 209, while `fresh-states.spec.js` has 33 and has never flaked, so three flakes out of three in the 5.7% file is not what volume looks like.
+The item now carries the arithmetic rather than the assumption.
