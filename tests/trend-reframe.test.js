@@ -13,28 +13,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`trend-reframe: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) {
-      const out = SRC.slice(i, n + 1);
-      try { new Function(`return (${out})`); }
-      catch (e) { throw new Error(`trend-reframe: extracted ${name} does not parse (${e.message})`); }
-      return out;
-    }
-  }
-  throw new Error(`trend-reframe: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 /* The chart sandbox: real geometry, real markers, real caption. Only the DOM measurers are stubbed
    (axCharW's canvas has a documented 6.6 fallback — the stub IS the fallback).
@@ -54,20 +35,20 @@ function chart(opts) {
     function axCharW(){ return 6.6; }
     function dashRangePts(series){ return series ? series.slice() : PTS; }   // v115: the scoped chart passes the menu's own series
     function esc(s){ return (s==null?'':String(s)); }
-    ${extractFn('ptMs')}
-    ${extractFn('fmtTargetPct')}
-    ${extractFn('tcTangents')}
-    ${extractFn('tcPath')}
-    ${extractFn('tcYAt')}
-    ${extractFn('tcTicks')}
-    ${extractFn('niceStep')}
-    ${extractFn('niceTicks')}
-    ${extractFn('targetInView')}
-    ${extractFn('trendMarkers')}
-    ${extractFn('lastChangeEntry')}
-    ${extractFn('sinceLineHtml')}
-    ${extractFn('trendPlotSize')}
-    ${extractFn('trendChart')}
+    ${extractFn(SRC, 'ptMs')}
+    ${extractFn(SRC, 'fmtTargetPct')}
+    ${extractFn(SRC, 'tcTangents')}
+    ${extractFn(SRC, 'tcPath')}
+    ${extractFn(SRC, 'tcYAt')}
+    ${extractFn(SRC, 'tcTicks')}
+    ${extractFn(SRC, 'niceStep')}
+    ${extractFn(SRC, 'niceTicks')}
+    ${extractFn(SRC, 'targetInView')}
+    ${extractFn(SRC, 'trendMarkers')}
+    ${extractFn(SRC, 'lastChangeEntry')}
+    ${extractFn(SRC, 'sinceLineHtml')}
+    ${extractFn(SRC, 'trendPlotSize')}
+    ${extractFn(SRC, 'trendChart')}
     return { trendChart: trendChart, trendMarkers: trendMarkers, sinceLineHtml: sinceLineHtml,
              geo: function(){ return TREND_GEO; } };
   `);
@@ -245,7 +226,7 @@ test('sparkline colour is target-anchored: rising-but-under is good, falling-but
   const mk = new Function('COGS', `
     "use strict";
     var cogsPct=COGS;
-    ${extractFn('mcmpSparkSeries')}
+    ${extractFn(SRC, 'mcmpSparkSeries')}
     return mcmpSparkSeries;
   `);
   const spark = mk(30);
@@ -315,7 +296,7 @@ function plotSize(clientWidth) {
   return new Function('W', `
     "use strict";
     var document = { getElementById: function(){ return W == null ? null : { clientWidth: W }; } };
-    ${extractFn('trendPlotSize')}
+    ${extractFn(SRC, 'trendPlotSize')}
     return trendPlotSize();
   `)(clientWidth);
 }

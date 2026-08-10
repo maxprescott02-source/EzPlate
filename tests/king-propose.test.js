@@ -12,24 +12,10 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
-
-function extractFn(src, name) {
-  const sig = `function ${name}(`;
-  const i = src.indexOf(sig);
-  if (i < 0) throw new Error(`king-propose: function not found -> ${name}. app.js changed.`);
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error(`king-propose: unbalanced braces for ${name}`);
-}
+const { loadApp, extractFn } = require('./_extractfn');
 
 function build() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  const src = loadApp();
   const stopLine = src.split('\n').find((l) => l.startsWith('var INV_STOP='));
   if (!stopLine) throw new Error('king-propose: INV_STOP line not found. app.js changed.');
   const code = [stopLine, extractFn(src, 'inorm'), extractFn(src, 'coreTokens'), extractFn(src, 'proposeKingName')].join('\n');

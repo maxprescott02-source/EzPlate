@@ -25,35 +25,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(src, name) {
-  const sig = `function ${name}(`;
-  const i = src.indexOf(sig);
-  if (i < 0) throw new Error(`restore: function not found -> ${name}. app.js changed; update tests/restore.test.js`);
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) {
-      const out = src.slice(i, n + 1);
-      /* The depth counter is brace-NAIVE: it does not know strings, template literals, regexes or
-         comments, so a `}` inside any of those would end the slice early. That is the same helper
-         the rest of the suite uses, and reimplementing a JS parser here would be worse than the
-         problem. Instead, prove every slice is real JavaScript and name the culprit when it is
-         not — without this, a bad extraction surfaces as a syntax error on the whole concatenated
-         bundle, with nothing saying which function broke it. (CodeRabbit, PR #50.) */
-      try { new Function(`return (${out})`); }
-      catch (e) {
-        throw new Error(`restore: extracted ${name} does not parse (${e.message}). A brace inside `
-          + `a string, comment or regex in app.js can fool this extractor; update tests/restore.test.js`);
-      }
-      return out;
-    }
-  }
-  throw new Error(`restore: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 // The restore builders plus every xToRow writer they cross the boundary through. Pulling the REAL
 // mappers in is the point: if ingredientToRow or menuToRow changes shape, this file must notice.

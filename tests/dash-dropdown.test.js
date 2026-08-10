@@ -20,22 +20,9 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const APP = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(src, name) {
-  const i = src.indexOf('function ' + name + '(');
-  if (i < 0) throw new Error('function not found -> ' + name + '. app.js changed; update tests/dash-dropdown.test.js');
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error('unbalanced braces for ' + name);
-}
+const APP = loadApp();
 
 /* `pcts` maps menu name -> average food cost %, or null for an uncosted menu. */
 function harness(pcts, opts = {}) {

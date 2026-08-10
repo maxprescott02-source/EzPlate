@@ -9,57 +9,13 @@
  *
  * If app.js is restructured and an anchor below is renamed, these tests will fail
  * loudly with a clear message telling you which anchor to update. That's intended.
+ *
+ * The CUTTING itself lives in ./_extractfn — loadApp/extractFn/extractVar/sliceBetween. It used to
+ * live here, unexported, which is why 48 test files hand-rolled their own copy of it: this file's
+ * only export is the built harness below, so a test wanting a function the harness does not already
+ * provide could not reach the helpers. Anything needing a raw slice requires _extractfn directly.
  */
-const fs = require('fs');
-const path = require('path');
-
-function loadApp() {
-  const p = path.join(__dirname, '..', 'js', 'app.js');
-  return fs.readFileSync(p, 'utf8');
-}
-
-// grab a contiguous block between two source markers (inclusive of start, up to end)
-function sliceBetween(src, startMarker, endMarker) {
-  const i = src.indexOf(startMarker);
-  if (i < 0) throw new Error(`_extract: start marker not found -> "${startMarker}". app.js changed; update tests/_extract.js`);
-  const j = src.indexOf(endMarker, i);
-  if (j < 0) throw new Error(`_extract: end marker not found -> "${endMarker}". app.js changed; update tests/_extract.js`);
-  return src.slice(i, j);
-}
-
-// grab a single top-level `var NAME = ...;` declaration verbatim, so a tuning table lives in exactly
-// ONE place. v92: the alternative is a hand-copied mirror in the sandbox below, which is the "second
-// copy to drift" this file exists to avoid — INSIGHT_VALUE in particular is pure tuning and would
-// silently diverge the moment anyone retunes it in app.js.
-function extractVar(src, name) {
-  const m = new RegExp(`^var ${name}\\s*=`, 'm').exec(src);
-  if (!m) throw new Error(`_extract: var not found -> ${name}. app.js changed; update tests/_extract.js`);
-  // scan to the terminating semicolon at nesting depth 0 — a trailing `// comment` after the `;`, or a
-  // `;` inside a nested object/array, must not end it. (A regex got this wrong: `var INSIGHT_FLOOR=45;`
-  // has a trailing comment, so a lazy `;\s*$` ran on and swallowed the next function whole.)
-  let depth = 0;
-  for (let n = m.index + m[0].length; n < src.length; n++) {
-    const ch = src[n];
-    if (ch === '{' || ch === '[' || ch === '(') depth++;
-    else if (ch === '}' || ch === ']' || ch === ')') depth--;
-    else if (ch === ';' && depth === 0) return src.slice(m.index, n + 1);
-  }
-  throw new Error(`_extract: unterminated var -> ${name}`);
-}
-
-// grab a single named function by brace-matching (robust to line moves)
-function extractFn(src, name) {
-  const sig = `function ${name}(`;
-  const i = src.indexOf(sig);
-  if (i < 0) throw new Error(`_extract: function not found -> ${name}. app.js changed; update tests/_extract.js`);
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error(`_extract: unbalanced braces for ${name}`);
-}
+const { loadApp, extractFn, extractVar, sliceBetween } = require('./_extractfn');
 
 function build() {
   const src = loadApp();

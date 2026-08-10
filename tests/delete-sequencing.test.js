@@ -19,23 +19,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`delete-sequencing: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`delete-sequencing: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 const flush = () => new Promise(r => setTimeout(r, 0));
 
@@ -90,16 +76,16 @@ function makeHarness(opts) {
       S.log.push('plate:'+id);
       return Promise.resolve(S.failPlate?{error:{message:'violates foreign key constraint'}}:{error:null});
     }
-    ${extractFn('plateIdOf')}
-    ${extractFn('plateForMenuItem')}
-    ${extractFn('dishesOfPlate')}
-    ${extractFn('menusOfPlate')}
-    ${extractFn('forgetMenuItems')}
-    ${extractFn('removeMenuItem')}
-    ${extractFn('dbDeletePlateAfterDishes')}
-    ${extractFn('rollbackPlateDelete')}
-    ${extractFn('deletePlate')}
-    ${extractFn('doDeleteEverything')}
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'dishesOfPlate')}
+    ${extractFn(SRC, 'menusOfPlate')}
+    ${extractFn(SRC, 'forgetMenuItems')}
+    ${extractFn(SRC, 'removeMenuItem')}
+    ${extractFn(SRC, 'dbDeletePlateAfterDishes')}
+    ${extractFn(SRC, 'rollbackPlateDelete')}
+    ${extractFn(SRC, 'deletePlate')}
+    ${extractFn(SRC, 'doDeleteEverything')}
     rebuildMenu();
     return {
       deletePlate: function(id){ deletePlate(id); if(S.confirmFn) S.confirmFn(); },
@@ -241,8 +227,8 @@ test('v112: a plateless dish whose delete FAILS is put back, and the toast says 
 
 test('v112: dbDeleteMenu and dbDeletePlate both RETURN their pushWrite promise', () => {
   // Without this there is nothing to chain, which is precisely why the pre-v112 code could not sequence.
-  assert.match(extractFn('dbDeleteMenu'), /return pushWrite\(/, 'dbDeleteMenu returns its write');
-  assert.match(extractFn('dbDeletePlate'), /return pushWrite\(/, 'dbDeletePlate returns its write');
+  assert.match(extractFn(SRC, 'dbDeleteMenu'), /return pushWrite\(/, 'dbDeleteMenu returns its write');
+  assert.match(extractFn(SRC, 'dbDeletePlate'), /return pushWrite\(/, 'dbDeletePlate returns its write');
 });
 
 test('v112: removeMenuItem still drops the row locally AND deletes it server-side', () => {
@@ -252,8 +238,8 @@ test('v112: removeMenuItem still drops the row locally AND deletes it server-sid
     "use strict";
     var customMenu=S.menu;
     function dbDeleteMenu(id){ S.deleted.push(id); return Promise.resolve({error:null}); }
-    ${extractFn('forgetMenuItems')}
-    ${extractFn('removeMenuItem')}
+    ${extractFn(SRC, 'forgetMenuItems')}
+    ${extractFn(SRC, 'removeMenuItem')}
     removeMenuItem('D1');
     return customMenu;
   `);

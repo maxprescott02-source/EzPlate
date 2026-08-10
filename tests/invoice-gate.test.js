@@ -19,24 +19,10 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
 const { invConfirmState } = require('./_extract');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`invoice-gate: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`invoice-gate: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 /* ---------------------------------------------------------------------------
    1. The gate condition itself.
@@ -95,15 +81,15 @@ test('ROOT CAUSE: a match picked before the referee answers SILENCES it for that
     function cpbu(p){ return p&&p.cost_per_base_unit; }
     function normalizePhrase(s){ return String(s||'').toLowerCase().trim(); }
     function gemDiag(){}
-    ${extractFn('gemCanon')}
-    ${extractFn('gemHist')}
-    ${extractFn('gemPackEq')}
-    ${extractFn('gemMergeLine')}
-    ${extractFn('gemMatchSuspect')}
-    ${extractFn('gemRowLocked')}
-    ${extractFn('gemNormKey')}
-    ${extractFn('gemCleanFields')}
-    ${extractFn('gemApplyReadings')}
+    ${extractFn(SRC, 'gemCanon')}
+    ${extractFn(SRC, 'gemHist')}
+    ${extractFn(SRC, 'gemPackEq')}
+    ${extractFn(SRC, 'gemMergeLine')}
+    ${extractFn(SRC, 'gemMatchSuspect')}
+    ${extractFn(SRC, 'gemRowLocked')}
+    ${extractFn(SRC, 'gemNormKey')}
+    ${extractFn(SRC, 'gemCleanFields')}
+    ${extractFn(SRC, 'gemApplyReadings')}
     gemApplyReadings({status:'ok', lines:[{rawText:'CHIPS 10KG', description:'CHIPS 10KG',
       derivedUnitPrice:99, unitType:'kg', packCount:null}]});
     return gemStatus;
@@ -129,7 +115,7 @@ test('while the referee is outstanding there is nothing to pick, tick or teach',
   // The consequence of the test above: the review must not RENDER actionable controls in the window.
   // Disabling Confirm All alone left every per-row ruling exposed, and those are the rulings that
   // silence the check.
-  const render = extractFn('renderInvReview');
+  const render = extractFn(SRC, 'renderInvReview');
   const gate = render.indexOf('gemPending()');
   const tableBuild = render.indexOf("<table class=\"invtable\">");
   assert.ok(gate >= 0, 'renderInvReview must gate on the referee');
@@ -139,7 +125,7 @@ test('while the referee is outstanding there is nothing to pick, tick or teach',
 });
 
 test('the waiting panel offers no control of any kind', () => {
-  const wait = extractFn('renderInvWaiting');
+  const wait = extractFn(SRC, 'renderInvWaiting');
   ['invSel', 'invAppr', 'invApply', 'invPrice', 'pack-teach', 'ni-add-btn', 'cand-chip', '<button', '<select', '<input']
     .forEach((frag) => assert.ok(!wait.includes(frag), `the waiting panel must not render ${frag}`));
   assert.match(wait, /Nothing has been saved/, 'and it says where the user stands');
@@ -171,8 +157,8 @@ function makeReader(opts) {
     function gemApplyReadings(p){ S.applied.push(p); gemStatus='checked'; renderInvReview(); }
     function prodCategories(){ return []; }
     function fetch(){ S.fetches++; return new Promise(function(res,rej){ settleFetch=res; rejectFetch=rej; }); }
-    ${extractFn('gemSettle')}
-    ${extractFn('gemFireSecondReader')}
+    ${extractFn(SRC, 'gemSettle')}
+    ${extractFn(SRC, 'gemFireSecondReader')}
     return {
       fire: function(t){ gemStatus='checking'; gemApplied=false; gemCheckStart=S.now; gemFireSecondReader(t||'x'); },
       tick: function(ms){
@@ -251,7 +237,7 @@ test('with the AI check off, no request is made and nothing is ever gated', () =
 test('confirmApplyInvoice refuses while pending — the one choke point every apply passes through', () => {
   // The button is disabled, but applyInvoice is also reachable through askConfirm's callback, so the
   // guard lives where every path meets rather than on the control.
-  const fn = extractFn('confirmApplyInvoice');
+  const fn = extractFn(SRC, 'confirmApplyInvoice');
   assert.match(fn, /^function confirmApplyInvoice\(\)\{[^]*?gemPending\(\)/,
     'the pending check must come before any apply work');
   const guardAt = fn.indexOf('gemPending()');

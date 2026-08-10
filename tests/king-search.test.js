@@ -9,23 +9,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-function extractFn(src, name) {
-  const sig = `function ${name}(`;
-  const i = src.indexOf(sig);
-  if (i < 0) throw new Error(`king-search: function not found -> ${name}. app.js changed; update tests/king-search.test.js`);
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error(`king-search: unbalanced braces for ${name}`);
-}
-
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+const SRC = loadApp();
 // v59: kingSearchFilter routes through the shared token matcher (searchTokens/matchTokens).
 // eslint-disable-next-line no-new-func
 const kingSearchFilter = new Function(`

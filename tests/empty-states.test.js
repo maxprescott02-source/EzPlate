@@ -10,27 +10,15 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+const SRC = loadApp();
 
 // v111: the occ machinery is retired along with CLAUDE.md hard rule 3. `renderAnalysis` and `aRow` were
 // each defined TWICE, the first dead and the second live, so the live one had to be selected by occ=2.
 // Both dead first definitions are now deleted and every name here is unique — LIVE_OCC is empty and the
-// parameter survives only so a future duplicate can be pinned deliberately rather than silently.
-function extractFn(src, name, occ = 1) {
-  const sig = `function ${name}(`;
-  let i = -1;
-  for (let k = 0; k < occ; k++) { i = src.indexOf(sig, i + 1); if (i < 0) throw new Error(`empty-states: function #${occ} not found -> ${name}`); }
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error(`empty-states: unbalanced braces for ${name}`);
-}
+// map survives only so a future duplicate can be pinned deliberately rather than silently, through
+// _extractfn's `{ occurrence }`.
 const LIVE_OCC = {};   // v111: no name in app.js is defined twice any more
 
 // Run the real shipped builders in a sandbox (esc + the two helpers, nothing DOM-bound).
@@ -78,7 +66,7 @@ test('the same clear label is used verbatim on every tab (menu items too)', () =
 
 test('every tab render path routes through the shared helpers', () => {
   for (const fn of ['renderIngredients', 'renderKitchenPanel', 'renderPlatesTab', 'renderAnalysis']) {
-    const body = extractFn(SRC, fn, LIVE_OCC[fn] || 1);
+    const body = extractFn(SRC, fn, { occurrence: LIVE_OCC[fn] || 1 });
     assert.ok(/emptyStateHtml\(|emptySearchState\(/.test(body), `${fn} builds its empty state via the shared helper`);
   }
 });

@@ -21,30 +21,16 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`product-delete-guard: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`product-delete-guard: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 function refsWith(kitchenIngredients, savedPlates) {
   // eslint-disable-next-line no-new-func
   return new Function('K', 'P', `
     "use strict";
     var kitchenIngredients = K, savedPlates = P;
-    ${extractFn('productRefs')}
+    ${extractFn(SRC, 'productRefs')}
     return productRefs;
   `)(kitchenIngredients, savedPlates);
 }
@@ -104,7 +90,7 @@ test('THE BUG CODERABBIT CAUGHT: a DIRECT plate-line reference must block the de
      would have been deleted and the plate would quietly get cheaper. The guard above pinned
      productRefs thoroughly and pinned deleteIngredient only structurally, which is exactly the gap
      that let this through. This asserts the refusal CONDITION, not just that a check happens. */
-  const del = extractFn('deleteIngredient');
+  const del = extractFn(SRC, 'deleteIngredient');
   const cond = /if\(\s*refs\.ingredients\.length\s*\|\|\s*refs\.plates\.length\s*\)/.test(del);
   assert.ok(cond, 'the refusal must trigger on EITHER reference kind, not on ingredients alone');
 });
@@ -112,7 +98,7 @@ test('THE BUG CODERABBIT CAUGHT: a DIRECT plate-line reference must block the de
 test('THE REGRESSION THIS LOCKS: the delete path consults the guard before deleting', () => {
   // Cheap structural check, but it is the one that matters — productRefs could be perfect and
   // unreferenced, and the delete would silently break plates again.
-  const del = extractFn('deleteIngredient');
+  const del = extractFn(SRC, 'deleteIngredient');
   assert.match(del, /productRefs\(/, 'deleteIngredient must ask what references the product');
   assert.ok(del.indexOf('productRefs(') < del.indexOf('dbDeleteIngredient('),
     'and it must ask BEFORE it deletes');

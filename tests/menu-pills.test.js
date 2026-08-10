@@ -11,22 +11,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const APP = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-function extractFn(src, name) {
-  const i = src.indexOf('function ' + name + '(');
-  if (i < 0) throw new Error('function not found -> ' + name + '. app.js changed; update tests/menu-pills.test.js');
-  const start = src.indexOf('{', i);
-  let d = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') d++;
-    else if (src[n] === '}' && --d === 0) return src.slice(i, n + 1);
-  }
-  throw new Error('unbalanced braces for ' + name);
-}
-
+const APP = loadApp();
 /* menus: [{id, name, pct|null}] */
 function harness(menus, current, target = 30) {
   const factory = new Function('FIX', `
