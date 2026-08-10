@@ -20,12 +20,24 @@
  *   - the sparkle's light/dark gradients,
  *   - an empty Dig-in tile reads quieter than a populated one.
  *
- * Geometry contract (one desktop composition, every width >=1024) — v121, after Max called the
- * v120 two-full-width-cards cut janky from a production screenshot:
- *   row 1  .dash-panel (1/8: verdict + scope dropdown + since + chart, ONE surface) | .dash-moved (8/13,
- *          top-aligned, ends at its content — the column the By-menu selector card used to earn)
- *   row 2  .dash-ins  — full width
- *   row 3  .dash-dig  — full width, four tiles (.dash-row2 dissolves at this width)
+ * ⚠ REWRITTEN BY F6 (v143). The 12-track desktop grid this file was named for is DELETED — the v3
+ * screen is a document stack in ONE order at every width, with a single two-up (What moved | Dig
+ * in) at >=768. Asserting the old row map would assert that the fold-in had not happened.
+ * The file KEEPS ITS NAME and its reason for existing, which was never the grid: it is the only
+ * spec that seeds the dashboard at three CONTENT LEVELS — 2, 6 and 12 menus — and the failures it
+ * was written to catch are all content-level failures that a single-seed spec cannot see. Every one
+ * of them survives the rebuild verbatim:
+ *   - the layout holds at 2 / 6 / 12 menus with no horizontal overflow,
+ *   - a list too long for its space scrolls INSIDE its own layer and never pushes the page,
+ *   - scope change moves nothing above it,
+ *   - selection is ADDITIVE: a selected row keeps its sparkline,
+ *   - the figure column is a shared axis,
+ *   - the sparkle's light/dark gradients,
+ *   - an empty Dig-in row reads quieter than a populated one.
+ *
+ * Geometry contract (ONE composition, every width):
+ *   .dash-top  →  .dash-trend  →  .dash-ins  →  .dash-row2 (.dash-moved | .dash-dig)
+ * stacked in that reading order, each spanning the column; the two-up splits at >=768 only.
  *
  * Run: npx playwright test tests/visual/v98-grid.spec.js
  */
@@ -86,37 +98,37 @@ async function gridGeo(page) {
   return page.evaluate(() => {
     const r = (sel) => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
     return {
-      panel: r('#dashBody .dash-panel'), chartSvg: r('#trendWrap svg'),
-      ins: r('#dashBody .dash-ins'),
+      body: r('#dashBody'), top: r('#dashBody .dash-top'), chartSvg: r('#trendWrap svg'),
+      trend: r('#dashBody .dash-trend'), ins: r('#dashBody .dash-ins'),
       moved: r('#dashBody .dash-moved'), dig: r('#dashBody .dash-dig')
     };
   });
 }
 
 function expectGridContract(geo) {
-  for (const k of ['panel', 'chartSvg', 'ins', 'moved', 'dig']) {
+  for (const k of ['body', 'top', 'chartSvg', 'trend', 'ins', 'moved', 'dig']) {
     expect(geo[k], `${k} renders (non-vacuous placement check)`).not.toBeNull();
   }
-  // row 1: What moved is the right-hand card, top-aligned with the top card, ending at its content
-  expect(geo.moved.left, 'What moved is the right-hand card').toBeGreaterThanOrEqual(geo.panel.right - 1);
-  expect(Math.abs(geo.moved.top - geo.panel.top), 'row-1 cards top-aligned').toBeLessThanOrEqual(2);
-  expect(geo.moved.bottom, 'What moved ends at its content, never below the top card')
-    .toBeLessThanOrEqual(geo.panel.bottom + 2);
-  // the chart FILLS the top card rather than swimming in a full-width one — this is the exact
-  // jank Max reported on v120: a 540px-capped chart centred in a 1000px card, a ~460px gap.
-  // Tolerance 200, not 90: above ~1352px viewport .wrap's max-width caps the panel at 622px while
-  // the chart caps at 540px, leaving a fixed 82px of chrome — a 90px tolerance passed that by only
-  // 8px, close enough for a one-token padding change to flip it (v121 review). 200 still fails the
-  // real regression by hundreds of pixels while never tripping on spacing drift.
-  expect(geo.chartSvg.width, 'the chart fills most of its card')
-    .toBeGreaterThanOrEqual((geo.panel.width - 200));
-  // full-width rows below, edge-pinned (a width check could pass offset)
-  expect(geo.ins.top, 'insights are a full-width row below row 1').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
-  expect(geo.ins.left, 'insights start at the top card edge').toBeLessThanOrEqual(geo.panel.left + 1);
-  expect(geo.ins.right, 'insights span through the What-moved edge').toBeGreaterThanOrEqual(geo.moved.right - 1);
-  expect(geo.dig.top, 'Dig in below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
-  expect(geo.dig.left, 'Dig in full width — left').toBeLessThanOrEqual(geo.panel.left + 1);
-  expect(geo.dig.right, 'Dig in full width — right').toBeGreaterThanOrEqual(geo.moved.right - 1);
+  // the §6.1 reading order, top to bottom — one composition, no width-dependent reordering left
+  expect(geo.trend.top, 'the trend reads under the verdict').toBeGreaterThanOrEqual(geo.top.bottom - 1);
+  expect(geo.ins.top, 'insights read under the trend').toBeGreaterThanOrEqual(geo.trend.bottom - 1);
+  expect(geo.moved.top, 'What moved reads under the insights').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
+  // the two-up: Dig in beside What moved, top-aligned, each ending at its own content
+  expect(geo.dig.left, 'Dig in is the right-hand half').toBeGreaterThanOrEqual(geo.moved.right - 1);
+  expect(Math.abs(geo.dig.top - geo.moved.top), 'the two-up is top-aligned').toBeLessThanOrEqual(2);
+  /* The chart FILLS the column. This is the v120 jank Max reported — a 540px-capped chart centred
+     in a ~1000px card — and F6's fix is at the source: the viewBox is sized in rendered pixels, so
+     there is no cap left to swim inside. Tolerance 2, not the old 200: the chart is now exactly the
+     column, and a generous tolerance here would hide the very regression the pin exists for. */
+  expect(geo.chartSvg.width, 'the chart fills the column').toBeGreaterThanOrEqual(geo.body.width - 2);
+  // every region shares the column's edges (edge pins, not width comparisons — a width check
+  // could pass while offset)
+  for (const [k, label] of [['top', 'the verdict zone'], ['trend', 'the trend'], ['ins', 'insights']]) {
+    expect(geo[k].left, `${label} starts at the column edge`).toBeLessThanOrEqual(geo.body.left + 1);
+    expect(geo[k].right, `${label} spans the column`).toBeGreaterThanOrEqual(geo.body.right - 1);
+  }
+  expect(geo.moved.left, 'the two-up starts at the column edge').toBeLessThanOrEqual(geo.body.left + 1);
+  expect(geo.dig.right, 'and ends at it').toBeGreaterThanOrEqual(geo.body.right - 1);
 }
 
 async function noHorizontalOverflow(page) {
@@ -190,8 +202,12 @@ test('scope change moves zero verdict/chart geometry @ 1280', async ({ page }) =
   /* v121: the card under test is the single top panel. The chart svg is inside it, so pinning the
      panel pins the chart; the svg's own rect is not compared because scoping to a menu with its
      own history legitimately redraws the line (same geometry, new path). */
-  expect(Math.abs(after.panel.top - before.panel.top), 'panel.top unmoved by scope').toBeLessThanOrEqual(1);
-  expect(Math.abs(after.panel.bottom - before.panel.bottom), 'panel.bottom unmoved by scope').toBeLessThanOrEqual(1);
+  /* v143: the single top card is gone, so the two regions it contained are pinned directly. The
+     chart svg's own rect is still not compared — scoping to a menu with its own history
+     legitimately redraws the line (same geometry, new path). */
+  expect(Math.abs(after.top.top - before.top.top), 'the verdict zone is unmoved by scope').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.top.bottom - before.top.bottom), 'and does not change height').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.trend.top - before.trend.top), 'the trend is unmoved by scope').toBeLessThanOrEqual(1);
 });
 
 // ---- v98: an empty Dig-in tile is QUIETER than a populated one — same card, quieter content.
@@ -201,11 +217,19 @@ test('an empty Dig-in tile reads quieter than a populated one @ 1280', async ({ 
   const empty = page.locator('#dashBody .dig-card.is-empty').first();
   await expect(empty, 'the movers tile is empty under this seed').toHaveCount(1);
   await expect(empty.locator('.dig-n')).toHaveText('Nothing yet');
-  const weights = await page.evaluate(() => ({
-    empty: getComputedStyle(document.querySelector('#dashBody .dig-card.is-empty .dig-n')).fontWeight,
-    full: getComputedStyle(document.querySelector('#dashBody .dig-card:not(.is-empty) .dig-n')).fontWeight
+  /* v143: the property that carries "quieter" CHANGED, and this is the pin catching it rather
+     than a class left doing nothing. In the old tile the subject was bold `--text` and the empty
+     one dropped to muted 400. In the mock's row grammar the subject is muted for EVERY row, so a
+     weight comparison would now read 400 against 400 and could never fail. The row recedes through
+     its LABEL and its figure instead, which is what is measured. */
+  const tone = await page.evaluate(() => ({
+    emptyLabel: getComputedStyle(document.querySelector('#dashBody .dig-card.is-empty .dig-k')).color,
+    fullLabel: getComputedStyle(document.querySelector('#dashBody .dig-card:not(.is-empty) .dig-k')).color,
+    emptyValue: getComputedStyle(document.querySelector('#dashBody .dig-card.is-empty .dig-v')).color,
+    fullValue: getComputedStyle(document.querySelector('#dashBody .dig-card:not(.is-empty) .dig-v')).color
   }));
-  expect(Number(weights.empty), 'empty name is not bold').toBeLessThan(Number(weights.full));
+  expect(tone.emptyLabel, 'an empty row\'s label is quieter than a populated one\'s').not.toBe(tone.fullLabel);
+  expect(tone.emptyValue, 'and so is its figure').not.toBe(tone.fullValue);
 });
 
 // ---- v98 revision, carried to the disclosure list: SELECTION IS ADDITIVE — a selected row keeps
@@ -260,11 +284,13 @@ test('percentages and sparklines share axes across the ranked list @ 1280', asyn
 // must draw NO cast shadow, and all four must agree. Pinned by computed style so a per-card
 // shadow cannot creep back. (The two-mode light/dark split died with dark mode, v132.) ----
 test('one elevation token: every card is flat — v3 draws no card shadows @ 1280', async ({ page }) => {
+  // v143: `.dash-panel` is gone with the card; the four surfaces are the trend, the two-up pair
+  // and the insights section. The rule is unchanged and so is what would break it.
   const read = () => ({
-    panel: getComputedStyle(document.querySelector('#dashBody .dash-panel')).boxShadow,
+    trend: getComputedStyle(document.querySelector('#dashBody .dash-trend')).boxShadow,
     moved: getComputedStyle(document.querySelector('#dashBody .dash-moved')).boxShadow,
     ins: getComputedStyle(document.querySelector('#dashBody .dash-ins')).boxShadow,
-    dig: getComputedStyle(document.querySelector('#dashBody .dig-card')).boxShadow
+    dig: getComputedStyle(document.querySelector('#dashBody .dash-dig')).boxShadow
   });
   await boot(page, 1280, 6, 'light');
   const got = await page.evaluate(read);
@@ -274,7 +300,7 @@ test('one elevation token: every card is flat — v3 draws no card shadows @ 128
   const token = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--elev').trim());
   expect(token, 'the one elevation token is none in v3').toBe('none');
   expect(new Set(Object.values(got)).size, 'every card shares the ONE token value').toBe(1);
-  expect(got.panel, 'v3: cards sit flat on their border').toBe('none');
+  expect(got.trend, 'v3: sections sit flat on their border').toBe('none');
 });
 
 // ---- v98, re-pinned v132: the sparkle keeps Gemini's hues (it marks AI provenance, beside

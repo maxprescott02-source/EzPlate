@@ -43,28 +43,25 @@
  * five years was a per-tab nudge among screens that were supposed to be identical, and there is a
  * set of them again.
  *
- * Dashboard is still OUT, for a reason that is measured and queued rather than assumed: it has no
- * `.scr-head` until F6, and it sits 4px high at every width where `--sp-5` is 20px (`#dashBody`
- * opens the tab with `padding-top:16px` while `.panel` uses `margin-top:var(--sp-5)`). That defect
- * is a queue item carrying `Do with: F6`, and F6's item owns folding Dashboard back into this list.
+ * ✅ F6 (v143) — DASHBOARD JOINS, AND 700 IS PROMOTED. Both halves of the queued "Dashboard panel
+ * sits 4px high" item land here. Dashboard now renders `.scr-head` like the other four, and the
+ * two owners of its top gap are one: `.plib-panel` zeroes the panel margin for every converted
+ * screen, and `#dashBody`'s own margin is the content inset below the header bar — the same job
+ * `#ingList` / `#plateList` / `#aList` do. So 700 moves out of EDGE_SIZES and into SIZES: the width
+ * that only ever sat apart because of that defect is now an ordinary size, and the separate
+ * EDGE_SIZES list is gone rather than left as a satisfied exception.
+ * The reason 700 earns a place at all is unchanged and still worth stating: it is the band between
+ * the app's two gutter steps (sp-4 at/below 560, sp-5 above) and below the v3 desktop breakpoint
+ * (768). F2's first cut was misaligned by 4px there and nowhere else, and 380/1280 both miss it.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
+  { name: 'narrow-desktop', width: 700, height: 900 },
   { name: 'desktop', width: 1280, height: 900 },
 ];
-/* 700 is the band between the app's two gutter steps (sp-4 at/below 560, sp-5 above) and below
- * the v3 desktop breakpoint (768). Nothing measured it until F2, whose first cut was misaligned
- * by 4px there and nowhere else — so the left-edge test below runs at this width too.
- * It is NOT in SIZES because the full cross-tab comparison used to fail there on a PRE-EXISTING
- * Dashboard defect: `#dashBody` opens the tab with `padding-top:16px` while every other tab's
- * panel uses `margin-top:var(--sp-5)` = 20px, so Dashboard sits 4px high at every width where
- * sp-5 is 20px. That comparison is gone as of F4, but the defect is not — it is queued with F6
- * (Dashboard), whose item still owns adding this size to SIZES.
- */
-const EDGE_SIZES = SIZES.concat([{ name: 'narrow-desktop', width: 700, height: 900 }]);
 const TOL = 1;
 
 /*
@@ -79,9 +76,10 @@ const SCREENS = [
   ['pantry', 'kingList', 'Ingredients'],
   ['ingredients', 'ingList', 'Products'],
   ['analysis', 'aList', 'Menu'],
+  ['dashboard', 'dashBody', 'Dashboard'],
 ];
 
-for (const size of EDGE_SIZES) {
+for (const size of SIZES) {
   test(`every converted screen shares ONE left edge @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);

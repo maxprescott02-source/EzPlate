@@ -11,6 +11,39 @@ Production state below is measured, not assumed.
 
 ---
 
+## v143 - the Dashboard is rebuilt, and the scope control moved into the header
+
+The Dashboard is the last of the five main screens to be rebuilt from the v3 mock. Everything it
+could do before it still does: pick a scope, change the chart range, scrub the trend line, open a
+Dig-in drill-down and come back.
+
+- **The menu-scope dropdown is now in the screen header**, top-right, beside the "Dashboard" title -
+  it used to sit beside the big number. Same control, same ranked list, same sparklines. On a phone
+  it shares that row with the title. **Check it is comfortable to reach and read one-handed at the
+  top of the screen**, and that a long menu name truncates rather than shoving the title.
+- **The trend chart is drawn at its true size now.** On desktop its axis labels and line were being
+  scaled up ~2.7x by a fixed-size drawing box; they render at their intended size at last, so the
+  chart looks noticeably finer and wider. **On the phone this should look essentially unchanged** -
+  that width was always close to correct. Say if the phone chart looks thinner or smaller than it did.
+- **The big 44px food-cost number is the phone's verdict; desktop shows a three-cell strip instead**
+  (average, plates over target, not costed or priced). Only one is ever on screen. Check the phone
+  still leads with the number you want first.
+- **"What needs attention" is now "Needs attention"**, in a bordered card with the Gemini credit in
+  its header bar rather than under the lines. The credit still only appears when Gemini actually
+  phrased a line you can see - **if you ever see it on a line that looks like the app's own plain
+  wording, that is a real bug**, and worth a screenshot.
+- **Dig in is four rows now, not four tiles.** On the phone each row is two lines (the question, then
+  what it points at) with the figure right. Tapping still opens the same list.
+- **A brand-new café's Dashboard now shows a "Cost your first plate" card with a New plate button**,
+  instead of a dash. You will only see this on an empty account - not worth engineering, but if you
+  ever do see it with real data on the screen, that is a bug.
+- **What only a phone can settle:** whether the whole screen still passes the one-glance test. The
+  desktop strip and the phone hero say the same thing in different shapes, and the phone is the one
+  that matters. A failure looks like having to scroll or think before you know whether you are over
+  target.
+
+---
+
 ## v142 - Menu is rebuilt, and Delete has moved
 
 The Menu tab is a five-column table on desktop and two-line rows on the phone. Everything it could

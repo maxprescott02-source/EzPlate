@@ -1482,6 +1482,18 @@ function rangeBarHtml(){
   var os=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
   return '<div class="range-bar">'+os.map(function(o){return '<button type="button" class="range-btn'+(dashRange===o[0]?' act':'')+'" data-rg="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div>';
 }
+/* F6 (v143): the mock's §3.1 trend SECTION — a plain heading row over the plot, no card around it
+   (in v3 only a table or a list is a bordered container). R3 on the control: the mock draws a single
+   "3 months ▾" text button where this app has a six-option segmented bar that has worked since v29.
+   The app's control survives, in the mock's slot — a real control is never traded for a prettier one
+   that offers less. The chart itself is untouched: trendChart owns the geometry, the scrub wiring,
+   the markers and the caption exactly as before. */
+function dashTrendHtml(scope){
+  return '<section class="dash-sec dash-trend">'
+    +'<div class="ds-head"><h2>Food cost trend</h2><span class="ds-gap"></span>'+rangeBarHtml()+'</div>'
+    +trendChart(scope)
+    +'</section>';
+}
 /* ---- per-product price log — powers price-change alerts + cost ranges.
    v108: this was the ONE dataset in the app with no server destination at all. `ing_price_history`
    now exists (20260801_ing_price_history.sql) and holds the 33 points that had only ever lived in
@@ -2973,6 +2985,36 @@ function sinceLineHtml(scope, current){
   var calm=drift<0.1;   // the warm tint marks accumulating drift; a line with no drift sits quiet
   return '<p class="since'+(calm?' calm':'')+'"><b>'+esc(lead)+'</b>'+esc(gap)+'</p>';
 }
+/* F6 (v143) — THE PLOT IS SIZED IN RENDERED PIXELS, not in a fixed 320-unit viewBox.
+   Measured on the rebuilt screen, not reasoned about: everything inside this SVG is expressed in
+   VIEWBOX UNITS and therefore scales with the rendered width — the axis type (`font-size:11px` in
+   CSS is 11 USER UNITS on an SVG <text>, not 11 device px), the 2.5 stroke, the marker radii, the
+   tick dashes. In a 320-unit box on an 872px column that is a 2.7× enlargement: the axis labels
+   measured ~30px and the line ~6.8px, against the mock's 10.5 and 1.75. It has been wrong on
+   desktop since v94 and right on a phone by accident, because 320 units ≈ 340 rendered px there.
+   The v121 comment named the SYMPTOM — "rendering the 320-unit viewBox wider scales the axis type
+   out of bounds" — and worked around it with a 540px cap that made the chart float in its card.
+   This removes the cause, so the chart can fill the mock's column at every width.
+   W is the column's own content width, read from #dashBody: it is laid out and visible before this
+   runs (showTab sets the pane's display BEFORE calling renderDashboard), and every render
+   re-measures. The fallback is the phone-sized 320 for the one case that has no layout — a
+   boot-time render into a tab that is still hidden, which nobody sees and which showTab re-renders.
+   H uses the mock's OWN two ratios: 190/900 at desktop, 110/350 on the phone. The threshold is a
+   CONTENT width, not a viewport width, because that is what this measures — below 1024 there is no
+   sidebar, so a 600px viewport is already a ~560px column.
+   The bounds and the ratios live INSIDE the function on purpose: it is the whole plot-sizing
+   decision, and a test can extract it entire and drive it against a stubbed width rather than
+   re-implementing the arithmetic (CLAUDE.md — a stub that mirrors a real function must mirror its
+   contract, so extract the real one). No layout is needed for the fallback path: `document` is
+   simply absent in a sandbox, and the try/catch is what makes that the documented 320 case. */
+function trendPlotSize(){
+  var MIN=300, MAX=960, PHONE=320, DESK_FROM=560, R_DESK=190/900, R_PHONE=110/350;
+  var w=0;
+  try{ var el=document.getElementById('dashBody'); w=el?el.clientWidth:0; }catch(e){ w=0; }
+  if(!w) w=PHONE;
+  w=Math.max(MIN, Math.min(MAX, Math.round(w)));
+  return { W:w, H:Math.round(w*(w>=DESK_FROM?R_DESK:R_PHONE)) };
+}
 function trendChart(scope){
   /* v115 stage 2 — the promise the v89 comment made ("Stage 2 gives it the two-line chart once the
      history exists"): per-menu history has been recording since v89 and now holds real points, so a
@@ -2999,9 +3041,12 @@ function trendChart(scope){
      ranges), labels vertically CENTRED on their value so the target tick sits exactly on the
      dashed rule (pinned by fresh-states.spec.js). */
   /* v94 density: H 210→104 — the approved mockup's chart is compact, with the line using most of
-     the vertical space. Only the viewBox HEIGHT changes: the x-gutter (padL/axGap), axis fonts,
-     tick/domain generation, target-line rule and scrub wiring are all untouched. */
-  var W=320,H=104,padR=10,padT=14,padB=20;
+     the vertical space. Only the viewBox HEIGHT changed: the x-gutter (padL/axGap), axis fonts,
+     tick/domain generation, target-line rule and scrub wiring were untouched, and still are.
+     F6 (v143): W and H come from trendPlotSize() instead of being the constants 320/104. Nothing
+     else in this function changes — every value below still derives from W and H exactly as it
+     did. See trendPlotSize for the measurement that forced it. */
+  var _sz=trendPlotSize(), W=_sz.W, H=_sz.H, padR=10,padT=14,padB=20;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -3235,11 +3280,17 @@ function digData(kind, scope){
   rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
   return {title:'Dearest per unit', sub:'across all products', rows:rows};
 }
+/* F6 (v143): the mock's §3.1 "Dig in" ROW — label left, subject muted in the middle, figure mono
+   hard right. The mock's four rows and this app's four drill-down cards were already the same four
+   questions in the same order, so this is the mock's grammar over the shipped control: the row is
+   still a button and still opens the same inline drill-down. `.dig-card` is kept as the class name
+   because it is the hook `renderDashboard` wires `setDigOpen` to (CLAUDE.md: never rename an
+   identifier for tidiness). */
 function digCardHtml(card, scope){
   var d=digData(card.kind, scope), top=d.rows[0];
   var val=top? '<span class="dig-v'+(top.dir?(' '+top.dir):'')+'">'+esc(top.disp)+'</span>' : '<span class="dig-v muted">—</span>';
   // v98: an empty tile declares itself so CSS can quiet it — "Nothing yet" should not carry
-  // the same visual weight as a tile with real data (same card chrome, quieter content).
+  // the same visual weight as a tile with real data (same chrome, quieter content).
   return '<button class="dig-card'+(top?'':' is-empty')+'" type="button" data-kind="'+esc(card.kind)+'">'
     +'<span class="dig-k">'+esc(card.label)+'</span>'
     +'<span class="dig-n">'+(top?esc(top.name):'Nothing yet')+'</span>'
@@ -3257,14 +3308,14 @@ function digInHtml(scope){
         }).join('')+'</ul>'
       // v58 empty-state system: the ONE place an empty state is built. No bespoke markup, no one-off rule.
       : emptyStateHtml(ICON_MENU_BIG, 'Nothing to rank yet.', 'Cost a plate and put it on a menu to fill this list.');
-    return '<div class="panel dash-dig detail-open"><h2 class="tbl-head">'
+    return '<section class="dash-sec dash-dig detail-open"><div class="ds-head">'
       +'<button class="dig-back" type="button" id="digBack" aria-label="Back to Dig in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>'
-      +esc(d.title)+'</h2>'
-      +'<div class="pad"><p class="hint dig-sub">'+esc(d.sub)+'</p>'+body+'</div></div>';
+      +'<h2>'+esc(d.title)+'</h2></div>'
+      +'<p class="hint dig-sub">'+esc(d.sub)+'</p>'+body+'</section>';
   }
-  return '<div class="panel dash-dig"><h2 class="tbl-head">Dig in</h2><div class="pad">'
+  return '<section class="dash-sec dash-dig"><div class="ds-head"><h2>Dig in</h2></div>'
     +'<div class="dig-grid">'+DIG_CARDS.map(function(c){ return digCardHtml(c, scope); }).join('')+'</div>'
-    +'</div></div>';
+    +'</section>';
 }
 /* =====================================================================================
    AI-assisted helper, built as GROUNDED INSIGHTS (not a chatbot). v63 shipped the first,
@@ -4012,7 +4063,13 @@ function applyPhrasedInsights(lines, insights, refined, animate){
       if(animate && el.textContent!==t){ el.classList.remove('ins-swap'); void el.offsetWidth; el.classList.add('ins-swap'); }
       el.textContent=t;
     });
-    if(refined){ var c=host.querySelector('.ins-credit'); if(c){ c.hidden=false; if(animate) c.classList.add('ins-swap'); } }   // v68: reveal the credit ONLY when Gemini truly phrased a shown line
+    // v68: reveal the credit ONLY when Gemini truly phrased a shown line.
+    // F6 (v143): the credit sits in the section's HEADER BAND now (the mock's placement), which is
+    // outside #dashInsBody — so it is looked up from the section, not from the line host. Left
+    // querying `host` this would silently find nothing and the credit would never appear, with
+    // every test still green.
+    if(refined){ var panel=document.getElementById('dashInsPanel')||host;
+      var c=panel.querySelector('.ins-credit'); if(c){ c.hidden=false; if(animate) c.classList.add('ins-swap'); } }
   }catch(e){}
 }
 /* ===== v90: insights live on the DASHBOARD, inline ==========================================
@@ -4046,18 +4103,29 @@ function dashInsightsHtml(scope){
   if(!insights.length) return '';
   dashInsPending={insights:insights, scope:scope};
   var sig=insightSig(insights);
-  return '<div class="panel dash-ins"><h2 class="tbl-head">'+DASH_INS_SPARK+'What needs attention</h2>'
+  /* F6 (v143): the mock's §3.1 "Needs attention" section — bordered container, tinted header band,
+     hairline-divided rows. The heading takes the mock's wording ("Needs attention"); the sparkle
+     stays, because it is this app's only Gemini identity marker and the mock has no equivalent.
+     R1 — the CREDIT moves into the header band, where the mock draws it. The REVEAL LAW is
+     untouched: it is still `hidden` until applyPhrasedInsights proves Gemini phrased a line that is
+     on screen. ⚠ Because it now sits OUTSIDE #dashInsBody, applyPhrasedInsights looks it up from
+     the section (#dashInsPanel) instead — moving it without that change reveals nothing, silently.
+     R4 — the mock's rows are a bold lead + plain body + ONE link each, and this app has none of the
+     three: an insight is ONE deterministic sentence with no navigation target, and
+     applyPhrasedInsights replaces `textContent` WHOLESALE, so a lead/body split could not survive
+     the Gemini swap that is the whole point of the panel. Rows are single paragraphs in the mock's
+     row chrome. A link would need a per-insight subject the engine does not compute; that is a
+     behaviour spec, not a restyle. */
+  return '<section class="dash-sec dash-ins" id="dashInsPanel">'
+    +'<div class="ds-head"><h2>'+DASH_INS_SPARK+'Needs attention</h2><span class="ds-gap"></span>'
+    +'<span class="ins-credit" hidden translate="no">Phrased by Gemini, computed by EzPlate</span></div>'
     // aria-live: the templates render first and the Gemini phrasing swaps in afterwards, so the text
     // under a screen-reader user's cursor genuinely changes after load. Polite, because none of it is
     // urgent. A full re-render replaces the region rather than mutating it, so scope changes don't
     // announce — only the phrasing swap does, which is the change worth hearing about.
-    +'<div class="pad ins-body" id="dashInsBody" aria-live="polite" data-sig="'+esc(sig)+'">'
+    +'<div class="ins-body" id="dashInsBody" aria-live="polite" data-sig="'+esc(sig)+'">'
     +insights.map(function(ins,ix){ return '<p class="ins-line" data-ix="'+ix+'">'+esc(ins.text)+'</p>'; }).join('')
-    // v133: the v3 spec's fuller wording — it states BOTH halves of the money law. The reveal
-    // mechanics are unchanged: hidden until applyPhrasedInsights proves Gemini phrased a shown
-    // line (the mock paints the credit always-on in the header band; the reveal law wins).
-    +'<p class="ins-credit" hidden translate="no">Phrased by Gemini, computed by EzPlate</p>'
-    +'</div></div>';
+    +'</div></section>';
 }
 /* ===== v89: the verdict header, the menu selector and the By-menu list =====
    The Dashboard is the manager's surface — "am I OK?" — where every other tab serves the chef
@@ -4074,20 +4142,48 @@ function fmtTargetPct(){ return (cogsPct%1?cogsPct.toFixed(1):cogsPct.toFixed(0)
    panel from the card that owns the number and the chart.
    Also v97: cmp.current no longer falls back to the last logged history point, so `pct==null` — and the copy
    below — is reachable again at all-menus scope. That branch had been dead since v89 for that reason. */
+/* F6 (v143): this is the MOBILE MOCK's §6 hero — muted label, 44px mono figure, one-sentence
+   context — and it is the whole verdict on a phone. At >=1024 the KPI strip states the same figure
+   in its first cell, so CSS hides the hero there (the .has-kpis mechanism v133 built); the strip is
+   '' whenever nothing is costed and priced, which is what keeps the PATH CARD below visible at every
+   width. Both halves live in this one function so the two states cannot render at once.
+   R2 — NO DELTA PILL, though the mock draws one beside the number: "vs last month" is the stat class
+   Max deleted in v98 and DECIDED AGAINST AGAIN on 9 Aug 2026 (answers Q1, "the chart is the one trend
+   surface", closed without building, do not re-propose). The movement lives in the since-line
+   underneath, which is honest about which series it read. */
 function verdictHtml(scope, cmp){
   var pct=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
+  /* §5's first-run/empty state, and it is DERIVED — no stored flag, no onboarding step: the screen
+     is empty exactly while nothing is costed and priced, and fills itself the moment one plate is.
+     The composed card the state spec asks for (bold one-liner, how, one primary CTA) replaces the
+     hero rather than sitting under a "—", which is what shipped before and told a new café nothing
+     it could act on. The CTA opens the builder — the same openBuilderNew every "New plate" runs, so
+     there is one label for one intent (§7). */
   if(pct==null){
-    return '<div class="verdict"><span class="verdict-num">—</span></div>'
-      +'<p class="verdict-line">Nothing costed and priced '+(scope===DASH_ALL?'yet':'on this menu yet')
-      +' — put a costed plate on a menu with a sell price to start.</p>';
+    var onMenu=(scope!==DASH_ALL);
+    return '<div class="dash-path">'
+      +'<p class="dp-lead">Cost your first plate</p>'
+      +'<p class="dp-body">Nothing is costed and priced '+(onMenu?'on this menu ':'')+'yet. '
+      +'Build a plate from your ingredients, put it on a menu with a sell price, and this screen '
+      +'starts tracking your food cost against your '+fmtTargetPct()+' target.</p>'
+      +'<button type="button" class="btn primary" id="dashPathCta">New plate</button>'
+      +'</div>';
   }
   var d=pct-cogsPct, cls=(d<=0.05)?'good':'bad';
   var vs=(Math.abs(d)<0.05)
     ? ('bang on your '+fmtTargetPct()+' target')
     : (Math.abs(d).toFixed(1)+' pts '+(d<0?'under':'over')+' your '+fmtTargetPct()+' target');
   // v115: the direction clause (scopeTrend) is gone — see the tombstone above scopeHistory.
-  return '<div class="verdict"><span class="verdict-num '+cls+'">'+pct.toFixed(1)+'%</span></div>'
-    +'<p class="verdict-line">'+esc(vs)+'</p>';
+  /* The label is "Average food cost" and NOT "Average food cost, all menus", which is what the
+     mobile mock prints. The mock's phone header carries no scope control at all — its hero label is
+     the only thing that can state the scope. This app's header carries the control at BOTH widths,
+     and the desktop mock's own KPI label is a bare "Avg food cost" for exactly that reason. So the
+     mock is being followed, not deviated from: scope is stated by the control where a control
+     exists. It is also v97's one-statement rule, which was paid for once already. */
+  return '<div class="dash-hero">'
+    +'<div class="dh-label">Average food cost</div>'
+    +'<div class="dh-fig"><span class="dh-num '+cls+'">'+pct.toFixed(1)+'%</span></div>'
+    +'<p class="dh-ctx">'+esc(vs)+'</p></div>';
 }
 /* v96: dashScopeSelectorHtml is DELETED, not hidden. It was a native <select> in a .menu-picker-row
    that set dashScope — the same value the By-menu rows below it already set. The list is now the only
@@ -4209,6 +4305,12 @@ function dashScopeHtml(scope){
 /* v120: the What-moved panel — the existing 'movers' computation (largest logged price step per
    product) promoted from a Dig-in tile to a panel of its own. No new maths; digData('movers')
    already ranked these and v120 only added each row's `sub`. */
+/* F6 (v143): the mock's §3.1 "What moved" section — same rows, now in the v3 row grammar (identity
+   left over its muted meta, tinted mono pill hard right) inside a bordered container with a tinted
+   header band. The mock's rows are BUTTONS; these are not, and that is R4 rather than an oversight:
+   a mover is a PRODUCT, and the row has no destination the app can honestly navigate to from here
+   (the Products screen has no deep link and no per-product route). A row that looks pressable and
+   does nothing is the dead control §4 forbids. */
 function whatMovedHtml(){
   var d=digData('movers'), rows=d.rows.slice(0,3);
   var body=rows.length
@@ -4219,8 +4321,8 @@ function whatMovedHtml(){
           +(r.sub?'<span class="mv-sub">'+esc(r.sub)+'</span>':'')+'</span>'
           +'<span class="dig-v'+(r.dir?(' '+r.dir+' pill '+(r.dir==='up'?'pill-bad':'pill-good')):'')+'">'+esc(r.disp)+'</span></li>';
       }).join('')+'</ul>'
-    : '<p class="hint">No price moves logged yet.</p>';
-  return '<div class="panel dash-moved"><h2 class="tbl-head">What moved</h2><div class="pad">'+body+'</div></div>';
+    : '<p class="hint mv-empty">No price moves logged yet.</p>';
+  return '<section class="dash-sec dash-moved"><div class="ds-head"><h2>What moved</h2></div>'+body+'</section>';
 }
 /* v120 made this the chips' disclosure list; v129 makes it the DROPDOWN's popover — dashScopeHtml
    is still its one caller, and now hands it the FULL selectable set: the All-menus row first (the
@@ -4312,81 +4414,50 @@ function renderDashboard(){
   var cmp;
   try{ cmp=dashComparisons(); }catch(e){ console.error('[dashboard] not ready:', e); return; }
   var scope=dashScopeValid();
-  // v89: the verdict header ABSORBS the old "Average food cost \u2014 X% today" h2 rather than adding a second
-  // header. The h2 is now the plain label; the figure, the scope it covers and how it sits against the
-  // target are one block below it. The caption states the SCOPE, not "avg food cost" again \u2014 that is the
-  // new information on a menu-aware dashboard, and it confirms what the selector just did.
-  /* v89 SCOPE HONESTY: the trend chart and the stat cards still draw the ALL-MENUS series, because a
-     per-menu series didn't exist before this batch \u2014 price_history held one number per moment for the
-     whole business. v89 starts recording per menu; until a menu has its own points there is nothing to
-     draw, and drawing the aggregate under a menu's name would be a figure this app can't stand behind.
-     So when a menu is selected the block says plainly that it is showing all menus. Stage 2 gives it the
-     two-line chart once the history exists. */
-  var narrowed=(scope!==DASH_ALL);
-  /* v97 SCOPE IS STATED ONCE, in this card's heading. It used to be stated three times \u2014 the highlighted
-     By-menu row, "on <menu>" beside the headline number, and "\u2014 ALL MENUS" on the chart title. That is the
-     picker-chip redundancy v96 removed, grown back in a different place, and the grid batch makes it worse
-     by merging the headline and the chart into one card. So: the chart title no longer restates scope (the
-     same selector governs it), and verdictHtml no longer emits .verdict-cap.
-     What STAYS is the scope-note below \u2014 not a restatement but a CORRECTION, the v89 honesty rule: with a
-     menu selected the line still covers all menus, and dropping that would make the heading lie about the
-     chart. (statLead's "all-menus" qualifier went with the compares block, v98 revision.) */
-  var chartTitle='Food cost trend';
-  // The metric stays muted like every other dashboard heading; the MENU NAME does not. This is the one
-  // heading here whose content changes, and a scope indicator quieter than the target line beneath it is
-  // exactly how someone reads a specials figure as a whole-menu figure. Deliberate exception to v95.
-  var headScope=narrowed?menuNameById(scope):'All menus';
-  // The separator belongs to the muted half \u2014 only the NAME is full strength.
-  var heading='Average food cost \u2014 <span class="dh-scope">'+esc(headScope)+'</span>';
-  /* v95 introduced these .dp-tile wrappers; v98 keeps them as chrome-free ORDERING HANDLES only
-     (no fill, no border at any width \u2014 the cards-in-cards fix). The DOM ORDER is the mobile
-     reading order (verdict \u2192 chart \u2192 compares); desktop CSS reorders the card to the grid
-     brief's number \u2192 compares \u2192 trend via `order`, so the phone stack is untouched. TILE
-     COMPOSITION ONLY \u2014 every piece inside is the same markup as before. */
+  /* v89 SCOPE HONESTY, unchanged by the rebuild: the trend chart draws the MENU'S OWN line when that
+     menu has two points in range, and otherwise falls back to the all-menus series SAYING SO. Drawing
+     the aggregate silently under a menu's name would be a figure this app cannot stand behind.
+     v97's one-statement rule also stands: the scope is NAMED ONCE. It used to be stated three times;
+     it now lives in the header's scope button — the control that sets it — and, on a phone where that
+     button is a bare name and %, in the hero's own label. Those are the readout and the control, not
+     two restatements.
+     F6 (v143): the eyebrow heading "Average food cost — <scope>" is DELETED with the card that carried
+     it. The screen has a §2 header bar now (`.scr-head`, index.html), and a second title under it
+     restating the metric is exactly the redundancy v97 removed once already. */
   // v115: the since-line renders HERE rather than inside verdictHtml so the pure verdict block (and
   // its extraction sandbox) stays free of the change log's globals.
   var pctNow=(scope===DASH_ALL)?cmp.current:avgFoodCostForScope(scope);
-  /* v121 (Max, 8 Aug 2026, on seeing v120 in production): the verdict and the trend are ONE card
-     again — the v98 surface that already looked right — with the redesign folded INTO it rather
-     than replacing it. v120 split them into two full-width cards, and the chart (capped at 540px
-     on purpose — wider scales the axis type out of bounds) floated in a full-width card with dead
-     space either side. His word was "janky", and he was right.
-     What v120 added is all still here: the chips (in the verdict row), the eyebrow heading, the
-     40/44px figure, What moved, the two-column second row. What returns is the one-surface top
-     card, number → since → hairline → chart, whose desktop width is set by the grid below so the
-     540px chart FILLS it instead of swimming in it. */
-  var kpis=kpiStripHtml(scope, cmp);   // v133: '' when nothing is costed+priced — then the hero (and its actionable empty copy) stays at every width
-  var html='<div class="panel dash-panel dash-verdict-panel'+(kpis?' has-kpis':'')+'"><h2>'+heading+'</h2><div class="pad">'
-    +kpis                              // ≥1024 with .has-kpis: the strip shows and CSS hides the hero's figure; below 1024 CSS hides the strip
-    +'<div class="dp-tile dp-verdict">'
-    +'<div class="dash-verdict-row">'
-    +'<div class="dash-verdict-main">'
-    +verdictHtml(scope, cmp)
-    +'</div>'
-    +dashScopeHtml(scope)
-    +'</div>'
+  /* F6 (v143) — the mock's §3.1 stack, in the mock's order, and it is the SAME order on both
+     platforms (§6.1: "Dashboard hierarchy identical: verdict number → trend → Needs attention →
+     What moved"). NO CSS reordering anywhere, which is new: the v95/v98 `.dp-tile` ordering handles
+     and the v98 desktop grid are both gone. What the phone reads top-to-bottom is what the desktop
+     reads top-to-bottom, and the only width-dependent swap is which of the two verdict surfaces is
+     showing — the mobile hero or the desktop KPI strip. */
+  var kpis=kpiStripHtml(scope, cmp);   // v133: '' when nothing is costed+priced — then the hero's slot carries the path card, at every width
+  var html='<div class="dash-top'+(kpis?' has-kpis':'')+'">'
+    +kpis                              // >=1024 with .has-kpis: the strip shows and CSS hides the hero; below 1024 CSS hides the strip
+    +verdictHtml(scope, cmp)           // the §6 hero — or §5's first-run path card when nothing is costed and priced
+    /* R3 — the since-line is in neither mock, and it is not dropped: it is the one place the screen
+       says what the LAST CHANGE achieved and how far costs have drifted since. It sits under whichever
+       verdict surface is showing. All-menus only, unchanged: its figures ARE the all-menus series, so
+       subtracting them from a per-menu current fabricates drift. */
     +sinceLineHtml(scope, pctNow)
-    +'</div><div class="dp-tile dp-chart">'
-    +'<div class="chart-controls"><span class="chart-title">'+esc(chartTitle)+'</span>'+rangeBarHtml()+'</div>'
-    +trendChart(scope)   // v115: the chart owns the scope decision now — it draws the menu's own line when the history exists, and emits the scope-note itself ONLY on the all-menus fallback (v89 honesty, v94 wording, unchanged)
-    +'</div></div></div>';
-  // v98 revision: the dp-stats tile ("how today's average compares", vs last week/month/year) is
-  // DELETED on every width \u2014 it duplicated the chart, and its all-menus figures sat under a heading
-  // that can name a single menu. The card is now number \u2192 target line \u2192 trend, no CSS reordering.
-  // v90 ORDER (per the approved mockup): status → insights → by menu → dig in. On mobile that is the
-  // reading order; on desktop the v98 grid lifts BY MENU beside the chart card (row 1) and gives each
-  // variable-height panel a full-width row. The grid rows stay EXPLICIT (v89's lesson — auto-placement
-  // pushed a panel below the fold when a third child appeared) so a fifth panel can't silently reshuffle.
-  html+=dashInsightsHtml(scope);
-  /* v120: What moved + Dig in are the design's two-column second row. The By-menu PANEL is gone as a
-     standing card — the chips above are that control now — but menuCompareHtml still owns the markup
-     and is still called, from the chips' disclosure. While a drill-down is open, Dig in takes the
-     full width on its own: the two-column row is for the four summary tiles, not for a list. */
+    +'</div>'
+    +dashTrendHtml(scope)   // v115: the chart owns the scope decision — it emits the scope-note itself ONLY on the all-menus fallback
+    +dashInsightsHtml(scope);
+  /* v120: What moved + Dig in are the design's two-column second row. While a drill-down is open, Dig
+     in takes the full width on its own: the two-column row is for the four summary rows, not a list. */
   html+='<div class="dash-row2'+(digOpen?' is-open':'')+'">'
     +(digOpen?'':whatMovedHtml())
     +digInHtml(scope)
     +'</div>';
   root.innerHTML=html;
+  /* F6 (v143): the scope control lives in the SCREEN HEADER now (the mock's §3.1 slot), which is
+     static markup OUTSIDE #dashBody — so it is filled separately, and every handler below that
+     touches it queries `scopeRoot`, not `root`. One variable, so a later edit cannot wire half of
+     them to a subtree that no longer contains the button. */
+  var scopeRoot=document.getElementById('dashScopeSlot');
+  if(scopeRoot) scopeRoot.innerHTML=dashScopeHtml(scope);
   root.querySelectorAll('.range-btn').forEach(function(b){ b.onclick=function(){ setDashRange(b.getAttribute('data-rg')); }; });
   // v90: the drill-down is a re-render, not a modal — one state variable, no dismissable layer.
   root.querySelectorAll('.dig-card').forEach(function(b){ b.onclick=function(){ setDigOpen(b.getAttribute('data-kind')); }; });
@@ -4406,9 +4477,16 @@ function renderDashboard(){
   // strands a keyboard user mid-interaction (v129 review). Touch is unaffected — the ring is
   // :focus-visible-gated. The outside-click close deliberately does NOT refocus: the user was
   // leaving, and yanking focus back would hijack whatever they clicked toward.
-  function refocusScopeBtn(){ var nb=root.querySelector('#dashScopeBtn'); if(nb) nb.focus(); }
-  root.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); refocusScopeBtn(); }; });
-  var dsb=root.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); refocusScopeBtn(); };
+  // F6 (v143): scopeRoot, not root — the control moved into the screen header. refocusScopeBtn
+  // re-queries on every call because setDashScope/setDashMenusOpen re-render and REPLACE the button.
+  function refocusScopeBtn(){ var sr=document.getElementById('dashScopeSlot'); var nb=sr&&sr.querySelector('#dashScopeBtn'); if(nb) nb.focus(); }
+  if(scopeRoot){
+    scopeRoot.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); refocusScopeBtn(); }; });
+    var dsb=scopeRoot.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); refocusScopeBtn(); };
+  }
+  // §5's first-run CTA. openBuilderNew is the same function every "New plate" in the app runs, so
+  // there is one label for one intent (§7) and no second creation path to keep in step.
+  var pathCta=root.querySelector('#dashPathCta'); if(pathCta) pathCta.onclick=function(){ openBuilderNew(); };
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
@@ -4514,7 +4592,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v142';
+var APP_VERSION='v143';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;

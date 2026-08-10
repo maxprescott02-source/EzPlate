@@ -70,7 +70,8 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
       // ---- insights are here, inline, with the sparkle and WITHOUT the unearned credit ----
       const ins = page.locator('#dashBody .dash-ins');
       await expect(ins, 'the insights panel renders on the Dashboard').toHaveCount(1);
-      await expect(ins.locator('h2')).toContainText('What needs attention');
+      // v143: the mock's §3.1 wording — "Needs attention". Copy change, same section, same class.
+      await expect(ins.locator('h2')).toContainText('Needs attention');
       await expect(ins.locator('h2 svg.ins-spark'), 'the gradient sparkle is beside the heading').toHaveCount(1);
       await expect(ins.locator('.ins-line').first()).not.toBeEmpty();
       await expect(ins.locator('.ins-credit'), 'templates rendering → nothing was refined → no credit').toBeHidden();
@@ -108,40 +109,47 @@ for (const [label, width] of [['mobile', 380], ['desktop', 1280]]) {
         await expect(page.locator('#dashBody .dig-card'), `card ${i} returns`).toHaveCount(4);
       }
 
-      // ---- desktop: v98 grid (SUPERSEDES the v95 bento pin, per the grid brief) ----
-      // Row 1 is the ONLY side-by-side (chart card | selector card); the card reads number →
-      // trend top to bottom (the compares tile is DELETED in the v98 revision — pinned in
-      // dash-persist.test.js and by the count check here); insights (row 2) and Dig in (row 3)
-      // are full-width rows. One composition at every desktop width — the 1024/1280 fork is gone.
-      if (width >= 1024) {
-        const geo = await page.evaluate(() => ({
-          panel: document.querySelector('#dashBody .dash-panel').getBoundingClientRect(),
-          verd: document.querySelector('#dashBody .dp-verdict').getBoundingClientRect(),
-          chart: document.querySelector('#dashBody .dp-chart').getBoundingClientRect(),
-          ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
-          dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
-        }));
-        expect(geo.chart.top, 'the trend is the card’s last zone, under the headline').toBeGreaterThanOrEqual(geo.verd.bottom - 1);
-        expect(geo.ins.top, 'insights are a full-width row below the chart section').toBeGreaterThanOrEqual(geo.panel.bottom - 1);
-        expect(geo.dig.top, 'Dig in sits below the insights row').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
-      }
+      /* ---- F6 (v143) REPLACES the v98 grid pin in place ----
+         The 12-track desktop grid and the `.dp-tile` ordering handles are deleted, so the old
+         assertions describe a layout that cannot exist. What is pinned instead is the §6.1
+         hierarchy, and it now holds at EVERY width rather than only at ≥1024 — there is no CSS
+         reordering left on this screen, which is a stronger statement than the one it replaces. */
+      const geo = await page.evaluate(() => ({
+        top: document.querySelector('#dashBody .dash-top').getBoundingClientRect(),
+        trend: document.querySelector('#dashBody .dash-trend').getBoundingClientRect(),
+        ins: document.querySelector('#dashBody .dash-ins').getBoundingClientRect(),
+        dig: document.querySelector('#dashBody .dash-dig').getBoundingClientRect()
+      }));
+      expect(geo.trend.top, 'the trend reads under the verdict').toBeGreaterThanOrEqual(geo.top.bottom - 1);
+      expect(geo.ins.top, 'insights read below the trend').toBeGreaterThanOrEqual(geo.trend.bottom - 1);
+      expect(geo.dig.top, 'Dig in reads below the insights').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
       // v98 revision: the compares block is gone at EVERY width — deleted, not relocated
       await expect(page.locator('#dashBody .dp-stats, #dashBody .stat-attach, #dashBody .stat-line')).toHaveCount(0);
+      // …and so are the v95/v98 tile wrappers and the card they sat in, with the layout that needed them
+      await expect(page.locator('#dashBody .dp-tile, #dashBody .dash-panel')).toHaveCount(0);
 
-      // ---- v98 surfaces: one card tone on one page tone, at EVERY width ----
-      // The .dp-tile wrappers are ordering handles with no fill of their own, and the dig
-      // tiles share the panel's card tone — the beige card-inside-card is the light-mode bug
-      // this batch exists to fix, so it is pinned by computed style, not by eyeballing.
+      /* ---- surfaces: v3 draws a SECTION as a bordered container on the page canvas ----
+         The v98 pin here compared the dig tiles' fill against the panel's, because the light-mode
+         bug of that era was a beige card inside a white card. There are no cards inside cards left
+         to compare: the sections sit on the page and their rows carry no fill of their own. That is
+         the property pinned now, by computed style rather than by eyeballing, so a stray background
+         creeping back onto a row still fails here. */
       const fills = await page.evaluate(() => {
-        const bg = (sel) => getComputedStyle(document.querySelector(sel)).backgroundColor;
+        const cs = (sel) => getComputedStyle(document.querySelector(sel));
         return {
-          verd: bg('#dashBody .dp-verdict'),
-          panel: bg('#dashBody .dash-panel'),
-          dig: bg('#dashBody .dig-card')
+          dig: cs('#dashBody .dig-card').backgroundColor,
+          secBg: cs('#dashBody .dash-dig').backgroundColor,
+          secBorder: cs('#dashBody .dash-dig').borderTopWidth,
+          band: cs('#dashBody .dash-dig .ds-head').backgroundColor,
         };
       });
-      expect(fills.verd, 'dp-tile wrappers carry no fill').toBe('rgba(0, 0, 0, 0)');
-      expect(fills.dig, 'dig tiles share the one card tone').toBe(fills.panel);
+      expect(fills.dig, 'a Dig-in row draws no fill of its own').toBe('rgba(0, 0, 0, 0)');
+      /* A v3 section is a BORDER on the page canvas, not a filled card — the fill belongs to the
+         header band alone (§2's table rules). Measured after the first cut of this assertion asserted
+         a section background and failed against correct code: the mock draws none. */
+      expect(fills.secBg, 'the section is unfilled — the page shows through it').toBe('rgba(0, 0, 0, 0)');
+      expect(parseFloat(fills.secBorder), 'and it is a bordered container').toBeGreaterThan(0);
+      expect(fills.band, 'only the header band is tinted').not.toBe('rgba(0, 0, 0, 0)');
 
       // ---- nothing overflows, nothing errored ----
       const overflow = await page.evaluate(() =>

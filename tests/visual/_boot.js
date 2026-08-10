@@ -100,6 +100,15 @@ async function installBoot(page, opts = {}) {
         if (table === 'menus') return { data: ls('cafeDB_menus', []), error: null };
         if (table === 'price_history') return { data: priceHistoryRows(), error: null };
         if (table === 'menu_price_history') return { data: pts(ls('cafeDB_menuPriceLog', {}), 'price', 'menu_item_id'), error: null };
+        /* F6 (v143): `ing_price_history` was in `emptyOk`, so it always answered with nothing — and
+           `ingPriceLog` is the ONLY feeder for the What-moved panel and the Dig-in "Biggest movers"
+           row. No Playwright spec could therefore render either of them populated, which is why
+           v98-grid.spec.js's empty-tile test reads "this seed writes no per-product price points"
+           as if that were a choice. It was not; it was the only reachable state.
+           Served from `cafeDB_ingPriceLog` in exactly the shape the other two series use, so a spec
+           seeds it the same way it seeds the rest. Specs that do not seed the key get `{}` and the
+           empty state, i.e. today's behaviour, unchanged. */
+        if (table === 'ing_price_history') return { data: pts(ls('cafeDB_ingPriceLog', {}), 'cost_per_base_unit', 'product_id'), error: null };
         if (table === 'app_settings') return { data: settingRows(), error: null };
         if (emptyOk.includes(table)) return { data: [], error: null };
         return { data: null, error: { message: 'fixture: table not served' } };
