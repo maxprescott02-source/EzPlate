@@ -298,8 +298,9 @@ test('a live scope survives while two or more menus are costed', () => {
 });
 
 /* ---- CodeRabbit v89: per-menu points logged offline must survive the next sync ----
-   pushWrite drops writes silently when fully offline (CLAUDE.md, known gap), so a point can exist only
-   in localStorage. The bootstrap merge is what stops the next sync deleting it. */
+   pushWrite DROPS writes when fully offline (CLAUDE.md, known gap: no queue, no retry) — the user is
+   told, but the write is still gone — so a point can exist only in localStorage.
+   The bootstrap merge is what stops the next sync deleting it. */
 test('bootstrap merge keeps local-only points and de-dupes on timestamp', () => {
   // the REAL shipped merge, brace-extracted — no second copy to drift
   // eslint-disable-next-line no-new-func
