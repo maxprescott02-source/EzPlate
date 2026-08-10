@@ -300,6 +300,16 @@ header p{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted2)}
   font-size:13px;font-weight:600;line-height:1.2;padding:9px 15px;border-radius:var(--radius-pill);
   background:var(--surface);color:var(--text);border:1px solid var(--border2);
   box-shadow:var(--shadow-lg);white-space:nowrap;
+  /* v141: this element is a STATUS READOUT and has never contained a control, so it must never be
+     able to take a click from what it floats over. Not theoretical — measured at 380px: the error
+     state (the widest, and the one that never auto-dismisses) spans x95-285 and `elementFromPoint`
+     at the centre of `#brandHome` ("Go to dashboard") returns #syncBanner, not the button. Moving
+     it at >=1024 fixes the desktop collision; this fixes the whole class, at every width and on
+     every screen F5-F10 will add, without anyone having to re-measure.
+     ⚠️ The mock's §5 error banner carries a **Retry** button. The day one is added here, this line
+     has to come out and the placement has to be re-measured — a control under pointer-events:none
+     is a dead control, which is the exact defect this batch exists to remove. */
+  pointer-events:none;
 }
 .sync-banner[hidden]{display:none}
 .sync-banner::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted2);flex:0 0 auto}
@@ -1475,7 +1485,11 @@ body.scroll-locked{position:fixed;left:0;right:0}
 
   /* v132: the header is GONE at desktop — the sidebar owns the brand and the bottom group owns
      Settings, which was the header's last control once the theme toggle died (light-only).
-     #syncBanner and the toast are position:fixed siblings, not children — they survive. */
+     #syncBanner and the toast are position:fixed siblings, not children — they survive.
+     v141: "they survive" was true and incomplete. #syncBanner survived into the SPACE this rule
+     vacated, and F2/v138 later put `.scr-head` there, so the banner spent three batches sitting on
+     the screen's primary action. Deleting a layout element hands its band to whatever is pinned to
+     the viewport at that offset — check what is, rather than only what still renders. See §H. */
   header{display:none}
 
   /* -- content column -- */
@@ -1496,7 +1510,9 @@ body.scroll-locked{position:fixed;left:0;right:0}
   /* -- floating chrome respects the sidebar (offset = half its 224px width) -- */
   .toast{left:calc(50% + 112px)}
   .toast.show{transform:translateX(-50%) translateY(0)}
-  /* (no .sync-banner offset here — the later desktop rule pins it top-right and would override it) */
+  /* (no .sync-banner offset here — the later desktop rule (§H) pins it bottom-LEFT, against the
+     sidebar's own edge rather than the content centre, so a 50%-based offset would be overridden.
+     v141: that rule used to pin it top-right, into the screen header's action corner.) */
   .install-banner{left:auto;right:24px;bottom:24px;max-width:400px}
 
   /* v3 §2: 48px screen-header bars — the panel h2 eyebrows become real titles
@@ -1676,10 +1692,43 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
   .atable:not(.invtable) thead th{position:sticky;top:0;background:var(--surface);z-index:2}
 }
 
-/* ---- H. desktop chrome: sync banner pinned, not a floating mid-screen pill ---- */
+/* ---- H. desktop chrome: the sync banner is the BOTTOM-LEFT status slot ---- */
+/* v141: this rule used to read `left:auto;right:24px;transform:none;top:14px` — pinned top-right.
+   That was correct when it was written, and stopped being correct in two steps that never met:
+   v132 deleted the desktop `header` (the sidebar took the brand), and F2/v138 put `.scr-head` —
+   the mock's §2 screen-header bar, with the screen's primary action at its right — into exactly
+   the band the banner had been sitting in. Below 1024 the banner still overlays a real `header`
+   and collides with nothing; at >=1024 it had been overlaying the screen's actions since v138.
+
+   MEASURED before moving it (the numbers matter, because the queue item was written from the
+   87px "Saved" state alone and every fix it proposed fails against the wide ones). Banner widths
+   are 87 "Saved" / 99 "Saving…" / 176 "Loading latest data…" / 230 offline / 273 error. The two
+   PERSISTENT states are the two widest, so the worst case is also the one that never dismisses:
+     1024/1280  error (273) covers BOTH header actions outright — "Import invoice" AND "New
+                product", "Set up from products" AND "New ingredient" — centres included, so the
+                only route into each flow was a dead control for as long as the error stood.
+     1440       still covers the primary; only 1920 is clear in every state.
+   All three homes the item suggested were measured and all three fail:
+     - "below the header bar" lands on the control row (search + the two filter selects) — every
+       converted screen has one directly under `.scr-head` once it has data;
+     - "centred as it is under 1024" puts the 273px error state across the secondary action at
+       1024 (x487-760 vs "Import invoice" x721-850);
+     - "headers reserve room" would indent every action ~290px permanently, for a pill that is
+       absent almost always and four different widths when present.
+   There is no free region in the top band at 1024-1440, so the banner leaves it: the header bar
+   owns that corner at every width, which is the one rule F5-F10 can keep without re-measuring.
+
+   Bottom-left is the free slot AND the status-bar convention. It completes a three-way split of
+   the bottom chrome, none of which can now overlap: left = this, centre = `.toast` (bottom 92),
+   right = `.install-banner` (400px, bottom 24). Verified clear of both at 1024/1280/1440/1920 in
+   tests/visual/v141-sync-corner.spec.js. The loud channel is unchanged — a failed write still
+   fires `toast()` in the same breath as `setSync('error')`, so nothing quiet got quieter. */
 .sync-banner{max-width:420px;white-space:normal;text-align:left}
 @media (min-width:1024px){
-  .sync-banner{left:auto;right:24px;transform:none;top:14px}
+  .sync-banner{
+    left:calc(224px + 24px);right:auto;transform:none;
+    top:auto;bottom:calc(24px + env(safe-area-inset-bottom));
+  }
 }
 .side-brand span{min-width:0}
 /* v137: `.side-brand small` is GONE with the tagline it truncated. The sidebar brand is one line
