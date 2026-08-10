@@ -365,3 +365,139 @@ test('F6: the chart really consumes it — the viewBox follows the column, not a
   const g = app.geo();
   assert.strictEqual(g.W, 320, 'and TREND_GEO carries the same W the scrub maps against');
 });
+
+/* ===== v145: THE Y-DOMAIN, and the two rules that were compounding ==========================
+ * Reported as "the series is pinned to the top with ~60% dead space below". Measured before
+ * fixing, target 30 with data 31.0-32.5: the series occupied 10% of the plot height.
+ *
+ * Two defensible rules were being applied to the same range. v60's minimum ~5-pt window stops a
+ * FLAT series magnifying 0.x-pt noise; v48's hard requirement is that the target sit on a LABELLED
+ * TICK, so tcTicks builds outward from the target and widens the step until it has <=4 ticks —
+ * which, on a 5-pt window, lands on step 5. The domain was then `firstTick - step/2 .. lastTick +
+ * step/2`, so a step of 5 spent 15 points of axis on 1.5 points of data.
+ *
+ * The split: when the target is DRAWN it already guarantees the span, so the minimum window is not
+ * applied on top of it. When the target is absent, v60's behaviour is kept verbatim — these tests
+ * assert that half too, because "fixed it by deleting the anti-noise rule" would pass any test
+ * that only looked at the reported case.
+ */
+function plotFrac(app) {
+  const g = app.geo();
+  const lo = Math.min(...g.ys), hi = Math.max(...g.ys);
+  return (hi - lo) / ((g.H - g.padB) - g.padT);
+}
+function tickValues(html) {
+  return (html.match(/class="ax"[^>]*>([\d.]+)%/g) || []).map((m) => parseFloat(m.match(/>([\d.]+)%/)[1]));
+}
+
+test('v145: a target just under the readings no longer collapses the series', () => {
+  const app = chart({ pts: series([31, 31.6, 32.2, 31.9, 32.5]), target: 30 });
+  const html = app.trendChart('all');
+  assert.ok(plotFrac(app) > 0.4,
+    `the series must use most of the plot, not a band: got ${(plotFrac(app) * 100).toFixed(0)}%`);
+  assert.match(html, /class="ref-line"/, 'and the target line is still drawn — that is the point of including it');
+  assert.ok(tickValues(html).includes(30), 'v48 holds: the target still sits on a labelled tick');
+});
+
+test('v145: no axis label is drawn outside the plot', () => {
+  // tcTicks rounds OUTWARD, so it can return values the curve never reaches. Drawing them is how
+  // an axis lies about its own extent — and they land off the plot floor, over the marker strip.
+  const app = chart({ pts: series([31, 31.6, 32.2, 31.9, 32.5]), target: 30 });
+  const html = app.trendChart('all');   // TREND_GEO is set BY the render, so geo() must follow it
+  const g = app.geo();
+  const ys = (html.match(/class="ax"[^>]*y="([\d.]+)"/g) || []).map((m) => parseFloat(m.match(/y="([\d.]+)"/)[1]));
+  assert.ok(ys.length > 0, 'there are labels to check');
+  ys.forEach((y) => {
+    assert.ok(y >= g.padT - 6 && y <= (g.H - g.padB) + 6, `a label at y=${y} is outside the plot`);
+  });
+});
+
+test('v145: v60\'s minimum window still protects a FLAT series (the target-absent branch)', () => {
+  // 0.05 pts of movement, target far away. Without the minimum window this would fill the plot and
+  // report rounding noise as a trend — which is the defect v60 exists to prevent.
+  const app = chart({ pts: series([41.0, 41.05, 41.02, 41.04, 41.03]), target: 30 });
+  const html = app.trendChart('all');
+  assert.ok(plotFrac(app) < 0.15, 'a flat series stays flat');
+  const ts = tickValues(html);
+  assert.ok(ts[ts.length - 1] - ts[0] >= 5, 'the axis still spans at least the ~5-pt minimum window');
+  assert.doesNotMatch(html, /class="ref-line"/, 'and a target 11 points away is not drawn');
+});
+
+test('v145: a healthy spread is unchanged — the fix touches only the target-in-view case', () => {
+  const app = chart({ pts: series([36, 38, 40, 41, 42]), target: 30 });
+  const html = app.trendChart('all');   // render first: TREND_GEO does not exist until it runs
+  assert.ok(plotFrac(app) > 0.6, 'data that already filled the plot still does');
+  assert.doesNotMatch(html, /class="ref-line"/, 'target out of view, as before');
+});
+
+test('v145: the marker label carries its unit', () => {
+  // It read as a bare "−0.2", a magnitude of nothing in particular. The SUBJECT stays in the
+  // caption ("marks changes you made") so the label stays short enough for the phone's strip.
+  const pts = series([24, 23, 21, 21, 21]);
+  const drop = entry({ t: now - 2 * DAY, avgBefore: 23, avgAfter: 21 });
+  const html = chart({ pts, log: [drop] }).trendChart('all');
+  assert.match(html, /class="mk-lbl"[^>]*>−2 pts</, 'the magnitude states what it is measured in');
+  assert.match(html, /marks changes you made/, 'and the caption still carries the subject');
+});
+
+/* The pre-push review's two cases, kept verbatim. The first cut of the v145 domain fix generated
+ * ticks over a padded domain and then filtered them to it, and for these — ordinary café shapes,
+ * squarely inside the case the batch set out to improve — tcTicks widens to step 5, returns
+ * [25,30,35], and the filter left ONE label on the whole axis. Filtering is gone: the domain is the
+ * tick extent plus a hair, so every tick is inside it by construction. */
+[
+  { vals: [28, 30, 32], target: 30, label: '[28,30,32] against a 30% target' },
+  { vals: [27, 29, 31, 33], target: 30, label: '[27,29,31,33] against a 30% target' },
+].forEach(({ vals, target, label }) => {
+  test(`v145 REGRESSION: ${label} keeps a readable axis`, () => {
+    const app = chart({ pts: series(vals), target });
+    const html = app.trendChart('all');
+    const ticks = tickValues(html);
+    assert.ok(ticks.length >= 3, `the axis collapsed to ${ticks.length} label(s): ${JSON.stringify(ticks)}`);
+    assert.ok(ticks.length <= 4, 'and tcTicks\' upper bound still holds');
+    assert.ok(ticks.includes(target), 'the target still sits on a labelled tick');
+    assert.ok(plotFrac(app) > 0.4, 'and the series still uses the plot');
+  });
+});
+
+test('v145: every tick is inside the domain BY CONSTRUCTION, so none can render off-plot', () => {
+  // Structural, not a cleanup: the domain is derived FROM the ticks, so there is nothing to filter.
+  [[28, 30, 32], [27, 29, 31, 33], [31, 31.6, 32.5], [29.6, 30.1, 30.4], [30, 30, 30]].forEach((vals) => {
+    const app = chart({ pts: series(vals), target: 30 });
+    const html = app.trendChart('all');
+    const g = app.geo();
+    const ys = (html.match(/class="ax"[^>]*y="([\d.]+)"/g) || [])
+      .map((m) => parseFloat(m.match(/y="([\d.]+)"/)[1]) - 3.5);   // undo the baseline nudge
+    assert.ok(ys.length >= 3, `${JSON.stringify(vals)}: labels exist`);
+    ys.forEach((y) => assert.ok(y >= g.padT - 0.5 && y <= (g.H - g.padB) + 0.5,
+      `${JSON.stringify(vals)}: a tick line at y=${y} is outside the plot`));
+  });
+});
+
+/* The domain must contain the READINGS, which deriving it from the ticks does not guarantee.
+ * `tcTicks` ends with `while(lo<0) lo+=step` — a guard keeping tick LABELS non-negative on a
+ * percent axis, which it does by raising the whole sequence. Near the zero floor `ticks[0]` can
+ * therefore sit ABOVE a reading, and `y(v)` is unclamped, so the curve draws below the plot floor
+ * into the marker-label strip. Found by the pre-push review, and NOT introduced by v145 — `main`
+ * fails the same way at a 3.5% target with readings at 0 — which is why the guard sits after both
+ * domain branches and why this test sweeps rather than pinning one case.
+ * Reachable rather than likely: it needs a food cost at or near 0%. But `cogsPct` is only clamped
+ * to [1,99], so the input range the app states for itself allows it, and no other test goes near
+ * this region — every fixture uses ~30% against readings well above 10.
+ */
+test('v145: no reading is ever drawn outside the plot, across the whole target range', () => {
+  const cases = [];
+  for (let t = 1; t <= 99; t += 0.5) for (const base of [0, 0.5, 1, 2]) cases.push([t, [base, base, base]]);
+  // the review's four reproducing cases, kept explicitly so they cannot be swept away by a step change
+  [[1.5, [0, 0, 0]], [2.5, [0, 0, 0]], [3.5, [0, 0, 0]], [5.5, [1, 1, 1]]].forEach((c) => cases.push(c));
+  const offenders = [];
+  cases.forEach(([target, vals]) => {
+    const app = chart({ pts: series(vals), target });
+    app.trendChart('all');
+    const g = app.geo();
+    const floor = g.H - g.padB;
+    if (g.ys.some((y) => y < g.padT - 0.51 || y > floor + 0.51)) offenders.push({ target, vals });
+  });
+  assert.deepStrictEqual(offenders, [],
+    `readings drawn outside the plot for: ${JSON.stringify(offenders.slice(0, 5))}`);
+});

@@ -2874,12 +2874,19 @@ function tcTicks(target,mn,mx){                                  // v48: 3\u2013
   }
   return out;
 }
-/* v60 item 1b (ZOOM): the y-domain now fits the DATA, not the target. Margins move 1-2 pts at a time;
-   a domain stretched to always reach a distant target flattened that movement into noise. niceStep/niceTicks
-   generate 3-4 round ticks over the data extent WITHOUT anchoring on the target, so the visible band is only
-   as tall as the readings need. The target line is drawn only when it falls inside the domain (or within one
-   tick of it), and THEN tcTicks' "target sits on a labelled tick" rule still governs (see trendChart); when
-   the target is far away it becomes a small edge annotation instead of dragging the whole axis to meet it.
+/* v60 item 1b (ZOOM): margins move 1-2 pts at a time, and a domain stretched to always reach a
+   distant target flattened that movement into noise. niceStep/niceTicks generate 3-4 round ticks
+   over the data extent WITHOUT anchoring on the target, so the visible band is only as tall as the
+   readings need. The target line is drawn only when it falls inside the domain (or within one tick
+   of it), and THEN tcTicks' "target sits on a labelled tick" rule still governs (see trendChart).
+   ⚠️ v145 CORRECTION. This comment used to open "the y-domain now fits the DATA, not the target",
+   and that was FALSE whenever the target was in view: the very next line of trendChart concatenated
+   the target into the domain, and the domain was then derived from the outermost TICK rather than
+   from the data at all. The sentence sent an investigation the wrong way before it was caught, and
+   it is exactly the class of stale fact CLAUDE.md warns about — a true-sounding claim nothing
+   re-checks. What is written here now is what the code does: the domain fits the data when the
+   target is absent, and fits the data UNION the target when it is drawn. See the block in
+   trendChart for why the two cases are built differently.
    This SUPERSEDES v48's always-include-target domain rule (tcTicks itself is unchanged). */
 var TICK_STEPS=[1,2,5,10,20,50];
 function niceStep(raw){ for(var i=0;i<TICK_STEPS.length;i++){ if(TICK_STEPS[i]>=raw) return TICK_STEPS[i]; } return TICK_STEPS[TICK_STEPS.length-1]; }
@@ -3063,14 +3070,78 @@ function trendChart(scope){
      so headroom stays consistent in tick units and similar ranges can't jitter. */
   var dvals=pts.map(function(p){return p.v;});
   var dmn=Math.min.apply(null,dvals), dmx=Math.max.apply(null,dvals);
-  var span=dmx-dmn;
-  if(span<5){ var midY=(dmn+dmx)/2; dmn=midY-2.5; dmx=midY+2.5; }   // minimum ~5-pt window
-  if(dmn<0) dmn=0;
-  var probeStep=niceStep((dmx-dmn)/3);
-  var targetShown=targetInView(cogsPct, dmn, dmx, probeStep);
-  var ticks = targetShown ? tcTicks(cogsPct, Math.min(dmn,cogsPct), Math.max(dmx,cogsPct)) : niceTicks(dmn, dmx);
-  var step=ticks.length>1?ticks[1]-ticks[0]:5;
-  var mn=Math.max(0,ticks[0]-step/2), mx=ticks[ticks.length-1]+step/2;
+  /* ===== v145 — THE DOMAIN, and why it is now built two different ways =====
+     The reported defect: with the target near the readings the series collapsed into a band with
+     most of the plot empty under it. Measured before fixing, target 30 with data 31.0-32.5: ticks
+     rendered 25/30/35 and the series occupied fractions 0.33-0.43 of the plot, i.e. 10% of it,
+     with ~57% dead below. Control case, target 30 with data 36-42: 75% of the plot. Healthy.
+     TWO RULES WERE COMPOUNDING, and each is defensible alone.
+       1. v60's minimum ~5-pt window, so a FLAT series does not magnify 0.x-pt noise.
+       2. v48's hard requirement that the target sit on a LABELLED TICK, which is the whole reason
+          the dashed line carries no word of its own. tcTicks builds outward from the target and
+          widens the step until it has <=4 ticks — with a 5-pt window that lands on step 5.
+     The domain was then `ticks[0]-step/2 .. last+step/2`, so a step of 5 spent 15 points of axis
+     on 1.5 points of data. Neither rule is wrong; applying both to the same range is.
+     ⚠️ The v60 comment claiming "the DOMAIN fits the DATA (target excluded)" was FALSE whenever the
+     target was in view — the line right under it concatenated the target into the domain. It has
+     been rewritten rather than left, because it sent this batch's investigation the wrong way once.
+     THE SPLIT: when the target is drawn it already guarantees a sensible span, so the minimum
+     window is not applied on top of it and the domain is the readings-plus-target extent with
+     proportional headroom. When the target is NOT drawn, v60's behaviour is kept verbatim — that
+     is the case its minimum window was written for, and nothing about it changed. */
+  var tmn=dmn, tmx=dmx, span=dmx-dmn;
+  // the in-view TEST still uses v60's widened window, so exactly the same targets qualify as
+  // before. Only what happens AFTER a target qualifies is different.
+  if(span<5){ var midT=(dmn+dmx)/2; tmn=midT-2.5; tmx=midT+2.5; }
+  if(tmn<0) tmn=0;
+  var probeStep=niceStep((tmx-tmn)/3);
+  var targetShown=targetInView(cogsPct, tmn, tmx, probeStep);
+  var ticks, mn, mx, step, head;
+  if(targetShown){
+    /* The ticks are generated over the readings-UNION-target range and the DOMAIN is then their
+       extent, plus a hair. Nothing is filtered, and that is the point: tcTicks covers whatever
+       range it is handed, so every tick it returns is inside the domain BY CONSTRUCTION and an
+       off-plot label is structurally impossible rather than cleaned up afterwards.
+       ⚠️ The first cut of this fix DID filter — generate over a padded domain, then drop the ticks
+       that fell outside it — and the pre-push review reproduced the consequence: for readings
+       [28,30,32] against a target of 30, tcTicks widens to step 5 (its <=4-tick rule), returns
+       [25,30,35], and the filter leaves ONE labelled value on the whole axis. Ordinary café data,
+       squarely inside the case this batch exists to improve. Worse, the fresh-states tick-count
+       assertion had been rewritten to permit it, which is rewriting a spec to fit a regression
+       rather than closing the regression. That assertion is restored below. */
+    var lo=Math.min(dmn,cogsPct), hi=Math.max(dmx,cogsPct);
+    // a series with almost no variance sitting ON its target has no range to build an axis from;
+    // 1.5 points is the smallest window that still yields three round ticks around it. This is
+    // v60's minimum-window idea at the scale the target case actually needs — the 5-pt version is
+    // what compounded with the tick rule in the first place.
+    if(hi-lo<1.5){ var midT=(lo+hi)/2; lo=midT-0.75; hi=midT+0.75; }
+    if(lo<0) lo=0;
+    ticks=tcTicks(cogsPct, lo, hi);
+    var tickSpan=ticks[ticks.length-1]-ticks[0];
+    // headroom off the TICK extent, so the outermost labels are not welded to the plot edges. A
+    // fraction, never a tick step: a step-sized pad is what let a coarse step dominate the domain.
+    head=Math.max(tickSpan*0.04, 0.15);
+    mn=Math.max(0, ticks[0]-head); mx=ticks[ticks.length-1]+head;
+  } else {
+    dmn=tmn; dmx=tmx;                                              // v60's window, unchanged
+    ticks=niceTicks(dmn, dmx);
+    step=ticks.length>1?ticks[1]-ticks[0]:5;
+    head=step/2;
+    mn=Math.max(0,ticks[0]-step/2); mx=ticks[ticks.length-1]+step/2;
+  }
+  /* THE DOMAIN MUST CONTAIN THE READINGS, and deriving it from the ticks does not guarantee that.
+     `tcTicks` ends with `while(lo<0) lo+=step` — a guard that keeps tick LABELS non-negative on a
+     percent axis, and does it by raising its whole sequence. So near the zero floor `ticks[0]` can
+     sit ABOVE a reading, and since `y(v)` is unclamped the curve then draws BELOW the plot floor,
+     into the strip the marker labels use. Reproduced by the pre-push review at a 1.5% target with
+     readings flat at 0, and it is NOT new — `main` fails the same way at a 3.5% target — so the
+     guard sits after BOTH branches rather than inside the new one.
+     Widening can only help: the ticks stay inside a domain that grew, so "every tick is on the
+     plot" survives untouched. Reachable rather than likely — it needs a food cost at or near 0%,
+     which means near-free ingredients — but `cogsPct` is only clamped to [1,99], so the input
+     range the code states for itself allows it. */
+  if(dmn<mn) mn=Math.max(0, dmn-head);
+  if(dmx>mx) mx=dmx+head;
   var fmtTick=function(v){ return (v%1?v.toFixed(1):v.toFixed(0))+'%'; };
   // v52: the label gutter — sized to the widest tick label so a wide label ("32.5%" from a
   // decimal target) widens the gutter instead of clipping at the svg edge (the v48 bug)
@@ -3128,8 +3199,16 @@ function trendChart(scope){
     mkGuides+='<line x1="'+mx.toFixed(1)+'" y1="'+padT+'" x2="'+mx.toFixed(1)+'" y2="'+(H-padB)+'" stroke="var(--border)" stroke-width="1"/>';
     mkDots+='<circle class="mk-pt" cx="'+mx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="4" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>';
     var mag=Math.round(mk.drop*10)/10;
-    if(mag>=0.1 && mx-lastLblX>=30){
-      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+'</text>';
+    /* v145 (UI-7): the label carries its UNIT. It read as a bare "−0.2", which states a magnitude
+       of nothing in particular; the mock's equivalent is "price change, -0.7". The SUBJECT stays in
+       the caption ("● marks changes you made") rather than being repeated on every marker, which
+       is what keeps the label short enough to sit in the padB strip on a phone.
+       The collision gap moves 30 → 52 with it: the labels are ~8 characters now, and at ~6px a
+       character in the 10-unit type that is ~48px. Since v143 a viewBox unit is about a rendered
+       pixel, so 30 units no longer clears an 8-character label and two markers three days apart
+       would have overprinted. */
+    if(mag>=0.1 && mx-lastLblX>=52){
+      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+' pts</text>';
       lastLblX=mx;
     }
     mkGeo.push({x:mx, drop:mk.drop, count:mk.count});
@@ -4592,7 +4671,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v144';
+var APP_VERSION='v145';
 function openSettings(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
