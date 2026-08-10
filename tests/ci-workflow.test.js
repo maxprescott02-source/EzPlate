@@ -41,12 +41,18 @@ test('the flaky detector has something to read', () => {
   if (!retries || retries[1] === '0') return;
   // The detector reads the json reporter's file. Miss either half and the gate above still LOOKS
   // right and silently never fires — the same failure class it was written to fix.
-  assert.match(JOB, /--reporter=[\w,]*\bjson\b/, 'the json reporter must be emitted');
-  assert.match(JOB, /PLAYWRIGHT_JSON_OUTPUT_NAME: (\S+)/,
+  assert.match(CODE, /--reporter=[\w,]*\bjson\b/, 'the json reporter must be emitted');
+  assert.match(CODE, /PLAYWRIGHT_JSON_OUTPUT_NAME: (\S+)/,
     'and it must be pointed at a file — unset, the json reporter prints the whole report to stdout');
-  const file = /PLAYWRIGHT_JSON_OUTPUT_NAME: (\S+)/.exec(JOB)[1];
-  assert.ok(JOB.includes(file + '\'') || JOB.includes('./' + file) || JOB.includes(file),
-    'the detector must read the file the reporter was told to write');
+  // The two halves must name the SAME file. Compare the detector's own block against the env line;
+  // searching the whole job for the filename would be a tautology, because the filename was read out
+  // of that job a line ago. (The first version of this assertion did exactly that and could not fail
+  // — caught by the pre-push review, which is the category this whole file exists to police.)
+  const file = /PLAYWRIGHT_JSON_OUTPUT_NAME: (\S+)/.exec(CODE)[1];
+  const detector = /- name: Did any spec pass only on a retry\?[\s\S]*?(?=\n      - name: |$)/.exec(CODE);
+  assert.ok(detector, 'the detector step must be findable by name');
+  assert.ok(detector[0].includes(file),
+    `the detector must read ${file}, the file the reporter was told to write`);
 });
 
 test('the detector reads stats.flaky, and not the literal that never matches', () => {

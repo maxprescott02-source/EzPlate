@@ -21,6 +21,13 @@ Everything else was measured on a real flaky run rather than reasoned about.
 The job exits 0, `stats.flaky` is 1, and the failed attempt's `trace.zip` **is** retained, so the item was right that the evidence existed and was being thrown away.
 `PLAYWRIGHT_JSON_OUTPUT_NAME` resolves relative to the **config's** directory rather than the working directory, and without it the json reporter prints the whole report to stdout and buries the github reporter's summary.
 
+**Review (Sonnet, no brief): one finding, real, fixed, and it was a test that could not fail.**
+The assertion coupling the detector to the reporter's file searched the whole job block for a filename it had extracted from that same block a line earlier, so the `||` chain ended in a tautology.
+The reviewer proved it by re-pointing the detector at a made-up file and watching all five tests stay green.
+That is the category this test file was written to police, found inside the test doing the policing, and it is the second time in two batches that a claim of the form "I checked" has been the wrong part.
+It also caught the queue entry claiming all five were mutation-checked, which was false for exactly that one.
+Repaired to compare the detector's own block against the env line, and mutation-checked both ways.
+
 ## Into CLAUDE.md
 
 Nothing.
