@@ -162,12 +162,35 @@ jobs:
       #                    layout regressions these specs exist to catch. retain-on-failure
       #                    keeps the trace (with DOM snapshots) only for tests that failed.
       #                    Measured cost of tracing everything: 2.2 min vs 2.1 min.
-      #   --retries=1      added 10 Aug 2026. A batch whose diff was three .md files and zero
-      #                    lines of code was failed by `Test timeout of 30000ms exceeded while
-      #                    setting up "context"` in v141-sync-corner.spec.js - 208 passed, 1 died
-      #                    in SETUP before any assertion ran; re-run on the identical commit,
-      #                    209/209 green. Retries default to 0, so one slow browser.newContext
-      #                    under load fails the whole PR.
+      #   --retries=1      added 10 Aug 2026, after a batch whose diff was three .md files and
+      #                    zero lines of code was failed by a test that died in SETUP before any
+      #                    assertion ran - 208 passed, 1 died; re-run on the identical commit,
+      #                    209/209 green. (That is run 31368954663, ATTEMPT 1. Note the attempt:
+      #                    `gh run list`/`gh run view --json attempt` both report 1 for it, and
+      #                    only the REST field `run_attempt` says 2, so a search that trusts the
+      #                    CLI concludes the incident never happened.)
+      #                    Retries default to 0, so ONE of these fails the whole PR.
+      #                    ⚠️ THE MECHANISM THIS COMMENT ORIGINALLY CLAIMED - "one slow
+      #                    browser.newContext under load" - IS WRONG, and was disproved by
+      #                    measurement on 10 Aug 2026. Nothing is slow: THE BROWSER PROCESS
+      #                    CRASHES. All six CI occurrences carry `Received signal 11 SEGV_MAPERR
+      #                    0000000001b0` in the browser log, and all six crash at the IDENTICAL
+      #                    instruction (binary offset 0x2af9eec, module offset subtracted so it
+      #                    survives ASLR), in chrome-headless-shell-1228 / Playwright 1.61.1.
+      #                    One bug, six times - not a family of crashes.
+      #                    `--disable-dev-shm-usage` is already on the launch line above, so the
+      #                    usual /dev/shm explanation is excluded.
+      #                    The two error strings you will see are ONE event, differing only in
+      #                    whether Playwright had noticed the process was gone:
+      #                      `browser.newContext: Target page, context or browser has been closed`
+      #                      `Test timeout of 30000ms exceeded while setting up "context"`
+      #                    The second is 30 seconds spent waiting on a process that is already
+      #                    dead - not 30 seconds of context creation.
+      #                    So a retry is exactly the right response: a segfault is unambiguously
+      #                    infra, it cannot be a regression in the diff, and a fresh worker gets
+      #                    a fresh browser. Read `Received signal` in the failure text and you
+      #                    have the diagnosis in one grep. Details and the run-by-run census are
+      #                    in docs/handovers/HANDOVER-163-browser-segv.md.
       #                    ⚠️ THIS DOES HIDE A CLASS OF REAL FAILURE, and saying otherwise was the
       #                    first draft of this comment - corrected by the pre-push review before
       #                    merge, so read it as the cost being ACCEPTED rather than avoided.
@@ -186,10 +209,13 @@ jobs:
       #                    The alternative considered and REFUSED was raising the global test
       #                    timeout, which would mask a real hang outright and give no annotation
       #                    at all.
-      #                    Workers stay at 2 DELIBERATELY. Contention is a plausible cause and it
-      #                    was not measured, so it was not acted on: the job runs ~7 min against a
-      #                    15 min timeout, and halving parallelism to chase a rare flake risks
-      #                    trading it for a routine timeout.
+      #                    Workers stay at 2, and the reason is better than the old one. That said
+      #                    "contention is a plausible cause and it was not measured"; the CAUSE has
+      #                    since been identified and contention is not it - a segfault at a fixed
+      #                    code offset is not something load produces. (Strictly: parallelism was
+      #                    not varied, so this rules contention out by naming the cause, not by
+      #                    experiment.) Cutting to 1 worker would roughly double the job - 2.1 min
+      #                    vs 3.9 min at 88 tests - to chase something it would not fix.
       # ⚠️ THE EMPTY-LIST CASE MUST FAIL CLOSED, and the obvious one-liner fails OPEN.
       # Inlining `$(ls ... | grep -v ...)` directly as arguments looks fine and is a trap: if the
       # pipeline ever matches nothing, it expands to an EMPTY STRING, and neither `set -e` nor
