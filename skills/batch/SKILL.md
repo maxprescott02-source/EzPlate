@@ -9,6 +9,7 @@ Take the next unblocked item from `docs/QUEUE.md` and carry it all the way to me
 **Do not stop for approval between steps.** Max's time is the scarce resource; yours is not.
 
 Continue until the queue is empty or a stop condition fires.
+**When `docs/QUEUE.md` is empty - and only then - work `docs/MAINTENANCE.md`**, top to bottom, the same way.
 
 **Why this doesn't contradict `CLAUDE.md`'s "plan first, get a yes".** The trigger is where the work came from.
 **An item in `docs/QUEUE.md` is already approved** - Max said yes when he queued it, so re-asking spends the one resource this skill exists to protect.
@@ -46,7 +47,10 @@ If you are running `/batch`, you are in the first case.
    And confirm the run exists - an absent check and a passing one look the same.
 9. **Merge** if the suite is green, step 7 is done, and no stop condition applies.
 10. **Hand over.** Use the `handover` skill.
-    Tick the queue, and add anything found-not-fixed as a new queue item - a finding that lives only in a handover is a finding nobody will action.
+    **DELETE the finished item from `docs/QUEUE.md`** - git and the handover hold the record, and a done section is how that file reached 979 lines.
+    Then route anything found-not-fixed, because a finding that lives only in a handover is a finding nobody will action - **but route it by TIER, not by default into the queue** (`docs/QUEUE.md`'s header carries the test).
+    **A finding defaults to C and lands in `docs/MAINTENANCE.md`.** It enters `docs/QUEUE.md` only if it would stop, embarrass or hurt a paying customer at launch - and if that file is already at its 20-item cap, it displaces the lowest-priority item there into maintenance rather than extending it.
+    **Never queue an item about the process itself** - skill wording, comment accuracy, doc contradictions. If a rule has been violated repeatedly, fix the rule once in `CLAUDE.md` and stop writing about it.
     **Then check the audit counter.** The newest `docs/audits/AUDIT-vNN.md` is the version the last audit ran at; `sw.js` has the version you just shipped.
     At a gap of **10 or more** - or if `docs/audits/` is empty or missing - put `project-audit` into `docs/QUEUE.md` as the next item, above every unblocked one.
     Nothing to remember and no calendar: the version increments once per batch, so it already is the counter.
@@ -123,8 +127,9 @@ Do after: (only if real - the queue item that must ship first, and WHY it gets c
 Blocked on: (only if blocked - migration pending, decision pending)
 ```
 
-`status` is one of `next`, `blocked`, `doing`, `done`.
-Move `done` items out weekly.
+`status` is one of `next`, `blocked`, `doing`.
+**There is no `done` status and no done section** - a finished item is DELETED from the file. Git and `docs/handovers/` are the record.
+**The file is capped at 20 items** and holds tier A and B only; C lives in `docs/MAINTENANCE.md`.
 
 ### `Do after:` - ordering that survives being forgotten
 
@@ -145,7 +150,7 @@ It never stalls the queue and it never comes back to Max - unmet ordering is a s
 Overusing it turns a hand-sorted list into a dependency graph nobody maintains.
 If two items genuinely want the same batch, say `Do with:` instead and run them together in one PR.
 
-**Add to the queue as you go.** Anything found-not-fixed becomes an item with enough context to act on later.
+**Write findings down as you go**, with enough context to act on later - but per step 10, a finding defaults to `docs/MAINTENANCE.md` and reaches `docs/QUEUE.md` only by passing the tier test.
 Do not let findings live only in handovers.
 
 ## Phone checks accumulate
