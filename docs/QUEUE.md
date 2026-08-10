@@ -123,10 +123,10 @@ Requirements: decide whether the healthy states become header text (per §3.1) a
 Out of scope: `pushWrite`'s error handling and the `toast()` pairing, which are correct and are the loud channel; this is about the quiet one.
 Do after: **F6** - the Dashboard is where §3.1's header status text is drawn, so the first real consumer of the healthy-state treatment arrives with that screen, and deciding it earlier decides it against a header that has not been built yet.
 
-## doing  F5 - Menu (desktop §3.2 + mobile §6, one item)
-Switcher pills (active = tinted + border, mono %) with "N more ▾" overflow at >5 menus, search right; grouped table (uppercase group rows) Plate | Cost | Suggested at 40% | Price | Food cost pill; not-costed row muted with "cost it" pill. Mobile: two-line rows, price + pill stacked right, Switch control in the header.
-R2 carries: the light is `analyze()`'s law on every surface - preview, chips and row can never disagree. R4 check on "cost it": v122 dropped the arrow because no route to the builder existed; wire it honestly to the F2/F7 row-click route or keep the honest muted dash - never a control that does nothing. The "N more ▾" overflow is a real floating layer - if it can't be built cleanly before the floating-layers item, R4-log it visibly rather than half-build.
-§4 criteria are the definition of done.
+## done  F5 - Menu (desktop §3.2 + mobile §6, one item)
+Shipped 10 Aug 2026 as **`ezplate-v142`** (PR #130). See `docs/handovers/HANDOVER-151-menu.md`.
+Rubric decisions recorded at their sites: R4+R3 on the mock's "New plate" header primary (no builder route from this screen until F7) · R5 on the mobile header (the mock's name+pill+Switch trio moved one row down, because `.scr-head`'s two-actions question is ONE queued item) · R3 on the filter row and on Delete (rehomed to the screen footer as §2's destructive button) · R4 on "cost it" (the honest dash stays) · R1 on "Suggested at 40%" and "Price".
+**The "Switch control in the header" line above was NOT followed literally, and that is deliberate** - the mobile mock's header carries no create actions at all because its IA publishes plates from the builder's Publishing card, which is F7. Following it today would have stranded "Existing plate" and "New menu". If F7 rehomes publishing, revisit rather than inherit.
 
 ## next  F6 - Dashboard (desktop §3.1 + mobile §6, one item)
 KPI strip (3 cells, internal hairlines), trend chart (red line, shaded over-target band, dashed 40% line, orange ring markers + mono annotations on user changes), Needs-attention briefing (read-only rows, bold lead + ONE link each, credit "Phrased by Gemini, computed by EzPlate", reveal law untouched), What moved / Dig in two-up, menu-scope dropdown in the header (ranked, mono %, colour-coded - v129's substance re-housed). Mobile: hero 44 mono + delta pill + one-sentence context, simplified sparkline, stacked cards.
