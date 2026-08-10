@@ -22,23 +22,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`boot-gate: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`boot-gate: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 /* A DOM stub small enough to read, with just the surface bootGate touches. */
 function mkNode(id) {
@@ -64,7 +50,7 @@ function makeGate(present) {
     // the 4s swap itself is exercised in the browser (it needs real elapsed time to mean anything).
     var setTimeout = function(fn, ms){ C.slowTimerMs = ms; return 1; };
     var clearTimeout = function(){ C.slowTimerCleared = (C.slowTimerCleared||0)+1; };
-    ${extractFn('bootGate')}
+    ${extractFn(SRC, 'bootGate')}
     return { bootGate: bootGate };
   `)(nodes, calls);
   return { gate: nodes.bootGate, msg: nodes.bootGateMsg, retry: nodes.bootGateRetry, run: api.bootGate, calls };

@@ -24,10 +24,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+const SRC = loadApp();
 
 /* the supplier_phrases sync block, verbatim, by its anchors.
    v108: the block no longer fetches for itself — the read moved into bootstrapSync's single
@@ -48,19 +47,6 @@ function extractBlock() {
 /* v108: the block now maps rows through the shared row boundary instead of an inline object literal,
    so the sandbox needs the REAL mapper — brace-extracted, never mirrored, or this test would pass
    against a copy while production used a different one. */
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`smem-sync-guard: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`smem-sync-guard: unbalanced braces for ${name}`);
-}
-
 /* Run the real block against a stubbed Supabase. Returns the resulting local memory and
    everything re-pushed to the server.
    v111: the `saved` tracker is gone with the `saveSupplierMem()` no-op it counted. It asserted that a
@@ -78,7 +64,7 @@ async function syncWith(localMem, serverRows, opts) {
       var SUPA = S.SUPA;
       function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
       function invDbg(){}
-      ${extractFn('rowToSupplierPhrase')}
+      ${extractFn(SRC, 'rowToSupplierPhrase')}
       /* v108: bootstrapSync now hands the block its already-settled read. Same stub, same values —
          only the fetch moved out, so the guard below still sees exactly what production gives it. */
       var spr = await SUPA.from('supplier_phrases').select('*');

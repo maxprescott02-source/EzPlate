@@ -11,23 +11,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(src, name) {
-  const sig = `function ${name}(`;
-  const i = src.indexOf(sig);
-  if (i < 0) throw new Error(`plates-independence: function not found -> ${name}. app.js changed; update this test`);
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error(`plates-independence: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 /* ---- 1. resolution helpers (plate <-> dish, many-to-many) ---- */
 function makeResolver(menusList, savedPlates, dishes) {

@@ -19,30 +19,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`change-log: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) {
-      const out = SRC.slice(i, n + 1);
-      // The depth counter is brace-naive (no strings/regex/comments), so prove the slice is real JS and
-      // name the culprit rather than surfacing a syntax error on the whole bundle. (restore.test.js.)
-      try { new Function(`return (${out})`); }
-      catch (e) { throw new Error(`change-log: extracted ${name} does not parse (${e.message})`); }
-      return out;
-    }
-  }
-  throw new Error(`change-log: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -140,7 +119,7 @@ function harness(opts) {
       'kingValid', 'kingRenameCheck', 'kingNameExists', 'nextKid',
       // READ, never edited — CLAUDE.md hard rule 2 forbids changing unitCatCategory, not slicing it in.
       'unitCatCategory',
-    ].map(extractFn).join('\n')}
+    ].map((n) => extractFn(SRC, n)).join('\n')}
 
     var CHANGE_KINDS=${JSON.stringify(kindsFromSource())};
     var ingPriceLog={}, _ingLogPending=[], productsById=byId, DASH_ALL='__all__', cogsPct=30;
@@ -238,11 +217,11 @@ test('CENSUS: no product-price path names the change log at all', () => {
   // price paths writes an entry — the class of gap v109 exists because of, where a rule was stated and
   // the Products tab was missed anyway.
   for (const fn of ['setProduct', 'commitPrice', 'saveIngEdit', 'submitNew', 'logIngPrice', 'applyTidy']) {
-    const body = extractFn(fn);
+    const body = extractFn(SRC, fn);
     assert.ok(!/logChange/.test(body), `${fn} must not write the change log — it is a supplier-price path`);
   }
   // applyInvoice DOES write, and every entry it writes must be a repoint. A price it applied is drift.
-  const inv = extractFn('applyInvoice');
+  const inv = extractFn(SRC, 'applyInvoice');
   const kinds = [...inv.matchAll(/logChange(?:IfSaved)?\([^,]*,\s*'([a-z_]+)'/g)].map((m) => m[1]);
   assert.ok(kinds.length > 0, 'the invoice DOES relink ingredients — that path must log');
   assert.deepStrictEqual([...new Set(kinds)], ['ingredient_repointed'],
@@ -500,7 +479,7 @@ test('CENSUS: removeMenuItem still has exactly the three callers the log account
   // The log is written by this function's CALLERS, because doDeleteMenu's N calls are ONE decision.
   // A fourth caller would silently log nothing, so it must break this test and name itself.
   const callers = ['mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu']
-    .filter((n) => /removeMenuItem\(/.test(extractFn(n)));
+    .filter((n) => /removeMenuItem\(/.test(extractFn(SRC, n)));
   assert.deepStrictEqual(callers, ['mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu']);
   // Count CALLS, not the declaration — `function removeMenuItem(` matches a naive search too.
   const total = (SRC.match(/(?<!function\s)\bremoveMenuItem\(/g) || []).length;
@@ -640,7 +619,7 @@ test('the change log renders nothing: none of its own functions touch the DOM', 
   // touch lives there, on the rendering side of the line.
   for (const fn of ['changeEntry', 'logChange', 'logChangeIfSaved', 'dbPushChange', 'rowToChange',
                     'changeToRow', 'nextChangeId', 'mergeChangeLog', 'platesUsingKid', 'menuIdsForPlates']) {
-    const body = extractFn(fn);
+    const body = extractFn(SRC, fn);
     for (const bad of ['document.', 'innerHTML', 'textContent']) {
       assert.ok(!body.includes(bad), `${fn} touches "${bad}" — this batch must be invisible to the user`);
     }

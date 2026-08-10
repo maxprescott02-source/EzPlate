@@ -19,24 +19,10 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
 const { publishPlan, unlinkedDishesOn, plateIdOf } = require('./_extract');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`publish-guard: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`publish-guard: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 const ORPHAN = { id: 'ummrq8xbur', name: 'Cheese & Ham Toastie GF', section: 'Sandwiches', price: 8, menuId: 'MENU_ORIGINAL' };
 const LINKED = { id: 'um1', name: 'Chips', section: 'Sides', price: 6, menuId: 'MENU_ORIGINAL', plateId: 'SP1' };
@@ -132,8 +118,8 @@ function makeHarness(opts) {
     function menuNameById(){ return 'Original menu'; }
     /* the app's OWN escaper and formatter — a passthrough stub would hide a real escaping bug in copy
        that interpolates a user-typed name */
-    ${extractFn('esc')}
-    ${extractFn('fmt2')}
+    ${extractFn(SRC, 'esc')}
+    ${extractFn(SRC, 'fmt2')}
     /* Element stubs. querySelectorAll returns a stand-in per rendered .up-link, built from the html the
        renderer just wrote, so the REAL wiring runs: renderer -> onclick -> onLink -> linkDishToPlate.
        Returning [] here would leave the one action a user actually performs untested. */
@@ -152,14 +138,14 @@ function makeHarness(opts) {
       return els[id];
     }
     var document={ getElementById:function(id){ return el(id); } };
-    ${extractFn('plateIdOf')}
-    ${extractFn('unlinkedDishesOn')}
-    ${extractFn('publishPlan')}
-    ${extractFn('renderUnlinkedPrompt')}
-    ${extractFn('renderAddDishUnlinked')}
-    ${extractFn('linkDishToPlate')}
-    ${extractFn('openAddDishModal')}
-    ${extractFn('submitAddDish')}
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'unlinkedDishesOn')}
+    ${extractFn(SRC, 'publishPlan')}
+    ${extractFn(SRC, 'renderUnlinkedPrompt')}
+    ${extractFn(SRC, 'renderAddDishUnlinked')}
+    ${extractFn(SRC, 'linkDishToPlate')}
+    ${extractFn(SRC, 'openAddDishModal')}
+    ${extractFn(SRC, 'submitAddDish')}
     rebuildMenu();
     return {
       addDish: function(price){ el('ad_price').value=String(price); submitAddDish(); S.errs=[el('ad_err').textContent]; },
@@ -285,7 +271,7 @@ test('BOTH row-creating paths route through publishPlan', () => {
   // The hole existed twice. If a third path appears, or one of these reverts to its own
   // dishesOfPlate(...) test, this fails and names it.
   ['submitMenuItem', 'submitAddDish'].forEach((name) => {
-    const fn = extractFn(name);
+    const fn = extractFn(SRC, name);
     assert.match(fn, /publishPlan\(/, `${name} must use the shared decision`);
     assert.ok(!/dishesOfPlate\([^)]*\)\s*\.(find|some)\(/.test(fn),
       `${name} still has its own guard — that is the bug this batch closed`);
@@ -293,17 +279,17 @@ test('BOTH row-creating paths route through publishPlan', () => {
 });
 
 test('the prompt is rendered by both modals from one renderer', () => {
-  assert.match(extractFn('openPublishModal'), /renderPubUnlinked\(\)/);
-  assert.match(extractFn('renderPubUnlinked'), /renderUnlinkedPrompt\('mi_unlinked'/);
-  assert.match(extractFn('openAddDishModal'), /renderAddDishUnlinked\(\)/);
-  assert.match(extractFn('renderAddDishUnlinked'), /renderUnlinkedPrompt\('ad_unlinked'/);
+  assert.match(extractFn(SRC, 'openPublishModal'), /renderPubUnlinked\(\)/);
+  assert.match(extractFn(SRC, 'renderPubUnlinked'), /renderUnlinkedPrompt\('mi_unlinked'/);
+  assert.match(extractFn(SRC, 'openAddDishModal'), /renderAddDishUnlinked\(\)/);
+  assert.match(extractFn(SRC, 'renderAddDishUnlinked'), /renderUnlinkedPrompt\('ad_unlinked'/);
 });
 
 test('the prompt reads its list off publishPlan, never a second computation of it', () => {
   // Found in the browser, not in a unit test: the renderer originally called unlinkedDishesOn directly,
   // so it offered the choice even where the button would UPDATE an existing entry rather than duplicate
   // anything. Two computations of "should we ask?" is two chances to disagree.
-  const fn = extractFn('renderUnlinkedPrompt');
+  const fn = extractFn(SRC, 'renderUnlinkedPrompt');
   assert.match(fn, /publishPlan\(MENU, plateId, menuId\)\.unlinked/);
   assert.ok(!/unlinkedDishesOn\(/.test(fn), 'the renderer must not re-derive the list');
 });

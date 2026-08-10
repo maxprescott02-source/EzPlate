@@ -15,22 +15,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const APP = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-function extractFn(src, name) {
-  const i = src.indexOf('function ' + name + '(');
-  if (i < 0) throw new Error('function not found -> ' + name + '. app.js changed; update tests/dash-digin.test.js');
-  const start = src.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < src.length; n++) {
-    if (src[n] === '{') depth++;
-    else if (src[n] === '}' && --depth === 0) return src.slice(i, n + 1);
-  }
-  throw new Error('unbalanced braces for ' + name);
-}
-
+const APP = loadApp();
 /* ---------------------------------------------------------------- the fixture café
    Two menus. "Chips" is published to BOTH (one plate, two dishes) so the plate card's dedup is
    exercised. Prices are chosen so each card has an unambiguous order. */

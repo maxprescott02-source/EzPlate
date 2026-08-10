@@ -14,23 +14,9 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name, occ = 1) {
-  const sig = `function ${name}(`;
-  let i = -1;
-  for (let k = 0; k < occ; k++) { i = SRC.indexOf(sig, i + 1); if (i < 0) throw new Error(`housekeeping: function #${occ} not found -> ${name}. app.js changed; update this test`); }
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) return SRC.slice(i, n + 1);
-  }
-  throw new Error(`housekeeping: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 /* ---- 1. the writes still land ---- */
 
@@ -39,8 +25,8 @@ test('v111: removeMenuItem still deletes the server row after dropping its saveC
     "use strict";
     var customMenu = S.menu;
     function dbDeleteMenu(id){ S.deleted.push(id); }
-    ${extractFn('forgetMenuItems')}   /* v112: removeMenuItem's in-memory half, split out for the sequenced delete paths */
-    ${extractFn('removeMenuItem')}
+    ${extractFn(SRC, 'forgetMenuItems')}   /* v112: removeMenuItem's in-memory half, split out for the sequenced delete paths */
+    ${extractFn(SRC, 'removeMenuItem')}
     removeMenuItem(S.id);
     return customMenu;
   `);
@@ -57,8 +43,8 @@ test('v111: removeMenuItem deletes the server row even when the dish was not in 
     "use strict";
     var customMenu = S.menu;
     function dbDeleteMenu(id){ S.deleted.push(id); }
-    ${extractFn('forgetMenuItems')}   /* v112: removeMenuItem's in-memory half, split out for the sequenced delete paths */
-    ${extractFn('removeMenuItem')}
+    ${extractFn(SRC, 'forgetMenuItems')}   /* v112: removeMenuItem's in-memory half, split out for the sequenced delete paths */
+    ${extractFn(SRC, 'removeMenuItem')}
     removeMenuItem(S.id);
     return customMenu;
   `);
@@ -72,7 +58,7 @@ test('v111: syncMemoryToProduct still pushes every re-packed phrase after losing
     "use strict";
     var supplierMem = S.mem;
     function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
-    ${extractFn('syncMemoryToProduct')}
+    ${extractFn(SRC, 'syncMemoryToProduct')}
     syncMemoryToProduct(S.pid, S.qty, S.unit);
     return supplierMem;
   `);
@@ -97,7 +83,7 @@ test('v111: syncMemoryToProduct pushes NOTHING when the pack already matches', (
     "use strict";
     var supplierMem = S.mem;
     function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
-    ${extractFn('syncMemoryToProduct')}
+    ${extractFn(SRC, 'syncMemoryToProduct')}
     syncMemoryToProduct('P1', 12, 'ea');
   `);
   const S = { mem: { a: { id: 'a', pid: 'P1', qty: 12, unit: 'ea' } }, pushed: [] };
@@ -114,7 +100,7 @@ function runLogAll(dishes, supported) {
     var menuPriceHistSupported = S.supported;
     function logMenuPrice(id, price){ S.logged.push(id); return S.accept.indexOf(id) >= 0; }
     function dbPushMenuPrice(id, iso, price){ S.pushed.push(id); }
-    ${extractFn('logAllMenuPrices')}
+    ${extractFn(SRC, 'logAllMenuPrices')}
     logAllMenuPrices();
   `);
   const S = { dishes, supported, logged: [], pushed: [], accept: dishes.filter(Boolean).map(d => d.id) };
@@ -145,7 +131,7 @@ test('v111: a dish whose price did not move is logged but never pushed', () => {
     var menuPriceHistSupported = true;
     function logMenuPrice(id, price){ S.logged.push(id); return id === 'A'; }
     function dbPushMenuPrice(id){ S.pushed.push(id); }
-    ${extractFn('logAllMenuPrices')}
+    ${extractFn(SRC, 'logAllMenuPrices')}
     logAllMenuPrices();
   `);
   const S = { dishes: [{ id: 'A', price: 10 }, { id: 'B', price: 12 }], logged: [], pushed: [] };
@@ -202,7 +188,7 @@ test('v111: applyTidy refuses a column outside the permitted set', () => {
       "use strict";
       var PRODUCTS = [], savedPlates = [], productsById = {}, supplierMem = {};
       var tidyField = S.field, tidyAction = 'rename', tidyFrom = 'x';
-      ${extractFn('applyTidy').replace(/^function applyTidy/, 'function applyTidy')}
+      ${extractFn(SRC, 'applyTidy').replace(/^function applyTidy/, 'function applyTidy')}
       ${/var TIDY_COLS=\[[^\]]*\];/.exec(SRC)[0]}
       function tidyPlanAll(){ return { field: S.field, action: 'rename', from: 'x', to: 'y', productPatches: [{id:'P1', value:'y'}], platePatches: [], isMerge: false, count: 1 }; }
       function rebuild(){ S.rebuilt = true; }

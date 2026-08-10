@@ -19,28 +19,9 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const { loadApp, extractFn } = require('./_extractfn');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-
-function extractFn(name) {
-  const sig = `function ${name}(`;
-  const i = SRC.indexOf(sig);
-  if (i < 0) throw new Error(`history-paths: function not found -> ${name}. app.js changed; update this test`);
-  const start = SRC.indexOf('{', i);
-  let depth = 0;
-  for (let n = start; n < SRC.length; n++) {
-    if (SRC[n] === '{') depth++;
-    else if (SRC[n] === '}' && --depth === 0) {
-      const out = SRC.slice(i, n + 1);
-      try { new Function(`return (${out})`); }
-      catch (e) { throw new Error(`history-paths: extracted ${name} does not parse (${e.message})`); }
-      return out;
-    }
-  }
-  throw new Error(`history-paths: unbalanced braces for ${name}`);
-}
+const SRC = loadApp();
 
 function kindsFromSource() {
   const m = SRC.match(/var CHANGE_KINDS\s*=\s*\[([\s\S]*?)\];/);
@@ -131,7 +112,7 @@ function harness(opts) {
       'kingValid', 'kingRenameCheck', 'kingNameExists',
       // READ, never edited — CLAUDE.md hard rule 2 forbids changing unitCatCategory, not slicing it in.
       'unitCatCategory',
-    ].map(extractFn).join('\n')}
+    ].map((n) => extractFn(SRC, n)).join('\n')}
 
     var CHANGE_KINDS=${JSON.stringify(kindsFromSource())};
     var DASH_ALL='all';
