@@ -11,6 +11,40 @@ Production state below is measured, not assumed.
 
 ---
 
+## F8 / v147 - Invoices is a screen, and the upload is three steps
+
+**Import a real supplier PDF end to end on the phone, both themes.** This is the batch's whole point
+and the flow you use most.
+
+- **The upload is three panels now: choose, then scanning, then review.** Only one is ever on screen.
+  A failure looks like two of them showing at once, or a blank sheet with nothing on it.
+- **The scanning panel is new** - it says "Reading <your file>" with a moving orange bar underneath.
+  On mobile data after a week idle this is the panel you will sit on longest, and it is the thing an
+  emulator cannot judge. Does the wait read as progress, or as the app having stopped? A failure is
+  reaching for the back button.
+- **The review sheet has a footer bar now: Cancel on the left of the primary, "Confirm N changes" on
+  the right.** On the phone both go full width and stack. Check Confirm is reachable with a thumb
+  after scrolling a long invoice, and that Cancel is not somewhere you would hit it by accident.
+- **The Apply tick has a bigger touch target** - the box looks the same size, but the tappable area
+  around it is now 44px. Tap several of them quickly with a thumb rather than a fingertip. A failure
+  is still having to aim, or hitting the row instead of the box.
+- **Ticking a "new item" line now opens its form for you.** Previously ticking it before opening the
+  form did nothing you could see and could block the whole import at Confirm. A failure is the form
+  opening and then the tick coming off by itself.
+- **The blue intro banner at the top of the import window is gone.** Its promise ("nothing saves
+  until you review") is now printed permanently on the dropzone instead of being dismissible.
+- **The Invoices screen itself is desktop-only for now**, because the sidebar's bottom group is
+  hidden below 1024 and the More screen that gives it a phone home is a queued item. On the phone,
+  Import invoice on the Products screen still opens the upload flow in one tap, exactly as before.
+  **If you land on an Invoices screen on your phone with no tab lit** - which can only happen if you
+  were last on it at desktop width and then reopened on the phone - say so, because that is the edge
+  this batch knowingly left open.
+- **What only a phone can settle:** whether the extra step (scanning) makes the import feel slower
+  than it did, even though nothing extra is being computed. It replaces a filename that used to
+  change in place. A failure is the import feeling longer than it used to.
+
+---
+
 ## v143 - the Dashboard is rebuilt, and the scope control moved into the header
 
 The Dashboard is the last of the five main screens to be rebuilt from the v3 mock. Everything it

@@ -66,8 +66,19 @@ one thing this app must never do.
 Trigger: ⌘K and the sidebar button. Data: the live in-memory arrays (plates, menus, ingredients) + static actions (upload invoice, new plate); no new storage. State: selecting navigates to the screen or opens the action's modal; Esc closes; focus returns to the opener. Error: an honest zero-results row.
 **The chord binds only once the palette exists — never a dead chord.** F1b put the 22px theme toggle in the mock's ⌘K slot, so nothing is dead today.
 
-### Invoice import history — behaviour spec, §11.5 (feeds F8's recents; R4)
+### Invoice import history — behaviour spec, §11.5 (the Invoices screen's recents; R4)
 Trigger: apply time. Data: date, supplier, item count, change count, status — a Supabase table with migration + RLS like the others, plus a retention decision. **This is DATA, so never localStorage** (Tier 2: there is no third category). State: one row per import; "Failed, retry" rows need a decision on whether pre-store failures are recordable at all. Error: a write failure surfaces via `pushWrite`'s toast, and the import itself must not be blocked by history bookkeeping.
+F8 (v147) shipped the Invoices screen **without** the mock's recent-imports table and stated the absence in one sentence on the screen, so this is what would replace that sentence. The only import fact the app stores today is `cafeDB_lastImport` / `app_settings.last_invoice_import` — one date — and it is printed there.
+
+### Photographing an invoice — behaviour spec, and the queue item that specified it was wrong about the code
+F8 (v147) was told to ship the mock's mobile "Take a photo" with `capture` on the file input "feeding the EXISTING parse path; no new parsing". **The code says otherwise and the code wins:** `handleInvFile` branches on `.pdf`, and everything else goes to `FileReader.readAsText` — a JPG or HEIC arrives as binary noise in the paste box and `parseInvoiceCSV` finds nothing. `api/parse-invoice` receives TEXT the client already extracted, so it does not close the gap either. §R4 forbids shipping a control that does nothing, so the button was not built.
+Requirements, if this is ever wanted: Trigger: a camera button on the upload sheet. Data: an image has no text layer, so this needs OCR or a vision model call — **a genuinely new capability, not a wiring change.** State: the same three steps; the scanning step is where the extra latency lands, and it is much larger than a PDF's. Error: an unreadable photo must say so as specifically as the image-only-PDF path does.
+⚠️ **A vision call reopens the privacy gate** — `CLAUDE.md`'s standing precondition binds any endpoint shipping user data to a third-party model, and an invoice photo is strictly more than the text the app sends today.
+
+### "Slightly under" is the one verdict phrase that does not carry its own subject
+F8 (v147) answered the queue's three-vocabularies question: the split IS deliberate — the Menu cell judges COST against target ("over"/"well over"), `marginLightWord` judges PRICE against suggested ("Slightly under"/"Underpriced"), and the filter chips say what you would DO ("Watch"/"Rework"). Three subjects, one shared LIGHT from `analyze()`. Written out at `vbadge` in `js/app.js`, with pointers at the other two sites.
+**The residual:** of the nine phrases, "Slightly under" alone names no subject, so it is the only one a user can read as being about cost when it is about price. "Underpriced", "Healthy margin", "over", "Watch" and the rest all carry theirs.
+Requirements: one word or two, at one site, that names the subject without lengthening the row — and it must not turn into a re-litigation of the split, which is decided. Out of scope: colour, `analyze()`, and the other eight phrases.
 
 ### CSV export (Settings → Data) — behaviour spec, §11.5
 Trigger: the Data-section button. Data: which objects and columns, to decide. State: a download; nothing else changes.
@@ -260,10 +271,10 @@ Decide once: hide it while the field is empty (an input listener on each search 
 `#3E2C26` / `#F7F3EC` — pre-existing, found by the v136 pre-push review while fixing the `theme-color` meta. The meta now follows the chosen theme correctly; the manifest is a separate static declaration used for the install splash and the task-switcher card, and it names colours from a palette two redesigns ago.
 A manifest cannot be theme-aware, so this is a decision: pick the LIGHT palette values (`#FFFFFF` / `#FFFFFF`) as the install-time default, or the dark ones. Only seen at install and in the app-switcher, but wrong today either way.
 
-### Three vocabularies name the same three lights
-(v131 pre-push review) The Add-to-menu preview says "Slightly under"/"Underpriced" (price framing, `marginLightWord`), the filter chips say "Watch"/"Rework", and the Menu cell says "over"/"well over" (cost framing).
-Colour can never disagree (all read `analyze()`); the words meet seconds apart in one flow and frame opposite directions.
-Unify to one vocabulary or record the split as deliberate at all three sites. **Best decided inside F8** — that note also lives on the F8 item, which is the batch that must answer it.
+### ~~Three vocabularies name the same three lights~~ — ANSWERED, F8 (v147)
+Raised by the v131 pre-push review and carried since. **The split is deliberate: three subjects, one shared light.** The reasoning is written out once at `vbadge` in `js/app.js`, with pointers at `marginLightWord` and at the chips in `index.html`.
+Struck rather than deleted so the decision is visible where the question was asked.
+The only residual is **"Slightly under" is the one verdict phrase that does not carry its own subject**, above in this file — a smaller question than this one was, and named rather than pointed at, because a pointer to a position rots the moment anything is inserted.
 
 ### The publish dialog and the Menu row print the same ratio at different precision
 Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.

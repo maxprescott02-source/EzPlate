@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=146">
+<link rel="stylesheet" href="css/style.css?v=147">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -315,6 +315,11 @@
              Tap red for red only; tap amber too for amber+red (everything needing attention). Folds into Clear filters. -->
         <div class="mlf" id="menuLightChips" role="group" aria-label="Filter by margin light">
           <!-- v115 (Max): dots STAY — they are the colour key tying the chips to the row verdicts; the active chip additionally tints with its own light -->
+          <!-- These three words are a FILTER, so they say what you would DO — not what the cost is
+               ("over"/"well over", the Menu verdict cell) and not what the price is ("Slightly
+               under"/"Underpriced", the publish preview). Three subjects, three vocabularies, one
+               shared LIGHT. Decided deliberate in F8 (v147); the reasoning is written out once, at
+               `vbadge` in js/app.js. Do not "unify" these three without reading it. -->
           <button type="button" class="mlf-chip" data-light="green" aria-pressed="false"><span class="dot green" aria-hidden="true"></span>Healthy</button>
           <button type="button" class="mlf-chip" data-light="amber" aria-pressed="false"><span class="dot amber" aria-hidden="true"></span>Watch</button>
           <button type="button" class="mlf-chip" data-light="red" aria-pressed="false"><span class="dot red" aria-hidden="true"></span>Rework</button>
@@ -447,6 +452,46 @@
       <div id="dashBody"></div>
     </div>
   </div><!-- /tab-dashboard -->
+
+  <!-- F8 (v147): NEW screen, built from `Redesign v3 - SaaS.dc.html` §3.6 (desktop) and
+       `… Mobile.dc.html` §6 (mobile) per FOLD-IN-PROTOCOL §1.2. There was no Invoices SCREEN
+       before this — the sidebar entry and the Products header button both opened the import
+       modal directly — so nothing here is a restyle and nothing is deleted with it.
+       `.scr-head` / `.plib-panel` are F2's ported mock patterns, reused not rebuilt.
+
+       R4, twice, both recorded rather than invented:
+        · The mock's recent-imports table has NO backing store. Nothing in this app records an
+          import: `cafeDB_lastImport` / `app_settings.last_invoice_import` hold ONE date, and the
+          per-product movements live in `ing_price_history`. So the table is not drawn, the area
+          says why in one sentence, and the one true fact it does have is printed under it.
+        · The mock's dropzone copy says "PDF or photo". `handleInvFile` reads PDFs via pdf.js and
+          everything else as TEXT — an image would be read as bytes and parsed as gibberish. The
+          copy states what the app actually accepts.
+
+       Mobile: this screen has no nav entry below 1024 because `.nav-bottom` is desktop-only, and
+       the queue's More-screen item owns rehoming it. That is not a dead end — nothing points here
+       from a phone, and #importBtn on Products still opens the import flow in one tap. -->
+  <div id="tab-invoices" style="display:none">
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>Invoices</h2>
+        <span class="scr-sub">Imports update product prices automatically</span>
+        <span class="scr-gap"></span>
+        <button class="btn primary" id="invUploadBtn" type="button">Upload invoice</button>
+      </div>
+      <!-- the mock's §3.6 dropzone. A real drop target AND a browse button: it feeds the same
+           #invFile → handleInvFile path the modal uses, so there is one parse route, not two. -->
+      <button class="invz" id="invDropZone" type="button">
+        <span class="invz-t">Drop a PDF or CSV invoice here</span>
+        <span class="invz-s">or click to browse. We read the line items and match them to your products. Nothing changes without your review.</span>
+      </button>
+      <div class="invz-recent">
+        <h3>Recent imports</h3>
+        <p class="invz-none">EzPlate doesn&rsquo;t keep a list of past imports yet &mdash; only the date of the most recent one. Every price an import changed is on that product&rsquo;s own history.</p>
+        <p class="invz-last" id="lastImport3"></p>
+      </div>
+    </div>
+  </div><!-- /tab-invoices -->
 </div>
 
 <!-- Add-ingredient modal -->
@@ -528,33 +573,54 @@
 
 
 <!-- Import invoice modal -->
+<!-- F8 (v147): REBUILT as the mock's §4 three-step upload — choose → scanning → review. Below 768
+     the shared sheet primitive already turns it into the mobile mock's bottom sheet, so the two
+     containers cost nothing extra here. `invStep()` in js/app.js is the ONLY thing that switches
+     panels; every id and handler inside them is unchanged.
+     The dismissible `.inv-intro` banner is DELETED: the dropzone below now carries "Nothing changes
+     without your review" permanently, which is what the banner said and then let you hide. -->
 <div class="modal-overlay" id="invModal" aria-hidden="true">
-  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Import invoice">
-    <div class="mhead"><h3>Import invoice &mdash; price update</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="invModalTitle">
+    <div class="mhead"><h3 id="invModalTitle">Upload invoice</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <div class="inv-intro" id="invIntro" style="display:none">
-        <p>Upload a supplier invoice &mdash; nothing saves until you review and confirm each change.</p>
-        <button class="inv-introx" id="invIntroX" type="button" aria-label="Dismiss">&times;</button>
-      </div>
-      <div class="ferr" id="invFileErr" style="display:none"></div>
-      <!-- v67 item 4: the raw-text paste box + its CSV hint are COLLAPSED behind a quiet link that sits
-           INLINE with the Upload button (the alternative action, right where you decide how to import).
-           Most users upload a PDF and never touch it; the power path stays one tap away. Nothing removed —
-           uploading still fills the (hidden) textarea and renders the review directly. -->
-      <div class="inv-upload">
+      <!-- step 1 — choose -->
+      <div class="inv-step" id="invStepChoose">
+        <div class="ferr" id="invFileErr" style="display:none"></div>
         <input type="file" id="invFile" accept="application/pdf,.pdf,text/csv,.csv,text/plain" style="display:none">
-        <button class="btn" id="invFileBtn" type="button">Upload PDF or CSV</button>
-        <button type="button" id="invManualToggle" class="linklike inv-manual-toggle" aria-expanded="false" aria-controls="invManualBox">or paste text manually</button>
-        <span class="hint" id="invFileName"></span>
+        <!-- R2 on the mock's "Take a photo": the mobile sheet leads with a camera button, and this app
+             has NO image path — `handleInvFile` reads a non-PDF with FileReader.readAsText, so a JPG
+             becomes binary noise in the paste box. §R4 forbids shipping the control anyway. The camera
+             needs OCR (or a vision call, which reopens the privacy gate); it is a behaviour spec in
+             docs/MAINTENANCE.md, not a button here. -->
+        <button class="invz" id="invFileBtn" type="button">
+          <span class="invz-t">Drop a PDF or CSV here</span>
+          <span class="invz-s">or click to browse. Nothing changes without your review.</span>
+        </button>
+        <!-- v67 item 4: the raw-text paste box + its CSV hint stay COLLAPSED behind a quiet link.
+             Most users upload a PDF and never touch it; the power path stays one tap away. -->
+        <div class="inv-choose-foot">
+          <button type="button" id="invManualToggle" class="linklike inv-manual-toggle" aria-expanded="false" aria-controls="invManualBox">or paste text manually</button>
+          <span class="hint" id="lastImport2"></span>
+        </div>
+        <div id="invManualBox" class="inv-manual-box" hidden>
+          <p class="hint inv-csv-hint">One line per product: name, new price.</p>
+          <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
+          <!-- v72 (Max): Match products lives with the paste box — an upload auto-parses, so the button is only ever needed after a manual paste. -->
+          <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button></div>
+        </div>
       </div>
-      <div id="invManualBox" class="inv-manual-box" hidden>
-        <p class="hint inv-csv-hint">One line per product: name, new price.</p>
-        <textarea id="invCsv" rows="6" placeholder="Barramundi Fillet, 16.90&#10;Tasty Cheese Block, 9.80&#10;Chips Straight Cut, 1.95"></textarea>
-        <!-- v72 (Max): Match products lives with the paste box — an upload auto-parses, so the button is only ever needed after a manual paste. -->
-        <div class="inv-parse-row"><button class="btn primary" id="invParse" type="button">Match products</button></div>
+      <!-- step 2 — scanning. The mock's filename line + indeterminate bar + §4's exact second
+           sentence. This covers READING THE FILE; the AI referee's own wait is renderInvWaiting,
+           which wears the same bar inside step 3 (the v113 gate lives there and does not move). -->
+      <div class="inv-step" id="invStepScan" hidden>
+        <p class="inv-scan-t" id="invFileName" role="status" aria-live="polite"></p>
+        <div class="inv-bar" aria-hidden="true"><span></span></div>
+        <p class="inv-scan-s">Matching the line items to your products. Nothing changes without your review.</p>
       </div>
-      <div class="inv-parse-row"><span class="hint" id="lastImport2"></span></div>
-      <div id="invReview" style="display:none;margin-top:14px"></div>
+      <!-- step 3 — review -->
+      <div class="inv-step" id="invStepReview" hidden>
+        <div id="invReview" style="display:none"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -962,8 +1028,11 @@
        v137 (F1b): Invoices joins it, opening the SAME import flow as the Products tab's button —
        placement only, no new capability. The mock's "UI states" entry is a spec screen for the
        designer and is not an app screen; the account row is R4 (no workspace concept exists) and
-       F10 owns the one question about it. -->
-  <button class="navbtn nav-bottom" id="sideInvoices" type="button" aria-label="Import invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg><span class="nl">Invoices</span></button>
+       F10 owns the one question about it.
+       F8 (v147): Invoices is a SCREEN now, so this entry navigates rather than opening the modal —
+       `data-tab="invoices"` is a NEW key, not a rename of an existing one. Settings has no data-tab
+       and still does not: it is an overlay until F9. -->
+  <button class="navbtn nav-bottom" data-tab="invoices" id="sideInvoices" type="button" aria-label="Invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg><span class="nl">Invoices</span></button>
   <button class="navbtn nav-bottom nav-settings" id="sideSettings" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span class="nl">Settings</span></button>
 </nav>
 
@@ -975,7 +1044,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=146"></script>
+<script src="js/app.js?v=147"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

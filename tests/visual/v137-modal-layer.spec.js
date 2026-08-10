@@ -445,8 +445,16 @@ test.describe('shell: the sidebar controls the mock added', () => {
       .evaluate((n) => getComputedStyle(n, '::before').backgroundColor);
     expect(onDashboard).toBe('rgba(0, 0, 0, 0)');
 
-    // It opens the SAME import flow as the Products tab's button — not a second implementation.
+    /* F8 (v147) CONSCIOUSLY CHANGED THIS ASSERTION. It used to read "it opens the SAME import flow
+       as the Products tab's button", because in v137 Invoices was a sidebar entry with no screen
+       behind it. Invoices is a screen now, so the entry NAVIGATES — and the thing worth pinning is
+       that it does not do both, which is what a leftover `on('sideInvoices', openInv)` alongside
+       the generic .navbtn[data-tab] binding would produce. */
     await inv.click();
+    await expect(page.locator('#tab-invoices')).toBeVisible();
+    expect(await isOpen(page, 'invModal'), 'navigating must not ALSO open the modal').toBe(false);
+    // and the import flow is still one tap from there, on the screen's own primary
+    await page.locator('#invUploadBtn').click();
     await expect.poll(() => isOpen(page, 'invModal')).toBe(true);
   });
 });
