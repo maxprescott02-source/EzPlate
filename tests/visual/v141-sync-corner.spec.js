@@ -129,29 +129,32 @@ for (const width of [380, 768]) {
       const b = document.getElementById('syncBanner').getBoundingClientRect();
       const head = [...document.querySelectorAll('[id^="tab-"] .scr-head')]
         .find((e) => e.getBoundingClientRect().width > 0);
-      /* Two platform traps here, both of which the first version of this assertion walked into —
-         it passed on macOS and failed on the Linux CI runner, i.e. it was measuring the runner's
-         scrollbar rather than the app.
-         1. `documentElement.clientWidth`, NOT `window.innerWidth`: the banner is centred by
-            `left:50%` + `translateX(-50%)`, and a percentage on a fixed element resolves against
-            the initial containing block, which EXCLUDES a classic scrollbar. `innerWidth` includes
-            it. Identical on macOS (zero-width overlay scrollbars), ~15px apart on Linux.
-         2. The expected offset is DERIVED from the measured rail, not from a hardcoded 39 behind a
-            width test — the same scrollbar makes "is this the 768 breakpoint?" ambiguous in JS.
-            `.bottomnav` is the bottom bar at 380 (full width, no offset) and an 78-pixel left
-            rail at 768 (centre shifts by half its width, which is where the CSS 39 comes from).
-            Derived this way it also fails if the rail is widened without the banner following. */
-      const icb = document.documentElement.clientWidth;
+      /* MEASURE the containing block, do not infer it — two earlier versions of this assertion
+         inferred it, passed on macOS and failed on the Linux CI runner, which is the same class of
+         mistake as the bug this whole spec is about.
+         The banner is centred by `left:50%` + `translateX(-50%)`, so the percentage resolves
+         against the fixed-position containing block. On the CI runner that block is NARROWER than
+         both `window.innerWidth` and `documentElement.clientWidth`, which agree with each other and
+         are both wrong (measured: 370 inside a 380 viewport, 759 inside 768). A probe pinned
+         `left:0;right:0` is the only thing that reports it honestly on every platform. */
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;left:0;right:0;top:0;height:1px;visibility:hidden;pointer-events:none';
+      document.body.appendChild(probe);
+      const icb = probe.getBoundingClientRect().width;
+      probe.remove();
+      /* The rail offset is derived, not hardcoded to the CSS 39: `.bottomnav` is one element that
+         is the bottom tab bar at 380 and a 78px LEFT rail at 768. Discriminate on ORIENTATION
+         (a left rail is taller than it is wide), never on width — the bottom bar is a few pixels
+         narrower than the viewport on CI, which is exactly what broke the previous attempt.
+         Derived this way it also fails if the rail is widened without the banner following. */
       const rail = document.querySelector('.bottomnav').getBoundingClientRect();
-      const railOffset = rail.right < icb ? rail.right / 2 : 0;   // left rail vs bottom bar
+      const railOffset = rail.height > rail.width ? rail.right / 2 : 0;
       return {
         top: Math.round(b.top),
         centreOffset: (b.left + b.right) / 2 - (icb / 2 + railOffset),
         clearsScreenHeader: !head || b.bottom <= head.getBoundingClientRect().top,
-        raw: `banner=[${Math.round(b.left)},${Math.round(b.right)},${Math.round(b.top)},${Math.round(b.bottom)}] `
-           + `icb=${icb} innerW=${window.innerWidth} rail=[${Math.round(rail.left)},${Math.round(rail.right)}] `
-           + `railOffset=${railOffset} hidden=${document.getElementById('syncBanner').hidden} `
-           + `disp=${getComputedStyle(document.getElementById('syncBanner')).display}`,
+        raw: `banner=[${Math.round(b.left)},${Math.round(b.right)}] icb=${icb} `
+           + `rail=[${Math.round(rail.width)}x${Math.round(rail.height)}] railOffset=${railOffset}`,
       };
     });
     expect(geo.top, geo.raw).toBeLessThan(30);                    // top-anchored, not at the bottom
