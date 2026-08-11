@@ -156,7 +156,17 @@ for (const width of [380, 768]) {
       return {
         top: Math.round(b.top),
         centreOffset: (b.left + b.right) / 2 - (icb / 2 + railOffset),
-        clearsScreenHeader: !head || b.bottom <= head.getBoundingClientRect().top,
+        /* ⚠️ ONE PIXEL OF TOLERANCE, AND IT IS NOT A WEAKENING — without it this assertion has
+           ZERO slack and passes only by exact float equality. The banner overlays the mobile
+           `header`, and `.scr-head` begins where that header ends, so "clears" is EQUAL by
+           construction: measured locally, banner.bottom 61 and scr-head.top 61. Any sub-pixel
+           difference in the header's rendered height flips it, and the Linux CI runner has no
+           Geist installed so its text metrics differ from macOS by exactly that much. The test
+           went red on `main` at 171 for this reason while the app was fine on every real device.
+           What the assertion is FOR is "the banner never sits ON the screen header"; a 1px
+           allowance keeps that and drops the float-equality coin toss. A real overlap is tens of
+           pixels, so this still fails loudly for the thing it was written to catch. */
+        clearsScreenHeader: !head || b.bottom <= head.getBoundingClientRect().top + 1,
         raw: `banner=[${Math.round(b.left)},${Math.round(b.right)}] icb=${icb} `
            + `rail=[${Math.round(rail.width)}x${Math.round(rail.height)}] railOffset=${railOffset}`,
       };

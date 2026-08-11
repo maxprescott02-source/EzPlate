@@ -4302,3 +4302,53 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
   .scr-back{display:none}
   .more-list{display:none}
 }
+
+/* ============================================================================
+   172: THE NON-PRODUCTION BADGE.
+
+   Rendered ONLY when `?env=staging` resolved to a non-production project — the
+   element is never created otherwise (see `markNonProductionEnv` in js/app.js),
+   so this rule dresses nothing at all in Max's app and cannot regress it.
+
+   It is deliberately loud and deliberately fixed: the single accident this whole
+   staging item exists to prevent is doing real work against the wrong database,
+   and the only thing separating the two is a query string that scrolls out of
+   sight on a phone. A subtle marker would defeat the purpose.
+
+   `pointer-events:none` so it can never intercept a tap; z-index sits below
+   #cornerToasts (3000) so a real message still wins, and above every screen and
+   both navs. Colours come from the danger tokens, which are theme-aware, so it
+   stays legible in dark as well as light.
+   ============================================================================ */
+.envbadge{
+  position:fixed;
+  top:calc(env(safe-area-inset-top, 0px) + 6px);
+  left:50%; transform:translateX(-50%);
+  z-index:2500; pointer-events:none;
+  max-width:calc(100vw - 24px);
+  padding:4px var(--sp-3);
+  border-radius:var(--radius-pill);
+  border:1px solid var(--danger-br);
+  background:var(--danger-bg);
+  color:var(--danger);
+  font-size:11px; font-weight:700; line-height:1.4;
+  letter-spacing:.04em; text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  box-shadow:var(--elev);
+}
+/* -- Mobile: the badge moves OUT of the centre and into the header bar's right-hand
+      slot. Centre is right on desktop, where `<header>` is hidden (v132 gave the brand
+      to the sidebar) and `.scr-head`'s middle is structurally empty — that is where
+      `.scr-gap` lives, so nothing is ever drawn there. On a phone the same position
+      lands squarely on the "EzPlate" wordmark, which is how it was found: by looking
+      at a 380px screenshot, not by reading the rule.
+
+      171 deleted the header's gear and theme toggle, so the right of that bar is now
+      empty and is the natural home. SAME SPECIFICITY as the base rule (0-1-0), placed
+      after it, so source order decides — the cascade rule CLAUDE.md records. -- */
+@media (max-width:1023px){
+  .envbadge{
+    left:auto; right:var(--sp-3); transform:none;
+    top:calc(env(safe-area-inset-top, 0px) + 14px);
+  }
+}

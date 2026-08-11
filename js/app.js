@@ -6,10 +6,92 @@ var gemToken=0,gemStatus=null,gemApplied=false,gemCheckStart=0;   // v62: AI sec
    with the server as the source of truth, products are just products. is_custom is no longer derived
    from BASE_IDS — it round-trips through the row boundary instead (see rowToIngredient). */
 
+/* ================== 172: THE ENVIRONMENT FENCE ==================
+   Local state must not cross between the production and staging Supabase projects.
+
+   WHY IT IS A REAL RISK AND NOT A TIDINESS CONCERN. localStorage is keyed by
+   ORIGIN, and both environments are reached from the SAME origin — production is
+   `/`, staging is `/?env=staging`. So every key is shared between them by default.
+   Most of what is stored is a view preference and crossing would only be untidy,
+   but ONE key is not: `cafeDB_plateDraft` is unsaved authored work (CLAUDE.md
+   names it the standing exception to "preferences and caches only"), and its lines
+   carry `kid` and `pid` values that identify DIFFERENT ROWS in the other project.
+   A draft authored against staging and resumed against production would silently
+   cost a real plate from whatever staging ids happened to collide.
+
+   THE RULE IS BLANKET, AND THAT IS THE POINT: on a change of project, every
+   `cafeDB_`/`cafeCost_` key goes. An exception list ("keep the theme, keep the
+   install dismissal") is a list that rots the moment someone adds a key and does
+   not think about this function — and the failure would be silent. Losing a theme
+   preference on a deliberate environment switch costs nothing.
+
+   ⚠️ FIRST RUN PURGES NOTHING. A null stamp means this code has simply never run
+   on this device, not that the environment changed — so the deploy that ships this
+   must not wipe the settings of the one user the app has. Only a stamp that EXISTS
+   and DIFFERS is a switch.
+
+   It runs here, at the top of the file, because it has to beat every top-level
+   localStorage reader below it (`dashRange`, `dashScope`). Moving it later
+   re-introduces the bug in a form no test would obviously catch.
+
+   ⚠️ IT CANNOT BEAT ALL OF THEM, and the earlier version of this comment claimed it
+   did — naming "the theme preference", which is read by the THEME RESOLVER inline in
+   index.html's <head>, before this file is even fetched. No amount of ordering inside
+   app.js reaches that, so the resolver makes the same stamp comparison itself; the
+   comment there explains why. The general shape is worth remembering: this fence is
+   a whole-page concern, and app.js is not the whole page. */
+var ENV_STAMP_KEY='cafeCost_env';
+function envFence(store, ref){
+  if(!store || !ref) return null;                              // no storage, or no env resolved: nothing to fence
+  var prev;
+  try{ prev=store.getItem(ENV_STAMP_KEY); }catch(e){ return null; }   // storage throws (private mode): leave it alone
+  if(prev===ref) return 0;                                     // same project as last time
+  var doomed=[];
+  if(prev!==null){                                             // an ACTUAL switch — see the first-run note above
+    try{
+      for(var i=0;i<store.length;i++){
+        var k=store.key(i);
+        if(k && k!==ENV_STAMP_KEY && (k.indexOf('cafeDB_')===0 || k.indexOf('cafeCost_')===0)) doomed.push(k);
+      }
+      // collected first, removed second: removing while iterating by index re-indexes
+      // the store underneath the loop and silently skips every other key.
+      doomed.forEach(function(k){ try{ store.removeItem(k); }catch(e){} });
+    }catch(e){}
+  }
+  try{ store.setItem(ENV_STAMP_KEY, ref); }catch(e){}
+  return doomed.length;
+}
+try{ envFence(window.localStorage, window.SUPA_REF); }catch(e){}
+
 /* ================== Supabase data layer (single source of truth) ==================
    Local storage is kept only as an OFFLINE MIRROR so the app still opens and search
    still works with no signal. On every load we replace the mirror with server data. */
 var SUPA = (window.supabase && window.SUPA_URL) ? window.supabase.createClient(window.SUPA_URL, window.SUPA_KEY) : null;
+
+/* 172: a permanent, unmissable marker when this is NOT production. The accident
+   this whole staging item exists to prevent is doing real work against the wrong
+   database, and the only thing standing between the two is a query string that
+   scrolls off the address bar. Never rendered on production — the element is not
+   created at all — so it cannot regress Max's app. */
+function markNonProductionEnv(){
+  if(!window.SUPA_ENV || window.SUPA_ENV==='production') return null;
+  var el=document.createElement('div');
+  el.className='envbadge'; el.id='envBadge';
+  el.setAttribute('role','status');
+  // the tail is a `.btn-noun`, which is the app's OWN pattern for a label that has to
+  // survive a narrow phone — the same one that keeps "Import invoice" to "Import".
+  // Below 640 the badge reads just "STAGING", which is what lets it sit in the mobile
+  // header's right-hand slot without covering the brand. Built as nodes rather than
+  // innerHTML so the env name can never be markup.
+  el.appendChild(document.createTextNode(window.SUPA_ENV.toUpperCase()));
+  var tail=document.createElement('span');
+  tail.className='btn-noun';
+  tail.textContent=' data — not the café';
+  el.appendChild(tail);
+  (document.body||document.documentElement).appendChild(el);
+  try{ document.title='['+window.SUPA_ENV+'] '+document.title; }catch(e){}
+  return el;
+}
 
 function setSync(state){
   var el=document.getElementById('syncBanner'); if(!el) return;
@@ -4874,6 +4956,7 @@ restoreLastTab();                                          // safe now: all modu
 // top-level pass, so it overwrote what askConfirm had just stored. By the time the user could tap
 // Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
 // of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
+markNonProductionEnv();                                    // 172: no-op on production; the element is not created at all
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -4895,7 +4978,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v151';
+var APP_VERSION='v152';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
