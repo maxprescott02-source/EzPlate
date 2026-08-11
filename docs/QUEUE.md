@@ -27,7 +27,7 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 
 ---
 
-## next  1 · The plate builder — restore the FILL ORDER the redesign lost  **[B]**
+## doing  1 · The plate builder — restore the FILL ORDER the redesign lost  **[B]**
 
 **Max, 11 Aug 2026:** *"needs to find a middle ground between old docket style and the new redesign; whilst added ux features are great (duplicate) the rest is not user friendly, confusing ordering, flow does not match how the user would fill the form."*
 

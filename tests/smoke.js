@@ -1151,14 +1151,26 @@ const tick = () => new Promise(r => setTimeout(r, 0));
      JSON.stringify(newPts));
 
   // ------------------------------------------------------------------
-  console.log('\n[25] v102 — builderHint empty-state survives the empty-plate early return (CodeRabbit)');
-  // The hint update must run BEFORE renderPlate's empty-plate early return: a fresh install has
-  // no ingredients AND an empty plate, and that user needs the add-first-ingredient link.
+  console.log('\n[25] v102 — a fresh install is offered its first ingredient, and ONCE (170)');
+  /* v102's CONTRACT: a fresh install has no ingredients AND an empty plate, and that user needs the
+     add-first-ingredient link — so the message must survive renderPlate's empty-plate early return.
+     170 REWROTE THE ASSERTION, not the contract. v102 pinned the CONTAINER (#builderHint visible),
+     and the container changed: the empty state and the hint were rendering "No ingredients yet"
+     one directly under the other, so the link now lives in whichever of the two is the right home —
+     the empty state when the plate is empty, #builderHint when there are lines for it to sit under.
+     Pinning the container is what made this fail on a change that kept the promise it guarded, and
+     the count assertion below is the half v102 could not make: exactly ONE, never both. */
   const w5 = bootWithDraft(null);
   w5.document.getElementById('newPlateBtn').click();
   const bh5 = w5.document.getElementById('builderHint');
   ok('[25] fresh install (no ingredients, EMPTY plate): the add-first-ingredient link shows',
-     bh5.style.display !== 'none' && !!w5.document.getElementById('bhGo'), bh5.outerHTML.slice(0, 120));
+     !!w5.document.getElementById('bhGo'), bh5.outerHTML.slice(0, 120));
+  ok('[25] …exactly once — the empty state carries it, and the hint does not repeat it',
+     w5.document.querySelectorAll('#bhGo').length === 1 && bh5.style.display === 'none',
+     'links=' + w5.document.querySelectorAll('#bhGo').length + ' hintDisplay=' + bh5.style.display);
+  ok('[25] …and only ONE "no ingredients" sentence is on screen',
+     (w5.document.getElementById('builderPage').textContent.match(/No ingredients yet/g) || []).length === 1,
+     JSON.stringify((w5.document.getElementById('builderPage').textContent.match(/No ingredients yet/g) || [])));
   w5.document.getElementById('bhGo').click();
   ok('[25] the link routes to the Ingredients tab', w5.document.getElementById('tab-pantry').style.display !== 'none');
   window.renderPlate();                                        // main window: ingredients ARE seeded

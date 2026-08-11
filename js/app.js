@@ -813,18 +813,52 @@ function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;});
    re-price the product everywhere) with no other home on the screen, so the unit noun rides in the
    Qty cell after the input - "100 g" - and the third column is the price. Deleting the chip to
    match the mock would have been R3's forbidden dropped control. */
+/* 170 — the ONE sentence offering a brand-new cafe its first ingredient, and its one wiring. It has
+   two homes (the empty state, or the hint under a list of legacy lines) and never both at once, so
+   the markup lives in a function rather than being written twice and drifting. */
+function catalogueHintHtml(){ return 'No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; }
+function wireBhGo(){ var g=document.getElementById('bhGo'); if(g) g.onclick=function(e){ e.preventDefault(); showTab('pantry'); }; }
+/* 170 — the header's static title MIRRORS #plateName, which moved into step 2 where the v69 fill
+   order puts it. This is the only writer. It is safe to drive from renderPlate() because every one
+   of the six places that assigns #plateName.value calls renderPlate() straight after: clearBtn,
+   applyPlateDraft, loadPlateState, startNewPlate, duplicateCurrentPlate — and typing, which the
+   #plateName input listener covers directly. Checked one by one, not assumed. */
+function syncBuilderTitle(){
+  var t=document.getElementById('bldTitle'); if(!t) return;
+  var el=document.getElementById('plateName'), nm=((el&&el.value)||'').trim();
+  t.textContent=nm||'New plate';
+  t.classList.toggle('is-unnamed',!nm);
+}
 function renderPlate(){
   scheduleDraftSave();                                        // v82 D1: persist the in-progress builder (debounced) on every structural change
   var nIng=plate.filter(function(l){return !l.misc;}).length;
   var dc=document.getElementById('dCount'); if(dc) dc.textContent=nIng?(nIng+(nIng===1?' item':' items')):'';
   // v102 fix (CodeRabbit): the hint update must run BEFORE the empty-plate early return — a fresh
   // install has no ingredients AND an empty plate, and that user needs the add-first-ingredient link.
+  syncBuilderTitle();
+  /* 170 — ONE empty-ingredients message, not two. The screen used to render both of these at once
+     on a fresh install: #lines' own "No ingredients yet. Add the first one below." and, directly
+     under it, the hint's "No ingredients yet — add your first ingredient…". They mean DIFFERENT
+     things (this plate has no lines; the cafe has no catalogue at all) and neither said so.
+     So the catalogue hint moves INTO the empty state when the plate is empty, and #builderHint
+     carries it only when there are lines to sit under — which is the case v102's CodeRabbit fix was
+     really about (a plate of legacy {pid} lines with an empty kitchenIngredients array still needs
+     the link). Either way #bhGo, its handler and its wording are unchanged; the anchor's missing
+     colour rule belongs to the Onboarding item and is deliberately not touched here. */
+  var noCatalogue=!kitchenIngredients.length;
   var bh=document.getElementById('builderHint');
   if(bh){
-    if(!kitchenIngredients.length){ bh.style.display=''; bh.innerHTML='No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; var g=document.getElementById('bhGo'); if(g)g.onclick=function(e){e.preventDefault();showTab('pantry');}; }
+    if(noCatalogue && plate.length){ bh.style.display=''; bh.innerHTML=catalogueHintHtml(); wireBhGo(); }
     else { bh.style.display='none'; bh.textContent=''; }   // v102 prose cull: the default hint is gone — the search dropdown carries the same guidance (v59: still no create-on-the-spot)
   }
-  if(!plate.length){linesEl.innerHTML='<div class="bld-empty">No ingredients yet.<br>Add the first one below.</div>';updateTotals();return;}
+  if(!plate.length){
+    // "above", not "below": 170 moved the search to the top of the card, and the direction word was
+    // the copy compensating for the control being in the wrong place. Only the word changes — the
+    // field's own placeholder stays the mock's "Add an ingredient" (§3 R1, presentational).
+    linesEl.innerHTML='<div class="bld-empty">'+(noCatalogue?catalogueHintHtml():'No ingredients yet.<br>Add the first one above.')+'</div>';
+    if(noCatalogue) wireBhGo();
+    updateTotals();return;
+  }
   linesEl.innerHTML=plate.map(l=>{
     if(l.misc){ return miscRowHtml(l); }
     const p=lineProduct(l);
@@ -1178,6 +1212,7 @@ menuLinkEl.addEventListener('change',()=>{menuTouched=true;updatePricing();});
 document.getElementById('plateName').addEventListener('input',function(e){
   renderPlateSuggest(e.target.value);   // live suggestions, every keystroke
   if(e.target.value.trim()){ var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none'; }
+  syncBuilderTitle();                   // 170: the header title mirrors this field as you type
   scheduleDraftSave();                  // v82 D1: persist the name into the draft too
 });
 (function(){ var pc=document.getElementById('plateCat'); if(pc) pc.addEventListener('input', scheduleDraftSave); })();   // v82 D1: category into the draft
@@ -4802,7 +4837,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v149';
+var APP_VERSION='v150';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
