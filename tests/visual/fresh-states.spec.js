@@ -789,7 +789,16 @@ for (const size of SIZES) {
          more than four (it widens the step above four). Restored verbatim. */
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeGreaterThanOrEqual(3);
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
-      expect(st.xLbls, `${rg}: x-axis date labels removed (v48)`).toBe(0);
+      /* ⚠ REVERSES v48, deliberately and with its argument answered. v48 removed the x-axis date
+         labels as "declutter", on the grounds that "the range buttons state the window; the scrub
+         tooltip gives exact dates". The queue item that restored them rebuts both: the range buttons
+         name a WINDOW but never say which dates it covers, so 3M and 1Y draw the same picture with
+         no way to tell them apart; and the scrub tooltip is a HOVER, which is nothing at all on the
+         phone Max actually works on. The assertion is inverted rather than deleted, so a future
+         "declutter" has to argue with a failing test. Bounds not an exact count: trendXTicks scales
+         2..5 labels to the plot width and drops duplicates on a sparse series. */
+      expect(st.xLbls, `${rg}: the x-axis is labelled (reverses v48)`).toBeGreaterThanOrEqual(2);
+      expect(st.xLbls, `${rg}: and stays sparse — an axis, not a data dump`).toBeLessThanOrEqual(5);
       // v60: when the target line is drawn (in view), it sits ON a labelled tick (trend-ticks contract).
       // On a tight range where the data is all below the target it isn't drawn — then it isn't a tick, which
       // is correct, so only assert the tick when the line is actually shown.
@@ -936,7 +945,14 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
     return { ok: /^M[\d. ]+ C/.test(path), nonPct };
   });
   expect(two.ok, '2 points → a single valid cubic segment').toBe(true);
-  expect(two.nonPct, 'v48: no date labels, no Target word — % ticks are the only text').toBe(0);
+  /* ⚠ REVERSES HALF of v48's pin, and keeps the other half. Date labels are BACK (see the note on
+     the range loop above), so non-% text is expected now — but the "Target" WORD stays gone, which
+     was the other thing this counted and is still Max's call from v48. Counting non-% text can no
+     longer distinguish the two, so the assertion names what it actually forbids. */
+  expect(two.nonPct, 'the x-axis is labelled on a 2-point series too').toBeGreaterThan(0);
+  const targetWord = await page.evaluate(() => Array.from(document.querySelectorAll('#trendWrap text'))
+    .some((t) => /target/i.test(t.textContent)));
+  expect(targetWord, 'v48: the "Target" word on the dashed line stays gone — the tick label explains it').toBe(false);
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-2pts.png' });
   // dark theme render. v115: colour is anchored to the TARGET now, not direction — this rising
   // series tops out at 30.9% against the fixture's 40% target, so it is GREEN (the old semantic

@@ -178,11 +178,6 @@ Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is 
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
 
-## next  13 · Dashboard trend polish — the x-axis and the third accent hue  **[B]**
-
-- **The chart has no x-axis at any range.** Measured: the only `<text>` elements are four y-axis ticks. **This is a deviation from the mock, which also draws none** — so it is a decision, not a fix, and the argument for it is that a trend chart whose x-axis is unlabelled cannot be read against the range control that governs it. ⚠️ The scrub tooltip already carries the full sentence including the date, so the gap is partly covered on hover and **not at all on a phone**. (The annotation half shipped in v145: the label reads "−2 pts", the subject stays in the caption.)
-- **Three accent hues in one section — DECIDED 10 Aug 2026: restyle the range pill.** The chart line is `--good`/`--bad` by target, the intervention markers are `--accent` orange, and the active range pill is `--accent-weak`/`--accent-ink` orange, so a healthy section shows green line + orange marker + orange pill. **The markers STAY orange and that is the load-bearing half** — they mean "you did this" while the line means "here is where you stand against target", and the two must never share a hue (§8 reserves green/amber/red for cost semantics). The range control is a button, not data, so it is the one that stops competing. Requirements: the active state must still be unambiguous at a glance. Out of scope: the markers, and the chart line's target anchoring.
-
 ---
 
 # Multi-tenant phase — the [A] items above are its gates

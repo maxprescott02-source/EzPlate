@@ -1873,16 +1873,27 @@ function rangeBarHtml(){
   var os=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
   return '<div class="range-bar">'+os.map(function(o){return '<button type="button" class="range-btn'+(dashRange===o[0]?' act':'')+'" data-rg="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div>';
 }
-/* F6 (v143): the mock's §3.1 trend SECTION — a plain heading row over the plot, no card around it
-   (in v3 only a table or a list is a bordered container). R3 on the control: the mock draws a single
-   "3 months ▾" text button where this app has a six-option segmented bar that has worked since v29.
-   The app's control survives, in the mock's slot — a real control is never traded for a prettier one
-   that offers less. The chart itself is untouched: trendChart owns the geometry, the scrub wiring,
-   the markers and the caption exactly as before. */
+/* THE TREND IS A CARD, and the range control sits in its header.
+   ⚠ DEVIATION FROM THE MOCK, recorded rather than quietly taken — and it REVERSES F6 (v143), whose
+   comment here read: "the mock's §3.1 trend SECTION — a plain heading row over the plot, no card
+   around it (in v3 only a table or a list is a bordered container)". That was an accurate reading:
+   the mock's trend really is a bare <section> while "Needs attention" beside it is bordered.
+   Max asked for the card on 12 Aug 2026, having seen the screen. R1 would say the mock wins; an
+   explicit owner decision outranks the rubric, and the reason is visible on the built screen in a
+   way it is not in the mock — the app's chart sits between a bordered KPI/empty-state card above and
+   the bordered What-moved/Dig-in pair below, so alone among them it read as unfinished rather than
+   as breathing space. What we give up is the mock's rhythm of one unbordered section per screen.
+
+   R3 on the control, UNCHANGED from F6 and still the reason it is not a "3 months ▾" text button:
+   the mock draws a single dropdown where this app has a six-option segmented bar that has worked
+   since v29. The app's control survives, now in the card's header slot rather than a bare heading
+   row — a real control is never traded for a prettier one that offers less.
+   The chart itself is untouched: trendChart owns the geometry, the scrub wiring, the markers and
+   the caption exactly as before. */
 function dashTrendHtml(scope){
-  return '<section class="dash-sec dash-trend">'
+  return '<section class="dash-sec dash-trend dash-card">'
     +'<div class="ds-head"><h2>Food cost trend</h2><span class="ds-gap"></span>'+rangeBarHtml()+'</div>'
-    +trendChart(scope)
+    +'<div class="ds-body">'+trendChart(scope)+'</div>'
     +'</section>';
 }
 /* ---- per-product price log — powers price-change alerts + cost ranges.
@@ -3505,6 +3516,49 @@ function trendPlotSize(){
   w=Math.max(MIN, Math.min(MAX, Math.round(w)));
   return { W:w, H:Math.round(w*(w>=DESK_FROM?R_DESK:R_PHONE)) };
 }
+/* THE X-AXIS (queue item "Dashboard trend polish"). The chart had no x-axis at any range — the only
+   <text> elements were the four y-axis ticks.
+   ⚠ THIS IS A DELIBERATE DEVIATION FROM THE MOCK, which draws none either, so it is a decision and
+   not a fix. The argument the item makes and this implements: a trend chart whose x-axis is
+   unlabelled cannot be read against the RANGE CONTROL that governs it — "3M" and "1Y" produce the
+   same picture with no way to tell which you are looking at. The scrub tooltip already carries the
+   full date, but only on hover, which is nothing at all on a phone.
+
+   Ticks are placed at REAL READINGS, not at even time intervals, because `x(i)` spaces points by
+   INDEX rather than by date — the series is irregular (a point exists only when a price changed), so
+   an evenly-spaced date scale would put its labels where no reading sits. Labelling actual readings
+   is the only thing that is true of this plot's geometry.
+
+   Anchoring: `start` on the first and `end` on the last, `middle` between. The first tick sits at
+   x=padL and the last at W-padR, so a centred label at either end would overhang the viewBox and be
+   clipped — which is exactly how the y-axis gutter bug (v52) presented. */
+function trendFmtDate(t, longSpan){
+  var d=new Date(typeof t==='string'?t:Number(t));
+  if(!isFinite(d.getTime())) return '';
+  return longSpan
+    ? d.toLocaleDateString(undefined,{month:'short',year:'2-digit'})
+    : d.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+}
+function trendXTicks(pts, W){
+  if(!pts || pts.length<2) return [];
+  var t0=new Date(typeof pts[0].t==='string'?pts[0].t:Number(pts[0].t)).getTime();
+  var t1=new Date(typeof pts[pts.length-1].t==='string'?pts[pts.length-1].t:Number(pts[pts.length-1].t)).getTime();
+  var days=(isFinite(t0)&&isFinite(t1))?Math.abs(t1-t0)/86400000:0;
+  var longSpan=days>200;                       // beyond ~7 months, "12 Aug" repeats a year apart
+  // room for ~90px per label; never more ticks than readings, never fewer than 2
+  var want=Math.max(2, Math.min(5, Math.floor(W/150)+1, pts.length));
+  var out=[], seen={};
+  for(var k=0;k<want;k++){
+    var i=Math.round(k*(pts.length-1)/(want-1));
+    var label=trendFmtDate(pts[i].t, longSpan);
+    // an irregular series can land two ticks in the same day (or month, on a long span); a repeated
+    // label reads as a broken axis, so the duplicate is dropped rather than drawn twice
+    if(!label || seen[label]) continue;
+    seen[label]=1;
+    out.push({ i:i, label:label, anchor:(k===0?'start':(k===want-1?'end':'middle')) });
+  }
+  return out;
+}
 function trendChart(scope){
   /* v115 stage 2 — the promise the v89 comment made ("Stage 2 gives it the two-line chart once the
      history exists"): per-menu history has been recording since v89 and now holds real points, so a
@@ -3536,7 +3590,13 @@ function trendChart(scope){
      F6 (v143): W and H come from trendPlotSize() instead of being the constants 320/104. Nothing
      else in this function changes — every value below still derives from W and H exactly as it
      did. See trendPlotSize for the measurement that forced it. */
-  var _sz=trendPlotSize(), W=_sz.W, H=_sz.H, padR=10,padT=14,padB=20;
+  /* padB 20 -> 38, and H grows by the same 18, so the PLOT keeps exactly the height it had and only
+     the strip below it gets taller. The strip now stacks two rows: the marker labels ("−2 pts") on
+     top and the x-axis dates under them. They cannot share one row — the marker label is centred on
+     its own x and an axis tick is centred on a reading, so they collide whenever an intervention
+     lands near a tick, which on a sparse series is most of the time. Growing the strip is what makes
+     the x-axis possible at all; every other value below still derives from W and H unchanged. */
+  var _sz=trendPlotSize(), W=_sz.W, padR=10,padT=14,padB=38, H=_sz.H+18;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -3691,7 +3751,10 @@ function trendChart(scope){
        pixel, so 30 units no longer clears an 8-character label and two markers three days apart
        would have overprinted. */
     if(mag>=0.1 && mx-lastLblX>=52){
-      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+' pts</text>';
+      /* `H-padB+13`, not `H-6`: the marker label takes the TOP row of the strip now and the x-axis
+         dates take the bottom one. Pinned to padB rather than to H so the two rows stay stacked if
+         the strip is ever resized again. */
+      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-padB+13)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+' pts</text>';
       lastLblX=mx;
     }
     mkGeo.push({x:mx, drop:mk.drop, count:mk.count});
@@ -3709,6 +3772,10 @@ function trendChart(scope){
   // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
   // value so the target tick sits exactly on the dashed rule (v48 invariant, pinned).
   var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-axGap)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmtTick(v)+'</text>'; }).join('');
+  // the x-axis: real dates, on real readings, in the bottom row of the padB strip (see trendXTicks)
+  var xAxis=trendXTicks(pts, W).map(function(t){
+    return '<text class="ax ax-x" x="'+x(t.i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+t.anchor+'">'+esc(t.label)+'</text>';
+  }).join('');
   // v115: the words follow the colour — position against target, plus the markers, not direction.
   var posWord=overNow?('over your '+fmtTargetPct()+' target'):('under your '+fmtTargetPct()+' target');
   var ariaMk=marks.length?(', with '+marks.length+' marked change'+(marks.length===1?'':'s')+' you made'):'';
@@ -3728,6 +3795,7 @@ function trendChart(scope){
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +xAxis
     +mkDots+mkLabels   // v115: marker dots ride the curve OUTSIDE the scrub clip groups (they must not dim), labels live in the empty padB strip
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'

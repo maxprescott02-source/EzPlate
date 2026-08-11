@@ -2354,9 +2354,23 @@ body{overflow-x:clip}
 .modal{width:min(640px,calc(100vw - 24px));margin:auto;overscroll-behavior:contain}
 /* item 4: chart range selector (reference: segmented pills, active = inverted) */
 .range-bar{display:flex;justify-content:flex-end;gap:2px;margin:0 0 6px;padding:2px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:max-content;margin-left:auto}
-.range-btn{border:0;background:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:6px;color:var(--muted2);cursor:pointer}
+/* THE ACTIVE RANGE PILL IS NO LONGER ORANGE (queue item "Dashboard trend polish", decided 10 Aug
+   2026). It was `--accent-weak`/`--accent-ink`, which put a THIRD accent hue in one section: the
+   chart line is `--good`/`--bad` by target, the intervention markers are `--accent` orange, and the
+   pill was orange too — so a healthy section showed a green line, an orange marker and an orange
+   pill, and the eye could not tell which orange meant anything.
+   ⚠ THE MARKERS STAY ORANGE AND THAT IS THE LOAD-BEARING HALF. They mean "you did this"; the line
+   means "here is where you stand against target". §8 reserves green/amber/red for cost semantics, so
+   the markers cannot move to a semantic hue — and the range control is a BUTTON, not data, so it is
+   the one that stops competing.
+   The replacement is the segmented-control convention rather than another hue: the selected segment
+   rises to the card surface with a hairline, against the bar's tinted `--surface2`. Unambiguous at a
+   glance in both themes, which is this item's stated requirement, and it costs no colour at all.
+   `border:1px solid transparent` on EVERY button, not a border added to `.act` alone — otherwise
+   selecting a range would grow that button by 2px and shuffle the whole bar. */
+.range-btn{border:1px solid transparent;background:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:6px;color:var(--muted2);cursor:pointer}
 .range-btn:hover{color:var(--text)}
-.range-btn.act{background:var(--accent-weak);color:var(--accent-ink)}   /* v115: the chip selected-state language (was inverted --text/--bg, the only such highlight in the app) */
+.range-btn.act{background:var(--surface);color:var(--text);border-color:var(--border)}
 /* F5 (v142): the numeric-header alignment block is DELETED with the table — §31's `.mb-num`
    right-aligns the four figure columns on the band, and the band shares ONE grid template with
    the rows, so a header can no longer sit over the wrong column at all. */
@@ -4153,19 +4167,33 @@ html{scrollbar-gutter:stable}
 }
 .ds-gap{flex:1 1 auto;min-width:0}
 
-/* ---- the trend. The mock draws it on the page canvas: a plain heading row over the plot, no
-       container, no band. Written as an override of `.dash-sec` at the SAME specificity (0-2-0
-       both sides) so which one wins does not depend on file order. ---- */
-.dash-trend.dash-sec{border:0;border-radius:0;overflow:visible}
+/* ---- the trend. ⚠ IT IS A CARD NOW, like every other dashboard section, and the opt-out that used
+       to live here is DELETED rather than overridden. What was here:
+         .dash-trend.dash-sec{border:0;border-radius:0;overflow:visible}
+         .dash-trend .ds-head{display:block;padding:0 0 8px;border-bottom:0;background:none}
+       and it was a faithful reading of the mock, whose trend really is a bare <section> while
+       "Needs attention" beside it is bordered. Max reversed it on 12 Aug 2026 having seen the built
+       screen: alone among the dashboard's blocks the chart read as unfinished rather than as
+       breathing space. The reasoning lives at dashTrendHtml() in js/app.js, at the markup that
+       decides it. Deleting the opt-out is what makes `.dash-sec` the single owner of the card look —
+       an override that re-stated the border would have been two owners again. ---- */
+.dash-trend .ds-head h2{font-size:14px}
+.dash-trend .ds-body{padding:var(--sp-4) var(--sp-5) var(--sp-5)}
+.dash-trend .chart-hint{margin-top:var(--sp-2)}
 /* `display:block`, not the inherited flex, and that is measured: the six-button range bar is ~200px
    wide, so on a 340px column the flex row squeezed the title to ~60px and "Food cost trend" set on
    THREE lines. The mock's own mobile dashboard has no range control at all (§6), so there is nothing
    to be faithful to at this width — the control the app keeps (R3) takes its own line beneath the
-   title, which is where a wrapped flex row would have put it anyway, without wrecking the title. */
-.dash-trend .ds-head{display:block;padding:0 0 var(--sp-2);border-bottom:0;background:none}
-.dash-trend .ds-head h2{font-size:14px}
-.dash-trend .ds-head .range-bar{margin-top:var(--sp-2)}
-.dash-trend .chart-hint{margin-top:var(--sp-2)}
+   title, which is where a wrapped flex row would have put it anyway, without wrecking the title.
+   ⚠ NOW SCOPED to the width that was actually measured. It used to be unconditional, which was
+   harmless while the head was a bare heading row and is not now: at desktop the head is a 960px-wide
+   card BAND, where `display:block` would drop the range control onto its own line inside the band
+   and make it two rows tall for no reason. The title measures ~110px against a ~200px bar, so 560 is
+   comfortably clear of the collision it guards. */
+@media (max-width:560px){
+  .dash-trend .ds-head{display:block}
+  .dash-trend .ds-head .range-bar{margin-top:var(--sp-2)}
+}
 
 /* ---- Needs attention (§3.1). Rows divided by hairlines inside the container. ---- */
 .ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
