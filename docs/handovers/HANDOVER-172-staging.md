@@ -41,6 +41,15 @@ The `deleted_prod_ids` / `deleted_menu_ids` tombstone arrays are unbounded and l
 
 I also did not touch the fact that every RLS policy is `using (true)`. That is the multi-tenant item's job and doing it here would have converted a rehearsal surface into a policy change.
 
+## Review findings, both fixed in this branch
+
+The pre-push agent (different model, no brief) found two, and both were real.
+
+**The fence could not beat the theme resolver, and the comment claimed it could.** The resolver reads `cafeCost_theme` in the document head, before `js/app.js` is fetched, so no ordering inside app.js reaches it: the first load after a switch painted in the other environment's theme.
+The part worth keeping is not the bug, it is why nothing caught it. **The test written to pin exactly this class of ordering scans `js/app.js` only**, because `loadApp()` reads `js/app.js` only, so it could never have failed on this. A green test that cannot fail is the shape `CLAUDE.md` already records four incidents of, and I wrote another one. Two tests added over `index.html`, and the blind spot is now written into the original test rather than left implicit.
+
+**`?env=constructor` resolved truthy through `Object.prototype`**, skipped the production fallback and left `SUPA_URL` undefined: a dead app with a badge reading "CONSTRUCTOR". Now `hasOwnProperty`. Its replacement test **executes** the real shipped resolver against a stubbed window; the assertion it replaced matched the source line as text, so a correct fix failed it and a broken rewrite would have passed it.
+
 ## Surprises
 
 **The scale seed's first run produced a $961 salad and a Dashboard reading 1831% food cost.** `ea` products are priced per item in dollars and `g`/`ml` products in fractions of a cent, and I had given every line the same 20-200 quantity, so plates got 200 eggs. Every structural assertion in the file passed on that data: counts, line shapes, referential integrity, all green. Only opening the app showed it.
@@ -49,5 +58,9 @@ The lesson generalises past this batch and is why the seed now asserts a cost ce
 **Staging reproduces `safeupdate` and the role timeouts exactly.** I expected a free second project to differ. Both carry `session_preload_libraries=supautils, safeupdate` and the same `statement_timeout` (anon 3s, authenticated 8s), so the WHERE-less-DELETE behaviour that `CLAUDE.md` warns about does rehearse correctly. That was worth checking rather than assuming, because if it had differed the mirror would have been quietly useless for the one file it matters most for.
 
 **Production has ten public tables, not eleven.** `docs/QUEUE.md`'s `business_id` item says eleven; `20260809_drop_kitchen_items.sql` made it ten. Corrected in the queue in this batch.
+
+**`main` has been RED since 171, and nothing said so.** The v141 sync-corner spec fails on CI and has since that batch merged. It is not a device defect: the assertion has zero slack, because the banner overlays the mobile header and `.scr-head` begins where that header ends, so "the banner clears the screen header" is EQUAL by construction (measured locally: 61 against 61) and passes only by exact float equality. The Linux runner has no Geist installed, its text metrics differ by a fraction of a pixel, and the comparison flips.
+Fixed here with one pixel of tolerance rather than queued, because it blocked this PR and a permanently red CI means the next batch cannot tell a new failure from an old one. That is the real cost, and it had already been paid once: **this batch spent time proving the failure was not its own.**
+Worth noting for the rule it suggests: a merged PR whose checks are red looks identical to a merged PR whose checks are green, in the only place anyone looks, which is the branch.
 
 **The Ingredients mobile header wraps at 380, not only at 360.** Found while measuring for the header item, which is a different queue item and is now blocked on Max. 380 is the width every mobile assertion in this repo uses, so this is a live defect at a supported width rather than a question about adopting a new one. It is invisible to the suite because the Playwright fixture leaves `#kingWizBtn` hidden and Max's unlinked catalogue never does. Recorded in that item with the measurements.
