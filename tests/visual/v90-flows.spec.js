@@ -13,7 +13,7 @@
  * Run: npx playwright test tests/visual/v90-flows.spec.js
  */
 const { test, expect } = require('@playwright/test');
-const { installBoot } = require('./_boot');
+const { installBoot, gotoTab } = require('./_boot');
 
 const SEED = () => {
   localStorage.clear();
@@ -121,8 +121,12 @@ test('the Menu tab still WORKS with its suggestions UI removed', async ({ page }
 test('navigating between every tab leaves the console clean and the Dashboard intact', async ({ page }) => {
   const w = watch(page);
   await boot(page, 380);
-  for (const tab of ['dashboard', 'analysis', 'ingredients', 'pantry', 'builder', 'dashboard']) {
-    await page.locator(`.navbtn[data-tab="${tab}"]`).click();
+  /* 171: `ingredients` (Products) is no longer a tab on the bar at 380 — it is a More sub-screen —
+     so it is walked through its real route with gotoTab, and `more` joins the walk in its own
+     right. The point of this test is that NAVIGATION is clean, so a route that no longer exists
+     would have been the wrong thing to keep driving. */
+  for (const tab of ['dashboard', 'analysis', 'more', 'ingredients', 'pantry', 'builder', 'dashboard']) {
+    await gotoTab(page, tab);
     await page.waitForTimeout(350);
   }
   await expect(page.locator('#dashBody .dash-ins')).toHaveCount(1);

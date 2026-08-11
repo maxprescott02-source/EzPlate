@@ -7,7 +7,7 @@
  * an app trapped behind an overlay it cannot clear, or an empty app pretending to be a real one.
  */
 const { test, expect } = require('@playwright/test');
-const { installBoot } = require('./_boot');
+const { installBoot, gotoTab } = require('./_boot');
 
 test('data loads: the gate gets out of the way and the app renders', async ({ page }) => {
   await installBoot(page);
@@ -17,7 +17,7 @@ test('data loads: the gate gets out of the way and the app renders', async ({ pa
   // which are both slower when the app is ready and flakier when a loaded box is slow.
   await expect(page.locator('#bootGate')).toBeHidden();
   // the catalogue is on screen, from the fetch — not from a literal, which no longer exists
-  await page.locator('.navbtn[data-tab="ingredients"]').click();
+  await gotoTab(page, 'ingredients');   // 171: Products is under More below 1024 — drive the real route at the real width
   await expect(page.locator('#ingList .ing-card').first()).toBeVisible();
 });
 

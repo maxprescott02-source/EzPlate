@@ -165,4 +165,34 @@ async function installBoot(page, opts = {}) {
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }
 
-module.exports = { installBoot, PRODUCTS };
+
+/* 171 — gotoTab(page, key): navigate to a screen THE WAY A USER AT THIS WIDTH WOULD.
+ *
+ * WHY THIS EXISTS. Four of the app's screens — Products (`ingredients`), Invoices, Settings and
+ * Account — moved into a group that renders TWO WAYS: the sidebar's bottom group at >=1024, and the
+ * phone's More screen below it. `.navbtn[data-tab="ingredients"]` still resolves at 380, because the
+ * button is in the DOM, but it is `display:none` there — so every spec that clicked it at a mobile
+ * width started timing out on an invisible element. Six specs, one cause.
+ *
+ * The fix is deliberately NOT `window.showTab(key)`. That would go green while the screen was
+ * unreachable by any real gesture, which is precisely the failure this batch could introduce and
+ * the reason the specs were driving the nav in the first place. This drives the real route at the
+ * real width — one click on desktop, two on a phone (More, then the row), exactly as §6 designs.
+ *
+ * Width is read from the viewport rather than passed in, so a caller cannot get it wrong and a
+ * spec that loops over widths needs no branch of its own.
+ */
+const MORE_SUBS = ['ingredients', 'invoices', 'settings', 'account'];
+async function gotoTab(page, key) {
+  const width = page.viewportSize().width;
+  if (width < 1024 && MORE_SUBS.indexOf(key) >= 0) {
+    await page.locator('.navbtn[data-tab="more"]').click();
+    await page.waitForTimeout(150);
+    await page.locator(`#tab-more [data-more="${key}"]`).click();
+  } else {
+    await page.locator(`.navbtn[data-tab="${key}"]`).click();
+  }
+  await page.waitForTimeout(150);
+}
+
+module.exports = { installBoot, PRODUCTS, gotoTab };

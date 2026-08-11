@@ -81,10 +81,15 @@ const $ = id => window.document.getElementById(id);
 /* F9 (v148): Settings is a SCREEN. Every assertion below used to open a modal and read its state;
    they now navigate and read the same state, because what they were ever really checking is that
    the controls arrive PRIMED — which the modal did on open and the screen does in its render. */
+/* 171: the header gear is DELETED, so every `$('settingsBtn').click()` below became the More
+   screen's Settings row — the phone's route now, and the one nothing else in this file drives.
+   Driven, not read: clicking the real row through the real binding is what proves the route works,
+   and a route asserted by regex would have survived the gear's deletion unchanged. */
+const openSet = () => window.document.querySelector('#tab-more [data-more="settings"]').click();
 console.log('\n[2] Settings screen');
 ok('#tab-settings exists', !!$('tab-settings'));
-ok('the header gear navigates to it', (() => { $('settingsBtn').click(); return $('tab-settings').style.display !== 'none'; })());
-ok('and every other pane is hidden', ['builder','ingredients','analysis','dashboard','pantry','invoices']
+ok('the More screen\'s Settings row navigates to it', (() => { openSet(); return $('tab-settings').style.display !== 'none'; })());
+ok('and every other pane is hidden', ['builder','ingredients','analysis','dashboard','pantry','invoices','account','more']
    .every(n => $('tab-' + n).style.display === 'none'));
 // derive the expected version from sw.js's CACHE so this never rots again (settings.test.js pins the full six-spot mirror)
 const swVer = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/ezplate-(v\d+)/) || [])[1];
@@ -107,7 +112,7 @@ ok('Menu tab has no editable #cogsTarget', !$('cogsTarget'));
 // the Suggested column header is now the Menu tab's only statement of the target.
 ok('Menu tab has no cogs meta line', !$('cogsTargetRead') && !$('cogsToSettings'));
 const before = window.analyze(4, null).suggested;
-$('settingsBtn').click();
+openSet();
 $('setCogsInput').value = '25';
 $('setCogsInput').dispatchEvent(new window.Event('input'));
 ok('editing in Settings changes analyze()', window.analyze(4, null).suggested === 16, `was ${before}, now ${window.analyze(4,null).suggested}`);
@@ -119,7 +124,7 @@ ok('and the Suggested column header follows', $('aSuggestedTh').textContent === 
    those four assertions is that every section is present and visible simultaneously; the AI-toggle
    assertions below are unchanged, because the toggles are. */
 console.log('\n[3b] Settings screen — all sections visible at once + the AI toggles');
-$('settingsBtn').click();
+openSet();
 /* F10 (v149): SEVEN, not F9's eight — the Account and Team placeholders moved to #tab-account and
    one Account row replaced them as the door. */
 ok('seven section cards, all rendered at once', (() => {
@@ -128,16 +133,50 @@ ok('seven section cards, all rendered at once', (() => {
 })(), [...window.document.querySelectorAll('#tab-settings .stg-card-h')].map(h => h.textContent).join('|'));
 ok('none of them is hidden — there is no section to be "on"',
    [...window.document.querySelectorAll('#tab-settings .stg-card')].every(c => !c.hidden));
-/* F10: the door works and lands on the screen, driven rather than read. This is the whole route —
-   nothing else reaches #tab-account at any width. */
+/* F10: the door works and lands on the screen, driven rather than read.
+   171: it is no longer the WHOLE route — the sidebar's #sideAccount and the More screen's Account
+   row are two more — but it is still a route and F10's reason for it stands, so it is still driven
+   here. The other two are driven below. */
 $('setAccountOpen').click();
 ok('the Settings row opens the Account screen', $('tab-account').style.display !== 'none');
 ok('and Settings is hidden behind it', $('tab-settings').style.display === 'none');
 ok('the account screen carries the three mock sections',
    [...window.document.querySelectorAll('#tab-account .stg-card-h')].map(h => h.textContent).join('|') === 'Profile|Team|Plan');
-ok('and no control of any kind', window.document.querySelectorAll('#tab-account button, #tab-account input, #tab-account select, #tab-account a').length === 0);
-ok('currentTab reports account, not the tab that is still lit in the nav', window.currentTab() === 'account');
-$('settingsBtn').click();
+/* 171: scoped to `.stg-cards` — the screen gained a "‹ More" back chevron in its shared header,
+   which is navigation, not a capability the account claims. The body is where a dead control
+   would go and it is still empty. */
+ok('and no control of any kind in the body', window.document.querySelectorAll('#tab-account .stg-cards button, #tab-account .stg-cards input, #tab-account .stg-cards select, #tab-account .stg-cards a').length === 0);
+ok('currentTab reports account', window.currentTab() === 'account');
+
+/* 171: the More screen and the routes it owns, driven end to end. This is the batch's whole point,
+   so it is exercised here rather than only in Playwright — a jsdom pass proves the wiring, and the
+   geometry (which tab is visible at which width) is the part only a browser can answer. */
+console.log('\n[3c] The More screen');
+window.showTab('more');
+ok('the More tab opens the screen', $('tab-more').style.display !== 'none');
+ok('and the More button is the lit one', window.currentTab() === 'more');
+ok('four rows, in the §6.1 order that matches the sidebar bottom group',
+   [...window.document.querySelectorAll('#tab-more .more-row')].map(b => b.dataset.more).join('|') === 'ingredients|invoices|settings|account');
+[['ingredients','Products'], ['invoices','Invoices'], ['settings','Settings'], ['account','Account']].forEach(([key, label]) => {
+  window.showTab('more');
+  window.document.querySelector(`#tab-more [data-more="${key}"]`).click();
+  ok(`the ${label} row opens #tab-${key}`, $('tab-' + key).style.display !== 'none' && $('tab-more').style.display === 'none');
+  /* §6's rule: the four sub-screens highlight More. Both buttons carry `active` — they are hidden at
+     opposite sides of 1024 — and currentTab must still answer with the SUB-SCREEN, which is what
+     #navMore being last in the DOM buys. Assert both halves: a lit More AND the right currentTab. */
+  ok(`…with More lit behind it`, $('navMore').classList.contains('active'));
+  ok(`…and currentTab still reads ${key}, not 'more'`, window.currentTab() === key);
+  // and the back chevron returns to the More screen, which is the only way out on a phone
+  window.document.querySelector(`#tab-${key} .scr-back`).click();
+  ok(`…and its "‹ More" chevron goes back`, $('tab-more').style.display !== 'none');
+});
+/* The one-way guard: 'more' has no desktop counterpart, so above 1024 showTab must refuse it rather
+   than paint a screen the sidebar cannot express. jsdom's matchMedia is stubbed by the harness's
+   window options; drive the decision function directly so the branch is covered either way. */
+ok('moreIsNav() decides the guard from matchMedia, not from innerWidth',
+   /matchMedia/.test(String(window.moreIsNav)) && !/innerWidth/.test(String(window.moreIsNav)));
+window.showTab('builder');
+openSet();
 ok('AI invoice check prefills from state (ON by default)', $('setAiInvoiceChk').checked === window.aiInvoiceCheck && window.aiInvoiceCheck === true);
 ok('AI suggestions prefills from state (ON by default)', $('setAiSuggestChk').checked === window.aiSuggestions && window.aiSuggestions === true);
 $('setAiInvoiceChk').checked = false; $('setAiInvoiceChk').dispatchEvent(new window.Event('change'));

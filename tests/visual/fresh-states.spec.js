@@ -11,7 +11,7 @@
  * Run: npm run shots  (writes to tests/visual/__shots__/)
  */
 const { test, expect } = require('@playwright/test');
-const { installBoot } = require('./_boot');
+const { installBoot, gotoTab } = require('./_boot');
 
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
@@ -29,14 +29,16 @@ async function openFreshBuilder(page) {
   await page.waitForTimeout(300);
 }
 
-// viewport-only (not fullPage) header shots — the review artifact for the header/button work
-for (const tab of ['pantry', 'ingredients', 'builder']) {
+/* viewport-only (not fullPage) header shots — the review artifact for the header/button work.
+   171: `more` joins the set, because its header is a new one and the shots are what get LOOKED at.
+   gotoTab drives Products through More at this width, which is now its only route. */
+for (const tab of ['pantry', 'ingredients', 'builder', 'more']) {
   test(`fresh ${tab} header @ mobile`, async ({ page }) => {
     await page.setViewportSize({ width: 380, height: 780 });
     await installBoot(page);
     await page.goto('/');
     await page.waitForTimeout(1500);
-    await page.locator(`.navbtn[data-tab="${tab}"]`).click();
+    await gotoTab(page, tab);
     await page.waitForTimeout(400);
     await page.screenshot({ path: `tests/visual/__shots__/fresh-${tab}-mobile.png` });
     await expect(page.locator('body')).toBeVisible();
@@ -204,7 +206,7 @@ test('v44 item 6: the clear-cache confirm reached from Settings is what the user
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
-  await page.locator('#settingsBtn').click();          // the gear is the phone's route to the screen
+  await gotoTab(page, 'settings');   // 171: the gear is deleted — More → Settings is the phone's route now
   await page.waitForTimeout(400);
   await expect(page.locator('#tab-settings')).toBeVisible();
   await page.locator('#setClearCache').click();        // the real control, not a hand-set class
@@ -390,7 +392,7 @@ test('v45 item 4 / F4: primaries say one thing at every width; secondaries still
   await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
-  await page.locator('.navbtn[data-tab="ingredients"]').click();
+  await gotoTab(page, 'ingredients');   // 171: Products is under More below 1024 — drive the real route at the real width
   await page.waitForTimeout(300);
   expect((await page.locator('#newBtn').innerText()).trim(), 'the converted primary does not shorten').toBe('New product');
   expect((await page.locator('#importBtn').innerText()).trim(), 'the SECONDARY still shortens — the idiom survives where the room is tight').toBe('Import');
@@ -404,7 +406,7 @@ test('v45 item 4 / F4: primaries say one thing at every width; secondaries still
   // and a label that changes between breakpoints is exactly what §7 forbids.
   expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'the converted secondary does not shorten either — it already fits').toBe('Existing plate');
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.locator('.navbtn[data-tab="ingredients"]').click();
+  await gotoTab(page, 'ingredients');   // 171: Products is under More below 1024 — drive the real route at the real width
   await page.waitForTimeout(300);
   expect((await page.locator('#newBtn').innerText()).trim(), 'and the same words at desktop').toBe('New product');
   expect((await page.locator('#importBtn').innerText()).trim(), 'desktop gives the secondary its noun back').toBe('Import invoice');

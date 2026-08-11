@@ -253,32 +253,56 @@ test('ITEM 6: the Menu tab no longer has a COGS input \u2014 editing really did 
    MOBILE-ONLY, and .nav-bottom is CSS-hidden below 1024, making the sidebar entry DESKTOP-ONLY.
    Deleting either one strands the whole screen at that width — on a phone, that is the device Max
    works on. The queue item leads with this and it is what this test exists for. */
-test('F9: Settings is a screen, reachable at BOTH widths — neither route may be removed', () => {
-  assert.ok(/id="settingsBtn"[^>]*aria-label="Settings"/.test(HTML),
-    'the header gear survives — below 1024 it is the ONLY route to Settings');
+/* 171 re-pointed this for the third time, and the REQUIREMENT is the one thing that has never
+   changed: Settings is reachable at every width, by exactly one route at each, and neither may be
+   removed. Only the pair moves. F9's pair was the header gear (mobile) and #sideSettings (desktop);
+   the gear is deleted and the More screen's Settings row replaces it, which is the decision the
+   More-screen queue item asked that batch to take. The test asserts the CURRENT pair by name,
+   because a test that asserted "some route exists" would pass with both of them gone. */
+test('171: Settings is a screen, reachable at BOTH widths — neither route may be removed', () => {
+  assert.ok(!/id="settingsBtn"/.test(HTML),
+    'the header gear is DELETED — More → Settings replaced it, and two routes on one platform is §7\'s duplicate intent');
+  assert.ok(/data-more="settings"/.test(HTML),
+    'the More screen carries the phone route — below 1024 it is the ONLY route to Settings');
   assert.ok(/id="sideSettings"/.test(HTML), 'the sidebar entry survives — at 1024+ it is the only route');
   assert.ok(/data-tab="settings"[^>]*id="sideSettings"|id="sideSettings"[^>]*data-tab="settings"/.test(HTML),
     'and it navigates to the screen rather than opening an overlay');
   assert.ok(/id="tab-settings"/.test(HTML), 'the screen itself exists');
-  // the mobile tab bar is still five — that half of the old proxy IS a real §6 requirement
-  const mainTabs = (HTML.match(/class="navbtn(?! [^"]*nav-bottom)[^"]*" data-tab=/g) || []).length;
-  assert.equal(mainTabs, 5, 'the MAIN nav group stays at five tabs (the mobile tab bar is these five)');
-  // …and Settings is not one of them: it is reached from the gear, until the More-screen item lands
-  assert.ok(!/class="navbtn(?! [^"]*nav-bottom)[^"]*" data-tab="settings"/.test(HTML),
-    'Settings is not a sixth tab in the main group');
+  /* The mobile tab bar is still FIVE — a real §6 requirement, and the count is now the four main
+     tabs plus More rather than five main tabs. `.nav-bottom` is the desktop bottom group and never
+     appears in the bar, so it is excluded; `.nav-more` IS the fifth tab, so it is counted. */
+  const barTabs = (HTML.match(/class="navbtn(?![^"]*nav-bottom)[^"]*" data-tab=/g) || []).length;
+  assert.equal(barTabs, 5, 'the mobile tab bar stays at five (Dashboard, Menu, Plates, Ingredients, More)');
+  // …and Settings is not one of them: on a phone it is reached THROUGH More, one level down
+  assert.ok(!/class="navbtn(?![^"]*nav-bottom)[^"]*" data-tab="settings"/.test(HTML),
+    'Settings is not a sixth tab in the bar');
 });
 
 /* The two widths above are asserted from the CSS, not assumed. If either media query moves, one of
-   the routes silently becomes unreachable at some width and no other test would notice. */
-test('F9: the two Settings routes are complementary, with no width that has neither', () => {
+   the routes silently becomes unreachable at some width and no other test would notice.
+   171: the pair being measured changed with the routes — it is `.nav-more` against `.nav-bottom`
+   now, not `header` against `.nav-bottom` — but the failure it exists to catch is identical, and it
+   now covers FOUR screens rather than one: Products, Invoices, Settings and Account all live in
+   exactly these two elements. Note this is no longer only a "no width with neither" test; an
+   OVERLAP is a defect too, because it would show the phone's More tab beside the sidebar entries it
+   duplicates. Complementary means both edges, so both are asserted. */
+test('171: the More list and the sidebar bottom group are complementary — every width has exactly one', () => {
   const CSS = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '');   // tombstones name both selectors; a comment must not satisfy this
-  // the gear's side: header hidden from 1024 up
-  const desktopBlock = CSS.slice(CSS.indexOf('@media (min-width:1024px)'));
-  assert.ok(CSS.indexOf('@media (min-width:1024px)') >= 0 && /(^|[;{}\s])header\{display:none\}/.test(desktopBlock),
-    'the header (and its gear) is hidden at 1024+ — so the sidebar entry must cover 1024+');
-  // the sidebar's side: .nav-bottom hidden below 1024. The two edges must MEET (1024 / 1023), or a
-  // band of widths has no route to Settings at all.
-  assert.ok(/@media \(max-width:1023px\)\{[^}]*\.nav-bottom\{display:none\}/.test(CSS.replace(/\s+/g, ' ')),
-    'the sidebar bottom group is hidden below 1024 — so the gear must cover below 1024');
+  const flat = CSS.replace(/\s+/g, ' ');
+  // the phone's side: the More tab is hidden from 1024 up, so the sidebar group must cover 1024+
+  assert.ok(/@media \(min-width:1024px\)\{ ?\.nav-more\{display:none\}/.test(flat),
+    'the More tab is hidden at 1024+ — so the sidebar bottom group must cover 1024+');
+  // the sidebar's side: .nav-bottom hidden below 1024, so the More list must cover below 1024
+  assert.ok(/@media \(max-width:1023px\)\{[^}]*\.nav-bottom\{display:none\}/.test(flat),
+    'the sidebar bottom group is hidden below 1024 — so the More list must cover below 1024');
+  /* THE EDGES MEET, read as numbers rather than trusted from the two strings above: 1023 and 1024
+     are adjacent. Written this way because the failure mode is a typo of one digit in one of the
+     queries, which leaves both assertions above passing and a band of widths with no nav at all. */
+  const hideMore = Number((flat.match(/@media \(min-width:(\d+)px\)\{ ?\.nav-more\{display:none\}/) || [])[1]);
+  const hideBottom = Number((flat.match(/@media \(max-width:(\d+)px\)\{[^}]*\.nav-bottom\{display:none\}/) || [])[1]);
+  assert.equal(hideMore - hideBottom, 1, `the two queries must abut: .nav-bottom hides to ${hideBottom}, .nav-more from ${hideMore}`);
+  // and the back chevron rides the same boundary — it points at a screen that only exists below it
+  assert.ok(/@media \(min-width:1024px\)\{ ?\.scr-back\{display:none\}/.test(flat),
+    'the "‹ More" chevron is hidden at exactly the width the More screen stops existing');
 });
