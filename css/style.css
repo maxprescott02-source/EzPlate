@@ -3746,10 +3746,16 @@ html{scrollbar-gutter:stable}
   .ing-tag{grid-column:2;grid-row:1;font-size:12.5px;color:var(--text-2)}
   /* THE SUPPLIER CELL IS HIDDEN, NOT DELETED. The renderer still emits it and the phone still reads
      "Category, Supplier" on its meta line, exactly as the mobile mock draws the row — only the
-     DESKTOP column goes. Placed after `.ing-tag` at the same specificity as the rule it replaces,
-     and `.ing-tag.is-nil{display:block}` below is (0,2,0) to this (0,2,0), so ORDER decides and this
-     must stay above it or an empty supplier would come back as a dash in a column that no longer
-     exists. That is not hypothetical: `is-nil` is on 393 of 412 rows. */
+     DESKTOP column goes.
+     ⚠ IT TAKES BOTH RULES, and the third one is the load-bearing half. `.ing-tag.sup` and
+     `.ing-tag.is-nil` are BOTH (0,2,0), and `is-nil` is written LATER, so for an empty supplier —
+     393 of 412 rows — `display:block` wins on source order and the cell would come back as a dash
+     in a column that no longer exists. `.ing-tag.sup.is-nil` is (0,3,0) and settles it on
+     SPECIFICITY, whatever the order.
+     (An earlier version of this comment claimed the fix was keeping `.sup` above `.is-nil`. That was
+     backwards — being above is precisely what loses — and the pre-push review caught the explanation
+     while the code was already right. Recorded because a wrong reason invites the right rule being
+     "tidied away" by whoever trusts it.) */
   .ing-tag.sup{display:none}
   .ing-tag.is-nil{display:block;color:var(--text-3)}
   .ing-tag.sup.is-nil{display:none}

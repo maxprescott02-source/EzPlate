@@ -29,11 +29,19 @@ async function boot(page, w) {
   await page.goto('/');
   await page.waitForTimeout(1200);
   await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
-  // a real series, so the plot actually draws — every assertion below is vacuous on the empty state
+  /* A real series AND a real change-log entry, so the plot actually draws and MARKERS actually
+     render — every assertion below is vacuous on the empty state.
+     ⚠ THE MARKER SHAPE IS EXACT AND WAS WRONG FIRST TIME. `trendMarkers` (js/app.js:3428) reads
+     `e.avgBefore`/`e.avgAfter` at the TOP LEVEL — not inside `detail` — requires both to be numbers
+     with `avgBefore - avgAfter > 0.001`, and compares `e.t < t0` NUMERICALLY, so `t` must be a
+     number and not an ISO string. Get any of those wrong and it returns [] with no error, the
+     marker silently never renders, and a test that guards on "if there are markers" passes while
+     checking nothing. That is exactly what the first cut of this file did. */
   await page.evaluate((d) => {
     const now = Date.now();
     const vals = [38.2, 39.1, 40.4, 41.2, 40.8, 39.6, 38.9, 39.4, 40.1, 41.5, 42.2, 41.0];
     window.priceHistory = vals.map((v, i) => ({ t: new Date(now - (vals.length - 1 - i) * 7 * d).toISOString(), v }));
+    window.changeLog = [{ t: now - 21 * d, avgBefore: 42.0, avgAfter: 40.4 }];
     window.showTab('dashboard');
   }, DAY);
   await page.waitForTimeout(600);
@@ -100,14 +108,18 @@ test('the marker labels and the x-axis are two rows, not one', async ({ page }) 
     const y = (sel) => Array.from(svg.querySelectorAll(sel)).map((t) => Number(t.getAttribute('y')));
     return { mk: y('text.mk-lbl'), ax: y('text.ax-x') };
   });
-  if (rows.mk.length) {
-    for (const my of rows.mk) {
-      for (const ay of rows.ax) {
-        expect(Math.abs(my - ay), 'a marker label and an axis date never share a baseline').toBeGreaterThanOrEqual(8);
-      }
+  /* NO `if (rows.mk.length)` GUARD — that is the whole point. The first cut of this test wrapped the
+     comparison in exactly that condition, and because boot() did not seed `changeLog` the array was
+     always empty, the loop never ran, and the test passed while checking nothing. Reverting the
+     padB split it claims to pin would not have failed it. Both counts are asserted FIRST so the
+     fixture proving itself is a precondition, not an accident. */
+  expect(rows.mk.length, 'the fixture actually produced a marker label — without one this test is vacuous').toBeGreaterThan(0);
+  expect(rows.ax.length, 'and an axis row to collide with').toBeGreaterThan(0);
+  for (const my of rows.mk) {
+    for (const ay of rows.ax) {
+      expect(Math.abs(my - ay), 'a marker label and an axis date never share a baseline').toBeGreaterThanOrEqual(8);
     }
   }
-  expect(rows.ax.length, 'the axis row exists').toBeGreaterThan(0);
 });
 
 test('the active range pill carries no accent hue — the markers own orange', async ({ page }) => {

@@ -128,5 +128,13 @@ test('the filter selects are sized to content, not to a share of the row', async
   });
   expect(w.cat, 'the category select is content-sized, not ~330px').toBeLessThanOrEqual(200);
   expect(w.sup, 'and so is the supplier select').toBeLessThanOrEqual(200);
+  /* LOWER BOUNDS TOO. `flex:0 0 auto` on a wrapper whose child is `width:100%` is an ambiguous
+     percentage-vs-auto case, and an upper-bound-only assertion cannot tell "sized to content" from
+     "collapsed to nothing" — both pass. Flagged by the pre-push review as unverifiable from the
+     source; measured rather than argued: category renders 200 (its longest option pushes it to the
+     cap) and supplier 162 (content, under the cap). 120 clears the label text with room and is far
+     from either real value, so this fails on a collapse without being brittle about the exact fit. */
+  expect(w.cat, 'and it has NOT collapsed — the label must still be readable').toBeGreaterThanOrEqual(120);
+  expect(w.sup, 'nor has the supplier select').toBeGreaterThanOrEqual(120);
   expect(w.search, 'the search takes what is left — it is the control that grows').toBeGreaterThan(w.cat);
 });

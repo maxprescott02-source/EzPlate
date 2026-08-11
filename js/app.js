@@ -1891,7 +1891,9 @@ function rangeBarHtml(){
    The chart itself is untouched: trendChart owns the geometry, the scrub wiring, the markers and
    the caption exactly as before. */
 function dashTrendHtml(scope){
-  return '<section class="dash-sec dash-trend dash-card">'
+  // `.dash-sec` alone carries the card — a third class here matched no rule at all and only read as
+  // though it did (pre-push review). The card look has ONE owner and this is not it.
+  return '<section class="dash-sec dash-trend">'
     +'<div class="ds-head"><h2>Food cost trend</h2><span class="ds-gap"></span>'+rangeBarHtml()+'</div>'
     +'<div class="ds-body">'+trendChart(scope)+'</div>'
     +'</section>';
@@ -3547,7 +3549,7 @@ function trendXTicks(pts, W){
   var longSpan=days>200;                       // beyond ~7 months, "12 Aug" repeats a year apart
   // room for ~90px per label; never more ticks than readings, never fewer than 2
   var want=Math.max(2, Math.min(5, Math.floor(W/150)+1, pts.length));
-  var out=[], seen={};
+  var picked=[], seen={};
   for(var k=0;k<want;k++){
     var i=Math.round(k*(pts.length-1)/(want-1));
     var label=trendFmtDate(pts[i].t, longSpan);
@@ -3555,9 +3557,20 @@ function trendXTicks(pts, W){
     // label reads as a broken axis, so the duplicate is dropped rather than drawn twice
     if(!label || seen[label]) continue;
     seen[label]=1;
-    out.push({ i:i, label:label, anchor:(k===0?'start':(k===want-1?'end':'middle')) });
+    picked.push({ i:i, label:label });
   }
-  return out;
+  /* ANCHORS ARE ASSIGNED AFTER THE DEDUPE, not during it, and that ordering is the fix rather than a
+     tidy-up. Deriving the anchor from `k` meant it described the position a label was GENERATED at,
+     not the position it ended up in: if the last tick duplicated an earlier label — two readings on
+     one day inside a 1w window, or two points a year apart on the month/year format — it was dropped
+     and NOTHING carried `end`, leaving a middle-anchored label as the rightmost one. Deriving it
+     from the surviving array instead makes "first is start, last is end" true by construction, and
+     a single surviving label correctly takes `start` (at x=padL, where a centred label would
+     overhang). Found by the pre-push review; no fixture in the repo exercises same-day points, and a
+     supplier price corrected twice in one day would have reached it in production. */
+  return picked.map(function(t,n){
+    return { i:t.i, label:t.label, anchor:(n===0?'start':(n===picked.length-1?'end':'middle')) };
+  });
 }
 function trendChart(scope){
   /* v115 stage 2 — the promise the v89 comment made ("Stage 2 gives it the two-line chart once the
