@@ -722,9 +722,15 @@ input[type=checkbox]{
    rules above, never as an unwind of them, and every declaration that appears at both breakpoints
    is at the same specificity on both — `@media` does not win by being later. */
 @media (min-width:768px){
+  /* The horizontal padding is the page-container contract (queue item 13), not spacing taste: the
+     builder is a FULL PAGE inside `.wrap` and wears the same `.scr-head`, whose rule now insets the
+     hairline by --sp-5. With `0` here the two columns began 20px LEFT of the plate name above them.
+     Caught by extending v155-shell-edges.spec.js to `#builderPage` — the eight `#tab-*` screens all
+     passed first, and this one was missed by measuring only those. The 1040 cap is §2's builder
+     width and includes the padding (border-box), so it is unaffected. */
   .bld-body{
     display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--sp-5);align-items:start;
-    max-width:1040px;padding:var(--sp-5) 0 var(--sp-6);
+    max-width:1040px;padding:var(--sp-5) var(--sp-5) var(--sp-6);
   }
   .bld-band{
     display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 90px 72px;gap:0 12px;
@@ -1721,7 +1727,19 @@ body.scroll-locked{position:fixed;left:0;right:0}
   header{display:none}
 
   /* -- content column -- */
-  .wrap{max-width:960px;padding:0 var(--sp-6)}   /* v3 §2: content max-width 960 (v137) */
+  /* v3 §2: content max-width 960 (v137). The horizontal 24px is INSIDE the mock's stated
+     "padding 24-32px", so it is compliant and is deliberately not changed — see the note on
+     `padding-top` below for the gutter figure this gets misread as. */
+  .wrap{max-width:960px;padding:var(--sp-8) var(--sp-6) 0}
+  /* THE TOP PADDING (queue item 13). Measured at 1360 before this rule: `.scr-head` sat 8px from
+     the top of the chrome, so the page title and the header actions were effectively flush to the
+     edge. The 8px was not anyone's declared value — `.plib-panel` zeroes `.panel`'s margin-top and
+     nothing replaced it — which is why this is stated on the container rather than tuned on the
+     panel. 32px clears the item's ">= 24px" AC with the mock's own top step (its content div is
+     `padding:24px 32px 64px`; its header adds 14px of its own above the title).
+     ⚠️ The ~135px "gutter" reported alongside this is NOT padding and is not touched here: at 1360
+     the main region is 1136 and the column is capped at 960, so 88px a side is the max-width doing
+     its job. Reclaiming it means abandoning the 960 cap, which is a different decision. */
 
   /* v55 (§C): the old two-column builder grid is GONE — #tab-builder is now the Plates library, a plain
      single-column .panel that renders the .ing-list card grid full-width, identical to Products. The
@@ -3221,8 +3239,54 @@ html{scrollbar-gutter:stable}
    many actions there are, or what classes they carry. */
 .scr-gap{flex:1 1 auto;min-width:0}
 @media (min-width:768px){
-  .scr-head{min-height:48px;flex-wrap:nowrap;padding:0 var(--sp-5)}
+  /* MARGIN, not padding, and that is the whole of the "matching edges" fix (queue item 13).
+     The inset used to be padding, so the hairline drew across the .panel's full width (measured
+     at 1360: rule x336-1248) while every body block below it — #dashBody, #aList, #plateList by
+     margin; .plib-controls, .invz, .king-progress by their own padding — put its CONTENT at
+     x356-1228. A 20px overhang on each side: too small to read as the mock's full-bleed band,
+     too large to read as aligned. Moving the inset to margin shrinks the header's border box to
+     the content column, so the rule now starts and stops exactly where the cards do.
+     The title and the actions do not move — they sat at 356 and 1228 before and after; only the
+     box carrying the border-bottom changes.
+     ⚠️ DEVIATION FROM THE MOCK, recorded rather than quietly taken: the mock's §2 header has
+     `padding:14px 32px` and NO max-width, so its hairline is full-bleed across the main region.
+     Max chose matching edges on 12 Aug 2026 against that, reversing his own 10 Aug full-bleed
+     decision. R1 would say the mock wins; an explicit owner decision outranks the rubric. What we
+     give up is the mock's "header is a band across the app, not a lid on the content column".
+     Vertical padding stays 0 ON PURPOSE — §2's bar is 48px and `min-height` + `align-items:center`
+     is what holds it there. An 8px vertical padding was tried and reverted: the tallest child is a
+     39px `.plib-btn2`, so 39+16 pushed Menu and Ingredients to 56 while Dashboard and Settings
+     stayed at 48, and the bar stopped being one height across the app. The clearance ABOVE the bar
+     that the item asks for belongs to the page container, not to this rule — see `.wrap` at §1024. */
+  .scr-head{min-height:48px;flex-wrap:nowrap;padding:0;margin:0 var(--sp-5)}
   .scr-sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* THE OTHER SIDE OF THE SAME CONTRACT. Most screens already put their content on the column by
+     margin (#dashBody, #aList, #plateList) or by their own padding (.plib-controls, .king-progress),
+     so shrinking the header box above was enough. Three blocks did NOT, and each was drawing a
+     visible border 20px outside its own screen title — found by asserting the two boxes against
+     each other in v155-shell-edges.spec.js, not by reading, because nothing here was wrong on its
+     own terms; they were measured against a header that used to be 20px wider.
+
+     ⚠️ `#invDropZone`, NOT `.invz` — CLAUDE.md names `.invz` as worn by TWO elements, the Invoices
+     screen's dropzone and the upload modal's step 1. A margin on the class would inset the modal's
+     zone inside a 520px dialog that has its own padding. The screen's zone is the one on a page
+     container, so the id is the correct handle and the class must stay untouched.
+
+     `.stg-cards` is shared by Settings and Account, and both ARE screens on the page container, so
+     the class is right there. Its 680px cap (§2: settings/account/forms) is a FORM COLUMN inside the
+     960 page container, not a page edge — so it keeps a narrower right edge on purpose, and the
+     spec asserts only its left edge for that reason. Mobile is untouched: below 768 the mock has no
+     container and these run to the page edge, which is what `.stg-cards{max-width:none}` already
+     says at max-width:767. */
+  #invDropZone,.invz-recent,.stg-cards{margin-left:var(--sp-5);margin-right:var(--sp-5)}
+  /* `.invz` carries `width:100%` so the MODAL's zone fills its dialog. On the screen's zone that
+     width resolves against the panel and IGNORES the margins above — margins do not shrink a fixed
+     width — so the box overhung the header by 20px on the right instead of clearing it.
+     The width is restated rather than removed: `width:auto` was tried first and shrink-wrapped the
+     zone to 723px, because this is a <button> and intrinsic sizing wins on a form control even at
+     `display:block`. Measured, not reasoned about. Scoped to the id for the same reason as above. */
+  #invDropZone{width:calc(100% - (2 * var(--sp-5)))}
 }
 
 /* -- the list surface. Bordered rounded container on desktop; on mobile the mock has

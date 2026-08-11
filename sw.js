@@ -1,8 +1,8 @@
 /* EzPlate service worker */
-const CACHE = 'ezplate-v154';
+const CACHE = 'ezplate-v155';
 const ASSETS = [
   './', './index.html', './css/style.css', './js/app.js',
-  './css/style.css?v=154', './js/app.js?v=154',
+  './css/style.css?v=155', './js/app.js?v=155',
   './fonts/Geist-Regular.woff2', './fonts/Geist-Medium.woff2', './fonts/Geist-SemiBold.woff2', './fonts/Geist-Bold.woff2',
   './fonts/GeistMono-Regular.woff2', './fonts/GeistMono-Medium.woff2', './fonts/GeistMono-SemiBold.woff2', './fonts/GeistMono-Bold.woff2',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png'
