@@ -144,6 +144,61 @@ for (const size of [{ name: '380px', width: 380, height: 780 }, { name: 'desktop
   });
 }
 
+/* The naming step is BELOW THE FOLD on a phone once the docket is long, which is new: #plateName
+   used to be in the fixed header. The refusal to save an unnamed plate points at a field the user
+   may not be able to see, so the thing to pin is that pressing Save BRINGS IT TO THEM. It works
+   because saveCurrentPlate calls pn.focus() and focus scrolls — but that is a fact about the
+   browser, not about the code, and this change is what made the app depend on it. */
+test('saving an unnamed plate scrolls its error into view @ 380px', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', e => errs.push(String(e)));
+  await page.setViewportSize({ width: 380, height: 780 });
+  await installBoot(page);
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'M1', name: 'Winter' }]));
+    localStorage.setItem('cafeDB_cogsPct', '40');
+  });
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    for (let i = 0; i < 8; i++) window.kitchenIngredients.push({ id: 'K' + i, name: 'Ing ' + i, pid: 'P0108' });
+    window.rebuildKById();
+  });
+  await page.locator('.navbtn[data-tab="builder"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('#newPlateBtn').click();
+  await page.waitForTimeout(500);
+  for (let i = 0; i < 8; i++) {                       // a docket long enough to bury step 2
+    await page.locator('#q').fill('Ing ' + i);
+    await page.waitForTimeout(250);
+    await page.locator('#drop .opt').first().click();
+    await page.waitForTimeout(250);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));   // back to the top, where Save is
+  await page.waitForTimeout(200);
+  const buried = await page.evaluate(() => {
+    const r = document.getElementById('plateName').getBoundingClientRect();
+    return r.top > window.innerHeight;
+  });
+  expect(buried, 'the premise: with 8 lines the name field is off the bottom of the screen').toBe(true);
+
+  await page.locator('#saveBtn').click();
+  await page.waitForTimeout(600);
+  const shown = await page.evaluate(() => {
+    const e = document.getElementById('plateNameErr'), r = e.getBoundingClientRect();
+    return {
+      text: e.textContent,
+      inViewport: r.top >= 0 && r.bottom <= window.innerHeight,
+      focused: document.activeElement && document.activeElement.id,
+    };
+  });
+  expect(shown.text).toMatch(/name/i);
+  expect(shown.focused, 'the refusal puts the cursor in the field it is about').toBe('plateName');
+  expect(shown.inViewport, 'and the message is somewhere the user can actually read it').toBe(true);
+  expect(errs, errs.join('|')).toHaveLength(0);
+});
+
 test('an empty plate carries ONE no-ingredients message, and it points UP @ 380px', async ({ page }) => {
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));

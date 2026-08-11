@@ -11,6 +11,30 @@ Production state below is measured, not assumed.
 
 ---
 
+## 170 / v150 - the plate builder fills in the order you actually work
+
+**Build a plate from nothing on the phone, both themes.** That is the whole item: the search is at
+the TOP of the ingredients card now, the page is two numbered steps ("1 Add ingredients", "2 Name &
+save"), and the plate name and category are both in step 2 rather than in the header and the
+Publishing card. A failure is still reaching past the naming step to find the search, or the two
+step numbers reading as decoration rather than as sequence.
+
+- **The plate name in the header is static text you cannot tap now.** It used to be the field. The
+  field is in step 2. A failure is reaching for it, nothing happening, and having no sense of where
+  it went.
+- **The header is three rows tall at 380px** - back chevron, then the title, then Save on its own
+  row. It was the same height before, with a field where the title is. A failure is Save sitting far
+  enough down that it reads as part of the page rather than as the bar.
+- **The ingredient dropdown was being cut off and is not any more.** On the shipped v149 build it
+  painted 37px of its 96px, so you saw one and a bit of your matches. Type two letters with a real
+  catalogue behind it and check you get a full list you can scroll.
+- **The Cost card on an unpublished plate is a known empty box.** Below 768 it hides its heading and
+  both figures (the bar underneath carries them) and it has no menus to list yet, so it draws a thin
+  bordered rectangle with nothing in it. Pre-existing since v146, recorded in `docs/MAINTENANCE.md`,
+  not a new fault - but if it reads as broken rather than as empty, say so and it moves up.
+
+---
+
 ## F9 / v148 - Settings is a screen, not a panel
 
 The gear in the header is still the way in and is unchanged. What opens is different: instead of a
