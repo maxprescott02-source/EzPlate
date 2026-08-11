@@ -410,9 +410,22 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
     ['Profile', 'Team', 'Plan'], "the mock's §3.9 sections, in the mock's order, ready to be filled");
   assert.equal((body.match(/class="stg-soon"/g) || []).length, 3, 'one honest sentence per section');
   /* THE assertion. The mock draws Edit profile, Invite a teammate, Manage billing and Sign out;
-     none has any backing, so none may ship. A shell is not a licence for a dead control. */
-  assert.ok(!/<(input|select|button|a\s)/.test(body.replace(/<!--[\s\S]*?-->/g, '')),
-    'no control of any kind on the account screen — every capability it describes is absent');
+     none has any backing, so none may ship. A shell is not a licence for a dead control.
+     ⚠️ 171 narrowed this from "no control of any kind" to "no control in the screen's BODY", and the
+     distinction is the point rather than a loophole: the screen gained a "‹ More" back chevron in
+     its `.scr-head`, which is §6's navigation chrome — the same element on all four More
+     sub-screens — and is not a capability this screen claims to have. What the test was written to
+     catch is a button that PRETENDS the account has a feature it does not, so the assertion moved
+     to where such a button would go. The `.stg-cards` body is scanned; the shared header is not.
+     A dead control smuggled into the header would still be caught by the four names below. */
+  const cards = body.slice(body.indexOf('class="stg-cards"'));
+  assert.ok(cards.indexOf('class="stg-cards"') === 0, 'the body is where a capability control would go');
+  assert.ok(!/<(input|select|button|a\s)/.test(cards.replace(/<!--[\s\S]*?-->/g, '')),
+    'no control of any kind in the account screen body — every capability it describes is absent');
+  // and the one thing in the header is navigation, nothing else
+  const head = body.slice(0, body.indexOf('class="stg-cards"')).replace(/<!--[\s\S]*?-->/g, '');
+  assert.deepEqual([...head.matchAll(/<button[^>]*class="([^"]+)"/g)].map((m) => m[1]), ['scr-back'],
+    'the only button above the body is the back chevron');
   ['Edit profile', 'Invite a teammate', 'Manage billing', 'Sign out'].forEach((dead) => {
     assert.ok(body.indexOf(dead) < 0, `${dead} must not ship — it has nothing behind it`);
   });
@@ -431,8 +444,8 @@ test('F10: one pane list, read by every place that shows or hides a pane', () =>
   assert.ok(decl, 'TAB_PANES is declared once, as a literal');
   const panes = decl[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(panes,
-    ['builder', 'ingredients', 'analysis', 'dashboard', 'pantry', 'invoices', 'settings', 'account'],
-    'every screen that has a #tab-* pane is listed');
+    ['builder', 'ingredients', 'analysis', 'dashboard', 'pantry', 'invoices', 'settings', 'account', 'more'],
+    'every screen that has a #tab-* pane is listed');   // 171 added 'more'
   // …and every listed pane really exists in the markup, or the list is lying
   panes.forEach((n) => assert.ok(HTML.indexOf(`id="tab-${n}"`) >= 0, `#tab-${n} exists`));
   // …and no pane in the markup is MISSING from the list, which is the direction that stacks screens
@@ -450,10 +463,19 @@ test('F10: one pane list, read by every place that shows or hides a pane', () =>
     'declared above its first reader, or currentTab sees undefined');
 });
 
-test('F10: the Settings row is the only route to the account screen, so it must exist', () => {
-  assert.ok(/id="setAccountOpen"/.test(HTML), 'the door on Settings exists');
+/* 171 consciously changed this pin, which is what F10 said would happen: "the More-screen item adds
+   the second route". It did — two, in fact, one per width — so "the ONLY route" is no longer the
+   requirement and asserting it would now be asserting a bug. What still has to hold is the thing
+   F10 was protecting: the screen must be reachable, and the Settings row must not be quietly
+   dropped as a duplicate now that the nav carries it, because at >=1024 it and #sideAccount are
+   BOTH desktop routes and below 1024 the More row is the only one. */
+test('171: every route to the account screen, and none of them may be removed', () => {
+  assert.ok(/id="setAccountOpen"/.test(HTML), 'the door on Settings survives — F10 built it and it is still a route');
   assert.ok(/showTab\('account'\)/.test(APP), 'and it navigates to the screen');
-  // no nav button carries it — that is WHY currentTab() needs 'account' in its fallback list
-  assert.ok(!/data-tab="account"/.test(HTML),
-    'no nav entry yet: the More-screen item adds the second route, this row is the first');
+  // the sidebar entry — desktop's own route, in .nav-bottom so it is hidden below 1024
+  assert.ok(/class="navbtn nav-bottom" data-tab="account" id="sideAccount"/.test(HTML),
+    'Account is a first-class sidebar entry now, in the bottom group where §6.1 puts it');
+  // the More row — the phone's route, hidden at >=1024 with the rest of the More list
+  assert.ok(/data-more="account"/.test(HTML), 'and the More screen carries the phone route');
+  assert.ok(/\.more-row\[data-more\]/.test(APP), 'which is wired by attribute, through the same showTab');
 });

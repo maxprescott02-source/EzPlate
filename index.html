@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=150">
+<link rel="stylesheet" href="css/style.css?v=151">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -97,9 +97,23 @@
     <span class="brand-logo"><svg viewBox="0 0 64 64" role="img" aria-label="EzPlate logo"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/><path class="mk-arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg></span>
     <span class="brand-text"><b><span class="ez">Ez</span>Plate</b><small>Plate costing made easy</small></span>
   </div>
-  <button id="settingsBtn" class="theme-toggle" type="button" aria-label="Settings" title="Settings">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-  </button>
+  <!-- 171 tombstone: #settingsBtn — the header GEAR — is DELETED, and so is `.theme-toggle`, the
+       class it was the only wearer of. This is the decision the queue item asked this batch to make,
+       so the reasoning is recorded rather than left to be re-derived:
+
+        · Until now the gear was the phone's ONLY route to Settings, which is why F9 pinned it as
+          unremovable and why the queue item warned it must not be deleted BEFORE the More screen
+          existed. That condition is now met — More → Settings is the phone route, and it mirrors
+          the sidebar's Settings entry at ≥1024 exactly as §6.1 requires ("if it has no
+          desktop↔mobile mapping it isn't designed yet" — the gear mapped to nothing on desktop).
+        · Keeping it would leave two routes to one screen on one platform, which is §7's forbidden
+          duplicate intent, and two different mental models for reaching Settings.
+
+       THE LOSS, stated: Settings is two taps on a phone now instead of one. That is the mobile
+       pattern the mock designs and every tab-bar app uses, but it IS a real cost to the one person
+       who opens this app, so docs/PHONE.md carries it as a thing to report if it bites.
+       The <header> itself stays: it is the phone's brand bar and #brandHome is a live route to the
+       Dashboard. It is unconverted shell and no part of this item. -->
 </div></header>
 <div id="syncBanner" class="sync-banner" hidden></div>
 
@@ -433,6 +447,9 @@
          them here would have converted that screen by accident. F5 (v142) converted it. -->
     <div class="panel plib-panel">
       <div class="scr-head">
+        <!-- 171: §6's back chevron. Mobile-only (hidden at ≥1024, where this screen is a first-class
+             sidebar entry and there is no More screen to go back to). -->
+        <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Products</h2>
         <!-- filled by renderIngredients: "412 products, 7 suppliers", or "12 of 412 products" while a
              filter is on. The mock's slot holds a strapline; this app has a catalogue big enough that
@@ -440,11 +457,16 @@
              this rebuild deletes rather than losing what it said. -->
         <span class="scr-sub" id="ingHeadSub"></span>
         <span class="scr-gap"></span>
-        <!-- R3: the mock's Products header carries only "Add product". Import invoice survives here
-             because the sidebar's Invoices entry is DESKTOP-ONLY (≥1024) — on a phone this button is
-             the only route into the import flow, and dropping it would strand the app's highest-value
-             feature on the device Max works on. It is the same two-actions-on-a-mobile-header question
-             F3 raised; both are folded into that one queued decision rather than answered twice. -->
+        <!-- R3: the mock's Products header carries only "Add product". Import invoice survives here.
+             ⚠️ ITS ORIGINAL REASON EXPIRED IN 171 and the replacement is weaker, so it is written out
+             rather than left reading as though nothing changed. The old reason was "the sidebar's
+             Invoices entry is DESKTOP-ONLY, so on a phone this button is the ONLY route into the
+             import flow" — More → Invoices is now a second phone route, so this is no longer a
+             stranding argument, only a shortcut on the screen the import lands in. That makes it a
+             plain instance of the two-actions-on-a-mobile-header question, which is one queued
+             decision covering Ingredients, Products and Menu together. It is NOT removed here:
+             that item's requirement is one home for every screen's secondary action, chosen once,
+             and taking this one away first would answer it for one screen by deletion. -->
         <button class="plib-btn2" id="importBtn" type="button">Import<span class="btn-noun"> invoice</span></button>
         <!-- R2: the mock says "Add product"; v45 renamed this control "New product" app-wide and §7
              forbids two labels for one intent. The app's word wins. -->
@@ -518,6 +540,9 @@
   <div id="tab-invoices" style="display:none">
     <div class="panel plib-panel">
       <div class="scr-head">
+        <!-- 171: §6's back chevron, mobile-only. This screen HAD no phone route at all before this
+             batch; the F8 note above says the More-screen item owns rehoming it, and this is it. -->
+        <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Invoices</h2>
         <span class="scr-sub">Imports update product prices automatically</span>
         <span class="scr-gap"></span>
@@ -544,10 +569,16 @@
        once, so there is no nav to be on and no back arrow to press.
        `.scr-head` / `.plib-panel` are F2's ported mock patterns, reused not rebuilt.
 
-       BOTH routes in survive, and neither may be removed. `header{display:none}` inside
-       `@media (min-width:1024px)` makes #settingsBtn (the gear) MOBILE-ONLY and #sideSettings
-       DESKTOP-ONLY — two routes with no overlap and no width without one. They navigate now instead
-       of opening an overlay. The queue's More-screen item adds a third; it does not replace these.
+       ⚠️ THIS PARAGRAPH IS SUPERSEDED BY 171 and is rewritten rather than deleted, because what it
+       guarded still has to be guarded — just at a different pair of elements. It used to say the
+       header gear (#settingsBtn, mobile-only) and #sideSettings (desktop-only) were two routes with
+       no overlap and no width without one, and that NEITHER may be removed. The gear is now DELETED
+       (its tombstone is at the top of this file, with the reasoning); the More screen replaced it.
+       THE RULE IS UNCHANGED, the pair is not: #sideSettings covers ≥1024, where `.nav-more` is
+       hidden, and #tab-more's Settings row covers below 1024, where `.nav-bottom` is hidden. The two
+       media queries meet at 1023/1024, so there is still no width with neither — and removing
+       either one still strands the whole screen at that width. tests/settings.test.js asserts the
+       meeting from the CSS, not from this comment.
 
        R4 — the mock shows five things with no backing, and none is drawn as a control:
         · Business name + currency: neither is stored anywhere.
@@ -564,6 +595,10 @@
   <div id="tab-settings" style="display:none">
     <div class="panel plib-panel">
       <div class="scr-head">
+        <!-- 171: §6's back chevron, mobile-only. It is now the phone's route BACK; the route in is
+             More → Settings, and the header gear that used to be the only one is deleted (see the
+             <header> comment at the top of this file). -->
+        <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Settings</h2>
         <span class="scr-sub">Changes save as you make them</span>
       </div>
@@ -748,6 +783,10 @@
   <div id="tab-account" style="display:none">
     <div class="panel plib-panel">
       <div class="scr-head">
+        <!-- 171: §6's back chevron, mobile-only. The Settings row (#setAccountOpen) is still a route
+             in and is NOT replaced by the More row — at ≥1024 it and the sidebar entry are the two
+             desktop routes, and the More row only exists below it. -->
+        <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Account</h2>
         <span class="scr-sub">Arrives with EzPlate accounts</span>
       </div>
@@ -777,6 +816,56 @@
       </div>
     </div>
   </div><!-- /tab-account -->
+
+  <!-- 171: the MORE screen. Built from `Redesign v3 - Mobile.dc.html` §6 ("More screen: chevron rows
+       (Products, Invoices, Settings, Account) + workspace/plan card"). It completes §6.1's parity
+       map, which was unmet by construction while the phone had no home for those four screens.
+
+       IT HAS NO DESKTOP COUNTERPART AND THAT IS THE DESIGN, not an omission: §6.1 maps this list
+       onto the sidebar's bottom group, so at ≥1024 the same four routes are the four .nav-bottom
+       buttons and this pane is unreachable. showTab redirects 'more' to the Dashboard above that
+       width rather than painting a screen the nav cannot express — see the guard in showTab.
+
+       R4 — the mock's workspace/plan card ("Marta's Kitchen · Kitchen plan, renews 4 Sep") is NOT
+       drawn. No workspace, no plan and no billing exist; a card stating that would repeat what
+       #tab-account's Plan section already says one tap away, and inventing a workspace name would
+       be worse. It arrives with the multi-tenant phase, in this slot.
+
+       §4's five states: this screen performs no fetch and reads no data — it is four fixed routes,
+       so it has no skeleton, no empty, no error and no permission state to draw. Same construction
+       as #tab-account above, for the same reason. The rows are static markup; app.js binds them by
+       [data-more] and each value is a TAB_PANES key. -->
+  <div id="tab-more" style="display:none">
+    <div class="panel plib-panel">
+      <div class="scr-head">
+        <h2>More</h2>
+      </div>
+      <!-- ⚠️ The order here is §6.1's and MUST match the .nav-bottom group's order in <nav> — the
+           two are one list rendered two ways. tests/more-screen.test.js pins them against each
+           other so they cannot drift apart. -->
+      <div class="more-list">
+        <button class="more-row" type="button" data-more="ingredients">
+          <span class="more-txt"><span class="more-lbl">Products</span><span class="more-sub">What you buy from suppliers, as invoiced</span></span>
+          <span class="more-chev" aria-hidden="true">&rsaquo;</span>
+        </button>
+        <button class="more-row" type="button" data-more="invoices">
+          <span class="more-txt"><span class="more-lbl">Invoices</span><span class="more-sub">Imports and the price updates they make</span></span>
+          <span class="more-chev" aria-hidden="true">&rsaquo;</span>
+        </button>
+        <!-- the mock's sub-line is "Target %, GST, notifications". There are no notifications in
+             this app (F9 recorded it as R4 and drew no switch), so the line names what is actually
+             on that screen instead of promising a feature from the row that opens it. -->
+        <button class="more-row" type="button" data-more="settings">
+          <span class="more-txt"><span class="more-lbl">Settings</span><span class="more-sub">Target %, GST, theme and your data</span></span>
+          <span class="more-chev" aria-hidden="true">&rsaquo;</span>
+        </button>
+        <button class="more-row" type="button" data-more="account">
+          <span class="more-txt"><span class="more-lbl">Account</span><span class="more-sub">Profile, team, plan</span></span>
+          <span class="more-chev" aria-hidden="true">&rsaquo;</span>
+        </button>
+      </div>
+    </div>
+  </div><!-- /tab-more -->
 </div>
 
 <!-- Add-ingredient modal -->
@@ -1074,7 +1163,9 @@
      built from the v3 mock's §3.8 / §6 above. Deleted with it: the .set-nav sidebar, the seven
      .set-navitem sections, the mobile list→detail drill (.detail-open / #settingsBack) and the Done
      footer — every one of them a modal affordance a screen has no need for. Both routes IN survive:
-     #settingsBtn (mobile) and #sideSettings (desktop) now navigate. -->
+     #settingsBtn (mobile) and #sideSettings (desktop) now navigate.
+     171: the mobile half of that last sentence is out of date — the gear is deleted and the More
+     screen's Settings row is the phone route. #sideSettings is unchanged. -->
 
 <!-- v60 item 8: Tidy-lists MANAGER modal — the field picker + values list moved out of Settings so
      Settings stays short. Opened from the Settings row AND from each category/supplier filter's
@@ -1154,28 +1245,45 @@
     </div>
     <button class="side-theme" id="sideThemeToggle" type="button" aria-pressed="false" aria-label="Dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="sideThemeIcon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
   </div>
-  <!-- v54: workflow order — Dashboard, Products (buy), Ingredients (name), Plates (build), Menu (sell).
-       data-tab values are the internal keys and NEVER change; only labels + order do (see glossary). -->
+  <!-- 171: the nav order is §6.1's parity map — "sidebar top-to-bottom = tab bar left-to-right",
+       Dashboard(Home), Menu, Plates, Ingredients, with Products/Invoices/Settings/Account as the
+       bottom group on desktop and the More list on the phone. ONE DOM order serves both, which is
+       what makes the two provably identical rather than separately maintained.
+       ⚠️ THIS REPLACES v54's workflow order (Dashboard, Products=buy, Ingredients=name,
+       Plates=build, Menu=sell) and that is the loss, recorded per §R5: the old row read as the
+       journey a cost takes through the app. It could not survive Products leaving the main group,
+       which §6 requires, and the mock's order is outcome-first (Menu before the things that build
+       it). data-tab values are the internal keys and NEVER change; only labels + order do. -->
   <button class="navbtn" data-tab="dashboard" type="button" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="nl">Dashboard</span><span class="nl-badge" id="dashNavBadge" hidden></span></button>
-  <!-- data-tab stays "ingredients" for saved-lastTab compatibility; its LABEL is "Products" -->
-  <button class="navbtn" data-tab="ingredients" type="button" aria-label="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Products</span></button>
-  <!-- data-tab stays "pantry"; its LABEL is "Ingredients" (the naming inversion) -->
-  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg><span class="nl">Ingredients</span></button>
+  <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
   <!-- data-tab stays "builder"; its LABEL is now "Plates" (v54 — the tab is the plates library) -->
   <button class="navbtn active" data-tab="builder" type="button" aria-label="Plates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v4"/><path d="M9 3v4"/><path d="M12 3v4"/><path d="M6 7h6"/><path d="M9 7v14"/><path d="M18 3v18"/><path d="M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2"/></svg><span class="nl">Plates</span></button>
-  <button class="navbtn" data-tab="analysis" type="button" aria-label="Menu analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="19" y1="20" x2="19" y2="14"/></svg><span class="nl">Menu</span></button>
-  <!-- v132: the v3 sidebar's bottom group. Desktop-only (≥1024, CSS-hidden below); the header gear
-       is the mobile route and stays.
+  <!-- data-tab stays "pantry"; its LABEL is "Ingredients" (the naming inversion) -->
+  <button class="navbtn" data-tab="pantry" type="button" aria-label="Ingredients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-9"/><path d="M12 12C12 8 9.2 5.5 5 5.5c0 4.2 2.8 6.5 7 6.5Z"/><path d="M12 9.5c0-3 2.4-4.5 6-4.5 0 3.2-2.4 4.7-6 4.7Z"/></svg><span class="nl">Ingredients</span></button>
+  <!-- v132: the v3 sidebar's bottom group. Desktop-only (≥1024, CSS-hidden below).
        v137 (F1b): Invoices joins it, opening the SAME import flow as the Products tab's button —
        placement only, no new capability. The mock's "UI states" entry is a spec screen for the
-       designer and is not an app screen; the account row is R4 (no workspace concept exists) and
-       F10 owns the one question about it.
+       designer and is not an app screen.
        F8 (v147) then F9 (v148): both are SCREENS now, so both entries navigate rather than opening
        a modal. `data-tab="invoices"` and `data-tab="settings"` are NEW keys, not renames of existing
-       ones — nothing was renamed to make this work. The earlier "no data-tab on purpose: these are
-       overlays" note is what these two lines replace, and it is no longer true of either. -->
+       ones — nothing was renamed to make this work.
+       171: Products JOINS this group (§6.1: "Desktop's bottom sidebar group (Products, Invoices,
+       Settings, Account) = mobile's More list, in the same order") and Account gets its first nav
+       entry, replacing the F10 note that said it had none. `data-tab="account"` is a NEW key too.
+       ⚠️ Order inside this group is §6.1's and is the same order #tab-more renders — the two are
+       one list shown two ways, so changing one without the other breaks the parity map. -->
+  <button class="navbtn nav-bottom" data-tab="ingredients" id="sideProducts" type="button" aria-label="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="nl">Products</span></button>
   <button class="navbtn nav-bottom" data-tab="invoices" id="sideInvoices" type="button" aria-label="Invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg><span class="nl">Invoices</span></button>
   <button class="navbtn nav-bottom nav-settings" data-tab="settings" id="sideSettings" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span class="nl">Settings</span></button>
+  <button class="navbtn nav-bottom" data-tab="account" id="sideAccount" type="button" aria-label="Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nl">Account</span></button>
+  <!-- 171: the phone's fifth tab. Mobile-only — hidden at ≥1024, where the bottom group above IS
+       this list. It is LAST in the DOM on purpose and the position is load-bearing: showTab lights
+       BOTH this button and the sub-screen's own .nav-bottom entry when a sub-screen is open (they
+       never render at the same width, so neither is a stray highlight), and currentTab() answers
+       with the FIRST .navbtn.active it finds. Last means the sub-screen's own entry wins that read
+       and currentTab still says "ingredients", not "more". Move this button up and currentTab
+       starts answering 'more' for four screens. -->
+  <button class="navbtn nav-more" data-tab="more" id="navMore" type="button" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span class="nl">More</span></button>
 </nav>
 
 <div id="printDocket" aria-hidden="true"></div>
@@ -1186,7 +1294,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=150"></script>
+<script src="js/app.js?v=151"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

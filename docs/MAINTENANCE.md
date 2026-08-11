@@ -317,3 +317,16 @@ Not fixed here because it is a different screen region from the one the item sco
 (Found 11 Aug 2026, same measurement. **This one IS a consequence of 170** and is recorded rather than fixed because changing the tag's copy was not in the item.)
 Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `#plateName` field in step 2, and `#editTag`'s "Editing: Fish & Chips" directly under it. Before 170 it was twice — the header field and the tag.
 `#editTag`'s real job is saying **saved plate vs new plate**, and the name is the part of its sentence that is now redundant three ways. `updateEditTag` is its one writer. It is a status label, not a control, so R3 does not apply, but the useful information in it should survive whatever is done.
+
+### `--text3` is used once and has never been defined, so `.side-theme`'s icon is not muted
+(Found 11 Aug 2026 while reading the nav for 171. Pre-existing; not introduced by that batch.)
+`css/style.css` defines `--text-3` (hyphenated) and aliases `--text2`/`--muted2` off the hyphenated
+set. It does **not** define `--text3`. The one use is the desktop sidebar's theme toggle:
+`.side-theme{ … color:var(--text3) … }`. An undefined custom property makes the declaration invalid
+at computed-value time, so `color` falls back to `inherit` — the toggle icon renders at full text
+colour instead of the muted grey the rule intends. Visible only as "that icon is a bit loud", which
+is why nothing caught it.
+One character to fix (`--text3` → `--text-3`), but it changes the appearance of a control in the
+shell, so it belongs with the **Desktop shell polish** queue item, which is already measuring that
+region — not to a batch converting something else.
+Grep for the bare name before assuming this is the only site: `grep -n -- "--text3" css/style.css`.

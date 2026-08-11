@@ -1506,16 +1506,21 @@ document.addEventListener('click',()=>document.querySelectorAll('.tip.open').for
    It is ONE array now. Adding a pane means adding it here and nowhere else.
    Order matters to currentTab, which returns the first VISIBLE pane, and 'builder' stays first
    because it is also the default. */
-var TAB_PANES=['builder','ingredients','analysis','dashboard','pantry','invoices','settings','account'];
+var TAB_PANES=['builder','ingredients','analysis','dashboard','pantry','invoices','settings','account','more'];
 function currentTab(){
+  /* THE FIRST MATCH, and the DOM order it depends on, is the whole subtlety here. showTab lights
+     .nav-more as well as the target's own button whenever one of the four More sub-screens is open,
+     so on those screens TWO .navbtn carry `active` at once — deliberately, because the two are
+     hidden at opposite widths and only ever one is on screen. querySelector returns the first in
+     DOCUMENT order, and #navMore is written LAST in <nav> precisely so the sub-screen's own entry
+     wins this read. Move it and currentTab starts answering 'more' for Products, Invoices,
+     Settings and Account, which would send rerenderCurrentTab down the wrong branch.
+     171: every pane now has a .navbtn with its data-tab, so this branch answers for all nine and
+     the loop below is a fallback nothing currently reaches. It is kept, not deleted — its cost is
+     nil and it is the only thing that would stop a pane rendering with no lit button from being
+     read as 'builder'. It was load-bearing for #tab-account until this batch gave Account a nav
+     entry; that sentence is corrected here rather than left standing. */
   var b=document.querySelector('.navbtn.active'); if(b&&b.dataset.tab) return b.dataset.tab;
-  /* This loop is LOAD-BEARING for #tab-account, and the pre-push review corrected the mechanism, so
-     it is written out rather than summarised. No .navbtn carries data-tab="account", and showTab
-     toggles `active` on EVERY .navbtn against the target — so showTab('account') CLEARS the class
-     from all of them rather than leaving a stale one lit. The branch above therefore finds nothing
-     and falls through here, which is the only thing stopping currentTab() answering 'builder' while
-     Account is on screen. (It is NOT load-bearing for 'settings': #sideSettings carries .navbtn and
-     data-tab at every width, CSS only hides it, so the branch above answers that one.) */
   var names=TAB_PANES;
   for(var i=0;i<names.length;i++){ var el=document.getElementById('tab-'+names[i]); if(el&&el.style.display!=='none') return names[i]; }
   return 'builder';
@@ -1530,13 +1535,45 @@ function rerenderCurrentTab(){                                         // re-run
      with nothing to render, and the fallthrough is renderPlatesTab() — which would repaint a HIDDEN
      Plates library every time boot data lands while Account is showing. Harmless today and wrong,
      which is the shape docs/MAINTENANCE.md records for 'invoices' on this same line. */
-  if(t==='account') return;
+  /* 171: 'more' joins 'account' for the same reason — four fixed routes, no data, nothing to
+     render, and the fallthrough would repaint a hidden Plates library on every boot-data arrival. */
+  if(t==='account'||t==='more') return;
   try{ if(t==='analysis')renderAnalysis(); else if(t==='ingredients')renderIngredients(); else if(t==='dashboard')renderDashboard(); else if(t==='pantry')renderKitchenPanel(); else if(t==='settings')renderSettingsTab(); else renderPlatesTab(); }catch(e){ console.error('[rerender]', e); }
 }
+/* 171: the four screens the More list opens. ONE array, read by showTab's lit-button rule below;
+   the same four are `.nav-bottom` in <nav> and the four `[data-more]` rows in #tab-more, and
+   tests/more-screen.test.js pins all three against each other so they cannot drift apart. */
+var MORE_SUBS=['ingredients','invoices','settings','account'];
+/* Is the More screen the nav at this width? It is the exact complement of the sidebar: `.nav-more`
+   is hidden at >=1024 and `.nav-bottom` below it, so this ONE query decides both halves and the two
+   can never disagree. matchMedia rather than innerWidth: it is the same unit the CSS resolves, and
+   CLAUDE.md records that innerWidth and the fixed-position containing block disagree by ~10px on
+   the CI runner — a hand-rolled width comparison would flip on a different side of 1024 than the
+   stylesheet does, for a band of widths nobody would think to test. */
+function moreIsNav(){
+  try{ return !window.matchMedia('(min-width:1024px)').matches; }catch(e){ return true; }
+}
 function showTab(t){
+  /* THE ONE-WAY GUARD. #tab-more has no desktop counterpart by design — at >=1024 its four routes
+     ARE the sidebar's bottom group — so painting it there would be a screen the nav cannot express
+     and cannot leave except by picking another tab. It is reachable at desktop width by exactly one
+     route: restoreLastTab() replaying a `cafeDB_lastTab` of 'more' written on a phone, which is the
+     mirror of the edge F8 knowingly left open for Invoices and docs/PHONE.md recorded. Sending it
+     to the Dashboard is the honest answer, and it is deliberately NOT symmetric: landing on
+     Products/Invoices/Settings/Account below 1024 is fine now — each has a lit More tab and a back
+     chevron — so those four need no guard, which is the whole point of this batch. */
+  if(t==='more' && !moreIsNav()) t='dashboard';
   var _retap=(currentTab()===t);                                       // v115: re-tapping the active tab is a "take me to the top" gesture, not a navigation
   try{ localStorage.setItem('cafeDB_lastTab', t); }catch(e){}          // remember where the user was, for next refresh
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  /* …and then More is lit for its four sub-screens as well, which is §6's rule ("Invoices/Products/
+     Settings/Account highlight More"). This runs AFTER the exact-match pass and can only ADD the
+     class, never clear one the pass set: a lit tab bar with nothing lit is what a phone user sees
+     on those four screens otherwise. The two lit buttons never share a width — `.nav-more` and
+     `.nav-bottom` are hidden at opposite sides of 1024 — so this is not a double highlight, and
+     currentTab() still reads the sub-screen's own entry because #navMore is last in the DOM. */
+  var _nm=document.getElementById('navMore');
+  if(_nm && MORE_SUBS.indexOf(t)>=0) _nm.classList.add('active');
   /* v115 (v60 item 5 reworked): the jump used to fire AFTER the render, so a heavy innerHTML rebuild
      landed at the old scroll offset and then snapped to 0 — two visual states in one frame. A tab
      SWITCH now jumps first and renders already at the top; a RE-TAP smooth-scrolls after (below). */
@@ -1562,6 +1599,25 @@ function showTab(t){
   if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
+/* 171: the More screen's four rows, and the "‹ More" chevron on each of the four screens they open.
+   Both are plain navigation and carry a TAB_PANES key in the attribute, so they route through the
+   same showTab every nav button does — there is no second navigation path to keep in step. Bound by
+   attribute rather than by id for the same reason the nav is: adding a fifth row is markup only. */
+document.querySelectorAll('.more-row[data-more]').forEach(function(b){ b.addEventListener('click',function(){ showTab(b.dataset.more); }); });
+document.querySelectorAll('.scr-back[data-back]').forEach(function(b){ b.addEventListener('click',function(){ showTab(b.dataset.back); }); });
+/* Crossing 1024 with the More screen open — a phone rotated into landscape on a tablet, a desktop
+   window widened, or the browser's own device-toolbar toggle. The sidebar appears, `.nav-more` and
+   the whole More list vanish with it, and #tab-more would sit there as a blank panel with a lit
+   nothing. showTab's guard cannot catch this: no navigation happens. So the media query itself is
+   the event, and it fires only on the CROSSING, not on every resize.
+   `.addEventListener` with an `addListener` fallback — Safari only added the modern form in 14. */
+(function(){
+  var mq; try{ mq=window.matchMedia('(min-width:1024px)'); }catch(e){ return; }
+  if(!mq) return;
+  var onCross=function(e){ if(e.matches && currentTab()==='more') showTab('dashboard'); };
+  if(mq.addEventListener) mq.addEventListener('change',onCross);
+  else if(mq.addListener) mq.addListener(onCross);
+})();
 function restoreLastTab(){                                            // return to the last-viewed tab on refresh (Builder is the default)
   var VALID=TAB_PANES;
   var lt=null; try{ lt=localStorage.getItem('cafeDB_lastTab'); }catch(e){}
@@ -4828,16 +4884,18 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    Every setting here follows the house rule: one dbSetSetting write + a
    localStorage mirror, loaded idempotently in bootstrapSync.
 
-   TWO ROUTES IN, and each is the only one at its width: #settingsBtn (the header
-   gear) is MOBILE-ONLY because `header{display:none}` inside @media (min-width:1024px),
-   and #sideSettings is DESKTOP-ONLY because .nav-bottom is CSS-hidden below 1024.
+   TWO ROUTES IN, and each is the only one at its width. 171 changed WHICH two and
+   nothing else about the rule: #sideSettings is DESKTOP-ONLY because .nav-bottom is
+   CSS-hidden below 1024, and the More screen's Settings row is MOBILE-ONLY because
+   .nav-more is CSS-hidden at 1024 and up. The header gear that used to be the mobile
+   half is deleted — see the tombstone at the top of index.html.
    Both navigate; removing either strands the screen at that width.
    ============================================================ */
 /* The version string. sw.js's CACHE constant is the source of truth; this is a mirror,
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v150';
+var APP_VERSION='v151';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -4853,9 +4911,12 @@ function renderSettingsTab(){
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
   syncThemeSeg();                                                                       // v136
 }
-/* The single entry point, kept under its old name because both routes and the specs call it.
-   showTab runs renderSettingsTab, so navigation and priming cannot come apart. */
-function openSettings(){ showTab('settings'); }
+/* 171 tombstone: `openSettings()` is DELETED. It was a one-line alias for showTab('settings'),
+   kept while the header gear needed a handler to bind; the gear is gone and both surviving routes
+   (#sideSettings, the More row) are data-tab navigation, so nothing called it. A one-line alias
+   with no caller is the shape `addProduct` warns about — except this one has no Playwright handle
+   either, which was checked before deleting: tests/visual/v137-modal-layer.spec.js was its last
+   caller and now drives showTab('settings') directly, which is what the gear did anyway. */
 /* F9 (v148) tombstone: closeSettings / setSettingsSection / settingsBack / reopenSettingsSection /
    backToSettingsSection are all GONE. The first three were the modal's own machinery. The last two
    existed so a sub-surface opened FROM Settings could reopen Settings on its own section when it
@@ -5296,10 +5357,12 @@ function clearCacheAndRefresh(){
 }
 (function(){
   function on(id,fn){ var b=document.getElementById(id); if(b) b.addEventListener('click',fn); }
-  on('settingsBtn',openSettings);   // the header gear — the ONLY route below 1024, where the sidebar's bottom group is hidden
   /* F8 (v147) then F9 (v148) tombstone: `on('sideInvoices',openInv)` and `on('sideSettings',openSettings)`
      opened a modal straight from the sidebar. Both are screens now, so both entries carry a data-tab and
-     the generic .navbtn[data-tab] binding navigates them. Wiring the opener here as well would fire BOTH. */
+     the generic .navbtn[data-tab] binding navigates them. Wiring the opener here as well would fire BOTH.
+     171 tombstone: `on('settingsBtn',openSettings)` goes with the header gear. Every route to Settings
+     is data-tab navigation now — #sideSettings on desktop, the More row on mobile — so there is no
+     click handler left to bind for this screen at all. */
   // v115: #cogsToSettings is gone with the .cogs-meta line
   on('setExport',exportBackup); on('setClearCache',clearCacheAndRefresh);
   /* v110: the file input is hidden and driven by the visible button, matching the invoice
@@ -5352,7 +5415,12 @@ function clearCacheAndRefresh(){
   }
   // Tidy lists wiring (v59 core; v60 item 8 moves it into a modal)
   var tf=document.getElementById('tidyField'); if(tf) tf.addEventListener('change',renderTidyValues);
-  on('setAccountOpen',function(){ showTab('account'); });        // F10 (v149): the ONLY route to #tab-account at any width — see the markup comment before deleting it
+  /* F10 (v149) built this row as the ONLY route to #tab-account at any width. 171 added two more —
+     #sideAccount in the sidebar's bottom group at ≥1024, and the More screen's Account row below it
+     — so "the only route" is no longer true and the sentence is corrected rather than left standing.
+     The row still SURVIVES, and F10's reason for it is undamaged: it is a second desktop route, not
+     a duplicate of a mobile one. tests/settings-toggles.test.js pins all three together. */
+  on('setAccountOpen',function(){ showTab('account'); });
   on('setTidyOpen',function(){ openTidyManage('category'); });   // F9 (v148): opens OVER the Settings screen; closing it reveals the screen, so nothing has to be reopened
   on('setSmemOpen',openSmem);                                    // v71 item 5 moved remembered packs here
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);

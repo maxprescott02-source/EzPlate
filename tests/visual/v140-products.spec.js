@@ -17,7 +17,7 @@
  * Run: npx playwright test tests/visual/v140-products.spec.js
  */
 const { test, expect } = require('@playwright/test');
-const { installBoot } = require('./_boot');
+const { installBoot, gotoTab } = require('./_boot');
 
 /* The 393-row fixture carries NO supplier on any product and a category on every one, so both
    placeholder states have to be staged. They go through the real writer (`setProduct`) rather than
@@ -41,7 +41,7 @@ async function boot(page, width, errs, opts = {}) {
       window.setProduct('P0002', { base_unit: 'unknown', category: '' });   // basis flag AND a category-less row
     });
   }
-  await page.locator('.navbtn[data-tab="ingredients"]').click();
+  await gotoTab(page, 'ingredients');   // 171: Products is under More below 1024 — drive the real route at the real width
   await page.waitForTimeout(400);
   await page.evaluate(() => window.renderIngredients());
   await page.waitForTimeout(200);

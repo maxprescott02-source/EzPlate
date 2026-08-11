@@ -55,7 +55,7 @@
  * (768). F2's first cut was misaligned by 4px there and nowhere else, and 380/1280 both miss it.
  */
 const { test, expect } = require('@playwright/test');
-const { installBoot } = require('./_boot');
+const { installBoot, gotoTab } = require('./_boot');
 
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
@@ -87,7 +87,7 @@ for (const size of SIZES) {
     await page.waitForTimeout(1500);
 
     const edge = async (tab, listId) => {
-      await page.locator(`.navbtn[data-tab="${tab}"]`).click();
+      await gotoTab(page, tab);   // 171: width-aware — Products sits under More below 1024
       await page.waitForTimeout(300);
       return page.evaluate((id) => {
         window.scrollTo(0, 0);

@@ -443,7 +443,7 @@ test.describe('shell: the sidebar controls the mock added', () => {
   test('the two theme controls show the same answer', async ({ page }) => {
     await boot(page);
     await page.locator('#sideThemeToggle').click();
-    await page.evaluate(() => window.openSettings());
+    await page.evaluate(() => window.showTab('settings'));   // 171: openSettings() is deleted — it was a one-line alias for exactly this
     const state = await page.evaluate(() => ({
       applied: document.documentElement.getAttribute('data-theme'),
       pressed: document.getElementById('sideThemeToggle').getAttribute('aria-pressed'),
@@ -454,16 +454,27 @@ test.describe('shell: the sidebar controls the mock added', () => {
     expect(state.pressed).toBe(state.applied === 'dark' ? 'true' : 'false');
   });
 
-  test('the sidebar bottom group is Invoices then Settings, under a hairline', async ({ page }) => {
+  /* 171 grew this group from two to FOUR — Products joined it and Account gained its first nav
+     entry, because §6.1 maps the whole group onto the phone's More list. The hairline assertion
+     below is unchanged in intent and had to move to the group's new FIRST member: the rule is
+     `.navbtn:not(.nav-bottom) + .nav-bottom::before`, so it follows whichever entry leads the
+     group, and pinning it to #sideInvoices would now pass against a hairline drawn in the wrong
+     place. That is the same class of silent miss the :first-of-type note below records. */
+  test('the sidebar bottom group is the four More screens, under a hairline', async ({ page }) => {
     await boot(page);
     const inv = page.locator('#sideInvoices');
     await expect(inv).toBeVisible();
+    // the group, in §6.1's order, all four visible at desktop width
+    await expect(page.locator('.navbtn.nav-bottom .nl')).toHaveText(['Products', 'Invoices', 'Settings', 'Account']);
 
     /* The hairline is a ::before on the first member of the group. It is NOT :first-of-type —
        every nav item is a <button>, so that selector matches the Dashboard tab instead and the
        rule lands 6 rows too high, which is invisible unless something measures it. */
-    const rule = await inv.evaluate((n) => getComputedStyle(n, '::before').backgroundColor);
+    const rule = await page.locator('#sideProducts').evaluate((n) => getComputedStyle(n, '::before').backgroundColor);
     expect(rule).not.toBe('rgba(0, 0, 0, 0)');
+    // …and it is on the FIRST member only, or the group reads as four separated rows
+    const onSecond = await inv.evaluate((n) => getComputedStyle(n, '::before').backgroundColor);
+    expect(onSecond).toBe('rgba(0, 0, 0, 0)');
     const onDashboard = await page.locator('.navbtn[data-tab="dashboard"]')
       .evaluate((n) => getComputedStyle(n, '::before').backgroundColor);
     expect(onDashboard).toBe('rgba(0, 0, 0, 0)');

@@ -25,11 +25,17 @@ async function boot(page, width) {
   await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
 }
 
-/* The route depends on the width and the two do NOT overlap: `header{display:none}` inside
-   @media (min-width:1024px) makes the gear mobile-only, and .nav-bottom is hidden below 1024,
-   making the sidebar entry desktop-only. Clicking the wrong one for the width tests nothing —
-   so each test drives the route that is actually visible there. */
-const routeFor = (width) => (width >= 1024 ? '#sideSettings' : '#settingsBtn');
+/* The route depends on the width and the two do NOT overlap. 171 replaced the mobile half — the
+   header gear is deleted and Settings is reached through the More screen — but the reason this
+   helper exists is unchanged: `.nav-more` is hidden at >=1024 and `.nav-bottom` below it, so
+   clicking the wrong one for the width tests nothing. Below 1024 that is now TWO clicks, because
+   Settings is one level down under More, which is exactly what §6 designs. */
+const openSettings = async (page, width) => {
+  if (width >= 1024) { await page.click('#sideSettings'); return; }
+  await page.click('.navbtn[data-tab="more"]');
+  await page.waitForTimeout(200);
+  await page.click('#tab-more [data-more="settings"]');
+};
 
 // F10 (v149): seven, not F9's eight — Account and Team moved to #tab-account, and the Account card
 // left behind is the door to it rather than a third copy of the same sentence.
@@ -40,7 +46,7 @@ const CARDS = ['Costing', 'AI features', 'Appearance', 'Lists', 'Data', 'Account
 for (const width of [380, 900, 1280]) {
   test(`${width}px: every section card is visible at once, correctly labelled`, async ({ page }) => {
     await boot(page, width);
-    await page.click(routeFor(width));
+    await openSettings(page, width);
     await page.waitForTimeout(400);
 
     await expect(page.locator('#tab-settings')).toBeVisible();
@@ -68,7 +74,7 @@ for (const width of [380, 900, 1280]) {
       window.setGstDefault('inc', false);
       window.setAiInvoiceCheck(false, false);
     });
-    await page.click(routeFor(width));
+    await openSettings(page, width);
     await page.waitForTimeout(400);
 
     await expect(page.locator('#setCogsInput')).toHaveValue('37');
@@ -80,7 +86,7 @@ for (const width of [380, 900, 1280]) {
        This is the regression a "render once on first show" optimisation would introduce, and it is
        invisible until a user changes the target on one device and opens Settings on another. */
     await page.evaluate(() => { window.showTab('builder'); window.setCogs(29, false); });
-    await page.click(routeFor(width));
+    await openSettings(page, width);
     await page.waitForTimeout(400);
     await expect(page.locator('#setCogsInput')).toHaveValue('29');
   });
@@ -92,7 +98,7 @@ test('380px: the theme segment is reachable and usable on a phone — it is the 
      onto the screen rather than letting the mock's silence delete it. */
   await boot(page, 380);
   await expect(page.locator('.side-theme')).toBeHidden();
-  await page.click('#settingsBtn');
+  await openSettings(page, 380);
   await page.waitForTimeout(400);
 
   const seg = page.locator('#tab-settings .seg-btn[data-theme-pref]');
@@ -108,7 +114,7 @@ test('380px: every control on the screen clears a 44px tap target', async ({ pag
      the label around it is what a thumb hits, and it must not have shrunk with it. Measured rather
      than read, because the whole point of the change was a number in the CSS. */
   await boot(page, 380);
-  await page.click('#settingsBtn');
+  await openSettings(page, 380);
   await page.waitForTimeout(400);
   const ids = ['setCogsInput', 'setGstDefault', 'setSmemOpen', 'setTidyOpen',
     'setExport', 'setRestore', 'setClearCache', 'setThemeLight'];
@@ -155,11 +161,12 @@ test('1280px: leaving Settings for another tab really leaves it, and coming back
 });
 
 test('380px: the Settings row is the whole route to Account, and it works with a thumb', async ({ page }) => {
-  /* #tab-account has no nav entry at any width — the More-screen item adds one later. So this row
-     is the only way in, and on a phone it is the only way in on the device Max works on. Driven,
-     not read: a broken handler and a missing row look identical in the markup. */
+  /* 171: this row is no longer the ONLY way in — the More screen's Account row is the phone's own
+     route and #sideAccount is desktop's — but it survives, F10's reason for it stands, and a broken
+     handler and a missing row still look identical in the markup. So it is still driven here, and
+     the More route is driven in the test below. */
   await boot(page, 380);
-  await page.click('#settingsBtn');
+  await openSettings(page, 380);
   await page.waitForTimeout(400);
   const door = page.locator('#setAccountOpen');
   await expect(door).toBeVisible();
@@ -171,8 +178,13 @@ test('380px: the Settings row is the whole route to Account, and it works with a
   await expect(page.locator('#tab-settings')).toBeHidden();
   await expect(page.locator('#tab-account .stg-card-h')).toHaveText(['Profile', 'Team', 'Plan']);
 
-  /* Not a dead end: the bottom bar still navigates away, which is the §6 requirement a sub-screen
-     with no back chevron has to meet some other way until the More screen gives it one. */
+  /* Not a dead end — and 171 gave it the §6 answer rather than the fallback this used to accept:
+     the "‹ More" chevron goes back to the screen it was opened from. The bottom bar still works too
+     and both are checked, because losing either would strand the screen in a different way. */
+  await page.click('#tab-account .scr-back');
+  await page.waitForTimeout(400);
+  await expect(page.locator('#tab-more')).toBeVisible();
+  await expect(page.locator('#tab-account')).toBeHidden();
   await page.click('.navbtn[data-tab="dashboard"]');
   await page.waitForTimeout(400);
   await expect(page.locator('#tab-account')).toBeHidden();
@@ -187,7 +199,10 @@ test('1280px: the account screen renders and carries no control', async ({ page 
   await page.waitForTimeout(400);
   await expect(page.locator('#tab-account')).toBeVisible();
   // §R4: the mock draws Edit profile / Invite a teammate / Manage billing / Sign out. None ships.
-  await expect(page.locator('#tab-account button, #tab-account input, #tab-account select, #tab-account a')).toHaveCount(0);
+  await expect(page.locator('#tab-account .stg-cards button, #tab-account .stg-cards input, #tab-account .stg-cards select, #tab-account .stg-cards a')).toHaveCount(0);
+  // 171: scoped to the body. The screen gained a "‹ More" chevron in its shared header — navigation,
+  // not a capability — and at 1280 it is display:none anyway, which is asserted rather than assumed.
+  await expect(page.locator('#tab-account .scr-back')).toBeHidden();
   for (const label of ['Profile', 'Team', 'Plan']) {
     const box = await page.locator('#tab-account .stg-card', { hasText: label }).first().boundingBox();
     expect(box, `${label} card`).not.toBeNull();

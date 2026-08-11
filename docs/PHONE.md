@@ -11,6 +11,46 @@ Production state below is measured, not assumed.
 
 ---
 
+## 171 / v151 - the bottom bar changed, and there is a More tab now
+
+**This is the batch you will notice first, because it moves things you tap every day.** Open the app
+and look at the bottom bar before doing anything else.
+
+- **The bar is a different five, in a different order: Dashboard, Menu, Plates, Ingredients, More.**
+  Products has LEFT the bar - it is now under More. The order of the middle three is reversed from
+  what you had (it was Products, Ingredients, Plates, Menu). Both changes are the design package's
+  parity map, which says the phone bar left-to-right must equal the desktop sidebar top-to-bottom.
+  **The old order was the workflow - buy, name, build, sell - and that is what was given up.** The
+  thing only you can judge: after a few days, does reaching for Products under More annoy you, and
+  does the new order fight your muscle memory or stop mattering? A failure is you tapping the wrong
+  tab more than the first day or two.
+- **The gear in the top-right of the header is GONE.** Settings is More → Settings, two taps instead
+  of one. This was a deliberate call and it is the one most likely to be wrong for you specifically,
+  because you are the only person who knows how often you open Settings. **If you find yourself
+  reaching for the top-right corner more than once, say so** - the gear can come back, and the
+  reason it went (two routes to one screen on one platform) is a rule, not a law of physics.
+- **Invoices has a phone home for the first time.** More → Invoices opens the Invoices screen, which
+  until now only existed on desktop. Import invoice on Products still works exactly as before and
+  is unchanged - so there are now two ways in on a phone. Check the screen itself is worth having on
+  the phone at all: it is a dropzone and a "we don't keep a list of past imports yet" note.
+- **Account is reachable from More too**, as well as from the Settings row that already opened it.
+- **Every one of those four screens has a "‹" back arrow at the top-left** that returns to More.
+  Below about 640px wide it is just the arrow with no word beside it; on a wider screen it says
+  "‹ More". That is not a bug - the word was taking the space the Products header needed for its two
+  buttons. **A failure is tapping the arrow and landing somewhere that is not the More list**, or
+  the arrow being too small or too close to the edge for a thumb.
+- **On all four of those screens the More tab is the lit one.** A failure is the bar showing nothing
+  lit at all, which would read as "you are nowhere".
+- **The known rough edge, and it is not new:** at 360px wide (narrower than your phone - some Android
+  phones) the Products header wraps onto two lines. The Ingredients header already did that before
+  this batch for the same reason: two buttons in a header the design allows one in. It is queued as
+  one fix for both. **If your own phone ever shows a header on two lines, say so and which screen** -
+  that would mean the width it happens at is wider than measured.
+- **Both themes.** The More list is four rows on the plain page background with hairlines between
+  them - no card, no container. Check the small grey second line under each name is readable in dark.
+
+---
+
 ## 170 / v150 - the plate builder fills in the order you actually work
 
 **Build a plate from nothing on the phone, both themes.** That is the whole item: the search is at

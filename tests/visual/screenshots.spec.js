@@ -13,8 +13,13 @@
  * you're working on those specific screens.
  */
 const { test, expect } = require('@playwright/test');
+const { gotoTab } = require('./_boot');
 
-const TABS = ['dashboard', 'builder', 'pantry', 'ingredients', 'analysis'];
+/* 171: 'more' joins the set. `ingredients` (Products) is a More sub-screen below 1024 now, so its
+   nav button is display:none at mobile width — the `if (await btn.count())` guard below would NOT
+   have caught that, because the button is still in the DOM and only its visibility changed. The
+   walk goes through gotoTab instead, which takes the real route at whatever width it is given. */
+const TABS = ['dashboard', 'builder', 'pantry', 'ingredients', 'analysis', 'more'];
 const SIZES = [
   { name: 'mobile', width: 380, height: 780 },
   { name: 'desktop', width: 1280, height: 900 },
@@ -27,9 +32,10 @@ for (const size of SIZES) {
       await page.goto('/');
       // let the splash clear and the shell settle
       await page.waitForTimeout(1500);
-      const btn = page.locator(`.navbtn[data-tab="${tab}"]`);
-      if (await btn.count()) {
-        await btn.click();
+      /* 'more' has no desktop counterpart — at >=1024 its four routes ARE the sidebar's bottom
+         group and showTab redirects it — so there is nothing to shoot there and the walk skips it. */
+      if (!(tab === 'more' && size.width >= 1024)) {
+        await gotoTab(page, tab);
         await page.waitForTimeout(600);
       }
       await page.screenshot({
