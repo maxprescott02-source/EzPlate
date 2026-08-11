@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=149">
+<link rel="stylesheet" href="css/style.css?v=150">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -173,15 +173,17 @@
   <div id="builderPage" hidden>
     <div class="scr-head bld-head">
       <button class="bld-back" id="builderClose" type="button" aria-label="Back to Plates"><span class="bld-chev">‹</span>Plates<span class="bld-slash"> /</span></button>
-      <!-- R2: the mock's header shows the plate NAME as static text and names the plate in a
-           separate "New plate" modal. This app names the plate LAST (v69, Max's call: add
-           ingredients, then name, then categorise, then save) and the same field doubles as the
-           load-a-saved-plate search. So the title is an editable field wearing the mock's title
-           type — the mock's structure, the app's flow. -->
-      <span class="bld-namewrap">
-        <input id="plateName" class="bld-name" type="text" placeholder="Name this plate" autocomplete="off" aria-label="Plate name">
-        <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-      </span>
+      <!-- 170: the mock's header shows the plate NAME as STATIC TEXT, and this is now that.
+           F7 put the editable #plateName here instead, wearing the title type, because the app
+           names the plate LAST (v69, Max's call: add ingredients → name → categorise → save) and
+           there was nowhere else for the field to live. The consequence was that the FIRST thing a
+           user met on an empty builder was the LAST step of the form — which is what Max reported
+           as "flow does not match how the user would fill the form".
+           The field now lives in step 2 where the fill order puts it, so the header can go back to
+           the mock's structure. This span only MIRRORS it — syncBuilderTitle() is the one writer,
+           and it runs from renderPlate() plus the #plateName input listener, which between them
+           cover all six places that assign #plateName.value. -->
+      <span class="bld-title" id="bldTitle"></span>
       <span class="bld-pill" id="bldPill" hidden></span>
       <span class="scr-gap"></span>
       <!-- "Saved just now" renders ONLY after the server confirms (see saveCurrentPlate) -->
@@ -193,26 +195,69 @@
            which is the very deviation the queue's mobile-header item exists to stop spreading. -->
       <button class="btn primary" id="saveBtn" type="button">Save plate</button>
     </div>
-    <div class="ferr bld-err" id="plateNameErr" style="display:none"></div>
     <div class="bld-body">
-      <section class="bld-table">
-        <!-- mock §3.7's column band. aria-hidden for the same reason every converted screen's band
-             is: the row's own cells carry labelled controls. -->
-        <div class="bld-band" aria-hidden="true"><span>Ingredient</span><span>Qty</span><span>Unit cost</span><span>Cost</span><span></span></div>
-        <div id="lines"></div>
-        <div class="bld-foot">
-          <div class="search-wrap bld-search">
-            <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
-            <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
-            <div id="drop" class="drop" role="listbox"></div>
+      <!-- 170: the two STEPS, in the v69 fill order, as two cards of the same v3 system the rail
+           already uses. They are wrapped because .bld-body is a two-column grid at >=768 and three
+           children would auto-place the naming step into the 300px rail track. -->
+      <div class="bld-main">
+        <section class="bld-step" id="bldStep1">
+          <h2><span class="bld-stepn">1</span>Add ingredients</h2>
+          <!-- 170: the search sits ABOVE #lines, which is where it was before F7 (#q above #lines
+               inside the old #docketPanel) and how a docket reads — it grows downward from where
+               you type. F7 moved it into a `.bld-foot` UNDER the table, which is what made the
+               first step of the form the last thing on the card.
+               ⚠️ IT ALSO FIXED A LIVE CLIP. #drop is `position:absolute` inside `.search-wrap`,
+               so it is clipped by any ancestor with overflow:hidden — which `.bld-table` had.
+               Measured at 1280 before this change: a 96px dropdown with 37px of it visible, the
+               rest cut off by the card's bottom edge. `.bld-step` therefore does NOT clip, and its
+               h2 carries its own top radius instead of relying on the card to trim it. -->
+          <div class="bld-add">
+            <div class="search-wrap bld-q">
+              <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
+              <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+              <div id="drop" class="drop" role="listbox"></div>
+            </div>
+            <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
           </div>
-          <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
-        </div>
-        <!-- v102 prose cull: the element stays for the no-ingredients empty state, which JS un-hides -->
-        <p class="hint bld-hint" id="builderHint" style="display:none"></p>
-        <p class="hint bld-hint bld-tip">Tap a unit cost to edit it — the change applies everywhere. <span id="dCount"></span></p>
-        <div class="flag bld-flag" id="flag" style="display:none"></div>
-      </section>
+          <!-- mock §3.7's column band. aria-hidden for the same reason every converted screen's band
+               is: the row's own cells carry labelled controls. -->
+          <div class="bld-band" aria-hidden="true"><span>Ingredient</span><span>Qty</span><span>Unit cost</span><span>Cost</span><span></span></div>
+          <div id="lines"></div>
+          <!-- v102 prose cull: the element stays for the no-catalogue hint, which JS un-hides.
+               170: it no longer renders while #lines is showing its own empty state — the two said
+               "No ingredients yet" one under the other. See renderPlate. -->
+          <p class="hint bld-hint" id="builderHint" style="display:none"></p>
+          <p class="hint bld-hint bld-tip">Tap a unit cost to edit it — the change applies everywhere. <span id="dCount"></span></p>
+          <div class="flag bld-flag" id="flag" style="display:none"></div>
+        </section>
+        <!-- 170: step 2 is where the v69 order puts naming and categorising. Category MOVED here
+             out of the Publishing card, whose own first line reads "Save the plate first, then
+             publish it to a menu" — a heading describing something inert over the one live control
+             on it, and that control was step THREE of this form. -->
+        <section class="bld-step" id="bldStep2">
+          <h2><span class="bld-stepn">2</span>Name &amp; save</h2>
+          <div class="bld-stepbody">
+            <div class="bld-field">
+              <label class="bld-flabel" for="plateName">Plate name</label>
+              <!-- the same field also SEARCHES saved plates and uncosted menu items (#plateSuggest,
+                   renderPlateSuggest) — one more reason it reads badly as the header's title. -->
+              <span class="bld-namewrap">
+                <input id="plateName" type="text" placeholder="e.g. Fish &amp; Chips" autocomplete="off" aria-label="Plate name">
+                <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+              </span>
+              <div class="ferr bld-err" id="plateNameErr" style="display:none"></div>
+            </div>
+            <div class="bld-field">
+              <!-- 170: sentence case, not the app-wide `.f` label's letter-spaced caps — it was the
+                   only all-caps field label on this screen. `.bld-flabel` is local to this card, so
+                   nothing else is converted by accident. -->
+              <label class="bld-flabel" for="plateCat">Category <span class="hint">(optional)</span></label>
+              <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
+            </div>
+            <span class="edit-tag" id="editTag" style="display:none"></span>
+          </div>
+        </section>
+      </div>
       <aside class="bld-rail">
         <section class="bld-card" id="bCost">
           <h2>Cost</h2>
@@ -224,11 +269,10 @@
         </section>
         <section class="bld-card">
           <h2>Publishing</h2>
+          <!-- 170: Category and #editTag left for step 2. What remains is publishing and only
+               publishing, so the heading now describes its whole contents. -->
           <div class="bld-cardbody">
             <div class="bld-pub" id="bPublish"></div>
-            <label class="f" for="plateCat">Category <span class="hint">(optional)</span></label>
-            <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
-            <span class="edit-tag" id="editTag" style="display:none"></span>
           </div>
         </section>
         <!-- R3: Print docket and Delete plate are REHOMED here from the plate-action chooser this
@@ -1142,7 +1186,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=149"></script>
+<script src="js/app.js?v=150"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

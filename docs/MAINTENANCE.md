@@ -306,3 +306,14 @@ Two hints under one chart saying overlapping things. Read them together and cut 
 ### Builder cost panel: the design's "+ Add to another menu" shortcut was deferred out of Q6
 (9 Aug 2026) It needs the manage-menus modal to stack over the open builder and the cost panel to refresh when menus change underneath — both untested territory that was not riding a redesign batch. The panel's "On menus" list ships without it; publishing still lives one tap away on the plate card.
 **F7 rebuilds the builder as a full page and rehouses publishing, so re-read this against F7's result rather than against Q6's.**
+
+### The Cost card paints an EMPTY 16px bordered box on the phone for an unpublished plate
+(Found 11 Aug 2026 while measuring the builder for the fill-order item, 170. **Pre-existing since F7/v146 — not introduced by that change.**)
+`#bCost` has three children and below 768 all three can be hidden at once: `@media (max-width:767px)` hides `#bCost > h2` and `#bCost .bld-kv` (the summary bar carries those two figures, §7), and `.bld-menus` is `display:none` whenever the plate is on no menu. What is left is `.bld-cardbody`'s padding inside `.bld-card`'s border.
+**Measured at 380px on an unpublished plate: height 16, `display:block`, nothing painted inside it.** Every plate is unpublished until it is saved and added to a menu, so a brand-new plate shows it every time.
+Not fixed here because it is a different screen region from the one the item scoped, and the fix is a judgement call rather than a line: hide the card when it has nothing to show (needs a JS hand, since CSS cannot see that all three children are hidden), or give the phone SOMETHING in it. Do not reach for `:has()` without checking it against the browsers the PWA actually runs in.
+
+### The plate name now appears three times on the builder page
+(Found 11 Aug 2026, same measurement. **This one IS a consequence of 170** and is recorded rather than fixed because changing the tag's copy was not in the item.)
+Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `#plateName` field in step 2, and `#editTag`'s "Editing: Fish & Chips" directly under it. Before 170 it was twice — the header field and the tag.
+`#editTag`'s real job is saying **saved plate vs new plate**, and the name is the part of its sentence that is now redundant three ways. `updateEditTag` is its one writer. It is a status label, not a control, so R3 does not apply, but the useful information in it should survive whatever is done.

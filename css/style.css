@@ -531,22 +531,16 @@ input[type=checkbox]{
 .bld-back:hover{color:var(--text)}
 .bld-chev{font-size:16px;line-height:1}
 .bld-slash{color:var(--muted2)}
-.bld-namewrap{position:relative;flex:1 1 auto;min-width:0}
-/* R2: an editable field wearing the mock's static title type. No box until you touch it, so the
-   header still READS as a title — the affordance arrives on hover/focus. */
-/* ⚠️ `.bld-head .bld-name`, NOT `.bld-name`. The base rule is `input[type=text]` — 0-1-1 — so a
-   single class LOSES to it and the title renders as a full-width bordered form box inside a 48px
-   header. Measured in a browser, not reasoned about. The descendant form is 0-2-0 and wins.
-   The 16px size is the app-wide `input{font-size:16px!important}` iOS zoom guard, so the title
-   reads a point larger than the mock's 15 and there is no way to match it without reintroducing
-   the zoom bug. Deliberate. */
-.bld-head .bld-name{
-  width:100%;min-width:0;border:1.5px solid transparent;background:none;border-radius:var(--radius-ctl);
-  padding:5px 8px;font-family:var(--ui);font-weight:600;color:var(--text);line-height:1.4;
+/* 170: the mock's §3.7 static title. F7's editable `.bld-name` field and the `.bld-head
+   .bld-namewrap` specificity fight it needed are DELETED with it — the field lives in step 2 now
+   and wears the ordinary form styling every other field on the screen wears, so there is nothing
+   left to out-specify. `.bld-namewrap` survives as step 2's positioning context for #plateSuggest. */
+.bld-title{
+  flex:0 1 auto;min-width:0;font-size:15px;font-weight:600;color:var(--text);line-height:1.4;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.bld-head .bld-name:hover{border-color:var(--border)}
-.bld-head .bld-name:focus{border-color:var(--accent);background:var(--field)}
-.bld-head .bld-name::placeholder{color:var(--muted2);font-weight:500}
+.bld-title.is-unnamed{color:var(--muted2);font-weight:500}
+.bld-namewrap{position:relative;display:block;min-width:0}
 .bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}
 /* ⚠️ `:not([hidden])` IS LOAD-BEARING. renderBuilderCost hides this element on every unpublished
    plate and on every builder open, and an author `display` rule beats the UA's `[hidden]` because
@@ -563,20 +557,62 @@ input[type=checkbox]{
 .bld-pill.bv-t-amber{background:var(--warn-bg);color:var(--warn)}
 .bld-pill.bv-t-red{background:var(--bad-bg);color:var(--bad)}
 .bld-saved{font-size:12px;color:var(--muted2);white-space:nowrap}
-/* §6's mobile header. The name takes the whole first row so the title is never squeezed to a
-   stub, and the second row carries the pill (which the mobile mock draws directly under the bar),
-   the saved state and the ONE action. Three things on that row, one of them a button — §6's
-   "one action max" is about actions, and Save is the only one; Duplicate went to the rail. */
-.bld-head .bld-namewrap{flex:1 1 100%;order:1}
+/* §6's mobile header. The title takes the whole first row so it is never squeezed to a stub, and
+   the second row carries the pill (which the mobile mock draws directly under the bar), the saved
+   state and the ONE action. Three things on that row, one of them a button — §6's "one action max"
+   is about actions, and Save is the only one; Duplicate went to the rail.
+   170: Save STAYS the header action rather than moving into step 2, which the item allowed either
+   way. On a twenty-line docket the naming step is below the fold, and the §6 summary bar carries
+   figures only — no button — so a step-2 Save would be reachable on a phone only by scrolling past
+   every ingredient. A header commit is not a form field and is not what "fill order" is about. */
+/* the title keeps the base rule's nowrap + ellipsis at BOTH widths: it has a full row here, and an
+   input never wrapped, so letting it wrap would be this change growing the header on a long name. */
+.bld-head .bld-title{flex:1 1 100%;order:1}
 .bld-head .bld-pill{order:2;flex:0 0 auto}
 .bld-head .scr-gap{order:3}
 .bld-head .bld-saved{order:4}
 .bld-head #saveBtn{order:5}
-.bld-err{margin:var(--sp-3) 0 0}
+.bld-err{margin:var(--sp-2) 0 0}   /* tighter than the old --sp-3: it sits under the field now, not under the header */
 .bld-body{display:flex;flex-direction:column;gap:var(--sp-4);padding:var(--sp-4) 0 132px}   /* the tail clears the fixed summary bar */
+.bld-main{display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
+
+/* ---- the two steps ----
+   Same shell as `.bld-card` (the rail's Cost/Publishing), because the item asks for the steps to be
+   stated "using the v3 card system" and one card system is §6's rule. `.bld-table` is DELETED: it
+   was this same border/radius/background plus `overflow:hidden`.
+   ⚠️ THE MISSING `overflow:hidden` IS THE POINT, not an omission. #drop is position:absolute inside
+   `.search-wrap`, so an ancestor that clips cuts the dropdown off — measured on the shipped build at
+   1280 as a 96px list with 37px visible. The h2 therefore rounds its own top corners rather than
+   letting the card trim them. */
+.bld-step{border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.bld-step > h2{
+  display:flex;align-items:center;gap:8px;
+  margin:0;font-size:13px;font-weight:600;color:var(--text);
+  padding:12px var(--sp-4);border-bottom:1px solid var(--border);background:var(--surface2);
+  border-radius:9px 9px 0 0;   /* 9, not 10: it sits inside the 1px border */
+}
+.bld-stepn{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:19px;height:19px;border-radius:999px;background:var(--accent-weak);color:var(--accent-ink);
+  font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;font-weight:600;
+}
+/* The search row: step 1's first control, above the band and the lines. Carried from the deleted
+   `.bld-foot`: §6's phone add-row is a single full-width control, because sharing the row with
+   "+ Misc cost" left the search 195px wide at 380px — and the dropdown is anchored to the FIELD, so
+   it inherited that width and listed product names in a 195px column. Measured, then wrapped. */
+.bld-add{display:flex;flex-wrap:wrap;gap:8px;padding:12px var(--sp-4);border-bottom:1px solid var(--border)}
+.bld-q{flex:1 1 100%;min-width:0}
+.bld-misc{flex:1 1 100%;white-space:nowrap}
+
+/* ---- step 2's fields ---- */
+.bld-stepbody{padding:14px var(--sp-4);display:flex;flex-direction:column;gap:14px}
+.bld-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+/* sentence case — deliberately NOT the app-wide `.f`, whose letter-spaced caps made Category the
+   only shouting label on this screen. Scoped to this card so no other form is converted by it. */
+.bld-flabel{font-size:12.5px;font-weight:500;color:var(--text2)}
+.bld-flabel .hint{font-size:12.5px;font-weight:400;color:var(--muted2)}
 
 /* ---- the ingredient table ---- */
-.bld-table{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
 .bld-band{display:none}
 /* §6's phone row, two bands. Band 1: the name (with its linked product under it) and the line
    cost. Band 2: qty, unit cost, Remove. Giving each of those five a line of its own measured
@@ -628,12 +664,6 @@ input[type=checkbox]{
 .bld-row.is-misc .bld-lc input::-webkit-outer-spin-button,.bld-row.is-misc .bld-lc input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .bld-row.is-misc .bld-lc input{-moz-appearance:textfield;appearance:textfield}
 .bld-empty{padding:var(--sp-6) var(--sp-4);text-align:center;color:var(--muted2);font-size:13.5px;line-height:1.6}
-/* §6's phone add-row is a single full-width control. Sharing the row with "+ Misc cost" left the
-   search 195px wide at 380px - and the ingredient dropdown is anchored to the FIELD, so it
-   inherited that width and listed product names in a 195px column. Measured, then wrapped. */
-.bld-foot{display:flex;flex-wrap:wrap;gap:8px;padding:12px var(--sp-4);background:var(--surface2);border-top:1px solid var(--border)}
-.bld-search{flex:1 1 100%;min-width:0}
-.bld-misc{flex:1 1 100%;white-space:nowrap}
 .bld-hint{padding:var(--sp-3) var(--sp-4) 0;margin:0;font-size:var(--fs-xs);color:var(--muted2)}
 .bld-tip #dCount:not(:empty)::before{content:" · "}
 .bld-flag{padding:var(--sp-2) var(--sp-4) 0}
@@ -673,7 +703,8 @@ input[type=checkbox]{
 .bld-pub{display:flex;flex-direction:column;gap:8px}
 .bld-pubbtn{width:100%}
 .bld-note{margin:0;font-size:12.5px;color:var(--muted2);line-height:1.5}
-.bld-cardbody label.f{margin-bottom:0}
+/* 170: `.bld-cardbody label.f{margin-bottom:0}` is DELETED with the Category label it was written
+   for — it was the only `.f` label any `.bld-cardbody` ever held, and it lives in step 2 now. */
 .bld-actions{display:flex;flex-wrap:wrap;gap:8px}
 .bld-actions .btn{flex:1 1 auto}
 
@@ -705,14 +736,11 @@ input[type=checkbox]{
     border-bottom:1px solid var(--border);background:var(--surface2);
   }
   .bld-band span:not(:first-child):not(:last-child),.bld-band span:nth-child(4){text-align:right}
-  .bld-head .bld-namewrap,.bld-head .bld-pill,.bld-head .scr-gap,
+  .bld-head .bld-title,.bld-head .bld-pill,.bld-head .scr-gap,
   .bld-head .bld-saved,.bld-head #saveBtn{order:0;flex:0 0 auto}
-  /* content-width-ish, not the whole bar: the mock's title sits beside its pill, and a title
-     field stretched to the spacer reads as a form rather than a heading. */
-  .bld-head .bld-namewrap{flex:0 1 auto;min-width:120px;max-width:360px}
-  /* the 48px bar cannot hold a 44px control plus its own rhythm — the touch floor is a phone
-     rule and this breakpoint has a pointer. */
-  .bld-head .bld-name{min-height:34px}
+  /* content-width-ish, not the whole bar: the mock's title sits beside its pill. Same specificity
+     as the mobile `.bld-head .bld-title` above — `@media` does not win by being later. */
+  .bld-head .bld-title{flex:0 1 auto;min-width:0;max-width:360px;white-space:nowrap}
   /* FIXED tracks, not auto — each row is its own grid, so auto tracks would size per-row and the
      columns would not line up down the table. Q6 (v125) measured exactly that on the docket; the
      v3 table has the same shape and the same exposure, and fresh-states.spec.js pins the result. */
@@ -731,9 +759,13 @@ input[type=checkbox]{
   .bld-row.is-misc .bld-mid{display:block;grid-column:2 / 4;grid-row:1}
   .bld-row.is-misc .bld-lc{grid-column:4;grid-row:1;justify-content:flex-end}
   .bld-row.is-misc .bld-lc input{width:76px;min-height:0}
-  .bld-foot{flex-wrap:nowrap}
-  .bld-search{flex:1 1 auto}
+  .bld-add{flex-wrap:nowrap}
+  .bld-q{flex:1 1 auto}
   .bld-misc{flex:0 0 auto}
+  /* the two step fields sit side by side once there is room — name and category are one thought */
+  .bld-stepbody{flex-direction:row;flex-wrap:wrap;gap:var(--sp-4)}
+  .bld-field{flex:1 1 220px}
+  .bld-stepbody .edit-tag{flex:1 1 100%}
   .bld-actions{flex-direction:column}
   .bld-actions .btn{flex:0 0 auto;width:100%}
   /* §7: the summary bar and the Cost card would print the same two figures. The card wins on the
