@@ -149,12 +149,49 @@ one rule, two outcomes, and the CSS looked right. Reverted; the clearance belong
 passed the edge assertion while the builder's two columns began 20px left of the plate name above
 them. A screen that is not in the list is not covered by the list.
 
-## One limit, stated
+## Review findings — five, all decided
 
-**The pre-push `code-review` agent did not run.** `CLAUDE.md` makes it mandatory and calls it the
-only thing standing between a mistake and production; this session carried an explicit instruction
-not to invoke agents. The conflict was not resolved silently in either direction — it is named here
-and in the batch report so Max can run it before merging. The suites are green (984 unit, 284
-Playwright) but a green suite is not a second reader.
+The pre-push `code-review` agent ran on Sonnet (a different model from the Opus session that wrote
+the code), on the branch diff, without sight of the brief. It initially did not run because this
+session carried an instruction not to invoke agents; Max asked for it explicitly before merge.
 
-Nothing is pushed and no PR is open.
+**1. MAJOR, and it was mine: a green test that proved nothing.** `v155-trend.spec.js`'s
+marker-vs-axis collision check was wrapped in `if (rows.mk.length)`, and `boot()` never seeded
+`changeLog` — so `trendMarkers` returned `[]` on every run, the loop never executed, and the test
+passed on an unrelated assertion. **Reverting the very `padB` split it was written to pin would not
+have failed it.** This is the exact failure `CLAUDE.md` names ("the failure is never a red test, it
+is a green one"), committed in a test written this batch to prevent a different one.
+
+The cause of the silent emptiness is worth carrying: `trendMarkers` reads `avgBefore`/`avgAfter` at
+the **top level**, not inside `detail`, and compares `e.t < t0` **numerically**, so `t` must be a
+number and not an ISO string. Any of those wrong and it returns `[]` with no error. The same wrong
+shape was in the throwaway screenshot spec earlier in the batch, which is why no marker appeared in
+the chart screenshots and nobody noticed.
+
+Fixed by seeding a real entry, **deleting the guard**, and asserting both counts are non-zero before
+comparing. Verified by mutation rather than by reasoning: restoring the old `H-6` marker row makes it
+fail with the two baselines 0 apart.
+
+**2. Real: `trendXTicks` could break its own anchor invariant.** Anchors came from the generation
+index, not from position after the dedupe, so a dropped duplicate at the end left nothing carrying
+`end` and a middle-anchored label overhanging the viewBox. Two readings on one day inside a 1w
+window reaches it; no fixture here does. Anchors now assigned over the surviving array.
+
+**3. Real: `dash-card` was a dead class** — added to the trend markup, matched by no rule anywhere.
+Removed.
+
+**4. Real: a comment whose stated reason was backwards.** The note above `.ing-tag.sup` said the fix
+was keeping it *above* `.ing-tag.is-nil`; being above is what loses, since both are `(0,2,0)` and
+`is-nil` is later. The rule doing the work is `.ing-tag.sup.is-nil` at `(0,3,0)`. Code was right,
+explanation was wrong — and a wrong explanation invites someone to delete the rule that matters.
+
+**5. Did not reproduce, checked rather than dismissed.** The review could not tell from source
+whether `flex:0 0 auto` with a `width:100%` child collapses the filter selects. Measured: category
+200 (its longest option reaches the cap), supplier 162 (content-sized). Not collapsed. But its point
+about the *test* stood — an upper-bound-only assertion cannot distinguish "sized to content" from
+"collapsed to nothing" — so lower bounds were added.
+
+The review also confirmed several things it could have flagged and did not: the `catLabel`
+display-vs-value split genuinely protects storage, the `:not([hidden])` origin guard covers all seven
+fields, the capture/bubble split on the delegated listeners is correct, and the nine rewritten specs
+are stronger than what they replaced rather than weaker.
