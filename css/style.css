@@ -565,7 +565,9 @@ input[type=checkbox]{
    way. On a twenty-line docket the naming step is below the fold, and the §6 summary bar carries
    figures only — no button — so a step-2 Save would be reachable on a phone only by scrolling past
    every ingredient. A header commit is not a form field and is not what "fill order" is about. */
-.bld-head .bld-title{flex:1 1 100%;order:1;white-space:normal}
+/* the title keeps the base rule's nowrap + ellipsis at BOTH widths: it has a full row here, and an
+   input never wrapped, so letting it wrap would be this change growing the header on a long name. */
+.bld-head .bld-title{flex:1 1 100%;order:1}
 .bld-head .bld-pill{order:2;flex:0 0 auto}
 .bld-head .scr-gap{order:3}
 .bld-head .bld-saved{order:4}
