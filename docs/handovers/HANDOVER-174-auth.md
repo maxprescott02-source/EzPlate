@@ -60,3 +60,11 @@ Driven live rather than argued: the confirm appears with the plate's name, "Keep
 ## One limit, stated
 
 The final end-to-end pass — confirm, then a SUCCESSFUL sign-in, then observe the draft gone — could not be re-run live: Supabase's free tier rate-limited confirmation emails after the earlier rehearsals, so the test account could not be recreated. What was verified live is the successful sign-in chain (purge, reload, `authenticated` JWT role, writes still working, symmetric sign-out) earlier in the batch, and both branches of the new guard afterwards. The join between them is covered by `tests/auth.test.js` against the real functions. Worth re-running on a device when the limit resets.
+
+## The one CI caught that I did not
+
+**The same §R4 contract was asserted in THREE places, and I found two.** `tests/settings-toggles.test.js` and `tests/visual/q9-settings.spec.js` were rewritten locally and both went green; `tests/smoke.js` carried a third copy and turned CI red.
+
+The reason I missed it is worth more than the fix: **smoke is not in `npm test`.** It runs as its own CI job, needs `jsdom` installed with `--no-save`, and had no npm script — so "the suite is green" locally meant two harnesses out of three. `npm run smoke` now exists, which is one line and removes the trap for the next batch. It adds no dependency: jsdom stays a `--no-save` install, exactly as the CI comment intends.
+
+Worth carrying forward: **a contract asserted in three harnesses moves in three places**, and the one outside `npm test` is the one that will be forgotten.
