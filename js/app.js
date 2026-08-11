@@ -103,15 +103,33 @@ function uidRandom(n){                                       // n base-36 charac
   var out = '';
   var c = (typeof crypto !== 'undefined' && crypto && typeof crypto.getRandomValues === 'function') ? crypto : null;
   if(c){
-    var buf = new Uint8Array(n);
-    c.getRandomValues(buf);
-    for(var i=0;i<n;i++) out += (buf[i] % 36).toString(36);
-    return out;
+    /* 252 = 7 × 36, and bytes at or above it are REJECTED rather than folded in. A bare
+       `% 36` over 0-255 is biased, because 256 is not a multiple of 36: the digits 0-3
+       come up on 8 of the 256 byte values and the rest on 7, making them ~14% likelier.
+       That is a real loss of the entropy that separates two ACCOUNTS, and the counter
+       cannot make it up — it knows nothing about the other session.
+
+       The refill count is BOUNDED because a rejected byte yields no character, so an
+       unbounded loop would spin forever against a source that only ever returned
+       252-255. Real `crypto` cannot do that (about 1.5e-14 per refill), but "cannot" is
+       doing a lot of work in a loop with no exit, and distrusting it costs one counter.
+       Falling out of it lands on the Math.random top-up below, which always terminates. */
+    for(var tries=0; tries<8 && out.length<n; tries++){
+      var buf = new Uint8Array(n - out.length + 8);          // + slack, so refills are rare
+      c.getRandomValues(buf);
+      for(var i=0;i<buf.length && out.length<n;i++){
+        if(buf[i] < 252) out += (buf[i] % 36).toString(36);
+      }
+    }
+    if(out.length >= n) return out;
   }
-  // Math.random is a weaker source, not an absent one. An id is not a secret and does
-  // not need to be unguessable — it needs to not repeat — so degrading here is correct
-  // and is far better than throwing on a browser without crypto.
-  for(var j=0;j<n;j++) out += Math.floor(Math.random()*36).toString(36);
+  /* Math.random is a weaker source, not an absent one. An id is not a secret and does not
+     need to be unguessable — it needs to not repeat — so degrading here is correct, and
+     far better than throwing on a browser without `crypto`.
+     ⚠️ It TOPS UP to n rather than adding n: this is also the exit from the bounded loop
+     above, where `out` may already hold some characters, and a fixed-length append there
+     would return an over-long id. */
+  while(out.length < n) out += Math.floor(Math.random()*36).toString(36);
   return out;
 }
 function uid(prefix){

@@ -111,6 +111,76 @@ test('ids stay roughly time-ordered, which is why the timestamp is kept', () => 
   }
 });
 
+test('THE COUNTER ALONE guarantees uniqueness — pinned with the randomness held constant', () => {
+  /* Every other uniqueness test here runs with real crypto, whose 8 random characters carry ~41
+     bits. At these sample sizes that alone makes a collision vanishingly unlikely, so those tests
+     stay GREEN even if `_uidSeq` is broken — hardcoded, or wrapped at 36 instead of 36^4. The code
+     comment claims the counter gives "ABSOLUTE uniqueness within one page session… Deterministic,
+     not probabilistic", and until this test existed nothing could have falsified that claim.
+     (Found by the pre-push review, which is exactly the green-test-that-cannot-fail shape CLAUDE.md
+     records four earlier instances of.)
+
+     Holding BOTH the clock and the random block constant leaves the counter as the only source of
+     difference, so this test fails if and only if the counter stops working. */
+  const constantCrypto = {
+    getRandomValues(buf) { for (let i = 0; i < buf.length; i++) buf[i] = 7; return buf; },
+  };
+  const { uid } = buildUid(constantCrypto);
+  const realNow = Date.now;
+  Date.now = () => 1754870400000;
+  try {
+    const seen = new Set();
+    const N = 100000;
+    for (let i = 0; i < N; i++) seen.add(uid('SP'));
+    assert.strictEqual(seen.size, N,
+      'with the clock and the randomness frozen, only the counter separates ids — it did not');
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('the counter wraps at 36^4, so it always fits four base-36 characters', () => {
+  // The modulus and the field width have to agree: a wrap at anything larger would widen the id
+  // silently, and a wrap at anything smaller would shorten the deterministic run for no reason.
+  const src = extractFn(SRC, 'uid');
+  assert.ok(src.includes('% 1679616'), 'the counter must wrap at 36^4');
+  assert.strictEqual((1679616).toString(36), '10000', 'sanity: 36^4 is the first 5-char value');
+  assert.strictEqual((1679615).toString(36).length, 4, 'every value below it fits in four characters');
+});
+
+test('bytes in the biased tail are REJECTED, not folded', () => {
+  /* 256 is not a multiple of 36, so a bare `% 36` over a random byte makes 0-3 about 14% likelier
+     than the rest — a real loss of the entropy that separates two accounts, and invisible to every
+     other test here. Bytes >= 252 must be dropped.
+     Proved directly rather than statistically: a source alternating a rejected byte with byte 10
+     must yield ONLY 'a'. Folding instead of rejecting would emit '0','1','2','3' from 252-255. */
+  let i = 0;
+  const tailCrypto = {
+    getRandomValues(buf) { for (let k = 0; k < buf.length; k++) buf[k] = (i++ % 2) ? 10 : 252 + (i % 4); return buf; },
+  };
+  const { uidRandom } = buildUid(tailCrypto);
+  const s = uidRandom(64);
+  assert.strictEqual(s.length, 64, 'must still return exactly the requested length');
+  assert.strictEqual(s, 'a'.repeat(64), `a rejected byte leaked into the output: ${s}`);
+});
+
+test('a hostile source cannot hang, and cannot produce an over-long id', () => {
+  /* A source returning only rejected bytes would spin forever in an unbounded loop, so the crypto
+     path is bounded and falls through to Math.random. That fallthrough is also where an over-long
+     id came from while this was being written: the top-up loop must fill TO n, not append n more
+     on top of whatever the bounded loop already collected. Both are pinned here because the second
+     one produced ids of the wrong length while every other test stayed green. */
+  const alwaysRejected = {
+    getRandomValues(buf) { for (let k = 0; k < buf.length; k++) buf[k] = 255; return buf; },
+  };
+  const { uid, uidRandom } = buildUid(alwaysRejected);
+  assert.strictEqual(uidRandom(8).length, 8, 'the fallback must top up to exactly 8');
+  assert.strictEqual(uidRandom(1).length, 1);
+  const id = uid('SP');
+  assert.strictEqual(id.split('-').length, 3, `id shape broke: ${id}`);
+  assert.strictEqual(id.split('-')[2].length, 8, `random block is the wrong length: ${id}`);
+});
+
 test('crypto is used when present, and its absence degrades rather than throws', () => {
   const calls = [];
   const fake = {
