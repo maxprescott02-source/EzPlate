@@ -572,7 +572,7 @@ input[type=checkbox]{
 .bld-head .scr-gap{order:3}
 .bld-head .bld-saved{order:4}
 .bld-head #saveBtn{order:5}
-.bld-err{margin:6px 0 0}
+.bld-err{margin:var(--sp-2) 0 0}   /* tighter than the old --sp-3: it sits under the field now, not under the header */
 .bld-body{display:flex;flex-direction:column;gap:var(--sp-4);padding:var(--sp-4) 0 132px}   /* the tail clears the fixed summary bar */
 .bld-main{display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
 

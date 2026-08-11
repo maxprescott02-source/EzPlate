@@ -1173,6 +1173,26 @@ const tick = () => new Promise(r => setTimeout(r, 0));
      JSON.stringify((w5.document.getElementById('builderPage').textContent.match(/No ingredients yet/g) || [])));
   w5.document.getElementById('bhGo').click();
   ok('[25] the link routes to the Ingredients tab', w5.document.getElementById('tab-pantry').style.display !== 'none');
+
+  /* THE OTHER SIDE OF THE GUARD, and the only branch that needs #builderHint to exist at all:
+     an empty catalogue with a plate that HAS lines. Reachable because legacy {pid,qty} lines are
+     live data that resolve against PRODUCTS, not against kitchenIngredients — so a plate can carry
+     rows while the kitchen list is empty. This is the case v102's fix was really about, and the
+     pre-push review pointed out that nothing exercised it: `noCatalogue && plate.length` was
+     verified on every branch except the one it was written for, which is this project's
+     signature bug shape (a green test, not a red one). Flip the `&&` to `||` and this fails. */
+  const w6 = bootWithDraft({ lines: [{ uid: 1, pid: 'P0108', qty: 100 }], name: 'Legacy Plate', cat: '', loadedPlateId: null, ts: Date.now() });
+  w6.document.getElementById('confirmOk').click();              // Resume
+  const bh6 = w6.document.getElementById('builderHint');
+  ok('[25] empty catalogue + a plate that HAS lines: the hint is the one carrying the link',
+     bh6.style.display !== 'none' && !!w6.document.getElementById('bhGo'),
+     'display=' + bh6.style.display + ' link=' + !!w6.document.getElementById('bhGo'));
+  ok('[25] …and there is no empty state to double it — the plate is not empty',
+     !w6.document.querySelector('.bld-empty') && w6.document.querySelectorAll('#lines .bld-row').length === 1,
+     'empties=' + w6.document.querySelectorAll('.bld-empty').length + ' rows=' + w6.document.querySelectorAll('#lines .bld-row').length);
+  ok('[25] …still exactly ONE "no ingredients" sentence',
+     (w6.document.getElementById('builderPage').textContent.match(/No ingredients yet/g) || []).length === 1,
+     JSON.stringify((w6.document.getElementById('builderPage').textContent.match(/No ingredients yet/g) || [])));
   window.renderPlate();                                        // main window: ingredients ARE seeded
   ok('[25] with ingredients present the hint is hidden and empty (the v102 cull)',
      $('builderHint').style.display === 'none' && $('builderHint').textContent === '');
