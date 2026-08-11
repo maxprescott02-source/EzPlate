@@ -2,14 +2,6 @@
 
 Supersedes §11 "fold-in playbook" of `V3-Design-Package.md`. Where the two disagree, this file wins.
 
-> **Amendment (Max, 10 Aug 2026): §0a steps 2–4 are OVERRIDDEN — there is no revert pass and no
-> "looks entirely old" starting line.** The fold-in proceeds from the shipped state (`ezplate-v135`):
-> the previously skinned screens stay as they are until each one's F-item in `docs/QUEUE.md` rebuilds
-> it from the mock and deletes the old markup and CSS in the same change; F1 reconciles the shipped
-> shell against the mock (§0a.3's test) instead of rebuilding it from scratch. §0a step 1 (the queue
-> reset) ran on 10 Aug 2026. Everything else in this protocol stands unchanged — including §2: a
-> screen is fully v3 or not touched, and no NEW skinning ever.
-
 ## 0a. Starting state — a previous fold-in pass was abandoned
 
 An earlier attempt at this fold-in produced a hybrid and was stopped partway. Assume parts of the
@@ -88,31 +80,8 @@ If a screen cannot be fully rebuilt in this change, leave it entirely alone — 
 old chrome — and let it look like the old app. A visibly old screen next to a v3 screen is fine and
 temporary. A screen that is 60% v3 is permanent damage, because nobody can tell what is left to do.
 
-> **Amendment (10 Aug 2026): the `.legacy` wrapper is STRUCK. It was never built, and it cannot be
-> built now.** `grep -rn "\.legacy" css/style.css index.html js/app.js` returns **zero hits** and
-> always has. Two reasons it is unbuildable rather than merely skipped, both measured:
->
-> - **There is no unconverted screen left to wrap.** All five `#tab-*` panels are converted (F2-F6).
->   A wrapper scoped to "unconverted screens only" would have no children at all — and by the struck
->   sentence's own test, no children means *delete the stylesheet*, while most of the old stylesheet
->   is still live.
-> - **The residue is shared chrome, and a per-screen wrapper cannot scope it.** What is still
->   unconverted is three MODALS — `#builderModal` (F7), `#invModal` (F8), `#settingsPanel` (F9) —
->   which open *from* converted screens, plus Account (F10), which does not exist as markup at all.
->
-> **The real mechanism, used since F2, is per-screen manual deletion:** a converted screen deletes its
-> own markup and its own CSS in the same change, each selector grepped against both `index.html` and
-> `js/app.js` before the rule comes out. It has held for five screens and the shell, and it catches
-> what a wrapper would have missed — F5 found `.menu-search`/`.ms-clear` still worn by three modal
-> search boxes and `.panel` still dressing the Dashboard, none of which belonged to the screen being
-> converted. §1.4 ("delete as you go") already states this; the struck sentence was the only thing
-> claiming a second, mechanical layer existed underneath it.
->
-> **§2's RULE is untouched** — a screen is fully v3 or fully untouched, no NEW skinning ever. Only the
-> enforcement sentence goes.
-
-~~Enforce mechanically: the old stylesheet is scoped to a `.legacy` wrapper on unconverted screens
-only. New screens live outside it. When `.legacy` has no children left, delete the stylesheet.~~
+Enforce mechanically: the old stylesheet is scoped to a `.legacy` wrapper on unconverted screens
+only. New screens live outside it. When `.legacy` has no children left, delete the stylesheet.
 
 ## 3. Conflict rubric — how to decide which UI/UX wins
 
