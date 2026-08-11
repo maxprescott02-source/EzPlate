@@ -53,12 +53,13 @@ var ENV_STAMP_KEY='cafeCost_env';
    survives a reload. That key carries neither of this app's prefixes, so it is out of
    scope by construction rather than by an exception — and Supabase namespaces it by
    project ref, so it cannot cross environments either. */
-function purgeLocalState(store, exceptKey){
+function purgeLocalState(store, keep){
+  var spare=(keep==null) ? [] : (Array.isArray(keep) ? keep : [keep]);
   var doomed=[];
   try{
     for(var i=0;i<store.length;i++){
       var k=store.key(i);
-      if(k && k!==exceptKey && (k.indexOf('cafeDB_')===0 || k.indexOf('cafeCost_')===0)) doomed.push(k);
+      if(k && spare.indexOf(k)<0 && (k.indexOf('cafeDB_')===0 || k.indexOf('cafeCost_')===0)) doomed.push(k);
     }
     // collected first, removed second: removing while iterating by index re-indexes
     // the store underneath the loop and silently skips every other key.
@@ -5109,8 +5110,26 @@ var authUser=null;
    at boot and still sit in memory, so without a reload the app would be running on
    values whose backing store no longer exists. Sign-in and sign-out are rare, deliberate
    actions; a reload costs a second and removes a whole class of stale-state bug. */
-function authSwitchUser(){
-  try{ purgeLocalState(window.localStorage, ENV_STAMP_KEY); }catch(e){}
+/* ⚠️ WHETHER THE USER ASKED FOR THIS. Set by the Account screen's own buttons, which have
+   already put the unfinished-plate question to them; left false for anything Supabase does
+   on its own, which is mainly a refresh token failing and emitting SIGNED_OUT. The two
+   deserve different answers and telling them apart is the whole reason this flag exists. */
+var authUserInitiated=false;
+
+function authSwitchUser(userAsked){
+  /* THE DRAFT IS NOT A PREFERENCE. `cafeDB_plateDraft` is unsaved authored work — CLAUDE.md
+     names it the one standing exception to "local storage holds preferences and caches only" —
+     so destroying it is data loss, not tidying, and the app never does that silently anywhere
+     else: loading another plate over a dirty one, starting a new plate, and even the cache
+     refresh all go through `askConfirm` first.
+     When the user ASKED (they answered the confirm in wireAccount), the draft goes with
+     everything else, because they were told it would. When they did not — a session expiring
+     on its own — it is KEPT, because nothing has happened that they could have consented to,
+     and a plate half-built at the moment a token expired is exactly the work worth saving.
+     Found by the pre-push review: the first version purged it unconditionally, on both paths. */
+  var keep=[ENV_STAMP_KEY];
+  if(!userAsked) keep.push(DRAFTKEY);
+  try{ purgeLocalState(window.localStorage, keep); }catch(e){}
   try{ location.reload(); }catch(e){}
 }
 
@@ -5122,7 +5141,21 @@ function authApply(session, isInitial){
   /* ⚠️ The initial event must NEVER purge. `onAuthStateChange` fires INITIAL_SESSION on
      every single load, and treating that as a switch would wipe the user's preferences —
      and the plate draft — on each boot. Only a genuine change of identity is a switch. */
-  if(!isInitial && prevId!==nextId) authSwitchUser();
+  if(!isInitial && prevId!==nextId){
+    var asked=authUserInitiated; authUserInitiated=false;
+    authSwitchUser(asked);
+  }
+}
+
+/* The confirm sits on the FIRST committing action — the button — not on the purge that
+   follows it. CLAUDE.md records why: gating the last step is not a gate, because by then the
+   session has already changed and the only way back would be to undo it. If the user declines,
+   nothing has happened at all. */
+function authGuardUnfinished(what, proceed){
+  if(typeof unfinishedPlateWaiting!=='function' || !unfinishedPlateWaiting()){ proceed(); return; }
+  askConfirm('Unfinished plate',
+    'You were building '+unfinishedPlateLabel()+'. '+what+' clears this device, so it will be discarded.',
+    'Discard and continue', proceed, 'Keep editing', null);
 }
 
 async function authInit(){
@@ -5163,8 +5196,11 @@ function renderAccountTab(){
   var signedIn=!!authUser;
   out.hidden=signedIn; inn.hidden=!signedIn;
   var who=document.getElementById('acctWho');
+  /* Says what actually happens. The first version called it "saved preferences", which is what
+     nine of the ten keys are — and quietly excluded the tenth, an unfinished plate, which is the
+     only one that cannot be got back. */
   if(who) who.textContent=signedIn
-    ? (authUser.email||'this device')+' — signing out clears this device’s saved preferences.'
+    ? (authUser.email||'this device')+' — signing out clears this device’s saved view, and any unfinished plate.'
     : '';
 }
 
@@ -5182,22 +5218,28 @@ function wireAccount(){
     var btn=document.getElementById('acctIn');
     var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
     if(!email || !pass){ authErr('Enter your email and password.'); return; }
-    if(btn) btn.disabled=true;
-    var r=await authSignIn(email, pass);
-    if(btn) btn.disabled=false;
-    /* The REAL error, not a friendly guess. CLAUDE.md's writes rule is that the actual
-       server message reaches the user; "something went wrong" on a login is how someone
-       spends ten minutes on a typo'd email. */
-    if(r.error){ authErr(errText(r.error)); return; }
-    if(pw) pw.value='';
-    // no toast and no re-render here: authApply is about to reload the page.
+    authGuardUnfinished('Signing in', async function(){
+      if(btn) btn.disabled=true;
+      authUserInitiated=true;                                  // they have been asked; the purge may take the draft
+      var r=await authSignIn(email, pass);
+      if(btn) btn.disabled=false;
+      /* The REAL error, not a friendly guess. CLAUDE.md's writes rule is that the actual
+         server message reaches the user; "something went wrong" on a login is how someone
+         spends ten minutes on a typo'd email. */
+      if(r.error){ authUserInitiated=false; authErr(errText(r.error)); return; }
+      if(pw) pw.value='';
+      // no toast and no re-render here: authApply is about to reload the page.
+    });
   });
   var so=document.getElementById('acctOutBtn');
-  if(so) so.addEventListener('click', async function(){
-    so.disabled=true;
-    var r=await authSignOut();
-    so.disabled=false;
-    if(r.error){ toast('Could not sign out: '+errText(r.error)); return; }
+  if(so) so.addEventListener('click', function(){
+    authGuardUnfinished('Signing out', async function(){
+      so.disabled=true;
+      authUserInitiated=true;
+      var r=await authSignOut();
+      so.disabled=false;
+      if(r.error){ authUserInitiated=false; toast('Could not sign out: '+errText(r.error)); return; }
+    });
   });
 }
 

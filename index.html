@@ -864,7 +864,12 @@
               <div class="stg-row">
                 <div class="stg-text">
                   <label class="stg-lbl" for="acctEmail">Sign in</label>
-                  <p class="stg-help">EzPlate does not need an account yet. Signing in changes nothing about what you can see or do — it is here so accounts can be tested before they matter.</p>
+                  <!-- 174: the first draft of this said "signing in changes nothing about what you
+                       can see or do", which was true of the DATABASE and false of the device: it
+                       clears this browser's saved view, and would have taken an unfinished plate
+                       with it without saying so. Signing in now asks first if there is one, and the
+                       copy no longer promises that nothing happens. -->
+                  <p class="stg-help">EzPlate does not need an account yet, and signing in does not change what you can see or do — every account shares this data until workspaces arrive. It clears this device’s saved view.</p>
                 </div>
               </div>
               <form class="acct-form" id="acctForm" autocomplete="on">

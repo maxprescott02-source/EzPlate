@@ -23,10 +23,11 @@ const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 /** Build authApply + its real purge, with observable side effects. */
 function harness(initialUser) {
-  const S = { reloads: 0, purges: 0, rendered: 0, store: {} };
+  const S = { reloads: 0, purges: 0, rendered: 0, store: {}, kept: null };
   const code = `(function(S){
     "use strict";
     var ENV_STAMP_KEY=${JSON.stringify('cafeCost_env')};
+    var DRAFTKEY=${JSON.stringify('cafeDB_plateDraft')};
     var localStorage={
       get length(){ return Object.keys(S.store).length; },
       key:function(i){ return Object.keys(S.store)[i]; },
@@ -38,11 +39,18 @@ function harness(initialUser) {
     var location={reload:function(){ S.reloads++; }};
     function renderAccountTab(){ S.rendered++; }
     ${extractFn(SRC, 'purgeLocalState')}
+    // wrap the REAL purge so the harness can COUNT it and see what it was told to keep.
+    // (The previous harness read S.purges without anything ever incrementing it — an assertion
+    // that could not fail, which the pre-push review caught.)
+    var _realPurge=purgeLocalState;
+    purgeLocalState=function(store, keep){ S.purges++; S.kept=keep; return _realPurge(store, keep); };
+    ${extractVar(SRC, 'authUserInitiated')}
     ${extractFn(SRC, 'authSwitchUser')}
     ${extractFn(SRC, 'authApply')}
     var authUser=${JSON.stringify(initialUser || null)};
     return {
       apply:function(session, isInitial){ authApply(session, isInitial); },
+      setInitiated:function(v){ authUserInitiated=v; },
       user:function(){ return authUser; }
     };
   })`;
@@ -81,33 +89,82 @@ test('a signed-in boot with the SAME user does not purge', () => {
   assert.strictEqual(S.reloads, 0);
 });
 
-test('SIGNING IN purges and reloads', () => {
+test('SIGNING IN, having been asked, purges everything and reloads', () => {
   const { S, api } = harness(null);
   S.store = populated();
+  api.setInitiated(true);                                   // the button set this after the confirm
   api.apply({ user: ALICE }, false);
-  assert.strictEqual(S.store.cafeDB_plateDraft, undefined, 'the previous user\'s draft must not survive');
+  assert.strictEqual(S.purges, 1, 'the purge must actually have run');
+  assert.strictEqual(S.store.cafeDB_plateDraft, undefined, 'the draft goes, because they were told it would');
   assert.strictEqual(S.store.cafeDB_lastTab, undefined);
   assert.strictEqual(S.store.cafeCost_theme, undefined);
   assert.strictEqual(S.store.cafeCost_env, 'izrnptxhdylllodvglla', 'the environment stamp is kept');
   assert.strictEqual(S.reloads, 1, 'in-memory state was read from the store at boot, so it must reload');
 });
 
-test('SIGNING OUT purges and reloads too — it is symmetric', () => {
+test('AN INVOLUNTARY SIGN-OUT KEEPS THE PLATE DRAFT — nothing was consented to', () => {
+  /* THE finding from the pre-push review, and the one that could have destroyed real work: a
+     refresh token failing emits SIGNED_OUT with no user action at all. Everything else in local
+     storage is a preference and can go; `cafeDB_plateDraft` is unsaved AUTHORED work, which
+     CLAUDE.md names as the standing exception to "preferences and caches only". Discarding it
+     because a token expired is data loss with nobody to blame it on. */
   const { S, api } = harness(ALICE);
   S.store = populated();
+  api.apply(null, false);                                   // no setInitiated: Supabase did this
+  assert.strictEqual(S.purges, 1);
+  assert.strictEqual(S.store.cafeDB_plateDraft, populated().cafeDB_plateDraft,
+    'an unfinished plate must survive a session the user did not end');
+  assert.ok(S.kept.includes('cafeDB_plateDraft'), 'the draft key must be passed as kept, not removed by luck');
+  assert.strictEqual(S.store.cafeDB_lastTab, undefined, 'but the view preferences still go');
+  assert.strictEqual(S.store.cafeCost_theme, undefined);
+  assert.strictEqual(S.reloads, 1);
+});
+
+test('SIGNING OUT deliberately purges the draft too — it is symmetric with signing in', () => {
+  const { S, api } = harness(ALICE);
+  S.store = populated();
+  api.setInitiated(true);
   api.apply(null, false);
   assert.strictEqual(S.store.cafeDB_plateDraft, undefined);
   assert.strictEqual(S.reloads, 1);
   assert.strictEqual(api.user(), null);
 });
 
+test('the initiated flag is CONSUMED, so the next involuntary event is not treated as consented', () => {
+  // A stuck flag would silently re-arm the destructive path for every later session expiry.
+  const { S, api } = harness(null);
+  S.store = populated();
+  api.setInitiated(true);
+  api.apply({ user: ALICE }, false);                        // consumes it
+  S.store = populated();
+  api.apply(null, false);                                   // involuntary
+  assert.strictEqual(S.store.cafeDB_plateDraft, populated().cafeDB_plateDraft,
+    'the flag must not survive the switch it authorised');
+});
+
 test('SWITCHING user purges', () => {
   const { S, api } = harness(ALICE);
   S.store = populated();
+  api.setInitiated(true);
   api.apply({ user: BOB }, false);
   assert.strictEqual(S.store.cafeDB_plateDraft, undefined);
   assert.strictEqual(S.reloads, 1);
   assert.deepStrictEqual(api.user(), BOB);
+});
+
+test('the sign-in and sign-out buttons ASK before discarding an unfinished plate', () => {
+  /* The gate is on the button, not on the purge. CLAUDE.md: "Gating the last committing action is
+     not a gate" — by the time authApply runs the session has already changed, and the only way to
+     honour a "no" would be to undo it. Declining at the button means nothing happened at all. */
+  const wire = SRC.slice(SRC.indexOf('function wireAccount'), SRC.indexOf('function renderSettingsTab'));
+  assert.ok(/authGuardUnfinished\('Signing in'/.test(wire), 'sign-in must go through the guard');
+  assert.ok(/authGuardUnfinished\('Signing out'/.test(wire), 'sign-out must go through the guard');
+  const guard = extractFn(SRC, 'authGuardUnfinished');
+  assert.ok(guard.includes('unfinishedPlateWaiting()'), 'it must use the app\'s own dirty check, not a new one');
+  assert.ok(guard.includes('askConfirm('), 'and the app\'s own confirm');
+  // the flag is only set INSIDE the guarded callback, never before the user has answered
+  assert.ok(!/authUserInitiated=true;[\s\S]{0,80}authGuardUnfinished/.test(wire),
+    'the initiated flag must not be set before the confirm is answered');
 });
 
 test('a token refresh for the SAME user changes nothing', () => {
