@@ -208,7 +208,7 @@
           <input id="plateSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
           <!-- R3: the mock has no clear ×, and `type="search"` gives no native one on iOS Safari —
                Max's phone. The control survives, restyled, rather than being silently deleted. -->
-          <button id="plateSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="plateSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
         <!-- the wrapper exists to carry the chevron: a data-URI arrow cannot read a token, and a
              hard-coded hex in a converted screen is a dark-mode bug by construction (protocol §6) -->
@@ -277,7 +277,7 @@
           <div class="bld-add">
             <div class="search-wrap bld-q">
               <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
-              <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+              <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search" hidden>&times;</button>
               <div id="drop" class="drop" role="listbox"></div>
             </div>
             <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
@@ -411,7 +411,7 @@
           <input id="menuSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
           <!-- R3, as F2/F4: the mock draws no clear ×, and `type="search"` renders no native one on
                iOS Safari — Max's phone. The control survives, restyled. -->
-          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
       </div>
       <!-- R3: the mock's Menu screen has no filters at all, so it has nothing to say about this row.
@@ -477,7 +477,7 @@
       <div class="plib-controls" id="kingControls">
         <div class="plib-search">
           <input id="kingSearch" type="search" placeholder="Search ingredients" aria-label="Search ingredients" autocomplete="off">
-          <button id="kingSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="kingSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
         <span class="plib-selwrap"><select id="kingCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
         <button class="plib-btn2" id="kingClearFilters" type="button" style="display:none">Clear filters</button>
@@ -527,7 +527,7 @@
           <input id="ingSearch" type="search" placeholder="Search products or suppliers" aria-label="Search products" autocomplete="off">
           <!-- R3, as F2: the mock draws no clear ×, and `type="search"` renders no native one on iOS
                Safari — Max's phone. The control survives, restyled. -->
-          <button id="ingSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="ingSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
         <span class="plib-selwrap"><select id="ingCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
         <span class="plib-selwrap"><select id="ingSupFilter" class="plib-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select></span>
@@ -1114,7 +1114,7 @@
       <p class="hint" style="margin:0 0 8px">Adds to <b id="ad_menuName">this menu</b> at its own price — the plate stays shared.</p>
       <div class="menu-search ad-search-wrap">
         <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed plates…" autocomplete="off">
-        <button id="ad_searchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+        <button id="ad_searchClear" type="button" class="ms-clear" aria-label="Clear search" hidden>&times;</button>
       </div>
       <div id="ad_list" class="ad-list"></div>
       <div class="field full" style="margin-top:10px"><label for="ad_price">Sell price on this menu ($) *</label><input id="ad_price" type="number" min="0" step="0.01" placeholder="e.g. 24.00"></div>
@@ -1232,7 +1232,7 @@
         <div class="field full"><label for="king_prod">Supplier product to link to *</label>
           <span class="cat-wrap has-clear">
             <input id="king_prod" type="text" autocomplete="off" placeholder="Search your products…" role="combobox" aria-expanded="false" aria-controls="king_prodDrop">
-            <button id="king_prodClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+            <button id="king_prodClear" type="button" class="ms-clear" aria-label="Clear search" hidden>&times;</button>
             <span id="king_prodDrop" class="cat-drop" style="display:none"></span>
           </span>
           <p class="hint" style="font-weight:400;margin:6px 2px 0">Plates cost from this product. Switch it later and every plate follows.</p>

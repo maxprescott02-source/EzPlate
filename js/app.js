@@ -1770,6 +1770,12 @@ function showTab(t){
   /* F9 (v148): the priming that openSettings() used to do on every open. A screen has no open event,
      so this line IS the priming — drop it and every control renders its markup default. */
   if(t==='settings')renderSettingsTab();
+  /* The clear × on every search field, re-read after the screen has rendered. The delegated `input`
+     listener covers typing and the delegated click covers the × itself, but a field whose value was
+     set PROGRAMMATICALLY fires neither — a restored `kingQuery`, a filter reset, a modal reopened.
+     One call here catches all of those at the only moment they can matter, which is when a screen
+     is about to be looked at. */
+  syncClearBtns();
   if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
@@ -2374,8 +2380,8 @@ function emptySearchState(icon,noun,clearFn){
     '<button class="linklike es-clear" type="button" onclick="'+clearFn+'()">Clear search &amp; filters</button>');
 }
 // per-tab clear helpers — shared by the empty-state action AND the header "Clear filters" button.
-function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); renderIngredients(); }
-function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; var c=document.getElementById('kingCatFilter'); if(c) c.value=''; renderKitchenPanel(); }
+function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); syncClearBtns(); renderIngredients(); }
+function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; var c=document.getElementById('kingCatFilter'); if(c) c.value=''; syncClearBtns(); renderKitchenPanel(); }
 function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
 // v68: Menu tab margin-light filter — multi-select tappable chips (green/amber/red). Empty = show all;
 // tapping red shows red only; tapping amber too shows amber+red (the "everything needing attention" case).
@@ -2399,9 +2405,36 @@ function syncMenuLightChips(){                                      // reflect s
 function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; menuLightFilter=[]; syncMenuLightChips(); renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
 var TIDY_DOOR='__tidy__';   // v60 item 8: sentinel option value = "open the Tidy modal scoped to this field"
-function fillFilter(sel, list, label){
+/* CATEGORY CASING — DISPLAY TIME ONLY, and the "only" is the whole point.
+   Product categories are supplier-supplied strings stored verbatim, so the catalogue mixes
+   `DESSERTS`, `CLEANING & JANITORIAL` and `HERBS  SPICES & SEASONINGS` (a real double space) with
+   sentence-case `Fish` and `Squid and Octopus`. The MIXTURE is in the data, not in the rendering.
+   ⚠ Normalising at rest is a data migration with a blast radius well beyond this column: the stored
+   value is what the invoice parser and the category derivation both MATCH AGAINST, so rewriting it
+   would silently stop matching invoices. Nothing here touches storage — `fillFilter` keeps the raw
+   string as the option VALUE and only relabels it, so every comparison in the app still sees what
+   Supabase holds.
+   Small words stay lowercase after the first word, which is what makes `Squid and Octopus` survive
+   the pass unchanged instead of becoming `Squid And Octopus`. Whitespace collapses because the
+   double space in the longest real category is a data quirk, not information. */
+var CAT_SMALL={and:1,or:1,of:1,the:1,in:1,on:1,with:1,a:1,an:1,to:1,for:1};
+function catLabel(s){
+  s=String(s==null?'':s).replace(/\s+/g,' ').trim();
+  if(!s) return s;
+  var first=true;
+  return s.replace(/[A-Za-zÀ-ɏ]+/g, function(w){
+    var lower=w.toLowerCase(), keepSmall=!first && CAT_SMALL[lower]===1;
+    first=false;
+    return keepSmall ? lower : (lower.charAt(0).toUpperCase()+lower.slice(1));
+  });
+}
+/* `fmt` relabels the options WITHOUT touching their values — see catLabel. It is opt-in rather than
+   applied to every filter because this helper also fills supplier names, plate categories and menu
+   sections, and those are Max-authored strings that are already cased the way he wrote them. */
+function fillFilter(sel, list, label, fmt){
   if(!sel) return; var cur=sel.value;
-  var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+  var show=(typeof fmt==='function')?fmt:function(v){return v;};
+  var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(show(v))+'</option>';}).join('');
   if(sel.dataset && sel.dataset.tidyField) html+='<option value="'+TIDY_DOOR+'">✎ Manage list…</option>';   // one door per category/supplier filter
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
@@ -2437,7 +2470,7 @@ function renderIngredients(){
     return;
   }
   showControls(true);
-  fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
+  fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories', catLabel);
   fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
   var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
   var toks=searchTokens(q);   // v59: shared token matcher
@@ -2460,17 +2493,34 @@ function renderIngredients(){
      position and the honest heading — the same word Ingredients uses for the same kind of figure, so
      the two screens cannot teach a chef two names for one number. Same refusal F3 made of the
      mock's "30-day change". */
-  var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span><span>Supplier</span>'
+  /* THE SUPPLIER COLUMN IS GONE FROM THE DESKTOP TABLE, and the decision rests on a count rather
+     than on the fixture, because the fixture could not answer it. Counted against the LIVE
+     `ingredients` table on 12 Aug 2026: 19 of 412 products carry a supplier, 393 are empty, and
+     there are 3 distinct values in the whole catalogue — while `brand` is populated on 411 of 412.
+     So the column was 95% dashes and its 140px now goes to the product name, which is what the
+     queue item made the condition.
+     ⚠ NOT a dropped control and not lost data (R3 does not bite): `supCell` below still renders,
+     the phone still reads "Category, Supplier" on its meta line exactly as the mobile mock draws it,
+     the supplier FILTER is untouched, and the value is on the row's own edit form. Only the desktop
+     COLUMN goes — see §27's `.ing-tag.sup{display:none}` at ≥768, which is where it is actually
+     hidden, so the cell keeps existing for the phone.
+     The earlier report that this column "duplicates" the name's secondary text was wrong and is not
+     the reason: that text is the BRAND (Priestleys, Heinz Watties), a different field. */
+  var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span>'
     +'<span class="ib-num">Unit cost</span><span class="ib-num">Last change</span></div>';
   wrap.innerHTML=band+items.map(function(p){
     /* Q7 (v126) unchanged in substance: the change column reads the last LOGGED move, by the same
        ingLastMovePct rule the Ingredients row and the dashboard's What-moved panel use, so the three
        can never disagree. F4 changes only how it LOOKS — a tinted mono pill (mock §3.5), and the
-       muted word "steady" where there is no logged move, replacing the bare dash. "steady" is not
-       "no change": it is "no move worth reporting", which the aria-label says. Semantic colour: a
-       price rise is bad. */
+       DASH where there is no logged move. ⚠ It said "steady" from F4 until 12 Aug 2026 — DECIDED
+       (Max) to a dash, a deliberate deviation from the mock, on the grounds that the mock's fixture
+       never shows more than three unchanged rows at once and Scoopy's shows fifteen of fifteen. A
+       page of the word "steady" reads as noise; a dash is what every other "nothing here" cell in
+       this app already renders. The muted mono styling stays — only the glyph changed. The
+       aria-label still says "no recent price change", because that is what a dash cannot say aloud
+       and it is the part a screen reader needs. Semantic colour: a price rise is bad. */
     var pct=ingLastMovePct(p.id);
-    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">steady</span>'
+    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">—</span>'
       :('<span class="ing-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
     /* v99's rule survives Q7 by DEDUPING, not hiding: dispPrice's figure carries the basis for the
        normal units ("$3.45/kg"), so the label only renders when it ADDS information — an unknown/dim
@@ -2482,7 +2532,7 @@ function renderIngredients(){
        no columns to keep. The class is what the breakpoint rules key off, so it goes on both paths.
        `no-cat` rides the ROW so the phone's meta separator can be chosen in CSS without a sibling
        chain — the chain it replaces is the one that out-ranked a desktop column rule on F3 (§27). */
-    var catCell='<span class="ing-tag'+(p.category?'':' is-nil')+'">'+esc(p.category||'—')+'</span>';
+    var catCell='<span class="ing-tag'+(p.category?'':' is-nil')+'">'+esc(p.category?catLabel(p.category):'—')+'</span>';
     var supCell='<span class="ing-tag sup'+(p.supplier?'':' is-nil')+'">'+esc(p.supplier||'—')+'</span>';
     return '<button class="ing-card'+(p.category?'':' no-cat')+'" type="button" data-id="'+esc(p.id)+'">'
       +'<span class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
@@ -2680,7 +2730,7 @@ function renderKitchenPanel(){
   }
   var kcat=(document.getElementById('kingCatFilter')||{}).value||'';   // v59 item 6a: filter by DERIVED category
   showControls(true);
-  fillFilter(document.getElementById('kingCatFilter'), kingCategories(), 'All categories');
+  fillFilter(document.getElementById('kingCatFilter'), kingCategories(), 'All categories', catLabel);
   var kcf=document.getElementById('kingClearFilters'); if(kcf) kcf.style.display=(kingQuery||kcat)?'':'none';
   var list=kingSearchFilter(kingQuery, kitchenIngredients, byId)
     .filter(function(k){ return !kcat || kingCategory(k)===kcat; })
@@ -2723,16 +2773,21 @@ function renderKitchenPanel(){
     var link, price, drift, cat;
     if(kp){
       var pct=ingLastMovePct(k.pid);
-      /* Muted "steady" replaces rendering nothing (mock §3.4). It is not "no change": it means no
-         logged move worth reporting, which is also what a sub-1% move reads as. The aria says so. */
+      /* A DASH where there is no logged move — the same change Products made in the same batch, and
+         deliberately not decided per screen: the two share this wording and this figure, and the
+         queue item says so explicitly ("Applies to Ingredients as well — they share the wording and
+         it is one function"). It is not "no change": it means no logged move worth reporting, which
+         is also what a sub-1% move reads as, and the aria still says that aloud. */
       drift=(pct==null)
-        ? '<span class="king-drift none" aria-label="no recent price change">steady</span>'
+        ? '<span class="king-drift none" aria-label="no recent price change">—</span>'
         : '<span class="king-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>';
       /* `is-nil` marks a PLACEHOLDER, not a broken link: a linked product with no category of its
          own is empty here too, and without the class the phone showed the bare table dash the
          design forbids. The class is what the breakpoint rules key off, so it goes on both paths. */
       var kc=kingCategory(k);
-      cat='<span class="king-cat'+(kc?'':' is-nil')+'">'+esc(kc||'—')+'</span>';
+      /* catLabel here too: this category is DERIVED from the linked product, so it is the same
+         supplier-supplied string the Products column renders and must not be cased two ways. */
+      cat='<span class="king-cat'+(kc?'':' is-nil')+'">'+esc(kc?catLabel(kc):'—')+'</span>';
       link='<span class="king-link">'+esc(kingProductLabel(k))+'</span>';
       price='<span class="king-price">'+esc(unitCostStr(kp))+'</span>';
     } else {
@@ -2966,6 +3021,10 @@ function renderKingCreateSuggest(){
     var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
     kingChosenPid=pid;
     var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
+    /* The ONE place a clear-\u00d7 field is filled programmatically with a NON-empty value. Assigning
+       `.value` fires no `input` event, so the delegated listener never sees it and the \u00d7 would stay
+       hidden on a field that now has something to clear \u2014 the mirror of the bug being fixed. */
+    syncClearBtns();
     box.style.display='none'; box.innerHTML='';
     kingSyncSave();
   }); });
@@ -3162,6 +3221,43 @@ function wireSearchClear(inputId, clearId, onClear){
   if(!inp||!btn) return;
   btn.addEventListener('click',function(){ inp.value=''; if(typeof onClear==='function') onClear(); inp.focus(); });
 }
+
+/* THE CLEAR × APPEARS ONLY WHEN ITS FIELD HAS A VALUE — one rule for all SEVEN of them, which is
+   what the queue item required. Before this they were plain markup with a click handler and no
+   show/hide anywhere, so every × was permanently visible offering to clear nothing.
+   ⚠ IT IS NOT ONE BUTTON, and fixing only the Products field was the trap named in the item:
+   `.plib-x` dresses #plateSearchClear, #menuSearchClear, #kingSearchClear and #ingSearchClear;
+   `.ms-clear` dresses #qClear, #ad_searchClear and #king_prodClear in the modals. Two classes,
+   seven elements, four different wiring styles (wireSearchClear for two, inline handlers for the
+   rest) — so this is deliberately written as DELEGATION rather than as another per-field wiring,
+   because a per-field pass is exactly what left four of them out last time.
+   Every one of the seven has its <input> as a sibling inside the same wrapper (.plib-search,
+   .search-wrap, .menu-search, .cat-wrap) — checked in index.html for all seven before relying on
+   it — so the parent is a sound handle and no id list has to be maintained here.
+   ⚠ The CSS needs `:not([hidden])` on both classes or this does nothing: `.plib-x{display:flex}`
+   is an AUTHOR rule and beats the UA's `[hidden]{display:none}` on ORIGIN, before specificity is
+   even compared. CLAUDE.md records that trap; see §26 in css/style.css. */
+function clearBtnFor(inp){
+  return (inp && inp.parentElement) ? inp.parentElement.querySelector('.plib-x,.ms-clear') : null;
+}
+function syncClearBtns(root){
+  (root||document).querySelectorAll('.plib-x,.ms-clear').forEach(function(btn){
+    var inp=btn.parentElement && btn.parentElement.querySelector('input,textarea');
+    if(inp) btn.hidden = !String(inp.value||'');
+  });
+}
+/* capture, so it runs whatever a field's own handler does with the event */
+document.addEventListener('input',function(e){
+  var btn=clearBtnFor(e.target);
+  if(btn) btn.hidden = !String(e.target.value||'');
+},true);
+/* BUBBLE, not capture, and that is load-bearing: the seven clear handlers are themselves bubble
+   listeners bound earlier, so they set `value=''` before this runs and the re-sync sees the field
+   already empty. In the capture phase it would read the OLD value and leave the × on screen. */
+document.addEventListener('click',function(e){
+  var btn=e.target && e.target.closest && e.target.closest('.plib-x,.ms-clear');
+  if(btn) syncClearBtns(btn.parentElement);
+});
 wireSearchClear('king_prod','king_prodClear',function(){ kingChosenPid=null; if(typeof kingSyncSave==='function') kingSyncSave(); if(typeof renderKingProdDrop==='function') renderKingProdDrop(); });
 wireSearchClear('ad_search','ad_searchClear',function(){ if(typeof renderDishPicker==='function') renderDishPicker(''); });
 

@@ -1407,7 +1407,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .menu-search{flex:1 1 220px;min-width:180px;position:relative;display:flex;align-items:center}
   .menu-search input{width:100%;padding:9px 32px 9px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
   .menu-search input::-webkit-search-cancel-button{display:none}
-  .ms-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:50%;background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  /* `:not([hidden])` for the same reason as `.plib-x` — see the note there. These three live in
+     MODALS (#qClear, #ad_searchClear, #king_prodClear) and are hidden by the same syncClearBtns(). */
+  .ms-clear:not([hidden]){display:flex}
+  .ms-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:50%;background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;align-items:center;justify-content:center}
   .an-empty td{text-align:center;color:var(--muted2);padding:20px 12px;font-style:italic}
 
   /* ===== invoice: editable unit price + match confidence badges ===== */
@@ -3331,11 +3334,17 @@ html{scrollbar-gutter:stable}
 /* 22px of paint, 40x40 to the pointer. The `::after` inset technique the app already uses for
    every other clear × (§ "small controls freed from the global 44px touch floor") — a rename that
    dropped it would silently shrink a touch target back under the floor. */
+/* `:not([hidden])` IS THE FIX, not belt-and-braces. syncClearBtns() hides these with the `hidden`
+   attribute when the field is empty, and a bare `display:flex` here would ignore it completely — an
+   AUTHOR rule beats the UA's `[hidden]{display:none}` on ORIGIN, which is decided before specificity
+   is even compared, so no amount of matching selectors fixes it. CLAUDE.md records this as the
+   `[hidden]` corollary and `.plib-controls` / `.plib-note` already carry the same guard. */
+.plib-x:not([hidden]){display:flex}
 .plib-x{
   position:absolute;right:8px;top:50%;transform:translateY(-50%);
   width:22px;height:22px;min-height:0;padding:0;border:0;border-radius:50%;
   background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
+  align-items:center;justify-content:center;
 }
 .plib-x::after{content:"";position:absolute;inset:-9px;border-radius:50%}
 /* the mock gives the fields no hover state and the buttons one; §7's "hover on every button" is
@@ -3680,10 +3689,27 @@ html{scrollbar-gutter:stable}
     background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius-card);overflow:hidden;
   }
+  /* THE FILTER ROW IS SIZED TO CONTENT (mock §3.5: "a search that grows plus a select sized to
+     content"). `max-width:48%` is a MOBILE rule — two selects sharing a wrapped row — and at desktop
+     it resolved against the whole row, which is how the category select measured 329px to hold the
+     word "All categories". Content-sized with a cap, so a long option ellipsises (the select already
+     carries `text-overflow:ellipsis`) instead of setting the row's width from the longest category
+     in the catalogue. The search keeps `flex:1 1 200px` and takes what is left.
+     Scoped to ≥768 and left at (0,1,0) to match the base rule it overrides, per the file's standing
+     note that a media query does not win by being later. */
+  .plib-selwrap{flex:0 0 auto;max-width:200px}
   /* band and rows are separate grid containers, so both carry the SAME fixed tracks — a max-content
      track resolves per container and drifts the columns apart (v135's review measured 27px). */
+  /* FOUR tracks, not five — the Supplier column is dropped here (19 of 412 products carry one; the
+     count and the reasoning are at the band in js/app.js). Its 140px goes to the two columns that
+     were truncating: the name track gains ~86px, and Category goes 120 -> 190 because that is what
+     the longest real value needs. Measured against the live catalogue rather than guessed: the
+     longest is "SAUCES  CONDIMENTS & DRESSINGS" (32 rows), which title-cased and whitespace-collapsed
+     renders ~168px at 12.5px; every other long value ("Sausages Hot Dogs & Patties", "Herbs Spices &
+     Seasonings", "Poultry Further Processed") is shorter. So no real category truncates at all now,
+     which is the AC — the ellipsis below stays only as a safety net for a value nobody has yet. */
   .ing-band,.ing-card{
-    grid-template-columns:minmax(0,1fr) 120px 140px 110px 100px;column-gap:var(--sp-4);
+    grid-template-columns:minmax(0,1fr) 190px 110px 100px;column-gap:var(--sp-4);
   }
   .ing-band{
     display:grid;align-items:center;padding:9px var(--sp-4);
@@ -3694,11 +3720,25 @@ html{scrollbar-gutter:stable}
   .ing-card{min-height:0;padding:10px var(--sp-4);align-items:center}
   .ing-main{font-size:13.5px}
   .ing-name{font-size:13.5px}
-  .ing-brand{display:block;font-size:12px}
+  /* THE BRAND YIELDS FIRST. Both labels were `flex:0 1 auto`, so they shrank together and a long
+     row truncated BOTH — "Apple Sliced Pie Granny Smith Bakers Cho…" beside "S…", where neither
+     could be read and the second was useless. The name is the identifier, so it keeps its width and
+     the brand gives up its own until it is gone. A shrink factor, not `flex-shrink:0` on the name:
+     the name must still ellipsise rather than push the price column off the row when it is very
+     long on its own. F4 already fixed the mobile half by dropping the brand below 768; this is the
+     desktop residue. */
+  .ing-brand{display:block;font-size:12px;flex:0 1000 auto}
   .ing-meta{display:contents}
   .ing-tag{grid-column:2;grid-row:1;font-size:12.5px;color:var(--text-2)}
-  .ing-tag.sup{grid-column:3;grid-row:1}
+  /* THE SUPPLIER CELL IS HIDDEN, NOT DELETED. The renderer still emits it and the phone still reads
+     "Category, Supplier" on its meta line, exactly as the mobile mock draws the row — only the
+     DESKTOP column goes. Placed after `.ing-tag` at the same specificity as the rule it replaces,
+     and `.ing-tag.is-nil{display:block}` below is (0,2,0) to this (0,2,0), so ORDER decides and this
+     must stay above it or an empty supplier would come back as a dash in a column that no longer
+     exists. That is not hypothetical: `is-nil` is on 393 of 412 rows. */
+  .ing-tag.sup{display:none}
   .ing-tag.is-nil{display:block;color:var(--text-3)}
+  .ing-tag.sup.is-nil{display:none}
   /* the mobile prefix rules are (0,2,0) and (0,3,0), so a plain `.ing-tag.sup::before` here cancels
      the first and NEVER the second, whatever the media query. Said honestly, because it was MEASURED
      rather than assumed: dropping the second cancel changes nothing on screen TODAY, since the
@@ -3708,9 +3748,14 @@ html{scrollbar-gutter:stable}
      separator into a column that already had a header. Cancel both, at their own specificity. */
   .ing-tag.sup::before,
   .ing-card.no-cat .ing-tag.sup::before{content:none}
-  .ing-price{grid-column:4;grid-row:1;margin-left:0}
+  /* 3 and 4, not 4 and 5 — they MOVE with the dropped Supplier column. Left at 4/5 against a
+     four-track template, `grid-column:5` silently created an IMPLICIT fifth track, which pushed the
+     category 22.9px off its own header and left the price under the wrong heading. Nothing errors;
+     the grid just grows. Caught by the band-alignment assertion in v140-products.spec.js, which is
+     why that test asserts alignment against the header rather than the template. */
+  .ing-price{grid-column:3;grid-row:1;margin-left:0}
   .ing-price b{font-size:13px}
-  .ing-drift{grid-column:5;grid-row:1;margin-left:0}
+  .ing-drift{grid-column:4;grid-row:1;margin-left:0}
 }
 @media (max-width:560px){ #ingList{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 

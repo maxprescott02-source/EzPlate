@@ -442,7 +442,7 @@ for (const size of SIZES) {
      on #plateList.
      F3 (v139) REWROTE this test for the rebuilt five-column row. The Q5 shape it used to assert is
      gone, so asserting it would assert the conversion had not happened; every rendered-state check
-     it carried survives here, plus the states the rebuild added (steady, category, usage). */
+     it carried survives here, plus the states the rebuild added (no-move dash, category, usage). */
   test(`F3: the Ingredients row is five facts, reflowed by width @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
@@ -518,10 +518,12 @@ for (const size of SIZES) {
     expect(states.driftUp, 'a rise is classed up (bad)').toBe(true);
     expect(states.driftVisible, 'and the pill has real geometry — not clamped away').toBe(true);
     expect(states.driftPill, 'a real move is a TINTED pill (mock §3.4)').not.toBe('rgba(0, 0, 0, 0)');
-    // the mock's muted "steady" replaces rendering nothing, and it is deliberately NOT a pill —
     // tinting "no news" would put a semantic colour on a non-event
-    expect(states.steady, 'no logged move reads "steady", not blank').toBe('steady');
-    expect(states.steadyPlain, 'and steady carries no tint').toBe('rgba(0, 0, 0, 0)');
+    /* ⚠ REWRITTEN 12 Aug 2026: "steady" became a dash on BOTH screens in one change, because the two
+       share this wording and this figure — deciding it per screen is what the queue item forbade.
+       Still deliberately NOT a pill: the absence of news carries no tint. */
+    expect(states.steady, 'no logged move reads as a dash, not blank and not "steady"').toBe('—');
+    expect(states.steadyPlain, 'and the dash carries no tint').toBe('rgba(0, 0, 0, 0)');
     // R1's flip: the category is back on the row, derived from the linked product
     expect(states.cat, 'the derived category renders as its own cell').toBeTruthy();
     expect(states.cat).not.toBe('—');

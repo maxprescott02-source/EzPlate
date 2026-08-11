@@ -65,14 +65,23 @@ test('v99: the basis label renders EXACTLY when the figure does not carry the ba
   assert.equal(noCost.basisKnown, false, 'and a dash carries no basis, so the label renders');
 });
 
-test('the change column is wired to the SHARED movers rule, and reads as "steady" when nothing moved', () => {
+/* ⚠ REWRITTEN 12 Aug 2026, not deleted to go green. This test pinned the word "steady", which was
+   correct from F4 until Max decided the opposite: a page of "steady" is noise when 15 of 15 visible
+   rows say it, and Scoopy's catalogue does exactly that while the mock's fixture never shows more
+   than three at once. So the assertion is INVERTED rather than dropped — the glyph is now the thing
+   under test, and a silent revert to "steady" fails here.
+   What did NOT change is the aria-label, and that is the half worth keeping deliberately: a dash
+   cannot be read aloud, so the sentence a screen reader gets carries the whole meaning now. */
+test('the change column is wired to the SHARED movers rule, and reads as a dash when nothing moved', () => {
   assert.ok(RENDER.includes('ingLastMovePct'),
     'the drift % comes from the same function the Ingredients row and What-moved use — that shared call is the whole reason the three cannot disagree');
   assert.ok(RENDER.includes('ing-drift'), 'it renders through .ing-drift');
-  assert.ok(/ing-drift none[^]*?steady/.test(RENDER),
-    'no logged move reads as the muted word "steady" (mock §3.5), not as a bare dash');
+  assert.ok(/ing-drift none[^]*?—/.test(RENDER),
+    'no logged move reads as a muted dash (Max, 12 Aug 2026), not as the word "steady"');
+  assert.ok(!/ing-drift none[^]*?steady/.test(RENDER),
+    'and "steady" is gone from the cell rather than merely joined by a dash');
   assert.ok(/aria-label="no recent price change"/.test(RENDER),
-    '"steady" says what it means to a screen reader — it is "no move worth reporting", not "no change"');
+    'the dash still says what it means to a screen reader — "no move worth reporting", not "no change"');
   assert.ok(/pct>0\?'up':'down'/.test(RENDER), 'a rise is classed up and a fall down — semantic colour, price up = worse');
 });
 
