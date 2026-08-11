@@ -53,7 +53,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=151">
+<link rel="stylesheet" href="css/style.css?v=152">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -1287,14 +1287,39 @@
 </nav>
 
 <div id="printDocket" aria-hidden="true"></div>
-<script>window.SUPA_URL="https://izrnptxhdylllodvglla.supabase.co";window.SUPA_KEY="sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF";</script>
+<!-- 172: WHICH SUPABASE PROJECT THIS PAGE TALKS TO.
+     Production is the default and stays the default: a normal load, an installed
+     PWA, and every URL Max ever opens all resolve to it, so nothing about his app
+     changes. `?env=staging` is the ONLY way to reach the other one, it is opt-in
+     per URL, and an unrecognised value falls back to production rather than
+     erroring — an app that refused to boot on a typo would be worse than one that
+     loaded the real data.
+
+     Both keys are PUBLISHABLE (anon) keys and both are already public by design:
+     this file ships to the browser, so there is no secret here to leak. The
+     server-side secret (GEMINI_API_KEY) is a Vercel env var and is not in this
+     file — see CLAUDE.md, "Server-side".
+
+     ⚠️ Switching environments PURGES local state. `envFence` in js/app.js does it,
+     and it must — the plate draft is unsaved authored work carrying kid/pid
+     references that mean nothing in the other project. See the comment there. -->
+<script>(function(){
+  var ENVS={
+    production:{ref:"izrnptxhdylllodvglla", url:"https://izrnptxhdylllodvglla.supabase.co", key:"sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF"},
+    staging:   {ref:"pboidoxjghntalovzrke", url:"https://pboidoxjghntalovzrke.supabase.co", key:"sb_publishable_T1BSqsPD9eNqnYu6n8-RlQ_OFfGiENM"}
+  };
+  var want=null;
+  try{ want=new URLSearchParams(location.search).get('env'); }catch(e){}
+  var name=(want&&ENVS[want])?want:'production', env=ENVS[name];
+  window.SUPA_ENV=name; window.SUPA_REF=env.ref; window.SUPA_URL=env.url; window.SUPA_KEY=env.key;
+})();</script>
 <!-- Pinned + integrity-checked (v88). Floating "@2" let jsdelivr swap this file
      for anything it liked, with full DOM access and the anon key in scope.
      Bumping the version means recomputing the hash — see docs/handovers/HANDOVER-v88.md. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=151"></script>
+<script src="js/app.js?v=152"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

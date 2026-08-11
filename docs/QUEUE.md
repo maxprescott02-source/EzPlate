@@ -28,7 +28,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · One action in a mobile screen header — rehome the second one (DECIDED 10 Aug 2026)  **[B]**
+## blocked  1 · One action in a mobile screen header — rehome the second one (DECIDED 10 Aug 2026)  **[B]**
 
 §6's mobile header is "screen title + one action max", and three converted screens ship two.
 - **Ingredients (F3):** "Set up from products" beside "New ingredient". Conditional (`renderKingProgress`), so most cafés see one — but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
@@ -41,12 +41,38 @@ Requirements: ONE home used by every screen — they are one question and must n
 ⚠️ **MEASURED 11 Aug 2026 (171): two of these headers already wrap at 360px, and this item is the fix for both.** On `main`, before 171, **Ingredients** measured 121px tall at 360 against the one-row 69 — the "Set up from products" pair, with Scoopy's unlinked catalogue making it visible. 171 added a "‹ More" back chevron to Products and that header now wraps at 360 too. **The chevron is not the cause and shrinking it is not the fix**: it costs 30px, the second action costs 72–130px, and no amount of chevron trimming makes a two-action header fit 360. **360 is not a width anything in this repo has ever tested** — every mobile assertion is at 380 and the mock's reference is 390 — so 171 deliberately left it, rather than inventing a support width and engineering a hit-area workaround that would still have left Ingredients broken there. Rehoming the second action reclaims 72–130px and resolves both screens at once. **Decide as part of this item whether 360 becomes a supported width; if it does, add it to the three specs above. Answer it here, do not route it onward.**
 Out of scope: the desktop headers, which the mock does allow to carry both.
 
+### MEASURED AND PROPOSED 11 Aug 2026 (batch 172) — awaiting Max's yes
+
+Measured in Playwright against the fixture, with `#kingWizBtn` forced visible because that is what Scoopy's unlinked catalogue does to it (`renderKingProgress` sets `wb.style.display=''`). Header height, one row = 69px:
+
+| screen | 360 | 380 | 430 |
+|---|---|---|---|
+| Ingredients | **wraps, 121** | **wraps, 121** | 69 |
+| Products | **wraps, 121** | 69 | 69 |
+| Menu | 69 | 69 | 69 |
+
+⚠️ **THE ITEM UNDERSTATED THIS: Ingredients wraps at 380, not only at 360.** 380 is the width every mobile assertion in this repo uses, so this is not a question about adopting an untested width — it is a **live defect on Max's phone at a supported one**. It is invisible to the suite because the fixture leaves `#kingWizBtn` hidden, and Max's data never does. The `.btn-noun` collapse that `js/app.js` says exists so "the pantry pair fits one line" is already applied at that width and is **not enough**: "New ingredient" is 147px against Products' "New product" at 130, which is the whole difference between the two screens.
+Menu does not wrap at any of the three widths — its pair measures 121 + 113 against a 40px title — so **Menu is in this item for consistency, not for a defect.**
+
+**Proposed home: the existing `.plib-controls` row directly beneath the header, mobile only (≤767). Desktop headers keep both, unchanged.**
+The argument is that **F5 already chose this home for this exact question and said so at the site.** `#menuSwitchRow`'s R5 comment reads: *"that header slot is taken by the shared `.scr-head`, whose 'one action max on a phone' question is ONE queued item and must not be answered per screen — so the mock's trio lands here instead, one line lower."* All three screens already have such a row as their first child after `.scr-head`. So this is not a new pattern being invented against a mock that has none — it is finishing the one the app already started, which is the cheapest way to satisfy "ONE home used by every screen".
+It is one gesture (visible on screen, one tap), it needs **no floating layer** — which matters because *Floating layers and mobile dropdowns* is still open below and any header overflow menu would be built twice — and it reclaims 72–130px, which resolves Ingredients at 380 and both screens at 360.
+Known cost, stated honestly: the row is read as filters on Products and Ingredients, and this puts an action in it. Products' row already measures **2 rows / 112px at every width including 430**, so it absorbs a fourth member without a new structural row; Ingredients' and Menu's may gain one.
+
+Runner-up if that cost is judged too high: **a dedicated one-line mobile action row of its own class between `.scr-head` and `.plib-controls`.** Unambiguous and it never muddles actions with filters, but it costs ~44px of vertical space on every affected screen where the recommendation often costs none.
+Rejected: **an overflow "⋯" in the header** — two taps, so it fails this item's own one-gesture requirement, and it needs the layer system that is still queued. **The screen footer** (where F5 rehomed "Delete this menu") — needs a scroll past the whole list. **Dropping the secondary on mobile** — already rejected twice.
+
+**And the 360 question, answered here as the item instructs:** recommend **yes, 360 becomes a supported width**, added to all three specs — because after this change every mobile header is title + one action, which fits 360 with room (Products' worst case is chevron 22 + title 65 + "New product" 130), so supporting it costs nothing beyond the assertions and it is what pins the fix.
+
+Blocked on: **Max's yes to the proposed home** — the item requires a pattern be proposed and agreed before it is built, and a candidate is not a decision. Recommendation above is the `.plib-controls` row, mobile only.
+
 ## next  2 · Unique ID generation  **[A — launch blocker]**
 
 Nine hardcoded `app_settings` keys, `MENU_ORIGINAL` seeded on every install, `K0001` as every account's first ingredient, `supplier_phrases.id` content-derived so two cafés with one supplier collide **by construction**, plate and dish ids bare `Date.now()`.
 Every write is `.upsert()`, so a collision is a **silent overwrite under a green "Saved" banner**, not an error.
 Requirements: ids that cannot collide across accounts, plus a migration of the live café's existing rows.
 Multi-tenant prerequisite; harmless with one account. **First of the A items because every other multi-tenant table change inherits it.**
+Do after: **Staging Supabase** — this item's deliverable is explicitly *"a migration of the live café's existing rows"*, i.e. one that REWRITES every id in production. `CLAUDE.md` keeps rewriting data as Max's to run, and keeps "say out loud that it is unrehearsed" as the standing cost of an empty staging schema. Running staging first turns this from an unrehearsable production rewrite into one that has been proved against a mirrored schema and a scale seed — which is the difference between asking Max to authorise a leap and asking him to authorise a repeat. *(Added 11 Aug 2026, batch 172, on reaching this item and finding it could not be started honestly.)*
 
 ## next  3 · Staging Supabase — mirror the schema and seed it  **[A — the safety net for Auth, RLS and Roles]**
 
