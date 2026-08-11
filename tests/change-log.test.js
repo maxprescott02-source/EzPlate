@@ -19,7 +19,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -107,6 +107,13 @@ function harness(opts) {
     function cpbu(p){ return p.cost_per_base_unit; }
 
     /* --- real bodies, from the shipped file --- */
+    /* 173: uid() is a shared dependency of every id-minting path below. Extracted, not stubbed:
+       a hand-rolled counter here would agree with a broken generator and hide exactly the
+       collision it exists to prevent (CLAUDE.md, "a stub that mirrors a real function must
+       mirror its CONTRACT"). No backticks in this comment - it sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
       'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',

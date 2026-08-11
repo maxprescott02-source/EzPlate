@@ -63,6 +63,63 @@ function envFence(store, ref){
 }
 try{ envFence(window.localStorage, window.SUPA_REF); }catch(e){}
 
+/* ================== 173: THE ID GENERATOR ==================
+   One place that mints a row id, for every table whose primary key is a bare `text`
+   column the client chooses.
+
+   THE DEFECT IT REMOVES. Ids were `PREFIX + Date.now().toString(36)`. Two accounts
+   creating a plate in the same millisecond mint the SAME id — and because every write
+   is `.upsert()`, the second one does not error, it OVERWRITES the first, under a
+   green "Saved" banner. Single-tenant that cannot happen and none of this matters;
+   the moment there are two cafés it is a silent data-loss path.
+
+   THE THREE GUARANTEES, and why all three are needed:
+     - `Date.now()` keeps ids roughly time-ordered, which is worth keeping for reading
+       a table by eye and for debugging. It guarantees nothing on its own.
+     - `_uidSeq` guarantees ABSOLUTE uniqueness within one page session, including
+       inside a loop that runs many times in the same millisecond (the invoice
+       importer does exactly that). Deterministic, not probabilistic.
+     - the random block is what makes ids unique ACROSS accounts and sessions, where
+       a counter cannot help because the two counters know nothing about each other.
+   `nextChangeId` already had this exact shape with a 1296-value token; it was the
+   precedent, and it now shares the implementation instead of being a near-copy.
+
+   ⚠️ WHY NO MIGRATION OF EXISTING ROWS IS NEEDED, which is the load-bearing claim of
+   this change and is pinned in tests/unique-ids.test.js: a new id can never equal an
+   OLD one, because every new id carries a `-` and the old format has no separator at
+   all. So Scoopy's existing rows stay exactly as they are and a second café cannot
+   collide with them. Rewriting live ids would have meant chasing every reference,
+   including the ones inside plate-line JSONB — a large destructive migration bought
+   for nothing.
+
+   ⚠️ THIS DOES NOT COVER SEMANTIC KEYS, and it must not be extended to them: the nine
+   `app_settings` keys, `supplier_phrases.id` (deliberately content-derived, so that
+   re-teaching a pack UPDATES one row instead of duplicating it), the `K0001` kitchen
+   ids and `MENU_ORIGINAL`. Those are NAMES the code looks things up by, not surrogate
+   ids, and randomising them breaks the lookup rather than fixing anything. They need
+   tenant scoping, which is the `business_id` item's job. See docs/QUEUE.md. */
+var _uidSeq = 0;
+function uidRandom(n){                                       // n base-36 characters of real entropy
+  var out = '';
+  var c = (typeof crypto !== 'undefined' && crypto && typeof crypto.getRandomValues === 'function') ? crypto : null;
+  if(c){
+    var buf = new Uint8Array(n);
+    c.getRandomValues(buf);
+    for(var i=0;i<n;i++) out += (buf[i] % 36).toString(36);
+    return out;
+  }
+  // Math.random is a weaker source, not an absent one. An id is not a secret and does
+  // not need to be unguessable — it needs to not repeat — so degrading here is correct
+  // and is far better than throwing on a browser without crypto.
+  for(var j=0;j<n;j++) out += Math.floor(Math.random()*36).toString(36);
+  return out;
+}
+function uid(prefix){
+  _uidSeq = (_uidSeq + 1) % 1679616;                         // 36^4, so it always fits four chars
+  return String(prefix||'') + Date.now().toString(36)
+       + '-' + _uidSeq.toString(36) + '-' + uidRandom(8);
+}
+
 /* ================== Supabase data layer (single source of truth) ==================
    Local storage is kept only as an OFFLINE MIRROR so the app still opens and search
    still works with no signal. On every load we replace the mirror with server data. */
@@ -1168,7 +1225,7 @@ function submitNew(){
   if(errs.length){fe.textContent='Please complete: '+errs.join(', ')+'.';fe.style.display='block';return;}
   if(!brR.ok){ fe.textContent='\u201c'+brR.value+'\u201d is a new brand \u2014 pick \u201cCreate new\u201d from the list to confirm.'; fe.style.display='block'; return; }
   if(!supR.ok){ fe.textContent='\u201c'+supR.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d from the list to confirm.'; fe.style.display='block'; return; }
-  const id='U'+Date.now().toString(36);
+  const id=uid('U');
   var szUnit=document.getElementById('f_packunit').value;
   const prod=newProductRecord({id:id, desc:desc, brand:brR.value, supplier:supR.value, category:catR.value,
     base_unit:calc.base_unit, cost_per_base_unit:calc.cost_per_base_unit, cost_basis:calc.cost_basis,
@@ -1447,7 +1504,7 @@ function saveCurrentPlate(asNew){
   var _avgBefore=computeAvgFoodCost(), _costBefore=_prev?costFromLines(_prev.lines):null;
   var sp;
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
-  if(asNew || !loadedPlateId){ var id='SP'+Date.now().toString(36); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
+  if(asNew || !loadedPlateId){ var id=uid('SP'); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   var _isNew=(_costBefore==null);
   var _write=dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
   /* F7 (v146) — "Saved just now" waits for the SERVER, and for the plate to still BE what was
@@ -1524,7 +1581,7 @@ function publishPlan(dishes, plateId, menuId){
 function ensurePlateForDish(m){
   if(!m) return null;
   var sp=plateForMenuItem(m); if(sp) return sp;
-  var id='SP'+Date.now().toString(36); sp={id:id, name:m.name||'Plate', lines:[]};
+  var id=uid('SP'); sp={id:id, name:m.name||'Plate', lines:[]};
   savedPlates.push(sp);
   m.plateId=id; var i=customMenu.findIndex(function(c){return c.id===m.id;}); if(i>=0) customMenu[i]=m; else customMenu.push(m);
   dbPushMenuAfterPlate(m, sp);
@@ -1890,12 +1947,14 @@ var CHANGE_KINDS = ['plate_created','plate_edited','plate_deleted',
    exactly idempotent: an entry carries its own identity into the backup file and back out, so the server
    can `on conflict (id) do nothing` rather than guess at a natural key. The counter breaks ties within a
    millisecond, which is real here — the invoice import can write several entries in one pass. */
-var _changeSeq=0;
-/* The per-load token is not decoration: the counter resets to 0 on every page load, so two tabs acting
-   in the same millisecond would otherwise mint the SAME id — a 23505 on insert and a red toast, on the
-   value the restore's idempotency turns on. */
-var _changeTok=Math.floor(Math.random()*1296).toString(36);
-function nextChangeId(){ _changeSeq=(_changeSeq+1)%1296; return 'CL'+Date.now().toString(36)+_changeTok+_changeSeq.toString(36); }
+/* 173: this was the PRECEDENT for `uid` and is now one of its callers rather than a near-copy.
+   Its own comment already had the whole argument — "the counter resets to 0 on every page load, so
+   two tabs acting in the same millisecond would otherwise mint the SAME id" — and the same sentence
+   is true of two ACCOUNTS, which is what `uid` generalises it to. The old per-load token drew from
+   1296 values; `uid` draws from 36^8, on `crypto` where it exists.
+   Nothing about the contract changes: still `CL`-prefixed, still time-ordered, still unique enough
+   for the `on conflict (id) do nothing` the restore's idempotency turns on. */
+function nextChangeId(){ return uid('CL'); }
 /* Server rows win on a shared id; entries that exist only here survive. See the call site in
    bootstrapSync for why replacing would lose exactly the entries worth keeping. */
 function mergeChangeLog(server, local){
@@ -4978,7 +5037,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v152';
+var APP_VERSION='v153';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -6384,7 +6443,7 @@ function submitMenuItem(){
   if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){err.textContent='Enter a valid sell price.';err.style.display='block';return;}
   // one entry per (plate, menu): re-adding to a menu it's already on updates that entry rather than duplicating.
   var plan=publishPlan(MENU, sp.id, chosenMenu);                   // v113: shared with submitAddDish — see publishPlan
-  var targetId=plan.existingId||('um'+Date.now().toString(36));
+  var targetId=plan.existingId||uid('um');
   var item={id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,custom:true,menuId:chosenMenu,plateId:sp.id};
   /* v114 — this button does TWO different things and the log has to tell them apart. On the create
      branch a plate reaches a menu; on the update branch it is already there and the only thing that can
@@ -7893,7 +7952,7 @@ function applyInvoice(){
     if(!r||!appr||!appr.checked) return;
     if(r.addNew){
       var s=specs[i]; if(!s) return;
-      var id='CX'+Date.now().toString(36)+i;
+      var id=uid('CX');
       setProduct(id, {id:id, description:s.name, brand:s.brand, category:s.category, sub_category:null,
         item_type:null, search_aliases:[], base_unit:s.base_unit, cost_per_base_unit:s.cpbu,
         cost_basis:s.cost_basis, is_food:true, pack_size_raw:s.pack_size_raw, sold_by:null,
@@ -8325,7 +8384,7 @@ function submitAddDish(){
   if(pv===''||isNaN(parseFloat(pv))||parseFloat(pv)<0){ if(err){err.textContent='Enter a sell price for this menu.';err.style.display='block';} return; }
   var plan=publishPlan(MENU, sp.id, currentMenuId);                // v113: the SAME decision submitMenuItem uses — this path had the identical blind spot
   if(plan.action==='update'){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
-  var id='um'+Date.now().toString(36);
+  var id=uid('um');
   var item={id:id, section:(sp.category||'Uncategorised'), name:sp.name||'Plate', price:parseFloat(pv), notes:'', custom:true, menuId:currentMenuId, plateId:sp.id};
   var avgBefore=computeAvgFoodCost();                              // v114: before the push, for the same reason everywhere else — computeAvgFoodCost is live
   customMenu.push(item); var write=dbPushMenuAfterPlate(item, sp);
@@ -8350,7 +8409,7 @@ function submitNewMenu(){
   var season=(document.getElementById('nm_season')||{}).value||''; season=season.trim();
   var err=document.getElementById('nm_err');
   if(!name){ if(err){ err.textContent='Enter a menu name.'; err.style.display='block'; } return; }
-  var id='MENU'+Date.now().toString(36);
+  var id=uid('MENU');
   var rec={id:id, name:name, season:season||null};
   menusList.push(rec); dbUpsertMenuRecord(rec);
   setCurrentMenuId(id);

@@ -20,7 +20,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { publishPlan, unlinkedDishesOn, plateIdOf } = require('./_extract');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -118,6 +118,13 @@ function makeHarness(opts) {
     function menuNameById(){ return 'Original menu'; }
     /* the app's OWN escaper and formatter — a passthrough stub would hide a real escaping bug in copy
        that interpolates a user-typed name */
+    /* 173: uid() is a shared dependency of every id-minting path below. Extracted, not stubbed:
+       a hand-rolled counter here would agree with a broken generator and hide exactly the
+       collision it exists to prevent (CLAUDE.md, "a stub that mirrors a real function must
+       mirror its CONTRACT"). No backticks in this comment - it sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
     ${extractFn(SRC, 'esc')}
     ${extractFn(SRC, 'fmt2')}
     /* Element stubs. querySelectorAll returns a stand-in per rendered .up-link, built from the html the

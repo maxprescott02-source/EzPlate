@@ -11,7 +11,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -21,6 +21,13 @@ function makeResolver(menusList, savedPlates, dishes) {
   const factory = new Function('MENUS', 'PLATES', 'DISHES', `
     "use strict";
     var menusList=MENUS, savedPlates=PLATES, MENU=DISHES;
+    /* 173: uid() is a shared dependency of every id-minting path below. Extracted, not stubbed:
+       a hand-rolled counter here would agree with a broken generator and hide exactly the
+       collision it exists to prevent (CLAUDE.md, "a stub that mirrors a real function must
+       mirror its CONTRACT"). No backticks in this comment - it sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'dishesOfPlate')}
@@ -67,6 +74,13 @@ function makeSaveHarness(opts) {
   const state = { calls: [], savedPlates: opts.savedPlates || [], plateName: opts.plateName, plate: opts.plate || [{ kid: 'K1', qty: 100 }] };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
+    /* 173: uid() is a shared dependency of the id-minting paths below. Extracted, not stubbed:
+       a hand-rolled counter would agree with a broken generator and hide the collision it exists
+       to prevent. No backticks - this sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
+
     "use strict";
     var plate=S.plate;
     var savedPlates=S.savedPlates;
@@ -217,6 +231,13 @@ function makeEnsureHarness() {
   const S = { savedPlates: [], customMenu: [{ id: 'D1', name: 'Soup', menuId: 'MO' }], calls: [] };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
+    /* 173: uid() is a shared dependency of the id-minting paths below. Extracted, not stubbed:
+       a hand-rolled counter would agree with a broken generator and hide the collision it exists
+       to prevent. No backticks - this sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
+
     "use strict";
     var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
     function savePlatesLS(){}
@@ -289,6 +310,13 @@ test('v112: costing a reloaded, properly-linked dish does NOT mint a second plat
   S.customMenu = [roundTrip({ id: 'um1', name: 'Toastie', price: 9, menuId: 'MENU_ORIGINAL', plateId: 'SP1', custom: true })];
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
+    /* 173: uid() is a shared dependency of the id-minting paths below. Extracted, not stubbed:
+       a hand-rolled counter would agree with a broken generator and hide the collision it exists
+       to prevent. No backticks - this sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
+
     "use strict";
     var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
     function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
@@ -311,6 +339,13 @@ test('v112: the deleted editor\'s shape WOULD have compounded — costing it min
   S.customMenu = [roundTrip({ id: 'um1', name: 'Toastie', price: 9, menuId: 'MENU_ORIGINAL', custom: true })];
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `
+    /* 173: uid() is a shared dependency of the id-minting paths below. Extracted, not stubbed:
+       a hand-rolled counter would agree with a broken generator and hide the collision it exists
+       to prevent. No backticks - this sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
+
     "use strict";
     var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
     function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
