@@ -31,8 +31,15 @@ var gemToken=0,gemStatus=null,gemApplied=false,gemCheckStart=0;   // v62: AI sec
    and DIFFERS is a switch.
 
    It runs here, at the top of the file, because it has to beat every top-level
-   localStorage reader below it (`dashRange`, `dashScope`, the theme preference).
-   Moving it later re-introduces the bug in a form no test would obviously catch. */
+   localStorage reader below it (`dashRange`, `dashScope`). Moving it later
+   re-introduces the bug in a form no test would obviously catch.
+
+   ⚠️ IT CANNOT BEAT ALL OF THEM, and the earlier version of this comment claimed it
+   did — naming "the theme preference", which is read by the THEME RESOLVER inline in
+   index.html's <head>, before this file is even fetched. No amount of ordering inside
+   app.js reaches that, so the resolver makes the same stamp comparison itself; the
+   comment there explains why. The general shape is worth remembering: this fence is
+   a whole-page concern, and app.js is not the whole page. */
 var ENV_STAMP_KEY='cafeCost_env';
 function envFence(store, ref){
   if(!store || !ref) return null;                              // no storage, or no env resolved: nothing to fence

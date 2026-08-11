@@ -33,6 +33,21 @@ const envFence = (function () {
 const PROD = 'izrnptxhdylllodvglla';
 const STAGE = 'pboidoxjghntalovzrke';
 
+/**
+ * The REAL environment-resolution IIFE from index.html's <head>, callable as (window, location).
+ * Cut from the shipped file rather than copied, for the reason _extract.js exists at all.
+ */
+const envResolverFn = (function () {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const anchor = html.indexOf('var ENVS={');
+  if (anchor < 0) throw new Error('index.html: "var ENVS={" not found — the env resolver moved; update this test');
+  const open = html.lastIndexOf('<script>', anchor);
+  const close = html.indexOf('</script>', anchor);
+  const src = html.slice(open + '<script>'.length, close);
+  // `window` and `location` become parameters, shadowing anything global.
+  return new Function('window', 'location', src);   // eslint-disable-line no-new-func
+})();
+
 /** A minimal Storage: index-ordered keys, like the real thing. */
 function fakeStore(initial, opts) {
   const o = Object.assign({}, initial);
@@ -141,6 +156,12 @@ test('storage that throws is survivable — no throw, and nothing claimed', () =
 test('SOURCE ORDER: the fence runs before every top-level localStorage reader in app.js', () => {
   // The function being right is worthless if `var dashRange = localStorage.getItem(...)` has already
   // run. This asserts the ordering in the shipped file rather than trusting a comment.
+  //
+  // ⚠️ THIS TEST ONLY SEES js/app.js, because `loadApp()` only reads js/app.js — and that blind spot
+  // let a FALSE claim stand: the code used to say the fence beat "the theme preference" too, which
+  // it never could, because that read happens in index.html's <head> before this file is fetched.
+  // The test passed anyway, which is the exact shape CLAUDE.md warns about — a green test that
+  // cannot fail. The index.html half is covered by the two tests below; neither is sufficient alone.
   const call = SRC.indexOf('envFence(window.localStorage, window.SUPA_REF)');
   assert.ok(call > 0, 'the fence must actually be called in app.js');
   const readers = [];
@@ -162,11 +183,56 @@ test('index.html: production is the default, and an unknown env falls back to it
   const block = html.slice(html.indexOf('var ENVS={'), html.indexOf('window.SUPA_ENV=name'));
   assert.ok(block.includes('izrnptxhdylllodvglla'), 'production project must be present');
   assert.ok(block.includes('pboidoxjghntalovzrke'), 'staging project must be present');
-  assert.ok(
-    html.includes("var name=(want&&ENVS[want])?want:'production'"),
-    'an unrecognised ?env= must fall back to production rather than erroring or reaching staging'
-  );
   assert.ok(html.includes('window.SUPA_REF=env.ref'), 'the project ref must be published for envFence to stamp');
+  // The fallback BEHAVIOUR is pinned by executing the real resolver below, not by matching its
+  // source text. An earlier version of this test asserted the exact line, which meant a correct
+  // fix to that line failed the test while a broken rewrite of it would have passed.
+});
+
+test('SOURCE ORDER in index.html: the project is resolved before ANY localStorage read', () => {
+  // The half app.js cannot see. The theme resolver reads localStorage in <head>; if the project has
+  // not been resolved by then it has no stamp to compare against and paints with the other
+  // environment's theme. Found by review, after the app.js test above passed on the broken order.
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const resolved = html.indexOf('window.SUPA_REF=env.ref');
+  const firstRead = html.indexOf('localStorage.getItem');
+  assert.ok(resolved > 0, 'the env block must be present');
+  assert.ok(firstRead > 0, 'the theme resolver must still read localStorage');
+  assert.ok(resolved < firstRead,
+    'the Supabase project must be resolved before the first localStorage read in index.html');
+});
+
+test('the theme resolver refuses a theme stamped against a different project', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const head = html.slice(0, html.indexOf('</head>'));
+  assert.ok(head.includes("localStorage.getItem('cafeCost_env')"),
+    'the theme resolver must cross-check the environment stamp');
+  assert.ok(/st!==window\.SUPA_REF\)\s*stored=null/.test(head),
+    'and it must DISCARD the stored theme when the stamp disagrees, not merely read the stamp');
+});
+
+test('an unrecognised ?env= cannot reach a prototype member', () => {
+  // `ENVS[want]` is truthy for "constructor", "toString", "__proto__" and friends, so a plain
+  // truthiness test skipped the production fallback and left SUPA_URL undefined — a dead app.
+  // The guard must be about what the object OWNS. Exercised, not just grepped.
+  // The REAL shipped IIFE is cut out of index.html and executed against a stubbed window and
+  // location. Re-implementing the two-line resolution here would be the mirror-the-function trap
+  // CLAUDE.md records four times over: a copy written from the same wrong belief passes happily.
+  const resolve = (search) => {
+    const win = {};
+    envResolverFn(win, { search });
+    return win;
+  };
+  for (const hostile of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf', 'bogus', '']) {
+    const win = resolve(`?env=${hostile}`);
+    assert.strictEqual(win.SUPA_ENV, 'production', `?env=${hostile || '(empty)'} must fall back to production`);
+    assert.strictEqual(win.SUPA_REF, PROD);
+    assert.ok(typeof win.SUPA_URL === 'string' && win.SUPA_URL.startsWith('https://'),
+      `?env=${hostile || '(empty)'} left SUPA_URL as ${JSON.stringify(win.SUPA_URL)} — the app would be dead`);
+    assert.ok(typeof win.SUPA_KEY === 'string' && win.SUPA_KEY.length > 0);
+  }
+  assert.strictEqual(resolve('?env=staging').SUPA_REF, STAGE, 'and the real value must still work');
+  assert.strictEqual(resolve('').SUPA_REF, PROD, 'no query string at all is production');
 });
 
 test('the two projects are distinct, or the fence can never fire', () => {

@@ -11,6 +11,47 @@
      light-only value. The colours must equal --surface in each palette;
      tests/settings-toggles.test.js pins them against the stylesheet so they cannot drift. -->
 <meta name="theme-color" content="#FFFFFF">
+<!-- 172: WHICH SUPABASE PROJECT THIS PAGE TALKS TO.
+     Production is the default and stays the default: a normal load, an installed
+     PWA, and every URL Max ever opens all resolve to it, so nothing about his app
+     changes. `?env=staging` is the ONLY way to reach the other one, it is opt-in
+     per URL, and an unrecognised value falls back to production rather than
+     erroring — an app that refused to boot on a typo would be worse than one that
+     loaded the real data.
+
+     Both keys are PUBLISHABLE (anon) keys and both are already public by design:
+     this file ships to the browser, so there is no secret here to leak. The
+     server-side secret (GEMINI_API_KEY) is a Vercel env var and is not in this
+     file — see CLAUDE.md, "Server-side".
+
+     ⚠️ IT LIVES IN THE HEAD, ABOVE THE THEME RESOLVER, AND THAT ORDER IS LOAD-BEARING.
+     It was written at the foot of the document next to the Supabase CDN script, which
+     looked natural and was wrong: the theme resolver below reads localStorage before
+     js/app.js is even fetched, and therefore long before `envFence` can purge
+     anything, so on the first load after an environment switch the page painted in
+     the OTHER environment's theme. Nothing here depends on the DOM, so the fix is
+     simply to resolve the project before the first reader runs.
+
+     (Written without the literal angle-bracket tag names on purpose: several tests
+     locate the real tags by searching this file as text, and a comment that spells
+     them out is indistinguishable from the markup. One of them caught exactly that.)
+
+     ⚠️ `hasOwnProperty`, not a truthiness test on `ENVS[want]`. A plain object
+     resolves inherited members too, so `?env=constructor` (or `toString`, or
+     `__proto__`) made the lookup truthy, skipped the fallback, and left SUPA_URL
+     undefined — a dead app with a badge reading "CONSTRUCTOR". The guard is about
+     what the object OWNS, which is what was meant all along. -->
+<script>(function(){
+  var ENVS={
+    production:{ref:"izrnptxhdylllodvglla", url:"https://izrnptxhdylllodvglla.supabase.co", key:"sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF"},
+    staging:   {ref:"pboidoxjghntalovzrke", url:"https://pboidoxjghntalovzrke.supabase.co", key:"sb_publishable_T1BSqsPD9eNqnYu6n8-RlQ_OFfGiENM"}
+  };
+  var want=null;
+  try{ want=new URLSearchParams(location.search).get('env'); }catch(e){}
+  var own=Object.prototype.hasOwnProperty;
+  var name=(want && own.call(ENVS, want)) ? want : 'production', env=ENVS[name];
+  window.SUPA_ENV=name; window.SUPA_REF=env.ref; window.SUPA_URL=env.url; window.SUPA_KEY=env.key;
+})();</script>
 <!-- v136 — THE THEME RESOLVER. Runs synchronously in <head>, before first paint, so no
      frame is ever painted in the wrong theme. It ALWAYS writes an explicit data-theme
      value ('light' or 'dark'); it never leaves the attribute off.
@@ -24,6 +65,14 @@
 <script>(function(){try{
   var THEME_SURFACE={light:'#FFFFFF',dark:'#232528'};   /* === --surface per palette; pinned against css/style.css by tests/settings-toggles.test.js */
   var stored=null; try{stored=localStorage.getItem('cafeCost_theme');}catch(e){}
+  /* 172: this is the ONE localStorage read that `envFence` cannot precede — it happens in
+     <head>, before js/app.js exists at all. So it makes the same decision the fence does,
+     from the same stamp: a theme stored against a DIFFERENT Supabase project belongs to
+     that project and is about to be purged, so it must not be painted with. Without this
+     the first load after a switch renders in the other environment's theme and only
+     self-corrects on the next reload, which reads as a ghost bug. */
+  try{ var st=localStorage.getItem('cafeCost_env');
+       if(st && window.SUPA_REF && st!==window.SUPA_REF) stored=null; }catch(e){}
   var pref=(stored==='light'||stored==='dark')?stored:'system';
   var dark=(pref==='dark')||(pref==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches);
   var t=dark?'dark':'light';
@@ -1287,32 +1336,6 @@
 </nav>
 
 <div id="printDocket" aria-hidden="true"></div>
-<!-- 172: WHICH SUPABASE PROJECT THIS PAGE TALKS TO.
-     Production is the default and stays the default: a normal load, an installed
-     PWA, and every URL Max ever opens all resolve to it, so nothing about his app
-     changes. `?env=staging` is the ONLY way to reach the other one, it is opt-in
-     per URL, and an unrecognised value falls back to production rather than
-     erroring — an app that refused to boot on a typo would be worse than one that
-     loaded the real data.
-
-     Both keys are PUBLISHABLE (anon) keys and both are already public by design:
-     this file ships to the browser, so there is no secret here to leak. The
-     server-side secret (GEMINI_API_KEY) is a Vercel env var and is not in this
-     file — see CLAUDE.md, "Server-side".
-
-     ⚠️ Switching environments PURGES local state. `envFence` in js/app.js does it,
-     and it must — the plate draft is unsaved authored work carrying kid/pid
-     references that mean nothing in the other project. See the comment there. -->
-<script>(function(){
-  var ENVS={
-    production:{ref:"izrnptxhdylllodvglla", url:"https://izrnptxhdylllodvglla.supabase.co", key:"sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF"},
-    staging:   {ref:"pboidoxjghntalovzrke", url:"https://pboidoxjghntalovzrke.supabase.co", key:"sb_publishable_T1BSqsPD9eNqnYu6n8-RlQ_OFfGiENM"}
-  };
-  var want=null;
-  try{ want=new URLSearchParams(location.search).get('env'); }catch(e){}
-  var name=(want&&ENVS[want])?want:'production', env=ENVS[name];
-  window.SUPA_ENV=name; window.SUPA_REF=env.ref; window.SUPA_URL=env.url; window.SUPA_KEY=env.key;
-})();</script>
 <!-- Pinned + integrity-checked (v88). Floating "@2" let jsdelivr swap this file
      for anything it liked, with full DOM access and the anon key in scope.
      Bumping the version means recomputing the hash — see docs/handovers/HANDOVER-v88.md. -->
