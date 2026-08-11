@@ -143,9 +143,21 @@ ok('and Settings is hidden behind it', $('tab-settings').style.display === 'none
 ok('the account screen carries the three mock sections',
    [...window.document.querySelectorAll('#tab-account .stg-card-h')].map(h => h.textContent).join('|') === 'Profile|Team|Plan');
 /* 171: scoped to `.stg-cards` — the screen gained a "‹ More" back chevron in its shared header,
-   which is navigation, not a capability the account claims. The body is where a dead control
-   would go and it is still empty. */
-ok('and no control of any kind in the body', window.document.querySelectorAll('#tab-account .stg-cards button, #tab-account .stg-cards input, #tab-account .stg-cards select, #tab-account .stg-cards a').length === 0);
+   which is navigation, not a capability the account claims.
+   ⚠️ 174: narrowed again, to the cards that still promise nothing. §R4 is "a capability that does
+   not exist is stated in a sentence, never mimed with a control that does nothing" — and Profile
+   now HAS its capability, real Supabase sign-in, so controls there are the rule working rather
+   than being dodged. Team and Plan are unchanged and a dead control in either still fails.
+   THIS IS THE THIRD PLACE the same contract is asserted (the others are
+   tests/settings-toggles.test.js and tests/visual/q9-settings.spec.js). All three had to move
+   together, and only this one is outside `npm test`, so it went red in CI after the other two
+   were green locally. */
+const acctPromiseCards = [...window.document.querySelectorAll('#tab-account .stg-card')]
+  .filter(c => !c.querySelector('#acctForm'));
+ok('and no control of any kind in the cards that promise something',
+   acctPromiseCards.every(c => c.querySelectorAll('button, input, select, a').length === 0));
+ok('…while Profile ships the sign-in that earned its controls',
+   !!window.document.querySelector('#tab-account #acctForm') && !!window.document.querySelector('#tab-account #acctIn'));
 ok('currentTab reports account', window.currentTab() === 'account');
 
 /* 171: the More screen and the routes it owns, driven end to end. This is the batch's whole point,

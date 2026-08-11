@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=153">
+<link rel="stylesheet" href="css/style.css?v=154">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -837,14 +837,57 @@
              desktop routes, and the More row only exists below it. -->
         <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Account</h2>
-        <span class="scr-sub">Arrives with EzPlate accounts</span>
+        <!-- 174: was "Arrives with EzPlate accounts", which stopped being true the moment sign-in
+             shipped below. The subtitle now says which part is real and which is not, because the
+             screen carries both and a reader has no other way to tell them apart. -->
+        <span class="scr-sub">Sign-in works; roles and billing are still to come</span>
       </div>
       <div class="stg-cards">
 
+        <!-- 174: the first REAL thing on this screen. Everything else here is still a placeholder
+             card, and deliberately so — roles and billing describe backends that do not exist, and
+             §11.5 declined building those as UI shells.
+
+             ⚠️ SIGNING IN CHANGES NOTHING ABOUT WHAT THIS APP CAN SEE, and the copy says so rather
+             than implying privacy the database does not yet provide. Every RLS policy is still
+             `using (true)`, so `anon` and `authenticated` are equally privileged; isolation arrives
+             with the `business_id` item. Overstating this here would be the worst kind of wrong.
+
+             There is NO sign-up form on purpose. The anon key is in this page, so anyone who reads
+             it already has the access an account would grant — a sign-up form would not create that
+             exposure but it would advertise it. Accounts are made in the Supabase dashboard until
+             the RLS item closes the gap. -->
         <section class="stg-card">
           <h3 class="stg-card-h">Profile</h3>
           <div class="stg-body">
-            <p class="stg-soon">Your name, email and sign-in arrive with EzPlate accounts. Until then this app has one user and no login.</p>
+            <div id="acctOut">
+              <div class="stg-row">
+                <div class="stg-text">
+                  <label class="stg-lbl" for="acctEmail">Sign in</label>
+                  <!-- 174: the first draft of this said "signing in changes nothing about what you
+                       can see or do", which was true of the DATABASE and false of the device: it
+                       clears this browser's saved view, and would have taken an unfinished plate
+                       with it without saying so. Signing in now asks first if there is one, and the
+                       copy no longer promises that nothing happens. -->
+                  <p class="stg-help">EzPlate does not need an account yet, and signing in does not change what you can see or do — every account shares this data until workspaces arrive. It clears this device’s saved view.</p>
+                </div>
+              </div>
+              <form class="acct-form" id="acctForm" autocomplete="on">
+                <input class="acct-in" id="acctEmail" type="email" name="email" placeholder="you@example.com" aria-label="Email" autocomplete="username" required>
+                <input class="acct-in" id="acctPass" type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
+                <button class="btn primary" id="acctIn" type="submit">Sign in</button>
+              </form>
+              <p class="acct-err" id="acctErr" hidden role="alert"></p>
+            </div>
+            <div id="acctIn2" hidden>
+              <div class="stg-row">
+                <div class="stg-text">
+                  <label class="stg-lbl">Signed in</label>
+                  <p class="stg-help" id="acctWho"></p>
+                </div>
+                <button class="btn stg-ctl" id="acctOutBtn" type="button">Sign out</button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1342,7 +1385,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=153"></script>
+<script src="js/app.js?v=154"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

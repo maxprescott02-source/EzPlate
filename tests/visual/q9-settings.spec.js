@@ -191,15 +191,25 @@ test('380px: the Settings row is the whole route to Account, and it works with a
   await expect(page.locator('#tab-dashboard')).toBeVisible();
 });
 
-test('1280px: the account screen renders and carries no control', async ({ page }) => {
+test('1280px: the account screen renders, and only its BACKED card carries controls', async ({ page }) => {
   await boot(page, 1280);
   await page.click('#sideSettings');
   await page.waitForTimeout(300);
   await page.click('#setAccountOpen');
   await page.waitForTimeout(400);
   await expect(page.locator('#tab-account')).toBeVisible();
-  // §R4: the mock draws Edit profile / Invite a teammate / Manage billing / Sign out. None ships.
-  await expect(page.locator('#tab-account .stg-cards button, #tab-account .stg-cards input, #tab-account .stg-cards select, #tab-account .stg-cards a')).toHaveCount(0);
+  /* §R4: the mock draws Edit profile / Invite a teammate / Manage billing / Sign out, and the rule
+     is "a capability that does not exist is stated in a sentence, never mimed with a control that
+     does nothing".
+     ⚠️ 174 NARROWED this from "no control anywhere in the body" to "no control in Team or Plan",
+     because Profile now HAS the capability — real Supabase sign-in — and a card that earned its
+     controls is the rule working, not the rule being dodged. Team and Plan still describe backends
+     that do not exist and are still asserted empty. */
+  const promiseCards = '#tab-account .stg-card:not(:has(#acctForm))';
+  await expect(page.locator(`${promiseCards} button, ${promiseCards} input, ${promiseCards} select, ${promiseCards} a`)).toHaveCount(0);
+  // and the backed card really is backed, so this cannot pass by the form having vanished
+  await expect(page.locator('#tab-account #acctForm')).toBeVisible();
+  await expect(page.locator('#tab-account #acctIn')).toBeVisible();
   // 171: scoped to the body. The screen gained a "‹ More" chevron in its shared header — navigation,
   // not a capability — and at 1280 it is display:none anyway, which is asserted rather than assumed.
   await expect(page.locator('#tab-account .scr-back')).toBeHidden();

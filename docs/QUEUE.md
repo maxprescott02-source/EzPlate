@@ -83,10 +83,20 @@ Requirements: every one of the four is scoped so two accounts cannot collide, wi
 Do after: **`business_id` on every table, plus RLS** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
 ✅ Rehearsable on staging when it runs — `docs/STAGING.md` has the procedure, and `04-seed-scale.sql` carries 60 taught packs and a full settings blob to rehearse against.
 
-## next  3 · Supabase Auth  **[A — launch blocker]**
+## next  3 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
 
-Requirements: email/password, optional Google.
-Login purges local state (v108 removed the heal machinery that made this collide, so it is now clean).
+⚠️ **REWRITTEN 12 Aug 2026 (174). Email/password sign-in SHIPPED as `ezplate-v154`; three pieces are left and one of them is Max's.**
+
+**What shipped.** Real `signInWithPassword` / `signOut` on the Account screen's Profile card, session restored on boot, and a change of user purging local state through the same `purgeLocalState` the environment fence uses — one rule, not two. The initial session event deliberately never purges, because `onAuthStateChange` fires `INITIAL_SESSION` on every load and treating that as a switch would wipe the plate draft on every boot.
+**It gates nothing, on purpose.** Every RLS policy is still `using (true)` for `public`, so a signed-in session sees exactly what a signed-out one sees; `tests/auth.test.js` pins that nothing consults `authUser`. Gating before isolation exists would lock the door on a building with no walls.
+
+**What is LEFT:**
+- **Google sign-in.** Needs a Google Cloud OAuth client id and secret pasted into the Supabase dashboard, which is **Max's to do** — no code can create it. The client call is two lines once it exists. It was listed as "optional" and stays optional.
+- **Making an account mean something.** Until RLS distinguishes tenants, signing in is a no-op with a real session behind it. That is the `business_id` item, not this one.
+- **Opening sign-up.** There is deliberately no sign-up path: the anon key ships in `index.html`, so anyone reading the page already has the access an account would grant, and a form would advertise it. Accounts are made in the Supabase dashboard until RLS closes that gap. ⚠️ **Supabase sign-ups are open by default at the API level regardless**, which is not made worse by this item but IS part of the gate review.
+- **Email confirmation is ON**, found while rehearsing: an account created without confirmation cannot sign in ("Email not confirmed"). A dashboard-created account must be marked confirmed, or the first real sign-in fails in a way that looks like a wrong password.
+
+Do after: **`business_id` on every table, plus RLS** — for the second bullet only; the Google half needs nothing but Max.
 
 ## next  4 · `business_id` on every table, plus RLS  **[A — launch blocker]**
 
