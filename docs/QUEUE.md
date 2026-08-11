@@ -80,7 +80,7 @@ Blocked on: **Max's yes to the proposed home** — the item requires a pattern b
 - **`MENU_ORIGINAL`** from `ensureDefaultMenu`. `menus.id` IS a global key, so this genuinely collides — but the literal appears **28 times across 26 lines of `js/app.js`** as the fallback for a null `menu_id` (one of those lines is the pointer comment in `uid`, so the real work is 27), so changing the seed means replacing every one of those with a dynamic lookup (`fallbackMenuId()` already exists and is the shape to use). That is a real piece of work and it is why this was not bundled into 173.
 
 Requirements: every one of the four is scoped so two accounts cannot collide, with the supplier-phrase content-addressing preserved within an account, and the `MENU_ORIGINAL` fallbacks replaced rather than left pointing at a menu a new café does not have.
-Do after: **`business_id` on every table, plus RLS** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
+Do after: **`business_id` PART 2, the policy swap** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
 ✅ Rehearsable on staging when it runs — `docs/STAGING.md` has the procedure, and `04-seed-scale.sql` carries 60 taught packs and a full settings blob to rehearse against.
 
 ## next  3 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
@@ -96,9 +96,28 @@ Do after: **`business_id` on every table, plus RLS** — all four fixes are "pre
 - **Opening sign-up.** There is deliberately no sign-up path: the anon key ships in `index.html`, so anyone reading the page already has the access an account would grant, and a form would advertise it. Accounts are made in the Supabase dashboard until RLS closes that gap. ⚠️ **Supabase sign-ups are open by default at the API level regardless**, which is not made worse by this item but IS part of the gate review.
 - **Email confirmation is ON**, found while rehearsing: an account created without confirmation cannot sign in ("Email not confirmed"). A dashboard-created account must be marked confirmed, or the first real sign-in fails in a way that looks like a wrong password.
 
-Do after: **`business_id` on every table, plus RLS** — for the second bullet only; the Google half needs nothing but Max.
+Do after: **`business_id` PART 2, the policy swap** — for the second bullet only; the Google half needs nothing but Max, and could ship any time he creates the OAuth client.
 
-## next  4 · `business_id` on every table, plus RLS  **[A — launch blocker]**
+## next  4 · `business_id` on every table — **PART 1, the additive half**  **[A — launch blocker]**
+
+⚠️ **SPLIT 12 Aug 2026 (174), on reaching it and finding it too large for one reviewable PR.** Ten tables × (column + backfill + index), plus a `businesses` table, plus a membership table, plus thirteen policy rewrites, plus client changes, plus per-table client verification is not one change set — and the second half is the dangerous one, so bundling them means the safe work cannot be merged until the risky work is finished.
+
+**Part 1 is ADDITIVE ONLY and changes no behaviour.** Nothing here can make the app show less data, because no policy is touched:
+- a `businesses` table with ONE row for Scoopy's, and a `business_members` table mapping `auth.uid()` to a business (auth shipped in 174, so `auth.uid()` is real now — but **no account has to exist yet**, and Part 1 must not require one);
+- `business_id` on all ten public tables, **nullable, with a DEFAULT of the single seeded business** — the default is what stops rows written by today's client from arriving NULL and silently falling outside the Part 2 policies;
+- a backfill of every existing row to that business;
+- an index on each `business_id`.
+Requirements: staging first with `04-seed-scale.sql` loaded, then production; the two schemas must match on the `docs/STAGING.md` fingerprint afterwards; the one-statement rollback (drop the columns and the two tables) written into the migration header. Verify as the client that **nothing changed** — same row counts, same reads, writes still succeed.
+Out of scope, deliberately: any policy change, any client change, and roles.
+
+## next  5 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
+
+Replace all thirteen `using (true)` policies with `business_id`-scoped ones, one table at a time, and make the client send `business_id` on insert.
+⚠️ **This is the half that can empty the app.** RLS with no matching policy returns **200 and an empty array, not an error**, so a mistake here looks exactly like "all my data is gone" — and on production that is Max's café. Every table is verified AS THE CLIENT over PostgREST before the next one starts.
+⚠️ **What staging still cannot rehearse:** neither project has more than one user, so these policies can be proved to RUN and to let the right rows through — not that a second tenant is correctly EXCLUDED. That needs two accounts and belongs to the first real multi-tenant test.
+Do after: **`business_id` PART 1** — the column, the default and the backfill must exist and be proven before anything keys off them, or the first policy applied locks the client out of a table whose rows have no owner yet.
+
+### Notes shared by both `business_id` parts
 
 Requirements: staged, one table at a time, each migration verified before the next.
 ⚠️ **RLS with no matching policy returns 200 and an empty array, not an error — a policy mistake looks exactly like "no data".** And an anon UPDATE or DELETE returns 204 with no error and touches nothing, so **verify AS THE CLIENT over PostgREST with `Prefer: return=representation`**, never through the MCP, which bypasses RLS entirely.
@@ -106,13 +125,13 @@ Note **`menus` no longer starts from RLS OFF** — corrected 8 Aug 2026 when `20
 ✅ **Rehearsable as of 172** — `supabase/staging/01-schema.sql` reproduces all thirteen policies under production's exact policy NAMES, which is what this item will look them up by. Rehearse each table's swap there first; `docs/STAGING.md` has the procedure and the fingerprint query that proves the two schemas still match afterwards.
 ⚠️ **What staging CANNOT rehearse here, stated so it is not over-trusted:** neither project has any users, so `anon` is the only role either has ever been exercised as. This item's policies are the first that will distinguish roles, and staging can prove they RUN and that the client sees what it should — not that a second tenant is correctly excluded, which needs auth first.
 
-## next  5 · Roles — owner vs staff  **[A — launch blocker]**
+## next  6 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
-Do after: **`business_id` on every table, plus RLS** — roles are enforced in the same policies.
+Do after: **`business_id` PART 2, the policy swap** — roles are enforced in the same policies, so they are written once or twice.
 
-## next  6 · Onboarding and empty states  **[A — launch blocker]**
+## next  7 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -120,7 +139,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  7 · The privacy gate  **[A — launch blocker]**
+## next  8 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -128,18 +147,18 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  8 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  9 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  9 · Gate review before public signup  **[A — launch blocker]**
+## next  10 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
-Do after: **`business_id` + RLS**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
+Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## blocked  10 · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## blocked  11 · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
 Steps 1 and 2 of the v110 destructive plan were run and passed. **Step 3 — restoring into a genuinely EMPTY database — never was.**
 What it would newly prove is narrow: that an empty table restores as well as a populated one, and how the boot gate reads mid-restore against nothing.
@@ -152,14 +171,14 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 Blocked on: Max's go on the day. The timing question is answered; this is not an open ask.
 
-## next  11 · Floating layers and mobile dropdowns  **[B]**
+## next  12 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
 
-## next  12 · Desktop shell polish — nav hierarchy, rhythm, and the full-bleed header  **[B]**
+## next  13 · Desktop shell polish — nav hierarchy, rhythm, and the full-bleed header  **[B]**
 
 Three measured defects in the converted shell, one screen's worth of work, all five converted screens at once.
 - **Nav labels are the same weight as the page title.** Measured: page title **15px/600**, sidebar nav label **13px/600**. **The cause is the nav, not the title** — the mock's title is 15/600 and the app matches it exactly, while the mock's inactive nav items are 13px/**500**, with 600 reserved for the ACTIVE item. The app renders every label at 600, so the active state carries no weight signal either. AC: inactive 500, active 600, title unchanged.
@@ -168,7 +187,7 @@ Three measured defects in the converted shell, one screen's worth of work, all f
 - **No top padding on the main region.** Reported 11 Aug 2026 from the dark desktop build at 1208: content begins ~74px from the chrome with the title cap ~10px below it, and the header actions sit flush to the top edge. AC: the title and the header actions share a baseline with **at least 24px of clearance above**, and the page-header row carries its own vertical padding rather than inheriting the content's. ⚠️ **Measure before building** — this arrived as one of fourteen reported defects and three of the other thirteen did not reproduce, including the width claim below. Same change as the full-bleed header, because both move `.scr-head`.
 Note the content gutter measures **44px** a side against the mock's 24-32px — reconciling it reclaims 24px of column width and belongs in the same change. (The report that claimed 73% usable width did not reproduce: measured 91%.)
 
-## next  13 · Products table polish — five measured defects, one screen  **[B]**
+## next  14 · Products table polish — five measured defects, one screen  **[B]**
 
 - **"Last change" prints "steady" on every unchanged row** — 15 of 15 visible. **DECIDED 10 Aug 2026: a dash (—)**, not "steady" and not blank. A deliberate deviation from the mock, on the grounds that the mock's fixture never shows more than three unchanged rows at once and Scoopy's shows fifteen; a dash is what every other "nothing here" cell already renders. **Applies to Ingredients as well** — they share the wording and it is one function. Keep the muted `--text-3` mono styling; only the glyph changes.
 - **The Supplier column is empty on every fixture row.** ⚠️ **The reported cause is wrong:** the secondary text beside the product name is the **BRAND** (Priestleys, Heinz Watties, Caterers Choice), not the supplier — F4 shipped "Product + inline brand" per the mock's §3.5, so nothing is duplicated and "one supplier location" would remove a column that duplicates nothing. The real question is whether Supplier is empty on **Max's** catalogue, which the Playwright fixture cannot answer. **Count non-empty `supplier` values across the live `ingredients` table before deciding anything.** If most are empty the column is dead weight and its width goes to the name column; if populated, this half closes.
@@ -177,7 +196,7 @@ Note the content gutter measures **44px** a side against the mock's 24-32px — 
 - **The filter row is wider than it needs to be.** Measured at 1208: the row spans the full 912 with search 365px, category select 329px, supplier select 162px. The mock's §3.5 control row is a search that grows plus a select sized to content. AC: controls sized to content, reclaimed width to the table.
 - **The search's clear button is drawn even when the field is empty.** Verified 11 Aug 2026, in the code rather than from a screenshot: `#ingSearchClear` is plain markup in `index.html` and `js/app.js` binds a click handler to it and nothing else — there is no show/hide anywhere, so the × is permanently visible offering to clear nothing. AC: the clear control appears only when the field has a value. ⚠️ **It is not one button.** `wireSearchClear` wires the same always-on pattern to the modal search boxes, and `#kingSearchClear` and `#menuSearchClear` are two more of the same shape — so this is one rule for every `.plib-x`/`.ms-clear`, applied once, not a fix to the Products field. Grep both class names before starting; `CLAUDE.md` names `.menu-search`/`.ms-clear` as shared families.
 
-## next  14 · Dashboard trend polish — the x-axis and the third accent hue  **[B]**
+## next  15 · Dashboard trend polish — the x-axis and the third accent hue  **[B]**
 
 - **The chart has no x-axis at any range.** Measured: the only `<text>` elements are four y-axis ticks. **This is a deviation from the mock, which also draws none** — so it is a decision, not a fix, and the argument for it is that a trend chart whose x-axis is unlabelled cannot be read against the range control that governs it. ⚠️ The scrub tooltip already carries the full sentence including the date, so the gap is partly covered on hover and **not at all on a phone**. (The annotation half shipped in v145: the label reads "−2 pts", the subject stays in the caption.)
 - **Three accent hues in one section — DECIDED 10 Aug 2026: restyle the range pill.** The chart line is `--good`/`--bad` by target, the intervention markers are `--accent` orange, and the active range pill is `--accent-weak`/`--accent-ink` orange, so a healthy section shows green line + orange marker + orange pill. **The markers STAY orange and that is the load-bearing half** — they mean "you did this" while the line means "here is where you stand against target", and the two must never share a hue (§8 reserves green/amber/red for cost semantics). The range control is a button, not data, so it is the one that stops competing. Requirements: the active state must still be unambiguous at a glance. Out of scope: the markers, and the chart line's target anchoring.
