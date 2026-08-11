@@ -4352,3 +4352,46 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
     top:calc(env(safe-area-inset-top, 0px) + 14px);
   }
 }
+
+/* ============================================================================
+   174: the Account screen's sign-in form.
+
+   Reuses `.stg-row`/`.stg-lbl`/`.stg-help` above for the surrounding copy; only the
+   field row itself is new, because no existing pattern is "two inputs and a button
+   on one line that stack on a phone".
+
+   ⚠️ NO `display` rule on #acctOut or #acctIn2, and that is deliberate. Both are
+   toggled with the `hidden` attribute, and an author `display` rule beats the UA's
+   `[hidden]{display:none}` on ORIGIN, before specificity is even compared — the trap
+   CLAUDE.md records twice in css/style.css. Leaving them as plain blocks means
+   `hidden` simply works. If a rule is ever needed here it must carry `:not([hidden])`.
+   ============================================================================ */
+.acct-form{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;padding:0 0 var(--sp-4)}
+.acct-in{
+  flex:1 1 180px;min-width:0;min-height:44px;
+  padding:10px 12px;
+  border:1px solid var(--border2);border-radius:var(--radius-ctl);
+  background:var(--field);color:var(--text);
+  font-size:var(--fs-base);font-family:inherit;
+}
+.acct-in:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.acct-form .btn{flex:0 0 auto;min-height:44px}
+.acct-err{
+  margin:0 0 var(--sp-4);padding:10px 12px;
+  border:1px solid var(--danger-br);border-radius:var(--radius-ctl);
+  background:var(--danger-bg);color:var(--danger);
+  font-size:var(--fs-sm);line-height:1.5;
+}
+/* the phone: one control per line, full width, so nothing is a 90px-wide text field */
+@media (max-width:560px){
+  .acct-form{flex-direction:column;align-items:stretch}
+  /* ⚠️ THE BASIS HAS TO BE RESET, and this is not tidying. `flex:1 1 180px` above sets the basis on
+     the MAIN axis, and turning the container into a column turns the main axis vertical — so that
+     180px stopped being a width hint and became a HEIGHT, giving three 180px-tall text fields.
+     Measured at 380, not spotted by reading: the rule looks correct in the file at both breakpoints.
+     SAME specificity as the base rule (0-1-0 each), placed after it, so source order decides —
+     the cascade rule CLAUDE.md records. Writing it as `.acct-form .acct-in` would work by
+     out-specifying instead, which is the habit that makes the next override silently fail. */
+  .acct-in{flex:0 0 auto}
+  .acct-form .btn{width:100%}
+}

@@ -408,7 +408,14 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
   const body = acct.slice(0, acct.indexOf('/tab-account'));
   assert.deepEqual([...body.matchAll(/class="stg-card-h">([^<]+)</g)].map(m => m[1]),
     ['Profile', 'Team', 'Plan'], "the mock's §3.9 sections, in the mock's order, ready to be filled");
-  assert.equal((body.match(/class="stg-soon"/g) || []).length, 3, 'one honest sentence per section');
+  /* ⚠️ 174 CHANGED THIS FROM 3 TO 2, consciously, and the reasoning is the point rather than the
+     number: the rule was never "these three sections must stay empty", it was "a capability that
+     does not exist is stated in a sentence, never mimed with a control that does nothing" (§R4).
+     Profile now HAS the capability — real Supabase sign-in — so a sentence there would be the
+     dishonest option. Team and Plan still describe backends that do not exist and still get
+     sentences. The assertions below are narrowed to those two for the same reason. */
+  assert.equal((body.match(/class="stg-soon"/g) || []).length, 2,
+    'Team and Plan are still sentences; Profile is real as of 174');
   /* THE assertion. The mock draws Edit profile, Invite a teammate, Manage billing and Sign out;
      none has any backing, so none may ship. A shell is not a licence for a dead control.
      ⚠️ 171 narrowed this from "no control of any kind" to "no control in the screen's BODY", and the
@@ -420,13 +427,29 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
      A dead control smuggled into the header would still be caught by the four names below. */
   const cards = body.slice(body.indexOf('class="stg-cards"'));
   assert.ok(cards.indexOf('class="stg-cards"') === 0, 'the body is where a capability control would go');
-  assert.ok(!/<(input|select|button|a\s)/.test(cards.replace(/<!--[\s\S]*?-->/g, '')),
-    'no control of any kind in the account screen body — every capability it describes is absent');
+  /* 174: scoped to the sections that still promise nothing. The Profile card is excluded because
+     its controls are BACKED — that is the whole distinction this test exists to enforce, so
+     excluding a card that earned its controls is applying the rule, not weakening it. Team and Plan
+     are still scanned exactly as before, and a dead control in either still fails. */
+  const teamOnward = cards.slice(cards.indexOf('Team'));
+  assert.ok(teamOnward.length > 0, 'the Team card must still be found');
+  assert.ok(!/<(input|select|button|a\s)/.test(teamOnward.replace(/<!--[\s\S]*?-->/g, '')),
+    'no control of any kind in Team or Plan — every capability they describe is still absent');
+  /* And the Profile card must NOT have quietly reverted to a promise: if its controls disappear,
+     the sentence count above would also change, but this says which direction is which. */
+  const profile = cards.slice(cards.indexOf('Profile'), cards.indexOf('Team'));
+  assert.ok(/id="acctForm"/.test(profile) && /id="acctOutBtn"/.test(profile),
+    'Profile ships a real sign-in and sign-out, or its sentence should come back');
   // and the one thing in the header is navigation, nothing else
   const head = body.slice(0, body.indexOf('class="stg-cards"')).replace(/<!--[\s\S]*?-->/g, '');
   assert.deepEqual([...head.matchAll(/<button[^>]*class="([^"]+)"/g)].map((m) => m[1]), ['scr-back'],
     'the only button above the body is the back chevron');
-  ['Edit profile', 'Invite a teammate', 'Manage billing', 'Sign out'].forEach((dead) => {
+  /* ⚠️ "Sign out" LEFT this list in 174 and that is not the list being weakened. The mock draws four
+     controls; three of them still have nothing behind them and are still forbidden. Sign out now
+     has a real `SUPA.auth.signOut()` behind it, so forbidding it would be enforcing the letter of
+     the rule against its purpose — the rule is "no control that pretends", not "none of these four
+     words may ever appear". The assertion above requires the button to exist for the same reason. */
+  ['Edit profile', 'Invite a teammate', 'Manage billing'].forEach((dead) => {
     assert.ok(body.indexOf(dead) < 0, `${dead} must not ship — it has nothing behind it`);
   });
 });

@@ -26,7 +26,11 @@ const SRC = loadApp();
 
 // build the real function in a sandbox, with its real key constant
 const envFence = (function () {
-  const code = extractVar(SRC, 'ENV_STAMP_KEY') + '\n' + extractFn(SRC, 'envFence') + '\nenvFence;';
+  // 174: `purgeLocalState` was lifted out of envFence so sign-in/sign-out could share it. Pulled
+  // in here as the REAL function, not a stub — the fence's whole behaviour now lives in it.
+  const code = extractVar(SRC, 'ENV_STAMP_KEY') + '\n'
+    + extractFn(SRC, 'purgeLocalState') + '\n'
+    + extractFn(SRC, 'envFence') + '\nenvFence;';
   return eval(code);                                          // eslint-disable-line no-eval
 })();
 

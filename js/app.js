@@ -41,25 +41,41 @@ var gemToken=0,gemStatus=null,gemApplied=false,gemCheckStart=0;   // v62: AI sec
    comment there explains why. The general shape is worth remembering: this fence is
    a whole-page concern, and app.js is not the whole page. */
 var ENV_STAMP_KEY='cafeCost_env';
+
+/* 174: the purge itself, lifted out of `envFence` so signing in and out can reuse it.
+   Two callers, one rule: a change of ENVIRONMENT and a change of USER are the same
+   event as far as local state is concerned — everything held here describes the data
+   that was on screen a moment ago, and after either change that data is somebody
+   else's. The queue's auth item says "login purges local state" and this is the purge
+   it means; writing a second one would be two rules that agree until they don't.
+
+   ⚠️ It does NOT touch Supabase's own `sb-<ref>-auth-token`, which is how the session
+   survives a reload. That key carries neither of this app's prefixes, so it is out of
+   scope by construction rather than by an exception — and Supabase namespaces it by
+   project ref, so it cannot cross environments either. */
+function purgeLocalState(store, exceptKey){
+  var doomed=[];
+  try{
+    for(var i=0;i<store.length;i++){
+      var k=store.key(i);
+      if(k && k!==exceptKey && (k.indexOf('cafeDB_')===0 || k.indexOf('cafeCost_')===0)) doomed.push(k);
+    }
+    // collected first, removed second: removing while iterating by index re-indexes
+    // the store underneath the loop and silently skips every other key.
+    doomed.forEach(function(k){ try{ store.removeItem(k); }catch(e){} });
+  }catch(e){}
+  return doomed.length;
+}
+
 function envFence(store, ref){
   if(!store || !ref) return null;                              // no storage, or no env resolved: nothing to fence
   var prev;
   try{ prev=store.getItem(ENV_STAMP_KEY); }catch(e){ return null; }   // storage throws (private mode): leave it alone
   if(prev===ref) return 0;                                     // same project as last time
-  var doomed=[];
-  if(prev!==null){                                             // an ACTUAL switch — see the first-run note above
-    try{
-      for(var i=0;i<store.length;i++){
-        var k=store.key(i);
-        if(k && k!==ENV_STAMP_KEY && (k.indexOf('cafeDB_')===0 || k.indexOf('cafeCost_')===0)) doomed.push(k);
-      }
-      // collected first, removed second: removing while iterating by index re-indexes
-      // the store underneath the loop and silently skips every other key.
-      doomed.forEach(function(k){ try{ store.removeItem(k); }catch(e){} });
-    }catch(e){}
-  }
+  var n=0;
+  if(prev!==null) n=purgeLocalState(store, ENV_STAMP_KEY);     // an ACTUAL switch — see the first-run note above
   try{ store.setItem(ENV_STAMP_KEY, ref); }catch(e){}
-  return doomed.length;
+  return n;
 }
 try{ envFence(window.localStorage, window.SUPA_REF); }catch(e){}
 
@@ -5034,6 +5050,7 @@ restoreLastTab();                                          // safe now: all modu
 // Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
 // of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
 markNonProductionEnv();                                    // 172: no-op on production; the element is not created at all
+wireAccount(); authInit();                                 // 174: sign-in on the Account screen. Gates nothing — see the AUTH block.
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -5055,7 +5072,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v153';
+var APP_VERSION='v154';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -5063,6 +5080,127 @@ var APP_VERSION='v153';
    place these six values are read out of memory; nothing else may prime them.
    It reads live globals rather than the DB: bootstrapSync has already loaded them, and a screen
    that re-fetched would show stale-then-correct on a slow connection. */
+/* ================== 174: AUTH ==================
+   Supabase email/password sign-in, surfaced on the Account screen and NOTHING ELSE.
+
+   ⚠️ IT GATES NOTHING, and that is the design rather than an unfinished edge. Every RLS
+   policy is still `using (true)` for `public`, which covers `anon` and `authenticated`
+   alike, so a signed-in session sees exactly what a signed-out one sees. Gating the app
+   before isolation exists would be theatre: it would lock the door on a building with no
+   walls, and it could lock Max out of his own café's data for no gain. Isolation is the
+   `business_id` + RLS item, and enforcement belongs with it.
+
+   ⚠️ NO SIGN-UP. The anon key ships in index.html, so anyone reading the page already has
+   the access an account would grant; a sign-up form would not create that exposure, but it
+   would advertise it to people who would not otherwise look. Accounts are created in the
+   Supabase dashboard until RLS makes an account mean something.
+
+   WHAT IT DOES DO, and the only reason it is worth shipping now: it proves the mechanism
+   end to end and gives the multi-tenant work a real `auth.uid()` to attach `business_id`
+   to, instead of that item having to build and verify auth at the same time as policies. */
+var authUser=null;
+
+/* A change of USER is the same event as a change of ENVIRONMENT: everything in local
+   storage describes data that is about to stop being the data on screen. So both go
+   through `purgeLocalState` — see the note there about why there is one rule and not two.
+
+   Then it RELOADS. That is deliberate and is the honest option: the purge clears the
+   store, but `currentMenuId`, `dashRange`, `dashScope` and the theme were read out of it
+   at boot and still sit in memory, so without a reload the app would be running on
+   values whose backing store no longer exists. Sign-in and sign-out are rare, deliberate
+   actions; a reload costs a second and removes a whole class of stale-state bug. */
+function authSwitchUser(){
+  try{ purgeLocalState(window.localStorage, ENV_STAMP_KEY); }catch(e){}
+  try{ location.reload(); }catch(e){}
+}
+
+function authApply(session, isInitial){
+  var next=(session && session.user) || null;
+  var prevId=authUser && authUser.id, nextId=next && next.id;
+  authUser=next;
+  renderAccountTab();
+  /* ⚠️ The initial event must NEVER purge. `onAuthStateChange` fires INITIAL_SESSION on
+     every single load, and treating that as a switch would wipe the user's preferences —
+     and the plate draft — on each boot. Only a genuine change of identity is a switch. */
+  if(!isInitial && prevId!==nextId) authSwitchUser();
+}
+
+async function authInit(){
+  if(!SUPA || !SUPA.auth) return;                              // no client (no config, or offline boot)
+  try{
+    var r=await SUPA.auth.getSession();
+    authUser=(r && r.data && r.data.session && r.data.session.user) || null;
+  }catch(e){ authUser=null; }
+  renderAccountTab();
+  try{
+    SUPA.auth.onAuthStateChange(function(evt, session){
+      authApply(session, evt==='INITIAL_SESSION');
+    });
+  }catch(e){}
+}
+
+async function authSignIn(email, password){
+  if(!SUPA || !SUPA.auth) return {error:{message:'No connection to the server.'}};
+  try{
+    var r=await SUPA.auth.signInWithPassword({email:email, password:password});
+    if(r && r.error) return {error:r.error};
+    return {data:r && r.data};
+  }catch(e){ return {error:{message:errText(e)}}; }
+}
+
+async function authSignOut(){
+  if(!SUPA || !SUPA.auth) return {error:{message:'No connection to the server.'}};
+  try{
+    var r=await SUPA.auth.signOut();
+    if(r && r.error) return {error:r.error};
+    return {data:true};
+  }catch(e){ return {error:{message:errText(e)}}; }
+}
+
+function renderAccountTab(){
+  var out=document.getElementById('acctOut'), inn=document.getElementById('acctIn2');
+  if(!out || !inn) return;
+  var signedIn=!!authUser;
+  out.hidden=signedIn; inn.hidden=!signedIn;
+  var who=document.getElementById('acctWho');
+  if(who) who.textContent=signedIn
+    ? (authUser.email||'this device')+' — signing out clears this device’s saved preferences.'
+    : '';
+}
+
+function authErr(msg){
+  var e=document.getElementById('acctErr'); if(!e) return;
+  e.textContent=msg||''; e.hidden=!msg;
+}
+
+function wireAccount(){
+  var f=document.getElementById('acctForm');
+  if(f) f.addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    authErr('');
+    var em=document.getElementById('acctEmail'), pw=document.getElementById('acctPass');
+    var btn=document.getElementById('acctIn');
+    var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
+    if(!email || !pass){ authErr('Enter your email and password.'); return; }
+    if(btn) btn.disabled=true;
+    var r=await authSignIn(email, pass);
+    if(btn) btn.disabled=false;
+    /* The REAL error, not a friendly guess. CLAUDE.md's writes rule is that the actual
+       server message reaches the user; "something went wrong" on a login is how someone
+       spends ten minutes on a typo'd email. */
+    if(r.error){ authErr(errText(r.error)); return; }
+    if(pw) pw.value='';
+    // no toast and no re-render here: authApply is about to reload the page.
+  });
+  var so=document.getElementById('acctOutBtn');
+  if(so) so.addEventListener('click', async function(){
+    so.disabled=true;
+    var r=await authSignOut();
+    so.disabled=false;
+    if(r.error){ toast('Could not sign out: '+errText(r.error)); return; }
+  });
+}
+
 function renderSettingsTab(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
