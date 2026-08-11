@@ -22,7 +22,7 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -55,6 +55,13 @@ function savedState(opts) {
     function dbPushPlate(){ return S.resolve; }
     var _draftArmed=false, _draftT=null;
     var _builderEdits=0;   // F7 (v146): the builder's edit counter — real state, the logic that moves it is extracted
+    /* 173: uid() is a shared dependency of every id-minting path below. Extracted, not stubbed:
+       a hand-rolled counter here would agree with a broken generator and hide exactly the
+       collision it exists to prevent (CLAUDE.md, "a stub that mirrors a real function must
+       mirror its CONTRACT"). No backticks in this comment - it sits inside a template literal. */
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
     ${extractFn(SRC, 'syncBuilderPlateActions')}
     function savePlateDraft(){}
     ${extractFn(SRC, 'setBuilderSaved')}

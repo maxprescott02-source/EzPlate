@@ -66,13 +66,22 @@ Rejected: **an overflow "⋯" in the header** — two taps, so it fails this ite
 
 Blocked on: **Max's yes to the proposed home** — the item requires a pattern be proposed and agreed before it is built, and a candidate is not a decision. Recommendation above is the `.plib-controls` row, mobile only.
 
-## next  2 · Unique ID generation  **[A — launch blocker]**
+## next  2 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
 
-Nine hardcoded `app_settings` keys, `MENU_ORIGINAL` seeded on every install, `K0001` as every account's first ingredient, `supplier_phrases.id` content-derived so two cafés with one supplier collide **by construction**, plate and dish ids bare `Date.now()`.
-Every write is `.upsert()`, so a collision is a **silent overwrite under a green "Saved" banner**, not an error.
-Requirements: ids that cannot collide across accounts, plus a migration of the live café's existing rows.
-Multi-tenant prerequisite; harmless with one account. **First of the A items because every other multi-tenant table change inherits it.**
-✅ **Rehearsable as of 172.** This item's deliverable is explicitly *"a migration of the live café's existing rows"*, i.e. one that REWRITES every id in production, and until staging had a schema there was no way to try that anywhere. There now is: mirror the schema, load `04-seed-scale.sql`, run the id migration against it, and verify as the client — `docs/STAGING.md` has the procedure. **Applying it to production is still Max's**, because a rehearsal changes the risk and not the ownership. *(A `Do after: Staging Supabase` line was added and then satisfied inside the same batch; deleted per the self-invalidating rule rather than left standing.)*
+⚠️ **REWRITTEN 12 Aug 2026 (173). The surrogate-id half SHIPPED as `ezplate-v153`; what is left is a different problem with a different fix, and the original item conflated the two.**
+
+**What shipped (173).** Every id the client mints for a surrogate primary key — plates `SP`, dishes `um`, menus `MENU`, custom products `CX` and `U`, change-log entries `CL` — now goes through one `uid()` in `js/app.js`: prefix + timestamp + an in-session counter + 8 base-36 characters of `crypto` entropy. The counter guarantees uniqueness inside one session deterministically (the invoice importer mints several ids in one millisecond); the random block is what separates two ACCOUNTS, where two counters know nothing about each other.
+**No migration was needed, and that was the finding rather than a shortcut.** A new id always contains `-` and the old format never did, so the two sets are disjoint by construction: Scoopy's existing rows cannot be collided with, and rewriting every live id — chasing references inside plate-line JSONB, the history tables and the change log — was avoided entirely. `tests/unique-ids.test.js` pins that disjointness, because it is the claim the safety rests on.
+
+**What is LEFT, and why it is not the same job.** These four are **names the code looks things up by**, not surrogate ids, so randomising them breaks the lookup instead of fixing the collision:
+- **The nine `app_settings` keys** (`food_cost_target`, `gst_default`, `kitchen_ingredients`, …). `key` is the primary key and the literals are shared by every account, so two cafés collide on the first write. Only tenant scoping fixes this.
+- **`supplier_phrases.id = memKey(supplier, phrase)`** — content-derived **on purpose**: it is what makes re-teaching the same pack UPDATE one row instead of duplicating it. Randomising it would break taught-pack dedupe, which `CLAUDE.md` lists as a fragile area. The fix is to prefix the tenant, keeping the content-addressing *within* an account.
+- **`K0001`** from `nextKid()`. Kitchen ids live INSIDE the `kitchen_ingredients` blob, so they are not a global namespace at all and inherit whatever `app_settings` gets.
+- **`MENU_ORIGINAL`** from `ensureDefaultMenu`. `menus.id` IS a global key, so this genuinely collides — but the literal appears **28 times across 26 lines of `js/app.js`** as the fallback for a null `menu_id` (one of those lines is the pointer comment in `uid`, so the real work is 27), so changing the seed means replacing every one of those with a dynamic lookup (`fallbackMenuId()` already exists and is the shape to use). That is a real piece of work and it is why this was not bundled into 173.
+
+Requirements: every one of the four is scoped so two accounts cannot collide, with the supplier-phrase content-addressing preserved within an account, and the `MENU_ORIGINAL` fallbacks replaced rather than left pointing at a menu a new café does not have.
+Do after: **`business_id` on every table, plus RLS** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
+✅ Rehearsable on staging when it runs — `docs/STAGING.md` has the procedure, and `04-seed-scale.sql` carries 60 taught packs and a full settings blob to rehearse against.
 
 ## next  3 · Supabase Auth  **[A — launch blocker]**
 
