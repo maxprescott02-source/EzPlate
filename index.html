@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=156">
+<link rel="stylesheet" href="css/style.css?v=157">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -236,121 +236,145 @@
   <div id="builderPage" hidden>
     <div class="scr-head bld-head">
       <button class="bld-back" id="builderClose" type="button" aria-label="Back to Plates"><span class="bld-chev">‹</span>Plates<span class="bld-slash"> /</span></button>
-      <!-- 170: the mock's header shows the plate NAME as STATIC TEXT, and this is now that.
-           F7 put the editable #plateName here instead, wearing the title type, because the app
-           names the plate LAST (v69, Max's call: add ingredients → name → categorise → save) and
-           there was nowhere else for the field to live. The consequence was that the FIRST thing a
-           user met on an empty builder was the LAST step of the form — which is what Max reported
-           as "flow does not match how the user would fill the form".
-           The field now lives in step 2 where the fill order puts it, so the header can go back to
-           the mock's structure. This span only MIRRORS it — syncBuilderTitle() is the one writer,
-           and it runs from renderPlate() plus the #plateName input listener, which between them
-           cover all six places that assign #plateName.value. -->
-      <span class="bld-title" id="bldTitle"></span>
+      <!-- 177 — THE PLATE NAME IS THE BREADCRUMB TITLE, and this REVERSES 170, knowingly (Max,
+           12 Aug 2026, in the brief that rebuilt this screen). The whole history, because this line
+           has now moved twice and each move had a reason that was true at the time:
+             · F7 (v146) put the editable field here wearing the title type, matching the mock's frame.
+             · 170 moved it into a numbered "2 Name & save" card, because Max reported that the FIRST
+               thing a user met on an empty builder was the LAST step of the form (v69's fill order is
+               add ingredients → name → categorise → save).
+             · 177 deletes the numbered step cards outright — the DOCKET is the editing surface now,
+               and its add-ingredient field is the first control on the page. So the fill order that
+               170 was protecting is carried by the docket itself, and the name can go back to the
+               chrome where the mock draws it without being the first thing anyone meets.
+           `#bldTitle` and `syncBuilderTitle()` are DELETED with this: they existed only to MIRROR a
+           field that lived elsewhere, and a mirror that can go stale is not kept once there is
+           nothing to mirror. The field IS the title.
+           It is a bare input rather than a click-to-edit affordance because it also SEARCHES saved
+           plates and uncosted menu items (#plateSuggest, renderPlateSuggest) — a control that opens a
+           listbox must look like a control. -->
+      <span class="bld-namewrap">
+        <input id="plateName" class="bld-nameinput" type="text" placeholder="Name this plate" autocomplete="off" aria-label="Plate name">
+        <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
+      </span>
       <span class="bld-pill" id="bldPill" hidden></span>
       <span class="scr-gap"></span>
       <!-- "Saved just now" renders ONLY after the server confirms (see saveCurrentPlate) -->
       <span class="bld-saved" id="bldSaved" hidden></span>
-      <!-- R5, recorded: the mock's header carries Duplicate and NO Save, because its builder
-           autosaves. This app must not (a write per keystroke), so Save is the header action -
-           and §6 allows exactly ONE on a phone. Duplicate therefore joins Print / Clear / Delete
-           in the rail's action group rather than becoming this screen's second header action,
-           which is the very deviation the queue's mobile-header item exists to stop spreading. -->
-      <button class="btn primary" id="saveBtn" type="button">Save plate</button>
+      <!-- 177: NO ACTION IN THE HEADER. Save moved into the rail's summary panel, where the mock
+           puts it and where the brief asks for it; on a phone the sticky §6 bar carries it, so the
+           committing action is one tap away at every width. §6's "one action max" is satisfied by
+           having none, and the queue's mobile-header item gets one fewer screen to worry about. -->
     </div>
+    <!-- the refusal to save an unnamed plate is ABOUT the header field, so it sits directly under it
+         rather than inside a card the field no longer lives in -->
+    <div class="ferr bld-err" id="plateNameErr" style="display:none"></div>
     <div class="bld-body">
-      <!-- 170: the two STEPS, in the v69 fill order, as two cards of the same v3 system the rail
-           already uses. They are wrapped because .bld-body is a two-column grid at >=768 and three
-           children would auto-place the naming step into the 300px rail track. -->
       <div class="bld-main">
-        <section class="bld-step" id="bldStep1">
-          <h2><span class="bld-stepn">1</span>Add ingredients</h2>
-          <!-- 170: the search sits ABOVE #lines, which is where it was before F7 (#q above #lines
-               inside the old #docketPanel) and how a docket reads — it grows downward from where
-               you type. F7 moved it into a `.bld-foot` UNDER the table, which is what made the
-               first step of the form the last thing on the card.
-               ⚠️ IT ALSO FIXED A LIVE CLIP. #drop is `position:absolute` inside `.search-wrap`,
-               so it is clipped by any ancestor with overflow:hidden — which `.bld-table` had.
-               Measured at 1280 before this change: a 96px dropdown with 37px of it visible, the
-               rest cut off by the card's bottom edge. `.bld-step` therefore does NOT clip, and its
-               h2 carries its own top radius instead of relying on the card to trim it. -->
-          <div class="bld-add">
-            <div class="search-wrap bld-q">
-              <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
-              <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search" hidden>&times;</button>
-              <div id="drop" class="drop" role="listbox"></div>
+        <!-- 177 — THE DOCKET IS THE EDITING SURFACE (mock §3.7, Plates → Fish & Chips). It is not a
+             table in a card: it is paper. `--surface-2` stock, a drop shadow under it, dashed rules
+             between the lines, a mono masthead, its own tally at the foot and a perforated tear-off
+             edge. The numbered step cards `.bld-step` / `.bld-stepn` / `.bld-stepbody` are DELETED
+             with their CSS in this change.
+             ⚠️ NOTHING HERE MAY CARRY `overflow:hidden`, and that is the same trap F7 and 170 each
+             paid for: #drop is `position:absolute` inside `.search-wrap`, so any clipping ancestor
+             cuts the ingredient dropdown off — measured at 1280 on the shipped v149 build as a 96px
+             list with 37px visible. The paper's rounded top corners are drawn by its OWN
+             `border-radius`, which needs no clipping because the background is on the same element. -->
+        <section class="bld-docket" aria-label="Plate docket">
+          <div class="bld-paper">
+            <!-- the add field is the docket's first control, at the top, where the lines grow from -->
+            <div class="bld-add">
+              <div class="search-wrap bld-q">
+                <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
+                <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search" hidden>&times;</button>
+                <div id="drop" class="drop" role="listbox"></div>
+              </div>
             </div>
-            <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
+            <!-- the mock's masthead. #dCount MOVED here from the tip line below the table: the mock
+                 prints the item count in this slot, and a count belongs to the docket, not to a hint
+                 about editing prices. renderPlate is still its one writer. -->
+            <div class="bld-mast"><span>EZPLATE &mdash; DOCKET</span><span id="dCount"></span></div>
+            <!-- mock §3.7's column band. aria-hidden for the same reason every converted screen's band
+                 is: the row's own cells carry labelled controls. -->
+            <div class="bld-band" aria-hidden="true"><span>Ingredient</span><span>Qty</span><span>Unit cost</span><span>Cost</span><span></span></div>
+            <div id="lines"></div>
+            <!-- v102 prose cull: the element stays for the no-catalogue hint, which JS un-hides.
+                 170: it no longer renders while #lines is showing its own empty state — the two said
+                 "No ingredients yet" one under the other. See renderPlate. -->
+            <p class="hint bld-hint" id="builderHint" style="display:none"></p>
+            <div class="bld-miscrow">
+              <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
+              <span class="bld-tip">tap a unit cost to edit &mdash; the change applies everywhere</span>
+            </div>
+            <!-- the docket totals ITSELF, at its foot, which is what makes it a docket. §7's "one
+                 figure per screen" is deliberately relaxed here and the reason is recorded at
+                 renderBuilderCost: the mock prints the plate cost twice on purpose (foot + rail) and
+                 the two are different statements — the docket's arithmetic, and the summary. -->
+            <div class="bld-tally"><span class="bld-tally-k">PLATE COST</span><span class="bld-tally-v" id="dTotal">$0.00</span></div>
           </div>
-          <!-- mock §3.7's column band. aria-hidden for the same reason every converted screen's band
-               is: the row's own cells carry labelled controls. -->
-          <div class="bld-band" aria-hidden="true"><span>Ingredient</span><span>Qty</span><span>Unit cost</span><span>Cost</span><span></span></div>
-          <div id="lines"></div>
-          <!-- v102 prose cull: the element stays for the no-catalogue hint, which JS un-hides.
-               170: it no longer renders while #lines is showing its own empty state — the two said
-               "No ingredients yet" one under the other. See renderPlate. -->
-          <p class="hint bld-hint" id="builderHint" style="display:none"></p>
-          <p class="hint bld-hint bld-tip">Tap a unit cost to edit it — the change applies everywhere. <span id="dCount"></span></p>
-          <div class="flag bld-flag" id="flag" style="display:none"></div>
+          <!-- the tear-off edge. Decorative, so aria-hidden; drawn from --surface-2 so it follows the
+               paper into dark rather than being a second place a colour is decided. -->
+          <div class="bld-perf" aria-hidden="true"></div>
         </section>
-        <!-- 170: step 2 is where the v69 order puts naming and categorising. Category MOVED here
-             out of the Publishing card, whose own first line reads "Save the plate first, then
-             publish it to a menu" — a heading describing something inert over the one live control
-             on it, and that control was step THREE of this form. -->
-        <section class="bld-step" id="bldStep2">
-          <h2><span class="bld-stepn">2</span>Name &amp; save</h2>
-          <div class="bld-stepbody">
-            <div class="bld-field">
-              <label class="bld-flabel" for="plateName">Plate name</label>
-              <!-- the same field also SEARCHES saved plates and uncosted menu items (#plateSuggest,
-                   renderPlateSuggest) — one more reason it reads badly as the header's title. -->
-              <span class="bld-namewrap">
-                <input id="plateName" type="text" placeholder="e.g. Fish &amp; Chips" autocomplete="off" aria-label="Plate name">
-                <div id="plateSuggest" class="suggest-drop" role="listbox" style="display:none"></div>
-              </span>
-              <div class="ferr bld-err" id="plateNameErr" style="display:none"></div>
+        <div class="flag bld-flag" id="flag" style="display:none"></div>
+      </div>
+      <aside class="bld-rail">
+        <!-- 177 — the mock's compact summary panel, and it STICKS: on a long docket the figure you
+             are moving must stay on screen while you move it. -->
+        <section class="bld-card bld-sum" id="bCost">
+          <div class="bld-sumhead">
+            <div class="bld-sumlbl">Total plate cost</div>
+            <div class="bld-sumnum" id="bTotal">$0.00</div>
+            <!-- "recent range $6.61–$7.28" — the cost at each ingredient's lowest and highest logged
+                 price. REAL data: costRangeForLines is the same function the Menu screen's band uses,
+                 and it reports hasRange=false when the log has never seen a price move, in which case
+                 this stays empty rather than printing a range of one value. -->
+            <div class="bld-sumrange" id="bRange"></div>
+          </div>
+          <div class="bld-cardbody">
+            <div class="bld-kv"><span class="bld-k">Suggested <span id="bTargetPct"></span></span><span class="bld-v" id="bSuggest">—</span></div>
+            <!-- the mock's single menu-price input. It renders ONLY when the plate is on exactly one
+                 menu — see renderBuilderCost for why a plate on several cannot have one. -->
+            <div class="bld-price" id="bPriceRow" style="display:none"></div>
+            <div class="bld-warn" id="bWarn" style="display:none"></div>
+            <div class="bld-menus" id="bMenus" style="display:none"></div>
+          </div>
+          <div class="bld-actions bld-sumacts">
+            <button class="btn primary" id="saveBtn" type="button">Save plate</button>
+            <div class="bld-actrow">
+              <button class="btn" id="printBtn" type="button">Print docket</button>
+              <button class="btn" id="clearBtn" type="button">Clear plate</button>
             </div>
+          </div>
+        </section>
+        <!-- 177: Category comes BACK to the rail, and this is not a revert of 170's finding — that
+             finding was that the heading "Publishing" described something inert ("Save the plate
+             first, then publish it") over the one live control on the card. The heading now NAMES
+             both things it holds, so it describes its contents at every state of the plate. -->
+        <section class="bld-card">
+          <h2>Menu &amp; category</h2>
+          <div class="bld-cardbody">
             <div class="bld-field">
-              <!-- 170: sentence case, not the app-wide `.f` label's letter-spaced caps — it was the
-                   only all-caps field label on this screen. `.bld-flabel` is local to this card, so
-                   nothing else is converted by accident. -->
               <label class="bld-flabel" for="plateCat">Category <span class="hint">(optional)</span></label>
               <span class="cat-wrap"><input id="plateCat" type="text" autocomplete="off" placeholder="e.g. Mains, Breakfast…"><span id="plateCatDrop" class="cat-drop" style="display:none"></span></span>
             </div>
+            <div class="bld-pub" id="bPublish"></div>
             <span class="edit-tag" id="editTag" style="display:none"></span>
           </div>
         </section>
-      </div>
-      <aside class="bld-rail">
-        <section class="bld-card" id="bCost">
-          <h2>Cost</h2>
-          <div class="bld-cardbody">
-            <div class="bld-kv"><span class="bld-k">Plate cost</span><span class="bld-v bld-v-lg" id="bTotal">$0.00</span></div>
-            <div class="bld-kv bld-kv-rule"><span class="bld-k">Suggested <span id="bTargetPct"></span></span><span class="bld-v" id="bSuggest">—</span></div>
-            <div class="bld-menus" id="bMenus" style="display:none"></div>
-          </div>
-        </section>
-        <section class="bld-card">
-          <h2>Publishing</h2>
-          <!-- 170: Category and #editTag left for step 2. What remains is publishing and only
-               publishing, so the heading now describes its whole contents. -->
-          <div class="bld-cardbody">
-            <div class="bld-pub" id="bPublish"></div>
-          </div>
-        </section>
-        <!-- R3: Print docket and Delete plate are REHOMED here from the plate-action chooser this
-             item deletes. Delete is §2's destructive button and only exists for a saved plate. -->
+        <!-- R3: Duplicate and Delete plate are the two rehomed actions the summary panel does not
+             carry. Delete is §2's destructive button and only exists for a saved plate. -->
         <div class="bld-actions">
           <button class="btn" id="bldDuplicate" type="button" hidden>Duplicate</button>
-          <button class="btn" id="printBtn" type="button">Print docket</button>
-          <button class="btn" id="clearBtn" type="button">Clear plate</button>
           <button class="btn danger ghost" id="bldDelete" type="button" hidden>Delete plate</button>
         </div>
       </aside>
     </div>
-    <!-- mock §6's sticky mobile summary bar, above the tab bar. Its ACTION is Save, not the mock's
-         "Set price": this app's price is per MENU (a plate can be on many), so there is no single
-         price to set from here, and Save is the committing action the mock's autosave implies. -->
+    <!-- mock §6's sticky mobile summary bar, above the tab bar. 177: it now carries SAVE, because
+         the header no longer does and the rail's copy sits below the whole docket on a phone. Its
+         action is Save, not the mock's "Set price": this app's price is per MENU (a plate can be on
+         many), so there is no single price to set from here. -->
     <div class="bld-bar" id="bFootSum"></div>
     <select id="menuLink" style="display:none" aria-hidden="true"></select>
   </div><!-- /builderPage -->
@@ -1397,7 +1421,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=156"></script>
+<script src="js/app.js?v=157"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

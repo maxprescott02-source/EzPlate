@@ -134,23 +134,54 @@ for (const width of [380, 1360]) {
   });
 }
 
-/* ⚠ REWRITTEN 12 Aug 2026: the reference is the CARD BODY, not the page column. The trend became a
-   bordered card in the same change, so it carries 20px of padding a side and "chart == column" is
-   false by design. What this test exists to catch — the v98/v121 540px cap inside a full-width card,
-   which Max called janky — is untouched, because a 540 cap is still hundreds of pixels short. */
+/* ⚠ REWRITTEN TWICE, and both rewrites moved the REFERENCE rather than loosening the tolerance —
+   which is the distinction that keeps this pin worth having.
+   12 Aug 2026: the reference became the CARD BODY, not the page column. The trend became a bordered
+   card, so it carries 20px of padding a side and "chart == column" is false by design.
+   177: the card is 2/3 of a row now, with Recent changes beside it, so "most of the COLUMN" is false
+   by design too — it measures ~0.6 and would have had to be relaxed to 0.55 to pass, which is the
+   "rewrite the spec to fit" move this file has already caught once. The column share is therefore
+   asserted where it is still a fact — on the ROW, whose two cards do span it — and the chart is
+   pinned to its own host, which is the box the v98/v121 540px cap actually failed against. A 540 cap
+   in a 667px host is still 127px short, so what this exists to catch is untouched at both ends. */
 test('the plot fills its container rather than sitting in a capped block', async ({ page }) => {
   await boot(page, 1360);
   const m = await page.evaluate(() => {
-    const host = document.querySelector('.dash-trend .ds-body');
-    const cs = getComputedStyle(host);
+    const host = document.getElementById('trendHost');
+    const row = document.querySelector('.dash-trendrow').getBoundingClientRect();
     return {
       chart: document.querySelector('.dash-chart svg').getBoundingClientRect().width,
-      host: host.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      host: host.getBoundingClientRect().width,
+      row: row.width,
+      trend: document.querySelector('.dash-trend').getBoundingClientRect().width,
       column: document.getElementById('dashBody').clientWidth,
     };
   });
   expect(m.chart).toBeGreaterThan(m.host - 2);
-  expect(m.chart, 'and it is still most of the column, not a capped block').toBeGreaterThan(m.column * 0.75);
+  expect(m.row, 'the two cards still span the whole column').toBeGreaterThan(m.column - 2);
+  // 2/3 of the row, give or take the gap — a capped block would read far under this
+  expect(m.trend / m.row, 'the chart card is the wide one').toBeGreaterThan(0.6);
+  expect(m.chart, 'and the plot is most of that card, not a block swimming inside it')
+    .toBeGreaterThan(m.trend * 0.85);
+});
+
+/* 177 — the viewBox is measured from the CHART'S OWN box, not from the column it used to fill.
+   This is the assertion that fails if #trendHost is ever put back on a padded element or the
+   second render pass is dropped: both leave a viewBox wider than the render, i.e. a scale under 1,
+   which is invisible on screen except as slightly-too-small axis type. */
+test('177: the viewBox equals the rendered width once the chart is 2/3 of a row', async ({ page }) => {
+  await boot(page, 1360);
+  const m = await page.evaluate(() => {
+    const svg = document.querySelector('#trendWrap svg');
+    return {
+      vb: Number(svg.getAttribute('viewBox').split(/\s+/)[2]),
+      rendered: svg.getBoundingClientRect().width,
+      column: document.getElementById('dashBody').clientWidth,
+    };
+  });
+  expect(Math.abs(m.vb - m.rendered), `viewBox ${m.vb} vs render ${Math.round(m.rendered)}`)
+    .toBeLessThanOrEqual(1);
+  expect(m.vb, 'and it is the card, not the column').toBeLessThan(m.column * 0.8);
 });
 
 /* ============================================================================================

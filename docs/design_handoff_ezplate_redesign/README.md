@@ -9,7 +9,7 @@ entirely; nothing in it is still valid.
 |---|---|
 | `FOLD-IN-PROTOCOL.md` | **Read first.** How to fold v3 into the existing app without producing a hybrid: reset steps, conflict rubric, screen order, acceptance criteria. Supersedes §11 of the design package. |
 | `V3-Design-Package.md` | The spec: tokens, layout system, every screen and modal, five state mappings, mobile parity rules (§6.1), behaviour-spec queue (§11.5). |
-| `Redesign v3 - SaaS.dc.html` | Desktop mock — 10 screens, 4 modals, light + dark. Open in a browser; click through it. |
+| `Redesign v3 - SaaS.dc.html` | Desktop mock — 10 screens, 4 modals, light + dark. Open in a browser; click through it. **Plate Builder was reworked: the docket IS the editing surface (Plates → Fish & Chips) — build from this, not from any earlier description.** |
 | `Redesign v3 - Mobile.dc.html` | Mobile mock — 9 screens, bottom tabs, sheets. |
 | `support.js` | Runtime for the two mocks. Not for production. |
 

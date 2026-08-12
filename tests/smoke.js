@@ -879,10 +879,26 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('[20] draft helpers exist and clear cleanly',
      typeof window.savePlateDraft === 'function' && typeof window.offerPlateDraftResume === 'function' && !window.localStorage.getItem('cafeDB_plateDraft'));
 
-  // F7 (v146): Save moved from the modal's sticky footer into the page header, where the mock puts
-  // it. It is still reachable without scrolling; the header is what does not scroll now.
-  ok('[20] Save sits in the builder page header (reachable without scrolling)',
-     !!window.document.querySelector('#builderPage .bld-head #saveBtn'));
+  /* F7 (v146) moved Save from the modal's sticky footer into the page header. 177 moved it again,
+     into the rail's summary panel where the mock and the brief put it, and gave the phone's sticky
+     summary bar its own copy so the commit stays one tap away at both widths.
+     What this checks is therefore the GUARANTEE rather than the address — Save exists on the builder
+     page, twice, once per width — because the address has now changed three times and the guarantee
+     has not. Which of the two is PAINTED at a given width is geometry, and v146-builder.spec.js
+     measures it in a real browser; jsdom has no layout and cannot answer it. */
+  ok('[20] the rail summary panel carries Save',
+     !!window.document.querySelector('#builderPage .bld-sumacts #saveBtn'));
+  /* The bar's copy is RENDERED, not static, and only once the plate has something to save — so it is
+     driven here rather than asserted against whatever the preceding checks happened to leave on the
+     plate. An empty plate showing no bar is the deliberate behaviour, and it is asserted first so
+     this cannot pass by finding a leftover one. */
+  $('clearBtn').click();
+  ok('[20] an empty plate draws no summary bar at all',
+     !window.document.querySelector('#bFootSum #bldSaveBar'));
+  window.addMiscCost();
+  ok('[20] and the phone bar carries its own Save the moment there is work to commit',
+     !!window.document.querySelector('#builderPage #bFootSum #bldSaveBar'));
+  $('clearBtn').click();
 
   // v83 item 7 — the builder search dead end, wired end to end.
   window.openBuilderNew();

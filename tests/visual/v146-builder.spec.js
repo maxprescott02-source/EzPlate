@@ -102,6 +102,15 @@ for (const size of SIZES) {
           barWidth: Math.round(g('bFootSum').getBoundingClientRect().width),
           headActions: [...document.querySelectorAll('.bld-head button')]
             .filter((b) => b.id !== 'builderClose' && getComputedStyle(b).display !== 'none').map((b) => b.id),
+          /* 177: exactly one Save is PAINTED per width — the rail's at desktop, the sticky bar's on
+             a phone. Both nodes exist at both widths on purpose, so the DOM cannot answer this.
+             ⚠ NOR CAN `getComputedStyle(...).display`: at desktop the bar's CONTAINER is
+             `display:none` and the button inside it still computes `inline-flex`, so the first cut
+             of this assertion reported two painted Saves on a screen showing one. The painted BOX is
+             the only reading that survives an ancestor being hidden — the same lesson as the
+             `.bld-pill` check below, one level further up the tree. */
+          savesPainted: ['saveBtn', 'bldSaveBar']
+            .filter((id) => g(id) && g(id).getClientRects().length > 0),
           scrollW: document.scrollingElement.scrollWidth,
         };
       });
@@ -115,19 +124,37 @@ for (const size of SIZES) {
       expect(spread, 'the cost column has ONE right edge down the whole table').toBeLessThanOrEqual(1);
       for (const o of m.overflow) expect(o, 'no row escapes the table').toBeLessThanOrEqual(0);
 
-      /* §7 — the plate cost is printed once per width, and the two carriers swap over. */
+      /* §7 — the SUGGESTED figure is printed once per width, and the two carriers swap over.
+         ⚠ 177 REWROTE THIS, and narrowed what it claims rather than relaxing a number. It used to
+         read "the plate cost is printed once per width", which the builder now breaks on purpose:
+         the docket totals ITSELF at its foot and the rail's panel carries the summary, exactly as
+         the mock draws it (Plates → Fish & Chips prints "PLATE COST" and "TOTAL PLATE COST" on one
+         screen) and exactly as the brief asked. Those are two statements — a receipt's arithmetic
+         and the figure you price against — not one repeated, and both are written from the same
+         number in renderBuilderCost so they cannot drift.
+         What §7 still forbids, and what this now pins, is the SAME figure in the SAME role twice:
+         the phone's summary bar and the rail's panel would both be "the summary", so exactly one of
+         them is drawn per width. That was the real duplicate Q6 (v125) unpicked. */
       if (size.name === 'desktop') {
-        expect(m.cardFigures, 'desktop: the Cost card carries the figures').not.toBe('none');
+        expect(m.cardFigures, 'desktop: the summary panel carries the figures').not.toBe('none');
         expect(m.barDisplay, 'desktop: the phone summary bar is not drawn').toBe('none');
       } else {
-        expect(m.cardFigures, 'phone: the card does not repeat what the bar says').toBe('none');
+        expect(m.cardFigures, 'phone: the panel does not repeat what the bar says').toBe('none');
         expect(m.barDisplay, 'phone: the summary bar carries them').not.toBe('none');
         const frame = await fixedFrame(page);
         expect(m.barWidth, 'the bar spans the fixed frame').toBeCloseTo(frame, 0);
-        /* §6: one action in the mobile header. Save is it — Duplicate is in the rail precisely so
-           this stays true, and a second header button here is the deviation that item exists for. */
-        expect(m.headActions, 'exactly one action in the mobile header').toEqual(['saveBtn']);
       }
+      /* §6: 177 left the mobile header with NO action at all — Save moved to the rail's panel, where
+         the mock and the brief put it, and the phone reaches it through the sticky bar. Asserted at
+         BOTH widths now, because "no button in this header" is a fact about the header rather than a
+         phone concession, and the queue's mobile-header item is about exactly this class of drift. */
+      expect(m.headActions, 'no action in the builder header, at either width').toEqual([]);
+      /* And the commit is reachable exactly once, whichever width you are at. Both halves matter:
+         two painted Saves is §7's second primary, none is a screen you cannot commit from — which is
+         what a one-sided rule would have let through when the CSS pair was edited alone. */
+      expect(m.savesPainted, 'exactly one Save is painted').toHaveLength(1);
+      expect(m.savesPainted[0], 'and it is the one this width can reach')
+        .toBe(size.name === 'desktop' ? 'saveBtn' : 'bldSaveBar');
 
       expect(m.scrollW, 'no horizontal scroll').toBeLessThanOrEqual(size.width);
       expect(errs, errs.join(' | ')).toHaveLength(0);

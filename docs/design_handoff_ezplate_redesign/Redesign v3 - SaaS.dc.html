@@ -500,34 +500,62 @@ input,select{font-family:inherit}
       <span style="font-size:12px; color:var(--text-3)">Saved just now</span>
       <button type="button" style="border:1px solid var(--border-2); border-radius:6px; padding:6px 12px; background:var(--surface); color:var(--text); font-weight:500; font-size:13px; cursor:pointer; transition:background .15s" style-hover="background:var(--surface-2)">Duplicate</button>
     </div>
-    <div style="max-width:1040px; padding:24px 32px 64px; box-sizing:border-box; display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:24px; align-items:start">
-      <section style="border:1px solid var(--border); border-radius:10px; overflow:hidden; animation:rise .4s cubic-bezier(.16,1,.3,1) both">
-        <div style="display:grid; grid-template-columns:minmax(0,1fr) 90px 90px 90px 60px; gap:0 12px; padding:9px 20px; font-size:11.5px; font-weight:500; color:var(--text-3); border-bottom:1px solid var(--border); background:var(--surface-2)">
-          <span>Ingredient</span><span style="text-align:right">Qty</span><span style="text-align:right">Unit</span><span style="text-align:right">Cost</span><span></span>
-        </div>
-        <sc-for list="{{ builderRows }}" as="br" hint-placeholder-count="6">
-          <div style="display:grid; grid-template-columns:minmax(0,1fr) 90px 90px 90px 60px; gap:0 12px; align-items:center; border-bottom:1px solid var(--hairline); padding:8px 20px">
-            <span style="font-size:13.5px; font-weight:500; color:var(--text)">{{ br.name }}</span>
-            <input type="text" value="{{ br.qty }}" aria-label="Quantity" style="box-sizing:border-box; width:100%; text-align:right; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:5px 8px; font-size:12.5px; font-family:'Geist Mono',monospace; color:var(--text)">
-            <span style="text-align:right; font-size:12.5px; color:var(--text-2)">{{ br.unit }}</span>
-            <span style="text-align:right; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:13px; font-weight:500; color:var(--text)">{{ br.cost }}</span>
-            <button type="button" aria-label="Remove ingredient" style="border:0; background:none; font-size:12.5px; color:var(--text-3); cursor:pointer; text-align:right; padding:4px" style-hover="color:var(--danger)">Remove</button>
+    <div style="max-width:1040px; padding:24px 32px 64px; box-sizing:border-box; display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start">
+      <section aria-label="Plate docket" style="flex:1 1 480px; min-width:0; animation:rise .4s cubic-bezier(.16,1,.3,1) both; filter:drop-shadow(0 8px 20px var(--shadow-pop))">
+        <div style="background:var(--surface-2); border:1px solid var(--border); border-bottom:0; border-radius:8px 8px 0 0; overflow:hidden">
+          <div style="padding:16px 20px 0">
+            <input type="search" placeholder="Add an ingredient… (e.g. Chips)" aria-label="Add an ingredient" style="width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border-2); border-radius:8px; padding:10px 14px; font-size:13.5px; color:var(--text)">
           </div>
-        </sc-for>
-        <div style="display:flex; gap:8px; padding:12px 20px; background:var(--surface-2)">
-          <input type="search" placeholder="Add an ingredient" aria-label="Add an ingredient" style="flex:1; box-sizing:border-box; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:7px 12px; font-size:13px; color:var(--text)">
-          <button type="button" style="border:1px solid var(--border-2); border-radius:6px; padding:6px 12px; background:var(--surface); color:var(--text); font-weight:500; font-size:13px; cursor:pointer; transition:background .15s" style-hover="background:var(--hover)">Add</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 20px 0; padding-bottom:9px; border-bottom:1px dashed var(--border-2); font-family:'Geist Mono',monospace; font-size:11px; letter-spacing:.12em; color:var(--text-3)">
+            <span>EZPLATE — DOCKET</span><span>{{ docketCount }}</span>
+          </div>
+          <div style="display:grid; grid-template-columns:minmax(140px,1fr) 88px 88px 64px 22px; gap:0 8px; padding:10px 20px 5px; font-size:10.5px; font-weight:500; letter-spacing:.07em; text-transform:uppercase; color:var(--text-3)">
+            <span>Ingredient</span><span style="text-align:right">Qty</span><span style="text-align:right">Unit cost</span><span style="text-align:right">Cost</span><span></span>
+          </div>
+          <sc-for list="{{ builderRows }}" as="br" hint-placeholder-count="6">
+            <div style="display:grid; grid-template-columns:minmax(140px,1fr) 88px 88px 64px 22px; gap:0 8px; align-items:center; border-top:1px dashed var(--hairline); padding:10px 20px">
+              <span style="min-width:0"><span style="display:block; font-size:13.5px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ br.name }}</span><span style="display:block; font-size:11.5px; color:var(--text-3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">→ {{ br.product }}</span></span>
+              <span style="display:flex; justify-content:flex-end; align-items:center; gap:6px"><input type="text" value="{{ br.qty }}" aria-label="Quantity" style="box-sizing:border-box; width:50px; text-align:right; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:5px 6px; font-size:12.5px; font-family:'Geist Mono',monospace; color:var(--text)"><span style="font-family:'Geist Mono',monospace; font-size:12px; color:var(--text-3); width:20px">{{ br.unit }}</span></span>
+              <button type="button" title="Click to edit — the change applies everywhere" style="text-align:right; border:0; background:none; padding:2px 0; cursor:pointer; font-family:'Geist Mono',monospace; font-size:12px; color:var(--text-2); transition:color .15s" style-hover="color:var(--accent)">{{ br.unitCost }} ✎</button>
+              <span style="text-align:right; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:13.5px; font-weight:600; color:var(--text)">{{ br.cost }}</span>
+              <button type="button" aria-label="Remove ingredient" style="border:0; background:none; font-size:15px; color:var(--text-3); cursor:pointer; padding:2px" style-hover="color:var(--danger)">×</button>
+            </div>
+          </sc-for>
+          <div style="display:grid; grid-template-columns:minmax(140px,1fr) 88px 88px 64px 22px; gap:0 8px; align-items:center; border-top:1px dashed var(--hairline); padding:10px 20px">
+            <span><span style="font-size:13.5px; font-weight:600; color:var(--text)">Packaging</span><span style="display:block; font-size:11.5px; color:var(--text-3); margin-top:1px">misc cost</span></span>
+            <span></span><span></span>
+            <span style="display:flex; justify-content:flex-end"><input type="text" value="$0.35" aria-label="Misc cost amount" style="box-sizing:border-box; width:60px; text-align:right; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:5px 6px; font-size:12.5px; font-family:'Geist Mono',monospace; color:var(--text)"></span>
+            <button type="button" aria-label="Remove misc cost" style="border:0; background:none; font-size:15px; color:var(--text-3); cursor:pointer; padding:2px" style-hover="color:var(--danger)">×</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 20px; border-top:1px dashed var(--hairline)">
+            <button type="button" style="border:1px dashed var(--border-2); border-radius:6px; padding:6px 11px; background:none; color:var(--text-2); font-weight:500; font-size:12.5px; cursor:pointer; transition:color .15s,border-color .15s" style-hover="color:var(--accent);border-color:var(--accent-3)">+ Misc cost</button>
+            <span style="font-size:11.5px; color:var(--text-3)">tap a unit cost to edit — the change applies everywhere</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline; padding:12px 20px 16px; border-top:1px dashed var(--border-2); font-family:'Geist Mono',monospace">
+            <span style="font-size:12px; font-weight:600; letter-spacing:.1em; color:var(--text)">PLATE COST</span>
+            <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text)">$6.96</span>
+          </div>
         </div>
+        <div style="height:12px; background:linear-gradient(-45deg, transparent 8px, var(--surface-2) 0) 0 0/16px 100% repeat-x, linear-gradient(45deg, transparent 8px, var(--surface-2) 0) 8px 0/16px 100% repeat-x; border-left:1px solid var(--border); border-right:1px solid var(--border)"></div>
       </section>
-      <aside style="display:flex; flex-direction:column; gap:16px; animation:rise .4s cubic-bezier(.16,1,.3,1) .06s both">
-        <section style="border:1px solid var(--border); border-radius:10px; overflow:hidden">
-          <h2 style="margin:0; font-size:13px; font-weight:600; color:var(--text); padding:12px 16px; border-bottom:1px solid var(--hairline); background:var(--surface-2)">Cost</h2>
-          <div style="padding:14px 16px; display:flex; flex-direction:column; gap:10px">
-            <div style="display:flex; align-items:baseline"><span style="font-size:12.5px; color:var(--text-2)">Plate cost</span><span style="margin-left:auto; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:18px; font-weight:600; color:var(--text)">$6.96</span></div>
-            <div style="display:flex; align-items:baseline"><span style="font-size:12.5px; color:var(--text-2)">Recent range</span><span style="margin-left:auto; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--text-3)">$6.61 to $7.28</span></div>
-            <div style="display:flex; align-items:baseline; border-top:1px solid var(--hairline); padding-top:10px"><span style="font-size:12.5px; color:var(--text-2)">Suggested at 40%</span><span style="margin-left:auto; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:13px; font-weight:500; color:var(--text)">$17.40</span></div>
+      <aside style="flex:1 1 280px; max-width:340px; display:flex; flex-direction:column; gap:16px; animation:rise .4s cubic-bezier(.16,1,.3,1) .06s both">
+        <section style="border:1px solid var(--border); border-radius:10px; overflow:hidden; position:sticky; top:24px">
+          <div style="padding:14px 16px 12px; border-bottom:2px solid var(--text)">
+            <div style="font-size:11px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3)">Total plate cost</div>
+            <div style="font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:30px; font-weight:700; letter-spacing:-.02em; line-height:1.15; color:var(--text)">$6.96</div>
+            <div style="font-size:11.5px; color:var(--text-3); margin-top:2px">recent range $6.61–$7.28</div>
+          </div>
+          <div style="padding:12px 16px; display:flex; flex-direction:column; gap:10px">
+            <div style="display:flex; align-items:baseline"><span style="font-size:12.5px; color:var(--text-2)">Suggested at 40%</span><span style="margin-left:auto; font-family:'Geist Mono',monospace; font-variant-numeric:tabular-nums; font-size:13px; font-weight:500; color:var(--text)">$17.40</span></div>
             <div style="display:flex; align-items:center"><label for="bprice" style="font-size:12.5px; color:var(--text-2)">Menu price</label><input id="bprice" type="text" value="$16.50" style="margin-left:auto; box-sizing:border-box; width:90px; text-align:right; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:6px 8px; font-size:13px; font-family:'Geist Mono',monospace; color:var(--text)"></div>
-            <div style="display:flex; align-items:center; gap:8px; border:1px solid var(--warn-br); background:var(--warn-bg); border-radius:8px; padding:8px 12px"><span style="font-size:12.5px; font-weight:500; color:var(--warn)">90c below suggested. Raising to $17.40 meets your 40% target.</span></div>
+            <div style="border:1px solid var(--warn-br); background:var(--warn-bg); border-radius:6px; padding:7px 10px; font-size:11.5px; line-height:1.45; color:var(--warn)">90c below suggested. $17.40 meets your 40% target.</div>
+          </div>
+          <div style="padding:0 16px 14px; display:flex; flex-direction:column; gap:8px">
+            <button type="button" style="border:0; border-radius:6px; padding:9px 12px; background:var(--accent); color:#FFFFFF; font-weight:500; font-size:13px; cursor:pointer; transition:background .15s" style-hover="background:var(--accent-2)">Save plate</button>
+            <div style="display:flex; gap:8px">
+              <button type="button" style="flex:1; border:1px solid var(--border-2); border-radius:6px; padding:7px; background:var(--surface); color:var(--text); font-weight:500; font-size:12.5px; cursor:pointer; transition:background .15s" style-hover="background:var(--hover)">Print docket</button>
+              <button type="button" style="flex:1; border:1px solid var(--border); border-radius:6px; padding:7px; background:var(--surface); color:var(--text-2); font-weight:500; font-size:12.5px; cursor:pointer; transition:color .15s" style-hover="color:var(--danger)">Clear plate</button>
+            </div>
           </div>
         </section>
         <section style="border:1px solid var(--border); border-radius:10px; overflow:hidden">
@@ -686,12 +714,13 @@ class Component extends DCLogic {
         else self.setState({ upStep:'review' });
       },
       createPlate: function(){ self.go('builder'); },
+      docketCount: '6 items',
       builderRows: [
-        { name:'Barramundi Fillet', qty:'300', unit:'g', cost:'$5.67' },
-        { name:'Batter Mix Premium', qty:'80', unit:'g', cost:'$0.31' },
-        { name:'Chips Straight Cut', qty:'240', unit:'g', cost:'$0.52' },
-        { name:'Tartare Sauce', qty:'40', unit:'mL', cost:'$0.16' },
-        { name:'Lemon', qty:'0.25', unit:'ea', cost:'$0.30' }
+        { name:'Barramundi', product:'Barramundi Flt 100/200 S/Less · Seacrest', qty:'300', unit:'g', unitCost:'$16.57/kg', cost:'$5.67' },
+        { name:'Batter Mix', product:'Batter Mix Premium 10kg · Caterers Choice', qty:'80', unit:'g', unitCost:'$3.90/kg', cost:'$0.31' },
+        { name:'Chips', product:'Chips Straight Cut 10mm · Edgell', qty:'240', unit:'g', unitCost:'$2.15/kg', cost:'$0.52' },
+        { name:'Tartare', product:'Tartare Sauce 2.4L · Masterfoods', qty:'40', unit:'mL', unitCost:'$4.10/L', cost:'$0.16' },
+        { name:'Lemon', product:'Lemons Fresh · The Fruit Wagon', qty:'0.25', unit:'ea', unitCost:'$1.20/ea', cost:'$0.30' }
       ],
       reviewRows: [
         { name:'Cheese Tasty Block', from:'$43.95', to:'$49.25', delta:'+12%', fg:R, bg:RB },

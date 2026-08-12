@@ -121,7 +121,7 @@ function harness(opts) {
       'dbPushMenuAfterPlate',
       'analyze', 'avgFoodCostForScope', 'computeAvgFoodCost',
       'saveKitchenIngredients', 'saveCurrentPlate', 'upsertCustomMenu',
-      'submitAddDish', 'submitMenuItem', 'saveMenuEdit', 'resolveEditCat',
+      'submitAddDish', 'submitMenuItem', 'saveMenuEdit', 'resolveEditCat', 'setDishSellPrice',
       'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
       'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog', 'confirmGuardedRepoints', 'kingRepointGuard',
@@ -137,7 +137,8 @@ function harness(opts) {
     return {
       changeLog:function(){ return changeLog; },
       saveCurrentPlate:saveCurrentPlate, submitAddDish:submitAddDish, submitMenuItem:submitMenuItem,
-      saveMenuEdit:saveMenuEdit, mmRemove:mmRemove, doDeleteMenuOnly:doDeleteMenuOnly,
+      saveMenuEdit:saveMenuEdit, setDishSellPrice:setDishSellPrice,
+      mmRemove:mmRemove, doDeleteMenuOnly:doDeleteMenuOnly,
       doDeleteMenu:doDeleteMenu, doDeleteEverything:doDeleteEverything,
       deletePlate:function(id){ deletePlate(id); if(S.confirmFn) S.confirmFn(); },
       confirmGuardedRepoints:function(l){ confirmGuardedRepoints(l); if(S.confirmFn) S.confirmFn(); },
@@ -507,6 +508,66 @@ test('CENSUS: removeMenuItem still has exactly the three callers the log account
 /* =============================================================================================
  * 6b. The kinds the first draft of this file left to a regex — every one now runs the real path
  * ========================================================================================== */
+
+/* =============================================================================================
+ * 6c. 177 — the builder rail's menu-price input, and the function behind it
+ *
+ * `setDishSellPrice` is a SECOND path to a write `saveMenuEdit` already performs. CLAUDE.md's rule
+ * about copies is the reason these tests exist and the reason of their shape: a hand-written second
+ * implementation agrees with whatever the author believed, so the tests assert it against the REAL
+ * function rather than against that belief. Both are driven through the same sandbox, on the same
+ * fixture, and their log entries are compared field for field.
+ * ========================================================================================== */
+
+test('177: setting the price from the builder logs the SAME entry saveMenuEdit would', async () => {
+  const viaBuilder = harness(twoMenus());
+  viaBuilder.api.setDishSellPrice('D1', 26);
+  await flush();
+
+  const viaModal = harness(Object.assign(twoMenus(), {
+    editTargetId: 'D1',
+    fields: { ed_name: 'F&C', ed_price: '26', ed_cat: 'Mains', ed_menu: 'MENU_ORIGINAL' },
+  }));
+  viaModal.api.saveMenuEdit();
+  await flush();
+
+  const strip = (e) => ({ kind: e.kind, plateId: e.plateId, dishId: e.dishId, menuIds: e.menuIds,
+    avgBefore: e.avgBefore, avgAfter: e.avgAfter, costBefore: e.costBefore, costAfter: e.costAfter,
+    detail: e.detail });
+  assert.deepStrictEqual(viaBuilder.api.changeLog().map(strip), viaModal.api.changeLog().map(strip),
+    'the builder input and the Menu screen modal must record one user action one way');
+  // and the price actually moved on the row, not just in the log
+  assert.strictEqual(viaBuilder.api.state().customMenu.find((m) => m.id === 'D1').price, 26);
+});
+
+test('177: the builder price input writes nothing when the price has not moved to the cent', async () => {
+  const { api, S } = harness(twoMenus());
+  assert.strictEqual(api.setDishSellPrice('D1', 20.001), false, 'a sub-cent difference is a keystroke');
+  await flush();
+  assert.deepStrictEqual(api.changeLog(), []);
+  assert.deepStrictEqual(S.writes, [], 'and it does not touch the server either');
+});
+
+test('177: the builder price input refuses a blank, a zero and a NaN rather than storing one', async () => {
+  const { api, S } = harness(twoMenus());
+  // typeof-first, then isFinite: Number('') is 0 and isFinite('') is TRUE, so a blank field that
+  // reached this as a string would otherwise store a $0.00 sell price and log it as a decision.
+  for (const bad of ['', null, undefined, NaN, 0, -5, '26']) {
+    assert.strictEqual(api.setDishSellPrice('D1', bad), false, `refused: ${String(bad)}`);
+  }
+  await flush();
+  assert.deepStrictEqual(api.changeLog(), []);
+  assert.deepStrictEqual(S.writes, []);
+  assert.strictEqual(api.state().customMenu.find((m) => m.id === 'D1').price, 20, 'the stored price stands');
+});
+
+test('177: a rejected server write records no intervention, exactly as every other path', async () => {
+  const { api } = harness(Object.assign(twoMenus(), { fail: { menu: true } }));
+  api.setDishSellPrice('D1', 26);
+  await flush();
+  assert.deepStrictEqual(api.changeLog(), [],
+    'logChangeIfSaved gates this like the other twelve callers — a failed write is not a decision');
+});
 
 test('re-publishing a plate to a menu it is already on is `dish_price`, not a second `dish_added`', async () => {
   // submitMenuItem does TWO things behind one button. publishPlan's `update` means same plate, same

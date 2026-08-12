@@ -99,26 +99,35 @@ async function gridGeo(page) {
     const r = (sel) => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
     return {
       body: r('#dashBody'), top: r('#dashBody .dash-top'), chartSvg: r('#trendWrap svg'),
-      // the chart's own host: the trend is a CARD now, so the column is no longer its container
+      /* the chart's own host: the trend is a CARD now, so the column is no longer its container.
+         177 — this reads #trendHost directly, a padding-free div, rather than subtracting `.ds-body`'s
+         padding here. Same box, but it is now the same box the app itself measures to size the
+         viewBox, so this cannot drift away from the thing it is checking. */
       chartHost: (() => {
-        const el = document.querySelector('#dashBody .dash-trend .ds-body');
-        if (!el) return null;
-        const cs = getComputedStyle(el);
-        return { width: el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+        const el = document.getElementById('trendHost');
+        return el ? { width: el.getBoundingClientRect().width } : null;
       })(),
       trend: r('#dashBody .dash-trend'), ins: r('#dashBody .dash-ins'),
+      trendRow: r('#dashBody .dash-trendrow'), recent: r('#dashBody .dash-recent'),
       moved: r('#dashBody .dash-moved'), dig: r('#dashBody .dash-dig')
     };
   });
 }
 
 function expectGridContract(geo) {
-  for (const k of ['body', 'top', 'chartSvg', 'trend', 'ins', 'moved', 'dig']) {
+  for (const k of ['body', 'top', 'chartSvg', 'trend', 'ins', 'moved', 'dig', 'trendRow', 'recent']) {
     expect(geo[k], `${k} renders (non-vacuous placement check)`).not.toBeNull();
   }
   // the §6.1 reading order, top to bottom — one composition, no width-dependent reordering left
   expect(geo.trend.top, 'the trend reads under the verdict').toBeGreaterThanOrEqual(geo.top.bottom - 1);
-  expect(geo.ins.top, 'insights read under the trend').toBeGreaterThanOrEqual(geo.trend.bottom - 1);
+  expect(geo.ins.top, 'insights read under the trend').toBeGreaterThanOrEqual(geo.trendRow.bottom - 1);
+  /* 177 — the trend row is a two-up like the one below it: chart left, the changes its dots come
+     from on the right, top-aligned, each ending at its own content. Asserted the same way as
+     What moved / Dig in, because it is the same shape and a copy of the reasoning would drift. */
+  expect(geo.recent.left, 'Recent changes is the right-hand card').toBeGreaterThanOrEqual(geo.trend.right - 1);
+  expect(Math.abs(geo.recent.top - geo.trend.top), 'the trend row is top-aligned').toBeLessThanOrEqual(2);
+  expect(geo.trend.width / geo.trendRow.width, 'the chart takes ~2/3 of the row').toBeGreaterThan(0.6);
+  expect(geo.trend.width / geo.trendRow.width, 'and not more').toBeLessThan(0.72);
   expect(geo.moved.top, 'What moved reads under the insights').toBeGreaterThanOrEqual(geo.ins.bottom - 1);
   // the two-up: Dig in beside What moved, top-aligned, each ending at its own content
   expect(geo.dig.left, 'Dig in is the right-hand half').toBeGreaterThanOrEqual(geo.moved.right - 1);
@@ -132,13 +141,18 @@ function expectGridContract(geo) {
      false BY DESIGN. The regression this guards is unaffected — a 540px cap is still ~290px short of
      the card body — but the old wording would have had to be relaxed by 40px to pass, which is
      exactly the "rewrite the spec to fit" move the v145 review caught once already. Measured against
-     the host's CONTENT box so a future padding change cannot silently loosen it. */
+     the host's CONTENT box so a future padding change cannot silently loosen it.
+     ⚠ 177 — the "most of the COLUMN" clause is GONE, and it was moved rather than dropped. The chart
+     is 2/3 of a row now, so against the column it measures ~0.6 and the only way to keep the old
+     line was to relax its number, which is the move the paragraph above refuses. The column share is
+     asserted on `.dash-trendrow` in the edge loop below, where it is still true; what the 540px cap
+     failed against was never the column but the box the chart sits in, and that pin is unchanged. */
   expect(geo.chartHost, 'the chart has a host to fill').not.toBeNull();
   expect(geo.chartSvg.width, 'the chart fills its card body').toBeGreaterThanOrEqual(geo.chartHost.width - 2);
-  expect(geo.chartSvg.width, 'and is not a capped block swimming inside it').toBeGreaterThan(geo.body.width * 0.75);
+  expect(geo.chartSvg.width, 'and is not a capped block swimming inside it').toBeGreaterThan(geo.trend.width * 0.85);
   // every region shares the column's edges (edge pins, not width comparisons — a width check
   // could pass while offset)
-  for (const [k, label] of [['top', 'the verdict zone'], ['trend', 'the trend'], ['ins', 'insights']]) {
+  for (const [k, label] of [['top', 'the verdict zone'], ['trendRow', 'the trend row'], ['ins', 'insights']]) {
     expect(geo[k].left, `${label} starts at the column edge`).toBeLessThanOrEqual(geo.body.left + 1);
     expect(geo[k].right, `${label} spans the column`).toBeGreaterThanOrEqual(geo.body.right - 1);
   }

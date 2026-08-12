@@ -968,7 +968,7 @@ function miscRowHtml(l){                                              // a remov
     +'<span class="bld-ing"><input type="text" class="misc-name" value="'+esc(l.label||'')+'" placeholder="Misc" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
     +'<span class="bld-mid"></span>'
     +'<span class="bld-lc misc-costbox"><span class="bld-dollar">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
-    +'<button class="bld-rm" type="button" aria-label="Remove" onclick="removeLine('+l.uid+')">Remove</button>'
+    +'<button class="bld-rm" type="button" aria-label="Remove misc cost" onclick="removeLine('+l.uid+')">&times;</button>'
     +'</div>';
 }
 function addMiscCost(){                                               // Builder-only; never enters the ingredient DB
@@ -992,24 +992,21 @@ function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;});
    the markup lives in a function rather than being written twice and drifting. */
 function catalogueHintHtml(){ return 'No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>, then build plates with them.'; }
 function wireBhGo(){ var g=document.getElementById('bhGo'); if(g) g.onclick=function(e){ e.preventDefault(); showTab('pantry'); }; }
-/* 170 — the header's static title MIRRORS #plateName, which moved into step 2 where the v69 fill
-   order puts it. This is the only writer. It is safe to drive from renderPlate() because every one
-   of the six places that assigns #plateName.value calls renderPlate() straight after: clearBtn,
-   applyPlateDraft, loadPlateState, startNewPlate, duplicateCurrentPlate — and typing, which the
-   #plateName input listener covers directly. Checked one by one, not assumed. */
-function syncBuilderTitle(){
-  var t=document.getElementById('bldTitle'); if(!t) return;
-  var el=document.getElementById('plateName'), nm=((el&&el.value)||'').trim();
-  t.textContent=nm||'New plate';
-  t.classList.toggle('is-unnamed',!nm);
-}
+/* 177 TOMBSTONE: `syncBuilderTitle()` stood here. It kept a static `#bldTitle` span in step with
+   `#plateName` across all six places that assign that field, and it existed only because 170 had
+   moved the field out of the header into a numbered step card. 177 deletes the step cards and puts
+   the field back in the header as the breadcrumb title, so there is no second element to keep in
+   step — the mirror and the thing it mirrored are the same element again. */
 function renderPlate(){
   scheduleDraftSave();                                        // v82 D1: persist the in-progress builder (debounced) on every structural change
   var nIng=plate.filter(function(l){return !l.misc;}).length;
-  var dc=document.getElementById('dCount'); if(dc) dc.textContent=nIng?(nIng+(nIng===1?' item':' items')):'';
+  /* 177: the count is the DOCKET MASTHEAD's now, so it always prints — "0 items" is a fact about
+     the docket and reads as one under a mono masthead. It used to render '' at zero because it was
+     a tail on a sentence about editing prices ("… applies everywhere. · 3 items") where a bare
+     "0 items" would have dangled. */
+  var dc=document.getElementById('dCount'); if(dc) dc.textContent=nIng+(nIng===1?' item':' items');
   // v102 fix (CodeRabbit): the hint update must run BEFORE the empty-plate early return — a fresh
   // install has no ingredients AND an empty plate, and that user needs the add-first-ingredient link.
-  syncBuilderTitle();
   /* 170 — ONE empty-ingredients message, not two. The screen used to render both of these at once
      on a fresh install: #lines' own "No ingredients yet. Add the first one below." and, directly
      under it, the hint's "No ingredients yet — add your first ingredient…". They mean DIFFERENT
@@ -1039,7 +1036,10 @@ function renderPlate(){
     const isKid=!!l.kid;
     const kName=isKid?((kById[l.kid]&&kById[l.kid].name)||'Ingredient'):null;
     const qtyCell=`<span class="bld-qty"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)">`;
-    const rmCell=`<button class="bld-rm" type="button" aria-label="Remove ingredient" onclick="removeLine(${l.uid})">Remove</button>`;
+    /* 177: the mock's × in the last column, not the word "Remove". The ACCESSIBLE name is unchanged
+       and stays a sentence — a glyph button with no aria-label is a button that announces itself as
+       "times", and the docket has one of these per row. */
+    const rmCell=`<button class="bld-rm" type="button" aria-label="Remove ingredient" onclick="removeLine(${l.uid})">&times;</button>`;
     if(!p){                                                    // orphaned line: deleted product or broken kitchen link — greyed, still counted as missing
       const title=isKid?esc(kName):'Product';
       return `<div class="bld-row is-missing" data-uid="${l.uid}">
@@ -1101,34 +1101,137 @@ function worstMenuOf(on, cost){
   return on.map(function(m){ return {m:m, mp:menuMarginPreview(cost, m.price)}; })
     .sort(function(a,b){ return rk(a.mp.light)-rk(b.mp.light); })[0];
 }
+/* 177 — the shortfall sentence, lifted out of renderBuilderCost so the per-menu list and the single
+   menu-price warning cannot word the same fact two ways. "— 90c under suggested" | '' when at/over.
+   DELIBERATE here and deliberately absent from the Menu tab's cell (v131 dropped it there): the
+   builder is where a price gets SET, so the gap to suggested is guidance; on the Menu tab the same
+   words read as a price-rise instruction. */
+function shortfallStr(mp){
+  if(mp.pct==null) return '';
+  var c=Math.round((mp.suggested-mp.price)*100);
+  if(c<1) return '';
+  return ' — '+(c<100?(c+'c'):('$'+(c/100).toFixed(2)))+' under suggested';
+}
+/* 177 — the ONE write behind the rail's menu-price input. It exists because the mock's builder sets
+   a sell price and this app's only path to that was the Menu screen's edit modal, which needs four
+   DOM fields to be filled in first.
+   ⚠️ IT IS SAVEMENUEDIT'S PRICE-ONLY PATH, deliberately step for step, and the order is the part
+   that matters rather than the statements: `avgBefore` is read BEFORE the upsert (computeAvgFoodCost
+   is live, so one line later it is already the AFTER figure — CLAUDE.md Tier 1); rebuildMenu runs
+   before logHistory, because computeAvgFoodCost reads MENU and MENU is stale until then; and the
+   change entry is gated on the WRITE through logChangeIfSaved, so a rejected write logs no
+   intervention. logMenuPrice is not called here on purpose — logHistory is its one funnel.
+   Returns false and writes nothing when the price has not moved to the cent, which is the same
+   threshold logMenuPrice and saveMenuEdit dedupe on: a blur that commits an unchanged value is a
+   keystroke, not a decision. */
+function setDishSellPrice(dishId, price){
+  var m=menuById[dishId]; if(!m) return false;
+  if(typeof price!=='number' || !isFinite(price) || !(price>0)) return false;   // type first, then finite: isFinite('') is TRUE
+  var was=(m.price==null)?null:Number(m.price);
+  if(was!=null && Math.abs(was-price)<0.005) return false;
+  var avgBefore=computeAvgFoodCost();
+  var mid=(m.menuId||'MENU_ORIGINAL'), plateId=(m.plateId||m.sourcePlateId||null);
+  // every MENU row is built from customMenu (see rebuildMenu), so `custom:true` is not a guess —
+  // it is what saveMenuEdit writes for every dish, for the same reason.
+  var write=upsertCustomMenu({id:dishId, section:m.section, name:m.name, price:price,
+    notes:(m.notes||''), custom:true, menuId:mid, plateId:plateId});
+  rebuildMenu(); buildMenuOptions();
+  logHistory();
+  logChangeIfSaved(write, 'dish_price', {plateId:plateId, dishId:dishId, menuIds:[mid],
+    avgBefore:avgBefore, detail:{name:m.name, priceFrom:was, priceTo:price, menuFrom:mid, menuTo:mid}});
+  renderAnalysis(); renderPlatesTab();
+  return true;
+}
 function renderBuilderCost(tot){
   var tEl=document.getElementById('bTotal'); if(!tEl) return;
   var cost=Number(tot)||0;
   tEl.textContent=money(cost);
+  /* 177 — the DOCKET'S OWN TALLY, at the foot of the paper, alongside the rail's summary figure.
+     ⚠️ §7 SAYS ONE FIGURE PER SCREEN AND THIS PRINTS IT TWICE, KNOWINGLY. The mock does the same
+     (Plates → Fish & Chips draws "PLATE COST $6.96" at the docket foot and "TOTAL PLATE COST $6.96"
+     in the rail) and the brief asks for both, because they are two statements rather than one
+     repeated: the foot is the docket's own arithmetic — the last line of a receipt, which is what
+     makes it a docket rather than a table — and the rail is the summary you price against. Q6 (v125)
+     unpicked a genuine duplicate, where two panels printed the same figure in the same role.
+     Both are written from THIS number, so they cannot drift. */
+  var dEl=document.getElementById('dTotal'); if(dEl) dEl.textContent=money(cost);
   var tp=document.getElementById('bTargetPct'); if(tp) tp.textContent='at '+cogsPct+'%';
   var sEl=document.getElementById('bSuggest'); if(sEl) sEl.textContent=(cost>0)?money(cost/foodTarget()):'—';
   var sp=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
   var on=sp?menusOfPlate(sp):[];
-  function shortStr(mp){                                      // "— 90c under suggested" | "" when at/over
-    if(mp.pct==null) return '';
-    var c=Math.round((mp.suggested-mp.price)*100);
-    if(c<1) return '';
-    return ' — '+(c<100?(c+'c'):('$'+(c/100).toFixed(2)))+' under suggested';
+  /* 177 — the mock's "recent range $6.61–$7.28". Real data, not decoration: costRangeForLines is the
+     same function the Menu screen's cost band uses, and its `hasRange` is false when no ingredient
+     on the plate has ever moved — in which case this prints nothing rather than a range whose two
+     ends are the same number. */
+  var rg=document.getElementById('bRange');
+  if(rg){
+    var r=(cost>0)?costRangeForLines(plate):null;
+    rg.textContent=(r && r.hasRange && (r.max-r.min)>=0.005)
+      ? ('recent range '+fmt2(r.min)+'–'+fmt2(r.max)) : '';
   }
-  /* The mock's Cost card has ONE menu-price input, because its plate is on one menu. This app's
-     plate is on any number of menus, each with its own price (menusOfPlate) - R2, and the reason a
-     single input cannot ship: it would have to pick one of them silently. The per-menu list is the
-     app's truth in the mock's card. The under-suggested wording is DELIBERATE here and deliberately
-     absent from the Menu tab's cell (v131 dropped it there): the builder is where a price gets set,
-     so the gap to suggested is guidance; on the Menu tab it read as a price-rise instruction. */
+  /* THE MENU PRICE, and the three states it has. The mock's Cost card carries ONE input because its
+     plate is on one menu; this app's plate is on any number, each with its own price and its own
+     dish row (menusOfPlate) — R2, and the reason a single input cannot ship unconditionally: it
+     would have to pick one of them silently.
+     · exactly one menu → the mock's input, live, writing through setDishSellPrice.
+     · two or more     → no input, and the per-menu list below carries each price and verdict. The
+                         control is not dropped, it is on the Menu screen and behind Manage menus;
+                         what would be dropped is the user's ability to know WHICH price they set.
+     · none            → neither. An unpublished plate has no price to set (the Publishing card says
+                         so in words rather than showing a control that would fail — §R4). */
+  var pr=document.getElementById('bPriceRow'), warn=document.getElementById('bWarn');
+  var single=(on.length===1)?on[0]:null;
+  if(pr){
+    if(!single){ pr.style.display='none'; pr.innerHTML=''; }
+    else{
+      pr.style.display='';
+      pr.innerHTML='<label class="bld-k" for="bPrice">Menu price</label>'
+        +'<span class="bld-pricebox"><span class="bld-dollar">$</span>'
+        +'<input id="bPrice" type="number" min="0" step="0.01" inputmode="decimal" '
+        +'value="'+(single.price!=null?Number(single.price).toFixed(2):'')+'" '
+        +'aria-label="Menu price on '+esc(single.name)+'"></span>';
+      var pin=document.getElementById('bPrice');
+      if(pin){
+        /* Commit on blur and on Enter, never on input: every keystroke would be a server write, and
+           "12" on the way to "12.50" is a real price the change log would record. Escape restores
+           the stored value and does NOT bubble — the builder is a page now, but Escape is still
+           wired elsewhere and an edit's cancel must not travel. Same shape as the docket's own
+           price chip (editPrice/commitPrice), which is the pattern this screen already teaches. */
+        pin.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){ e.preventDefault(); pin.blur(); }
+          else if(e.key==='Escape'){ e.stopPropagation(); pin.value=(single.price!=null?Number(single.price).toFixed(2):''); pin.blur(); }
+        });
+        pin.addEventListener('blur',function(){
+          var v=parseFloat(pin.value);
+          if(!(v>0)){ pin.value=(single.price!=null?Number(single.price).toFixed(2):''); return; }   // a blank or zero is not a price; put the stored one back
+          if(setDishSellPrice(single.dishId, v)) toast('Menu price updated');
+          renderBuilderCost(costFromLines(plate));   // re-render from the new truth, whether or not it moved
+        });
+      }
+    }
+  }
+  /* The mock's under-target warning, for the single-menu case the input serves. Amber and red both
+     draw it; green draws nothing, because "you are on target" is what the absence of a warning
+     already says and the pill in the header carries the figure. */
+  if(warn){
+    var wmp=single?menuMarginPreview(cost, single.price):null;
+    if(wmp && wmp.pct!=null && wmp.light!=='green' && wmp.light!=='none'){
+      var gap=shortfallStr(wmp).replace(/^ — /,'');
+      warn.style.display='';
+      warn.className='bld-warn bv-'+wmp.light;
+      warn.textContent=(gap?(gap.charAt(0).toUpperCase()+gap.slice(1)+'. '):'')
+        +money(wmp.suggested)+' meets your '+cogsPct+'% target.';
+    } else { warn.style.display='none'; warn.textContent=''; warn.className='bld-warn'; }
+  }
   var box=document.getElementById('bMenus');
   if(box){
-    if(!on.length){ box.style.display='none'; box.innerHTML=''; }
+    // one menu is covered by the input above — listing it again would print the same price twice
+    if(on.length<2){ box.style.display='none'; box.innerHTML=''; }
     else{
       box.style.display='';
       box.innerHTML='<div class="bld-k bld-menus-cap">On menus</div>'+on.map(function(m){
         var mp=menuMarginPreview(cost, m.price);
-        var v=(mp.pct==null)?'':'<div class="bverdict bv-'+mp.light+'"><b>'+mp.pct+'% food cost</b>'+esc(shortStr(mp))+'</div>';
+        var v=(mp.pct==null)?'':'<div class="bverdict bv-'+mp.light+'"><b>'+mp.pct+'% food cost</b>'+esc(shortfallStr(mp))+'</div>';
         return '<div class="bld-menu"><span class="bm-name">'+esc(m.name)+'</span><span class="bm-price">'+fmt2(m.price)+'</span></div>'+v;
       }).join('');
     }
@@ -1145,26 +1248,46 @@ function renderBuilderCost(tot){
       pill.textContent=w.mp.pct+'% food cost'+(on.length>1?(' · '+w.m.name):'');
     } else { pill.hidden=true; pill.textContent=''; }
   }
-  /* §6's sticky mobile summary bar: plate cost + suggested, as the mock draws it. Its action is
-     Save (see the markup comment). Empty until the plate costs something - a bar reading $0.00
-     over an empty table is chrome, not information. */
+  /* §6's sticky mobile summary bar: plate cost + suggested, as the mock draws it.
+     177 — IT NOW CARRIES SAVE, and that is a consequence of the header losing its action rather than
+     a new control. The rail's Save sits below the whole docket on a phone, so without this the
+     committing action would be reachable only by scrolling past every ingredient — which is exactly
+     the objection F7 recorded against putting Save in a card. `#bldSaveBar` is a SECOND element, not
+     a moved one, because a phone and a desktop cannot share one node in two places; both run
+     saveCurrentPlate through the same wiring, and CSS shows exactly one of them per width, so §7's
+     one-primary-per-screen holds at both.
+     ⚠️ VISIBILITY IS KEYED ON `plate.length`, NOT ON THE COST. It used to be `cost>0` — right while
+     the bar was figures only, and wrong the moment it carries the commit: a plate whose every line
+     is an orphaned product costs $0.00 and is still work worth saving, and that user would have had
+     no Save on a phone at all. Figures still wait for a real cost; an empty plate still shows
+     nothing, because a bar over an empty docket is chrome. */
   var foot=document.getElementById('bFootSum');
   if(foot){
-    if(!(cost>0)){ foot.innerHTML=''; foot.hidden=true; }
+    if(!plate.length){ foot.innerHTML=''; foot.hidden=true; }
     else{
       foot.hidden=false;
-      var line;
-      if(on.length){
-        var worst=worstMenuOf(on, cost);
-        line=(worst.mp.pct==null)
-          ? ('suggested '+money(cost/foodTarget())+' at '+cogsPct+'%')
-          : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price));
+      var figs='', line;
+      if(cost>0){
+        figs='<div class="bfs-fig"><span class="bfs-lbl">Plate cost</span><span class="bfs-total">'+money(cost)+'</span></div>'
+          +'<div class="bfs-fig"><span class="bfs-lbl">Suggested</span><span class="bfs-total">'+money(cost/foodTarget())+'</span></div>';
+        if(on.length){
+          var worst=worstMenuOf(on, cost);
+          line=(worst.mp.pct==null)
+            ? ('suggested '+money(cost/foodTarget())+' at '+cogsPct+'%')
+            : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price));
+        } else {
+          line='not on a menu yet';
+        }
       } else {
-        line='not on a menu yet';
+        figs='<div class="bfs-fig"><span class="bfs-lbl">Plate cost</span><span class="bfs-total">'+money(0)+'</span></div>';
+        line='no costed ingredients yet';
       }
-      foot.innerHTML='<div class="bfs-fig"><span class="bfs-lbl">Plate cost</span><span class="bfs-total">'+money(cost)+'</span></div>'
-        +'<div class="bfs-fig"><span class="bfs-lbl">Suggested</span><span class="bfs-total">'+money(cost/foodTarget())+'</span></div>'
+      foot.innerHTML=figs
+        +'<button class="btn primary bfs-save" id="bldSaveBar" type="button">Save plate</button>'
         +'<div class="bfs-line">'+line+'</div>';
+      // saveFromBuilder, the same function #saveBtn is bound to — not saveCurrentPlate() directly,
+      // so the two commits cannot drift on what `asNew` means.
+      var bs=document.getElementById('bldSaveBar'); if(bs) bs.onclick=saveFromBuilder;
     }
   }
   renderBuilderPublish(sp, on);
@@ -1386,7 +1509,8 @@ menuLinkEl.addEventListener('change',()=>{menuTouched=true;updatePricing();});
 document.getElementById('plateName').addEventListener('input',function(e){
   renderPlateSuggest(e.target.value);   // live suggestions, every keystroke
   if(e.target.value.trim()){ var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none'; }
-  syncBuilderTitle();                   // 170: the header title mirrors this field as you type
+  // 177: syncBuilderTitle() stood here. The field IS the breadcrumb title now, so there is nothing
+  // left to mirror — see the header markup in index.html for why it moved back.
   scheduleDraftSave();                  // v82 D1: persist the name into the draft too
 });
 (function(){ var pc=document.getElementById('plateCat'); if(pc) pc.addEventListener('input', scheduleDraftSave); })();   // v82 D1: category into the draft
@@ -1859,11 +1983,20 @@ var menuHistSupported=true;
 
 var dashRange=(function(){ try{ return localStorage.getItem('cafeDB_dashRange')||'3m'; }catch(e){ return '3m'; } })();
 function setDashRange(rg){ dashRange=rg; try{ localStorage.setItem('cafeDB_dashRange',rg); }catch(e){} renderDashboard(); }
+/* 177 — the window's LOWER BOUND, in one place, because two things read it now: the trend's points
+   and the Recent-changes card beside it. Null for 'all', which is the "no bound" case rather than a
+   bound of zero — a caller must branch on it, exactly as dashRangePts always did.
+   Extracted rather than copied into the new caller: a second `{'1w':7,...}` literal is the shape
+   CLAUDE.md names (a copy written from the same belief as the original), and the two cards sharing
+   one range control must not be able to disagree about what that control means. */
+function dashRangeCutoff(){
+  var days={'1w':7,'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
+  return days?(Date.now()-days*86400000):null;
+}
 function dashRangePts(series){                                     // the points inside the chosen window (capped for sanity)
   var src=series||priceHistory;                                    // v115: callable on a per-menu series too (the scoped chart)
-  var days={'1w':7,'1m':30,'3m':91,'6m':183,'1y':365}[dashRange];
-  var cutoff=Date.now()-days*86400000;
-  var pts=days?src.filter(function(p){
+  var cutoff=dashRangeCutoff();
+  var pts=(cutoff!=null)?src.filter(function(p){
     var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;   // Supabase points arrive as ISO strings; a string is never >= a number
     return tt>=cutoff;
   }):src.slice();
@@ -1890,12 +2023,102 @@ function rangeBarHtml(){
    row — a real control is never traded for a prettier one that offers less.
    The chart itself is untouched: trendChart owns the geometry, the scrub wiring, the markers and
    the caption exactly as before. */
+/* 177 — THE BODY IS LEFT EMPTY AND FILLED IN A SECOND PASS, and that is load-bearing rather than
+   style. trendPlotSize sizes the viewBox to the column it will render into; the chart is now 2/3 of
+   a row instead of the whole of it, so measuring `#dashBody` would hand it a width a third larger
+   than the box it lands in and every unit inside the SVG would render at ~0.67 scale — which is the
+   exact defect F6 (v143) removed when it stopped using a fixed 320-unit box. #trendHost is in the
+   DOM and laid out by the time renderDashboard fills it, so the measurement is of the real box.
+   See renderDashboard for the fill, and trendPlotSize for what it reads. */
 function dashTrendHtml(scope){
   // `.dash-sec` alone carries the card — a third class here matched no rule at all and only read as
   // though it did (pre-push review). The card look has ONE owner and this is not it.
   return '<section class="dash-sec dash-trend">'
     +'<div class="ds-head"><h2>Food cost trend</h2><span class="ds-gap"></span>'+rangeBarHtml()+'</div>'
-    +'<div class="ds-body">'+trendChart(scope)+'</div>'
+    +'<div class="ds-body"><div id="trendHost"></div></div>'
+    +'</section>';
+}
+/* 177 — RECENT CHANGES, the card beside the trend. It names what the chart's dots come from.
+   ⚠️ IT IS THE SAME SERIES AS THE MARKERS, NOT THE SAME ROWS, and the difference is deliberate:
+   trendMarkers aggregates BY DAY and keeps only falls (`drop>0.001`), because a marker is a stipple
+   on a line and a picket fence of them under one confirm is noise. A card that listed only falls
+   would render `--danger` never — so this lists ENTRIES, both directions, which is what a signed
+   delta means. Named here because "the dots" and "these rows" are not a 1:1 mapping and a later
+   reader will otherwise assume they are.
+   WHICH ENTRIES QUALIFY, and every clause is a real exclusion rather than defensive noise:
+    · both cost figures present — `plate_created`/`plate_edited` carry costBefore AND costAfter;
+      `dish_added`/`dish_price` carry only costAfter, because a sell-price move changes no cost.
+      Type first, then isFinite: `isFinite('')` is TRUE and `Number(null)` is 0 (CLAUDE.md Tier 1),
+      so a null costBefore would otherwise fabricate a delta equal to the whole plate cost.
+    · a movement of at least a cent — re-saving an unchanged plate hands back a value differing in
+      the eighteenth decimal, the same threshold logMenuPrice dedupes on.
+    · a name. `detail.name` is written at every call site that has one; savedPlates is the fallback
+      for older entries, and a DELETED plate resolves to neither, so it is dropped rather than
+      listed as "Plate". The movement was real; the row has nothing to identify it with.
+   SCOPE: the avg figures are all-menus (see sinceLineHtml), but a COST delta is a plate's own cost
+   and carries no scope of its own — so a narrowed dashboard filters on `menuIds`, which records the
+   menus each change moved. That is a real filter, not the arithmetic the since-line refuses. */
+function changeName(e){
+  var n=(e && e.detail && typeof e.detail.name==='string')?e.detail.name.trim():'';
+  if(n) return n;
+  if(!e || !e.plateId || typeof savedPlates==='undefined') return '';
+  var sp=savedPlates.find(function(s){ return s.id===e.plateId; });
+  return (sp && sp.name)?sp.name:'';
+}
+function recentChangeRows(scope){
+  if(typeof changeLog==='undefined' || !changeLog || !changeLog.length) return [];
+  var cutoff=dashRangeCutoff(), narrowed=!!(scope && scope!==DASH_ALL), out=[];
+  changeLog.forEach(function(e){
+    if(!e || !isFinite(e.t)) return;
+    if(cutoff!=null && e.t<cutoff) return;
+    if(narrowed && (e.menuIds||[]).indexOf(scope)<0) return;
+    if(typeof e.costBefore!=='number' || typeof e.costAfter!=='number') return;
+    if(!isFinite(e.costBefore) || !isFinite(e.costAfter)) return;
+    var d=e.costAfter-e.costBefore;
+    if(Math.abs(d)<0.005) return;
+    var nm=changeName(e); if(!nm) return;
+    out.push({t:e.t, name:nm, delta:d});
+  });
+  out.sort(function(a,b){ return b.t-a.t; });
+  return out.slice(0,5);
+}
+/* Relative, not absolute, because the row's job is "how stale is this" and a date makes the reader
+   do the subtraction. Weeks past a fortnight for the same reason sinceLineHtml switches there — an
+   intermittent user's last change is routinely three weeks old and "21 days ago" reads as noise. */
+function relDayLabel(ms){
+  var d=(Date.now()-ms)/86400000;
+  if(d<1) return 'today';
+  if(d<2) return 'yesterday';
+  if(d<14) return Math.round(d)+' days ago';
+  var w=Math.round(d/7);
+  if(w<9) return w+' week'+(w===1?'':'s')+' ago';
+  var mo=Math.round(d/30);
+  return mo+' month'+(mo===1?'':'s')+' ago';
+}
+function recentChangesHtml(scope, current){
+  var rows=recentChangeRows(scope);
+  /* The since-line, REHOMED from its own full-width banner into this card's header band (177). It is
+     the same element and the same function — only its home and its chrome change — which is what
+     keeps the four trend-reframe tests pinning its wording and its all-menus rule meaningful. */
+  var meta=sinceLineHtml(scope, current);
+  var body;
+  if(rows.length){
+    body='<ul class="mv-list">'+rows.map(function(r){
+      var up=r.delta>0;   // a cost going UP is bad news, not "positive" — the same anchoring .dig-v carries
+      return '<li class="mv-row"><span class="mv-main">'
+        +'<span class="mv-name">'+esc(r.name)+'</span>'
+        +'<span class="mv-sub">'+esc(relDayLabel(r.t))+'</span></span>'
+        +'<span class="dig-v '+(up?'up':'down')+'">'+(up?'+':'−')+money(Math.abs(r.delta))+'</span>'
+        +'</li>';
+    }).join('')+'</ul>';
+  } else {
+    // Max's copy, kept for the range it is true of. The list is range-scoped, so at any other range
+    // "this week" would name a window the card is not showing.
+    body='<p class="hint mv-empty">'+(dashRange==='1w'?'No changes this week.':'No changes in this range.')+'</p>';
+  }
+  return '<section class="dash-sec dash-recent">'
+    +'<div class="ds-head rc-head"><h2>Recent changes</h2>'+meta+'</div>'
+    +body
     +'</section>';
 }
 /* ---- per-product price log — powers price-change alerts + cost ranges.
@@ -3498,10 +3721,24 @@ function sinceLineHtml(scope, current){
    The v121 comment named the SYMPTOM — "rendering the 320-unit viewBox wider scales the axis type
    out of bounds" — and worked around it with a 540px cap that made the chart float in its card.
    This removes the cause, so the chart can fill the mock's column at every width.
-   W is the column's own content width, read from #dashBody: it is laid out and visible before this
-   runs (showTab sets the pane's display BEFORE calling renderDashboard), and every render
-   re-measures. The fallback is the phone-sized 320 for the one case that has no layout — a
-   boot-time render into a tab that is still hidden, which nobody sees and which showTab re-renders.
+   W is the column's own content width. 177: it is read from #trendHost — the chart's OWN box — and
+   only falls back to #dashBody, which is what it read while the chart was the full width of the
+   screen. Since 177 it is 2/3 of a row, so #dashBody over-measures it by half again and every unit
+   inside the SVG would render at ~0.67 scale: the exact defect this function was written to remove,
+   arriving from the other direction. #trendHost is empty in the first render pass and filled in a
+   second (see dashTrendHtml and renderDashboard), so it is laid out by the time this reads it.
+   ⚠️ #trendHost IS A BARE DIV INSIDE `.ds-body`, NOT `.ds-body` ITSELF, and that is the measurement
+   working rather than a wrapper for its own sake: `clientWidth` INCLUDES PADDING, and `.ds-body`
+   carries 20px of it a side. Measured at 1360 with the id on `.ds-body`: it reported 707 for a box
+   the SVG then rendered into at 667, a 6% over-measure that reads as slightly-too-small axis type
+   and nothing else. (F6 read #dashBody, which carries no padding but is the whole column — 1084
+   against that same 667. So this was never right; it was only ever less wrong.) A padding-free
+   element is the only reading of "the column's own content width" that cannot drift when a card's
+   padding is retuned.
+   It is laid out and visible before this runs (showTab sets the pane's display BEFORE calling
+   renderDashboard), and every render re-measures. The fallback is the phone-sized 320 for the one
+   case that has no layout — a boot-time render into a tab that is still hidden, which nobody sees
+   and which showTab re-renders.
    H uses the mock's OWN two ratios: 190/900 at desktop, 110/350 on the phone. The threshold is a
    CONTENT width, not a viewport width, because that is what this measures — below 1024 there is no
    sidebar, so a 600px viewport is already a ~560px column.
@@ -3513,7 +3750,10 @@ function sinceLineHtml(scope, current){
 function trendPlotSize(){
   var MIN=300, MAX=960, PHONE=320, DESK_FROM=560, R_DESK=190/900, R_PHONE=110/350;
   var w=0;
-  try{ var el=document.getElementById('dashBody'); w=el?el.clientWidth:0; }catch(e){ w=0; }
+  try{
+    var el=document.getElementById('trendHost') || document.getElementById('dashBody');
+    w=el?el.clientWidth:0;
+  }catch(e){ w=0; }
   if(!w) w=PHONE;
   w=Math.max(MIN, Math.min(MAX, Math.round(w)));
   return { W:w, H:Math.round(w*(w>=DESK_FROM?R_DESK:R_PHONE)) };
@@ -5084,13 +5324,18 @@ function renderDashboard(){
   var html='<div class="dash-top'+(kpis?' has-kpis':'')+'">'
     +kpis                              // >=1024 with .has-kpis: the strip shows and CSS hides the hero; below 1024 CSS hides the strip
     +verdictHtml(scope, cmp)           // the §6 hero — or §5's first-run path card when nothing is costed and priced
-    /* R3 — the since-line is in neither mock, and it is not dropped: it is the one place the screen
-       says what the LAST CHANGE achieved and how far costs have drifted since. It sits under whichever
-       verdict surface is showing. All-menus only, unchanged: its figures ARE the all-menus series, so
-       subtracting them from a per-menu current fabricates drift. */
-    +sinceLineHtml(scope, pctNow)
+    /* 177 — the since-line is no longer a full-width banner of its own between the verdict and the
+       chart. It is the same element, produced by the same function, rendered inside the Recent-changes
+       card's header band, where the rows it describes are. Max, 12 Aug 2026: a lone sentence in a
+       tinted strip was the screen's only block that was neither a figure nor a card.
+       R3 still holds and is unchanged — it is in neither mock and is not dropped — and so does the
+       all-menus rule: its figures ARE the all-menus series, so subtracting them from a per-menu
+       current fabricates drift. See recentChangesHtml. */
     +'</div>'
-    +dashTrendHtml(scope)   // v115: the chart owns the scope decision — it emits the scope-note itself ONLY on the all-menus fallback
+    /* 177 — the trend and the changes it marks, side by side (2/3 + 1/3 at >=1024, stacked below).
+       v115: the chart owns the scope decision — it emits the scope-note itself ONLY on the
+       all-menus fallback. The range control stays in the chart's own header and governs both. */
+    +'<div class="dash-trendrow">'+dashTrendHtml(scope)+recentChangesHtml(scope, pctNow)+'</div>'
     +dashInsightsHtml(scope);
   /* v120: What moved + Dig in are the design's two-column second row. While a drill-down is open, Dig
      in takes the full width on its own: the two-column row is for the four summary rows, not a list. */
@@ -5099,6 +5344,12 @@ function renderDashboard(){
     +digInHtml(scope)
     +'</div>';
   root.innerHTML=html;
+  /* 177 — PASS TWO: the chart, into the box that now exists and can be measured. It must run here,
+     before wireTrendScrub below, for two reasons and both are the kind that fail silently:
+     trendChart is what SETS `TREND_GEO`, which the scrub bails on when null, and the <svg> the
+     scrub binds its pointer handlers to does not exist until this line. */
+  var trendHost=document.getElementById('trendHost');
+  if(trendHost) trendHost.innerHTML=trendChart(scope);
   /* F6 (v143): the scope control lives in the SCREEN HEADER now (the mock's §3.1 slot), which is
      static markup OUTSIDE #dashBody — so it is filled separately, and every handler below that
      touches it queries `scopeRoot`, not `root`. One variable, so a later edit cannot wire half of
@@ -5250,7 +5501,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v156';
+var APP_VERSION='v157';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
