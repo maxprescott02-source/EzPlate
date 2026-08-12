@@ -318,3 +318,37 @@ test('the publish modal asks nothing when the plate is already on the chosen men
   assert.equal(plan.action, 'update');
   assert.deepEqual(plan.unlinked, []);
 });
+
+/* ---------------------------------------------------------------------------
+   4. The menu half of the "already here?" comparison (180).
+
+   Every case above is on MENU_ORIGINAL, which is also the fallback the comparison substitutes for a
+   missing menuId. That made the two indistinguishable: the mutation gate replaced
+   `(d.menuId||'MENU_ORIGINAL')` with `(d.menuId&&'MENU_ORIGINAL')` — which reads EVERY dish as
+   though it were on the Original menu — and the whole file stayed green.
+
+   Both directions cost real rows. Read every dish as Original and re-publishing to any other menu
+   creates a SECOND copy of a plate already on it. Read a legacy null as anything else and a pre-menus
+   row stops matching, with the same duplicate.
+   --------------------------------------------------------------------------- */
+
+test('180: a plate already on a NON-default menu updates rather than duplicating', () => {
+  const onWinter = { id: 'umW', name: 'Fish & Chips', menuId: 'MENU_WINTER', plateId: 'SP1' };
+  const plan = publishPlan([onWinter], 'SP1', 'MENU_WINTER');
+  assert.equal(plan.action, 'update', 'publishing it again is an edit, not a second row');
+  assert.equal(plan.existingId, 'umW');
+});
+
+test('180: the same plate on a DIFFERENT menu does not count as already here', () => {
+  const onWinter = { id: 'umW', name: 'Fish & Chips', menuId: 'MENU_WINTER', plateId: 'SP1' };
+  const plan = publishPlan([onWinter], 'SP1', 'MENU_ORIGINAL');
+  assert.equal(plan.action, 'create', 'one plate can back many dishes, one per menu — that is the design');
+  assert.equal(plan.existingId, null);
+});
+
+test('180: a legacy row with no menuId at all is treated as Original', () => {
+  const legacy = { id: 'umL', name: 'Fish & Chips', plateId: 'SP1' };   // pre-menus row
+  assert.equal(publishPlan([legacy], 'SP1', 'MENU_ORIGINAL').action, 'update',
+    'the fallback is what stops a pre-menus row being duplicated on the menu it is already on');
+  assert.equal(publishPlan([legacy], 'SP1', 'MENU_WINTER').action, 'create');
+});

@@ -4,7 +4,8 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 **Tier test — if we launched to paying customers tomorrow, would this item stop us, embarrass us, or hurt them?** **A** = launch is impossible or unsafe without it. **B** = a real person using the app would see something wrong, broken or half-finished. **C** = everything else → `docs/MAINTENANCE.md`, which since 13 Aug 2026 is worked on a **parallel track in its own worktree** rather than only when this file is empty (that file's header has the procedure and the collision rule). **Ambiguous is C.**
 **Capped at 20 items.** A new A or B displaces the lowest-priority item here into maintenance; it never extends the file.
 **`Blocked on:`** = waiting on a person or an outside thing — `/batch` skips it. **`Do after:`** = waiting on another item in this file, and it is DELETED the moment it is satisfied.
-**`project-audit` reports; it does not add queue items.** A finding from a batch defaults to C unless it passes the tier test. Nothing about the process itself belongs here — **except item 1, which Max put here himself on 13 Aug 2026 over that rule. It is not precedent; the override is recorded in the item.**
+**`project-audit` reports; it does not add queue items.** A finding from a batch defaults to C unless it passes the tier test. **Nothing about the process itself belongs here.**
+*(The one exception this file has ever carried — the mutation-testing gate, which Max put here himself on 13 Aug 2026 over that rule — shipped in batch 180 and its item is deleted. It was never precedent: only he can override this line, and he did it once, in writing, with the count that justified it.)*
 
 ---
 
@@ -30,29 +31,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · Mutation testing as a PRE-PUSH GATE — the tests that cannot fail  **[A — Max's direction, 13 Aug 2026]**
-
-⚠️ **PROMOTED FROM `docs/MAINTENANCE.md` BY MAX, 13 Aug 2026, over this file's own "nothing about the process belongs here" rule.** He gave the reason and the count, so record both rather than re-deriving them: AUDIT-v145 declined to promote Stryker because three "test that cannot fail" incidents had each been self-caught, and **the count across batches 165–176 is ten.** *"This is the single most common defect class in the project and the argument against automating it has expired."*
-
-**The mechanisms he named**, because they are the mutation classes the gate has to actually kill: an order-only assertion that passed against an inverted guard · an assertion positioned where the code always follows it · a counter masked by real `crypto` · `S.purges` read but never incremented · a guard that made a loop never execute · a truncation test whose precondition stopped holding when the fix removed the pressure it assumed.
-**Several were written INSIDE the file that warns about the pattern.** `CLAUDE.md`'s "SEVEN incidents, one remedy" list names v113, 139, 140, 141, 172, 175 and 176 — **reconcile the two rosters in the same branch** and leave one count, sourced from the handovers rather than from either list.
-
-**Scope it as a GATE, not a report — this is the part that makes it different from the four audits that shelved it.**
-A rule in a context file is advice a model can reason past, and ten instances is the evidence that advice is not holding here; a hook is deterministic. **A new or changed test file that survives mutation of the code it claims to pin fails the pre-push step exactly the way a red suite does.**
-
-Requirements:
-- **Start with the files that pin conditions this project has already been burned on**, not the whole suite: the guards (`isFinite('')`, `typeof x === 'number'`, `invConfirmState`, `publishPlan`, `productRefs`), the `[hidden]` corollaries, the persistence paths (`pushWrite`, the sequencing helpers, restore/backup) and the referee paths (`gemToken`, `gemApplyReadings`).
-- The gate reports **which mutant survived and in which test file**, because "score dropped" is not actionable at push time.
-- Every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
-- **Dev-only.** Max's yes for the dependency: 9 Aug 2026. The no-new-dependencies rule protects the CLIENT; nothing here ships to it. It must not land in `index.html`, `sw.js` or the six cache spots.
-- ⚠️ **The suite is `node --test`, not Jest or Mocha** (`npm test` = `node --test tests/*.test.js`, 1018 tests in ~2.3s measured 13 Aug 2026). So per-test coverage analysis is unavailable and each mutant re-runs the whole suite — which is affordable precisely because the suite is seconds, and is why the file list above is a starting scope rather than a permanent restriction.
-- **Prove the gate itself is not vacuous**, which is the same defect one level up: break a real guard, watch the gate go red, put it back. A gate that cannot fail is the thing this item exists to stop.
-
-Out of scope: Playwright (not in `npm test`, and a mutation run that drives a browser is a different cost class), and any repo-wide score. **A number nobody acts on is the report this item was rescoped away from.**
-
-Note what it buys beyond the count: **the pre-push review gets its time back** for what only a reader catches — a comment whose stated mechanism is backwards, a premise that is wrong, a control that does nothing.
-
-## next  2 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
+## next  1 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
 
 ⚠️ **REWRITTEN 12 Aug 2026 (173). The surrogate-id half SHIPPED as `ezplate-v153`; what is left is a different problem with a different fix, and the original item conflated the two.**
 
@@ -69,7 +48,7 @@ Requirements: every one of the four is scoped so two accounts cannot collide, wi
 Do after: **`business_id` PART 2, the policy swap** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
 ✅ Rehearsable on staging when it runs — `docs/STAGING.md` has the procedure, and `04-seed-scale.sql` carries 60 taught packs and a full settings blob to rehearse against.
 
-## next  3 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
+## next  2 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
 
 ⚠️ **REWRITTEN 12 Aug 2026 (174). Email/password sign-in SHIPPED as `ezplate-v154`; three pieces are left and one of them is Max's.**
 
@@ -84,7 +63,7 @@ Do after: **`business_id` PART 2, the policy swap** — all four fixes are "pref
 
 Do after: **`business_id` PART 2, the policy swap** — for the second bullet only; the Google half needs nothing but Max, and could ship any time he creates the OAuth client.
 
-## next  4 · `business_id` on every table — **PART 1, the additive half**  **[A — launch blocker]**
+## next  3 · `business_id` on every table — **PART 1, the additive half**  **[A — launch blocker]**
 
 ⚠️ **SPLIT 12 Aug 2026 (174), on reaching it and finding it too large for one reviewable PR.** Ten tables × (column + backfill + index), plus a `businesses` table, plus a membership table, plus thirteen policy rewrites, plus client changes, plus per-table client verification is not one change set — and the second half is the dangerous one, so bundling them means the safe work cannot be merged until the risky work is finished.
 
@@ -96,7 +75,7 @@ Do after: **`business_id` PART 2, the policy swap** — for the second bullet on
 Requirements: staging first with `04-seed-scale.sql` loaded, then production; the two schemas must match on the `docs/STAGING.md` fingerprint afterwards; the one-statement rollback (drop the columns and the two tables) written into the migration header. Verify as the client that **nothing changed** — same row counts, same reads, writes still succeed.
 Out of scope, deliberately: any policy change, any client change, and roles.
 
-## next  5 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
+## next  4 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
 
 Replace all thirteen `using (true)` policies with `business_id`-scoped ones, one table at a time, and make the client send `business_id` on insert.
 ⚠️ **This is the half that can empty the app.** RLS with no matching policy returns **200 and an empty array, not an error**, so a mistake here looks exactly like "all my data is gone" — and on production that is Max's café. Every table is verified AS THE CLIENT over PostgREST before the next one starts.
@@ -111,13 +90,13 @@ Note **`menus` no longer starts from RLS OFF** — corrected 8 Aug 2026 when `20
 ✅ **Rehearsable as of 172** — `supabase/staging/01-schema.sql` reproduces all thirteen policies under production's exact policy NAMES, which is what this item will look them up by. Rehearse each table's swap there first; `docs/STAGING.md` has the procedure and the fingerprint query that proves the two schemas still match afterwards.
 ⚠️ **What staging CANNOT rehearse here, stated so it is not over-trusted:** neither project has any users, so `anon` is the only role either has ever been exercised as. This item's policies are the first that will distinguish roles, and staging can prove they RUN and that the client sees what it should — not that a second tenant is correctly excluded, which needs auth first.
 
-## next  6 · Roles — owner vs staff  **[A — launch blocker]**
+## next  5 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
 Do after: **`business_id` PART 2, the policy swap** — roles are enforced in the same policies, so they are written once or twice.
 
-## next  7 · Onboarding and empty states  **[A — launch blocker]**
+## next  6 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -125,7 +104,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  8 · The privacy gate  **[A — launch blocker]**
+## next  7 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -133,18 +112,18 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  9 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  8 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  10 · Gate review before public signup  **[A — launch blocker]**
+## next  9 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## next  11a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  10a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -177,12 +156,12 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  11b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  10b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **11a, `The backup does not carry three of the five history series`** (renumbered from 10a on 13 Aug 2026 when the mutation-testing gate took slot 1 — **name it, do not trust the number**) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered THREE times: 10a → 11a when the mutation-testing gate took slot 1, and back to 10a in 180 when that gate shipped and its slot freed. **Name it, never the number** — this line is the standing evidence for why.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
-⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is item 10a above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do 10a, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
+⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
 **That last clause is the operating window, not small talk:** the wipe and restore must run while nothing else is writing, so confirm it still holds before starting and do not leave the database wiped while waiting on anything.
 **The go does NOT waive the preconditions** — a fresh export taken minutes before, the one-statement rollback written down, and the real file rehearsed against staging first. Those are what make the go safe rather than alternatives to it.
 
@@ -197,7 +176,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  12 · Floating layers and mobile dropdowns  **[B]**
+## next  11 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.

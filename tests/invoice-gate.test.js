@@ -28,9 +28,14 @@ const SRC = loadApp();
    1. The gate condition itself.
    --------------------------------------------------------------------------- */
 
-test('while the referee is outstanding, confirm is unavailable', () => {
+test('while the referee is outstanding, confirm is unavailable and NOT yet marked unverified', () => {
   const s = invConfirmState('checking', true);
   assert.equal(s.disabled, true, 'Confirm All must not be pressable before the referee has spoken');
+  // 180, from the mutation gate: this half was unpinned. "Unverified" is the TIMEOUT state — the
+  // warning that the user is ruling on data nothing checked. Raising it while the check is still
+  // running would cry wolf on every single import, and the hint below already says what is happening.
+  assert.equal(s.unverified, false, 'still running is not the same as gave up');
+  assert.match(s.hint, /Waiting for the AI check/);
 });
 
 test('once the referee answers, confirm is available and says nothing alarming', () => {
@@ -243,4 +248,60 @@ test('confirmApplyInvoice refuses while pending — the one choke point every ap
   const guardAt = fn.indexOf('gemPending()');
   const applyAt = fn.indexOf('applyInvoice(');
   assert.ok(guardAt >= 0 && guardAt < applyAt, 'gemPending must be checked before applyInvoice can run');
+});
+
+/* ---------------------------------------------------------------------------
+   6. invRowState's review conditions, one at a time (180).
+
+   The state machine is CLAUDE.md's "single source of truth — the summary and the cards must never
+   disagree", and every condition in it is a separate reason a human must look at the row. They were
+   pinned as a group, through rendered markup, which cannot tell one condition from another: the
+   mutation gate turned `r.needManual || r.unitMismatch` into `&&` and nothing in the suite noticed,
+   even though that alone un-flags every row whose unit could not be reconciled.
+
+   Only 'matched' is ever pre-ticked, so a condition that stops returning 'review' does not merely
+   mislabel a row — it auto-ticks a row nobody checked, and Confirm All writes the price.
+   --------------------------------------------------------------------------- */
+
+const rowState = (function () {
+  // eslint-disable-next-line no-new-func
+  return new Function(`"use strict"; ${extractFn(SRC, 'invRowState')} return invRowState;`)();
+})();
+
+// A row with nothing wrong with it: high-confidence match, no flags. The baseline every case below
+// changes exactly ONE field of, so the assertion names the condition and not the fixture.
+const cleanRow = () => ({ addNew: false, uncertain: false, bestId: 'P0108', needManual: false,
+                          unitMismatch: false, needsAttention: false, gemReview: false,
+                          gemMatchReview: false, gemPriceReview: false, tier: 'hi' });
+
+test('the clean row is the only one that reaches matched — and matched is the only pre-ticked state', () => {
+  assert.equal(rowState(cleanRow()), 'matched');
+});
+
+test('EACH review condition alone is enough — none of them needs a second flag to count', () => {
+  const cases = [
+    ['needManual', 'the parser could not resolve the line'],
+    ['unitMismatch', 'the invoice unit and the stored unit disagree'],
+    ['needsAttention', 'the price moved more than 12%'],
+    ['gemReview', 'the AI adopted a value the parser disagreed with'],
+    ['gemMatchReview', 'the AI suspects the wrong product was matched'],
+    ['gemPriceReview', 'the AI suspects the price was misread'],
+    ['uncertain', 'the match itself is uncertain'],
+  ];
+  for (const [flag, why] of cases) {
+    const r = Object.assign(cleanRow(), { [flag]: true });
+    assert.equal(rowState(r), 'review', `${flag} alone must mean review — ${why}`);
+  }
+});
+
+test('a row with no match at all is review, and an add-new row is new', () => {
+  assert.equal(rowState(Object.assign(cleanRow(), { bestId: null })), 'review');
+  assert.equal(rowState(Object.assign(cleanRow(), { addNew: true })), 'new');
+  assert.equal(rowState(Object.assign(cleanRow(), { addNew: true, unitMismatch: true })), 'new',
+    'addNew is checked first: an add-new row has no stored product to disagree with');
+});
+
+test('a low-confidence match still waits for a human tick', () => {
+  assert.equal(rowState(Object.assign(cleanRow(), { tier: 'mid' })), 'review');
+  assert.equal(rowState(Object.assign(cleanRow(), { tier: 'lo' })), 'review');
 });

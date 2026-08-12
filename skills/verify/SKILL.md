@@ -5,8 +5,9 @@ description: Run EzPlate's checks and know what each one does not cover. Use at 
 
 # Verify
 
-Four harnesses, each blind to what the next one sees.
+Five harnesses, each blind to what the next one sees.
 Running one and reporting "tests pass" overstates what you know.
+**The fifth is not blind to the app - it is blind to nothing except the tests, which is the point: it asks whether the OTHER harnesses would notice a break.**
 
 ## Check the machine before you diagnose the code
 
@@ -24,7 +25,7 @@ The same rule applies mid-batch.
 A test that starts failing after an unrelated edit is more often the machine, a stale process or a drifted fixture than a real regression.
 Confirm the failure reproduces from a clean run before you go looking for the bug.
 
-## The four harnesses
+## The five harnesses
 
 ### 1. The suite - `npm test`
 
@@ -68,6 +69,27 @@ Drives the installed Chromium against the app from `file://`, over the specs in 
 
 Because it is outside `npm test`, nothing it depends on fails loudly.
 That is why `addProduct` is dead in the app and deliberately kept - the `fresh-states` specs have no other handle on the pid-line shape, and deleting it would fail silently.
+
+### 5. The mutation gate - would the suite NOTICE a break?
+
+```
+npm run mutate            # every target, ~12s
+npm run mutate:changed    # only what this branch touched - what the pre-push hook runs
+```
+
+Shipped in 180. It flips one operator, or deletes one call, in a listed function of `js/app.js`, runs **only the test files that claim to pin that function**, and reports any mutant that survived.
+A survivor means those tests would still be green with that line broken - the defect class this repo has shipped **twelve** times (`CLAUDE.md`'s roster).
+
+**Run it whenever you write or change a test**, not only before pushing. It answers in seconds the question the rules make you ask by hand: *would this test FAIL if I broke the thing it names?*
+
+- The list of what is covered, and every deliberate survivor with its reason, is `tests/mutation/targets.js`. **Adding a target is normal work** - do it when you write a test you would be uneasy to see deleted.
+- A survivor is fixed by an ASSERTION, or by an allowance with a reason someone could disagree with. The gate fails on a survivor with neither, and equally on an allowance that is no longer needed.
+- It mutates a throwaway copy in the OS temp directory. It never touches the working tree.
+
+**What it cannot see, which is most things:** a wrong premise, a comment whose stated mechanism is backwards, a control that does nothing, anything in CSS, anything Playwright covers, anything server-side. It is one narrow, mechanical check.
+
+**Where it runs, and which half you can rely on.** The pre-push hook is the fast local copy and it needs `git config core.hooksPath .githooks` once per clone, so a fresh clone runs nothing and looks identical to a clone that passed. The `unit` CI job runs the full `npm run mutate` unconditionally, and **that is the half that actually holds.**
+`tests/mutation-gate.test.js` proves it can go red as well as green, because a gate that always passes is the same defect one level up.
 
 ## What none of them cover
 
@@ -118,7 +140,7 @@ Only the phone tells you whether it feels right.
 
 ## Before opening the PR
 
-Suite green · `node -c` clean · smoke if anything renders · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
+Suite green · `node -c` clean · `npm run mutate` green if you wrote or changed a test · smoke if anything renders · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
 
 Open the PR when the diff is **final**.
 **No review fires on its own** - the workflow is on demand since 8 Aug 2026, by manual run or the `deep-review` label.

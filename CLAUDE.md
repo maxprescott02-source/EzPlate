@@ -231,18 +231,26 @@ A test that re-implements a shipped function in order to test around it **passes
 
 **The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
 
-**SEVEN incidents, one remedy** (was "four" until 12 Aug 2026; corrected by AUDIT-v156, which found three more):
+**TWELVE incidents, one remedy.** (Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, and `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
 
 - **v113** - a passthrough stub hid a real escaping bug.
 - **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
 - **140** - a stub mirrored `fmtTargetPct` wrongly and hid a `30%%`.
 - **141** - a hand-rolled `esc` was missing `>`; the fix was to use the app's own `esc`, which is what v113 had already concluded.
-- **172** - a test pinning an ordering scanned `js/app.js` only, because `loadApp()` does, so it could never have failed on the case it named.
+- **162** - an assertion searched a job block for a filename it had extracted from that same block a line earlier, so the `||` chain ended in a tautology. **In the test file written to police this class.**
+- **167 (a)** - an order-only assertion stayed green against an INVERTED guard: it matched three substrings and checked their left-to-right order, which flipping the condition does not disturb.
+- **167 (b)** - an assertion looked for a fragment at the END of a handler's source, and there is always code after it, so it passed whatever the branch did.
+- **172** - a test pinning an ordering scanned `js/app.js` only, because `loadApp()` does, so it could never have failed on the case it named (the resolver runs in `index.html`).
+- **173** - the counter in `uid` was masked by real `crypto`: freezing `_uidSeq` at a constant left all five uniqueness tests green, because 41 bits of entropy hide a broken counter at those sample sizes.
+- **174** - `S.purges` was read but never incremented, so the line asserting it could not fail.
 - **175** - a spec wrapped its comparison in `if (rows.mk.length)` while `boot()` never seeded the data, so the loop never ran. **Caught by the pre-push review, not by the batch.**
 - **176** - a truncation test went vacuous when the fix removed the pressure its own precondition assumed.
 
-**The last three are a WIDER failure than a stub**, and that is the point of recording them here: 141 and before were copies that disagreed with the real function; 172, 175 and 176 were tests whose assertion **never executed at all**. Same green, same false assurance, and no stub involved.
+**Most of these are a WIDER failure than a stub**, and that is the point of recording them here: 141 and before were copies that disagreed with the real function; 162, 167, 172, 173, 174, 175 and 176 were tests whose assertion **never executed, or could not distinguish right from wrong**. Same green, same false assurance, and no stub involved.
 **So the check is not "did I hand-roll a copy" but "would this test FAIL if I broke the thing it names?"** Answer it by breaking the thing and watching it go red - the only proof that costs one minute and settles it.
+
+**Since 180 that check is MECHANISED for the code most likely to need it: `npm run mutate`.** It flips one operator (or deletes one call) in a listed function of `js/app.js`, runs ONLY the test files that claim to pin it, and reports any mutant that survived. `tests/mutation/targets.js` holds the list and the allowances; `.githooks/pre-push` runs the changed-scope version alongside `npm test`.
+**It is not a substitute for the reasoning above and it is deliberately not repo-wide** - it cannot see a wrong premise, a backwards comment or a control that does nothing, which is what the `code-review` agent is for. What it removes is the excuse: the answer to "would this fail?" is now one command for anything on that list.
 
 **If a stub is genuinely unavoidable, assert the stub against the real function first** - one test that they agree - so the copy cannot drift silently.
 This is the same family as **"a test that records call ORDER passes against the broken code"** above and as `addProduct`: the failure is never a red test, it is a green one.
@@ -485,6 +493,11 @@ The option he chose was worded "the current pre-push review is enough", so this 
 It also means the convention above is the whole mechanism, permanently - **the pre-push agent is the only thing standing between a mistake and production.**
 On the day it was decided that agent caught a four-word change that would have silently discarded a plate's category edit, with the suite green and the change already driven in a browser.
 
+- **The mutation gate - MECHANICAL.** It covers exactly one thing: a test that would still pass with the code it names broken. See Tier 1's twelve-incident roster for why that one thing earned automation.
+  **It runs in TWO places and only the second one is a mechanism.** `.githooks/pre-push` runs `npm test` then `npm run mutate:changed`, and needs `git config core.hooksPath .githooks` once per clone - **so a fresh clone runs no gate at all and looks exactly like a clone that passed it.** That is why the `unit` CI job also runs the full `npm run mutate` unconditionally, where nothing has to be installed and nothing can be forgotten.
+  The hook is the fast local copy; **CI is the one that actually holds.**
+  **A survivor is not a suggestion.** Kill it with an assertion, or write the allowance and its reason into `tests/mutation/targets.js` - the gate fails on a survivor with neither, and equally on an allowance that is no longer needed.
+  `git push --no-verify` bypasses it. **If you use it, say so in the handover** - an unexplained skip is the silence the gate replaced.
 - **The `code-review` agent - MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green.
   **Force it onto a DIFFERENT model from the one running the batch** - a model reviewing its own work is not a second reader - and **never show it the brief**: it judges whether the code is CORRECT, not whether it matches what was asked.
   It has the better record - four real defects on v114 alone, one of which would have broken every restore.

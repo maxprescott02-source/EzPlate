@@ -65,6 +65,7 @@ function sandbox(seed) {
     ${extractFn(SRC, 'packToUnitCost')}
     return {
       setProduct: setProduct,
+      logIngPrice: logIngPrice,                                 // 180: exposed so the SECOND guard can be driven directly — see [7]
       newProductRecord: newProductRecord,
       invUnitToBase: invUnitToBase,
       unitToBaseFields: unitToBaseFields,
@@ -286,4 +287,44 @@ test('every point that lands in memory is also flushed — none is stranded', ()
   assert.equal(s.pushedPoints.length, 3, 'three points, three server inserts');
   assert.deepEqual(s.pending(), [], 'the pending queue is empty — nothing waiting on a later flush');
   assert.deepEqual(s.pushedPoints.map((p) => p.v), [0.013, 0.014, 0.6]);
+});
+
+/* --------------------------------------------------------------------------
+ * [7] logIngPrice's OWN guard, driven directly (180).
+ *
+ * CLAUDE.md: "Its condition is the PREVIOUS STORED price, not the last logged point — two separate
+ * guards, deliberately not merged." Everything above drives the FIRST guard, through setProduct.
+ * The second one is unreachable that way: setProduct short-circuits before calling logIngPrice
+ * whenever the stored price has not moved, so the dedupe inside logIngPrice never runs in those
+ * tests. The mutation gate proved it — flipping `return false` to `return true` there, and `!=` to
+ * `==`, changed nothing any assertion in this file could see.
+ *
+ * The RETURN VALUE is the thing to assert, not just the array: setProduct spends it
+ * (`… && logIngPrice(id, now)) saveIngLog()`), so a wrong `true` strands a point by flushing the log
+ * when nothing was added, and a wrong `false` leaves a real point unflushed — the v91 failure.
+ * ------------------------------------------------------------------------ */
+
+test('[7] a blank field is refused and returns false — isFinite(\'\') is TRUE, so the type check is the guard', () => {
+  const s = sandbox(SEEDED);
+  assert.strictEqual(s.logIngPrice('P0004', ''), false, 'refused, and it must SAY so — the caller flushes on true');
+  assert.strictEqual(s.logIngPrice('P0004', null), false);
+  assert.strictEqual(s.logIngPrice('P0004', undefined), false);
+  assert.strictEqual(s.logIngPrice('P0004', '12.20'), false, 'a numeric STRING is still not a number');
+  assert.strictEqual(s.logIngPrice(null, 0.0122), false, 'and a missing product id is refused too');
+  assert.deepEqual(s.points('P0004'), [], 'nothing was fabricated at $0.00');
+});
+
+test('[7] zero is a legitimate price and IS logged — the guard is on the type, not on truthiness', () => {
+  const s = sandbox(SEEDED);
+  assert.strictEqual(s.logIngPrice('P0277', 0), true);
+  assert.deepEqual(s.points('P0277').map((p) => p.v), [0], 'P0277 really does cost 0');
+});
+
+test('[7] the same observation twice adds ONE point, and the second call returns false', () => {
+  const s = sandbox(SEEDED);
+  assert.strictEqual(s.logIngPrice('P0004', 0.0122), true, 'first observation lands');
+  assert.strictEqual(s.logIngPrice('P0004', 0.0122), false, 'the repeat is not a new observation');
+  assert.equal(s.points('P0004').length, 1, 'and no second point was written');
+  assert.strictEqual(s.logIngPrice('P0004', 0.0130), true, 'a real move still lands');
+  assert.deepEqual(s.points('P0004').map((p) => p.v), [0.0122, 0.0130]);
 });

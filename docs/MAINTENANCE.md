@@ -134,8 +134,20 @@ Requirements: stop the harness registering a service worker at all. `tests/visua
 ⚠️ **Do not measure this with a green suite** — that is the mistake the previous item's own probes would have made. Use the reproducer.
 ⚠️ It changes what the specs exercise, and that must be a decision rather than a side effect: no spec asserts anything about the service worker today, but the boot path they drive would no longer include registration. If that is wanted somewhere it wants ONE spec that tests it deliberately, not 209 that do it by accident.
 
-### ~~Mutation testing (Stryker)~~ — **MOVED to `docs/QUEUE.md` as item 1, 13 Aug 2026 (Max)**
-Do not re-add it here. It was C for four audits on the argument that the batches catch their own vacuous tests; Max counted **ten** across 165–176 and promoted it himself, rescoped from a report into a pre-push gate. The item, its evidence and its requirements are in the queue.
+### ~~Mutation testing (Stryker)~~ — **SHIPPED as the pre-push gate, batch 180**
+Do not re-add it. It was C for four audits on the argument that the batches catch their own vacuous tests; Max promoted it himself on 13 Aug 2026, rescoped from a report into a gate, and it shipped the same day as `tests/mutation/` + `.githooks/pre-push`. **Not Stryker** — it rewrites source from its own AST, which breaks every anchor `tests/_extractfn.js` slices by, so the whole suite would go red on mutant #1 and report 100% killed. `tests/mutation/mutate.js` has that reasoning at the top.
+
+### Bring `gemApplyReadings` under the mutation gate
+**Measured, not guessed: 44 of its mutants survive `tests/invoice-gate.test.js`** (180's first run). That file pins exactly one property of the referee's merge orchestrator — a row the user has already ruled on is skipped whole — and nothing else. The candidate map, the taught-pack short-circuit, the history lookup and every rule-table branch are unpinned.
+It is listed in `tests/mutation/targets.js` under `pending` with that count, deliberately outside `targets` so the gate does not exit 1 on `main`: **a gate nobody can satisfy gets disabled, which is worse than one target short.**
+Requirements: enough coverage of `gemApplyReadings` that its mutants die against a named test file, then move the line from `pending` into `targets` in the same change. `tests/inv-gemini-merge.test.js` already owns the pure `gemMergeLine` rule table — this is about the orchestration around it, so do not duplicate that.
+⚠️ It is a **fragile area** in `CLAUDE.md` (the invoice review and the referee), so read the existing tests first and pin conditions, not structure.
+Note the honest scope: 44 surviving mutants is the size of the gap, not the number of tests needed — one good case usually kills several.
+
+### More functions on the mutation gate's target list
+`tests/mutation/targets.js` covers 17 functions: the price guards, the invoice referee's decisions, the publish/delete guards, the write sequence and the row boundary. That is the code this project has already been burned on, and it is a starting scope rather than a finished one.
+Obvious next candidates, each load-bearing and each with a test file it would be uneasy to lose: `resolveMatchedPrice` and `applySupplierMemory` (read-only — `CLAUDE.md` forbids editing them, which does not forbid mutating a copy in the sandbox), `gemMergeLine`, `invRowState`'s callers in `renderInvReview`, `computeAvgFoodCost`, `bootGate`, `purgeLocalState`.
+Requirements: add them one or two at a time, triage every survivor in the same change, and keep the full run in the low tens of seconds — the gate's value is that people actually run it.
 
 ### An eval harness for the invoice reader
 The invoice path is the app's highest-stakes surface and its only AI one, and **there is no way to tell whether a parser or prompt change made it better or worse.** `tests/invoice-gate.test.js` and `tests/inv-gemini-merge.test.js` pin specific decisions on hand-written inputs; neither measures accuracy over a corpus. So every change to `resolveMatchedPrice`, the taught-pack precedence or the Gemini prompt is judged by whether the unit tests still pass and whether one invoice looked right.

@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# EzPlate pre-push gate. Two checks, both deterministic, both a few seconds.
+#
+#   1. npm test          — the suite must be green.
+#   2. mutate --changed  — every test file or target function this branch touched must still KILL
+#                          the mutants of the code it claims to pin.
+#
+# WHY (2) EXISTS. A test that cannot fail is this project's most common defect class: ten instances
+# across batches 165-176, several written INSIDE the file that warns about the pattern. A rule in a
+# context file is advice a model can reason past; this is not. `tests/mutation/targets.js` says which
+# functions are covered and which test files claim them.
+#
+# It is NOT a substitute for the `code-review` agent, which is mandatory and reads for the things no
+# mutant can see: a comment whose stated mechanism is backwards, a premise that is wrong, a control
+# that does nothing.
+#
+# INSTALL (once per clone — hooks are not carried by git):
+#   git config core.hooksPath .githooks
+#
+# ESCAPE HATCH: `git push --no-verify`. If you use it, say so in the handover — an unexplained
+# skip is the same silence this gate replaced.
+
+set -e
+
+echo "pre-push 1/2: npm test"
+npm test --silent
+
+echo "pre-push 2/2: mutation gate (changed scope)"
+node tests/mutation/run.js --changed

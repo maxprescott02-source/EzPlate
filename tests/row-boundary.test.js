@@ -233,3 +233,30 @@ test('supplier phrases round-trip, and qty comes back numeric', () => {
   assert.strictEqual(typeof back.qty, 'number');
   assert.strictEqual(back.supplier, 'Bidfood', 'the supplier is the memory key — it must not drift (v107)');
 });
+
+/* ---------- 6. the fields the round-trip tests do not look at (180) ----------
+
+   rowToMenu is five fallbacks on one line, and two of them were unpinned: the mutation gate turned
+   `r.notes||''` and `r.source_plate_id||null` into `&&`, which discards the value in both cases, and
+   nothing here failed. Both are load-bearing at the boundary CLAUDE.md calls out — `buildBackup`
+   dumps these in-memory objects verbatim, so a field this mapper drops is a field the backup file
+   does not contain and a restore cannot put back. */
+
+test('180: notes survive the boundary, and a null one arrives as an empty string', () => {
+  const withNotes = B.rowToMenu({ id: 'MI1', name: 'Fish & Chips', price: 22, notes: 'no lemon' });
+  assert.strictEqual(withNotes.notes, 'no lemon', 'a dish note is user-authored content, not decoration');
+
+  const without = B.rowToMenu({ id: 'MI2', name: 'Chips', price: 6, notes: null });
+  assert.strictEqual(without.notes, '', 'null becomes the empty string the editor can render');
+});
+
+test('180: sourcePlateId is carried through in its OWN right, not only as a plateId fallback', () => {
+  // plateId falls back to source_plate_id, so a test that reads only plateId cannot tell whether
+  // sourcePlateId itself survived. It has to: it is the legacy link, and dropping it here would
+  // rewrite it out of the next backup with every row still apparently present.
+  const m = B.rowToMenu({ id: 'MI3', plate_id: 'NEW', source_plate_id: 'OLD' });
+  assert.strictEqual(m.plateId, 'NEW');
+  assert.strictEqual(m.sourcePlateId, 'OLD', 'both links are preserved, not collapsed into one');
+
+  assert.strictEqual(B.rowToMenu({ id: 'MI4', plate_id: null, source_plate_id: null }).sourcePlateId, null);
+});
