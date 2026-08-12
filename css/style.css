@@ -3547,8 +3547,11 @@ html{scrollbar-gutter:stable}
    ⚠️ SPECIFICITY COUNTED, not assumed (CLAUDE.md's @media trap): this is 0-3-0 — two classes plus
    the attribute inside `:not()` — against `.plib-search`'s 0-1-0 and `.plib-selwrap`'s 0-1-0, and
    it is written OUTSIDE any media query so nothing at a breakpoint has to out-specify it.
-   With every child gone and the padding dropped, a flex row collapses to zero height, which is what
-   `hidden` gave. Above 768 the action is back in the header and the row collapses exactly as before.
+   With every child gone and the TOP padding dropped, the row measures zero height — which is the
+   part of `display:none` that mattered here, and it is stated that narrowly on purpose: the
+   horizontal padding is still there, so this is a zero-HEIGHT box and not literally an absent one.
+   Nothing is painted in it (no border, no background), so the two are indistinguishable on screen.
+   Above 768 the action is back in the header and the same collapse applies.
    NOT `[hidden]`: this row must keep rendering when it holds a visible action, and the two states
    are different questions — `hidden` still means "this row is not here at all". */
 .plib-controls.is-nofilters > :not([data-mobile-home]){display:none}

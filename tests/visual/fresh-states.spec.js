@@ -1237,7 +1237,10 @@ for (const size of SIZES) {
       expect(st.rehomed, 'the rehomed action is in the row').toBe('menuSwitchRow');
     } else {
       expect(st.rehomed, 'at desktop the action is back in the header…').toBe('');
-      expect(st.switchRowH, '…so the emptied row collapses to nothing, exactly as `hidden` did').toBe(0);
+      /* Zero HEIGHT, which is the part of the old `hidden` that was ever observable. The row keeps
+         its horizontal padding and is not literally absent — nothing paints in it, so the
+         difference is unobservable, and the assertion says height rather than implying more. */
+      expect(st.switchRowH, '…so the emptied row measures zero height').toBe(0);
     }
     expect(st.filters, 'no filter row over zero rows').toBe(false);
     expect(st.band, 'no column band over zero rows').toBe(false);
