@@ -130,6 +130,20 @@ select
 
 The `__ezplate%` exclusions are what let the marker be the one deliberate difference. **Anything else that differs is drift, and the mirror is stale.**
 
+### ⚠️ `columns_fp` includes `ordinal_position`, and DROPPING a column does not give its number back
+
+Found in batch 181 by rehearsing a migration's rollback on staging, which is exactly what this file tells you to do.
+
+`information_schema.columns.ordinal_position` is `pg_attribute.attnum`, and **Postgres never reuses the attnum of a dropped column** — a dropped column leaves a permanent tombstone in the catalogue. So `drop column` followed by `add column` puts the column back one position higher, forever.
+
+The effect: after rolling a migration back on staging and re-applying it, **`columns_fp` differed from production while the other six fingerprints matched**, with the same column COUNT on both sides. Nothing was functionally wrong — `business_id` was still last on both, so `restore_backup`'s `select *` ordering was unaffected — but the mirror's only drift detector was permanently red, and a detector that is always red is one nobody reads.
+
+**So:**
+
+- **A `columns_fp` mismatch with a matching COUNT usually means positions, not columns.** Diff the column lists before concluding the mirror is missing something — the query at the top of this section with the `md5(s), s` per row shows which rows differ.
+- **The fix is to recreate the affected tables, not to re-run `01-schema.sql`** — `create table if not exists` skips an existing table, so it cannot renumber anything. Batch 181 dropped the ten data tables with `cascade` and recreated them from sections 1–5, then re-added the tenant column and re-seeded; fresh tables reproduce production's positions exactly because section 1 lists the columns in production's final order.
+- **Rehearsing a rollback is still right.** It is how 181 found that its own stated rollback was broken — the policy on `businesses` reads `business_members`, so the drop order in the header failed outright. Just rebuild the tables afterwards rather than leaving staging one position out.
+
 ---
 
 ## What staging does NOT rehearse
@@ -146,7 +160,9 @@ Written down because a rehearsal you over-trust is worse than none.
 
 ## Current state
 
-Left on the **scale seed** at the end of batch 172 (520 products, 12 menus, 180 plates, 429 dishes). Run `02` or `03` to change it — nothing in staging is worth preserving, which is the point of it.
+Left on the **scale seed** at the end of batch 181 (520 products, 12 menus, 180 plates, 429 dishes). Run `02` or `03` to change it — nothing in staging is worth preserving, which is the point of it.
+
+⚠️ **Batch 181 restored Max's REAL 412-product export into staging as part of rehearsing `business_id`, and then reloaded the scale seed to get rid of it.** Do the same if you ever need the real file here: staging's anon key is public in `index.html` and its policies are all `using (true)`, so anything left in it is readable by anyone who reads the page. **Staging is synthetic by contract, and a rehearsal that needs real data ends by wiping it.**
 
 ### Already rehearsed here, on 11 Aug 2026
 
@@ -155,3 +171,8 @@ Recorded because these are the first things staging has ever been used for, and 
 - **`restore_backup` end to end as the anon client** — correct counts returned; every dish came back linked to its plate; plates inserted with `menu_id` null; one plate correctly on two menus. **Zero dishes with a null plate link** — the signature of the failure that once cost 76 of 77 dishes.
 - **Both refusal paths, by name** — format `1` refused, and a missing group named as `ing_price_history`.
 - **A restore into a genuinely EMPTY database.** This is *step 3 of the v110 destructive plan*, which the queue records as never having been run. It now has been — against staging, at zero risk, with identical counts and links to the populated case. That does not discharge the queue item, which is about production and still needs Max's go on the day, but it means the step is no longer being attempted for the first time on real data.
+
+### And on 13 Aug 2026 (batch 181), the `business_id` additive migration
+
+- **The real file, end to end, as the anon client.** Max's 412-product format-3 export was translated through the app's own `backupToPayload` and POSTed to `restore_backup` over PostgREST: 412 products, 79 plates, 76 dishes, 2 menus, 7 taught packs, in **1.6s** against the RPC's 30s `statement_timeout`. That is the first time the real file has gone through the RPC anywhere, and it de-risks the queue's *restore full-wipe step* further — though it still does not discharge it, because staging is not production and the boot gate was not exercised mid-restore.
+- **A NEGATIVE result worth more than the positive one.** With the new `set_business_id` trigger dropped from `ingredients` only, the same restore left **all 412 products with a null `business_id`** while `plates` (trigger intact) had none. That is the measurement behind the migration's design: `restore_backup`'s `select *` inserts turn an absent JSON key into an EXPLICIT NULL, which overrides a column DEFAULT. **A column added to any of those five tables with a DEFAULT and no trigger is silently wrong on the next restore.**

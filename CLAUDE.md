@@ -108,6 +108,20 @@ Two groups have **no row mapper and that is not an oversight**: `kitchen_ingredi
 Change what fills them and you have changed the file format without touching the exporter - silently, with the tests still green.
 **Any change to what `bootstrapSync` puts in memory is a change to the backup format, and must bump `stamp.format`.** `parseBackupFile` accepts formats 2 and 3 and refuses everything else by name; it refuses format 1 outright because the literal needed to tell a delta from a snapshot was deleted.
 
+## A column DEFAULT does not survive the restore
+
+`restore_backup` inserts five tables as `insert into <t> select * from jsonb_populate_recordset(null::<t>, …)` — **no column list**.
+`jsonb_populate_recordset` yields the table's whole column list, and **an absent JSON key becomes an EXPLICIT NULL, which OVERRIDES a column DEFAULT rather than falling back to it.**
+That migration says so at its own site, which is why every one of those inserts is followed by an `update … where <col> is null` backfill.
+
+**So adding a column with a DEFAULT to `ingredients`, `menus`, `plates`, `menu_items` or `supplier_phrases` gives you the default everywhere EXCEPT after a restore**, where every row lands null — and the restore still returns success with the right row counts.
+The three other restore paths (`ing_price_history`, `menu_change_log`, `app_settings`) name their columns and are safe.
+
+**Measured, not reasoned** (13 Aug 2026, staging, on Max's real 412-product export): with the `set_business_id` trigger dropped from `ingredients` only, all 412 restored products came back null while `plates` came back correct.
+
+**The remedy that cannot be forgotten is a `BEFORE INSERT` trigger**, not a fix to the five inserts — because the next batch to rewrite `restore_backup` would have to remember the fix again. `set_default_business_id` + ten `set_business_id` triggers is the working example.
+⚠️ **The general law is wider than one column:** any DEFAULT you add to those five tables is a claim that holds on every path except the one that runs after a disaster, which is the path nobody exercises.
+
 ## `ingredients.updated_at` is not history
 
 It means nothing.
@@ -142,7 +156,11 @@ Do not tidy it away.
 Also: **an anon UPDATE or DELETE returns 204 with NO error** and touches nothing.
 A caller checking only for an error would believe it had written.
 
-## Three foreign keys, and only one can ever error
+## Three foreign keys between the DATA tables, and only one can ever error
+
+⚠️ **This heading said "Three foreign keys" until 13 Aug 2026, and the live count is now FIFTEEN** (batch 181 added `business_id → businesses` on all ten public tables, plus two on `business_members`).
+**The three below are still the only ones that constrain the app**, which is why the section is scoped rather than rewritten: the ten tenant FKs can only raise if someone deletes a `businesses` row, and nothing does.
+Counted against the live catalogue, not inferred - and the count is stated because a reader who greps and finds fifteen needs to know which three this section means.
 
 - `menu_items.plate_id → plates.id` - **NO ACTION**.
   Deleting a plate while a dish references it raises **23503**.

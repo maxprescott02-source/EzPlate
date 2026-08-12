@@ -63,40 +63,28 @@ Do after: **`business_id` PART 2, the policy swap** — all four fixes are "pref
 
 Do after: **`business_id` PART 2, the policy swap** — for the second bullet only; the Google half needs nothing but Max, and could ship any time he creates the OAuth client.
 
-## next  3 · `business_id` on every table — **PART 1, the additive half**  **[A — launch blocker]**
-
-⚠️ **SPLIT 12 Aug 2026 (174), on reaching it and finding it too large for one reviewable PR.** Ten tables × (column + backfill + index), plus a `businesses` table, plus a membership table, plus thirteen policy rewrites, plus client changes, plus per-table client verification is not one change set — and the second half is the dangerous one, so bundling them means the safe work cannot be merged until the risky work is finished.
-
-**Part 1 is ADDITIVE ONLY and changes no behaviour.** Nothing here can make the app show less data, because no policy is touched:
-- a `businesses` table with ONE row for Scoopy's, and a `business_members` table mapping `auth.uid()` to a business (auth shipped in 174, so `auth.uid()` is real now — but **no account has to exist yet**, and Part 1 must not require one);
-- `business_id` on all ten public tables, **nullable, with a DEFAULT of the single seeded business** — the default is what stops rows written by today's client from arriving NULL and silently falling outside the Part 2 policies;
-- a backfill of every existing row to that business;
-- an index on each `business_id`.
-Requirements: staging first with `04-seed-scale.sql` loaded, then production; the two schemas must match on the `docs/STAGING.md` fingerprint afterwards; the one-statement rollback (drop the columns and the two tables) written into the migration header. Verify as the client that **nothing changed** — same row counts, same reads, writes still succeed.
-Out of scope, deliberately: any policy change, any client change, and roles.
-
-## next  4 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
+## next  3 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
 
 Replace all thirteen `using (true)` policies with `business_id`-scoped ones, one table at a time, and make the client send `business_id` on insert.
 ⚠️ **This is the half that can empty the app.** RLS with no matching policy returns **200 and an empty array, not an error**, so a mistake here looks exactly like "all my data is gone" — and on production that is Max's café. Every table is verified AS THE CLIENT over PostgREST before the next one starts.
 ⚠️ **What staging still cannot rehearse:** neither project has more than one user, so these policies can be proved to RUN and to let the right rows through — not that a second tenant is correctly EXCLUDED. That needs two accounts and belongs to the first real multi-tenant test.
-Do after: **`business_id` PART 1** — the column, the default and the backfill must exist and be proven before anything keys off them, or the first policy applied locks the client out of a table whose rows have no owner yet.
+*(`Do after: business_id PART 1` DELETED 13 Aug 2026 — PART 1 shipped in batch 181 as `20260813_business_id_part1.sql`, applied to staging and production, ten tables carrying the column with zero null rows. **Read its header before writing PART 2**: the tenant is filled by a BEFORE INSERT trigger as well as a column DEFAULT, and PART 2 replaces that function's BODY with a membership lookup rather than deleting the triggers.)*
 
 ### Notes shared by both `business_id` parts
 
 Requirements: staged, one table at a time, each migration verified before the next.
 ⚠️ **RLS with no matching policy returns 200 and an empty array, not an error — a policy mistake looks exactly like "no data".** And an anon UPDATE or DELETE returns 204 with no error and touches nothing, so **verify AS THE CLIENT over PostgREST with `Prefer: return=representation`**, never through the MCP, which bypasses RLS entirely.
 Note **`menus` no longer starts from RLS OFF** — corrected 8 Aug 2026 when `20260808_menus_rls.sql` was applied. All **ten** public tables now have RLS on with at least one policy, so no table needs ENABLING as well as policying; they all need their permissive `using (true)` policy REPLACED with a `business_id` one. *(Was "eleven" until 172; `20260809_drop_kitchen_items.sql` had already made it ten and the count was never updated. Counted against the live catalogue, not inferred.)*
-✅ **Rehearsable as of 172** — `supabase/staging/01-schema.sql` reproduces all thirteen policies under production's exact policy NAMES, which is what this item will look them up by. Rehearse each table's swap there first; `docs/STAGING.md` has the procedure and the fingerprint query that proves the two schemas still match afterwards.
+✅ **Rehearsable as of 172** — `supabase/staging/01-schema.sql` reproduces all thirteen policies under production's exact policy NAMES, which is what this item will look them up by. *(Both projects now carry **fifteen** policies after 181, but the two extra are on `businesses` and `business_members` and are not yours to replace — the thirteen `using (true)` ones on the ten data tables are still exactly the set this item swaps.)* Rehearse each table's swap there first; `docs/STAGING.md` has the procedure and the fingerprint query that proves the two schemas still match afterwards.
 ⚠️ **What staging CANNOT rehearse here, stated so it is not over-trusted:** neither project has any users, so `anon` is the only role either has ever been exercised as. This item's policies are the first that will distinguish roles, and staging can prove they RUN and that the client sees what it should — not that a second tenant is correctly excluded, which needs auth first.
 
-## next  5 · Roles — owner vs staff  **[A — launch blocker]**
+## next  4 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
 Do after: **`business_id` PART 2, the policy swap** — roles are enforced in the same policies, so they are written once or twice.
 
-## next  6 · Onboarding and empty states  **[A — launch blocker]**
+## next  5 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -104,7 +92,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  7 · The privacy gate  **[A — launch blocker]**
+## next  6 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -112,18 +100,18 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  8 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  7 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  9 · Gate review before public signup  **[A — launch blocker]**
+## next  8 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## next  10a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  9a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -153,10 +141,11 @@ Requirements:
 - A new `restore_backup` migration inserts both **additively with dedup**, mirroring `ing_price_history` — never deleting them, so restoring an old file cannot erase newer points.
 - ⚠️ **The wire `format` declares what the PAYLOAD CONTAINS, not which build sent it.** Send 4 only when there is something new to carry, exactly as the existing `chg.length?3:2` does, or every restore breaks between the client shipping and the migration being applied.
 - Rehearse on staging first per `docs/STAGING.md`, then production.
+- ⚠️ **Both tables now carry `business_id` (batch 181), so your new inserts must not reintroduce it as NULL.** The existing `select *` inserts get away with it only because a `BEFORE INSERT` trigger fills the column — a column DEFAULT alone does NOT survive `jsonb_populate_recordset`, which turns an absent JSON key into an explicit NULL. Your two new inserts should name their columns anyway, as the `ing_price_history` one already does, and **`pointToRow` must keep naming no column of its own** so the server stays the only thing that decides the tenant. Decide it here against `20260813_business_id_part1.sql`'s header; **answer it here, do not route it onward.**
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  10b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  9b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
 Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered THREE times: 10a → 11a when the mutation-testing gate took slot 1, and back to 10a in 180 when that gate shipped and its slot freed. **Name it, never the number** — this line is the standing evidence for why.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
@@ -176,7 +165,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  11 · Floating layers and mobile dropdowns  **[B]**
+## next  10 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
