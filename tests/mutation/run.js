@@ -145,6 +145,7 @@ function mutationRun(cfg, log) {
   let ran = 0, killed = 0;
   const started = Date.now();
 
+  try {
   for (const p of plan) {
     for (const m of p.mutants) {
       const mutated = apply(src, m, 'at');
@@ -181,7 +182,11 @@ function mutationRun(cfg, log) {
       }
     }
   }
-  fs.rmSync(sandbox, { recursive: true, force: true });   // the run owns this directory; leaving it would only invite reuse
+  } finally {
+    // The run owns this directory. Removed even when the loop throws, so a hard stop does not leave
+    // a pid-named tree behind for someone to find later and wonder about.
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
 
   const ranFns = new Set(plan.map((p) => p.target.fn));
   const stale = (cfg.allow || []).filter((a) => {
