@@ -345,6 +345,18 @@ test('revealing the Gemini credit shifts nothing below it', async ({ page }) => 
      test passed while verifying nothing at all. */
   expect(await page.locator('.ins-line').count(), 'the seed must earn its panel').toBeGreaterThan(0);
 
+  /* ⚠️ WAIT FOR THE FONTS BEFORE MEASURING. This test compares two `getBoundingClientRect().top`
+     values with STRICT equality across a 150ms window, and Geist/Geist Mono load async — a face
+     that swaps inside that window changes text metrics and moves `.dash-row2` by a fraction of a
+     pixel, failing an assertion about the credit's line box for a reason that has nothing to do
+     with it. Seen once in a full 289-spec run at 2 workers on 12 Aug 2026, and never in five
+     isolated runs, which is the signature of a race rather than a regression.
+     The nondeterminism is REMOVED rather than absorbed into a tolerance: the claim really is
+     "nothing moves at all", and the defect it guards against (the credit's line box being
+     reserved, or the credit falling back into the flow) moves things by more than 14px. Widening
+     to a sub-pixel tolerance would keep the test passing and quietly stop it being about zero. */
+  await page.evaluate(() => document.fonts && document.fonts.ready);
+
   const before = await page.evaluate(() => ({
     hidden: document.querySelector('#dashInsPanel .ins-credit').hidden,
     band: document.querySelector('#dashInsPanel .ds-head').getBoundingClientRect().height,

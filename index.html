@@ -374,8 +374,22 @@
     <!-- mock §6's sticky mobile summary bar, above the tab bar. 177: it now carries SAVE, because
          the header no longer does and the rail's copy sits below the whole docket on a phone. Its
          action is Save, not the mock's "Set price": this app's price is per MENU (a plate can be on
-         many), so there is no single price to set from here. -->
-    <div class="bld-bar" id="bFootSum"></div>
+         many), so there is no single price to set from here.
+         ⚠️ THE BUTTON IS STATIC MARKUP AND THE FIGURES ARE NOT, which is a correctness fix rather
+         than a tidy-up (pre-push review, 177). The first cut rebuilt this whole bar's innerHTML from
+         renderBuilderCost — which runs from updateTotals() on EVERY qty keystroke, and again from
+         #bPrice's own blur handler. That was harmless while the bar held only figures and is not
+         harmless now that it holds the screen's one primary action on a phone: tapping Save while
+         the price field has focus fires blur FIRST, which would replace #bldSaveBar between
+         touchstart and touchend, and a touch browser drops the click when its target is swapped
+         mid-gesture. The user's report would be "I tapped Save and nothing happened".
+         So the button is created once, wired once (beside #saveBtn), and never re-rendered; only
+         #bFootFigs and #bFootLine are written. -->
+    <div class="bld-bar" id="bFootSum" hidden>
+      <div class="bfs-figs" id="bFootFigs"></div>
+      <button class="btn primary bfs-save" id="bldSaveBar" type="button">Save plate</button>
+      <div class="bfs-line" id="bFootLine"></div>
+    </div>
     <select id="menuLink" style="display:none" aria-hidden="true"></select>
   </div><!-- /builderPage -->
 

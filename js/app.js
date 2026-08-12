@@ -1261,9 +1261,14 @@ function renderBuilderCost(tot){
      is an orphaned product costs $0.00 and is still work worth saving, and that user would have had
      no Save on a phone at all. Figures still wait for a real cost; an empty plate still shows
      nothing, because a bar over an empty docket is chrome. */
+  /* ⚠️ ONLY THE FIGURES ARE WRITTEN HERE. #bldSaveBar is static markup and is wired once, beside
+     #saveBtn — see the markup comment in index.html for why. This function runs from updateTotals()
+     on every qty keystroke and again from #bPrice's blur handler, so anything it rebuilds is
+     rebuilt mid-gesture; a primary action cannot be one of those things. */
   var foot=document.getElementById('bFootSum');
-  if(foot){
-    if(!plate.length){ foot.innerHTML=''; foot.hidden=true; }
+  var footFigs=document.getElementById('bFootFigs'), footLine=document.getElementById('bFootLine');
+  if(foot && footFigs && footLine){
+    if(!plate.length){ footFigs.innerHTML=''; footLine.innerHTML=''; foot.hidden=true; }
     else{
       foot.hidden=false;
       var figs='', line;
@@ -1282,12 +1287,8 @@ function renderBuilderCost(tot){
         figs='<div class="bfs-fig"><span class="bfs-lbl">Plate cost</span><span class="bfs-total">'+money(0)+'</span></div>';
         line='no costed ingredients yet';
       }
-      foot.innerHTML=figs
-        +'<button class="btn primary bfs-save" id="bldSaveBar" type="button">Save plate</button>'
-        +'<div class="bfs-line">'+line+'</div>';
-      // saveFromBuilder, the same function #saveBtn is bound to — not saveCurrentPlate() directly,
-      // so the two commits cannot drift on what `asNew` means.
-      var bs=document.getElementById('bldSaveBar'); if(bs) bs.onclick=saveFromBuilder;
+      footFigs.innerHTML=figs;
+      footLine.innerHTML=line;
     }
   }
   renderBuilderPublish(sp, on);
@@ -1695,7 +1696,14 @@ function saveCurrentPlate(asNew){
    one screen from the control the user needs next. The mock agrees - its builder header reports
    "Saved just now" in place, and this app now renders that line once the server confirms. */
 function saveFromBuilder(){ saveCurrentPlate(false); }
-(function(){ var sb=document.getElementById('saveBtn'); if(sb) sb.addEventListener('click',saveFromBuilder); })();
+/* Both commits, wired once, to the SAME function — not saveCurrentPlate() directly, so the two can
+   never drift on what `asNew` means. #bldSaveBar is the phone's copy in the sticky summary bar; CSS
+   paints exactly one of the two per width (see the `@media (max-width:767px)` pair on #bCost). */
+(function(){
+  ['saveBtn','bldSaveBar'].forEach(function(id){
+    var b=document.getElementById(id); if(b) b.addEventListener('click',saveFromBuilder);
+  });
+})();
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 /* menu analysis */
 function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=lineProduct(l);if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}

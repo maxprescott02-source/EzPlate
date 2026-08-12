@@ -892,12 +892,17 @@ const tick = () => new Promise(r => setTimeout(r, 0));
      driven here rather than asserted against whatever the preceding checks happened to leave on the
      plate. An empty plate showing no bar is the deliberate behaviour, and it is asserted first so
      this cannot pass by finding a leftover one. */
-  $('clearBtn').click();
-  ok('[20] an empty plate draws no summary bar at all',
-     !window.document.querySelector('#bFootSum #bldSaveBar'));
-  window.addMiscCost();
-  ok('[20] and the phone bar carries its own Save the moment there is work to commit',
+  /* The bar's Save is STATIC markup now (it was rebuilt on every keystroke, which put the primary
+     action inside a node replaced mid-gesture — see index.html). So its existence proves nothing and
+     the honest check is whether the BAR is shown, which is what renderBuilderCost decides.
+     jsdom has no layout, so `hidden` is the assertion; which of the two Saves is PAINTED at a given
+     width is geometry, and v146-builder.spec.js measures that in a real browser. */
+  ok('[20] the phone bar carries Save, and it is not rebuilt on every render',
      !!window.document.querySelector('#builderPage #bFootSum #bldSaveBar'));
+  $('clearBtn').click();
+  ok('[20] an empty plate draws no summary bar at all', $('bFootSum').hidden === true);
+  window.addMiscCost();
+  ok('[20] and the bar appears the moment there is work to commit', $('bFootSum').hidden === false);
   $('clearBtn').click();
 
   // v83 item 7 — the builder search dead end, wired end to end.
