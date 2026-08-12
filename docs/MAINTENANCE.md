@@ -330,3 +330,15 @@ Not fixed here because it is a different screen region from the one the item sco
 Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `#plateName` field in step 2, and `#editTag`'s "Editing: Fish & Chips" directly under it. Before 170 it was twice — the header field and the tag.
 `#editTag`'s real job is saying **saved plate vs new plate**, and the name is the part of its sentence that is now redundant three ways. `updateEditTag` is its one writer. It is a status label, not a control, so R3 does not apply, but the useful information in it should survive whatever is done.
 
+
+### The Playwright suite has never been audited for specs that pass against a broken app
+(Recorded 12 Aug 2026, batch 178. Declined as work in that batch because it is C by construction and the batch was already large.)
+This project has hit the vacuous-test failure **seven** times, and CLAUDE.md's own test for it is "would this test FAIL if I broke the thing it names?" - answered by breaking the thing and watching it go red.
+Nothing has ever asked that question of the 289 browser specs as a set. Two of the seven were found by accident, one batch apart, both green and both mine.
+The method is mechanical rather than clever: mutate one load-bearing thing per spec's stated subject and confirm the spec that names it goes red. A spec that survives every mutation of its own subject is the finding.
+It is also the honest answer to "is the suite carrying dead weight" - 3.8 min locally and 8.7 in CI is worth spending only on specs that can fail.
+
+### `dispPrice` returns a string its callers have to unpick
+(Recorded in `HANDOVER-176`, still true at v157.)
+Two of its four callers put the return value where markup would be wrong, so the `/kg` suffix fix wraps it rather than changing it.
+The cleaner shape is for it to return parts and let each caller compose. It touches the invoice review, so it is not a drive-by.

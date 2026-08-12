@@ -566,3 +566,20 @@ Both themes for all of it. If any of these is wrong, it is a defect in code that
 Open a plate from Plates, change a quantity, tap a unit cost to re-price it, add a misc line, save, then publish from the Publishing card.
 A failure looks like: the fixed summary bar covering the last table row, the header wrapping to three lines, Save reachable only by scrolling, or the bar sitting on top of the tab bar instead of above it.
 Only a device settles the bar's clearance - the offset is calculated against the real `.bottomnav` height plus the safe-area inset, and the emulator's inset is zero.
+
+## 178 / v157 - the docket builder, the trend row, the form measure
+
+**The builder's Save moved, and the phone reaches it a different way from the desktop.**
+The header now carries NO action: Save is in the rail's summary panel at >=768, and on a phone it is the sticky bar's own button.
+Drive a whole plate: add ingredients, set a quantity, tap a unit cost, add a misc line, set the menu price, save.
+
+- ⚠️ **Tap Save in the sticky bar WITH the menu-price field still focused.** It must commit on the first tap.
+  A failure looks like nothing happening, then working on a second tap.
+  The bar's button used to be rebuilt on every keystroke, which would swap it between touchstart and touchend; it is static markup now, but the blur-then-tap ordering is browser behaviour and only a device settles it.
+- ⚠️ **Tap the plate name in the breadcrumb header.** It must not zoom the page.
+  It is a real input wearing the title's size, and it deliberately does not override the app-wide 16px `!important` that exists to stop iOS zoom-on-focus.
+- **The install banner and the summary bar have always overlapped** (fixed at 84px and z-index 78, against the bar's 25). The bar now rides 114px while the banner is up. With the install prompt showing, confirm the Save button is fully tappable and nothing sits over it.
+- **The docket's paper is `--surface-2`,** which in dark is DARKER than the page canvas rather than lighter. That is the mock's own choice. Confirm it reads as paper on a table rather than as a hole in the screen.
+- **The tear-off zigzag** is drawn with gradients. Check it does not shimmer or alias badly on a real panel.
+
+Both themes. If any of these is wrong it is a defect in code that is already live.
