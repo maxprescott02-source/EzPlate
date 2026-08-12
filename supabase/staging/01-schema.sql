@@ -341,6 +341,16 @@ create policy "members read their business"
 -- non-member. `security definer` so the answer depends on the data rather than
 -- on business_members keeping a select policy forever; `set search_path = ''`
 -- because a mutable one on a definer function is an escalation path.
+--
+-- ⚠️ THE BODY BELOW MUST STAY BYTE-IDENTICAL TO THE MIGRATION'S, COMMENTS AND
+-- ALL. `pg_get_functiondef` returns the stored source text, and the seven-value
+-- fingerprint in docs/STAGING.md hashes it — so an explanatory comment added
+-- INSIDE these dollar quotes here and not there makes the two schemas differ
+-- forever, and the only drift detector this project has goes permanently red.
+-- That is why the reasoning for the `order by` lives up here instead: one user
+-- may belong to two businesses, and without it the row that wins is whatever
+-- the planner returns first. It makes the choice stable, not correct — which
+-- café a two-café person should see is the roles item's to decide.
 create or replace function public.current_business_id()
 returns uuid
 language sql
@@ -354,6 +364,7 @@ as $fn$
     else (select m.business_id
             from public.business_members m
            where m.user_id = auth.uid()
+           order by m.created_at, m.business_id
            limit 1)
   end;
 $fn$;

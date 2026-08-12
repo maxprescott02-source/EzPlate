@@ -42,6 +42,11 @@
 --     gets from the day their row exists: a second café's data is invisible to
 --     the public anon key, because that key resolves to the legacy business and
 --     never to theirs. Proved on staging with two real accounts — see REHEARSED.
+--     ⚠️ READ THAT AS ISOLATION, NOT AS "MULTI-TENANCY WORKS". Reads are scoped
+--     on all ten tables and cross-tenant writes are refused, both measured. But
+--     a second tenant cannot save a SETTING at all — see the last REHEARSED
+--     bullet — so this database can keep two cafés apart before it can carry
+--     two cafés. The gap is one queue item and it is named there.
 --   * The third case is a designed empty state, not a bug: an account with no
 --     membership row sees NOTHING and can write nothing. Supabase sign-ups are
 --     open at the API level by default, so a stranger who signs up with the
@@ -175,12 +180,25 @@
 --     ANOTHER tenant's business_id would be REJECTED by `with check` rather than
 --     silently restored into the wrong café, because the trigger fills only
 --     nulls and never overwrites.
---   * KNOWN AND DELIBERATELY NOT FIXED HERE: a second tenant cannot restore a
---     file containing `app_settings`, because `app_settings.key` is the primary
---     key and is global. Measured — it fails 42501 on the USING expression,
---     LOUDLY, which is the acceptable failure. That is exactly the queue's
---     "Unique ID generation — the SEMANTIC KEYS half", which is unblocked by
---     this migration and now carries the measurement.
+--   * ⚠️ KNOWN, DELIBERATELY NOT FIXED HERE, AND WIDER THAN THE RESTORE — this
+--     bullet said "a second tenant cannot restore a file containing
+--     `app_settings`" until the pre-push review measured what it actually
+--     costs, which is the whole of settings and not one import path.
+--     `app_settings.key` is the primary key and is GLOBAL, and `dbSetSetting`
+--     (`js/app.js`) is the ONE writer for every setting, upserting with no
+--     `onConflict` so it resolves against that key. Once any tenant holds a key,
+--     a second tenant's identical upsert becomes an ON CONFLICT DO UPDATE
+--     against a row it cannot see, and RLS refuses it on the USING expression.
+--     The key names are literals in the client, so this is not a rare
+--     collision: **a second café's FIRST attempt to save a food cost target, a
+--     GST default or its kitchen ingredients fails, permanently, with no
+--     workaround.** Reproduced on staging as tenant two, 42501, in a rolled-back
+--     transaction.
+--     It fails LOUDLY and `pushWrite` toasts the real error, so it is not silent
+--     loss — but READ isolation holding must not be read as writes working.
+--     That is the queue's "Unique ID generation — the SEMANTIC KEYS half",
+--     which this migration unblocks and which now carries the measurement. The
+--     fix is a composite `(business_id, key)` primary key, and it is that item's.
 -- APPLIED TO PRODUCTION: 13 Aug 2026, by Claude (batch 182), to
 --   izrnptxhdylllodvglla. Verified as the anon client the same way — every table
 --   read at its pre-migration count, then a full insert/update/delete round trip
@@ -209,9 +227,23 @@ as $$
     -- Signed in: their business, or NULL if they are a member of nothing. NULL
     -- never equals a business_id, so `= (select current_business_id())` is
     -- false for every row and they see an empty app rather than someone else's.
+    --
+    -- ⚠️ THE `order by` IS NOT DECORATION AND IT IS NOT AN ANSWER EITHER.
+    -- `business_members`' primary key is (business_id, user_id), so one user
+    -- MAY belong to two businesses; nothing forbids it and the roles item will
+    -- want it. With a bare `limit 1` the row that wins is whatever the planner
+    -- returns first, so the same person could resolve to a different café on
+    -- two consecutive requests and see two different sets of data with no error
+    -- anywhere. Ordering makes that stable and reproducible.
+    -- It does NOT decide which café they SHOULD see. That is a product question
+    -- — a person working two cafés needs to choose, and the choice has to live
+    -- somewhere the client can set. Until then the oldest membership wins,
+    -- which is at least explicable. Flagged in the queue's roles item.
+    -- (Pre-push review, 13 Aug 2026.)
     else (select m.business_id
             from public.business_members m
            where m.user_id = auth.uid()
+           order by m.created_at, m.business_id
            limit 1)
   end;
 $$;

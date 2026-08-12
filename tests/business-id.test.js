@@ -385,3 +385,87 @@ test('PART 2: the migration asserts its own result rather than reporting success
   assert.match(PART2_EXEC, /business_id defaults are not current_business_id\(\)/,
     'the migration no longer checks the defaults, which is the one thing that passed every other check while a tenant could not write');
 });
+
+test('PART 2: every table list in the migration agrees with the canonical ten', () => {
+  /* ⚠️ THE THIRD INCIDENT OF THE SHAPE THIS FILE ALREADY RECORDS TWICE — found by the pre-push
+     review, which mutated the migration rather than reading it, and watched all eighteen tests stay
+     green. The migration types the table list FIVE times: once to repoint the defaults, once as the
+     seven full-access tables, once as the three append-only ones, once as the five whose permissive
+     policy is dropped by a loop, and once more in the assertions. Nothing cross-checked them.
+
+     Two mutations passed the whole suite:
+       · drop 'plates' from the DEFAULT-repoint array  -> plates keeps Part 1's literal default, and
+         that café can read its rows and write none;
+       · drop 'menus' from the create array            -> menus has its permissive policy dropped and
+         NO replacement, which is RLS on with zero policies: an empty app with no error.
+     Both are caught by the migration's own runtime assertions, so neither reached a database — but
+     that net only exists once the SQL is APPLIED, and by then it has been reviewed and merged.
+     This is the same net, one step earlier and for free. */
+  const canonical = tableList(MIGRATION, 'the Part 1 migration');   // the ten, read off Part 1
+  assert.strictEqual(canonical.length, 10);
+
+  const arraysNamed = (name) => [...PART2_EXEC.matchAll(
+    new RegExp(`(?<![\\w])${name}\\s+text\\[\\]\\s*:=\\s*array\\[([\\s\\S]*?)\\]`, 'g'))]
+    .map((m) => (m[1].match(/'([a-z_]+)'/g) || []).map((s) => s.replace(/'/g, '')).sort());
+
+  // The two `tables text[]` declarations — section 3's defaults and section 5's assertions.
+  const tens = arraysNamed('tables');
+  assert.strictEqual(tens.length, 2,
+    'the migration no longer declares exactly two ten-table lists — re-anchor this test rather than deleting it');
+  tens.forEach((list, i) => assert.deepStrictEqual(list, canonical,
+    `ten-table list #${i + 1} does not match the canonical ten — a table missing from the DEFAULT loop keeps ` +
+    'a literal tenant, which lets that café read its rows and write none'));
+
+  // The 7/3 split must partition the same ten, with nothing dropped and nothing counted twice.
+  const [full] = arraysNamed('full_tables');
+  const [logs] = arraysNamed('log_tables');
+  assert.ok(full && logs, 'the full_tables / log_tables split is gone');
+  assert.strictEqual(full.length, 7, 'the full-access list is no longer seven tables');
+  assert.strictEqual(logs.length, 3, 'the append-only list is no longer three tables');
+  assert.deepStrictEqual(full.concat(logs).sort(), canonical,
+    'the seven full-access and three append-only tables do not partition the canonical ten — a table in ' +
+    'neither list gets its permissive policy dropped with no scoped policy to replace it, which is RLS ' +
+    'on with no policy at all: an empty app, reported as 200 and an empty array');
+  assert.strictEqual(new Set(full.concat(logs)).size, 10, 'a table appears in both lists');
+
+  /* The five dropped by a loop, plus the two dropped by name, must cover exactly the seven. Those two
+     are separate statements only because their old policy names match no pattern. */
+  const loopDrop = (PART2_EXEC.match(/foreach t in array array\[([^\]]*)\] loop\s*\n\s*execute format\('drop policy/) || [])[1];
+  assert.ok(loopDrop, 'the permissive-drop loop is gone');
+  const byName = [...PART2_EXEC.matchAll(/drop policy if exists "[^"]+" on public\.(\w+)/g)].map((m) => m[1]);
+  const dropped = (loopDrop.match(/'([a-z_]+)'/g) || []).map((s) => s.replace(/'/g, '')).concat(byName).sort();
+  assert.deepStrictEqual(dropped, full,
+    'the tables whose permissive policy is dropped are not the same seven that get a scoped one — a table ' +
+    'left out keeps `using (true)`, which is OR\'d with the scoped policy and grants everything to everyone');
+});
+
+test('PART 2: the rollback in the header names the same ten tables', () => {
+  /* The rollback is COMMENTED SQL, so every other test in this file — which reads the
+     comment-stripped text on purpose — is blind to it. Found by accident while mutation-testing the
+     test above: a mutation aimed at the migration landed in the rollback instead and nothing went
+     red, which is the correct result for that test and a gap in this file.
+
+     It matters because of when a rollback runs. CLAUDE.md: "a rollback that fails is worse than
+     none, because it is only ever reached when something has already gone wrong." A rollback that
+     restores nine of the ten literal DEFAULTs leaves one table pointing at a function the last line
+     of that same rollback drops, and every insert into it then raises 42883. */
+  const canonical = tableList(MIGRATION, 'the Part 1 migration');
+  const rollback = PART2.slice(PART2.indexOf('-- ROLLBACK'), PART2.indexOf('-- REHEARSED'));
+  assert.ok(rollback.length > 200, 'the rollback block is gone from the header');
+
+  const m = rollback.match(/tables text\[\] := array\[([\s\S]*?)\]/);
+  assert.ok(m, 'the rollback no longer declares the table list it loops over');
+  const listed = (m[1].match(/'([a-z_]+)'/g) || []).map((s) => s.replace(/'/g, '')).sort();
+  assert.deepStrictEqual(listed, canonical,
+    'the rollback restores a different set of tables from the one the migration changed — the ones it ' +
+    'misses keep a DEFAULT calling current_business_id(), which the rollback then drops, so every ' +
+    'insert into them raises 42883 at the exact moment someone is trying to undo a bad deploy');
+
+  // ...and it must put the literal defaults back before dropping the function they would otherwise call.
+  const setDefaults = rollback.indexOf('set default ');
+  const dropFn = rollback.indexOf('drop function if exists public.current_business_id');
+  assert.ok(setDefaults !== -1 && dropFn !== -1, 'the rollback lost one of its two halves');
+  assert.ok(setDefaults < dropFn,
+    'the rollback drops current_business_id() before restoring the literal defaults that stop the ' +
+    'columns calling it');
+});
