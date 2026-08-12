@@ -146,7 +146,9 @@ Written down because a rehearsal you over-trust is worse than none.
 
 ## Current state
 
-Left on the **scale seed** at the end of batch 172 (520 products, 12 menus, 180 plates, 429 dishes). Run `02` or `03` to change it — nothing in staging is worth preserving, which is the point of it.
+Left on the **scale seed** at the end of batch 181 (520 products, 12 menus, 180 plates, 429 dishes). Run `02` or `03` to change it — nothing in staging is worth preserving, which is the point of it.
+
+⚠️ **Batch 181 restored Max's REAL 412-product export into staging as part of rehearsing `business_id`, and then reloaded the scale seed to get rid of it.** Do the same if you ever need the real file here: staging's anon key is public in `index.html` and its policies are all `using (true)`, so anything left in it is readable by anyone who reads the page. **Staging is synthetic by contract, and a rehearsal that needs real data ends by wiping it.**
 
 ### Already rehearsed here, on 11 Aug 2026
 
@@ -155,3 +157,8 @@ Recorded because these are the first things staging has ever been used for, and 
 - **`restore_backup` end to end as the anon client** — correct counts returned; every dish came back linked to its plate; plates inserted with `menu_id` null; one plate correctly on two menus. **Zero dishes with a null plate link** — the signature of the failure that once cost 76 of 77 dishes.
 - **Both refusal paths, by name** — format `1` refused, and a missing group named as `ing_price_history`.
 - **A restore into a genuinely EMPTY database.** This is *step 3 of the v110 destructive plan*, which the queue records as never having been run. It now has been — against staging, at zero risk, with identical counts and links to the populated case. That does not discharge the queue item, which is about production and still needs Max's go on the day, but it means the step is no longer being attempted for the first time on real data.
+
+### And on 13 Aug 2026 (batch 181), the `business_id` additive migration
+
+- **The real file, end to end, as the anon client.** Max's 412-product format-3 export was translated through the app's own `backupToPayload` and POSTed to `restore_backup` over PostgREST: 412 products, 79 plates, 76 dishes, 2 menus, 7 taught packs, in **1.6s** against the RPC's 30s `statement_timeout`. That is the first time the real file has gone through the RPC anywhere, and it de-risks the queue's *restore full-wipe step* further — though it still does not discharge it, because staging is not production and the boot gate was not exercised mid-restore.
+- **A NEGATIVE result worth more than the positive one.** With the new `set_business_id` trigger dropped from `ingredients` only, the same restore left **all 412 products with a null `business_id`** while `plates` (trigger intact) had none. That is the measurement behind the migration's design: `restore_backup`'s `select *` inserts turn an absent JSON key into an EXPLICIT NULL, which overrides a column DEFAULT. **A column added to any of those five tables with a DEFAULT and no trigger is silently wrong on the next restore.**

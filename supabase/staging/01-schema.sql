@@ -444,3 +444,103 @@ end;
 $function$;
 
 grant execute on function public.restore_backup(jsonb) to anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 7. THE TENANT COLUMN — added by 20260813_business_id_part1.sql (batch 181)
+--
+-- Appended rather than folded into sections 1-5 on purpose. The ten `create
+-- table if not exists` statements above SKIP on an already-mirrored staging, so
+-- a column added inline there would never reach an existing mirror — it would
+-- only appear on a database created from scratch, and the mirror would be
+-- silently stale in exactly the case re-running this file is meant to fix.
+-- Everything below is ALTER-based and idempotent, so it lands either way.
+--
+-- Kept verbatim from the migration. See that file's header for why the trigger
+-- exists as well as the DEFAULT: `restore_backup` inserts five tables with
+-- `select *` and no column list, so an absent JSON key arrives as an EXPLICIT
+-- NULL that overrides the DEFAULT. Demonstrated on this project on 13 Aug 2026
+-- — with the trigger dropped, all 412 restored products landed null; with it,
+-- zero.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.businesses (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  created_at  timestamptz not null default now()
+);
+
+-- Staging seeds every table from scratch, but this row is the referent of every
+-- business_id DEFAULT below, so it is part of the SCHEMA here, not the data.
+insert into public.businesses (id, name)
+values ('00000000-0000-0000-0000-000000000001', 'Scoopy''s Family Cafe')
+on conflict (id) do nothing;
+
+create table if not exists public.business_members (
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (business_id, user_id)
+);
+
+create index if not exists business_members_user_id_idx
+  on public.business_members (user_id);
+
+alter table public.businesses       enable row level security;
+alter table public.business_members enable row level security;
+
+drop policy if exists "members read their own membership" on public.business_members;
+create policy "members read their own membership"
+  on public.business_members for select to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists "members read their business" on public.businesses;
+create policy "members read their business"
+  on public.businesses for select to authenticated
+  using (exists (select 1 from public.business_members m
+                  where m.business_id = businesses.id
+                    and m.user_id = auth.uid()));
+
+-- `set search_path = ''` — see the migration header; the Supabase linter flags a
+-- mutable search_path and the body references no schema-qualified object.
+create or replace function public.set_default_business_id()
+returns trigger
+language plpgsql
+set search_path = ''
+as $fn$
+begin
+  if new.business_id is null then
+    new.business_id := '00000000-0000-0000-0000-000000000001'::uuid;
+  end if;
+  return new;
+end;
+$fn$;
+
+do $mig$
+declare
+  t text;
+  tables text[] := array[
+    'app_settings','ing_price_history','ingredients','menu_change_log',
+    'menu_items','menu_price_history','menus','plates','price_history',
+    'supplier_phrases'
+  ];
+begin
+  foreach t in array tables loop
+    execute format(
+      'alter table public.%I add column if not exists business_id uuid '
+      || 'default ''00000000-0000-0000-0000-000000000001''::uuid '
+      || 'references public.businesses(id)', t);
+
+    execute format(
+      'update public.%I set business_id = ''00000000-0000-0000-0000-000000000001''::uuid '
+      || 'where business_id is null', t);
+
+    execute format(
+      'create index if not exists %I on public.%I (business_id)',
+      t || '_business_id_idx', t);
+
+    execute format('drop trigger if exists set_business_id on public.%I', t);
+    execute format(
+      'create trigger set_business_id before insert on public.%I '
+      || 'for each row execute function public.set_default_business_id()', t);
+  end loop;
+end $mig$;
