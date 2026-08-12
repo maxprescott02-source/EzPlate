@@ -87,7 +87,7 @@ When one of his comes up:
 
 Run the `decide` skill when either is true:
 
-- **Three or more items are blocked on a decision** (migrations don't count - those are their own stop condition).
+- **Three or more items are blocked on a decision.** (A migration does not count and does not block - you write and apply it. Only a DESTRUCTIVE one needs Max, and that is a stop condition, not a decision file.)
 - **The queue has nothing unblocked left**, whatever the count. One pending decision holding up everything is worth a file of one.
 
 Then tell Max the file is ready and give its path, and carry on if there is anything left to work on.
@@ -102,9 +102,8 @@ If he is answering them one at a time anyway, raise it.
 Stop, say plainly which condition fired and what you need, then take the next unblocked item if there is one.
 **Do not sit idle waiting.**
 
-- **A migration is needed.** Never bundled, never applied by you.
-  Write it, put it in the item, mark the item blocked.
 - **Data loss is possible** and not fully reversible from the current backup.
+  **This is where a migration can still stop you, and it is the only place** - anything that DELETES or REWRITES production data is Max's to authorise, rehearsed or not.
 - **The item is wrong in a way you cannot repair.** Rewriting a mis-stated premise is yours.
   Discovering the item solves the wrong problem is his.
 - **A review finding you cannot resolve** without one of the above.
@@ -112,6 +111,12 @@ Stop, say plainly which condition fired and what you need, then take the next un
 
 **Not stop conditions:** the plan being long, the diff being large, a decision between two reasonable implementations, uncertainty about taste where the item states a requirement, or anything that has already been decided in `CLAUDE.md` or a prior handover.
 **A product decision only Max can make is no longer one either** - it defers the item and the loop carries on, per the section above.
+
+**⚠️ A MIGRATION IS NOT A STOP CONDITION, and this list said it was until 12 Aug 2026.**
+Max reversed that on 8 Aug 2026 - his words, *"i dont want you to stop for me to hand run a query"* - and `CLAUDE.md`'s Tier 3 has carried the reversal ever since, so this file was contradicting it for four days while the queue's next four A-items were all migrations.
+**Write it, apply it, verify it, record it**, following `docs/STAGING.md`'s seven-step procedure: staging first with `01-schema.sql` re-run, then a seed, then the migration, then verify AS THE CLIENT over PostgREST, then production, then the fingerprint diff.
+The safeguards are in `CLAUDE.md` and `docs/STAGING.md` and are not optional - but they are things you DO, not reasons to stop.
+The one exception is the bullet above: destructive means Max's, every time.
 
 ## The queue
 
@@ -124,7 +129,7 @@ Problem: what is wrong, in Max's words where possible.
 Requirements: what must be true when this is done.
 Out of scope: what this must not touch.
 Do after: (only if real - the queue item that must ship first, and WHY it gets cheaper that way)
-Blocked on: (only if blocked - migration pending, decision pending)
+Blocked on: (only if blocked - a decision or an outside thing. NOT "migration pending": you apply those.)
 ```
 
 `status` is one of `next`, `blocked`, `doing`.

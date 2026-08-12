@@ -235,11 +235,13 @@ jobs:
       # spec in that directory - INCLUDING screenshots.spec.js, the one spec excluded above because
       # it reads the cafe's live production database. So the failure mode is not "runs nothing and
       # goes green"; it is "silently runs the non-hermetic spec in a job documented as hermetic".
-      # Latent today (22 specs, 21 survive the filter) - pinned here so it stays that way.
-      # (That count read "9 specs, 8 survive" until 10 Aug 2026 and had been wrong for ten
-      # batches, flagged by two consecutive audits. The GUARD is correct and fails closed;
-      # only the number lied. Re-measure it when you next touch this block rather than
-      # trusting it - `ls tests/visual/*.spec.js | wc -l`.)
+      # Latent today (31 specs, 30 survive the filter) - pinned here so it stays that way.
+      # (That count read "9 specs, 8 survive" until 10 Aug 2026, was corrected to "22 specs, 21
+      # survive" on that date, and had drifted AGAIN to 31/30 by v156 - found stale by three
+      # consecutive audits. The GUARD is correct and fails closed; only the number lied.
+      # DO NOT hand-correct it a fourth time: `tests/ci-workflow.test.js` now asserts these two
+      # numbers against tests/visual/ and fails when they drift, so the suite maintains them.
+      # If you reword this line, reword that test's regex in the same change.)
       - name: Run hermetic browser specs
         env:
           # LOAD-BEARING, not tidiness. Without it the `json` reporter writes the ENTIRE report

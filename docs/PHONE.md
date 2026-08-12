@@ -530,6 +530,36 @@ Reconciling that inventory against the sections above:
   `ing_price_history` held 33 points across 33 products at the v109 baseline; it holds **35 across 35** as of 7 Aug. Points are landing.
 - **v106: re-export and confirm all seven groups.** Superseded by v108's `format: 2`/`3` export request above - the older stamped file is no longer the one that matters.
 
+## 175 + 176 / v155-v156 - the shell, Products and the trend
+
+**Added retrospectively on 12 Aug 2026 by the v156 audit.** Neither batch wrote a `docs/PHONE.md`
+section - 172, 173 and 174 each wrote one saying "none", so this is an omission rather than a
+judgement that there was nothing to check. Both batches changed things only a device shows, and
+**176 also shipped without a pre-push review**, so it has had no second reader at all.
+
+- **The `/kg` unit suffix is now smaller and dimmer** on every money row, so the prices scan as a
+  column. A failure looks like the suffix being too faint to read outdoors or at arm's length, or
+  the money column no longer lining up once the suffixes differ in width. Only a real screen in real
+  light settles legibility.
+- **"steady" became a dash** on Products *and* Ingredients. Check a dash reads as "no change" rather
+  than as "missing data" on a small screen - it is a deliberate absence and it should not look like
+  a bug.
+- **The trend gained a card and a real x-axis of dates.** v48's reasoning for having no axis was
+  that the scrub tooltip gives exact dates, which is nothing at all on a phone - this is the fix, so
+  the phone is the only place it can be judged. A failure looks like date labels overlapping,
+  clipping at the card edge, or so few that the axis says nothing.
+- **The active range pill is no longer orange.** Confirm the selected range still reads as selected
+  at a glance; the markers staying orange is deliberate (they mean "you did this").
+- **The install banner was re-docked and restyled secondary**, and the page now reserves its height
+  by setting a class on `<html>` while it is up. ⚠️ **The failure mode is specific and named in the
+  handover: the last table row sitting underneath the banner.** Scroll to the bottom of a long
+  Products list with the banner showing.
+- **The desktop container is left-anchored with `padding:0` and `margin:12`**, which `HANDOVER-176`
+  flags as looking wrong and not being - the visible gutter is three stacked insets totalling 32px.
+  Nothing to check on the phone; noted so a future reader does not "fix" it from a screenshot.
+
+Both themes for all of it. If any of these is wrong, it is a defect in code that is already live.
+
 ## F7 / v146 - the builder page
 
 **Drive the whole builder on the phone, both themes.**
