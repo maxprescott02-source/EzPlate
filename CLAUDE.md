@@ -156,7 +156,11 @@ Do not tidy it away.
 Also: **an anon UPDATE or DELETE returns 204 with NO error** and touches nothing.
 A caller checking only for an error would believe it had written.
 
-## Three foreign keys, and only one can ever error
+## Three foreign keys between the DATA tables, and only one can ever error
+
+⚠️ **This heading said "Three foreign keys" until 13 Aug 2026, and the live count is now FIFTEEN** (batch 181 added `business_id → businesses` on all ten public tables, plus two on `business_members`).
+**The three below are still the only ones that constrain the app**, which is why the section is scoped rather than rewritten: the ten tenant FKs can only raise if someone deletes a `businesses` row, and nothing does.
+Counted against the live catalogue, not inferred - and the count is stated because a reader who greps and finds fifteen needs to know which three this section means.
 
 - `menu_items.plate_id → plates.id` - **NO ACTION**.
   Deleting a plate while a dish references it raises **23503**.
