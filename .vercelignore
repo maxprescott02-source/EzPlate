@@ -31,6 +31,9 @@ supabase/
 
 # CI
 .github/
+# The pre-push gate's hook (see CLAUDE.md). Committed so it can be installed with
+# `git config core.hooksPath .githooks`, which means it is also a directory Vercel would serve.
+.githooks/
 
 # Repo housekeeping that has no business on the origin
 # BOTH are needed: patterns match by exact name, so `gitignore` catches only the stray

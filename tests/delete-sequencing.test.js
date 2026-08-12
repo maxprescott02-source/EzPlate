@@ -33,6 +33,8 @@ function makeHarness(opts) {
     pendingDish: [],                           // resolvers for the in-flight dish deletes
     failDish: opts.failDish || [],
     failPlate: !!opts.failPlate,
+    rejectDish: opts.rejectDish || [],
+    rejectPlate: !!opts.rejectPlate,
     holdDishes: !!opts.holdDishes,
     toasts: [],
     changes: [],                               // v114: change-log kinds actually written
@@ -67,6 +69,7 @@ function makeHarness(opts) {
     }
     function dbDeleteMenu(id){
       S.log.push('dish:'+id);
+      if(S.rejectDish.indexOf(id)>=0) return Promise.reject(new Error('connection reset'));   // 180: same, for the dish handler
       var bad=S.failDish.indexOf(id)>=0;
       var res=bad?{error:{message:'dish delete failed'}}:{error:null};
       if(!S.holdDishes) return Promise.resolve(res);
@@ -74,6 +77,10 @@ function makeHarness(opts) {
     }
     function dbDeletePlate(id){
       S.log.push('plate:'+id);
+      // 180: rejectPlate drives the belt-and-braces REJECTION handler. pushWrite always resolves, so
+      // nothing in the app can reach it today — which is exactly why it was unpinned, and why its
+      // status object could be mutated to claim the plate was deleted with no test noticing.
+      if(S.rejectPlate) return Promise.reject(new Error('connection reset'));
       return Promise.resolve(S.failPlate?{error:{message:'violates foreign key constraint'}}:{error:null});
     }
     ${extractFn(SRC, 'plateIdOf')}
@@ -90,6 +97,7 @@ function makeHarness(opts) {
     return {
       deletePlate: function(id){ deletePlate(id); if(S.confirmFn) S.confirmFn(); },
       doDeleteEverything: function(dishId){ delChoiceId=dishId; doDeleteEverything(); },
+      sequence: function(dishIds, plateId){ return dbDeletePlateAfterDishes(dishIds, plateId); },   // 180: the status object itself
       state: function(){ return { savedPlates:savedPlates, customMenu:customMenu, loadedPlateId:loadedPlateId }; }
     };
   `);
@@ -246,4 +254,52 @@ test('v112: removeMenuItem still drops the row locally AND deletes it server-sid
   const left = run(S);
   assert.deepEqual(left.map(d => d.id), ['D2'], 'splitting out forgetMenuItems did not change what it removes');
   assert.deepEqual(S.deleted, ['D1'], 'and the server row is still deleted');
+});
+
+/* ---- 6. the STATUS OBJECT dbDeletePlateAfterDishes resolves to (180) ----
+
+   Everything above pins the order of the calls. What comes BACK from them was unpinned: the mutation
+   gate flipped `dishesOk`, `plateOk` and each dish's `ok` to their opposites in three of the four
+   exit paths and this file stayed green, because every test reads S.log and none reads the result.
+
+   That object is not bookkeeping. `deletePlate` spends it: `rollbackPlateDelete` puts back exactly
+   what the server kept, and a delete that SUCCEEDED is never resurrected because a sibling failed.
+   A wrong `plateOk:true` therefore drops a plate from the library that is still in the database, and
+   a wrong `dishesOk:true` skips the rollback for dishes that were never deleted.
+
+   Two of the four paths are the rejection handlers, which nothing in the app can reach today —
+   pushWrite always resolves. They exist because if one ever DID reject, the caller's .then would
+   never run and the UI would sit in the optimistic deleted state with no rollback and no word to the
+   user. Unreachable is why they were untested; it is not a reason to let them be wrong. */
+
+test('180: every dish deleted, plate deleted — the all-clear', async () => {
+  const { api } = makeHarness(twoDishOnePlate());
+  assert.deepEqual(await api.sequence(['D1', 'D2'], 'SP1'),
+    { dishesOk: true, failedDishIds: [], plateOk: true });
+});
+
+test('180: a failed dish names itself, and the plate is NOT touched', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOnePlate(), { failDish: ['D2'] }));
+  assert.deepEqual(await api.sequence(['D1', 'D2'], 'SP1'),
+    { dishesOk: false, failedDishIds: ['D2'], plateOk: false });
+  assert.ok(!S.log.some(c => c.startsWith('plate:')), 'and the FK-protected plate delete was never issued');
+});
+
+test('180: a REJECTED dish delete counts as failed, not as done', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOnePlate(), { rejectDish: ['D1'] }));
+  assert.deepEqual(await api.sequence(['D1', 'D2'], 'SP1'),
+    { dishesOk: false, failedDishIds: ['D1'], plateOk: false });
+});
+
+test('180: a REJECTED plate delete reports plateOk false while keeping the dishes gone', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOnePlate(), { rejectPlate: true }));
+  assert.deepEqual(await api.sequence(['D1', 'D2'], 'SP1'),
+    { dishesOk: true, failedDishIds: [], plateOk: false },
+    'the dishes really were deleted — resurrecting them because the plate failed would be the wrong rollback');
+});
+
+test('180: a plate with no dishes goes straight to the plate delete', async () => {
+  const { S, api } = makeHarness(twoDishOnePlate());
+  assert.deepEqual(await api.sequence([], 'SP1'), { dishesOk: true, failedDishIds: [], plateOk: true });
+  assert.deepEqual(S.log, ['plate:SP1']);
 });

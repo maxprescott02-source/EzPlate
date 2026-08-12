@@ -514,3 +514,52 @@ test('the summary counts what the file holds and agrees in number throughout', (
   f.menu_items.push({ id: 'D2', name: 'Other', menuId: 'M2', plateId: 'PL1' });
   assert.ok(backupSummary(f).includes('2 menus, with 2 plates on them'), 'plural takes "them"');
 });
+
+/* ---- 9. what a file has to LOOK like, and what the payload has to CARRY (180) ----
+
+   Two gaps the mutation gate found in this file, both of the same shape: a refusal was pinned by its
+   `ok:false` and never by WHICH refusal, and a payload group was pinned by the groups around it.
+
+   The reason matters more than it sounds. `parseBackupFile` has five distinct refusals and each one
+   tells the user something different about the file in their hand. A guard that stops working does
+   not produce an error — it produces the WRONG explanation, or falls through to a TypeError in the
+   middle of a restore, which is the failure mode this whole file exists to prevent. */
+
+test('180: anything that is not a JSON OBJECT is refused as "not an EzPlate backup"', () => {
+  for (const text of ['null', '42', '"a string"', '[]', '[{"stamp":{"format":2}}]', 'true']) {
+    const r = parseBackupFile(text);
+    assert.strictEqual(r.ok, false, `${text} must be refused`);
+    assert.match(r.reason, /isn.t an EzPlate backup/, `${text} must be refused by the SHAPE check, naming what it is`);
+  }
+});
+
+test('180: each stamp refusal gives the stamp reason, not some later one', () => {
+  // Reaching the format check with a junk stamp means the user is told about formats when the real
+  // problem is that the file predates formats entirely.
+  for (const bad of [null, 'format2', 42, [], ['format', 2]]) {
+    const r = parseBackupFile(json(fixture({ stamp: bad })));
+    assert.strictEqual(r.ok, false, `stamp ${json(bad)} must be refused`);
+    assert.match(r.reason, /backup format/i, `stamp ${json(bad)} must be refused by the STAMP check`);
+  }
+});
+
+test('180: taught supplier packs are carried into the payload', () => {
+  // supplier_mem is a real group with a real cost: CLAUDE.md lists taught packs as a fragile area,
+  // and losing them on restore silently un-teaches every pack the user ever corrected.
+  const p = backupToPayload(fixture());
+  assert.equal(p.supplier_phrases.length, 1, 'the fixture has one taught pack and the payload must hold it');
+  assert.equal(p.supplier_phrases[0].id, 'S1');
+  assert.equal(p.supplier_phrases[0].supplier, 'Bidfood');
+});
+
+test('180: a price point missing its time or its value is DROPPED, not restored as $0.00', () => {
+  const p = backupToPayload(fixture({ ing_price_log: { P0001: [
+    { t: 1754179200000, v: 0.0247 },   // the only good one
+    { t: null, v: 0.0247 },
+    { t: 1754179200000, v: null },
+    null,
+  ] } }));
+  assert.equal(p.ing_price_history.length, 1,
+    'a null t or v would restore as a real-looking observation — the comment at that guard says so');
+  assert.equal(p.ing_price_history[0].cost_per_base_unit, 0.0247);
+});
