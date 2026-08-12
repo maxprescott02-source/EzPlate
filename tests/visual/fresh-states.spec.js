@@ -333,13 +333,21 @@ test('v45 items 6+7: builder decluttered and fits 380px with a multi-ingredient 
    muted subtitle, actions right, hairline on the bar itself. Asserting the old stacking order would
    now assert the conversion had not happened. What survives is the part that was ever load-bearing:
    the header is ONE row and it carries the divider. */
-test('F3: the Ingredients header is the v3 one-row bar, not a stacked skeleton', async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 780 });
+/* 179: 360 joins 380 here (Max, 12 Aug 2026 — "yes it should be"). It is the width at which this
+   screen's header was measured WRAPPED on `main`, so it is the one that would have caught it had
+   anything ever measured it. The wizard is forced visible in the loop for the same reason
+   v158-header-actions.spec.js does it: the fixture seeds no unlinked-product state, Scoopy's
+   catalogue always has one, and that gap is why a green suite never saw the defect. */
+for (const mw of [360, 380]) {
+test(`F3 at ${mw}: the Ingredients header is the v3 one-row bar, not a stacked skeleton`, async ({ page }) => {
+  await page.setViewportSize({ width: mw, height: 780 });
   await installBoot(page);
   await page.goto('/');
   await page.waitForTimeout(1500);
   await page.locator('.navbtn[data-tab="pantry"]').click();
   await page.waitForTimeout(300);
+  await page.evaluate(() => { const w = document.getElementById('kingWizBtn'); if (w) w.style.display = ''; });
+  await page.waitForTimeout(100);
   const head = await page.evaluate(() => {
     const bar = document.querySelector('#tab-pantry .scr-head');
     const r = (el) => el.getBoundingClientRect();
@@ -350,18 +358,38 @@ test('F3: the Ingredients header is the v3 one-row bar, not a stacked skeleton',
       sameRow: Math.abs(r(title).top - r(btn).top) < r(btn).height,
       subShown: getComputedStyle(bar.querySelector('.scr-sub')).display,
       strapline: document.querySelectorAll('#tab-pantry .king-sub').length,
+      /* 179: §6's "one action max" is now literally true here, and the wizard is one line lower
+         rather than gone — the half of the pair that a height check alone would not distinguish. */
+      actions: [...bar.querySelectorAll('button')].filter((b) => !b.classList.contains('scr-back')).length,
+      wizHome: document.getElementById('kingWizBtn').parentElement.id,
+      wizShown: getComputedStyle(document.getElementById('kingWizBtn')).display !== 'none',
     };
   });
   expect(head.divider, 'the hairline belongs to the bar').toBe('1px');
   expect(head.titleDivider, 'and no longer to the title').toBe('0px');
-  expect(head.sameRow, 'title and actions share one row').toBe(true);
+  expect(head.sameRow, 'title and action share one row').toBe(true);
   expect(head.subShown, 'no subtitle on the phone — title plus one action (§6)').toBe('none');
   expect(head.strapline, 'the strapline moved into the empty state (R3), it is not a second header line').toBe(0);
+  expect(head.actions, `§6: one action in the bar at ${mw}`).toBe(1);
+  expect(head.wizHome, 'the wizard is rehomed, not dropped').toBe('kingControls');
+  expect(head.wizShown, 'and it is still on screen — this screen is at zero ingredients, which is exactly when it matters').toBe(true);
+});
+}
 
-  /* This screen puts TWO actions in the bar and the wizard one is conditional, so it is the case
-     that breaks a header written for one button. The original rule right-aligned `.btn` only, and
-     "Set up from products" is a `.plib-btn2` — it stayed beside the title with 393px of dead space
-     before the primary. Neither direction had a test. Measured at desktop, where the gap exists. */
+/* THE DESKTOP PAIR, which 179 leaves alone on purpose: the mock allows a desktop header to carry
+   both, so above 767 syncHeaderActions puts the wizard back beside the primary and this measures
+   that it lands as a PAIR at the right, not stranded beside the title.
+   The original rule right-aligned `.btn` only, and "Set up from products" is a `.plib-btn2` — it
+   stayed beside the title with 393px of dead space before the primary. Neither direction had a
+   test. Measured at desktop, where the gap exists — and now also the assertion that would catch a
+   restore that appended to the wrong place. */
+test('F3: the two Ingredients actions are a right-hand pair at desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 780 });
+  await installBoot(page);
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.locator('.navbtn[data-tab="pantry"]').click();
+  await page.waitForTimeout(300);
   await page.setViewportSize({ width: 1360, height: 900 });
   await page.waitForTimeout(300);
   const pair = await page.evaluate(() => {
@@ -1174,7 +1202,12 @@ for (const size of SIZES) {
       return {
         built: !!box,
         copy: box ? box.textContent : '',
-        switcher: vis('#menuSwitchRow'),
+        /* 179: the SWITCHER, not the row that holds it — see the rewritten assertion below. */
+        switcher: vis('#menuSelect'),
+        switcherSearch: vis('#menuSwitchRow .plib-search'),
+        switcherPct: vis('#menuScopePct'),
+        switchRowH: Math.round(document.getElementById('menuSwitchRow').getBoundingClientRect().height),
+        rehomed: document.getElementById('menuAddDishBtn').parentElement.id,
         filters: vis('#menuFilterRow'),
         band: vis('.mnu-band'),
         del: vis('#menuDelBtn'),
@@ -1184,9 +1217,31 @@ for (const size of SIZES) {
     expect(st.built, 'zero menus routes through the shared empty-state helper').toBe(true);
     expect(st.copy, 'and says so in its own words, not "this menu"').toContain('No menus yet');
     expect(st.copy, 'with the one action that resolves it').toContain('New menu');
-    // every control that would do nothing here is stood down — F2's true-empty defect, which was
-    // an option-less <select> left rendering beside an empty list
-    expect(st.switcher, 'no switcher over zero menus').toBe(false);
+    /* every control that would do nothing here is stood down — F2's true-empty defect, which was
+       an option-less <select> left rendering beside an empty list.
+       179 CONSCIOUS REWRITE. This used to assert `#menuSwitchRow` itself was not rendered, which
+       was a fair proxy while the row held nothing but controls: renderAnalysis set `hidden` on it.
+       Below 768 that row now HOSTS #menuAddDishBtn, so hiding it wholesale would have taken a real
+       action off the phone with it — and on the Ingredients screen the identical change would have
+       taken the setup wizard away at first run, which is the regression this batch came closest to
+       shipping. The row therefore keeps rendering and hides its FILTERS (`.is-nofilters`).
+       So the assertion moves onto the thing the comment above always named — the option-less
+       `<select>` and its companions — plus the two facts that make "the row is still there" honest
+       rather than a hole: at desktop it collapses to nothing, and at mobile the only thing in it is
+       the rehomed action, which was visible in the header here before this batch and is unchanged
+       in behaviour by being one line lower. */
+    expect(st.switcher, 'no option-less switcher over zero menus').toBe(false);
+    expect(st.switcherSearch, 'and nothing to search either').toBe(false);
+    expect(st.switcherPct, 'and no food-cost pill for a menu that does not exist').toBe(false);
+    if (size.width < 768) {
+      expect(st.rehomed, 'the rehomed action is in the row').toBe('menuSwitchRow');
+    } else {
+      expect(st.rehomed, 'at desktop the action is back in the header…').toBe('');
+      /* Zero HEIGHT, which is the part of the old `hidden` that was ever observable. The row keeps
+         its horizontal padding and is not literally absent — nothing paints in it, so the
+         difference is unobservable, and the assertion says height rather than implying more. */
+      expect(st.switchRowH, '…so the emptied row measures zero height').toBe(0);
+    }
     expect(st.filters, 'no filter row over zero rows').toBe(false);
     expect(st.band, 'no column band over zero rows').toBe(false);
     expect(st.del, 'no Delete when there is no menu to delete').toBe(false);

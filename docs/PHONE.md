@@ -583,3 +583,37 @@ Drive a whole plate: add ingredients, set a quantity, tap a unit cost, add a mis
 - **The tear-off zigzag** is drawn with gradients. Check it does not shimmer or alias badly on a real panel.
 
 Both themes. If any of these is wrong it is a defect in code that is already live.
+
+---
+
+## 179 / v158 - the second button in a screen header moved down one line
+
+**Three screens changed shape at the top: Ingredients, Products and Menu.** On each, the header now
+carries the screen name and **one** button; the second button sits in the row of controls directly
+beneath it, pushed to the right.
+
+- **Ingredients: "Set up" is now under the header**, beside/below the search and category filter,
+  instead of next to "New ingredient". This is the screen the change was really for - on your phone
+  that header was **two rows tall** (121px against 69), because your catalogue has hundreds of
+  unlinked products and that is what makes the button appear. It was wrong at 380px, which is your
+  width, and no test could see it because the test data never produces that button.
+  **A failure is the header still looking like two rows, or "Set up" not being on screen at all.**
+- **Products: "Import" is now under the header**, after the two filter dropdowns. Import invoice from
+  the Products screen still works exactly as before - one tap, same modal. **A failure is tapping it
+  and nothing opening**, which is the specific risk of moving a live button between two places.
+- **Menu: "Existing plate" is now under the header**, after the menu switcher and search.
+- **All three still work in one tap** and are driven by the test suite, but a tap in a browser at a
+  narrow window is not a thumb on glass. **What only the phone can settle: whether the button is
+  comfortable where it now is, or whether it reads as part of the filters** - that cost was written
+  down when the home was chosen, and you are the only one who can say whether it matters.
+- **Rotating the phone, or anything that changes the width across ~767px, moves the button live.**
+  Turn the phone sideways on each of the three screens and back again. **A failure is the button
+  disappearing, appearing twice, or landing somewhere other than the header (landscape/wide) or the
+  control row (portrait).**
+- **360px-wide phones are supported from this batch on** (your call, 12 Aug). If you ever open the
+  app on a narrower device than usual, the headers should still be one row.
+
+**The one that would be quiet if it were wrong:** on a *brand-new* café with products but no
+ingredients yet, "Set up" must still be visible under the Ingredients header. That screen hides its
+search and filters when there is nothing to search, and the button lives in that same row now - it is
+deliberately exempt, but it is the kind of thing that only shows up on a genuinely empty account.

@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=157">
+<link rel="stylesheet" href="css/style.css?v=158">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -424,7 +424,9 @@
              faithful to at that width — and a label that changes between breakpoints is the thing §7
              forbids. The app's shipped wording since v86 fits both. Measured at 380 and 1280, not
              chosen: `tests/visual/v142-menu.spec.js` pins the header to one row at both. -->
-        <button id="menuAddDishBtn" type="button" class="plib-btn2">Existing plate</button>
+        <!-- 179: below 768 this moves into #menuSwitchRow, the row F5's R5 note below already chose
+             as the home for what the mobile mock's header could not carry. Same home, one item later. -->
+        <button id="menuAddDishBtn" type="button" class="plib-btn2" data-mobile-home="menuSwitchRow">Existing plate</button>
         <button id="menuNewBtn" type="button" class="btn primary">New menu</button>
       </div>
       <!-- mock §3.2's control row, verbatim: switcher left, search right. -->
@@ -507,7 +509,11 @@
              the sidebar and the Products tab; a third entry is the duplicate CTA intent §7 forbids.
              The two controls the mock drops survive here instead, as its own grammar's
              secondary-then-primary pair. #kingWizBtn stays conditional, shown by renderKingProgress. -->
-        <button class="plib-btn2" id="kingWizBtn" type="button" style="display:none">Set up<span class="btn-noun"> from products</span></button>
+        <!-- 179: `data-mobile-home` is the queue's "ONE home used by every screen" made declarative —
+             below 768 syncHeaderActions() moves this button into the named `.plib-controls` row and
+             puts it back above it. The header keeps ONE action on a phone (§6); the id, the class and
+             the handler are untouched, so renderKingProgress still owns whether it shows at all. -->
+        <button class="plib-btn2" id="kingWizBtn" type="button" data-mobile-home="kingControls" style="display:none">Set up<span class="btn-noun"> from products</span></button>
         <button class="btn primary" id="kingNew" type="button">New ingredient</button>
       </div>
       <!-- setup progress: its own quiet line, conditional, unchanged in behaviour -->
@@ -553,8 +559,10 @@
              plain instance of the two-actions-on-a-mobile-header question, which is one queued
              decision covering Ingredients, Products and Menu together. It is NOT removed here:
              that item's requirement is one home for every screen's secondary action, chosen once,
-             and taking this one away first would answer it for one screen by deletion. -->
-        <button class="plib-btn2" id="importBtn" type="button">Import<span class="btn-noun"> invoice</span></button>
+             and taking this one away first would answer it for one screen by deletion.
+             179 ANSWERED IT: `data-mobile-home` moves this into #ingControls below 768, so the
+             phone header is title + chevron + one action and the shortcut survives. -->
+        <button class="plib-btn2" id="importBtn" type="button" data-mobile-home="ingControls">Import<span class="btn-noun"> invoice</span></button>
         <!-- R2: the mock says "Add product"; v45 renamed this control "New product" app-wide and §7
              forbids two labels for one intent. The app's word wins. -->
         <button class="btn primary" id="newBtn" type="button">New product</button>
@@ -1435,7 +1443,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=157"></script>
+<script src="js/app.js?v=158"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
