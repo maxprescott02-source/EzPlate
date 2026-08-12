@@ -1,12 +1,38 @@
 # Maintenance
 
 Internal quality: docs, comments, test meaning, refactors, dead code, CI hygiene, process wording.
-Real work. **Not shipping work** — worked only when `docs/QUEUE.md` is empty.
+Real work. **Not shipping work.**
 
 The classification test is in `docs/QUEUE.md`. **When a tier is genuinely ambiguous, it is C and it lands here.**
 
 Split 11 Aug 2026 out of a 979-line `QUEUE.md`. Nothing below is new; every item was already open.
 ⚠️ **Every line number in this file predates one or more redesigns** (the v125 audit measured ~290 moved lines in `js/app.js`, ~255 in `css/style.css`, and F1a-F6 have moved far more since). **Re-grep by NAME, never by the number.**
+
+---
+
+## This file is now a PARALLEL track, not a leftover (Max, 13 Aug 2026)
+
+⚠️ **The line above read "worked only when `docs/QUEUE.md` is empty" until 13 Aug 2026, and `skills/batch` said the same.** It no longer does. Max is waiting on batches; the queue's A and B items are a dependency chain that cannot parallelise, while these are genuinely independent — which is exactly the shape that can.
+
+**The worktree.** `/Users/max/Documents/Scoopys-Costing-maintenance`, created 13 Aug 2026 by `git worktree add --detach ../Scoopys-Costing-maintenance origin/main`. It is a second checkout of the same repository, so the two tracks cannot fight over one working tree.
+Each maintenance batch starts there with `git fetch && git switch -c maintenance/<slug> origin/main`, and ends detached again (`git switch --detach origin/main`) so the branch can be deleted after merge.
+**`npm test` runs there with no install** — it is `node --test` and needs no `node_modules` (1018 tests, verified in the worktree on the day it was created). **Playwright does not**: `npm i` in the worktree first if the item touches a spec.
+If the worktree is missing, recreate it with the command above rather than working maintenance items in the main checkout.
+
+**The collision rule, which is what makes this safe.** Before starting a maintenance item, read the files the current queue batch is touching (its branch diff, or its plan).
+**If the maintenance item would touch one of them, STOP and take the next maintenance item instead.** Do not merge and hope, do not rebase around it, do not "just be careful" — the whole app is one `js/app.js`, so this will happen, and the answer is always to move on.
+**Say in the handover when it happens**, naming the item skipped and the file it collided on. That record is the only evidence the next bullet can be judged on.
+
+**Report after five maintenance batches** whether the collision rule blocked more than it let through. **If it did, the parallel track is not viable on this codebase and should stop — and that is a real answer, not a failure.**
+The tally lives here so it survives a context clear:
+
+| # | Item | Started | Collided? (file) |
+|---|---|---|---|
+| 1 | | | |
+| 2 | | | |
+| 3 | | | |
+| 4 | | | |
+| 5 | | | |
 
 ---
 
@@ -108,16 +134,8 @@ Requirements: stop the harness registering a service worker at all. `tests/visua
 ⚠️ **Do not measure this with a green suite** — that is the mistake the previous item's own probes would have made. Use the reproducer.
 ⚠️ It changes what the specs exercise, and that must be a decision rather than a side effect: no spec asserts anything about the service worker today, but the boot path they drive would no longer include registration. If that is wanted somewhere it wants ONE spec that tests it deliberately, not 209 that do it by accident.
 
-### Mutation testing (Stryker) — measure the tests that cannot fail (APPROVED 9 Aug 2026, dev-only)
-`CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke. A test that passes against broken code is worse than no test, because it is trusted.
-The suite is **987 tests in ~2.1s** (measured 12 Aug 2026 after batch 177; it was 986 at the v156 audit and 177 added one — 878 at v152, 848 at v145, 822 at v135), so mutating it is cheap.
-⚠️ **THE ARGUMENT AGAINST PROMOTING THIS IS NOW FALSIFIED, and the sentence that made it has been struck.** It read: *"AUDIT-v145 looked for a fourth 'test that cannot fail' specifically and did NOT find one. The three known incidents were each caught inside the batch that introduced them."* Three more have turned up in the five batches since, and the mechanism v145 relied on has failed once and been switched off once:
-- **172** — a test written to pin an ordering scanned `js/app.js` only, so it could never have failed on the case it named. Caught by the batch.
-- **175** — `v155-trend.spec.js` wrapped its comparison in `if (rows.mk.length)` while `boot()` never seeded `changeLog`, so the loop never ran; *"reverting the very `padB` split it claims to pin would not have failed it."* **Caught by the pre-push review, not by the batch.**
-- **176** — the Products truncation test went vacuous when the fix removed the pressure its own precondition assumed. Caught by the batch, and its handover notes it was *"the second vacuous test found in two batches, both mine, both green."*
-Six known incidents, and **176 then shipped with no pre-push review at all** — so "the batches catch these themselves" is now an argument that depends on the reviewer v145 was not counting. That does not automatically promote this to `docs/QUEUE.md` (it is still internal quality and fails the tier test), but the next audit should not have to re-derive it a fourth time.
-Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
-Max's yes: 9 Aug 2026, dev-only. The no-new-dependencies rule protects the CLIENT; nothing here ships to it.
+### ~~Mutation testing (Stryker)~~ — **MOVED to `docs/QUEUE.md` as item 1, 13 Aug 2026 (Max)**
+Do not re-add it here. It was C for four audits on the argument that the batches catch their own vacuous tests; Max counted **ten** across 165–176 and promoted it himself, rescoped from a report into a pre-push gate. The item, its evidence and its requirements are in the queue.
 
 ### An eval harness for the invoice reader
 The invoice path is the app's highest-stakes surface and its only AI one, and **there is no way to tell whether a parser or prompt change made it better or worse.** `tests/invoice-gate.test.js` and `tests/inv-gemini-merge.test.js` pin specific decisions on hand-written inputs; neither measures accuracy over a corpus. So every change to `resolveMatchedPrice`, the taught-pack precedence or the Gemini prompt is judged by whether the unit tests still pass and whether one invoice looked right.

@@ -1,69 +1,98 @@
 ---
 name: decide
-description: Generate a decision file for questions only Max can answer, instead of stopping the loop and waiting. Run when queue items are blocked on his judgement, or when he asks what decisions are outstanding.
+description: Generate a decision file for questions only Max can answer, instead of stopping the loop. Visual decisions must render the options, not describe them. Run when items are blocked on his judgement, or when he asks what is outstanding.
 ---
 
 # Decide
 
-Max's decisions are the loop's most common blocker, and stopping to ask one at a
-time wastes both his attention and the loop's time. Batch them into a file he can
-answer whenever, on whatever device he has.
+Max's decisions are the loop's most common blocker. Batch them into a file he
+can answer whenever, on whatever device he has.
 
-**The loop does not wait for this.** Generate the file, mark the items blocked,
-and take the next unblocked item.
+**The loop does not wait.** Generate the file, mark the items blocked, take the
+next unblocked item.
 
-## When a question belongs here
+## What belongs here — and what does not
 
 **The test: does the answer depend on the café, the trade, the customers, or
 Max's history — rather than on the code?**
 
-His: whether chefs reprice or reformulate. Whether a feature is worth having.
-What staff should be allowed to do. Whether a number feels wrong. Whether to
-charge for this.
+**His:** whether a screen reads right in his hand. Whether a control is missed.
+What staff should be allowed to do. Whether a trade-off is worth it. Anything
+that reverses a decision he made himself.
 
-**Yours:** which of two implementations is cleaner, what a function should be
-called, how to structure a test, whether to split a batch. **Decide these. Do not
-put them in the file.** A decision file full of engineering choices trains him to
-skim it.
+**Yours — decide these and do not ask:** documentation and `CLAUDE.md` in every
+tier, new rules, corrections and strikes, which implementation is cleaner, what
+a thing is called, how a test is structured, whether to split a batch, what goes
+in `docs/MAINTENANCE.md`.
 
-If the answer is already in `CLAUDE.md` or a prior handover, it is not a
-decision — it is a lookup.
+He does not want to make documentation decisions and has never once deviated
+from a recommendation on one. A decision file containing a documentation
+question trains him to skim it, and then the visual ones get skimmed too.
 
-## Generating the file
+If the answer is already in `CLAUDE.md` or a prior handover, it is a lookup.
 
-Write `docs/decisions/YYYY-MM-DD.html` — a standalone HTML file, no build step,
-readable on a phone. Match the app's own palette so it does not feel foreign.
+## Visual decisions RENDER the options
 
-For each decision:
+**If a decision has a visual answer, draw every option. Do not describe them.**
 
-- **The question**, in plain language. No jargon he would have to decode.
-- **Why it matters now** — what is blocked, and what happens if it stays
-  unanswered.
-- **Two to four options.** Each with what it costs and what it commits him to.
-  Not just the upside.
-- **Your recommendation**, marked as such, with the reason in one line. He
-  prefers being directed to being handed a menu — but the reasoning has to be
-  visible enough to overrule.
-- **What would change your recommendation.** This is the line that lets him
-  disagree usefully rather than just picking.
+- Side by side in the same file, each fully rendered.
+- **380px and dark mode** are the primary view, because that is where he uses
+  the app. Add 1360 and light beneath if the decision differs across them.
+- Real tokens from `css/style.css`. Real copy. Real figures from production
+  where the decision turns on data — a layout judged against invented content is
+  judged against the wrong thing.
+- Label them A, B, C with the trade-off in one line beneath, not a paragraph
+  above.
 
-The file ends with a **copy button** producing a markdown block of his answers,
-which he pastes back to you.
+Three chat-sourced UI reports in a row did not reproduce, each time because a
+description of a screen is not the screen. That gap runs in both directions: a
+described option cannot be judged either.
 
-Keep it to **five decisions or fewer**. Beyond that it becomes a document rather
-than a task, and it will sit unanswered.
+**If an option cannot be rendered, say so at that option** rather than quietly
+describing it and letting it lose to the two that were drawn.
+
+Non-visual decisions keep prose: question, why it matters now, two to four
+options with what each costs, your recommendation marked as such, and what would
+change it.
+
+## The file — and how he actually answers
+
+`docs/decisions/YYYY-MM-DD.html` when anything in it is rendered; `.md` when it
+is all prose. Standalone, no build step, readable on a phone. Match the app's
+palette so it does not feel foreign.
+
+**Five decisions or fewer.** Beyond that it is a document, not a task, and it
+will sit unanswered.
+
+⚠️ **He answers in CHAT, never in the file, and no interactive control in the
+file has ever worked on his device.** He declined the copy-button flow twice —
+9 Aug 2026 (the HTML's interactive parts did not work on his phone) and 10 Aug
+2026 (*"let me answer decision in chat"*).
+
+So:
+
+- **No copy button, no radio buttons, no form.** The file RENDERS; it does not
+  collect.
+- **Post the questions in the next chat message**: compact, option letters bold,
+  one-line recommendation each, one line on what would change it. End with
+  *"reply with the letters, e.g. `1A 2B 3C`"*.
+- **Still write the file**, because it is the durable record the `Blocked on:`
+  lines point at — but never make opening it the mechanism for a prose decision.
+  A rendered decision is the one case where he does have to look, so say in the
+  chat message that the drawn options are in the file and name the path.
 
 ## After he answers
 
-- Record each decision and its date in `CLAUDE.md`, so it is never re-litigated.
-  A decision that has to be made twice was not recorded properly.
-- Unblock the queue items and note which decision unblocked them.
-- If an answer contradicts something already in `CLAUDE.md`, say so before acting
-  on it — he may not have realised, or the record may be stale.
+- Record each decision and its date in `CLAUDE.md`. A decision made twice was
+  not recorded properly.
+- Unblock the items and note which decision unblocked them.
+- If an answer contradicts something already recorded, say so before acting —
+  he may not have realised, or the record may be stale.
 
-## What not to do
+## Do not
 
-- Do not ask a question you can answer by reading the code.
-- Do not present options you know to be bad in order to make one look good.
-- Do not stop the loop waiting for the file to be answered.
-- Do not re-ask something already decided. Check the record first.
+- Ask what you can answer by reading the code.
+- Ask a documentation question.
+- Present an option you know to be bad to make another look good.
+- Stop the loop waiting for an answer.
+- Re-ask something already decided. Check the record first.
