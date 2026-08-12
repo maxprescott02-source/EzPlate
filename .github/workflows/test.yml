@@ -97,7 +97,14 @@ jobs:
           # (a force-push rewrote it). None is evidence that nothing client-side changed.
           if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] \
              && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            CHANGED=$(git diff --name-only "$BASE" HEAD || true)
+            # ⚠️ --no-renames IS LOAD-BEARING AND IS THE WHOLE GATE. Git detects renames by DEFAULT
+            # and then prints only the NEW path, so `git mv js/app.js docs/app-archived.js` reports
+            # exactly one file - `docs/app-archived.js` - which is prose, and the browser specs would
+            # be skipped on a commit that just deleted js/app.js from its real location. Reproduced
+            # on this repo before the flag was added: the gate answered 'false'. With the flag the
+            # move is reported as both paths, `js/app.js` is seen, and it answers 'true'.
+            # Found by the pre-push review, not by reading. pinned by tests/ci-workflow.test.js.
+            CHANGED=$(git diff --no-renames --name-only "$BASE" HEAD || true)
           else
             echo "No usable base commit ($BASE) - running everything."
           fi
@@ -200,7 +207,16 @@ jobs:
     # `if`, `needs` only orders them and the gate does nothing. tests/ci-workflow.test.js
     # pins both together.
     needs: changes
-    if: needs.changes.outputs.browser == 'true'
+    # ⚠️ IT TESTS FOR 'false', NOT FOR 'true', AND THAT INVERSION IS THE FAIL-CLOSED RULE
+    # REACHING THE WIRING. `== 'true'` left one path uncovered that the script's own guards
+    # cannot: if the `changes` JOB ITSELF fails - a checkout error, a runner fault, anything
+    # before the decision is even reached - its output is the empty string. GitHub inserts an
+    # implicit `success()` in front of any custom `if:` with no status function, so `== 'true'`
+    # SKIPPED the browser specs on a broken gate, which is the one direction this design is not
+    # allowed to fail in. `!cancelled()` restores the run on that path while still honouring a
+    # cancelled workflow, and `!= 'false'` means only an explicit, successful "no" skips.
+    # Found by the pre-push review. Everything the script decides is unchanged.
+    if: ${{ !cancelled() && needs.changes.outputs.browser != 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

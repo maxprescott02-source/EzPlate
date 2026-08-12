@@ -327,14 +327,63 @@ test('the prose set cannot be widened by a name that merely looks like prose', (
   assert.strictEqual(gate(['skillset/thing.js']), 'true', 'skillset/ is not skills/');
 });
 
+test('the prose test is a PREFIX test, not a substring test', () => {
+  /* Pinned because the review proved it was not. Swapping `s.indexOf(d)===0` for `s.includes(d)` —
+     a plausible "simplification" — left all twenty tests green, because no fixture happened to carry
+     a prose token anywhere except at position 0. That is the shape CLAUDE.md calls this project's
+     worst recurring failure: a test that cannot fail against the wrong condition.
+     These paths all contain a prose token, none of them at the start. Under a substring check every
+     one classifies as prose and the browser specs skip on a diff that edits the app. */
+  for (const p of ['js/docs/thing.js', 'tests/visual/docs/x.spec.js', 'css/skills/x.css',
+                   'index.html.supabase/x', 'js/.claude/x.js']) {
+    assert.strictEqual(gate([p]), 'true', `${p} carries a prose token, but not as its prefix`);
+  }
+});
+
+test('a RENAME out of a source tree is seen, because git hides the old path by default', () => {
+  /* The hole the review found and reproduced, and the reason `--no-renames` is on the diff.
+     Git detects renames by default and prints only the NEW path, so `git mv js/app.js
+     docs/app-archived.js` reports ONE file — prose — and the gate would skip Chromium on a commit
+     that just removed js/app.js. Measured against this repo before the flag: the gate said 'false'.
+     Two assertions, because the flag and the classifier are different halves and each can regress
+     without the other. */
+  assert.match(CHANGES_STEP[0], /git diff --no-renames --name-only/,
+    'the diff must report both sides of a rename, or the classifier never sees the source path');
+  assert.strictEqual(gate(['docs/app-archived.js']), 'false',
+    'the premise: the new path alone reads as prose, which is exactly why the flag is needed');
+  assert.strictEqual(gate(['docs/app-archived.js', 'js/app.js']), 'true',
+    'and with both sides reported, the source path forces the run');
+});
+
+test('a broken `changes` job runs the browser specs rather than skipping them', () => {
+  /* The one fail-closed path the script's own guards cannot cover: if the JOB fails before the
+     decision is reached, its output is the empty string. GitHub inserts an implicit success() in
+     front of a custom `if:` with no status function, so `== 'true'` skipped Chromium on a broken
+     gate — failing OPEN, in the only direction this design forbids.
+     Asserted as the shape of the condition, since the alternative is a live Actions run: it must
+     test for the explicit 'false' and must carry a status function so the implicit success() is
+     not inserted. */
+  const gateIf = /^\s{4}if: (.+)$/m.exec(JOB);
+  assert.ok(gateIf, 'the playwright job must carry an `if:`');
+  assert.match(gateIf[1], /!cancelled\(\)/,
+    'a status function must be present, or GitHub inserts success() and a failed `changes` skips this job');
+  assert.match(gateIf[1], /needs\.changes\.outputs\.browser != 'false'/,
+    "only an explicit, successful 'false' may skip — an empty output is not a decision");
+  assert.ok(!/browser == 'true'/.test(gateIf[1]),
+    'testing for `== true` makes every non-answer a skip, which is the wrong direction to fail in');
+});
+
 test('the gate is wired to the job, and both halves of the wiring are present', () => {
   // `needs` and `if` are a PAIR. Without `needs`, the job does not wait for `changes` and
   // `needs.changes.outputs.browser` is an empty string — so the `if` is never true and the browser
   // specs NEVER RUN, green and silent. Without `if`, `needs` only orders them and the gate does
   // nothing. Either half alone is a gate that looks right; one of them is also a total hole.
   assert.match(JOB, /^\s{4}needs: changes$/m, 'the playwright job must depend on `changes`');
-  assert.match(JOB, /^\s{4}if: needs\.changes\.outputs\.browser == 'true'$/m,
-    "and gate on its output — note 'true' as a STRING; job outputs are always strings");
+  // The exact FORM of the condition is pinned by its own test below ('a broken `changes` job runs
+  // the browser specs') — this half only asserts that the two are wired to each other at all. Note
+  // the quoted 'false': job outputs are always strings, so an unquoted comparison never matches.
+  assert.match(JOB, /^\s{4}if: .*needs\.changes\.outputs\.browser != 'false'/m,
+    'and gate on its output');
   // and the job it names must actually publish that output
   assert.match(YML, /^\s{4}outputs:\n\s{6}browser: \$\{\{ steps\.decide\.outputs\.browser \}\}$/m,
     'the changes job must expose `browser`, from the step id the gate reads');
