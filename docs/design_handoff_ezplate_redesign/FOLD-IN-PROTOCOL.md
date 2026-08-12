@@ -9,9 +9,22 @@ Supersedes §11 "fold-in playbook" of `V3-Design-Package.md`. Where the two disa
 > `docs/handovers/` (144 → 171). Every screen is v3, desktop and mobile, light and dark.
 >
 > **§0a below is stale text describing 9 Aug 2026, and following it would revert nineteen shipped
-> versions of merged, reviewed work.** It survives only because this file was overwritten with the
-> vendor's pristine copy inside PR #159 (a Supabase-staging batch that never mentions it — swept in,
-> not authored), which deleted the two amendments restored here. Both are Max's own decisions:
+> versions of merged, reviewed work.**
+>
+> ### ⚠️ THIS BOX HAS NOW BEEN DELETED TWICE, BY THE SAME MECHANISM, AND NEITHER TIME ON PURPOSE
+>
+> This file is the vendor's, and **a fresh copy of the design package does not carry the repo's
+> amendments** — so dropping one in silently reverts them, in a diff that looks like "updated the
+> handoff docs" and mentions nothing else.
+>
+> - **PR #159**, a Supabase-staging batch that never mentions this file — swept in, not authored.
+> - **12 Aug 2026**, batch 177: the package was updated for the reworked Plate Builder (a real,
+>   wanted change to `README.md` and `Redesign v3 - SaaS.dc.html`), and this box came out with it.
+>   Caught by the pre-push review, which diffed the file rather than reading it.
+>
+> **So: whenever this folder is refreshed from the vendor, re-apply everything below before
+> committing.** The two amendments are Max's own decisions and nothing in a vendor copy knows they
+> exist. `git diff main...HEAD -- docs/design_handoff_ezplate_redesign/` is the one-line check.
 >
 > - **Amendment (Max, 10 Aug 2026): §0a steps 2–4 are OVERRIDDEN — there is no revert pass and no
 >   "looks entirely old" starting line.** The fold-in proceeded from the shipped state
@@ -19,11 +32,12 @@ Supersedes §11 "fold-in playbook" of `V3-Design-Package.md`. Where the two disa
 >   protocol stands unchanged — including §2: a screen is fully v3 or not touched, and no NEW
 >   skinning ever.
 > - **Amendment (10 Aug 2026): the `.legacy` wrapper in §2 is STRUCK. It was never built and cannot
->   be.** `grep -rn "\.legacy" css/style.css index.html js/app.js` returns zero hits and always has.
->   There is no unconverted screen left to wrap. **The real mechanism, used since F2, is per-screen
->   manual deletion** — a converted screen deletes its own markup and its own CSS in the same change,
->   each selector grepped against both `index.html` and `js/app.js` first. `docs/QUEUE.md` says the
->   same thing and has since commit `4cd18a5`; without this note the two files contradict each other.
+>   be.** `grep -rn "\.legacy" css/style.css index.html js/app.js` returns zero hits and always has
+>   (re-measured 12 Aug 2026: still zero). There is no unconverted screen left to wrap. **The real
+>   mechanism, used since F2, is per-screen manual deletion** — a converted screen deletes its own
+>   markup and its own CSS in the same change, each selector grepped against both `index.html` and
+>   `js/app.js` first. `docs/QUEUE.md` says the same thing and has since commit `4cd18a5`; without
+>   this note the two files contradict each other.
 >   §2's RULE is untouched — a screen is fully v3 or fully untouched. Only the enforcement sentence
 >   goes.
 >

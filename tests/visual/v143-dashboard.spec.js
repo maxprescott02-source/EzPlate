@@ -134,23 +134,54 @@ for (const width of [380, 1360]) {
   });
 }
 
-/* ⚠ REWRITTEN 12 Aug 2026: the reference is the CARD BODY, not the page column. The trend became a
-   bordered card in the same change, so it carries 20px of padding a side and "chart == column" is
-   false by design. What this test exists to catch — the v98/v121 540px cap inside a full-width card,
-   which Max called janky — is untouched, because a 540 cap is still hundreds of pixels short. */
+/* ⚠ REWRITTEN TWICE, and both rewrites moved the REFERENCE rather than loosening the tolerance —
+   which is the distinction that keeps this pin worth having.
+   12 Aug 2026: the reference became the CARD BODY, not the page column. The trend became a bordered
+   card, so it carries 20px of padding a side and "chart == column" is false by design.
+   177: the card is 2/3 of a row now, with Recent changes beside it, so "most of the COLUMN" is false
+   by design too — it measures ~0.6 and would have had to be relaxed to 0.55 to pass, which is the
+   "rewrite the spec to fit" move this file has already caught once. The column share is therefore
+   asserted where it is still a fact — on the ROW, whose two cards do span it — and the chart is
+   pinned to its own host, which is the box the v98/v121 540px cap actually failed against. A 540 cap
+   in a 667px host is still 127px short, so what this exists to catch is untouched at both ends. */
 test('the plot fills its container rather than sitting in a capped block', async ({ page }) => {
   await boot(page, 1360);
   const m = await page.evaluate(() => {
-    const host = document.querySelector('.dash-trend .ds-body');
-    const cs = getComputedStyle(host);
+    const host = document.getElementById('trendHost');
+    const row = document.querySelector('.dash-trendrow').getBoundingClientRect();
     return {
       chart: document.querySelector('.dash-chart svg').getBoundingClientRect().width,
-      host: host.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      host: host.getBoundingClientRect().width,
+      row: row.width,
+      trend: document.querySelector('.dash-trend').getBoundingClientRect().width,
       column: document.getElementById('dashBody').clientWidth,
     };
   });
   expect(m.chart).toBeGreaterThan(m.host - 2);
-  expect(m.chart, 'and it is still most of the column, not a capped block').toBeGreaterThan(m.column * 0.75);
+  expect(m.row, 'the two cards still span the whole column').toBeGreaterThan(m.column - 2);
+  // 2/3 of the row, give or take the gap — a capped block would read far under this
+  expect(m.trend / m.row, 'the chart card is the wide one').toBeGreaterThan(0.6);
+  expect(m.chart, 'and the plot is most of that card, not a block swimming inside it')
+    .toBeGreaterThan(m.trend * 0.85);
+});
+
+/* 177 — the viewBox is measured from the CHART'S OWN box, not from the column it used to fill.
+   This is the assertion that fails if #trendHost is ever put back on a padded element or the
+   second render pass is dropped: both leave a viewBox wider than the render, i.e. a scale under 1,
+   which is invisible on screen except as slightly-too-small axis type. */
+test('177: the viewBox equals the rendered width once the chart is 2/3 of a row', async ({ page }) => {
+  await boot(page, 1360);
+  const m = await page.evaluate(() => {
+    const svg = document.querySelector('#trendWrap svg');
+    return {
+      vb: Number(svg.getAttribute('viewBox').split(/\s+/)[2]),
+      rendered: svg.getBoundingClientRect().width,
+      column: document.getElementById('dashBody').clientWidth,
+    };
+  });
+  expect(Math.abs(m.vb - m.rendered), `viewBox ${m.vb} vs render ${Math.round(m.rendered)}`)
+    .toBeLessThanOrEqual(1);
+  expect(m.vb, 'and it is the card, not the column').toBeLessThan(m.column * 0.8);
 });
 
 /* ============================================================================================
@@ -313,6 +344,18 @@ test('revealing the Gemini credit shifts nothing below it', async ({ page }) => 
      seed that produces nothing — which is what the main SEED does, and how the first cut of this
      test passed while verifying nothing at all. */
   expect(await page.locator('.ins-line').count(), 'the seed must earn its panel').toBeGreaterThan(0);
+
+  /* ⚠️ WAIT FOR THE FONTS BEFORE MEASURING. This test compares two `getBoundingClientRect().top`
+     values with STRICT equality across a 150ms window, and Geist/Geist Mono load async — a face
+     that swaps inside that window changes text metrics and moves `.dash-row2` by a fraction of a
+     pixel, failing an assertion about the credit's line box for a reason that has nothing to do
+     with it. Seen once in a full 289-spec run at 2 workers on 12 Aug 2026, and never in five
+     isolated runs, which is the signature of a race rather than a regression.
+     The nondeterminism is REMOVED rather than absorbed into a tolerance: the claim really is
+     "nothing moves at all", and the defect it guards against (the credit's line box being
+     reserved, or the credit falling back into the flow) moves things by more than 14px. Widening
+     to a sub-pixel tolerance would keep the test passing and quietly stop it being about zero. */
+  await page.evaluate(() => document.fonts && document.fonts.ready);
 
   const before = await page.evaluate(() => ({
     hidden: document.querySelector('#dashInsPanel .ins-credit').hidden,

@@ -105,13 +105,22 @@ test('cost panel tracks edits live; new plate resets it', async ({ page }) => {
   const fresh = await page.evaluate(() => ({
     total: document.getElementById('bTotal').textContent,
     menusHidden: document.getElementById('bMenus').style.display === 'none',
-    foot: document.getElementById('bFootSum').innerHTML,
+    /* 177: the bar's chrome — the figures wrapper, the line and the Save button — is STATIC markup
+       now, because rebuilding a primary action on every keystroke put it inside a node replaced
+       mid-gesture. So `innerHTML === ''` stopped being the way to say "this bar draws nothing", and
+       the honest reading is that the bar is HIDDEN with no figures in it. Same claim, measured
+       against what actually decides it (renderBuilderCost sets `hidden` from `plate.length`). */
+    footHidden: document.getElementById('bFootSum').hidden,
+    footFigs: document.getElementById('bFootFigs').innerHTML,
+    footLine: document.getElementById('bFootLine').innerHTML,
     pillHidden: document.getElementById('bldPill').hidden,
     pubNote: document.getElementById('bPublish').textContent,
   }));
   expect(fresh.total).toBe('$0.00');
   expect(fresh.menusHidden).toBe(true);
-  expect(fresh.foot).toBe('');
+  expect(fresh.footHidden, 'a bar over an empty docket is chrome, not information').toBe(true);
+  expect(fresh.footFigs, 'and it carries no stale figures behind the hide').toBe('');
+  expect(fresh.footLine).toBe('');
   // F7: an unpublished plate has no price anywhere, so the header pill is ABSENT, not zeroed
   expect(fresh.pillHidden, 'no food-cost pill on a plate that is not on a menu').toBe(true);
   expect(fresh.pubNote, 'and the Publishing card says why it cannot publish yet').toMatch(/Save the plate first/);

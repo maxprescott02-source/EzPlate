@@ -527,15 +527,36 @@ input[type=checkbox]{
 .bld-back:hover{color:var(--text)}
 .bld-chev{font-size:16px;line-height:1}
 .bld-slash{color:var(--muted2)}
-/* 170: the mock's §3.7 static title. F7's editable `.bld-name` field and the `.bld-head
-   .bld-namewrap` specificity fight it needed are DELETED with it — the field lives in step 2 now
-   and wears the ordinary form styling every other field on the screen wears, so there is nothing
-   left to out-specify. `.bld-namewrap` survives as step 2's positioning context for #plateSuggest. */
-.bld-title{
-  flex:0 1 auto;min-width:0;font-size:15px;font-weight:600;color:var(--text);line-height:1.4;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+/* 177 TOMBSTONE: `.bld-title` / `.bld-title.is-unnamed` styled the static mirror span 170 put in the
+   header. The mirror is deleted with `syncBuilderTitle()` — the FIELD is the title again, and it is
+   styled below rather than mirrored.
+   ⚠️ THE FIELD READS AS A TITLE AND STAYS A CONTROL, which is the whole difficulty: it opens a
+   listbox (#plateSuggest searches saved plates and uncosted menu items), so it cannot be chromeless
+   text that only reveals itself on click — a control that offers no affordance until you guess it is
+   there is worse than a plain field. It carries the title's SIZE and WEIGHT with a hairline
+   underneath, and fills in on hover and focus. Not `border:0` plus a focus ring: the underline is
+   what says "editable" while the caret is elsewhere. */
+/* ⚠️ `input.bld-nameinput`, not `.bld-nameinput`: the base control rule is `input[type=text]`, which
+   is (0,1,1), so a bare class loses to it and the field kept its full 1.5px box and white fill. The
+   type selector brings this to (0,1,1) too and source order decides — a deliberate tie, taken here
+   rather than an `!important`.
+   ⚠️ AND THE FONT SIZE IS NOT SET AT ALL. `input,select,textarea{font-size:16px!important}` exists to
+   stop iOS zooming on focus, and this is a field Max taps on the phone he actually works on. The
+   mock's 15px is R1 presentational; not zooming the whole page on tap is R2, so the app's 16px wins
+   and the title reads a half-step larger than the mock. Same reason `.bld-qty input` never won its
+   12.5px either. */
+input.bld-nameinput{
+  width:100%;min-width:0;box-sizing:border-box;
+  font-family:var(--ui);font-weight:600;color:var(--text);line-height:1.4;
+  padding:4px 8px;min-height:36px;
+  border:1px solid transparent;border-bottom-color:var(--border2);border-radius:6px 6px 0 0;
+  background:none;
+  text-overflow:ellipsis;
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease);
 }
-.bld-title.is-unnamed{color:var(--muted2);font-weight:500}
+input.bld-nameinput::placeholder{color:var(--muted2);font-weight:500;opacity:1}
+input.bld-nameinput:hover{background:var(--hover-2)}
+input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);border-radius:6px;box-shadow:none}
 .bld-namewrap{position:relative;display:block;min-width:0}
 .bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}
 /* ⚠️ `:not([hidden])` IS LOAD-BEARING. renderBuilderCost hides this element on every unpublished
@@ -553,75 +574,107 @@ input[type=checkbox]{
 .bld-pill.bv-t-amber{background:var(--warn-bg);color:var(--warn)}
 .bld-pill.bv-t-red{background:var(--bad-bg);color:var(--bad)}
 .bld-saved{font-size:12px;color:var(--muted2);white-space:nowrap}
-/* §6's mobile header. The title takes the whole first row so it is never squeezed to a stub, and
-   the second row carries the pill (which the mobile mock draws directly under the bar), the saved
-   state and the ONE action. Three things on that row, one of them a button — §6's "one action max"
-   is about actions, and Save is the only one; Duplicate went to the rail.
-   170: Save STAYS the header action rather than moving into step 2, which the item allowed either
-   way. On a twenty-line docket the naming step is below the fold, and the §6 summary bar carries
-   figures only — no button — so a step-2 Save would be reachable on a phone only by scrolling past
-   every ingredient. A header commit is not a form field and is not what "fill order" is about. */
-/* the title keeps the base rule's nowrap + ellipsis at BOTH widths: it has a full row here, and an
-   input never wrapped, so letting it wrap would be this change growing the header on a long name. */
-.bld-head .bld-title{flex:1 1 100%;order:1}
+/* §6's mobile header. The name field takes the whole first row so it is never squeezed to a stub,
+   and the second row carries the pill (which the mobile mock draws directly under the bar) and the
+   saved state.
+   177 — THERE IS NO ACTION IN THIS HEADER AT ALL NOW, which is §6's "one action max" satisfied by
+   having none. Save moved into the rail's summary panel (the mock's placement, and the brief's), and
+   the phone reaches it through the sticky `.bld-bar`, which grew a Save button in the same change
+   precisely so this could happen without burying the commit under a long docket — the objection 170
+   recorded against exactly this move. See renderBuilderCost. */
+.bld-head .bld-namewrap{flex:1 1 100%;order:1}
 .bld-head .bld-pill{order:2;flex:0 0 auto}
 .bld-head .scr-gap{order:3}
 .bld-head .bld-saved{order:4}
-.bld-head #saveBtn{order:5}
-.bld-err{margin:var(--sp-2) 0 0}   /* tighter than the old --sp-3: it sits under the field now, not under the header */
+.bld-err{margin:var(--sp-2) var(--sp-5) 0}   /* the page gutter, because it is a page-level block now rather than a field's own error */
 .bld-body{display:flex;flex-direction:column;gap:var(--sp-4);padding:var(--sp-4) 0 132px}   /* the tail clears the fixed summary bar */
 .bld-main{display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
 
-/* ---- the two steps ----
-   Same shell as `.bld-card` (the rail's Cost/Publishing), because the item asks for the steps to be
-   stated "using the v3 card system" and one card system is §6's rule. `.bld-table` is DELETED: it
-   was this same border/radius/background plus `overflow:hidden`.
-   ⚠️ THE MISSING `overflow:hidden` IS THE POINT, not an omission. #drop is position:absolute inside
-   `.search-wrap`, so an ancestor that clips cuts the dropdown off — measured on the shipped build at
-   1280 as a 96px list with 37px visible. The h2 therefore rounds its own top corners rather than
-   letting the card trim them. */
-.bld-step{border:1px solid var(--border);border-radius:10px;background:var(--surface)}
-.bld-step > h2{
-  display:flex;align-items:center;gap:8px;
-  margin:0;font-size:13px;font-weight:600;color:var(--text);
-  padding:12px var(--sp-4);border-bottom:1px solid var(--border);background:var(--surface2);
-  border-radius:9px 9px 0 0;   /* 9, not 10: it sits inside the 1px border */
+/* ---- 177 — THE DOCKET. The editing surface, rebuilt from mock §3.7 (Plates → Fish & Chips).
+   The `.bld-step` / `.bld-stepn` / `.bld-stepbody` numbered cards 170 built are DELETED here, not
+   overridden: the docket carries the fill order by being what you type into, so a card saying "1"
+   over the thing you were going to do anyway is chrome. `.bld-table` was deleted before them.
+   IT IS PAPER, not a card: `--surface-2` stock (the mock's own choice — a docket is not the same
+   surface as a panel), a drop shadow under the whole shape, dashed rules between lines, and a
+   perforated tear-off edge below.
+   ⚠️ NO `overflow:hidden` ANYWHERE ON THIS SHAPE, and it is the third time that matters: #drop is
+   `position:absolute` inside `.search-wrap`, so any clipping ancestor cuts the ingredient dropdown
+   off — measured at 1280 on the shipped v149 build as a 96px list with 37px visible. The paper's
+   rounded top corners come from its own `border-radius`, which clips nothing because the background
+   is painted on the same element. v150-builder-order.spec.js measures the painted height of that
+   dropdown against every clipping ancestor, which is the form of the claim that can fail.
+   ⚠️ THE SHADOW IS `filter:drop-shadow`, NOT `box-shadow`, and that is required rather than
+   preferred: the tear-off edge is a zigzag drawn with gradients, so a box-shadow would cast a
+   straight-edged rectangle underneath the teeth. The filter follows the alpha of the whole shape. */
+.bld-docket{filter:drop-shadow(0 8px 20px var(--shadow-pop));min-width:0}
+.bld-paper{
+  background:var(--surface-2);
+  border:1px solid var(--border);border-bottom:0;border-radius:10px 10px 0 0;
 }
-.bld-stepn{
-  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
-  width:19px;height:19px;border-radius:999px;background:var(--accent-weak);color:var(--accent-ink);
-  font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11px;font-weight:600;
+/* the tear-off edge: two 45° gradients meeting to make the teeth, in the paper's own colour so the
+   theme carries it. The side borders continue the paper's; there is no bottom border by design. */
+.bld-perf{
+  height:12px;
+  background:
+    linear-gradient(-45deg, transparent 8px, var(--surface-2) 0) 0 0/16px 100% repeat-x,
+    linear-gradient(45deg, transparent 8px, var(--surface-2) 0) 8px 0/16px 100% repeat-x;
+  border-left:1px solid var(--border);border-right:1px solid var(--border);
 }
-/* The search row: step 1's first control, above the band and the lines. Carried from the deleted
-   `.bld-foot`: §6's phone add-row is a single full-width control, because sharing the row with
-   "+ Misc cost" left the search 195px wide at 380px — and the dropdown is anchored to the FIELD, so
-   it inherited that width and listed product names in a 195px column. Measured, then wrapped. */
-.bld-add{display:flex;flex-wrap:wrap;gap:8px;padding:12px var(--sp-4);border-bottom:1px solid var(--border)}
+/* The add field is the docket's first control, at the top, where the lines grow from. §6's phone
+   add-row is a single full-width control: sharing the row with "+ Misc cost" left the search 195px
+   wide at 380px, and the dropdown is anchored to the FIELD, so it inherited that width and listed
+   product names in a 195px column. Measured, then wrapped — and 177 moves "+ Misc cost" out of this
+   row entirely, down to the docket's own action row, which is where the mock draws it. */
+.bld-add{display:flex;gap:8px;padding:14px var(--sp-4) 0}
 .bld-q{flex:1 1 100%;min-width:0}
-.bld-misc{flex:1 1 100%;white-space:nowrap}
+/* the mono masthead. Letter-spaced caps, hairline-dashed under, item count hard right. */
+.bld-mast{
+  display:flex;justify-content:space-between;align-items:center;gap:var(--sp-3);
+  margin:14px var(--sp-4) 0;padding-bottom:9px;border-bottom:1px dashed var(--border2);
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted2);
+  white-space:nowrap;overflow:hidden;
+}
+.bld-mast span:last-child{font-variant-numeric:tabular-nums}
+/* the docket's own action row, above the tally: "+ Misc cost" and the one-line tip that used to sit
+   under the table carrying the item count with it. */
+.bld-miscrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px var(--sp-4);border-top:1px dashed var(--hairline)}
+.bld-misc{flex:0 0 auto;white-space:nowrap;border-style:dashed}
+.bld-tip{flex:1 1 200px;min-width:0;font-size:11.5px;color:var(--muted2);line-height:1.4}
+/* the tally: the last line of a receipt. Its rule is the heavier dashed one, because it separates
+   the arithmetic from the lines rather than one line from the next. */
+.bld-tally{
+  display:flex;justify-content:space-between;align-items:baseline;gap:var(--sp-3);
+  padding:12px var(--sp-4) 16px;border-top:1px dashed var(--border2);font-family:var(--mono);
+}
+.bld-tally-k{font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--text)}
+.bld-tally-v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
 
-/* ---- step 2's fields ---- */
-.bld-stepbody{padding:14px var(--sp-4);display:flex;flex-direction:column;gap:14px}
+/* ---- form fields inside the rail's cards ---- */
 .bld-field{display:flex;flex-direction:column;gap:6px;min-width:0}
 /* sentence case — deliberately NOT the app-wide `.f`, whose letter-spaced caps made Category the
-   only shouting label on this screen. Scoped to this card so no other form is converted by it. */
+   only shouting label on this screen. Scoped to the builder so no other form is converted by it. */
 .bld-flabel{font-size:12.5px;font-weight:500;color:var(--text2)}
 .bld-flabel .hint{font-size:12.5px;font-weight:400;color:var(--muted2)}
 
 /* ---- the ingredient table ---- */
 .bld-band{display:none}
 /* §6's phone row, two bands. Band 1: the name (with its linked product under it) and the line
-   cost. Band 2: qty, unit cost, Remove. Giving each of those five a line of its own measured
+   cost. Band 2: qty, unit cost, remove. Giving each of those five a line of its own measured
    148px a row at 380px - a two-ingredient plate filled the screen - so the mono facts pair up.
-   Three columns, because band 2 has three things in it and band 1 has two. */
+   Three columns, because band 2 has three things in it and band 1 has two.
+   177 — the rule is DASHED and on the TOP, which is the docket's stitching rather than a table's
+   divider. Top, not bottom, so the first line is separated from the column band above it and the
+   last needs no `:last-child` reset before the misc row that follows. */
 #lines .bld-row{
   display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px var(--sp-3);align-items:center;
-  border-bottom:1px solid var(--border);padding:10px var(--sp-4);min-height:52px;
+  border-top:1px dashed var(--hairline);padding:10px var(--sp-4);min-height:52px;
 }
-#lines .bld-row:last-child{border-bottom:0}
 .bld-ing{min-width:0;grid-column:1;grid-row:1}
 .bld-ing b{display:block;font-size:15px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis}
-.bld-sub{display:block;font-size:12.5px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis}
+/* 177: `white-space:nowrap` — the mapped product and its brand are ONE line with an ellipsis, which
+   is what the ellipsis was already asking for and never got. Without it a long product name wrapped
+   to a second line and grew the row, which on a five-line docket is a different height per row. */
+.bld-sub{display:block;font-size:12.5px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bld-sub.warn{color:var(--bad)}
 .bld-qty{display:flex;align-items:center;gap:6px;grid-column:1;grid-row:2}
 .bld-qty input{
@@ -637,9 +690,11 @@ input[type=checkbox]{
   grid-column:2 / 4;grid-row:1;justify-self:end;align-self:center;
   font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500;color:var(--text);
 }
+/* 177: the mock's × rather than the word "Remove". 15px so the glyph reads at the same optical
+   weight as the row's type; the accessible name is still a sentence (see renderPlate). */
 .bld-rm{
-  grid-column:3;grid-row:2;justify-self:end;
-  border:0;background:none;font-size:12.5px;color:var(--muted2);cursor:pointer;padding:4px;min-height:36px;
+  grid-column:3;grid-row:2;justify-self:end;line-height:1;
+  border:0;background:none;font-size:15px;color:var(--muted2);cursor:pointer;padding:4px;min-height:36px;
   transition:color var(--t-fast) var(--ease);
 }
 .bld-rm:hover{color:var(--danger)}
@@ -661,11 +716,14 @@ input[type=checkbox]{
 .bld-row.is-misc .bld-lc input{-moz-appearance:textfield;appearance:textfield}
 .bld-empty{padding:var(--sp-6) var(--sp-4);text-align:center;color:var(--muted2);font-size:13.5px;line-height:1.6}
 .bld-hint{padding:var(--sp-3) var(--sp-4) 0;margin:0;font-size:var(--fs-xs);color:var(--muted2)}
-.bld-tip #dCount:not(:empty)::before{content:" · "}
-.bld-flag{padding:var(--sp-2) var(--sp-4) 0}
+/* 177 TOMBSTONE: `.bld-tip #dCount:not(:empty)::before{content:" · "}` joined the count to the end of
+   the tip sentence. The count is the docket masthead's now, so there is nothing to join it to. */
+/* 177: a block of its own under the docket rather than a row inside it, so `.bld-main`'s own gap
+   spaces it and no margin is needed — one owner for the seam, as everywhere else on this page. */
+.bld-flag{margin:0}
 
 /* ---- the right rail ---- */
-.bld-rail{display:flex;flex-direction:column;gap:var(--sp-4)}
+.bld-rail{display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
 .bld-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
 .bld-card > h2{
   margin:0;font-size:13px;font-weight:600;color:var(--text);
@@ -677,13 +735,56 @@ input[type=checkbox]{
 .bld-k{font-size:12.5px;color:var(--text2)}
 .bld-v{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:500;color:var(--text)}
 .bld-v-lg{font-size:18px;font-weight:600}
-/* §7: below 768 the fixed summary bar carries Plate cost and Suggested, so the Cost card must not
-   print the same two figures again — the same call Q6 (v125) made when it hid `.bcost` under 900.
-   "On menus" is NOT duplicated by the bar (which names only the worst) and stays at both widths,
-   which is why the rule targets the two figure rows rather than the whole card. */
+
+/* ---- 177 — the summary panel: the mock's big total over the controls that price against it.
+   The 2px rule under the figure is the mock's own; it is `--text` rather than a border token on
+   purpose, because it reads as the underline of a headline rather than as a card seam. ---- */
+.bld-sumhead{padding:14px var(--sp-4) 12px;border-bottom:2px solid var(--text)}
+.bld-sumlbl{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2)}
+.bld-sumnum{
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--text);
+}
+/* empty until the log has seen a move — `:not(:empty)` rather than a JS-set hidden, so the margin
+   cannot survive its own content going away */
+.bld-sumrange:not(:empty){display:block;margin-top:2px;font-size:11.5px;color:var(--muted2)}
+.bld-price{display:flex;align-items:center;gap:var(--sp-3)}
+.bld-price .bld-k{flex:1 1 auto;min-width:0}
+.bld-pricebox{
+  display:inline-flex;align-items:center;gap:2px;flex:0 0 auto;
+  border:1px solid var(--border2);border-radius:6px;background:var(--surface);padding:0 8px;
+}
+.bld-pricebox:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+/* no font-size here on purpose: the 16px !important that stops iOS zoom-on-focus stands, exactly as
+   it does on `.bld-qty input` and the misc-cost box. A price the user taps on a phone is the last
+   field that should shrink under it. */
+.bld-pricebox input{
+  width:74px;text-align:right;border:0;background:none;padding:8px 0;min-height:36px;
+  font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--text);
+}
+.bld-pricebox input:focus{outline:none;box-shadow:none}   /* the box wears the ring, so the input must not draw a second one */
+.bld-pricebox input::-webkit-outer-spin-button,.bld-pricebox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.bld-pricebox input{-moz-appearance:textfield;appearance:textfield}
+.bld-warn{
+  border:1px solid var(--warn-br);background:var(--warn-bg);color:var(--warn);
+  border-radius:6px;padding:7px 10px;font-size:11.5px;line-height:1.45;
+}
+.bld-warn.bv-red{border-color:var(--danger-br);background:var(--danger-bg);color:var(--danger)}
+/* the panel's own actions: one primary, then the two secondaries side by side (the mock's shape) */
+.bld-sumacts{flex-direction:column;padding:0 var(--sp-4) 14px}
+.bld-sumacts > .btn{width:100%}
+.bld-actrow{display:flex;gap:8px;width:100%}
+.bld-actrow .btn{flex:1 1 0;min-width:0}
+/* §7: below 768 the fixed summary bar carries Plate cost and Suggested, so the panel must not print
+   the same two figures again — the same call Q6 (v125) made when it hid `.bcost` under 900.
+   ⚠️ 177 — SAVE HIDES HERE TOO, and that is the other half of the bar growing a Save button. Both
+   visible would be two primaries on one screen (§7) and the sticky one is the reachable one on a
+   phone; both hidden would be no commit at all, so these two rules are a PAIR and neither may be
+   changed alone. "On menus", the price input and the warning are NOT duplicated by the bar (which
+   names only the worst menu) and stay at both widths. */
 @media (max-width:767px){
-  #bCost > h2,#bCost .bld-kv{display:none}
-  #bCost .bld-cardbody{padding-top:0}
+  #bCost .bld-sumhead,#bCost .bld-kv,#bCost .bld-sumacts > #saveBtn{display:none}
+  #bCost .bld-cardbody{padding-top:14px}
   #bCost .bld-menus{border-top:0;padding-top:0}
 }
 .bld-menus{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);padding-top:10px}
@@ -711,11 +812,17 @@ input[type=checkbox]{
   padding:10px var(--sp-4);background:var(--surface);border-top:1px solid var(--border);
 }
 .bld-bar[hidden]{display:none}
+/* the figures are the one part of the bar that re-renders; the Save button beside them is static
+   markup and must not sit inside this element (177 — see renderBuilderCost) */
+.bfs-figs{display:flex;align-items:center;gap:var(--sp-4);min-width:0}
 .bfs-fig{display:flex;flex-direction:column}
 .bfs-lbl{font-size:11.5px;color:var(--muted2)}
 .bfs-total{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:600;color:var(--text)}
 .bfs-line{flex:1 1 100%;font-size:12.5px;color:var(--text2)}
 .bfs-line b{font-family:var(--mono)}
+/* 177: the phone's commit. `margin-left:auto` rather than a `.bfs-fig{flex:1}` so the figures keep
+   their natural widths and the button hugs the right edge whether there are one or two of them. */
+.bfs-save{margin-left:auto;flex:0 0 auto;min-height:44px;padding:0 18px}
 
 /* ---- >=768: the mock's §3.7 desktop shape ----
    Two columns (table + 300px rail) and the five-column row. Written as an ADDITION to the mobile
@@ -728,27 +835,53 @@ input[type=checkbox]{
      Caught by extending v155-shell-edges.spec.js to `#builderPage` — the eight `#tab-*` screens all
      passed first, and this one was missed by measuring only those. The 1040 cap is §2's builder
      width and includes the padding (border-box), so it is unaffected. */
+  /* ⚠️ 177 — FLEX-WRAP, NOT A TWO-COLUMN GRID, and the difference is the docket's minimum width.
+     The grid was `minmax(0,1fr) 300px`, which gives the docket whatever is left — and what is left
+     depends on the SIDEBAR, which no viewport media query can see. Measured: at a 1024 viewport the
+     sidebar takes 224 and the container's own gutters another 52, so a fixed 300px rail left the
+     docket 428px, and its five-column row starts crushing the ingredient name well before that. A
+     breakpoint cannot fix it, because the same viewport means two different container widths
+     depending on whether the shell is drawn.
+     `flex:1 1 480px` is a container-relative floor: the two sit side by side while both bases fit,
+     and the rail wraps to its own line the moment they do not — the docket then takes the whole row
+     and never drops below its basis. This is the mock's own behaviour and its own numbers (the rail
+     is `1 1 280px` capped at 340 there too), so the wrapped rail is 340 wide by design rather than
+     stretching to the docket's width. */
+  /* ⚠️ `flex-direction:row` IS NOT REDUNDANT. The base rule stacks this with `column`, and a
+     `flex-wrap:wrap` on a column container wraps by HEIGHT — so the first cut left the rail under
+     the docket at every width, with both items sized by their max-widths instead of their bases,
+     and it read as a wrap that had simply chosen wrong. Measured before diagnosing: docket 710 and
+     rail 285 inside a 1000px row that could hold 780px of bases. */
   .bld-body{
-    display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--sp-5);align-items:start;
+    display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--sp-5);align-items:flex-start;
     max-width:1040px;padding:var(--sp-5) var(--sp-5) var(--sp-6);
   }
+  .bld-main{flex:1 1 480px;min-width:0}
+  .bld-rail{flex:1 1 280px;max-width:340px}
+  /* the summary panel follows the docket down a long plate — the figure you are moving stays on
+     screen while you move it. `top` clears the page container's own 32px top padding. */
+  .bld-sum{position:sticky;top:var(--sp-6)}
+  /* 177: no background and no solid rule — the band is the docket's own column legend, in the mock's
+     10.5px letter-spaced caps, sitting on the paper rather than on a tinted table header. The 22px
+     last track is the × column; the mock's own five widths, scaled to this app's editable unit-cost
+     chip (which is a control, not the mock's bare unit noun). */
   .bld-band{
-    display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 90px 72px;gap:0 12px;
-    padding:9px var(--sp-4);font-size:11.5px;font-weight:500;color:var(--muted2);
-    border-bottom:1px solid var(--border);background:var(--surface2);
+    display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 90px 40px;gap:0 12px;
+    padding:10px var(--sp-4) 5px;font-size:10.5px;font-weight:500;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--muted2);
   }
   .bld-band span:not(:first-child):not(:last-child),.bld-band span:nth-child(4){text-align:right}
-  .bld-head .bld-title,.bld-head .bld-pill,.bld-head .scr-gap,
-  .bld-head .bld-saved,.bld-head #saveBtn{order:0;flex:0 0 auto}
+  .bld-head .bld-namewrap,.bld-head .bld-pill,.bld-head .scr-gap,
+  .bld-head .bld-saved{order:0;flex:0 0 auto}
   /* content-width-ish, not the whole bar: the mock's title sits beside its pill. Same specificity
-     as the mobile `.bld-head .bld-title` above — `@media` does not win by being later. */
-  .bld-head .bld-title{flex:0 1 auto;min-width:0;max-width:360px;white-space:nowrap}
+     as the mobile `.bld-head .bld-namewrap` above — `@media` does not win by being later. */
+  .bld-head .bld-namewrap{flex:0 1 360px;min-width:120px}
   /* FIXED tracks, not auto — each row is its own grid, so auto tracks would size per-row and the
      columns would not line up down the table. Q6 (v125) measured exactly that on the docket; the
      v3 table has the same shape and the same exposure, and fresh-states.spec.js pins the result. */
   #lines .bld-row{
-    grid-template-columns:minmax(0,1fr) 110px 110px 90px 72px;gap:0 12px;align-items:center;
-    padding:8px var(--sp-4);min-height:0;
+    grid-template-columns:minmax(0,1fr) 110px 110px 90px 40px;gap:0 12px;align-items:center;
+    padding:10px var(--sp-4);min-height:0;
   }
   .bld-ing{grid-column:1;grid-row:1}
   .bld-ing b{font-size:13.5px}
@@ -761,17 +894,13 @@ input[type=checkbox]{
   .bld-row.is-misc .bld-mid{display:block;grid-column:2 / 4;grid-row:1}
   .bld-row.is-misc .bld-lc{grid-column:4;grid-row:1;justify-content:flex-end}
   .bld-row.is-misc .bld-lc input{width:76px;min-height:0}
-  .bld-add{flex-wrap:nowrap}
-  .bld-q{flex:1 1 auto}
-  .bld-misc{flex:0 0 auto}
-  /* the two step fields sit side by side once there is room — name and category are one thought */
-  .bld-stepbody{flex-direction:row;flex-wrap:wrap;gap:var(--sp-4)}
-  .bld-field{flex:1 1 220px}
-  .bld-stepbody .edit-tag{flex:1 1 100%}
   .bld-actions{flex-direction:column}
   .bld-actions .btn{flex:0 0 auto;width:100%}
-  /* §7: the summary bar and the Cost card would print the same two figures. The card wins on the
-     desktop the mock draws it for, and the bar is a phone element. */
+  /* the panel's secondary pair stays side by side at every width — it is the mock's shape, and the
+     rule above would otherwise stack them. Written at 0-2-0 against that 0-1-1, a deliberate raise. */
+  .bld-actrow .btn{flex:1 1 0;width:auto}
+  /* §7: the summary bar and the summary panel would print the same two figures. The panel wins on
+     the desktop the mock draws it for, and the bar is a phone element. */
   .bld-bar{display:none}
 }
 /* Below 640 the tab bar is a real bottom bar and the summary sits above it; from 640 up it is a
@@ -780,6 +909,17 @@ input[type=checkbox]{
 @media (min-width:640px){
   .bld-bar{bottom:env(safe-area-inset-bottom)}
 }
+/* ⚠️ 177 — THE INSTALL BANNER SAT ON TOP OF THIS BAR, and it stopped being cosmetic in this batch.
+   `#installBanner` is fixed at `bottom:84px` with `z-index:78`; the summary bar is fixed lower at
+   `z-index:25`. They have overlapped since the bar existed, but the bar carried only figures, so the
+   symptom was a covered number. 177 puts SAVE in it, and the banner then covers the screen's
+   committing action — found by Playwright reporting the click intercepted by `#installClose`, not by
+   looking, because the two elements only coexist when the install prompt has fired.
+   114px is not a new number: it is exactly what `html.has-install-banner body` already reserves for
+   the banner, so the bar rides on the same measurement the document does and the two cannot drift.
+   Written at (0,2,1) so it beats BOTH the base rule and the >=640 override without depending on
+   source order — `@media` does not win by being later, and this has to win over both. */
+html.has-install-banner .bld-bar{bottom:calc(114px + env(safe-area-inset-bottom))}
 
 /* ----------------------------------------------------------------------
    10. PLATE ACTIONS — one clear primary, quiet destructive
@@ -2637,6 +2777,25 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    inside it, which this file has now paid for seven times.
    ====================================================================== */
 .stg-cards{display:flex;flex-direction:column;gap:var(--sp-4);max-width:680px}
+/* ---- 177 — THE FORM-SCREEN MEASURE. The 680 cap above is the CARD's; this is the SCREEN's, and
+   the two have to be set together or the header rule stops matching the card edges.
+   Measured at 2400 before changing: the `.scr-head` rule ran to x1416 (the 1200 page container,
+   inset 20) while the cards stopped at x936, so Settings and Account read as a left stripe with
+   ~480px of drawn hairline over nothing and ~960px of empty canvas beside it. The page container
+   is right — a TABLE wants 1200 — so the fix belongs to the two screens that are forms, not to
+   `.wrap`, which 176 left-anchored for everybody.
+   ⚠ THE 680 CAP MUST COME OFF INSIDE THIS ONE, and that is not tidying. `.stg-cards` is the first
+   block after `.scr-head`, so it is the block v155-shell-edges.spec.js compares the header rule
+   against: leaving both caps in place puts the rule at pane+20 and the cards at pane+20+680, i.e.
+   the exact 20px-class overhang that spec exists to catch, at 40px. One cap per axis — the SCREEN
+   is 760, the cards fill it. That is also why "tighten the card, not stretch the row": the row's
+   label/control relationship is untouched; what shrank is the box around it.
+   Scoped to >=1024 because that is where the sidebar layout and the 1200 container exist at all —
+   below it `.wrap` is already a phone/tablet column and 760 would be a cap on nothing. ---- */
+@media (min-width:1024px){
+  #tab-settings,#tab-account{max-width:760px}
+  #tab-settings .stg-cards,#tab-account .stg-cards{max-width:none}
+}
 .stg-card{border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);overflow:hidden}
 .stg-card-h{margin:0;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface2);font-size:var(--fs-sm);font-weight:700;letter-spacing:0;color:var(--text)}
 .stg-body{padding:4px 20px}
@@ -3236,15 +3395,18 @@ html{scrollbar-gutter:stable}
    (40px phone / 44px desktop) is DELETED with its element. The v3 mobile mock sets the hero at 44
    flat and the desktop KPI figure at 26, and both are set once in §27 — the phone/desktop split
    is now which SURFACE shows, not what size one element is. */
-/* The since-line: the achievement, then the gap. The warm tint marks accumulating drift (the thing
-   worth glancing at); .calm drops the tint when there is no drift to report. Deliberately NOT a
-   traffic-light colour — drift is normal trading, not failure (that judgement lives on the chart's
-   over-target band alone). */
-.since{display:block;margin:var(--sp-3) 0 0;padding:9px 12px;
-  border-radius:9px;border-left:2px solid var(--warn);background:var(--warn-bg);
-  font-size:var(--fs-sm);line-height:1.45;color:var(--text)}
+/* The since-line: the achievement, then the gap. Drift still gets a warm READING; it is no longer a
+   warm PANEL. 177 moved this element out of its own full-width banner between the verdict and the
+   chart and into the Recent-changes card's header band, so the chrome that made it a standalone
+   block — the tint, the 2px rule, its own padding and radius — is DELETED rather than overridden.
+   It is header meta now: one quiet line under the card's title, over the rows it describes.
+   `:not(.calm)` carries what `.calm` used to, from the other side: calm is the ordinary state and
+   needs no declaration, and drift is the one worth glancing at. Deliberately NOT a traffic-light
+   colour — drift is normal trading, not failure (that judgement lives on the chart's over-target
+   band alone). */
+.since{display:block;margin:3px 0 0;font-size:12px;line-height:1.45;color:var(--text-2);font-weight:400}
 .since b{font-weight:600}
-.since.calm{border-left-color:var(--border2);background:var(--surface2)}
+.since:not(.calm){color:var(--warn)}
 /* The caption's marker key and the scrub tooltip's marker sentence. */
 .chart-hint .mk-dot{color:var(--accent);font-size:9px;vertical-align:1px}
 .chart-hint .mk-note{display:inline-block}   /* the marker key wraps as one unit, never mid-sentence */
@@ -4281,6 +4443,33 @@ html{scrollbar-gutter:stable}
   .dash-trend .ds-head{display:block}
   .dash-trend .ds-head .range-bar{margin-top:var(--sp-2)}
 }
+
+/* ---- 177 — THE TREND ROW: the chart and the changes it marks, side by side.
+   The mock draws a full-width single-series chart; Max reversed that on 12 Aug 2026 having seen the
+   built screen, on the same reading that made the trend a card in the first place — a 1160px band
+   holding one line is width spent on nothing, and the dots on it had no legend anywhere.
+   THE SPLIT IS AT 1024, NOT AT 768 like `.dash-row2` below it, and that is measured rather than
+   tidy. The chart's own header band carries a ~200px six-button range bar beside a ~110px title, so
+   the 2/3 column cannot go under ~480 without the bar wrapping the band to two rows; at a 768
+   viewport the row would be 728 wide, giving 472 and 236. 236 is not a column a plate name and a
+   relative date can share. At 1024 — where the sidebar layout begins — it is 485/243, and by 1360 it
+   is 696/348, which is the shape the mock's proportions were drawn at.
+   `minmax(0,Nfr)`, not `Nfr`: the bare keyword is minmax(AUTO,Nfr), so a long plate name would size
+   its own track and the 2:1 would stop being 2:1 — the same reason `.dash-row2` carries it.
+   The margin lives on the WRAPPER and the children are zeroed, because a grid item's own margin
+   sits inside the row and would misalign the two cards' top edges. It restates `.dash-sec`'s own
+   two values so the chart keeps exactly the rhythm it had while it was a `.dash-sec` in the stack. */
+.dash-trendrow{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4);margin-top:var(--sp-6)}
+.dash-trendrow > .dash-sec{margin-top:0;min-width:0;align-self:start}
+@media (min-width:768px){ .dash-trendrow{margin-top:36px} }
+@media (min-width:1024px){
+  .dash-trendrow{grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:var(--sp-5)}
+}
+/* the Recent-changes header band stacks its title over the since-line, so it opts out of `.ds-head`'s
+   flex row. Written at the same specificity as the rule it overrides — `.ds-head` is 0-1-0 and this
+   is 0-2-0 on the same element, which is a deliberate raise rather than an accident of source order. */
+.ds-head.rc-head{display:block}
+.dash-recent .mv-row{min-height:52px}
 
 /* ---- Needs attention (§3.1). Rows divided by hairlines inside the container. ---- */
 .ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}
