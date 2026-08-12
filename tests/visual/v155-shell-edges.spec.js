@@ -117,7 +117,18 @@ test('the builder page is on the same column as its own header', async ({ page }
   });
   expect(r.open, 'openBuilder() must actually show the page for this to mean anything').toBe(true);
   expect(Math.abs(r.bodyLeft - r.headLeft), `builder body left ${r.bodyLeft} vs header ${r.headLeft}`).toBeLessThanOrEqual(0.5);
-  expect(Math.abs(r.bodyRight - r.headRight), `builder body right ${r.bodyRight} vs header ${r.headRight}`).toBeLessThanOrEqual(0.5);
+  /* ⚠ RIGHT EDGE RELAXED 12 Aug 2026, and the reason is a real constraint rather than a concession.
+     The page container went 960 -> 1200 (the wide-viewport work), and `.bld-body` carries the mock's
+     §2 builder cap of 1040 — so past a 1040-wide column the builder legitimately stops short of the
+     header, exactly as Settings and Account already do inside their 680 form cap. The LEFT edge is
+     the page-container contract and stays exact; the right edge is a form-column decision.
+     It is bounded rather than dropped: the body must still be the FULL column whenever the column
+     fits inside the cap, and may never be wider than the header. */
+  expect(r.bodyRight, 'the builder never spills past its header').toBeLessThanOrEqual(r.headRight + 0.5);
+  const columnWidth = r.headRight - r.headLeft;
+  if (columnWidth <= 1040) {
+    expect(Math.abs(r.bodyRight - r.headRight), `at a ${Math.round(columnWidth)}px column the builder fills it`).toBeLessThanOrEqual(0.5);
+  }
 });
 
 test('the screen header bar is one height across the whole app', async ({ page }) => {

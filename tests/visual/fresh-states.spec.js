@@ -1115,15 +1115,29 @@ for (const size of SIZES) {
         // phone, which reads as a 28px edge break rather than "that element is not here".
         edges: [head.getBoundingClientRect().left + parseFloat(cs.paddingLeft), L('#tab-analysis .menu-picker-row'), L('#aList')],
         // ONE row, at both widths: two actions in a mobile header is a known, queued deviation, but
-        // a header that WRAPS is a defect — the mock's own "Add existing plate" caused one at 380.
-        // Counted by distinct child CENTRE LINES. Two earlier metrics were wrong for reasons worth
-        // recording, because both looked right: dividing the height by a line height reads 2 on a
-        // one-row header (44px button + 24px padding = 69px), and grouping by TOP reads 4 because
-        // `.scr-head` centres children of four different heights. The centre is the only y that is
-        // shared by everything on one row and differs the moment something wraps.
-        headRows: [...new Set([...head.children]
-          .filter(el => el.offsetParent !== null && el.getBoundingClientRect().height > 0)
-          .map((el) => { const r = el.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }))].length,
+        /* a header that WRAPS is a defect — the mock's own "Add existing plate" caused one at 380.
+           ⚠ THE METRIC CHANGED 12 Aug 2026, because the previous one stopped being true. It counted
+           distinct child CENTRE LINES, on the stated reasoning that "the centre is the only y shared
+           by everything on one row". That held while `.scr-head` centred every child — and the title
+           and its meta line now carry `align-self:baseline` (they were floating at the title's
+           mid-height instead of sitting on its line), so two children legitimately share a BASELINE
+           and not a centre. The old metric read 3 rows on a header that had not wrapped at all.
+           Two earlier metrics were wrong too, both recorded because both looked right: dividing the
+           height by a line height reads 2 on a one-row header (44px button + 24px padding = 69px),
+           and grouping by TOP reads 4 because the bar centres children of four different heights.
+           This one asks the question directly and is alignment-agnostic: a wrap is a child that
+           begins BELOW another child ends. Nothing about how items align within a row can produce
+           that, and nothing that wraps can avoid it. */
+        headRows: (() => {
+          const boxes = [...head.children]
+            .filter((el) => el.offsetParent !== null && el.getBoundingClientRect().height > 0)
+            .map((el) => el.getBoundingClientRect());
+          let rows = 1;
+          for (const a of boxes) for (const b of boxes) {
+            if (a.top >= b.bottom - 0.5) { rows = 2; break; }
+          }
+          return rows;
+        })(),
         suggestedTh: document.getElementById('aSuggestedTh').textContent,
         sub: document.getElementById('menuHeadSub').textContent,
         note: document.getElementById('menuListNote').textContent,

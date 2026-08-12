@@ -2551,7 +2551,7 @@ function renderIngredients(){
       +'<span class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</span>'
       +'<span class="ing-meta">'+catCell+supCell+'</span>'
-      +'<span class="ing-price"><b>'+dispPrice(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
+      +'<span class="ing-price"><b>'+ingPriceHtml(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
       +drift
       +'</button>';
   }).join('');
@@ -5998,8 +5998,21 @@ if ('serviceWorker' in navigator) {
   function dismissed(){try{return localStorage.getItem(KEY)==='1';}catch(e){return false;}}
   function setDismissed(){try{localStorage.setItem(KEY,'1');}catch(e){}}
   function standalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
-  function show(){ if(!dismissed()&&!standalone()) banner.style.display='flex'; }
-  function hide(){ banner.style.display='none'; }
+  /* `has-install-banner` on <html> is what lets the PAGE reserve room for a FIXED panel. Without it
+     the banner floated over live table rows — measured at 1440: banner x1016-1416 against a table
+     running to x1416, so it sat on top of the rows themselves. A fixed element cannot be "docked
+     clear" of a full-width column by CSS alone; something has to give the document the space back,
+     and only the code that knows the banner is visible can do that. The class is set here rather
+     than in a CSS :has() so it survives the banner being toggled by any of the four paths below. */
+  function show(){
+    if(dismissed()||standalone()) return;
+    banner.style.display='flex';
+    document.documentElement.classList.add('has-install-banner');
+  }
+  function hide(){
+    banner.style.display='none';
+    document.documentElement.classList.remove('has-install-banner');
+  }
   window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferred=e; show(); });
   window.addEventListener('appinstalled',function(){ setDismissed(); hide(); });
   document.getElementById('installClose').addEventListener('click',function(){ setDismissed(); hide(); });
@@ -7400,6 +7413,21 @@ function prodOptions(selId){
   }).join('');
 }
 function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';return '$'+c.toFixed(2)+'/unit';}
+/* The Products row's price, with the unit suffix split out so it can be set smaller and dimmer than
+   the figure (176 — "$24.78/kg" rendered the "/kg" at the price's own size, so every row carried two
+   competing figures and the decimals stopped being what the eye lands on).
+   ⚠ THIS WRAPS `dispPrice` RATHER THAN CHANGING IT, deliberately. `dispPrice` returns a plain STRING
+   and two of its four callers put that string somewhere HTML would be wrong or would have to be
+   escaped — the dashboard's Dig-in `disp` field and the invoice review's old-price cell. Making the
+   shared function emit markup to suit one screen is how a helper starts lying to its other callers.
+   Splitting on the LAST slash, not the first: the figure never contains one, and "/unit" and "/kg"
+   both come after it. A value with no slash (the em dash `dispPrice` returns for a missing cost)
+   falls through whole. */
+function ingPriceHtml(p){
+  var s=dispPrice(p), i=s.lastIndexOf('/');
+  if(i<=0) return esc(s);
+  return esc(s.slice(0,i))+'<span class="ing-unit">'+esc(s.slice(i))+'</span>';
+}
 /* ---- new-item inline panel ---- */
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }

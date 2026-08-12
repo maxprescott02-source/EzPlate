@@ -1335,7 +1335,6 @@
       <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/><path class="mk-arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg>
       <span><b><span class="ez">Ez</span>Plate</b></span>
     </div>
-    <button class="side-theme" id="sideThemeToggle" type="button" aria-pressed="false" aria-label="Dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="sideThemeIcon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
   </div>
   <!-- 171: the nav order is §6.1's parity map — "sidebar top-to-bottom = tab bar left-to-right",
        Dashboard(Home), Menu, Plates, Ingredients, with Products/Invoices/Settings/Account as the
@@ -1368,6 +1367,19 @@
   <button class="navbtn nav-bottom" data-tab="invoices" id="sideInvoices" type="button" aria-label="Invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg><span class="nl">Invoices</span></button>
   <button class="navbtn nav-bottom nav-settings" data-tab="settings" id="sideSettings" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span class="nl">Settings</span></button>
   <button class="navbtn nav-bottom" data-tab="account" id="sideAccount" type="button" aria-label="Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nl">Account</span></button>
+  <!-- 176: THE THEME TOGGLE'S OWN REGION, moved out of the wordmark row (Max, 12 Aug 2026).
+       In the brand row it was a 22px icon squeezed beside a two-line wordmark, reading as chrome
+       attached to the logo rather than as a control. It is a SETTING, so it belongs with the other
+       settings-ish routes at the foot of the sidebar, under its own hairline.
+       It wears `.navbtn` for the nav's type, rhythm and hover — the same borrowing `.nav-settings`
+       already does — and carries NO `data-tab`, which is what keeps it out of
+       `querySelectorAll('.navbtn[data-tab]')` and therefore out of the tab router. It is not a
+       route and must never become one. The label is real text, not an icon alone: an unlabelled
+       glyph at the foot of a sidebar is the "unexplained" thing the nav-group hairline exists to
+       avoid, and this control has two states a glyph cannot announce. -->
+  <div class="side-foot">
+    <button class="navbtn side-theme" id="sideThemeToggle" type="button" aria-pressed="false" aria-label="Dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="sideThemeIcon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span class="nl">Theme</span></button>
+  </div>
   <!-- 171: the phone's fifth tab. Mobile-only — hidden at ≥1024, where the bottom group above IS
        this list. It is LAST in the DOM on purpose and the position is load-bearing: showTab lights
        BOTH this button and the sub-screen's own .nav-bottom entry when a sub-screen is open (they

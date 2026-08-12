@@ -86,27 +86,48 @@ test('a programmatic clear hides the × too — not only a typed one', async ({ 
   expect(await page.evaluate(() => getComputedStyle(document.getElementById('ingSearchClear')).display)).toBe('none');
 });
 
-test('a long product name stays whole and the brand yields its width instead', async ({ page }) => {
-  await boot(page);
+/* ⚠ REWRITTEN 12 Aug 2026 after the page container went 960 -> 1200. At 1360 the Products table is
+   now wide enough that NOTHING truncates — which is the fix working, and which made the original
+   version of this test vacuous: its "these rows are genuinely tight" precondition stopped holding,
+   so it proved nothing about shrink order.
+   The contract is therefore asserted where the pressure actually exists, and as a RELATIVE rule
+   rather than an absolute one: the name may clip when there is genuinely no room for it, but the
+   brand must ALWAYS have clipped first. Measured across three widths on the real catalogue's longest
+   names — 1024: 15 brands clipped, 10 names, 0 name-only · 1180: 1 brand, 0 names · 1360: none.
+   "Name clipped while brand intact" is the defect, and it is zero everywhere. */
+const TIGHT = 1024;   // the narrowest desktop — real pressure on both labels
+const EASY = 1180;    // enough room for every name, not quite for every brand
+
+async function nameBrandClipping(page, width) {
+  await boot(page, width);
   await page.evaluate(() => window.showTab('ingredients'));
   await page.waitForTimeout(300);
-  // the longest names in the real catalogue; the fixture carries them
-  await page.fill('#ingSearch', 'cake p/c');
-  await page.waitForTimeout(300);
-
-  const rows = await page.evaluate(() => [...document.querySelectorAll('#ingList > .ing-card')].map((r) => {
+  await page.fill('#ingSearch', 'cake p/c');   // the catalogue's longest names
+  await page.waitForTimeout(400);
+  return page.evaluate(() => [...document.querySelectorAll('#ingList > .ing-card')].map((r) => {
     const n = r.querySelector('.ing-name');
     const b = r.querySelector('.ing-brand');
     return {
       name: n.textContent,
       nameClipped: n.scrollWidth > n.clientWidth + 1,
       brandClipped: !!b && b.scrollWidth > b.clientWidth + 1,
-      hasBrand: !!b,
     };
   }));
+}
+
+test('under pressure the brand yields BEFORE the name — never the other way round', async ({ page }) => {
+  const rows = await nameBrandClipping(page, TIGHT);
   expect(rows.length, 'the filter matched the long-name rows').toBeGreaterThan(0);
-  const clippedBrands = rows.filter((r) => r.brandClipped);
-  expect(clippedBrands.length, 'these rows are genuinely tight — otherwise the test proves nothing').toBeGreaterThan(0);
+  // non-vacuous: this width must actually squeeze something, or the assertion below is free
+  expect(rows.some((r) => r.brandClipped), `at ${TIGHT}px the fixture must be tight, or this proves nothing`).toBe(true);
+  const nameOnly = rows.filter((r) => r.nameClipped && !r.brandClipped);
+  expect(nameOnly.map((r) => r.name), 'a clipped name beside an intact brand is the defect').toEqual([]);
+});
+
+test('given a little more room, every name is whole and only the brand gives way', async ({ page }) => {
+  const rows = await nameBrandClipping(page, EASY);
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows.some((r) => r.brandClipped), `at ${EASY}px the brand should still be absorbing the squeeze`).toBe(true);
   for (const r of rows) {
     expect(r.nameClipped, `the name is the identifier and stays whole: "${r.name}"`).toBe(false);
   }
