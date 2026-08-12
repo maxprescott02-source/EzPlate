@@ -42,6 +42,31 @@
 --   the tenant then comes from the caller's membership instead of the single
 --   seeded business.
 --
+-- THE TRIGGER IS `INSERT OR UPDATE`, AND THE COLUMN IS `NOT NULL`
+--   The first draft was BEFORE INSERT only, with the column left nullable
+--   exactly as the queue item specified. The pre-push review pointed out that
+--   this covers ONE of the two ways the column can go null: nothing stopped an
+--   `update … set business_id = null`, and under Part 2 a nulled row is one the
+--   café can no longer see, reported as 200 and an empty array rather than an
+--   error. It also observed, correctly, that calling the trigger a thing that
+--   "cannot be forgotten" overstated a guard covering only inserts.
+--
+--   So the trigger now fires on UPDATE too — it only acts when the incoming
+--   value IS NULL, so Part 2 can still MOVE a row between tenants; it just
+--   cannot blank one. And `business_id` is NOT NULL, which turns any path that
+--   somehow bypasses the trigger (triggers disabled, a COPY, a future
+--   `alter table … disable trigger`) into a loud 23502 instead of a silent row
+--   that disappears from the café's own database.
+--
+--   ⚠️ NOT NULL IS SAFE HERE ONLY BECAUSE THE TRIGGER RUNS FIRST. A BEFORE
+--   trigger fills the value before the constraint is checked, so the restore's
+--   explicit NULL is repaired rather than rejected. Remove the trigger and the
+--   constraint stops being a backstop and becomes the thing that breaks every
+--   restore. They are one mechanism, not two.
+--   This DEPARTS from the queue item's "nullable" wording deliberately: the
+--   item chose nullable so an additive change could not break an insert, and
+--   the trigger already guarantees that. Recorded rather than done quietly.
+--
 -- WHY THE SEEDED ID IS A FIXED LITERAL, NOT gen_random_uuid()
 --   The column DEFAULT is part of the `columns_fp` fingerprint in
 --   docs/STAGING.md ("def="). A generated id would differ between staging and
@@ -73,10 +98,19 @@
 --       execute format('alter table public.%I drop column if exists business_id', t);
 --     end loop;
 --     drop function if exists public.set_default_business_id();
---     drop policy if exists "members read their business" on public.businesses;
+--     if to_regclass('public.businesses') is not null then
+--       drop policy if exists "members read their business" on public.businesses;
+--     end if;
 --     drop table if exists public.business_members;
 --     drop table if exists public.businesses;
 --   end $$;
+--
+--   The `to_regclass` guard is not decoration: `drop policy IF EXISTS … ON t`
+--   still requires `t` to exist, so without it a SECOND run of this rollback
+--   errors with "relation businesses does not exist" instead of doing nothing.
+--   Every other line here is re-runnable and this one has to be too — a rollback
+--   is reached when something has already gone wrong, which is exactly when it
+--   gets retried. (Pre-push review, 13 Aug 2026.)
 --
 --   ⚠️ THE `drop policy` LINE IS LOAD-BEARING AND THE FIRST DRAFT OF THIS HEADER
 --   OMITTED IT — caught by running the rollback rather than trusting it. The
@@ -213,8 +247,13 @@ begin
 
     execute format('drop trigger if exists set_business_id on public.%I', t);
     execute format(
-      'create trigger set_business_id before insert on public.%I '
+      'create trigger set_business_id before insert or update on public.%I '
       || 'for each row execute function public.set_default_business_id()', t);
+
+    -- NOT NULL comes AFTER the trigger exists, so the dangerous intermediate
+    -- state -- a constraint with nothing filling the column -- cannot exist even
+    -- for one statement. Same rule as ordering the policy before RLS.
+    execute format('alter table public.%I alter column business_id set not null', t);
   end loop;
 end $$;
 
@@ -243,9 +282,20 @@ begin
     select count(*) into missing from pg_trigger
      where tgname = 'set_business_id'
        and tgrelid = format('public.%I', t)::regclass
-       and not tgisinternal;
+       and not tgisinternal
+       -- In pg_trigger.tgtype, INSERT is the 4 bit and UPDATE is the 16 bit.
+       -- Both must be set, or the UPDATE half of the guard is silently absent
+       -- and only a review would ever notice.
+       and (tgtype & 4) = 4 and (tgtype & 16) = 16;
     if missing <> 1 then
-      raise exception 'set_business_id trigger missing on %', t;
+      raise exception 'set_business_id trigger missing or not INSERT OR UPDATE on %', t;
+    end if;
+
+    select count(*) into missing from information_schema.columns
+     where table_schema = 'public' and table_name = t
+       and column_name = 'business_id' and is_nullable = 'NO';
+    if missing <> 1 then
+      raise exception 'business_id is still nullable on %', t;
     end if;
   end loop;
 end $$;

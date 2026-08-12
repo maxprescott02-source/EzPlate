@@ -12,13 +12,18 @@
 -- WHAT IT IS
 --   A faithful mirror of production's `public` schema as read out of the live
 --   catalogue on 11 Aug 2026 (batch 172): 10 tables, their constraints, indexes,
+--   ⚠️ and since batch 181 (13 Aug 2026) TWELVE tables, not ten — section 7 adds
+--   `businesses` and `business_members`. `list_tables` therefore shows 13 here
+--   against production's 12, still the one deliberate marker difference.
 --   RLS state and policies, the `restore_backup` RPC, and the PostgREST grants.
 --   It is IDEMPOTENT — safe to re-run — so re-mirroring after a production
 --   migration is just running it again.
 --
 --   It adds ONE object production does not have, on purpose: `__ezplate_staging`.
 --   See the marker section. That single deliberate difference is what every seed
---   file guards on, and it is why `list_tables` shows 11 here against production's 10.
+--   file guards on, and it is why `list_tables` shows one more table here than in
+--   production. (The absolute numbers moved in 181 and are stated above once,
+--   rather than twice in a file where only one copy would get updated.)
 --
 -- HOW TO APPLY
 --   Through the `supabase-staging` MCP server's execute_sql, or the staging SQL
@@ -540,7 +545,12 @@ begin
 
     execute format('drop trigger if exists set_business_id on public.%I', t);
     execute format(
-      'create trigger set_business_id before insert on public.%I '
+      'create trigger set_business_id before insert or update on public.%I '
       || 'for each row execute function public.set_default_business_id()', t);
+
+    -- NOT NULL AFTER the trigger exists, never before: a BEFORE trigger fills the
+    -- value before the constraint is checked, so the restore's explicit NULL is
+    -- repaired rather than rejected. Reverse the order and every restore breaks.
+    execute format('alter table public.%I alter column business_id set not null', t);
   end loop;
 end $mig$;

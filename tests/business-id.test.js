@@ -133,6 +133,45 @@ test('SQL: the migration and the staging mirror carry the same ten tables', () =
     'produce a schema the fingerprint diff reports as drift');
 });
 
+test('SQL: the trigger covers UPDATE as well as INSERT', () => {
+  /* The pre-push review found the first draft guarded only INSERT, so nothing stopped an
+     `update ... set business_id = null` — and under Part 2 a nulled row is one the café can no
+     longer see, returned as 200 and an empty array rather than an error. Reproduced on staging
+     before the fix and repaired by it after. Dropping back to `before insert` must go red. */
+  assert.match(MIGRATION, /create trigger set_business_id before insert or update/,
+    'the trigger no longer covers UPDATE — a row can be blanked without an error anywhere');
+  assert.match(MIRROR, /create trigger set_business_id before insert or update/,
+    'the staging mirror lost the UPDATE half, so a rehearsal would not reproduce the guard');
+});
+
+test('SQL: business_id is NOT NULL, and the constraint is added AFTER the trigger', () => {
+  /* NOT NULL is only safe BECAUSE a BEFORE trigger fills the value first — the restore's explicit
+     NULL is repaired before the constraint is checked. Add the constraint before the trigger
+     exists and every restore breaks with 23502 instead. This pins the ORDER, not just the
+     presence, because the order is the part that is silently wrong. */
+  assert.match(MIGRATION, /alter column business_id set not null/,
+    'business_id went back to nullable — the trigger only guards paths that run triggers');
+
+  const trig = MIGRATION.indexOf('create trigger set_business_id');
+  const notNull = MIGRATION.indexOf('alter column business_id set not null');
+  assert.ok(trig !== -1 && notNull !== -1);
+  assert.ok(trig < notNull,
+    'NOT NULL is applied before the trigger is created, so there is a moment where the column is ' +
+    'constrained with nothing filling it — order these the other way round');
+});
+
+test('SQL: the rollback stays re-runnable', () => {
+  /* `drop policy IF EXISTS ... ON t` still needs `t` to exist, so without the to_regclass guard a
+     SECOND run of the rollback errors instead of doing nothing. A rollback is reached when
+     something has already gone wrong, which is exactly when it gets retried. (Pre-push review.) */
+  assert.match(MIGRATION, /if to_regclass\('public\.businesses'\) is not null then/,
+    'the rollback dropped its to_regclass guard and is no longer safe to run twice');
+  const guard = MIGRATION.indexOf("if to_regclass('public.businesses') is not null then");
+  const drop = MIGRATION.indexOf('drop policy if exists "members read their business"');
+  assert.ok(guard !== -1 && drop !== -1 && guard < drop,
+    'the guard must come BEFORE the policy drop it protects');
+});
+
 test('SQL: the trigger exists as well as the DEFAULT, and says why', () => {
   /* This is the finding the queue item did not have: restore_backup inserts five tables with
      `select *` and no column list, so an absent JSON key arrives as an EXPLICIT NULL that overrides
