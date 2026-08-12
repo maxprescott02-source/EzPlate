@@ -62,7 +62,9 @@
 --   are created and seeded before any column references them, and each table's
 --   column/backfill/index/trigger group completes before the next begins.
 --
--- ROLLBACK, one statement:
+-- ROLLBACK, one statement — RUN AND VERIFIED ON STAGING, 13 Aug 2026, not just
+-- written down. It left 0 columns, 0 triggers, 0 indexes, no function and no
+-- tenant tables, with all 520 products and 429 dishes untouched.
 --   do $$ declare t text; begin
 --     foreach t in array array['app_settings','ing_price_history','ingredients',
 --       'menu_change_log','menu_items','menu_price_history','menus','plates',
@@ -71,11 +73,21 @@
 --       execute format('alter table public.%I drop column if exists business_id', t);
 --     end loop;
 --     drop function if exists public.set_default_business_id();
+--     drop policy if exists "members read their business" on public.businesses;
 --     drop table if exists public.business_members;
 --     drop table if exists public.businesses;
 --   end $$;
---   NOTE `drop table businesses cascade` alone is NOT a rollback: cascade drops
---   the ten foreign KEY CONSTRAINTS and leaves ten orphan columns behind.
+--
+--   ⚠️ THE `drop policy` LINE IS LOAD-BEARING AND THE FIRST DRAFT OF THIS HEADER
+--   OMITTED IT — caught by running the rollback rather than trusting it. The
+--   `members read their business` policy on `businesses` READS `business_members`,
+--   so Postgres refuses to drop the membership table while that policy stands:
+--   "cannot drop table business_members because other objects depend on it". A
+--   rollback that fails is worse than none, because it is only ever reached when
+--   something has already gone wrong.
+--
+--   NOTE also that `drop table businesses cascade` alone is NOT a rollback:
+--   cascade drops the ten foreign KEY CONSTRAINTS and leaves ten orphan columns.
 --
 -- REHEARSED: staging (pboidoxjghntalovzrke), 13 Aug 2026, on 04-seed-scale.
 --   Verified AS THE CLIENT over PostgREST with the staging publishable key:
