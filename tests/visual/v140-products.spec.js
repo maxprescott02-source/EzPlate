@@ -292,34 +292,49 @@ test('mobile: two-line rows, no band, no container, "Category · Supplier" under
   expect(errs.filter((e) => !/favicon|manifest|net::ERR_FAILED/i.test(e)), 'console clean').toHaveLength(0);
 });
 
-test('the floating add is GONE, and the header carries the one primary at both widths', async ({ page }) => {
-  for (const width of [380, 1280]) {
+/* 179 CONSCIOUS REWRITE — not a deletion to go green, and the queue item named this pin as one of
+   three that whoever built the rehome had to change on purpose.
+   WHAT EXPIRED. This asserted the same shape at 380 and 1280: header = title + #importBtn + #newBtn,
+   one row, primary rightmost. The comment it carried justified the two-action mobile header on the
+   grounds that the sidebar's Invoices entry was desktop-only and #importBtn was therefore the ONLY
+   phone route into the import flow. **171 falsified that** — More → Invoices is a second route — and
+   179 acts on the decision that followed: below 768 the secondary moves into #ingControls, so the
+   phone header is chevron + title + one action. §6's rule, at last.
+   WHAT SURVIVES UNCHANGED, because it was never about the second action: the primary is #newBtn, it
+   says "New product" at both widths, the header is one row, and the primary is rightmost. 360 joins
+   the loop per Max's yes of 12 Aug 2026. The rehome ITSELF is pinned in v158-header-actions.spec.js,
+   which measures it on all three screens at once — one home, one spec. */
+test('the floating add is GONE, and the header carries the one primary at every width', async ({ page }) => {
+  for (const width of [360, 380, 1280]) {
     await boot(page, width);
     await expect(page.locator('#prodFab, .fab'), `no floating add at ${width}`).toHaveCount(0);
     const h = await page.evaluate(() => {
       const head = document.querySelector('#tab-ingredients .scr-head');
       const primary = head.querySelector('.btn.primary');
-      const second = head.querySelector('.plib-btn2');
+      const second = head.querySelector('.plib-btn2');   // null below 768 — that is the rehome
       const t = head.querySelector('h2').getBoundingClientRect();
       return {
         primaryId: primary.id,
         primaryText: primary.textContent,
-        secondId: second.id,
+        secondId: second ? second.id : null,
+        importHome: document.getElementById('importBtn').parentElement.id
+          || document.getElementById('importBtn').parentElement.className,
         // §6's header is one row; a wrap is what the mobile Plates header did before it was caught
         oneRow: Math.abs(t.top - primary.getBoundingClientRect().top) < primary.getBoundingClientRect().height
-          && Math.abs(second.getBoundingClientRect().top - primary.getBoundingClientRect().top) < 2,
-        primaryRightmost: primary.getBoundingClientRect().left > second.getBoundingClientRect().left,
+          && (!second || Math.abs(second.getBoundingClientRect().top - primary.getBoundingClientRect().top) < 2),
+        primaryRightmost: !second || primary.getBoundingClientRect().left > second.getBoundingClientRect().left,
       };
     });
     expect(h.primaryId, 'the header primary IS the same button the old actions row held').toBe('newBtn');
     expect(h.primaryText, '§7: one label per intent — "New product", never the mock\'s "Add product"').toBe('New product');
-    /* RECORDED DEVIATION. §6's mobile header is "title + one action max" and this screen ships two:
-       the sidebar's Invoices entry is desktop-only, so on a phone #importBtn is the ONLY route into
-       the import flow. Dropping it would strand the app's highest-value feature on the device Max
-       works on. Same question F3 raised on Ingredients; both are folded into one queued decision.
-       What IS pinned is that the pair behaves — one row, primary rightmost, no wrap. */
-    expect(h.secondId).toBe('importBtn');
-    expect(h.oneRow, `header actions share the title's row at ${width}`).toBe(true);
+    if (width < 768) {
+      expect(h.secondId, `§6: the phone header keeps ONE action at ${width}`).toBeNull();
+      expect(h.importHome, 'and the secondary is one line lower, not dropped').toBe('ingControls');
+    } else {
+      expect(h.secondId, 'the desktop header still carries both — the mock allows it').toBe('importBtn');
+      expect(h.importHome, 'and it is genuinely in the bar').toContain('scr-head');
+    }
+    expect(h.oneRow, `the header is one row at ${width}`).toBe(true);
     expect(h.primaryRightmost, 'the primary is rightmost — §6.1\'s position for it').toBe(true);
   }
 });

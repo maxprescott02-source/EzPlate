@@ -1850,6 +1850,44 @@ function rerenderCurrentTab(){                                         // re-run
    the same four are `.nav-bottom` in <nav> and the four `[data-more]` rows in #tab-more, and
    tests/more-screen.test.js pins all three against each other so they cannot drift apart. */
 var MORE_SUBS=['ingredients','invoices','settings','account'];
+/* 179: ONE HOME FOR EVERY SCREEN'S SECOND HEADER ACTION. §6 gives a phone "screen title + one
+   action max" and three converted screens shipped two, which measured as a WRAPPED header on
+   Ingredients at 380 (121px against the one-row 69) and on Products at 360. Max chose the home on
+   12 Aug 2026: the `.plib-controls` row directly beneath the header, mobile only, desktop headers
+   unchanged - which is the home F5's #menuSwitchRow R5 note had already picked for the same
+   question one screen at a time.
+   The pairing is DECLARATIVE, in `data-mobile-home`, so a fourth screen is markup and there is no
+   list here to drift from the markup. matchMedia rather than a width comparison, for the reason
+   moreIsNav states below: it is the unit the CSS resolves, and CLAUDE.md records the two
+   disagreeing by ~10px on the CI runner. (This block sits ABOVE moreIsNav on purpose —
+   tests/more-screen.test.js slices the source between moreIsNav and showTab and asserts nothing in
+   that slice hand-rolls a width, so code parked there would be measured as if it were moreIsNav's.)
+   A throwing matchMedia falls back to DESKTOP - both actions stay in the header,
+   which is today's behaviour and can lose nothing. */
+function hdrActionsMobile(){
+  try{ return !!window.matchMedia('(max-width:767px)').matches; }catch(e){ return false; }
+}
+function syncHeaderActions(){
+  document.querySelectorAll('[data-mobile-home]').forEach(function(el){
+    /* Captured ONCE, before the first move can happen, so the way back is the exact slot rather
+       than "append to the header and hope". The three headers are static markup - the renderers
+       write to `.scr-sub` and to this button's own style, never to the bar's child list - so the
+       captured sibling stays valid for the life of the page. */
+    if(!el._hdrSlot) el._hdrSlot={parent:el.parentNode, next:el.nextElementSibling};
+    var home=hdrActionsMobile()?document.getElementById(el.getAttribute('data-mobile-home')):null;
+    if(home){ if(el.parentNode!==home) home.appendChild(el); }
+    else if(el.parentNode!==el._hdrSlot.parent) el._hdrSlot.parent.insertBefore(el, el._hdrSlot.next);
+  });
+}
+/* The crossing, not every resize - the same shape as the 1024 guard below, including the
+   `addListener` fallback Safari needed until 14. */
+(function(){
+  var mq; try{ mq=window.matchMedia('(max-width:767px)'); }catch(e){ return; }
+  if(!mq) return;
+  if(mq.addEventListener) mq.addEventListener('change',syncHeaderActions);
+  else if(mq.addListener) mq.addListener(syncHeaderActions);
+})();
+syncHeaderActions();   // the first placement. js/app.js is the last thing in <body>, so the three headers are parsed.
 /* Is the More screen the nav at this width? It is the exact complement of the sidebar: `.nav-more`
    is hidden at >=1024 and `.nav-bottom` below it, so this ONE query decides both halves and the two
    can never disagree. matchMedia rather than innerWidth: it is the same unit the CSS resolves, and
@@ -2701,7 +2739,7 @@ function renderIngredients(){
   var note=document.getElementById('ingListNote');
   var showNote=function(on){ if(note) note.hidden=!on; };
   var ctl=document.getElementById('ingControls');
-  var showControls=function(on){ if(ctl) ctl.hidden=!on; };
+  var showControls=function(on){ if(ctl) ctl.classList.toggle('is-nofilters',!on); };   // 179: the FILTERS go, not the row — it hosts #importBtn on a phone. See is-nofilters in css/style.css.
   if(!PRODUCTS.length){                                               // brand-new user: no products at all -> full empty state (gate on the store, not the filtered rows)
     if(sub) sub.textContent='';
     showNote(false); showControls(false);   // nothing to search, and fillFilter has not run — an option-less select is a control that does nothing (F2's true-empty defect)
@@ -2957,7 +2995,7 @@ function renderKitchenPanel(){
   var note=document.getElementById('kingListNote');
   var showNote=function(on){ if(note) note.hidden=!on; };
   var ctl=document.getElementById('kingControls');
-  var showControls=function(on){ if(ctl) ctl.hidden=!on; };
+  var showControls=function(on){ if(ctl) ctl.classList.toggle('is-nofilters',!on); };   // 179: the FILTERS go, not the row — it hosts #kingWizBtn on a phone, and the line below says that is exactly when the wizard matters.
   if(!kitchenIngredients.length){
     showNote(false); showControls(false);   // nothing to search, and fillFilter has not run — an option-less select is a control that does nothing
     /* §5's composed empty state, and this screen's FIRST-RUN state (§5 makes them one).
@@ -5509,7 +5547,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v157';
+var APP_VERSION='v158';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8820,7 +8858,9 @@ function renderAnalysis(){
   }
   /* zero menus is a legitimate state (there is no last-menu guard), and an option-less <select>
      beside a hidden Delete is a control that does nothing — F2's true-empty defect. */
-  var swRow=document.getElementById('menuSwitchRow'); if(swRow) swRow.hidden=!menusList.length;
+  /* 179: `is-nofilters` rather than `hidden`, for the same reason as Ingredients and Products —
+     below 768 this row hosts #menuAddDishBtn, and hiding the row would take the action with it. */
+  var swRow=document.getElementById('menuSwitchRow'); if(swRow) swRow.classList.toggle('is-nofilters',!menusList.length);
   var qEl=document.getElementById('menuSearch'); var q=(qEl?qEl.value:'').trim().toLowerCase();
   var toks=searchTokens(q);   // v59: shared token matcher
   var catSel=(document.getElementById('menuCatFilter')||{}).value||'';   // v59: category filter = dish section

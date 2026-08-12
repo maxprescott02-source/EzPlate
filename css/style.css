@@ -3538,6 +3538,26 @@ html{scrollbar-gutter:stable}
    UA's `[hidden]{display:none}`, so the renderer's hide would be ignored on the empty state. */
 .plib-controls:not([hidden]){display:flex}
 .plib-controls{gap:var(--sp-2);flex-wrap:wrap;align-items:center;padding:var(--sp-3) var(--sp-5) 0}
+/* 179. THE EMPTY STATE HIDES THE FILTERS, NOT THE ROW, on the three rows that host a header action
+   below 768. Before this the renderers set `hidden` on the whole row, and the reason they gave was
+   about the FILTERS — "an option-less select is a control that does nothing". Once the row also
+   carries #kingWizBtn / #importBtn / #menuAddDishBtn, that reason stops covering the row: a café
+   with 412 products and no ingredients would have lost the setup wizard on a phone at exactly the
+   moment renderKitchenPanel's own comment says the wizard matters most.
+   ⚠️ SPECIFICITY COUNTED, not assumed (CLAUDE.md's @media trap): this is 0-3-0 — two classes plus
+   the attribute inside `:not()` — against `.plib-search`'s 0-1-0 and `.plib-selwrap`'s 0-1-0, and
+   it is written OUTSIDE any media query so nothing at a breakpoint has to out-specify it.
+   With every child gone and the padding dropped, a flex row collapses to zero height, which is what
+   `hidden` gave. Above 768 the action is back in the header and the row collapses exactly as before.
+   NOT `[hidden]`: this row must keep rendering when it holds a visible action, and the two states
+   are different questions — `hidden` still means "this row is not here at all". */
+.plib-controls.is-nofilters > :not([data-mobile-home]){display:none}
+.plib-controls.is-nofilters{padding-top:0}
+/* A REHOMED ACTION KEEPS ITS RIGHT-HAND POSITION. In the header `.scr-gap` pushes it right; here
+   `margin-left:auto` does the same job, so crossing 767 moves the button DOWN a line and not
+   sideways as well. It is also what separates an action from the filters it now shares a row with,
+   which is the cost the queue item recorded when this home was chosen. */
+.plib-controls > [data-mobile-home]{margin-left:auto}
 .plib-search{flex:1 1 200px;min-width:160px;position:relative;display:flex;align-items:center}
 .plib-search input{
   width:100%;font:inherit;min-height:44px;padding:10px 40px 10px 12px;

@@ -104,18 +104,19 @@ test('380: every More sub-screen lights More, and lights nothing else visible', 
    Products header to two rows: it compares the TOP of every visible header child, which is the only
    thing that distinguishes one row from two.
 
-   ⚠️ 360 IS DELIBERATELY NOT IN THIS LIST, and the reason is measured rather than assumed. The
-   Products header DOES wrap at 360 with the chevron present — but 360 was already a width where a
-   header wrapped before this batch: on `main`, at 360, the INGREDIENTS header (its conditional
-   "Set up from products" beside "New ingredient") measures 121px tall against the one-row 69. Both
-   wraps have the same cause and it is not the chevron, which costs 30px: it is a SECOND ACTION
-   costing 72-130px in a header §6 allows one action in. No spec in this repo has ever measured 360
-   — every mobile assertion is at 380, and the mock's own reference is 390 — so pinning it here
-   would be inventing a support width and then engineering to it, and the machinery it would take
-   (shrinking the chevron below its tap target and re-expanding with an ::after) would still leave
-   Ingredients broken at that width. It is recorded on the queue item that owns the second action,
-   naming both screens, and that item's fix resolves both at once. */
-for (const width of [380, 430]) {
+   ⚠️ 360 IS IN THIS LIST AS OF 179, and the paragraph that used to stand here said the opposite —
+   replaced rather than edited, because every clause of it has been overtaken.
+   It read: 360 is deliberately excluded; the Products header does wrap there with the chevron, and
+   so did Ingredients on `main` (121px against the one-row 69); both wraps are a SECOND ACTION
+   costing 72-130px, not the 30px chevron; and no spec in this repo had ever measured 360, so
+   pinning it would be inventing a support width and engineering to it while Ingredients stayed
+   broken there anyway. It ended by handing the problem to the queue item that owns the second
+   action, "and that item's fix resolves both at once."
+   THAT ITEM RAN. Max made 360 a supported width on 12 Aug 2026 (docs/decisions/2026-08-12.md §1,
+   "yes it should be") and 179 rehomed the second action below 768, which is the fix that paragraph
+   predicted. So the exclusion is spent and the width is pinned — here for the four More sub-screens,
+   and in v158-header-actions.spec.js for the three screens that carried the second action. */
+for (const width of [360, 380, 430]) {
   test(`${width}: no More sub-screen header wraps to a second row`, async ({ page }) => {
     await boot(page, width);
     for (const { key, title } of SUBS) {
