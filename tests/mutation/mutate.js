@@ -38,6 +38,17 @@ const OPS = [
 ];
 
 const IDENT = /[A-Za-z0-9_$]/;
+/* Deciding whether a `/` opens a regex or divides is the one genuinely ambiguous thing in a JS
+   scanner, and the cheap heuristic ("the previous character looks like an identifier, so it is a
+   value, so this divides") is WRONG after a keyword. `return /a&&b/.test(x)` ends in `n`, so the
+   heuristic called it division, never entered regex mode, and happily emitted a mutant flipping the
+   `&&` INSIDE the regex — a mutant that is not the operator it claims to be, corrupting the survivor
+   count and any allowance keyed to it. None of the shipped targets contain one; several of the
+   functions queued to become targets plausibly do. So the check reads the whole preceding WORD. */
+const KEYWORD_BEFORE_REGEX = new Set([
+  'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw',
+  'case', 'do', 'else', 'yield', 'await',
+]);
 /* A `(` after one of these is a call the void-call operator may delete; after anything else it is
    control flow or a function definition and deleting the line would only change whether it parses. */
 const NOT_A_CALL = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'function', 'typeof', 'new', 'do', 'else']);
@@ -46,10 +57,25 @@ const NOT_A_CALL = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', '
  * Mark every byte of `src` that is ordinary code — 1 for code, 0 for the inside of a string,
  * template literal, comment or regex literal. Nothing outside the mask is ever mutated.
  */
+/**
+ * Can a `/` at this point open a regex literal, given what precedes it?
+ * `prevIdx` is the index of the last significant character before it, or -1.
+ */
+function regexAllowed(src, prevIdx) {
+  if (prevIdx < 0) return true;                       // start of the slice
+  const p = src[prevIdx];
+  if (p === ')' || p === ']') return false;           // end of a call, group or index: a value
+  if (p === '"' || p === "'" || p === '`') return false;   // end of a string: also a value
+  if (!IDENT.test(p)) return true;                    // an operator, comma or brace: a regex may follow
+  let s = prevIdx;
+  while (s >= 0 && IDENT.test(src[s])) s--;
+  return KEYWORD_BEFORE_REGEX.has(src.slice(s + 1, prevIdx + 1));
+}
+
 function codeMask(src) {
   const mask = new Uint8Array(src.length);
   let i = 0;
-  let prev = '';                       // last significant code character, for the regex/division call
+  let prevIdx = -1;                    // index of the last significant code character
   while (i < src.length) {
     const c = src[i], d = src[i + 1];
     if (c === '/' && d === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
@@ -57,7 +83,7 @@ function codeMask(src) {
     if (c === '"' || c === "'") {
       i++;
       while (i < src.length && src[i] !== c) { if (src[i] === '\\') i++; i++; }
-      i++; prev = '"'; continue;
+      prevIdx = i; i++; continue;      // the closing quote is the last significant character
     }
     if (c === '`') {                   // template: opaque, `${…}` included. See the header.
       i++;
@@ -70,10 +96,10 @@ function codeMask(src) {
         if (ch === '`' && depth === 0) break;
         i++;
       }
-      i++; prev = '`'; continue;
+      prevIdx = i; i++; continue;
     }
     // A `/` is a regex literal unless what precedes it could end an expression, in which case it divides.
-    if (c === '/' && !(prev && (IDENT.test(prev) || prev === ')' || prev === ']'))) {
+    if (c === '/' && regexAllowed(src, prevIdx)) {
       i++;
       let inClass = false;
       while (i < src.length) {
@@ -87,10 +113,10 @@ function codeMask(src) {
       }
       i++;
       while (i < src.length && /[a-z]/.test(src[i])) i++;   // flags
-      prev = '/'; continue;
+      prevIdx = i - 1; continue;
     }
     mask[i] = 1;
-    if (!/\s/.test(c)) prev = c;
+    if (!/\s/.test(c)) prevIdx = i;
     i++;
   }
   return mask;
@@ -226,4 +252,4 @@ function mutantsFor(fnSrc, base, fnName) {
   return out;
 }
 
-module.exports = { codeMask, operatorMutants, voidCallMutants, mutantsFor, apply, parses, OPS };
+module.exports = { codeMask, regexAllowed, operatorMutants, voidCallMutants, mutantsFor, apply, parses, OPS };

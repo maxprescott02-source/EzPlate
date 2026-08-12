@@ -128,6 +128,7 @@ function mutationRun(cfg, log) {
   buildSandbox(cfg.root, sandbox);
   const sandboxApp = path.join(sandbox, cfg.appRel);
 
+  try {
   // BASELINE. Without this the gate is vacuous in the worst way: a broken sandbox fails every test
   // file, every mutant reads as killed, and the gate reports a perfect score while checking nothing.
   const allTests = [...new Set(plan.flatMap((p) => p.target.tests))];
@@ -145,7 +146,6 @@ function mutationRun(cfg, log) {
   let ran = 0, killed = 0;
   const started = Date.now();
 
-  try {
   for (const p of plan) {
     for (const m of p.mutants) {
       const mutated = apply(src, m, 'at');
@@ -182,12 +182,6 @@ function mutationRun(cfg, log) {
       }
     }
   }
-  } finally {
-    // The run owns this directory. Removed even when the loop throws, so a hard stop does not leave
-    // a pid-named tree behind for someone to find later and wonder about.
-    fs.rmSync(sandbox, { recursive: true, force: true });
-  }
-
   const ranFns = new Set(plan.map((p) => p.target.fn));
   const stale = (cfg.allow || []).filter((a) => {
     const fn = a.key.split(' :: ')[0];
@@ -197,6 +191,12 @@ function mutationRun(cfg, log) {
   });
 
   return { ran, killed, survivors, allowed, stale, baselineOk: true, ms: Date.now() - started };
+  } finally {
+    /* The run owns this directory, and it is removed on EVERY exit — the normal one, the red-baseline
+       early return, and the readback-mismatch throw. The early return is the one that was leaking:
+       a repeatedly red baseline is exactly the situation where someone runs this over and over. */
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
 }
 
 function report(res, say) {

@@ -38,6 +38,28 @@ A gate reporting a perfect score while checking nothing, found by the gate's own
 **31 survivors, all real.**
 The largest clusters: `flagNeedsAttention`'s five-clause guard was almost entirely unpinned (a dangling `bestId` would have thrown mid-render, a zero stored price divided by zero, an `ea` product scaled like a weight); `dbDeletePlateAfterDishes`'s status object was never read by any assertion, only its call order; `publishPlan`'s menu comparison could read every dish as being on the Original menu because every existing case used that menu; `parseBackupFile`'s refusals were pinned by `ok:false` and never by which refusal.
 
+## Pre-push review (Sonnet, different model, no brief): four findings, three fixed, one already fixed
+
+**It found the cause of the irreproducible run, and the cause was the reviewer.**
+It ran `npm run mutate` against the same working directory while I was running it, and the two processes shared one fixed sandbox path, so each clobbered the other's mutant.
+Its run reported twelve unallowed survivors on `parseBackupFile`, then an `ENOENT` crash; mine reported eleven on `logIngPrice`.
+I had already hardened against it by process id and read-back rather than explain it away, which is what made its report a confirmation instead of a hunt.
+Worth recording that the mechanism is ordinary: two terminals, or CI and a manual run.
+
+**A regex after a KEYWORD was scanned as ordinary code, and that one was real.**
+`return /a&&b/.test(x)` ends in `n`, so the "previous character looks like an identifier, so this divides" heuristic never entered regex mode and emitted a mutant flipping the `&&` INSIDE the pattern.
+A mutant that is not the operator it claims to be corrupts both the survivor count and any allowance keyed to it.
+None of the seventeen shipped targets contain one; several of the functions `docs/MAINTENANCE.md` names as the next candidates plausibly do, so this would have surfaced as a wrong answer rather than an error.
+The check now reads the whole preceding WORD against a keyword list, with three regression cases.
+
+**"The only check that is a mechanism rather than a convention" overstated what held.**
+The hook needs `git config core.hooksPath .githooks` once per clone, so a fresh clone runs no gate and looks exactly like a clone that passed - this repo's own "an absent check looks like a passing one".
+Fixed by making the claim true rather than softening it: the `unit` CI job now runs the full `npm run mutate` unconditionally.
+Hermetic, node only, about fifteen seconds.
+
+**The sandbox leaked on the red-baseline path**, which my own `finally` had not covered because the early return sits before it.
+That is the path someone hits repeatedly.
+
 ## Into CLAUDE.md
 
 Edited directly under the 13 Aug 2026 standing authority, and reported here rather than parked.
@@ -101,10 +123,11 @@ This is the shape `CLAUDE.md` already describes, but the count is the part worth
 The gate needed no judgement to see it.
 
 **One targeted run gave a result I could not reproduce**, reporting eleven survivors where every other run of the same command reported one, with a clean working tree both times.
-I did not find the cause and I have not claimed one.
-What I did instead is remove every way a verdict can come from an unmutated file: the sandbox directory now carries the process id, so two runs cannot share one tree, and each mutant is **read back off disk and compared** before its verdict is believed, with a mismatch throwing rather than reporting.
-Three consecutive targeted runs and two concurrent ones now agree.
-Worth stating plainly because the alternative was to explain it away, and a gate whose output is not reproducible is worse than no gate.
+I could not find the cause and did not claim one.
+What I did instead was remove every way a verdict can come from an unmutated file: the sandbox carries the process id, so two runs cannot share a tree, and each mutant is read back off disk and compared before its verdict is believed.
+The review then supplied the cause, because the review WAS the cause - it was running the gate concurrently in the same directory.
+The lesson is the ordering: the fix was right before the explanation existed, because it was aimed at the class rather than the instance.
+Guessing at a cause and fixing that would have left the other members of the class in place.
 
 **A survivor's key must not carry a line number.**
 The obvious identity for an allowance is `file:line`, and line numbers in `js/app.js` drift every batch, so an allowance would silently start excusing a different mutant.

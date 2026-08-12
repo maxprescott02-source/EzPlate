@@ -6,7 +6,7 @@
 # FOUR JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke without
 # opening a log:
 #   changes     which paths the diff touched         - decides whether `playwright` runs
-#   unit        node -c js/app.js + `npm test`        - logic, no browser, no deps
+#   unit        node -c js/app.js + `npm test` + the mutation gate - logic, no browser, no deps
 #   smoke       node tests/smoke.js                   - the real index.html + app.js in jsdom
 #   playwright  the hermetic tests/visual specs       - the real app in real Chromium
 #
@@ -137,6 +137,14 @@ jobs:
         run: node -c js/app.js
       - name: Run test suite
         run: npm test
+      # The mutation gate, in the one place that cannot be forgotten. `.githooks/pre-push` needs a
+      # one-time `git config core.hooksPath .githooks` per clone, so a fresh clone or a new machine
+      # runs no gate at all and looks exactly like a clone that passed it - the "an absent check looks
+      # like a passing one" failure this repo has already been bitten by. Here it is unconditional.
+      # Hermetic: node only, no network, no database, no browser, ~15s. It mutates a throwaway copy
+      # under the runner's temp directory and never touches the checkout.
+      - name: Mutation gate
+        run: npm run mutate
 
   # ---------------------------------------------------------------------------
   # `node -c` proves app.js PARSES. This proves it RUNS: the script reaches the end

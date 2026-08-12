@@ -99,6 +99,38 @@ test('division is not read as a regex', () => {
   assert.strictEqual(ms[0].op, 'equality');
 });
 
+test('a regex after a KEYWORD is a regex, not division — found by the pre-push review', () => {
+  // The cheap heuristic is "the previous character looks like an identifier, so this divides", and
+  // `return /a&&b/` ends in `n`. That called it division, never entered regex mode, and emitted a
+  // mutant flipping the `&&` INSIDE the pattern: a mutant that is not the operator it claims to be.
+  const cases = [
+    ['function f(a){ return /a&&b/.test(a) === true; }', 'return'],
+    ['function f(a){ if(typeof a === "s" && /p||q/.test(a)) return 1; }', 'a &&-guarded regex'],
+    ['function f(a){ return a.replace(/x&&y/g, "z") === ""; }', 'a regex argument'],
+  ];
+  for (const [src, why] of cases) {
+    const open = src.indexOf('/');
+    const close = src.indexOf('/', open + 1);
+    const inside = mutantsFor(src, 0, 'f').filter((m) => m.rel > open && m.rel < close);
+    assert.deepStrictEqual(inside.map((m) => m.key), [],
+      `${why}: a mutant landed inside the regex literal, between offsets ${open} and ${close}`);
+  }
+  // and the real operators around them are still found
+  assert.ok(mutantsFor('function f(a){ return /a&&b/.test(a) === true; }', 0, 'f')
+    .some((m) => m.op === 'equality'), 'the === outside the pattern is still mutable');
+});
+
+test('a number, a call and a string are values, so a following slash divides', () => {
+  for (const src of [
+    'function f(a){ var n = 10 / 2; return n === 5; }',
+    'function f(a){ return g(a) / 2 === 1; }',
+    'function f(a){ return a[0] / 2 === 1; }',
+  ]) {
+    assert.strictEqual(mutantsFor(src, 0, 'f').filter((m) => m.op === 'equality').length, 1,
+      `the === must survive the scan in: ${src}`);
+  }
+});
+
 test('an operator is never read as a slice of a longer one', () => {
   const src = 'function h(a, b){ if(a !== b && a >= 1) return a => b; return a <= b; }';
   const ops = mutantsFor(src, 0, 'h').map((m) => `${m.from}>${m.to}`).sort();

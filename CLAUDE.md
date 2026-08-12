@@ -493,8 +493,9 @@ The option he chose was worded "the current pre-push review is enough", so this 
 It also means the convention above is the whole mechanism, permanently - **the pre-push agent is the only thing standing between a mistake and production.**
 On the day it was decided that agent caught a four-word change that would have silently discarded a plate's category edit, with the suite green and the change already driven in a browser.
 
-- **The mutation gate - MECHANICAL, and it runs itself.** `.githooks/pre-push` runs `npm test` then `npm run mutate:changed`; install it once per clone with `git config core.hooksPath .githooks`.
-  It is the only check here that is a MECHANISM rather than a convention, and it covers exactly one thing: a test that would still pass with the code it names broken. See Tier 1's twelve-incident roster for why that one thing earned a hook.
+- **The mutation gate - MECHANICAL.** It covers exactly one thing: a test that would still pass with the code it names broken. See Tier 1's twelve-incident roster for why that one thing earned automation.
+  **It runs in TWO places and only the second one is a mechanism.** `.githooks/pre-push` runs `npm test` then `npm run mutate:changed`, and needs `git config core.hooksPath .githooks` once per clone - **so a fresh clone runs no gate at all and looks exactly like a clone that passed it.** That is why the `unit` CI job also runs the full `npm run mutate` unconditionally, where nothing has to be installed and nothing can be forgotten.
+  The hook is the fast local copy; **CI is the one that actually holds.**
   **A survivor is not a suggestion.** Kill it with an assertion, or write the allowance and its reason into `tests/mutation/targets.js` - the gate fails on a survivor with neither, and equally on an allowance that is no longer needed.
   `git push --no-verify` bypasses it. **If you use it, say so in the handover** - an unexplained skip is the silence the gate replaced.
 - **The `code-review` agent - MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green.

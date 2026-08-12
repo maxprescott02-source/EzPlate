@@ -25,7 +25,7 @@ The same rule applies mid-batch.
 A test that starts failing after an unrelated edit is more often the machine, a stale process or a drifted fixture than a real regression.
 Confirm the failure reproduces from a clean run before you go looking for the bug.
 
-## The four harnesses
+## The five harnesses
 
 ### 1. The suite - `npm test`
 
@@ -86,7 +86,9 @@ A survivor means those tests would still be green with that line broken - the de
 - A survivor is fixed by an ASSERTION, or by an allowance with a reason someone could disagree with. The gate fails on a survivor with neither, and equally on an allowance that is no longer needed.
 - It mutates a throwaway copy in the OS temp directory. It never touches the working tree.
 
-**What it cannot see, which is most things:** a wrong premise, a comment whose stated mechanism is backwards, a control that does nothing, anything in CSS, anything Playwright covers, anything server-side. It is one narrow, mechanical check - and it is the only one here that is a mechanism rather than a convention.
+**What it cannot see, which is most things:** a wrong premise, a comment whose stated mechanism is backwards, a control that does nothing, anything in CSS, anything Playwright covers, anything server-side. It is one narrow, mechanical check.
+
+**Where it runs, and which half you can rely on.** The pre-push hook is the fast local copy and it needs `git config core.hooksPath .githooks` once per clone, so a fresh clone runs nothing and looks identical to a clone that passed. The `unit` CI job runs the full `npm run mutate` unconditionally, and **that is the half that actually holds.**
 `tests/mutation-gate.test.js` proves it can go red as well as green, because a gate that always passes is the same defect one level up.
 
 ## What none of them cover
@@ -138,7 +140,7 @@ Only the phone tells you whether it feels right.
 
 ## Before opening the PR
 
-Suite green · `node -c` clean · smoke if anything renders · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
+Suite green · `node -c` clean · `npm run mutate` green if you wrote or changed a test · smoke if anything renders · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
 
 Open the PR when the diff is **final**.
 **No review fires on its own** - the workflow is on demand since 8 Aug 2026, by manual run or the `deep-review` label.
