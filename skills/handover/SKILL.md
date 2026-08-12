@@ -69,7 +69,8 @@ The point of the section is that it was ASKED.
 - A **durable lesson** - something worth learning twice - goes to `CLAUDE.md`, NOT into the handover.
   A lesson buried in one batch's diary is read once; a rule in `CLAUDE.md` is read every batch.
   Past examples that belonged there: "name-reachability is not enough on its own" (HANDOVER-v112), and the change-log marker-timing finding.
-  Propose it and **wait for Max's yes** - do not add it yourself.
+  **MAKE THE EDIT and report it here.** ⚠️ This line read *"propose it and wait for Max's yes - do not add it yourself"* until 13 Aug 2026 (corrected in 180), when `CLAUDE.md`'s "Changing this file" section was reversed on evidence: a parked documentation change is caught by nothing, while a wrong one is caught by `project-audit`.
+  The only two things still needing Max are reversing a decision he made himself and anything that deletes or rewrites production data.
   Rules there exist because a mistake already happened once, and the file is short on purpose.
 - A **real, unfixed problem** → a `docs/QUEUE.md` item with enough context to act on cold, plus a line in the handover.
   Never only the handover - a finding that lives only in a handover is a finding nobody will action.

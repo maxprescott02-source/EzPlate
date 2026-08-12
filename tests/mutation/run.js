@@ -121,7 +121,10 @@ function mutationRun(cfg, log) {
   }
   if (!plan.length) return { ran: 0, killed: 0, survivors: [], allowed: [], stale: [], baselineOk: true };
 
-  const sandbox = path.join(TMP, cfg.sandboxName);
+  /* The pid is in the directory name so two runs cannot share one sandbox. They otherwise would:
+     the pre-push hook, a manual `npm run mutate` and the gate's own self-test all name the same tree,
+     and one clobbering another's mutant is a wrong verdict rather than a crash. */
+  const sandbox = path.join(TMP, `${cfg.sandboxName}-${process.pid}`);
   buildSandbox(cfg.root, sandbox);
   const sandboxApp = path.join(sandbox, cfg.appRel);
 
@@ -144,7 +147,18 @@ function mutationRun(cfg, log) {
 
   for (const p of plan) {
     for (const m of p.mutants) {
-      fs.writeFileSync(sandboxApp, apply(src, m, 'at'));
+      const mutated = apply(src, m, 'at');
+      fs.writeFileSync(sandboxApp, mutated);
+      /* Read it BACK before trusting the verdict. A mutant that never reached disk runs the tests
+         against pristine code, they pass, and the gate reports "survived" — a finding that is not a
+         finding, in a tool whose entire output is findings. This is the cheapest possible guard
+         against every way that can happen (a stale sandbox, a failed write, a second run of this
+         script clobbering the same directory) and it turns all of them into a loud stop instead of a
+         plausible-looking report. */
+      if (fs.readFileSync(sandboxApp, 'utf8') !== mutated) {
+        throw new Error(`mutation: the sandbox copy of ${cfg.appRel} does not hold the mutant (${m.key}). `
+          + 'Refusing to report a verdict from an unmutated file.');
+      }
       const r = runTests(sandbox, cfg.testDir, p.target.tests);
       ran++;
       const rec = {
@@ -167,7 +181,7 @@ function mutationRun(cfg, log) {
       }
     }
   }
-  fs.writeFileSync(sandboxApp, src);
+  fs.rmSync(sandbox, { recursive: true, force: true });   // the run owns this directory; leaving it would only invite reuse
 
   const ranFns = new Set(plan.map((p) => p.target.fn));
   const stale = (cfg.allow || []).filter((a) => {
