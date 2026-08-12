@@ -3,8 +3,9 @@
 # wiring or the dashboard layout, GitHub shows a red X on the PR before it can reach
 # production. Mirrors what you run locally.
 #
-# THREE JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke without
+# FOUR JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke without
 # opening a log:
+#   changes     which paths the diff touched         - decides whether `playwright` runs
 #   unit        node -c js/app.js + `npm test`        - logic, no browser, no deps
 #   smoke       node tests/smoke.js                   - the real index.html + app.js in jsdom
 #   playwright  the hermetic tests/visual specs       - the real app in real Chromium
@@ -31,9 +32,91 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # WHAT CHANGED — the gate that stops a prose diff paying for Chromium.
+  #
+  # WHY. This repo is PRIVATE, so Actions minutes are billed, and `tests` is the only
+  # workflow that consumes any (code-review.yml is workflow_dispatch + the deep-review
+  # label and does not fire on its own). The browser job is ~8.7 minutes and runs TWICE
+  # per merged PR - once on `pull_request`, once on the `push` to main. Measured on the
+  # 12 Aug 2026 run list: the `docs: record Max's four decisions` PR, a diff of pure
+  # prose, spent ~20 minutes of that budget including a superseded run. It could not
+  # have moved a single pixel the visual specs measure.
+  #
+  # ⚠️ IT FAILS CLOSED, AND THAT IS THE WHOLE DESIGN. The rule is NOT "skip when the
+  # diff looks like docs". It is "run unless EVERY changed path is one of a short,
+  # named set that cannot reach the client". So:
+  #   - a path nobody classified            -> runs (a new top-level directory is not
+  #                                            silently assumed to be prose)
+  #   - an unresolvable base, or no diff    -> runs (a shallow clone, a force-push, a
+  #                                            first push - none of them are evidence)
+  #   - a change to THIS FILE               -> runs (.github/ is not in the set, so a
+  #                                            workflow edit always exercises itself)
+  # The failure mode being designed against is the one CI specialises in: a gate that
+  # goes QUIET is indistinguishable from a pass. A gate that over-runs costs minutes and
+  # is visible; a gate that over-skips ships a layout regression to a real cafe.
+  #
+  # WHAT IS NOT GATED: `unit` and `smoke` run on everything, always. They finish in
+  # seconds, they cost effectively nothing, and they are what keeps a real check on
+  # every PR - a checks list that can go empty is a different kind of quiet.
+  #
+  # THE SCRIPT IS EXTRACTED AND RUN by tests/ci-workflow.test.js, against real path
+  # lists, exactly as the crash detector below is. A hand-written copy of this decision
+  # in the test would be written from the same belief as the original and would agree
+  # with it about the case it exists to catch (CLAUDE.md - "a stub that mirrors a real
+  # function must mirror its CONTRACT, so extract the real function instead"). It is
+  # therefore ONE LINE, single quotes only, with no `$` and no backtick anywhere in it:
+  # inside bash double quotes those are the characters the shell would eat before node
+  # ever saw them, and the extractor's closing double quote has to be unambiguous.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    outputs:
+      browser: ${{ steps.decide.outputs.browser }}
+    steps:
+      # fetch-depth: 0 because the base commit has to be IN the clone to diff against.
+      # The default depth-1 checkout would make every base unresolvable, which the guard
+      # below would correctly read as "no evidence" and run everything - i.e. the gate
+      # would be a no-op that still cost a runner. Fails safe, but pointlessly.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decide whether the browser specs can be affected
+        id: decide
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          CHANGED=""
+          # Three separate ways to have no usable base, all treated the same: empty (the
+          # field was absent), the all-zero sha (git's "nothing before this" sentinel, which
+          # a first push or a branch creation reports), and a sha that is not in this clone
+          # (a force-push rewrote it). None is evidence that nothing client-side changed.
+          if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$BASE" HEAD || true)
+          else
+            echo "No usable base commit ($BASE) - running everything."
+          fi
+          echo "Changed files:"; echo "$CHANGED"
+          BROWSER=$(printf '%s\n' "$CHANGED" | node -e "const p=require('fs').readFileSync(0,'utf8').split('\n').map(s=>s.trim()).filter(Boolean);const prose=s=>['docs/','skills/','.claude/','supabase/'].some(d=>s.indexOf(d)===0)||(s.slice(-3)==='.md'&&s.indexOf('/')<0);process.stdout.write(p.length&&p.every(prose)?'false':'true')")
+          echo "browser=$BROWSER" >> "$GITHUB_OUTPUT"
+          if [ "$BROWSER" = "true" ]; then
+            echo "::notice::Running the browser specs."
+          else
+            echo "::notice::Every changed path is prose or harness - skipping the browser specs. Nothing in this diff can reach js/, css/, index.html, sw.js or tests/."
+          fi
+
+  # ---------------------------------------------------------------------------
   # Unchanged from the original workflow, deliberately: no npm install, no cache,
   # nothing to go stale. `npm test` is `node --test tests/*.test.js` and needs no
   # dependencies at all, which is why this job finishes in seconds.
+  #
+  # NOT GATED on `changes`, on purpose - see that job's header. It is cheap enough
+  # that gating it would cost more in runner startup than it saves.
   # ---------------------------------------------------------------------------
   unit:
     name: unit tests
@@ -110,6 +193,14 @@ jobs:
     name: browser specs (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # ⚠️ `needs:` AND `if:` ARE A PAIR AND NEITHER WORKS ALONE. Without `needs`, the job
+    # does not wait for `changes` and `needs.changes.outputs.browser` evaluates to an
+    # empty string, so the `if` is never true and the browser specs NEVER RUN - green,
+    # silent, and exactly the quiet failure this file's tests exist to police. Without
+    # `if`, `needs` only orders them and the gate does nothing. tests/ci-workflow.test.js
+    # pins both together.
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

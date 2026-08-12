@@ -254,6 +254,105 @@ test('the spec-count comment matches the real directory', () => {
     'zero surviving specs makes the empty-$SPECS trap LIVE, not latent - the guard is what stops it, but the comment above would now be lying');
 });
 
+/*
+ * THE PROSE GATE — `changes.outputs.browser`, which decides whether Chromium runs at all.
+ *
+ * The same treatment as the crash detector above and for the same reason: the shipped one-liner is
+ * EXTRACTED and RUN against real path lists. A copy of the rule written here would be written from
+ * the same belief as the original, so it would agree with it about the one case that matters — a
+ * client path the rule fails to notice.
+ *
+ * What makes this worth pinning at all: over-running costs minutes and is VISIBLE. Over-skipping is
+ * silent, and what it lets through is a layout regression reaching a real cafe with a green check
+ * beside it. So every test below is written from the skipping side.
+ */
+const CHANGES_STEP = /- name: Decide whether the browser specs can be affected[\s\S]*?(?=\n\n  # |\n  \w+:\n|$)/.exec(YML);
+
+function gateScript() {
+  assert.ok(CHANGES_STEP, 'the decision step must be findable by name');
+  const m = /node -e "([^"]*)"/.exec(CHANGES_STEP[0]);
+  assert.ok(m, 'the decision must be an inline `node -e "..."` script');
+  return m[1];
+}
+
+// Runs the real script the way the step does: the file list arrives on stdin, one path per line.
+function gate(paths) {
+  return execFileSync('node', ['-e', gateScript()], {
+    input: paths.join('\n') + '\n', encoding: 'utf8',
+  }).trim();
+}
+
+test('the gate skips the browser specs only when EVERY path is prose or harness', () => {
+  assert.strictEqual(gate(['docs/QUEUE.md']), 'false', 'a queue edit');
+  assert.strictEqual(gate(['docs/handovers/HANDOVER-177-x.md', 'docs/MAINTENANCE.md']), 'false',
+    'a handover batch — the exact diff that cost ~20 minutes of Chromium on 12 Aug 2026');
+  assert.strictEqual(gate(['CLAUDE.md', 'README.md']), 'false', 'root-level markdown');
+  assert.strictEqual(gate(['skills/handover/SKILL.md', '.claude/settings.json']), 'false', 'harness');
+  assert.strictEqual(gate(['supabase/migrations/20260812_x.sql']), 'false',
+    'SQL cannot change what a browser renders — the client files are untouched by a migration');
+});
+
+test('ONE client path anywhere in the diff runs everything', () => {
+  // The property that matters. A mixed diff is the common shape — a batch ships code AND its
+  // handover — and it must not be classified by its majority.
+  for (const client of [
+    'js/app.js', 'css/style.css', 'index.html', 'sw.js',
+    'tests/visual/v146-builder.spec.js', 'tests/smoke.js', 'tests/fixtures/base-products.json',
+    'playwright.config.js', 'package.json', 'package-lock.json',
+    'api/_gemini.js', 'icons/icon-192.png', 'manifest.json', 'fonts/Geist-Regular.woff2',
+  ]) {
+    assert.strictEqual(gate(['docs/QUEUE.md', client, 'CLAUDE.md']), 'true',
+      `${client} must force the browser specs to run, however much prose surrounds it`);
+  }
+});
+
+test('the gate fails CLOSED on anything it was not taught', () => {
+  // An unresolvable base, a force-push, a shallow clone: the step hands over an empty list, and
+  // "no evidence" must never read as "nothing changed".
+  assert.strictEqual(gate([]), 'true', 'an empty file list is not proof of a prose diff');
+  assert.strictEqual(gate(['']), 'true', 'nor is a blank line');
+  // A path in no category at all — a new top-level directory — is not silently assumed to be prose.
+  assert.strictEqual(gate(['newthing/app.js']), 'true', 'an unclassified top-level directory');
+  assert.strictEqual(gate(['.github/workflows/test.yml']), 'true',
+    'a change to this workflow must exercise it — .github/ is deliberately NOT in the prose set');
+});
+
+test('the prose set cannot be widened by a name that merely looks like prose', () => {
+  // `.md` skips only at the ROOT. A markdown file inside a source tree is not a licence to skip the
+  // suite that tests that tree, and a directory whose name merely starts with a prose one is not the
+  // prose one — `docsite/` is not `docs/`.
+  assert.strictEqual(gate(['js/NOTES.md']), 'true', 'markdown under js/ is still under js/');
+  assert.strictEqual(gate(['tests/visual/README.md']), 'true', 'and under tests/');
+  assert.strictEqual(gate(['docsite/index.html']), 'true', 'docsite/ is not docs/');
+  assert.strictEqual(gate(['skillset/thing.js']), 'true', 'skillset/ is not skills/');
+});
+
+test('the gate is wired to the job, and both halves of the wiring are present', () => {
+  // `needs` and `if` are a PAIR. Without `needs`, the job does not wait for `changes` and
+  // `needs.changes.outputs.browser` is an empty string — so the `if` is never true and the browser
+  // specs NEVER RUN, green and silent. Without `if`, `needs` only orders them and the gate does
+  // nothing. Either half alone is a gate that looks right; one of them is also a total hole.
+  assert.match(JOB, /^\s{4}needs: changes$/m, 'the playwright job must depend on `changes`');
+  assert.match(JOB, /^\s{4}if: needs\.changes\.outputs\.browser == 'true'$/m,
+    "and gate on its output — note 'true' as a STRING; job outputs are always strings");
+  // and the job it names must actually publish that output
+  assert.match(YML, /^\s{4}outputs:\n\s{6}browser: \$\{\{ steps\.decide\.outputs\.browser \}\}$/m,
+    'the changes job must expose `browser`, from the step id the gate reads');
+});
+
+test('the cheap jobs are NOT gated — a PR can never end up with no real check', () => {
+  // If every job were gated, a prose PR would show a checks list of nothing but skips, which reads
+  // exactly like a pass and is the quiet this file exists to police. unit and smoke finish in
+  // seconds, so they run on everything.
+  const unit = /\n  unit:[\s\S]*?(?=\n  \w+:\n|$)/.exec(YML);
+  const smoke = /\n  smoke:[\s\S]*?(?=\n  \w+:\n|$)/.exec(YML);
+  assert.ok(unit && smoke, 'both cheap jobs must be findable');
+  for (const [name, job] of [['unit', unit[0]], ['smoke', smoke[0]]]) {
+    assert.ok(!/needs: changes/.test(job), `${name} must run unconditionally`);
+    assert.ok(!/if: needs\.changes/.test(job), `${name} must carry no gate`);
+  }
+});
+
 test('the non-hermetic screenshots spec is still excluded, and the guard still fails closed', () => {
   // Not new, but it is the highest-cost mistake this file can make: with no file arguments Playwright
   // falls back to testDir and picks up screenshots.spec.js, which reads the LIVE production database.
