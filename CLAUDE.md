@@ -264,6 +264,20 @@ An author rule beats the UA's `[hidden]{display:none}` because **author origin w
 (Was "twice, `.plib-controls` and `.plib-note`" until 12 Aug 2026; corrected by AUDIT-v156. **The count is the point**: at two it reads as a curiosity worth remembering, at ten it is an app-wide idiom, and a new `display` rule on a JS-hidden element needs the guard by default rather than on recall.)
 **So: any `display` rule on an element the JS hides with `hidden` needs the guard.**
 
+## A CSS syntax error is SILENT, and it discards every rule after it
+
+(Max's yes, 12 Aug 2026, after it cost batch 176 a full diagnose cycle.)
+
+An edit inserted comment text **without its opening `/*`**.
+The browser did exactly what the spec requires - discarded the malformed rule **and every rule after it** until it could resynchronise - so `.wrap{max-width:1200px}` and its followers were simply absent.
+
+**There is no build step and nothing in this project parses `css/style.css`**, so this class of mistake has no way to surface on its own.
+`npm test` was green, `node -c` was clean, the page rendered, and **the only symptom was one measurement coming back wrong.**
+It was found by dumping which `.wrap` rules the CSSOM actually contained and seeing that the new one was not there at all.
+
+**So a layout that measures wrong is not always a specificity problem - check the rule EXISTS before reasoning about why it loses.** That is the diagnostic order, and getting it backwards is what cost the cycle.
+`tests/css-syntax.test.js` is the guard: it checks the comments and braces balance, which are the two failures that can silently swallow rules. It is deliberately structural rather than a real parser, because no dependency may be added here.
+
 ## A viewport-geometry assertion must MEASURE its reference, never name it
 
 **When a Playwright assertion depends on the width of the viewport - anything centred, anything positioned by percentage, anything compared against "the whole screen" - measure the fixed-position containing block with a `position:fixed;left:0;right:0` probe.**
@@ -440,6 +454,7 @@ Its highest-value output is "this is the wrong question": one request asked whic
 
 - **Staging first, then production - AND STAGING IS NOW REAL. `docs/STAGING.md` is the procedure; follow it rather than this bullet.** Seven steps: write the migration with its one-statement rollback in the header · re-run `01-schema.sql` to re-mirror · load a seed · apply to staging · verify AS THE CLIENT over PostgREST · apply to production and record it in the header · diff the two schemas with the fingerprint query.
   ⚠️ **This bullet said the OPPOSITE until 12 Aug 2026** - *"staging is EMPTY, so there is still nothing to rehearse against… the schema has not been mirrored and no seeds exist… every migration is still UNREHEARSED"* - which stopped being true on **11 Aug 2026**, when batch 172 shipped the mirror, three seeds and that procedure as `ezplate-v152`. The stale text sat here for four days with the queue's next four A-items all migrations, and `docs/STAGING.md:5` had already said *"That warning is now spent."* **The clause carried its own expiry** - *"the safeguard becomes real when the queue's staging item RUNS"* - and the item ran; this is that sentence being honoured, not overridden.
+  **CONFIRMED by Max, 12 Aug 2026**, when the correction was put to him with the option of reinstating the old caution: *"yes leave it"*. So the removal of "defer destructive ones" from THIS bullet is deliberate and agreed - it was a weaker duplicate of the standing destructive-work rule below, not a second protection. Do not restore it.
   (History kept because both prior corrections asked for it: marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available; the "has never yet loaded" clause corrected 10 Aug 2026, Max's yes, per AUDIT-v135 D1.)
   ⚠️ **What staging still does NOT rehearse, and this half is unchanged:** the DATA is invented, so staging tells you a migration RUNS - never that it gives the right answer for Scoopy's. **Neither project has more than one user**, so `anon` is the only role either has been exercised as, and the multi-tenant policies are the first that will distinguish roles: staging can prove they run and let the right rows through, **not that a second tenant is excluded.** A rehearsal you over-trust is worse than none.
 - **Order the statements so the dangerous intermediate state cannot exist**, rather than trusting the transaction alone to prevent it. Keep the transaction as well. (Worked example in `20260808_menus_rls.sql`: create the inert policy first, enable RLS second, so a failure between them leaves today's behaviour.)

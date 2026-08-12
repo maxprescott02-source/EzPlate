@@ -30,7 +30,12 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  1 · One action in a mobile screen header — rehome the second one (DECIDED 10 Aug 2026)  **[B]**
+## next  1 · One action in a mobile screen header — rehome the second one (HOME DECIDED 12 Aug 2026)  **[B]**
+
+✅ **UNBLOCKED 12 Aug 2026 by Max's answer to `docs/decisions/2026-08-12.md` §1: option A, and yes to 360.**
+**Build the recommendation below verbatim** — the second action moves into the existing `.plib-controls` row directly beneath the header, **mobile only (≤767)**. Desktop headers keep both, unchanged. The item's requirement that a pattern be PROPOSED and agreed before building is now satisfied; this is no longer an open design question and must not be re-opened as one.
+**And 360px BECOMES A SUPPORTED WIDTH** — his words, *"yes it should be"*. Add it to the three specs named below (`tests/visual/v140-products.spec.js`, `fresh-states.spec.js`, `tests/visual/v151-more.spec.js`), alongside the existing 380 and 430.
+⚠️ **The acceptance test is a WRAP, not a position.** Ingredients must measure one row at 360 AND 380 with `#kingWizBtn` forced visible — the fixture leaves it hidden and Max's data never does, which is the whole reason the suite could not see this. `v151-more.spec.js` is the spec that measures a wrap directly; copy its method rather than asserting coordinates.
 
 §6's mobile header is "screen title + one action max", and three converted screens ship two.
 - **Ingredients (F3):** "Set up from products" beside "New ingredient". Conditional (`renderKingProgress`), so most cafés see one — but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
@@ -66,7 +71,7 @@ Rejected: **an overflow "⋯" in the header** — two taps, so it fails this ite
 
 **And the 360 question, answered here as the item instructs:** recommend **yes, 360 becomes a supported width**, added to all three specs — because after this change every mobile header is title + one action, which fits 360 with room (Products' worst case is chevron 22 + title 65 + "New product" 130), so supporting it costs nothing beyond the assertions and it is what pins the fix.
 
-Blocked on: **Max's yes to the proposed home** — the item requires a pattern be proposed and agreed before it is built, and a candidate is not a decision. Recommendation above is the `.plib-controls` row, mobile only.
+*(`Blocked on: Max's yes to the proposed home` DELETED 12 Aug 2026 — answered, option A. The proposal above is now the specification.)*
 
 ## next  2 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
 
@@ -160,7 +165,47 @@ Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged 
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## blocked  11 · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  11a · The backup does not carry three of the five history series  **[A — data integrity]**
+
+⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
+
+**The gap, measured against production, not inferred:**
+
+| Table | Rows | Span | In the backup file? | Deleted by `restore_backup`? |
+|---|---|---|---|---|
+| `price_history` | **69** | 6 Jul – 10 Aug 2026 | ❌ no | no |
+| `menu_price_history` | **79** | 30 Jul – 4 Aug 2026 | ❌ no | no |
+
+`buildBackup` emits eight groups and **neither table is one of them.** `restore_backup` deletes only `menu_items`, `plates`, `menus`, `ingredients`, `supplier_phrases` — so a restore onto a LIVE database is fine, because these two survive untouched. **A full wipe is where it bites:** they are deleted and nothing puts them back.
+
+**What that costs in the app:** `price_history` feeds `priceHistory` (the Dashboard trend line) and `menuHistory` (per-menu food cost); `menu_price_history` feeds `menuPriceLog` (per-dish sell price). So restoring from a backup after a total loss returns a working app with **a flat trend chart and no price history, and raises no error** — the quiet-wrong-number failure this repo keeps finding.
+
+**Three LIVE `app_settings` keys are also missing:** `ai_invoice_check`, `ai_suggestions`, `last_invoice_import`. Three more (`deleted_menu_ids`, `deleted_prod_ids`, `suggest_fab_hidden`) are **retired keys no reader remains for** — verified by grep, and they are deliberately NOT worth carrying. Do not "fix" those three.
+
+**The shapes, measured live so the next batch does not have to:**
+- `priceHistory` = `array[45]` of `{t,v}`, the all-menus series, `menu_id` null.
+- `menuHistory` = `object{2}` keyed by menu id → `[{t,v}]`.
+- `menuPriceLog` = `object{79}` keyed by **`menu_item_id`** → `[{t,v}]`.
+- **45 + 24 = 69 and 79 = 79**, so memory covers the server exactly and nothing is truncated at export time.
+
+Requirements:
+- `buildBackup` carries all three series plus the three live settings; **`stamp.format` 3 → 4**, because hard rule 9 makes any change to what `bootstrapSync` puts in memory a format change.
+- `parseBackupFile` accepts 2, 3 and 4. The new groups are **type-checked when present and never required** — a format-2 or -3 file legitimately lacks them, exactly as it lacks `change_log`.
+- `backupToPayload` translates them with **`pointToRow` only** (`avg_food_cost_pct` + `menu_id`; `price` + `menu_item_id`), naming no column of its own. That is how hard rule 8 is obeyed structurally rather than by care.
+- A new `restore_backup` migration inserts both **additively with dedup**, mirroring `ing_price_history` — never deleting them, so restoring an old file cannot erase newer points.
+- ⚠️ **The wire `format` declares what the PAYLOAD CONTAINS, not which build sent it.** Send 4 only when there is something new to carry, exactly as the existing `chg.length?3:2` does, or every restore breaks between the client shipping and the migration being applied.
+- Rehearse on staging first per `docs/STAGING.md`, then production.
+
+✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
+
+## next  11b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+
+Do after: **11a** — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+
+✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
+⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is item 11a above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do 11a, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
+**That last clause is the operating window, not small talk:** the wipe and restore must run while nothing else is writing, so confirm it still holds before starting and do not leave the database wiped while waiting on anything.
+**The go does NOT waive the preconditions** — a fresh export taken minutes before, the one-statement rollback written down, and the real file rehearsed against staging first. Those are what make the go safe rather than alternatives to it.
 
 Steps 1 and 2 of the v110 destructive plan were run and passed. **Step 3 — restoring into a genuinely EMPTY database — never was.**
 What it would newly prove is narrow: that an empty table restores as well as a populated one, and how the boot gate reads mid-restore against nothing.
@@ -171,7 +216,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 ✅ **REHEARSED ON STAGING, 172.** The step itself has now been performed somewhere: staging was emptied with `02-seed-empty.sql` and `restore_backup` was called into it **as the anon client over PostgREST**, returning identical counts to the populated case, every dish linked to its plate, plates inserted with `menu_id` null, and **zero rows with a null plate link** — the signature of the failure that once cost 76 of 77 dishes. Both refusal paths fired by name (format `1`; a missing `ing_price_history`).
 **This does NOT discharge the item and must not be read as doing so.** It was synthetic data in a different project, and what is still untested is the half that only production has: a real 412-product export, the real file size through the RPC's 30s `statement_timeout`, and how the boot gate reads mid-restore. What it does mean is that the step is no longer being attempted for the first time on real data.
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
-Blocked on: Max's go on the day. The timing question is answered; this is not an open ask.
+*(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
 ## next  12 · Floating layers and mobile dropdowns  **[B]**
 
