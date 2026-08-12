@@ -30,7 +30,12 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  1 · One action in a mobile screen header — rehome the second one (DECIDED 10 Aug 2026)  **[B]**
+## next  1 · One action in a mobile screen header — rehome the second one (HOME DECIDED 12 Aug 2026)  **[B]**
+
+✅ **UNBLOCKED 12 Aug 2026 by Max's answer to `docs/decisions/2026-08-12.md` §1: option A, and yes to 360.**
+**Build the recommendation below verbatim** — the second action moves into the existing `.plib-controls` row directly beneath the header, **mobile only (≤767)**. Desktop headers keep both, unchanged. The item's requirement that a pattern be PROPOSED and agreed before building is now satisfied; this is no longer an open design question and must not be re-opened as one.
+**And 360px BECOMES A SUPPORTED WIDTH** — his words, *"yes it should be"*. Add it to the three specs named below (`tests/visual/v140-products.spec.js`, `fresh-states.spec.js`, `tests/visual/v151-more.spec.js`), alongside the existing 380 and 430.
+⚠️ **The acceptance test is a WRAP, not a position.** Ingredients must measure one row at 360 AND 380 with `#kingWizBtn` forced visible — the fixture leaves it hidden and Max's data never does, which is the whole reason the suite could not see this. `v151-more.spec.js` is the spec that measures a wrap directly; copy its method rather than asserting coordinates.
 
 §6's mobile header is "screen title + one action max", and three converted screens ship two.
 - **Ingredients (F3):** "Set up from products" beside "New ingredient". Conditional (`renderKingProgress`), so most cafés see one — but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
@@ -66,7 +71,7 @@ Rejected: **an overflow "⋯" in the header** — two taps, so it fails this ite
 
 **And the 360 question, answered here as the item instructs:** recommend **yes, 360 becomes a supported width**, added to all three specs — because after this change every mobile header is title + one action, which fits 360 with room (Products' worst case is chevron 22 + title 65 + "New product" 130), so supporting it costs nothing beyond the assertions and it is what pins the fix.
 
-Blocked on: **Max's yes to the proposed home** — the item requires a pattern be proposed and agreed before it is built, and a candidate is not a decision. Recommendation above is the `.plib-controls` row, mobile only.
+*(`Blocked on: Max's yes to the proposed home` DELETED 12 Aug 2026 — answered, option A. The proposal above is now the specification.)*
 
 ## next  2 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
 
@@ -160,7 +165,11 @@ Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged 
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## blocked  11 · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  11 · The restore's full-wipe step (step 3)  **[A — data integrity]**
+
+✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
+**That last clause is the operating window, not small talk:** the wipe and restore must run while nothing else is writing, so confirm it still holds before starting and do not leave the database wiped while waiting on anything.
+**The go does NOT waive the preconditions** — a fresh export taken minutes before, the one-statement rollback written down, and the real file rehearsed against staging first. Those are what make the go safe rather than alternatives to it.
 
 Steps 1 and 2 of the v110 destructive plan were run and passed. **Step 3 — restoring into a genuinely EMPTY database — never was.**
 What it would newly prove is narrow: that an empty table restores as well as a populated one, and how the boot gate reads mid-restore against nothing.
@@ -171,7 +180,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 ✅ **REHEARSED ON STAGING, 172.** The step itself has now been performed somewhere: staging was emptied with `02-seed-empty.sql` and `restore_backup` was called into it **as the anon client over PostgREST**, returning identical counts to the populated case, every dish linked to its plate, plates inserted with `menu_id` null, and **zero rows with a null plate link** — the signature of the failure that once cost 76 of 77 dishes. Both refusal paths fired by name (format `1`; a missing `ing_price_history`).
 **This does NOT discharge the item and must not be read as doing so.** It was synthetic data in a different project, and what is still untested is the half that only production has: a real 412-product export, the real file size through the RPC's 30s `statement_timeout`, and how the boot gate reads mid-restore. What it does mean is that the step is no longer being attempted for the first time on real data.
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
-Blocked on: Max's go on the day. The timing question is answered; this is not an open ask.
+*(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
 ## next  12 · Floating layers and mobile dropdowns  **[B]**
 
