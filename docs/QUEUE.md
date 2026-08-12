@@ -165,9 +165,45 @@ Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged 
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## next  11 · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  11a · The backup does not carry three of the five history series  **[A — data integrity]**
+
+⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
+
+**The gap, measured against production, not inferred:**
+
+| Table | Rows | Span | In the backup file? | Deleted by `restore_backup`? |
+|---|---|---|---|---|
+| `price_history` | **69** | 6 Jul – 10 Aug 2026 | ❌ no | no |
+| `menu_price_history` | **79** | 30 Jul – 4 Aug 2026 | ❌ no | no |
+
+`buildBackup` emits eight groups and **neither table is one of them.** `restore_backup` deletes only `menu_items`, `plates`, `menus`, `ingredients`, `supplier_phrases` — so a restore onto a LIVE database is fine, because these two survive untouched. **A full wipe is where it bites:** they are deleted and nothing puts them back.
+
+**What that costs in the app:** `price_history` feeds `priceHistory` (the Dashboard trend line) and `menuHistory` (per-menu food cost); `menu_price_history` feeds `menuPriceLog` (per-dish sell price). So restoring from a backup after a total loss returns a working app with **a flat trend chart and no price history, and raises no error** — the quiet-wrong-number failure this repo keeps finding.
+
+**Three LIVE `app_settings` keys are also missing:** `ai_invoice_check`, `ai_suggestions`, `last_invoice_import`. Three more (`deleted_menu_ids`, `deleted_prod_ids`, `suggest_fab_hidden`) are **retired keys no reader remains for** — verified by grep, and they are deliberately NOT worth carrying. Do not "fix" those three.
+
+**The shapes, measured live so the next batch does not have to:**
+- `priceHistory` = `array[45]` of `{t,v}`, the all-menus series, `menu_id` null.
+- `menuHistory` = `object{2}` keyed by menu id → `[{t,v}]`.
+- `menuPriceLog` = `object{79}` keyed by **`menu_item_id`** → `[{t,v}]`.
+- **45 + 24 = 69 and 79 = 79**, so memory covers the server exactly and nothing is truncated at export time.
+
+Requirements:
+- `buildBackup` carries all three series plus the three live settings; **`stamp.format` 3 → 4**, because hard rule 9 makes any change to what `bootstrapSync` puts in memory a format change.
+- `parseBackupFile` accepts 2, 3 and 4. The new groups are **type-checked when present and never required** — a format-2 or -3 file legitimately lacks them, exactly as it lacks `change_log`.
+- `backupToPayload` translates them with **`pointToRow` only** (`avg_food_cost_pct` + `menu_id`; `price` + `menu_item_id`), naming no column of its own. That is how hard rule 8 is obeyed structurally rather than by care.
+- A new `restore_backup` migration inserts both **additively with dedup**, mirroring `ing_price_history` — never deleting them, so restoring an old file cannot erase newer points.
+- ⚠️ **The wire `format` declares what the PAYLOAD CONTAINS, not which build sent it.** Send 4 only when there is something new to carry, exactly as the existing `chg.length?3:2` does, or every restore breaks between the client shipping and the migration being applied.
+- Rehearse on staging first per `docs/STAGING.md`, then production.
+
+✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
+
+## next  11b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+
+Do after: **11a** — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
+⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is item 11a above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do 11a, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
 **That last clause is the operating window, not small talk:** the wipe and restore must run while nothing else is writing, so confirm it still holds before starting and do not leave the database wiped while waiting on anything.
 **The go does NOT waive the preconditions** — a fresh export taken minutes before, the one-statement rollback written down, and the real file rehearsed against staging first. Those are what make the go safe rather than alternatives to it.
 
