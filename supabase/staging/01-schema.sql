@@ -12,7 +12,7 @@
 -- WHAT IT IS
 --   A faithful mirror of production's `public` schema as read out of the live
 --   catalogue on 11 Aug 2026 (batch 172): 10 tables, their constraints, indexes,
---   ⚠️ and since batch 181 (13 Aug 2026) TWELVE tables, not ten — section 7 adds
+--   ⚠️ and since batch 181 (13 Aug 2026) TWELVE tables, not ten — section 4 adds
 --   `businesses` and `business_members`. `list_tables` therefore shows 13 here
 --   against production's 12, still the one deliberate marker difference.
 --   RLS state and policies, the `restore_backup` RPC, and the PostgREST grants.
@@ -267,54 +267,209 @@ create index if not exists price_history_menu_id_recorded_at_idx
   on public.price_history using btree (menu_id, recorded_at);
 
 -- ---------------------------------------------------------------------------
--- 4. RLS AND POLICIES
+-- 4. THE TENANT MACHINERY, THEN RLS AND POLICIES
 --
--- Production has RLS ON with at least one permissive policy on all ten tables.
--- Policy NAMES are copied verbatim, because the multi-tenant item's whole job is
--- to REPLACE these `using (true)` policies with business_id ones — and it will
--- find them by name.
+-- 20260813_business_id_part1.sql (batch 181) added the column, the two tenant
+-- tables and the filling trigger; 20260813_business_id_part2.sql (batch 182)
+-- added `current_business_id()`, repointed the trigger and the column DEFAULTS
+-- at it, and replaced all thirteen `using (true)` policies with scoped ones.
+--
+-- ⚠️ THE TENANT MACHINERY COMES FIRST, AND THAT ORDER IS NOW LOAD-BEARING. Part
+-- 1's half of this lived in a section 7 at the end of the file, which was right
+-- while the policies said `using (true)` and referenced nothing. Part 2's
+-- policies reference BOTH the `business_id` column and the function, so a
+-- policy created before them fails outright. Leaving the policies up here and
+-- the machinery down there would mean enabling RLS with no policy in between —
+-- the locked-out state this section's own rule exists to prevent.
+--
+-- Everything in the first half is ALTER-based or `if not exists`, which is what
+-- lets it land on an ALREADY-mirrored staging as well as a fresh one. The ten
+-- `create table if not exists` statements in sections 1-3 SKIP on an existing
+-- mirror, so a column folded in there would only ever appear on a database
+-- created from scratch and the mirror would be silently stale in exactly the
+-- case re-running this file is meant to fix.
+--
+-- See the two migration headers for the reasoning that is not repeated here:
+-- why a trigger exists as well as a DEFAULT (`restore_backup` inserts five
+-- tables with `select *`, so an absent JSON key arrives as an EXPLICIT NULL
+-- that overrides the DEFAULT — demonstrated, 412 products landed null with the
+-- trigger dropped and zero with it), and why the DEFAULT is the function rather
+-- than a literal (a literal is the LEGACY café's id, so it is applied before
+-- the trigger can act and every other tenant's own writes are refused 42501).
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.businesses (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  created_at  timestamptz not null default now()
+);
+
+-- Staging seeds every table from scratch, but this row is the referent of the
+-- anon branch of current_business_id(), so it is part of the SCHEMA here, not
+-- the data.
+insert into public.businesses (id, name)
+values ('00000000-0000-0000-0000-000000000001', 'Scoopy''s Family Cafe')
+on conflict (id) do nothing;
+
+create table if not exists public.business_members (
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (business_id, user_id)
+);
+
+create index if not exists business_members_user_id_idx
+  on public.business_members (user_id);
+
+alter table public.businesses       enable row level security;
+alter table public.business_members enable row level security;
+
+drop policy if exists "members read their own membership" on public.business_members;
+create policy "members read their own membership"
+  on public.business_members for select to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists "members read their business" on public.businesses;
+create policy "members read their business"
+  on public.businesses for select to authenticated
+  using (exists (select 1 from public.business_members m
+                  where m.business_id = businesses.id
+                    and m.user_id = auth.uid()));
+
+-- The one answer to "which tenant am I": the seeded business for anon (legacy,
+-- pre-login), the caller's business for a member, NULL for a signed-in
+-- non-member. `security definer` so the answer depends on the data rather than
+-- on business_members keeping a select policy forever; `set search_path = ''`
+-- because a mutable one on a definer function is an escalation path.
+create or replace function public.current_business_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select case
+    when auth.uid() is null
+      then '00000000-0000-0000-0000-000000000001'::uuid
+    else (select m.business_id
+            from public.business_members m
+           where m.user_id = auth.uid()
+           limit 1)
+  end;
+$fn$;
+
+-- `set search_path = ''` — see the migration header; the Supabase linter flags a
+-- mutable search_path, so every object below is schema-qualified.
+create or replace function public.set_default_business_id()
+returns trigger
+language plpgsql
+set search_path = ''
+as $fn$
+begin
+  if new.business_id is null then
+    new.business_id := public.current_business_id();
+  end if;
+  return new;
+end;
+$fn$;
+
+do $mig$
+declare
+  t text;
+  tables text[] := array[
+    'app_settings','ing_price_history','ingredients','menu_change_log',
+    'menu_items','menu_price_history','menus','plates','price_history',
+    'supplier_phrases'
+  ];
+begin
+  foreach t in array tables loop
+    execute format(
+      'alter table public.%I add column if not exists business_id uuid '
+      || 'references public.businesses(id)', t);
+
+    -- The DEFAULT is set separately from the ADD COLUMN so it lands on an
+    -- already-mirrored staging too, where the column exists and the add is
+    -- skipped. It must be the FUNCTION, never a literal: a literal names the
+    -- legacy café, is applied before the trigger can act, and then fails the
+    -- `with check` of every other tenant.
+    execute format(
+      'alter table public.%I alter column business_id set default public.current_business_id()', t);
+
+    execute format(
+      'update public.%I set business_id = ''00000000-0000-0000-0000-000000000001''::uuid '
+      || 'where business_id is null', t);
+
+    execute format(
+      'create index if not exists %I on public.%I (business_id)',
+      t || '_business_id_idx', t);
+
+    execute format('drop trigger if exists set_business_id on public.%I', t);
+    execute format(
+      'create trigger set_business_id before insert or update on public.%I '
+      || 'for each row execute function public.set_default_business_id()', t);
+
+    -- NOT NULL AFTER the trigger exists, never before: a BEFORE trigger fills the
+    -- value before the constraint is checked, so the restore's explicit NULL is
+    -- repaired rather than rejected. Reverse the order and every restore breaks.
+    execute format('alter table public.%I alter column business_id set not null', t);
+  end loop;
+end $mig$;
+
+-- Policy names are production's post-182 names, because that is what a batch
+-- reading this file will look them up by.
 --
 -- ⚠️ Order matters and is the CLAUDE.md rule, not a style choice: the policy is
 -- created BEFORE RLS is enabled, so a failure between the two leaves the table
 -- readable rather than locked out. Same shape as 20260808_menus_rls.sql.
--- ---------------------------------------------------------------------------
 do $$
 declare
   t text;
-  full_access text[] := array['app_settings','ingredients','menu_items','menus','plates'];
+  full_access text[] := array['app_settings','ingredients','menu_items','menus',
+                              'plates','price_history','supplier_phrases'];
   hist        text[] := array['ing_price_history','menu_change_log','menu_price_history'];
 begin
-  -- the five "staff full access" tables
+  -- the seven `for all` tables
   foreach t in array full_access loop
-    if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname='staff full access') then
-      execute format('create policy %I on public.%I for all to public using (true) with check (true)', 'staff full access', t);
+    if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname=t||' tenant access') then
+      execute format(
+        'create policy %I on public.%I for all to public '
+        || 'using (business_id = (select public.current_business_id())) '
+        || 'with check (business_id = (select public.current_business_id()))',
+        t || ' tenant access', t);
     end if;
     execute format('alter table public.%I enable row level security', t);
   end loop;
 
   -- the three append-only history tables: anon/authenticated may SELECT and INSERT,
-  -- and nothing grants UPDATE or DELETE. Production words them "<table> anon select"
-  -- and "<table> anon insert"; the names are reproduced exactly.
+  -- and nothing grants UPDATE or DELETE. That absence is a real constraint, not an
+  -- oversight, and is reproduced exactly.
   foreach t in array hist loop
-    if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname=t||' anon select') then
-      execute format('create policy %I on public.%I for select to anon, authenticated using (true)', t||' anon select', t);
+    if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname=t||' tenant select') then
+      execute format(
+        'create policy %I on public.%I for select to anon, authenticated '
+        || 'using (business_id = (select public.current_business_id()))', t||' tenant select', t);
     end if;
-    if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname=t||' anon insert') then
-      execute format('create policy %I on public.%I for insert to anon, authenticated with check (true)', t||' anon insert', t);
+    if not exists (select 1 from pg_policies where schemaname='public' and tablename=t and policyname=t||' tenant insert') then
+      execute format(
+        'create policy %I on public.%I for insert to anon, authenticated '
+        || 'with check (business_id = (select public.current_business_id()))', t||' tenant insert', t);
     end if;
     execute format('alter table public.%I enable row level security', t);
   end loop;
 
-  -- two singletons whose production policy names match neither pattern
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='price_history' and policyname='price_history all') then
-    create policy "price_history all" on public.price_history for all to public using (true) with check (true);
-  end if;
-  alter table public.price_history enable row level security;
-
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='supplier_phrases' and policyname='open access (single-tenant, pre-login)') then
-    create policy "open access (single-tenant, pre-login)" on public.supplier_phrases for all to public using (true) with check (true);
-  end if;
-  alter table public.supplier_phrases enable row level security;
+  -- A mirror re-run against a staging that predates 182 would otherwise keep the
+  -- permissive policies alongside the scoped ones, and permissive policies are
+  -- OR'd — so every tenant would see everything and the mirror would rehearse a
+  -- database production does not have.
+  foreach t in array array['app_settings','ingredients','menu_items','menus','plates'] loop
+    execute format('drop policy if exists %I on public.%I', 'staff full access', t);
+  end loop;
+  drop policy if exists "price_history all" on public.price_history;
+  drop policy if exists "open access (single-tenant, pre-login)" on public.supplier_phrases;
+  foreach t in array hist loop
+    execute format('drop policy if exists %I on public.%I', t||' anon select', t);
+    execute format('drop policy if exists %I on public.%I', t||' anon insert', t);
+  end loop;
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -450,107 +605,6 @@ $function$;
 
 grant execute on function public.restore_backup(jsonb) to anon, authenticated, service_role;
 
--- ---------------------------------------------------------------------------
--- 7. THE TENANT COLUMN — added by 20260813_business_id_part1.sql (batch 181)
---
--- Appended rather than folded into sections 1-5 on purpose. The ten `create
--- table if not exists` statements above SKIP on an already-mirrored staging, so
--- a column added inline there would never reach an existing mirror — it would
--- only appear on a database created from scratch, and the mirror would be
--- silently stale in exactly the case re-running this file is meant to fix.
--- Everything below is ALTER-based and idempotent, so it lands either way.
---
--- Kept verbatim from the migration. See that file's header for why the trigger
--- exists as well as the DEFAULT: `restore_backup` inserts five tables with
--- `select *` and no column list, so an absent JSON key arrives as an EXPLICIT
--- NULL that overrides the DEFAULT. Demonstrated on this project on 13 Aug 2026
--- — with the trigger dropped, all 412 restored products landed null; with it,
--- zero.
--- ---------------------------------------------------------------------------
-
-create table if not exists public.businesses (
-  id          uuid primary key default gen_random_uuid(),
-  name        text not null,
-  created_at  timestamptz not null default now()
-);
-
--- Staging seeds every table from scratch, but this row is the referent of every
--- business_id DEFAULT below, so it is part of the SCHEMA here, not the data.
-insert into public.businesses (id, name)
-values ('00000000-0000-0000-0000-000000000001', 'Scoopy''s Family Cafe')
-on conflict (id) do nothing;
-
-create table if not exists public.business_members (
-  business_id uuid not null references public.businesses(id) on delete cascade,
-  user_id     uuid not null references auth.users(id) on delete cascade,
-  created_at  timestamptz not null default now(),
-  primary key (business_id, user_id)
-);
-
-create index if not exists business_members_user_id_idx
-  on public.business_members (user_id);
-
-alter table public.businesses       enable row level security;
-alter table public.business_members enable row level security;
-
-drop policy if exists "members read their own membership" on public.business_members;
-create policy "members read their own membership"
-  on public.business_members for select to authenticated
-  using (user_id = auth.uid());
-
-drop policy if exists "members read their business" on public.businesses;
-create policy "members read their business"
-  on public.businesses for select to authenticated
-  using (exists (select 1 from public.business_members m
-                  where m.business_id = businesses.id
-                    and m.user_id = auth.uid()));
-
--- `set search_path = ''` — see the migration header; the Supabase linter flags a
--- mutable search_path and the body references no schema-qualified object.
-create or replace function public.set_default_business_id()
-returns trigger
-language plpgsql
-set search_path = ''
-as $fn$
-begin
-  if new.business_id is null then
-    new.business_id := '00000000-0000-0000-0000-000000000001'::uuid;
-  end if;
-  return new;
-end;
-$fn$;
-
-do $mig$
-declare
-  t text;
-  tables text[] := array[
-    'app_settings','ing_price_history','ingredients','menu_change_log',
-    'menu_items','menu_price_history','menus','plates','price_history',
-    'supplier_phrases'
-  ];
-begin
-  foreach t in array tables loop
-    execute format(
-      'alter table public.%I add column if not exists business_id uuid '
-      || 'default ''00000000-0000-0000-0000-000000000001''::uuid '
-      || 'references public.businesses(id)', t);
-
-    execute format(
-      'update public.%I set business_id = ''00000000-0000-0000-0000-000000000001''::uuid '
-      || 'where business_id is null', t);
-
-    execute format(
-      'create index if not exists %I on public.%I (business_id)',
-      t || '_business_id_idx', t);
-
-    execute format('drop trigger if exists set_business_id on public.%I', t);
-    execute format(
-      'create trigger set_business_id before insert or update on public.%I '
-      || 'for each row execute function public.set_default_business_id()', t);
-
-    -- NOT NULL AFTER the trigger exists, never before: a BEFORE trigger fills the
-    -- value before the constraint is checked, so the restore's explicit NULL is
-    -- repaired rather than rejected. Reverse the order and every restore breaks.
-    execute format('alter table public.%I alter column business_id set not null', t);
-  end loop;
-end $mig$;
+-- (Section 7 was "THE TENANT COLUMN". Batch 182 moved it into section 4, ahead
+-- of the policies, because the policies now reference both the column and
+-- `current_business_id()` and cannot be created before either exists.)

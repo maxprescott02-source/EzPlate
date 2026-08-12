@@ -82,9 +82,26 @@ test('01-schema.sql refuses to create the marker in a database that holds a cata
 test('01-schema.sql keeps restore_backup SECURITY INVOKER', () => {
   // Queue item "Gate review before public signup" requires it, and `security definer` here would
   // hand anon the owner's rights over a function whose first act is to delete five tables.
+  //
+  // ⚠️ SCOPED TO restore_backup's OWN BODY since batch 182, and the widening matters. This used to
+  // grep the WHOLE FILE for `security definer`, which is a different and much broader claim than the
+  // one its name makes — it passed only because restore_backup was the file's single function. Part 2
+  // added `current_business_id()`, which is DELIBERATELY definer (as invoker, the membership lookup
+  // would depend on business_members keeping a select policy forever, and losing one would empty
+  // every café's app with no error), so the old assertion failed on a correct change. A test that
+  // fires on something other than the thing it names is the failure this repo keeps finding; the fix
+  // is to make it pin what it says, not to delete it.
+  //
+  // Note the mirrored copy carries no `security invoker` clause at all — it is verbatim from
+  // pg_get_functiondef, which omits the default. So the absence of `definer` IS the assertion, and
+  // requiring the word `invoker` here would go red against a faithful copy.
   const sql = code(read('01-schema.sql'));
-  assert.ok(sql.includes('create or replace function public.restore_backup'), 'the RPC must be mirrored');
-  assert.ok(!/security\s+definer/i.test(sql), 'restore_backup must not become SECURITY DEFINER');
+  const start = sql.indexOf('create or replace function public.restore_backup');
+  assert.ok(start > 0, 'the RPC must be mirrored');
+  const end = sql.indexOf('$function$;', start);
+  assert.ok(end > start, 'restore_backup\'s body is no longer terminated by $function$; — re-scope this test');
+  const body = sql.slice(start, end);
+  assert.ok(!/security\s+definer/i.test(body), 'restore_backup must not become SECURITY DEFINER');
 });
 
 test('01-schema.sql keeps the load-bearing `where true` on the restore deletes', () => {

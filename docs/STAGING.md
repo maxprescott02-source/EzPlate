@@ -152,7 +152,8 @@ Written down because a rehearsal you over-trust is worse than none.
 
 - **The data.** Staging holds invented products at invented prices. It cannot tell you whether a change gives the right answer for Scoopy's — only whether it runs, links and renders.
 - **Scale of history.** The seeds generate tidy series. Production's history is lumpy and has gaps.
-- **Anything auth.** Neither project has users. `anon` is the only role either has ever been exercised as, and the RLS policies are all `using (true)` — so **the multi-tenant work will be rehearsing policies that do not exist yet**, which is the point of building this before it, not a gap in it.
+- ⚠️ **Anything auth — THIS BULLET WAS TRUE UNTIL 13 Aug 2026 AND IS NOW THE OPPOSITE.** It read: *"Neither project has users. `anon` is the only role either has ever been exercised as, and the RLS policies are all `using (true)`."* Batch 182 swapped the policies and, to rehearse them honestly, created **three real accounts and a second business in staging** — so this project now exercises `authenticated` as well as `anon`, and a second tenant's exclusion has been demonstrated rather than assumed. See the 182 record below for what that proved.
+  **What is still NOT rehearsable here:** production still has **zero** users, so nothing about a real sign-in on Max's own data has been exercised anywhere. The staging accounts are hand-made rows, not people, and the client has never been driven while signed in. **A signed-in account with no `business_members` row sees an empty app with no error** — that is the designed behaviour of `current_business_id()`, and the client has no way to say so yet. It belongs to the auth queue item.
 - **The invoice AI path.** `api/parse-invoice` and `api/insight` are Vercel functions with one `GEMINI_API_KEY`. They do not know which Supabase project the page is talking to, and pointing the client at staging does not point them anywhere new.
 - **Timing.** Free tier, shared hardware. See the note on `04`.
 
@@ -160,7 +161,25 @@ Written down because a rehearsal you over-trust is worse than none.
 
 ## Current state
 
-Left on the **scale seed** at the end of batch 181 (520 products, 12 menus, 180 plates, 429 dishes). Run `02` or `03` to change it — nothing in staging is worth preserving, which is the point of it.
+Left on the **scale seed** (520 products, 12 menus, 180 plates, 429 dishes) — plus, since batch 182, **a second tenant and three accounts, which are worth keeping and are the reason this section is no longer just "which seed"**.
+
+| | |
+|---|---|
+| `businesses` | the seeded Scoopy's `…0001`, and `…00b2` "Second Cafe (staging)" holding one product and one menu |
+| accounts | `a@example.com` → member of `…0001` · `b@example.com` → member of `…00b2` · `c@example.com` → **member of nothing**, the empty-app case |
+
+The three are hand-made rows in `auth.users` + `auth.identities`, not sign-ups: Supabase rejects `.test` addresses and rate-limits confirmation emails, so the API route ran out almost immediately. **Two things are needed or GoTrue answers `Database error querying schema` on sign-in, which reads like a server fault and is not:** `email_confirmed_at` must be set, and the token columns (`confirmation_token`, `recovery_token`, `email_change*`, `phone_change*`, `reauthentication_token`) must be `''` and never NULL — the Go scanner cannot read a NULL into them.
+
+**Passwords are not written down here on purpose.** Reset one instead — this is the whole recipe:
+
+```sql
+update auth.users set encrypted_password = extensions.crypt('<new password>', extensions.gen_salt('bf'))
+ where email = 'a@example.com';
+```
+
+A seed re-run (`02`/`03`/`04`) wipes the DATA but not `auth.users`, `businesses` or `business_members` — none of those are in a seed — so the accounts survive it and the second café's memberships do too. Its one product and one menu do not.
+
+⚠️ **Staging's café 1 therefore no longer has the seed's exact counts on every table** — 521 products exist, 520 of them Scoopy's. Anything comparing a raw `count(*)` against the seed's numbers must filter on `business_id`.
 
 ⚠️ **Batch 181 restored Max's REAL 412-product export into staging as part of rehearsing `business_id`, and then reloaded the scale seed to get rid of it.** Do the same if you ever need the real file here: staging's anon key is public in `index.html` and its policies are all `using (true)`, so anything left in it is readable by anyone who reads the page. **Staging is synthetic by contract, and a rehearsal that needs real data ends by wiping it.**
 
@@ -176,3 +195,13 @@ Recorded because these are the first things staging has ever been used for, and 
 
 - **The real file, end to end, as the anon client.** Max's 412-product format-3 export was translated through the app's own `backupToPayload` and POSTed to `restore_backup` over PostgREST: 412 products, 79 plates, 76 dishes, 2 menus, 7 taught packs, in **1.6s** against the RPC's 30s `statement_timeout`. That is the first time the real file has gone through the RPC anywhere, and it de-risks the queue's *restore full-wipe step* further — though it still does not discharge it, because staging is not production and the boot gate was not exercised mid-restore.
 - **A NEGATIVE result worth more than the positive one.** With the new `set_business_id` trigger dropped from `ingredients` only, the same restore left **all 412 products with a null `business_id`** while `plates` (trigger intact) had none. That is the measurement behind the migration's design: `restore_backup`'s `select *` inserts turn an absent JSON key into an EXPLICIT NULL, which overrides a column DEFAULT. **A column added to any of those five tables with a DEFAULT and no trigger is silently wrong on the next restore.**
+
+### And on 13 Aug 2026 (batch 182), the policy swap — the first REAL multi-tenant test
+
+This is the one this file said could not be done. It was worth the hour: **the rehearsal found a defect that every SQL-side assertion passed straight over.**
+
+- **The defect, and it only showed as a second tenant.** With the scoped policies live and Part 1's literal column DEFAULT still in place, café two could READ its rows and could not WRITE any — `42501, new row violates row-level security policy`. A DEFAULT is applied when the column is ABSENT from the INSERT, which is every write the client makes, so the tenant column arrived already holding the LEGACY café's id; the trigger fills only nulls and correctly left it; `with check` then refused the row. **Reads looked perfect throughout.** The fix is in the migration: the DEFAULT, the trigger and the policy all read `current_business_id()`.
+- **Exclusion, demonstrated on all ten tables.** Café one's member saw 520/180/429/12/…; café two saw 0 of each and only its own inserts; anon saw café one. Café two's UPDATE and DELETE against café one's `P0001` both returned an empty array and changed nothing — the silent no-op that `Prefer: return=representation` exists to expose.
+- **The member of nothing.** Zero rows on every table, refused on write. That is `current_business_id()` returning NULL, and it is the state a dashboard-created account lands in until someone inserts its membership row.
+- **`restore_backup` is tenant-scoped for free**, because it is SECURITY INVOKER. Called as café two it restored into café two and left café one's 520 products, 12 menus, 180 plates and 429 dishes untouched. Its five `delete … where true` statements now only reach the caller's own café.
+- **A known limit, measured rather than predicted:** café two restoring a file containing `app_settings` fails `42501` on the USING expression, because `app_settings.key` is a global primary key. Loud, not silent. That is the queue's semantic-keys item, and it now carries this measurement.
