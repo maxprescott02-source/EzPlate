@@ -227,6 +227,33 @@ test('the crash detector runs even when the specs failed', () => {
   assert.strictEqual(step[1].trim(), 'always()', 'it must report on a red run as well as a flaky one');
 });
 
+test('the spec-count comment matches the real directory', () => {
+  // WHY THIS IS A TEST AND NOT A THIRD CORRECTED NUMBER. That comment has now been found stale by
+  // THREE consecutive audits: it read "9 specs, 8 survive" for ten batches, was corrected to
+  // "22 specs, 21 survive" on 10 Aug 2026, and had drifted again to a real 31/30 by v156 - because
+  // nine specs were added and nobody re-measures prose. Its own text asks the next editor to
+  // re-measure by hand, which is the instruction that failed twice.
+  //
+  // The number is not decoration: it is the evidence for the sentence above it, which says the
+  // empty-$SPECS trap is LATENT rather than live. If the real count ever reaches zero that claim
+  // silently inverts - the job would fall back to testDir and run screenshots.spec.js against the
+  // cafe's live production database. So the comment is a claim about the world, and this asserts it.
+  const claim = /\((\d+) specs?, (\d+) survives? the filter\)/.exec(JOB);
+  assert.ok(claim, 'the spec-count comment must still be findable - if you reworded it, reword this too');
+
+  const specs = fs.readdirSync(path.join(__dirname, 'visual')).filter((f) => f.endsWith('.spec.js'));
+  const surviving = specs.filter((f) => f !== 'screenshots.spec.js');
+
+  assert.strictEqual(Number(claim[1]), specs.length,
+    `the comment claims ${claim[1]} specs; tests/visual/ holds ${specs.length}. Update the comment.`);
+  assert.strictEqual(Number(claim[2]), surviving.length,
+    `the comment claims ${claim[2]} survive the filter; ${surviving.length} do. Update the comment.`);
+
+  // and the claim the count exists to support
+  assert.ok(surviving.length > 0,
+    'zero surviving specs makes the empty-$SPECS trap LIVE, not latent - the guard is what stops it, but the comment above would now be lying');
+});
+
 test('the non-hermetic screenshots spec is still excluded, and the guard still fails closed', () => {
   // Not new, but it is the highest-cost mistake this file can make: with no file arguments Playwright
   // falls back to testDir and picks up screenshots.spec.js, which reads the LIVE production database.

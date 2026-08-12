@@ -110,8 +110,12 @@ Requirements: stop the harness registering a service worker at all. `tests/visua
 
 ### Mutation testing (Stryker) — measure the tests that cannot fail (APPROVED 9 Aug 2026, dev-only)
 `CLAUDE.md` names fragile areas where a regression test is mandatory, and nothing checks whether those tests would actually FAIL if the code broke. A test that passes against broken code is worse than no test, because it is trusted.
-The suite is **878 tests in ~1.6s** (measured 11 Aug 2026; 848 at the v145 audit, 822 at v135 — **re-measure, this number has been found stale by two audits running**), so mutating it is cheap.
-⚠️ AUDIT-v145 looked for a fourth "test that cannot fail" specifically and did NOT find one. The three known incidents (F6's focus-ring, v143's marker-collision gap, the light-only sync pin) were each caught inside the batch that introduced them, which is the argument against promoting this.
+The suite is **987 tests in ~2.1s** (measured 12 Aug 2026 after batch 177; it was 986 at the v156 audit and 177 added one — 878 at v152, 848 at v145, 822 at v135), so mutating it is cheap.
+⚠️ **THE ARGUMENT AGAINST PROMOTING THIS IS NOW FALSIFIED, and the sentence that made it has been struck.** It read: *"AUDIT-v145 looked for a fourth 'test that cannot fail' specifically and did NOT find one. The three known incidents were each caught inside the batch that introduced them."* Three more have turned up in the five batches since, and the mechanism v145 relied on has failed once and been switched off once:
+- **172** — a test written to pin an ordering scanned `js/app.js` only, so it could never have failed on the case it named. Caught by the batch.
+- **175** — `v155-trend.spec.js` wrapped its comparison in `if (rows.mk.length)` while `boot()` never seeded `changeLog`, so the loop never ran; *"reverting the very `padB` split it claims to pin would not have failed it."* **Caught by the pre-push review, not by the batch.**
+- **176** — the Products truncation test went vacuous when the fix removed the pressure its own precondition assumed. Caught by the batch, and its handover notes it was *"the second vacuous test found in two batches, both mine, both green."*
+Six known incidents, and **176 then shipped with no pre-push review at all** — so "the batches catch these themselves" is now an argument that depends on the reviewer v145 was not counting. That does not automatically promote this to `docs/QUEUE.md` (it is still internal quality and fails the tier test), but the next audit should not have to re-derive it a fourth time.
 Requirements: a mutation score for the fragile areas specifically, not a repo-wide number; every surviving mutant in those areas is either killed with a new assertion or written down as deliberate.
 Max's yes: 9 Aug 2026, dev-only. The no-new-dependencies rule protects the CLIENT; nothing here ships to it.
 
@@ -126,7 +130,6 @@ Measured 7 Aug 2026: `screenshots.spec.js` carries **2 assertions for the whole 
 A spec that sets up through a door no user has cannot fail for a reason a user would hit.
 Requirements: each spec either asserts something a user would notice, or is retired on purpose and said so.
 Note Playwright is not in `npm test`, so nothing here fails loudly. That is the reason to look, not a reason to defer.
-Do after: **F10** — the fold-in forces honest rewrites screen by screen, so auditing now audits specs about to be rewritten.
 ⚠️ **`addProduct` is a Tier 1 trap kept alive ONLY by `fresh-states.spec.js`, and the trap says deleting it fails SILENTLY.** If this item retires that spec, `addProduct` becomes dead in the same commit and nothing will notice. Close the trap in the same branch, or keep the spec for that reason and write it down.
 
 ### `_boot.js`'s empty-table list is a list of things NO browser spec can see
@@ -186,7 +189,6 @@ Requirements: decide whether `loadPlateState` should degrade a `pid` line the wa
 ### Menu / empty-state centring — four fixes, no root cause on record
 Found by the v115 audit as **the strongest remaining candidate for an unfound root cause in this repo.** Fixed in `HANDOVER-v44`, `v49`, `v54` and `v70`, each as its own CSS correction. No handover names a shared cause and no Tier 1 entry was ever written — the signature of a symptom treated four times. `tests/empty-states.test.js` postdates all four, so it pins the current state rather than the thing that kept breaking.
 Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
-Do after: **F10** — every screen's §5 states are rebuilt from the mock, so a root cause named now is named against layout that is still moving.
 
 ### `doDeleteMenu`'s unawaited dish deletes
 Flagged in v114, unchanged. Same class as the v112 sequencing fixes.
@@ -202,7 +204,6 @@ Fifteen of the eighteen `.modal-overlay` elements share `z-index:80`; only `#con
 No such flow exists today — verified: every real stack either routes through `#confirmModal` (which always wins) or closes the first modal before opening the second (`setSmemOpen` runs `closeSettings(); openSmem();`, `paPublish` runs `closePlateActions(); openManageMenus(id);`). The one genuine same-z stack, Tidy lists → a tidy action, has the child later in the markup and is pinned against `elementFromPoint` in `tests/visual/v137-modal-layer.spec.js`.
 Requirements: make the ordering a rule that can fail — either a test asserting every reachable modal-over-modal pair paints its child on top, or an explicit stacking scheme (an `.is-stacked` layer above 80) that removes the dependency on markup order.
 Out of scope: reordering `index.html` for its own sake, and any change to `topOverlay`.
-Do after: **F10** — F7 removes the builder overlay entirely, so a pairing enumerated now is enumerated against modals about to move.
 
 ### The trend chart does not re-measure on resize
 Found and created by F6 (10 Aug 2026) — the residue of that batch's own fix.
@@ -215,7 +216,6 @@ Note the intermittent-user rule cuts BOTH ways: Max on a phone never resizes, wh
 ### Dead CSS sweep
 Six selector families with **zero** emitting markup anywhere in `index.html` or `js/app.js`. **Re-measured 10 Aug 2026** (lines containing each selector in `css/style.css`): `.ref-pill` 6 · `.db-tools` 2 · `.ing-empty` **9** · `.an-empty` 19 · `.plate-noresult` 1 · `.king-tag` 1, whose only `js` hit is a comment saying the pill was REMOVED, not hidden.
 Requirements: a rule comes out only when nothing emits its class — grep both files per selector, not per family. `.an-empty` and `.an-empty-box` are separate names sharing a prefix; do not let one grep answer for both.
-Do after: **F10** — F7-F10 each delete a modal's worth of old CSS and will ADD dead families to this list, so sweeping now means sweeping again. These rules are inert, not harmful.
 
 ### `ing_price_history` needs its unique index reconsidered
 Same-millisecond writes for one product would collide on `unique (product_id, recorded_at)`. Not reachable in practice (a human cannot re-price one product twice in a millisecond, and `applyInvoice` touches a different product each pass), but it constrains the normal price-logging path, so it needs its own brief. 0 duplicate pairs as of 4 Aug 2026, so a change would still apply cleanly.
@@ -266,13 +266,25 @@ The actual feature — "gf" finding "Gluten Free Bread" with no literal "gf" in 
 Requirements: **correct the record first**, everywhere it is cited — rename the closed thread to "product-text search (v55 §G)" so it stops being re-verified as done by every future audit. Then decide separately whether real abbreviation/synonym matching is wanted, and if so where the mapping comes from. Those are two jobs and only the first is certain.
 Note this is the THIRD instance of a correction being written down and not propagated. If a fourth turns up, the routing itself is the item.
 
-### The `new-branch` skill tells every batch that the MANDATORY reviewer is optional
-Found 10 Aug 2026 by the CLAUDE.md-corrections batch, which runs that skill at step 1 of every batch.
-`~/.claude/skills/new-branch/SKILL.md` §6 says the PR **workflow** is *"MANDATORY and runs itself … fires on every pull request … you can't skip it"*, and that the pre-push **`code-review` agent** is *"OPTIONAL"*.
-**Both halves are backwards**, and have been since the 8 Aug 2026 demotion. `.github/workflows/code-review.yml` is `workflow_dispatch` + the `deep-review` label only. `CLAUDE.md` Tier 3 makes the pre-push agent the mandatory one and calls it *"the only thing standing between a mistake and production"*.
-So the skill instructs a batch to rely on a reviewer that will never fire, and to treat the real one as optional. It also promises the workflow "lands as PR comments" that a batch may sit waiting for.
-Requirements: §6 restated to match `CLAUDE.md` — pre-push agent mandatory, workflow on-demand — including the "different model" and "never show it the brief" conditions, and the three ways a workflow check has been wrong. While there, re-point the same section's "Treating a green PR workflow as no findings" gotcha, and step 5's "wait for the user to approve the plan", which contradicts `/batch` for queued items (it is correct for chat/brief work — say which is which).
-⚠️ **This file is OUTSIDE the repo** (`~/.claude/skills/`; the repo's own `.claude/skills/` holds `batch`, `cache-version`, `decide`, `handover`, `supabase*`, `verify`). It cannot ride a PR, cannot be reviewed, and no test can pin it — which is why it drifted two days without notice. Decide as part of this item whether `new-branch`, `investigate` and `test-flows` should MOVE into the repo.
+### Three skills live OUTSIDE the repo, so nothing can review or pin them
+⚠️ **The reviewer half of this item was FIXED on 12 Aug 2026 (batch 177) and is not the open part.** `~/.claude/skills/new-branch/SKILL.md` §6 had the two reviewers exactly backwards — it called the on-demand PR workflow "MANDATORY and runs itself" and the pre-push `code-review` agent "OPTIONAL". It now matches `CLAUDE.md`, its gotchas are re-pointed, and step 5's unconditional "wait for the user to approve the plan" now branches on whether the work came from the queue (approved) or from chat/a brief (not).
+**What remains is the reason it drifted, which no edit to that file fixes.** `new-branch`, `investigate` and `test-flows` live in `~/.claude/skills/`, outside the repo — the repo's own `.claude/skills/` holds `batch`, `cache-version`, `decide`, `handover`, `supabase*` and `verify`. An outside file cannot ride a PR, cannot be reviewed, and no test can pin it, which is how this one told every batch the wrong thing for **three audits running** (v135, v145, v156) while an in-repo copy would have been caught by the first reviewer to read the diff.
+It has now cost something real: `HANDOVER-176` records the first batch to ship to production with no pre-push review at all.
+Requirements: decide whether the three MOVE into `.claude/skills/`. If they do, they become reviewable and diffable like `batch` and `handover` already are; if they stay, say why and accept that they drift unpinned.
+Note this is Max's call in one respect only — they are his global config and moving them changes what other projects see. Everything else about it is mechanical.
+
+### The handovers' Playwright count uses a different filter from CI's, and the difference is the live-production spec
+Found by AUDIT-v156 (T2). `HANDOVER-176` reports *"288 Playwright"* green. CI guarantees **274 in 30 files** — its filter is `ls tests/visual/*.spec.js | grep -v screenshots.spec.js`. The whole directory is 288 in 31.
+**The 14-test delta is exactly `tests/visual/screenshots.spec.js`**, which imports only `gotoTab` and never calls `installBoot`, so it does not stub Supabase and does not abort off-origin requests. Its own header says *"the app talks to your live Supabase."* CI has an explicit fail-closed guard to keep it out of the hermetic job.
+So a handover quoting 288 is quoting a number that came from running the one spec CI deliberately excludes, and is not the figure CI stands behind. It reads only, so this is not a data risk — the problem is that the reported green means something different from the guaranteed green, and nobody reading the handover can tell.
+Requirements: settle ONE number that handovers quote, and say which filter produced it. The cheap answer is to quote CI's filter, since that is the one with a guard behind it. Do not fix this by editing past handovers — they are write-once.
+
+### v156 shipped to production without a pre-push review, and has never had one
+Found by AUDIT-v156. `HANDOVER-176` states it plainly: *"No pre-push review this time — the brief said 'no code review pass, just implement'."* That batch's layout work is live at `ezplate-v156`.
+The **cause** is fixed — `CLAUDE.md` says a brief cannot relax its rules, and the `new-branch` skill that called the reviewer optional has been corrected (see above). This item is the **remediation**, which is separate.
+Nothing is known to be wrong. 175's findings were reviewed and fixed; 176's claims are measured rather than argued, and both suites are green. But the diff was never read by a second model, and two of AUDIT-v156's findings (the 288/274 count above, and the missing `docs/PHONE.md` entries) are exactly what a reviewer catches.
+Requirements: run the `code-review` agent retrospectively over the 175+176 diff (`git diff 023e311..d1a8e53`), on a different model, blind to the brief. **Anything it finds is a NEW branch and a new PR** — the code is already on `main`, so it cannot be fixed in the PR that carried it. That is the rule this must not break in the name of tidying up.
+Tier note: C, not B, because no defect is known — this buys assurance, not a fix. Promote it if anything on those screens turns out to be wrong on a phone.
 
 ### The search ✕ shows on every search bar even when the field is empty
 Pre-existing and app-wide (`.ms-clear`, `css/style.css:1160`), noticed on the converted Plates screen where the mock draws no clear control at all.
@@ -318,15 +330,3 @@ Not fixed here because it is a different screen region from the one the item sco
 Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `#plateName` field in step 2, and `#editTag`'s "Editing: Fish & Chips" directly under it. Before 170 it was twice — the header field and the tag.
 `#editTag`'s real job is saying **saved plate vs new plate**, and the name is the part of its sentence that is now redundant three ways. `updateEditTag` is its one writer. It is a status label, not a control, so R3 does not apply, but the useful information in it should survive whatever is done.
 
-### `--text3` is used once and has never been defined, so `.side-theme`'s icon is not muted
-(Found 11 Aug 2026 while reading the nav for 171. Pre-existing; not introduced by that batch.)
-`css/style.css` defines `--text-3` (hyphenated) and aliases `--text2`/`--muted2` off the hyphenated
-set. It does **not** define `--text3`. The one use is the desktop sidebar's theme toggle:
-`.side-theme{ … color:var(--text3) … }`. An undefined custom property makes the declaration invalid
-at computed-value time, so `color` falls back to `inherit` — the toggle icon renders at full text
-colour instead of the muted grey the rule intends. Visible only as "that icon is a bit loud", which
-is why nothing caught it.
-One character to fix (`--text3` → `--text-3`), but it changes the appearance of a control in the
-shell, so it belongs with the **Desktop shell polish** queue item, which is already measuring that
-region — not to a batch converting something else.
-Grep for the bare name before assuming this is the only site: `grep -n -- "--text3" css/style.css`.

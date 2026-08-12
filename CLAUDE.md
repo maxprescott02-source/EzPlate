@@ -18,6 +18,7 @@ If a line here disagrees with the code, **the code is right and this file is a f
 | Outstanding work - tier A and B only, capped at 20 | `docs/QUEUE.md` |
 | Tier C - internal quality, worked only when the queue is empty | `docs/MAINTENANCE.md` |
 | Device checks | `docs/PHONE.md` |
+| **Migrations - the procedure, both projects, what staging can and cannot rehearse** | `docs/STAGING.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
 
 **Two counters, and they are NOT the same number** (Max, 8 Aug 2026, after this confused him and, before him, the v115 audit):
@@ -230,12 +231,18 @@ A test that re-implements a shipped function in order to test around it **passes
 
 **The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
 
-Four incidents, one remedy, three of them consecutive:
+**SEVEN incidents, one remedy** (was "four" until 12 Aug 2026; corrected by AUDIT-v156, which found three more):
 
 - **v113** - a passthrough stub hid a real escaping bug.
 - **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
 - **140** - a stub mirrored `fmtTargetPct` wrongly and hid a `30%%`.
 - **141** - a hand-rolled `esc` was missing `>`; the fix was to use the app's own `esc`, which is what v113 had already concluded.
+- **172** - a test pinning an ordering scanned `js/app.js` only, because `loadApp()` does, so it could never have failed on the case it named.
+- **175** - a spec wrapped its comparison in `if (rows.mk.length)` while `boot()` never seeded the data, so the loop never ran. **Caught by the pre-push review, not by the batch.**
+- **176** - a truncation test went vacuous when the fix removed the pressure its own precondition assumed.
+
+**The last three are a WIDER failure than a stub**, and that is the point of recording them here: 141 and before were copies that disagreed with the real function; 172, 175 and 176 were tests whose assertion **never executed at all**. Same green, same false assurance, and no stub involved.
+**So the check is not "did I hand-roll a copy" but "would this test FAIL if I broke the thing it names?"** Answer it by breaking the thing and watching it go red - the only proof that costs one minute and settles it.
 
 **If a stub is genuinely unavoidable, assert the stub against the real function first** - one test that they agree - so the copy cannot drift silently.
 This is the same family as **"a test that records call ORDER passes against the broken code"** above and as `addProduct`: the failure is never a red test, it is a green one.
@@ -253,7 +260,8 @@ F2/v138 hit the same class twice more, as `[hidden]` overrides: a single-class r
 
 **The `[hidden]` corollary is a DIFFERENT mechanism with the same symptom, and the specificity advice above does not fix it.**
 An author rule beats the UA's `[hidden]{display:none}` because **author origin wins over UA origin, and origin is decided BEFORE specificity is even compared** - so `.thing{display:block}` overrides it no matter how the selectors measure. Matching specificity therefore achieves nothing here.
-**The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. It is used twice in `css/style.css` (`.plib-controls`, `.plib-note`), both after the renderer's hide was silently ignored and an element sat visible under an empty state.
+**The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. It is used on **ten** rules in `css/style.css` - `#builderPage`, `.bld-pill`, `.inv-step`, `.ms-clear`, `.plib-controls`, `.plib-x`, `.plib-note`, `.mnu-pct` (twice) and `.mnu-band` - each after a renderer's hide was silently ignored and an element sat visible.
+(Was "twice, `.plib-controls` and `.plib-note`" until 12 Aug 2026; corrected by AUDIT-v156. **The count is the point**: at two it reads as a curiosity worth remembering, at ten it is an app-wide idiom, and a new `display` rule on a JS-hidden element needs the guard by default rather than on recall.)
 **So: any `display` rule on an element the JS hides with `hidden` needs the guard.**
 
 ## A viewport-geometry assertion must MEASURE its reference, never name it
@@ -300,8 +308,12 @@ Describing without naming is fine - "the name you'll use when building plates" i
 - **localStorage holds view preferences and derived caches ONLY** - never data.
   If something new resists that classification, **ask: there is no third category.**
   **The one standing exception is the plate draft** (`cafeDB_plateDraft`), which is authored content and not a preference: it is the in-progress builder plate, held so an interrupted user can resume, and it is deliberately NOT a third category - it is unsaved work on its way to Supabase, deleted by `clearPlateDraft` the moment it lands or stops being dirty.
-  **A `localStorage.getItem('...')` grep finds the other nine keys and MISSES this one**, because every use goes through the `DRAFTKEY` constant - which is why two audits in a row rediscovered it as an unexplained violation. Named here so the third one doesn't.
-  (Grepping the key STRING still finds the constant at `js/app.js:1152`. It is the call-site grep that misses it, which is the one an auditor reaches for.)
+  **A `localStorage.getItem('...')` grep MISSES it**, because every use goes through the `DRAFTKEY` constant - which is why two audits in a row rediscovered it as an unexplained violation. Named here so the third one doesn't.
+  ⚠️ **And it is NOT a special case - that framing was the actually misleading part, corrected 12 Aug 2026 by AUDIT-v156.** Measured against `js/app.js`: there are **thirteen** `cafe*` keys. A `getItem('...')` grep finds **six** of them and misses **seven**, for TWO different reasons:
+  - **six go through a constant** - `ENV_STAMP_KEY`, `DRAFTKEY`, `KEY`, `AI_INV_KEY`, `AI_SUG_KEY`, `THEME_KEY`;
+  - **one is never read at all** - `cafeDB_prodDensity` is a tombstone, only ever `removeItem`'d, so no read-side grep of any kind finds it.
+  (This line previously said the grep "finds the other nine keys and MISSES this one". Wrong on both halves, and it implied the draft was the single exception when it is one of seven.)
+  **So: grep the STRING `cafeDB_`/`cafeCost_`, never the call site** - that finds all thirteen, constants and tombstone included. No line number here on purpose; grep the name.
 - Products come from the Supabase `ingredients` table and nowhere else.
   Custom ids are `CX*`.
 - NEW plate lines are written `{kid, qty}`; legacy `{pid, qty}` and `{misc, label, cost}` lines are LIVE data (84 of 179 lines at the v125 count) that every reader must keep resolving. Kitchen-word renames are display-only. (The word "only" was dropped 9 Aug 2026, Max's yes - it invited a refactor or importer to discard the legacy shapes on the authority of a hard rule.)
@@ -378,7 +390,8 @@ Read the relevant tests first, diagnose with a truth table before patching, lock
 - **Supplier renames must migrate supplier memory.** Taught matches key off the supplier NAME (`memKey`); renaming without re-keying orphans them silently.
   `tidySupplierMemMigration` rebuilds keys from each entry's already-normalised `phrase_norm`.
   Apply the same pattern to any future rename of a name used as a lookup key elsewhere.
-- **The builder is a FULL PAGE.** `#builderPage`, a child of the Plates library rather than a tab of its own: `openBuilder` hides the five `#tab-*` panes and shows it, the Plates nav item stays lit, and any tab change leaves it.
+- **The builder is a FULL PAGE.** `#builderPage`, a child of the Plates library rather than a tab of its own: `openBuilder` hides the `#tab-*` panes and shows it, the Plates nav item stays lit, and any tab change leaves it.
+  ⚠️ **There are NINE panes, not five** - this said "five" until 12 Aug 2026, when AUDIT-v156 counted them; F8, F9, F10 and 171 each added one. **Read the list from `TAB_PANES` in `js/app.js`, never from a count written down anywhere**, because a pane missing from that array renders UNDERNEATH the builder page - the code says so at its own site.
   **The whole history, because this line has been wrong in both directions and each time it cost a batch:** the builder was a modal from v54; Max confirmed that shape on 8 Aug 2026 against a recommendation to change it; Q6 (v125) shipped its redesign inside the modal; **he then reversed it on 9 Aug 2026**, and this file carried both facts at once until **F7 shipped the page as `ezplate-v146` on 11 Aug 2026.** A batch once spent itself hunting a conversion that had already shipped two years of versions earlier, which is why the record is written out rather than summarised.
   **Leaving the page is not a data risk and must not be "fixed" into one.** Tapping another tab hides it and keeps the plate in memory and in the draft - exactly what pressing × did while it was a modal - and `guardUnfinishedPlate` offers the work back at the next entry.
   **Publishing, printing, duplicating and deleting a plate all live on this page.** The v54 plate-action chooser (`#plateActionsModal`) is deleted and a Plates row opens the builder directly; F7 rehomed all four of its actions rather than dropping any (§R3).
@@ -425,8 +438,10 @@ Its highest-value output is "this is the wrong question": one request asked whic
 
 **The safeguards are not optional - the old rule's protection has to be replaced, not just deleted:**
 
-- **Staging first, then production - BUT staging is EMPTY, so there is still nothing to rehearse against.** `.mcp.json` carries both projects (`supabase-staging`) and **the server now loads and answers** - `list_tables` returns an empty `public` schema, as a fresh project should. **The schema has not been mirrored and no seeds exist, so every migration is still UNREHEARSED against production: say so out loud before applying anything that is not a behavioural no-op, and defer destructive ones.** The safeguard becomes real when the queue's staging item RUNS, not when the server connects.
-  (Marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available. **The "has never yet loaded" clause was corrected 10 Aug 2026, Max's yes** - the cause was server approval, not connectivity, as AUDIT-v135 D1 said; the rest of the warning stands unchanged and must not be deleted with it.)
+- **Staging first, then production - AND STAGING IS NOW REAL. `docs/STAGING.md` is the procedure; follow it rather than this bullet.** Seven steps: write the migration with its one-statement rollback in the header · re-run `01-schema.sql` to re-mirror · load a seed · apply to staging · verify AS THE CLIENT over PostgREST · apply to production and record it in the header · diff the two schemas with the fingerprint query.
+  ⚠️ **This bullet said the OPPOSITE until 12 Aug 2026** - *"staging is EMPTY, so there is still nothing to rehearse against… the schema has not been mirrored and no seeds exist… every migration is still UNREHEARSED"* - which stopped being true on **11 Aug 2026**, when batch 172 shipped the mirror, three seeds and that procedure as `ezplate-v152`. The stale text sat here for four days with the queue's next four A-items all migrations, and `docs/STAGING.md:5` had already said *"That warning is now spent."* **The clause carried its own expiry** - *"the safeguard becomes real when the queue's staging item RUNS"* - and the item ran; this is that sentence being honoured, not overridden.
+  (History kept because both prior corrections asked for it: marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available; the "has never yet loaded" clause corrected 10 Aug 2026, Max's yes, per AUDIT-v135 D1.)
+  ⚠️ **What staging still does NOT rehearse, and this half is unchanged:** the DATA is invented, so staging tells you a migration RUNS - never that it gives the right answer for Scoopy's. **Neither project has more than one user**, so `anon` is the only role either has been exercised as, and the multi-tenant policies are the first that will distinguish roles: staging can prove they run and let the right rows through, **not that a second tenant is excluded.** A rehearsal you over-trust is worse than none.
 - **Order the statements so the dangerous intermediate state cannot exist**, rather than trusting the transaction alone to prevent it. Keep the transaction as well. (Worked example in `20260808_menus_rls.sql`: create the inert policy first, enable RLS second, so a failure between them leaves today's behaviour.)
 - **Verify AS THE CLIENT, over PostgREST with the anon key.** The MCP and the SQL editor run as `postgres` and bypass RLS, so they cannot see a policy mistake - see "The client's role is not the MCP's role".
   On a write, send `Prefer: return=representation` and check a row came back: **a blocked anon write returns success and touches nothing**, so an empty response, not an error, is the failure signal.
