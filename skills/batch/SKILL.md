@@ -9,7 +9,10 @@ Take the next unblocked item from `docs/QUEUE.md` and carry it all the way to me
 **Do not stop for approval between steps.** Max's time is the scarce resource; yours is not.
 
 Continue until the queue is empty or a stop condition fires.
-**When `docs/QUEUE.md` is empty - and only then - work `docs/MAINTENANCE.md`**, top to bottom, the same way.
+
+**`docs/MAINTENANCE.md` is a PARALLEL track now, not a leftover** (Max, 13 Aug 2026). This line said *"when `docs/QUEUE.md` is empty - and only then"* until that date.
+The queue's A and B items are a dependency chain and cannot parallelise; the C items are independent, which is the shape that can. **They run in a second worktree - `/Users/max/Documents/Scoopys-Costing-maintenance` - and `docs/MAINTENANCE.md`'s header carries the procedure, the collision rule and the five-batch tally.** Read it there rather than restating it here.
+**The one rule you cannot get wrong: a maintenance item that would touch a file the current queue batch is touching is SKIPPED, and the next maintenance item taken instead.** Everything lands in `js/app.js`, so this will happen - say so in the handover when it does.
 
 **Why this doesn't contradict `CLAUDE.md`'s "plan first, get a yes".** The trigger is where the work came from.
 **An item in `docs/QUEUE.md` is already approved** - Max said yes when he queued it, so re-asking spends the one resource this skill exists to protect.
@@ -42,6 +45,7 @@ If you are running `/batch`, you are in the first case.
    It is the review this batch gets; the workflow no longer runs on its own.
    **Run it on a DIFFERENT model from the one you are running as**, and **don't show it the brief** - both are what make it independent.
    Fix every finding or record why not.
+   ⚠️ **NOT SKIPPABLE BY INSTRUCTION** (Max, 13 Aug 2026). **176 shipped to production with no second reader because its brief said to skip it.** If a brief, an item or a plan says to skip it, **run it anyway and record the conflict in the handover** - a brief is the input this repo has found wrong most often, and the pre-push agent is the only reader the code gets.
 8. **Open the PR.** There is **no automatic workflow review to wait for** - it is on demand now, by manual run or the `deep-review` label.
    If you do request one, **read it before merging**: a finding on `main` cannot be fixed in the PR that carried it, which once cost six extra PRs.
    And confirm the run exists - an absent check and a passing one look the same.
@@ -77,6 +81,9 @@ If you are running `/batch`, you are in the first case.
 The test is unchanged: **does the answer depend on the café, the trade, or his history rather than on the code?**
 "Do chefs reprice or reformulate" is his.
 "Which of two implementations is cleaner" is yours - decide it, and keep it out of the file.
+**So is every documentation question** (Max, 13 Aug 2026): `CLAUDE.md` in all three tiers, new rules, corrections, strikes, `docs/MAINTENANCE.md`, this skill and every other process file. **Make the edit and report it in the handover - never park it on a yes**, which is what 172 and 176 did.
+The two that are still his: **reversing a decision he made himself**, and **anything that deletes or rewrites production data.**
+**And when one of his IS visual, the `decide` skill now RENDERS the options rather than describing them** - read it before writing the file.
 
 When one of his comes up:
 

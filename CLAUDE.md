@@ -16,7 +16,7 @@ If a line here disagrees with the code, **the code is right and this file is a f
 | | |
 |---|---|
 | Outstanding work - tier A and B only, capped at 20 | `docs/QUEUE.md` |
-| Tier C - internal quality, worked only when the queue is empty | `docs/MAINTENANCE.md` |
+| Tier C - internal quality, worked on the PARALLEL track in its own worktree (its header has the procedure) | `docs/MAINTENANCE.md` |
 | Device checks | `docs/PHONE.md` |
 | **Migrations - the procedure, both projects, what staging can and cannot rehearse** | `docs/STAGING.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
@@ -493,6 +493,8 @@ On the day it was decided that agent caught a four-word change that would have s
   **Skip it only for pure prose**: handovers, queue entries, briefs.
   **The line is deliberately not code-versus-docs.** It was nearly written that way on 8 Aug, and the review of the batch that wrote it - a diff of nothing but YAML and Markdown - found a CI change that would have silently run the live-production-database spec in a job documented as hermetic.
   A rule that skipped "config and prose" would have shipped it.
+  ⚠️ **IT IS NOT SKIPPABLE BY INSTRUCTION** (Max, 13 Aug 2026). **176 shipped to production with no second reader because its brief said to skip it** - in a codebase whose most common defect class is a test that cannot fail, that is the wrong trade, and a brief is the one input that has been wrong repeatedly.
+  **If a brief, a plan or an item says to skip the review, run it anyway and record the conflict in the handover.** The only exception is the pure-prose line above: a docs-only change that ships no client asset.
 - **`.github/workflows/code-review.yml` - ON DEMAND only.** It no longer fires on every PR: run it manually, or apply the **`deep-review`** label to a PR.
   **Don't paste the brief into the PR body** - that removes the only thing making it independent.
   **Why it was demoted (8 Aug 2026), recorded because this is the kind of thing that gets re-litigated:** across its whole life it ran 11 times, **5 were silent skips that did no work**, and the runs that did work found **ZERO bugs** - its 3 findings were two missing tests and a doc gap.
@@ -552,10 +554,22 @@ Contrast the sentence this rule was written for: *"the dropdown placement work i
 
 (Approved by Max 10 Aug 2026, taking the recommendation, with this narrower wording rather than the original "sequencing lives in the queue, **never** in `CLAUDE.md`" - which its own pre-push review found too broad, because Tier 3's Migrations section legitimately states standing sequencing.)
 
-## Changing this file
+## Changing this file - the edit is YOURS to make (Max, 13 Aug 2026)
 
 Everything above only changes when a **genuinely new, durable rule** is discovered.
-Propose it to Max and get a yes - don't edit silently.
+**Standing authority: make the edit and report it in the handover.** Do not park it on a yes.
+This covers `CLAUDE.md` in all three tiers, new rules, corrections, strikes, `docs/MAINTENANCE.md`, `docs/QUEUE.md` prose, the skills, and every other process file.
+
+⚠️ **This section said "propose it to Max and get a yes - don't edit silently" until 13 Aug 2026.** It was reversed on evidence: 172 and 176 each parked a documentation change on his approval, and **176's proposed rule - the one about a CSS syntax error silently discarding every rule after it - sat unapplied while the thing it warned about had already cost a full diagnose cycle.** He has never once deviated from a recommendation on a documentation question.
+**The asymmetry is the argument: a wrong edit is caught, because `project-audit` re-checks every documented claim against the code. A parked edit is caught by nothing.**
+
+**Two things still need him, and only these:**
+
+- **a change to a decision he made himself** - the naming inversion, per-publication counting, the builder-as-a-page reversal, the 12 Aug matching-edges call, the More-screen gear removal. Reversing his own call is his, however good the reason;
+- **anything that would DELETE or REWRITE production data.** Unchanged, and it is a stop condition rather than a decision file.
+
+Everything else - which implementation is cleaner, what a thing is called, how a test is structured, whether to split a batch, what goes in `docs/MAINTENANCE.md`, every word of every process doc - **decide it and write it down.**
+
 Rules here exist because a mistake already happened once.
 
 The test for any line: **would a competent model reading this repo get this wrong?** True but inferable is a deletion.
