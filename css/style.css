@@ -722,9 +722,15 @@ input[type=checkbox]{
    rules above, never as an unwind of them, and every declaration that appears at both breakpoints
    is at the same specificity on both — `@media` does not win by being later. */
 @media (min-width:768px){
+  /* The horizontal padding is the page-container contract (queue item 13), not spacing taste: the
+     builder is a FULL PAGE inside `.wrap` and wears the same `.scr-head`, whose rule now insets the
+     hairline by --sp-5. With `0` here the two columns began 20px LEFT of the plate name above them.
+     Caught by extending v155-shell-edges.spec.js to `#builderPage` — the eight `#tab-*` screens all
+     passed first, and this one was missed by measuring only those. The 1040 cap is §2's builder
+     width and includes the padding (border-box), so it is unaffected. */
   .bld-body{
     display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--sp-5);align-items:start;
-    max-width:1040px;padding:var(--sp-5) 0 var(--sp-6);
+    max-width:1040px;padding:var(--sp-5) var(--sp-5) var(--sp-6);
   }
   .bld-band{
     display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 90px 72px;gap:0 12px;
@@ -1288,12 +1294,25 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .install-banner .ib-text strong{font-size:var(--fs-base);color:var(--text)}
 .install-banner .ib-text span{color:var(--muted2)}
 .install-banner .ios-hint{color:var(--accent)!important;font-weight:700}
+/* THE RESERVE. `#installBanner` is `position:fixed`, so it is out of flow and the page has no idea
+   it exists; this gives the height back to the document while it is on screen. 90px is the banner's
+   measured height plus its 24px dock offset, and the safe-area inset keeps it true on a phone with
+   a home indicator. Paired with the class set in js/app.js — if that pairing is ever broken, the
+   symptom is the banner covering the last table row again. */
+html.has-install-banner body{padding-bottom:calc(114px + env(safe-area-inset-bottom))}
+
+/* SECONDARY, NOT PRIMARY (176). This was the accent-filled button — §7 allows ONE primary action per
+   screen region, and an unprompted install banner was competing with whatever the screen's real CTA
+   is ("New product", "New plate"). It is the app asking for something, not the user's task, so it
+   takes the mock's secondary treatment: surface fill, hairline border, plain text. It is still the
+   most prominent thing IN the banner, which is the only place it needs to win. */
 .ib-install{
-  background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--radius-ctl);
-  padding:10px 16px;font-size:var(--fs-base);font-weight:700;cursor:pointer;min-height:44px;
+  background:var(--surface);color:var(--text);border:1px solid var(--border-2);
+  border-radius:var(--radius-ctl);
+  padding:10px 16px;font-size:var(--fs-base);font-weight:500;cursor:pointer;min-height:44px;
   transition:background var(--t-fast) var(--ease);
 }
-.ib-install:hover{background:var(--accent-press)}
+.ib-install:hover{background:var(--hover)}
 .ib-x{background:none;border:0;color:var(--muted2);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;min-height:44px;min-width:44px;border-radius:10px}
 .ib-x:hover{background:var(--hover)}
 
@@ -1401,7 +1420,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .menu-search{flex:1 1 220px;min-width:180px;position:relative;display:flex;align-items:center}
   .menu-search input{width:100%;padding:9px 32px 9px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
   .menu-search input::-webkit-search-cancel-button{display:none}
-  .ms-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:50%;background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  /* `:not([hidden])` for the same reason as `.plib-x` — see the note there. These three live in
+     MODALS (#qClear, #ad_searchClear, #king_prodClear) and are hidden by the same syncClearBtns(). */
+  .ms-clear:not([hidden]){display:flex}
+  .ms-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:50%;background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;align-items:center;justify-content:center}
   .an-empty td{text-align:center;color:var(--muted2);padding:20px 12px;font-style:italic}
 
   /* ===== invoice: editable unit price + match confidence badges ===== */
@@ -1643,10 +1665,21 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .navbtn:not(.nav-bottom) + .nav-bottom::before{
     content:"";position:absolute;left:0;right:0;top:-7px;height:1px;background:var(--border);
   }
-  /* v137: the brand row — logo + wordmark on the left, the 22px theme toggle on the right. */
+  /* The brand row — logo + wordmark. ⚠ 176: the theme toggle is NO LONGER IN IT (Max, 12 Aug 2026);
+     it has its own region at the foot of the sidebar, `.side-foot` below. The row keeps its flex
+     because the brand still needs to grow into it. */
   .side-brand-row{
     display:flex;align-items:center;gap:var(--sp-2);
     padding:0 2px 16px;border-bottom:1px solid var(--border);margin-bottom:var(--sp-4);
+  }
+  /* THE THEME TOGGLE'S REGION. `margin-top:0` is the load-bearing part: `.nav-bottom`'s first member
+     carries `margin-top:auto`, which already pushed the bottom GROUP to the floor, so this sits
+     directly under Account rather than fighting it for the same space. Its hairline is drawn the
+     same way and from the same token as that group's, so the sidebar has two deliberate separations
+     that read identically instead of one rule and one accident. */
+  .side-foot{position:relative;margin-top:var(--sp-3);padding-top:var(--sp-3)}
+  .side-foot::before{
+    content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--border);
   }
   .side-brand{
     display:flex;align-items:center;gap:var(--sp-2);padding:6px 8px;flex:1 1 auto;min-width:0;
@@ -1656,35 +1689,19 @@ body.scroll-locked{position:fixed;left:0;right:0}
   .side-brand svg{width:24px;height:24px;flex:0 0 auto}
   .side-brand b{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--brand)}
   .side-brand b .ez{color:var(--accent-ink)}
-  /* The mock's compact toggle: 22px square, hairline, quiet until hovered. It is 22px VISUALLY
-     and 26px to the pointer — the ::after hit area is the .ms-clear / .range-btn technique, and it
-     is here because WCAG 2.5.8's floor is 24x24 CSS px. The app's own 44px thumb floor is not the
-     test for this control: the sidebar renders at >=1024 only, where the input is a mouse. */
-  .side-theme{
-    position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-    width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:5px;
-    background:var(--surface);color:var(--text3);cursor:pointer;
-    transition:color var(--t-fast) var(--ease),background var(--t-fast) var(--ease);
-    /* THE 44px FLOOR IS OVERRIDDEN HERE, DELIBERATELY, and this is the whole decision.
-       `button,.btn,.navbtn,input,select{min-height:44px}` (the touch-targets rule near the top
-       of this file) applies to every button in the app, and min-height always beats height —
-       without this line the control renders 22 WIDE by 44 TALL, a lopsided pill that is not the
-       mock's square and not anything else either. Measured in a browser before it shipped.
-       Overriding is safe HERE and nowhere else: .side-theme exists only inside the sidebar,
-       which is CSS-hidden below 1024px, so the only input that can reach it is a mouse. The
-       standard that does apply to a pointer is WCAG 2.5.8 (24x24 CSS px) — met by the ::after
-       below, not by the visual box. */
-    min-height:22px;
-  }
-  /* The hit area: 22px of paint, 32x32 to the pointer. Same ::after technique as .ms-clear and
-     .range-btn; z-index so it out-paints the row it sits in rather than losing the hit test to it.
-     MEASURED, not assumed — a first cut used -2px and the walk-outward probe reported a 24x24
-     effective target: sitting exactly ON WCAG 2.5.8's floor with nothing to spare, while the
-     comment beside it claimed 26. -5px puts it comfortably clear, and the spec pins the number so
-     the next person to touch this does not have to re-measure it. */
-  .side-theme::after{content:"";position:absolute;left:-5px;right:-5px;top:-5px;bottom:-5px;z-index:1}
-  .side-theme svg{width:13px;height:13px}
-  .side-theme:hover{color:var(--accent-ink);background:var(--hover)}
+  /* THE TOGGLE IS A NAV ROW NOW (176), not the mock's 22px square, because it left the wordmark row
+     for its own region at the sidebar's foot. It inherits `.navbtn` for type, padding, radius and
+     hover, so it sits in the nav's rhythm instead of introducing a second control system three
+     pixels from one.
+     ⚠ THE 44px FLOOR OVERRIDE AND THE ::after HIT AREA ARE BOTH GONE, and deleting them is correct
+     rather than an oversight: they existed only to make a 22px square survive
+     `button,.btn,.navbtn,input,select{min-height:44px}` and still clear WCAG 2.5.8's 24x24 floor.
+     As a `.navbtn` it is a full-width 30px row, which clears 2.5.8 on its own paint with no hit-area
+     trick and no min-height fight. Re-adding either would now shrink a target that is already
+     compliant. */
+  .side-theme{width:100%;justify-content:flex-start}
+  .side-theme svg{width:var(--icon-sm);height:var(--icon-sm)}
+  .side-theme[aria-pressed="true"]{color:var(--accent-ink)}
   .side-theme:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   /* v3 §2 nav row grammar: 13px, 7px/10px, radius 6, 2px apart. R1 — the app's 46px rows were
      the mobile tab bar's touch geometry surviving into a pointer-only sidebar, and they read as
@@ -1721,7 +1738,36 @@ body.scroll-locked{position:fixed;left:0;right:0}
   header{display:none}
 
   /* -- content column -- */
-  .wrap{max-width:960px;padding:0 var(--sp-6)}   /* v3 §2: content max-width 960 (v137) */
+  /* LEFT-ANCHORED TO THE SIDEBAR, and the max-width raised 960 -> 1200 (Max, 12 Aug 2026).
+     ⚠ BOTH HALVES DEVIATE FROM THE MOCK, which specifies `max-width:960px` and — being built at one
+     width — never has to answer what a 2400px screen does. Measured before changing: at 2400 the
+     sidebar ends at x224 and the table began at x876, a 652px dead zone, because `margin:0 auto`
+     centres a 960 column inside a 2176px main region. At 1440 it was 172px. The column was doing
+     what it was told; what it was told stops being right past about 1600.
+     `margin-left` is a FIXED gutter and `margin-right:auto`, so spare width goes RIGHT only and the
+     content stays welded to the sidebar at every width — an `auto` on both sides is precisely the
+     rule that produced the dead zone. 1200 is what lets a data table reach the 1100-1200 the tables
+     are capped at; the 680 form column (settings/account) and the 1040 builder are unchanged and
+     still sit inside this, so raising the page container does not widen a form.
+
+     ⚠ THE HORIZONTAL PADDING IS 0 AND THE MARGIN IS 12, WHICH LOOKS WRONG AND IS NOT. The gutter a
+     reader actually sees is measured from the sidebar to the TABLE, and three insets stack to make
+     it: this container's margin, this container's padding, and the 20px that `.scr-head` and every
+     body block share (the matching-edges contract — they must all keep it or the header rule stops
+     lining up with the cards). First cut used margin 32 + padding 24 and measured a 76px gutter at
+     1440, over twice the 24-32 asked for. Zeroing the padding and dropping the margin to 12 makes
+     12 + 20 = 32 — the top of the band — WITHOUT touching the 20px every screen shares. The vertical
+     padding is untouched; only the horizontal collapses. */
+  .wrap{max-width:1200px;margin-left:var(--sp-3);margin-right:auto;padding:var(--sp-8) 0 0}
+  /* THE TOP PADDING (queue item 13). Measured at 1360 before this rule: `.scr-head` sat 8px from
+     the top of the chrome, so the page title and the header actions were effectively flush to the
+     edge. The 8px was not anyone's declared value — `.plib-panel` zeroes `.panel`'s margin-top and
+     nothing replaced it — which is why this is stated on the container rather than tuned on the
+     panel. 32px clears the item's ">= 24px" AC with the mock's own top step (its content div is
+     `padding:24px 32px 64px`; its header adds 14px of its own above the title).
+     ⚠️ The ~135px "gutter" reported alongside this is NOT padding and is not touched here: at 1360
+     the main region is 1136 and the column is capped at 960, so 88px a side is the max-width doing
+     its job. Reclaiming it means abandoning the 960 cap, which is a different decision. */
 
   /* v55 (§C): the old two-column builder grid is GONE — #tab-builder is now the Plates library, a plain
      single-column .panel that renders the .ing-list card grid full-width, identical to Products. The
@@ -1741,7 +1787,31 @@ body.scroll-locked{position:fixed;left:0;right:0}
   /* (no .sync-banner offset here — the later desktop rule (§H) pins it bottom-LEFT, against the
      sidebar's own edge rather than the content centre, so a 50%-based offset would be overridden.
      v141: that rule used to pin it top-right, into the screen header's action corner.) */
-  .install-banner{left:auto;right:24px;bottom:24px;max-width:400px}
+  /* DOCKED CLEAR OF THE CONTENT COLUMN (176). At 1440 this measured x1016-1416 against a table
+     running to x1268 — 252px of overlap, sitting on top of live rows. The page container is
+     left-anchored now (see `.wrap`), so spare width collects on the RIGHT and that is where a
+     floating panel belongs: pinned to the viewport's right edge, and only shown room it is not
+     taking from the table.
+     `max-width` shrinks to whatever is left beyond the content column, so on a narrow desktop the
+     banner narrows rather than climbing over the rows; `min()` keeps 400 as the ceiling.
+     The content column is `margin-left:32 + max-width:1200` inside a `padding-left:224` body, so
+     its right edge is at most 224+32+1200 = 1456 — that constant is the whole calculation and it is
+     spelled out rather than hidden in a magic number. */
+  .install-banner{
+    left:auto;right:24px;bottom:24px;margin:0;
+    max-width:min(400px, calc(100vw - 1456px - 48px));
+  }
+  /* Below the width where a lane exists beside the content, the banner docks bottom-right and the
+     DOCUMENT reserves its height, so it covers chrome rather than rows: `has-install-banner` is set
+     on <html> by the show/hide pair in js/app.js. Reserving is the only honest fix — a fixed panel
+     cannot be positioned clear of a column that already spans the viewport, and without the reserve
+     the last rows of a 393-row table sat permanently underneath it.
+     1892 = 1436 (the content column's right edge: 224 body pad + 12 margin + 1200 max-width) + 400
+     (banner) + 56 (its two gutters). Spelled out because it is three constants, not a magic number,
+     and it moves if any of them do. */
+  @media (max-width:1891px){
+    .install-banner{left:auto;right:24px;max-width:400px;margin:0}
+  }
 
   /* v3 §2: 48px screen-header bars — the panel h2 eyebrows become real titles
      (15/600, sentence case, vertically centered on a 48px bar, hairline kept).
@@ -1782,7 +1852,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
    selectors are one class, matching the one-class `.navbtn{display:flex}` they override, so source
    order decides and both sit after it — see CLAUDE.md on @media not winning by being later.
    tests/more-screen.test.js asserts the meeting from this file. */
-@media (max-width:1023px){ .side-brand-row,.side-brand,.side-theme,.nav-bottom{display:none} }
+/* `.side-foot` joins this list because the toggle moved into it (176) — the region has a hairline
+   and padding of its own, so hiding only the BUTTON would have left an empty ruled strip above the
+   phone's tab bar. Below 1024 the phone reaches the theme through More → Settings → Appearance. */
+@media (max-width:1023px){ .side-brand-row,.side-brand,.side-theme,.side-foot,.nav-bottom{display:none} }
 @media (min-width:1024px){ .nav-more{display:none} }
 
 /* ---- cascade-final overrides (must sit after the base control rules) ---- */
@@ -2333,9 +2406,23 @@ body{overflow-x:clip}
 .modal{width:min(640px,calc(100vw - 24px));margin:auto;overscroll-behavior:contain}
 /* item 4: chart range selector (reference: segmented pills, active = inverted) */
 .range-bar{display:flex;justify-content:flex-end;gap:2px;margin:0 0 6px;padding:2px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:max-content;margin-left:auto}
-.range-btn{border:0;background:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:6px;color:var(--muted2);cursor:pointer}
+/* THE ACTIVE RANGE PILL IS NO LONGER ORANGE (queue item "Dashboard trend polish", decided 10 Aug
+   2026). It was `--accent-weak`/`--accent-ink`, which put a THIRD accent hue in one section: the
+   chart line is `--good`/`--bad` by target, the intervention markers are `--accent` orange, and the
+   pill was orange too — so a healthy section showed a green line, an orange marker and an orange
+   pill, and the eye could not tell which orange meant anything.
+   ⚠ THE MARKERS STAY ORANGE AND THAT IS THE LOAD-BEARING HALF. They mean "you did this"; the line
+   means "here is where you stand against target". §8 reserves green/amber/red for cost semantics, so
+   the markers cannot move to a semantic hue — and the range control is a BUTTON, not data, so it is
+   the one that stops competing.
+   The replacement is the segmented-control convention rather than another hue: the selected segment
+   rises to the card surface with a hairline, against the bar's tinted `--surface2`. Unambiguous at a
+   glance in both themes, which is this item's stated requirement, and it costs no colour at all.
+   `border:1px solid transparent` on EVERY button, not a border added to `.act` alone — otherwise
+   selecting a range would grow that button by 2px and shuffle the whole bar. */
+.range-btn{border:1px solid transparent;background:none;font:inherit;font-size:11px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:6px;color:var(--muted2);cursor:pointer}
 .range-btn:hover{color:var(--text)}
-.range-btn.act{background:var(--accent-weak);color:var(--accent-ink)}   /* v115: the chip selected-state language (was inverted --text/--bg, the only such highlight in the app) */
+.range-btn.act{background:var(--surface);color:var(--text);border-color:var(--border)}
 /* F5 (v142): the numeric-header alignment block is DELETED with the table — §31's `.mb-num`
    right-aligns the four figure columns on the band, and the band shares ONE grid template with
    the rows, so a header can no longer sit over the wrong column at all. */
@@ -3221,8 +3308,61 @@ html{scrollbar-gutter:stable}
    many actions there are, or what classes they carry. */
 .scr-gap{flex:1 1 auto;min-width:0}
 @media (min-width:768px){
-  .scr-head{min-height:48px;flex-wrap:nowrap;padding:0 var(--sp-5)}
+  /* MARGIN, not padding, and that is the whole of the "matching edges" fix (queue item 13).
+     The inset used to be padding, so the hairline drew across the .panel's full width (measured
+     at 1360: rule x336-1248) while every body block below it — #dashBody, #aList, #plateList by
+     margin; .plib-controls, .invz, .king-progress by their own padding — put its CONTENT at
+     x356-1228. A 20px overhang on each side: too small to read as the mock's full-bleed band,
+     too large to read as aligned. Moving the inset to margin shrinks the header's border box to
+     the content column, so the rule now starts and stops exactly where the cards do.
+     The title and the actions do not move — they sat at 356 and 1228 before and after; only the
+     box carrying the border-bottom changes.
+     ⚠️ DEVIATION FROM THE MOCK, recorded rather than quietly taken: the mock's §2 header has
+     `padding:14px 32px` and NO max-width, so its hairline is full-bleed across the main region.
+     Max chose matching edges on 12 Aug 2026 against that, reversing his own 10 Aug full-bleed
+     decision. R1 would say the mock wins; an explicit owner decision outranks the rubric. What we
+     give up is the mock's "header is a band across the app, not a lid on the content column".
+     Vertical padding stays 0 ON PURPOSE — §2's bar is 48px and `min-height` + `align-items:center`
+     is what holds it there. An 8px vertical padding was tried and reverted: the tallest child is a
+     39px `.plib-btn2`, so 39+16 pushed Menu and Ingredients to 56 while Dashboard and Settings
+     stayed at 48, and the bar stopped being one height across the app. The clearance ABOVE the bar
+     that the item asks for belongs to the page container, not to this rule — see `.wrap` at §1024. */
+  .scr-head{min-height:48px;flex-wrap:nowrap;padding:0;margin:0 var(--sp-5)}
   .scr-sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* THE TITLE AND ITS META SHARE A BASELINE (176). Measured before: the h2 ran y44-67 and the meta
+     y46-65 — centred against each other, so "393 products" floated at the title's mid-height instead
+     of sitting on its line, which is what reads as a stray label rather than a subtitle.
+     `align-self`, NOT `align-items:baseline` on `.scr-head`: the bar's other children are BUTTONS,
+     and baseline-aligning a 35px button against a 23px heading drops it below the row and re-earns
+     the vertical mess this fixes. Only the two text items opt in. */
+  .scr-head > h2,.scr-head > .scr-sub{align-self:baseline}
+
+  /* THE OTHER SIDE OF THE SAME CONTRACT. Most screens already put their content on the column by
+     margin (#dashBody, #aList, #plateList) or by their own padding (.plib-controls, .king-progress),
+     so shrinking the header box above was enough. Three blocks did NOT, and each was drawing a
+     visible border 20px outside its own screen title — found by asserting the two boxes against
+     each other in v155-shell-edges.spec.js, not by reading, because nothing here was wrong on its
+     own terms; they were measured against a header that used to be 20px wider.
+
+     ⚠️ `#invDropZone`, NOT `.invz` — CLAUDE.md names `.invz` as worn by TWO elements, the Invoices
+     screen's dropzone and the upload modal's step 1. A margin on the class would inset the modal's
+     zone inside a 520px dialog that has its own padding. The screen's zone is the one on a page
+     container, so the id is the correct handle and the class must stay untouched.
+
+     `.stg-cards` is shared by Settings and Account, and both ARE screens on the page container, so
+     the class is right there. Its 680px cap (§2: settings/account/forms) is a FORM COLUMN inside the
+     960 page container, not a page edge — so it keeps a narrower right edge on purpose, and the
+     spec asserts only its left edge for that reason. Mobile is untouched: below 768 the mock has no
+     container and these run to the page edge, which is what `.stg-cards{max-width:none}` already
+     says at max-width:767. */
+  #invDropZone,.invz-recent,.stg-cards{margin-left:var(--sp-5);margin-right:var(--sp-5)}
+  /* `.invz` carries `width:100%` so the MODAL's zone fills its dialog. On the screen's zone that
+     width resolves against the panel and IGNORES the margins above — margins do not shrink a fixed
+     width — so the box overhung the header by 20px on the right instead of clearing it.
+     The width is restated rather than removed: `width:auto` was tried first and shrink-wrapped the
+     zone to 723px, because this is a <button> and intrinsic sizing wins on a form control even at
+     `display:block`. Measured, not reasoned about. Scoped to the id for the same reason as above. */
+  #invDropZone{width:calc(100% - (2 * var(--sp-5)))}
 }
 
 /* -- the list surface. Bordered rounded container on desktop; on mobile the mock has
@@ -3267,11 +3407,17 @@ html{scrollbar-gutter:stable}
 /* 22px of paint, 40x40 to the pointer. The `::after` inset technique the app already uses for
    every other clear × (§ "small controls freed from the global 44px touch floor") — a rename that
    dropped it would silently shrink a touch target back under the floor. */
+/* `:not([hidden])` IS THE FIX, not belt-and-braces. syncClearBtns() hides these with the `hidden`
+   attribute when the field is empty, and a bare `display:flex` here would ignore it completely — an
+   AUTHOR rule beats the UA's `[hidden]{display:none}` on ORIGIN, which is decided before specificity
+   is even compared, so no amount of matching selectors fixes it. CLAUDE.md records this as the
+   `[hidden]` corollary and `.plib-controls` / `.plib-note` already carry the same guard. */
+.plib-x:not([hidden]){display:flex}
 .plib-x{
   position:absolute;right:8px;top:50%;transform:translateY(-50%);
   width:22px;height:22px;min-height:0;padding:0;border:0;border-radius:50%;
   background:var(--border);color:var(--text);font-size:16px;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
+  align-items:center;justify-content:center;
 }
 .plib-x::after{content:"";position:absolute;inset:-9px;border-radius:50%}
 /* the mock gives the fields no hover state and the buttons one; §7's "hover on every button" is
@@ -3590,6 +3736,13 @@ html{scrollbar-gutter:stable}
   text-align:right;white-space:nowrap;
 }
 .ing-price b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500}
+/* THE UNIT SUFFIX IS DE-EMPHASISED (176). "$24.78/kg" rendered the "/kg" at the price's own size and
+   colour, so every row carried two competing figures and the decimal points stopped being the thing
+   the eye lands on. Smaller and dimmer makes the money scan as a column.
+   The span comes from `ingPriceHtml` in js/app.js, which WRAPS `dispPrice` rather than changing it —
+   two of that function's four callers put its return value somewhere markup would be wrong. Tokens
+   only, so it follows the theme. */
+.ing-price .ing-unit{font-size:11.5px;font-weight:400;color:var(--text-3)}
 /* v99's law, unchanged by the rebuild: `.ing-per` carries the price basis and renders EXACTLY when
    dispPrice's figure does not (unknown/dim unit, missing cost) — the v20 eggs bug made that a
    correctness flag, so it renders loud rather than quiet. v126 deduped it; F4 does not touch it. */
@@ -3616,11 +3769,43 @@ html{scrollbar-gutter:stable}
     background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius-card);overflow:hidden;
   }
+  /* THE FILTER ROW IS SIZED TO CONTENT (mock §3.5: "a search that grows plus a select sized to
+     content"). `max-width:48%` is a MOBILE rule — two selects sharing a wrapped row — and at desktop
+     it resolved against the whole row, which is how the category select measured 329px to hold the
+     word "All categories". Content-sized with a cap, so a long option ellipsises (the select already
+     carries `text-overflow:ellipsis`) instead of setting the row's width from the longest category
+     in the catalogue. The search keeps `flex:1 1 200px` and takes what is left.
+     Scoped to ≥768 and left at (0,1,0) to match the base rule it overrides, per the file's standing
+     note that a media query does not win by being later. */
+  .plib-selwrap{flex:0 0 auto;max-width:200px}
+  /* THE SEARCH FIELD IS CAPPED (176). It was `flex:1 1 200px` with no ceiling, so it swallowed every
+     pixel the row's content-sized selects did not want — measured 494px at 1440 and growing with the
+     viewport, a search box wider than the column of names it searches. 400 is the top of the
+     320-400 band; it still GROWS into whatever is available below that, so narrow desktops are
+     unchanged. The row's trailing space is left as space rather than given to a control that does
+     not need it. */
+  .plib-search{flex:1 1 320px;max-width:400px}
   /* band and rows are separate grid containers, so both carry the SAME fixed tracks — a max-content
      track resolves per container and drifts the columns apart (v135's review measured 27px). */
+  /* FOUR tracks, not five — the Supplier column is dropped here (19 of 412 products carry one; the
+     count and the reasoning are at the band in js/app.js). Its 140px goes to the two columns that
+     were truncating: the name track flexes, and Category goes 120 -> 190 because that is what the
+     longest real value needs. Measured against the live catalogue rather than guessed: the longest
+     is "SAUCES  CONDIMENTS & DRESSINGS" (32 rows), which title-cased and whitespace-collapsed
+     renders ~168px at 12.5px; every other long value ("Sausages Hot Dogs & Patties", "Herbs Spices &
+     Seasonings", "Poultry Further Processed") is shorter. So no real category truncates at all now,
+     which is the AC — the ellipsis below stays only as a safety net for a value nobody has yet.
+     ⚠ 176: THE TWO MONO COLUMNS ARE ADJACENT AND FIXED, and the flexing NAME track is what absorbs
+     the page's spare width — that ordering is the fix for the wide-viewport dead zone. `1fr` on the
+     name means Unit cost and Last change stay welded together at the right of the table however wide
+     the screen gets, instead of a 1fr on a numeric column opening a lake of whitespace between the
+     figure and its neighbour. `#ingList`'s own 1200 cap (below) is the other half: past that the
+     table stops growing rather than stretching a 393-row list across a 2400px monitor. */
   .ing-band,.ing-card{
-    grid-template-columns:minmax(0,1fr) 120px 140px 110px 100px;column-gap:var(--sp-4);
+    grid-template-columns:minmax(220px,1fr) 190px 110px 100px;column-gap:var(--sp-4);
   }
+  /* the table's own ceiling, independent of the page container's — see the note above */
+  #ingList{max-width:1200px}
   .ing-band{
     display:grid;align-items:center;padding:9px var(--sp-4);
     font-size:11.5px;font-weight:500;color:var(--text-3);
@@ -3630,11 +3815,31 @@ html{scrollbar-gutter:stable}
   .ing-card{min-height:0;padding:10px var(--sp-4);align-items:center}
   .ing-main{font-size:13.5px}
   .ing-name{font-size:13.5px}
-  .ing-brand{display:block;font-size:12px}
+  /* THE BRAND YIELDS FIRST. Both labels were `flex:0 1 auto`, so they shrank together and a long
+     row truncated BOTH — "Apple Sliced Pie Granny Smith Bakers Cho…" beside "S…", where neither
+     could be read and the second was useless. The name is the identifier, so it keeps its width and
+     the brand gives up its own until it is gone. A shrink factor, not `flex-shrink:0` on the name:
+     the name must still ellipsise rather than push the price column off the row when it is very
+     long on its own. F4 already fixed the mobile half by dropping the brand below 768; this is the
+     desktop residue. */
+  .ing-brand{display:block;font-size:12px;flex:0 1000 auto}
   .ing-meta{display:contents}
   .ing-tag{grid-column:2;grid-row:1;font-size:12.5px;color:var(--text-2)}
-  .ing-tag.sup{grid-column:3;grid-row:1}
+  /* THE SUPPLIER CELL IS HIDDEN, NOT DELETED. The renderer still emits it and the phone still reads
+     "Category, Supplier" on its meta line, exactly as the mobile mock draws the row — only the
+     DESKTOP column goes.
+     ⚠ IT TAKES BOTH RULES, and the third one is the load-bearing half. `.ing-tag.sup` and
+     `.ing-tag.is-nil` are BOTH (0,2,0), and `is-nil` is written LATER, so for an empty supplier —
+     393 of 412 rows — `display:block` wins on source order and the cell would come back as a dash
+     in a column that no longer exists. `.ing-tag.sup.is-nil` is (0,3,0) and settles it on
+     SPECIFICITY, whatever the order.
+     (An earlier version of this comment claimed the fix was keeping `.sup` above `.is-nil`. That was
+     backwards — being above is precisely what loses — and the pre-push review caught the explanation
+     while the code was already right. Recorded because a wrong reason invites the right rule being
+     "tidied away" by whoever trusts it.) */
+  .ing-tag.sup{display:none}
   .ing-tag.is-nil{display:block;color:var(--text-3)}
+  .ing-tag.sup.is-nil{display:none}
   /* the mobile prefix rules are (0,2,0) and (0,3,0), so a plain `.ing-tag.sup::before` here cancels
      the first and NEVER the second, whatever the media query. Said honestly, because it was MEASURED
      rather than assumed: dropping the second cancel changes nothing on screen TODAY, since the
@@ -3644,9 +3849,14 @@ html{scrollbar-gutter:stable}
      separator into a column that already had a header. Cancel both, at their own specificity. */
   .ing-tag.sup::before,
   .ing-card.no-cat .ing-tag.sup::before{content:none}
-  .ing-price{grid-column:4;grid-row:1;margin-left:0}
+  /* 3 and 4, not 4 and 5 — they MOVE with the dropped Supplier column. Left at 4/5 against a
+     four-track template, `grid-column:5` silently created an IMPLICIT fifth track, which pushed the
+     category 22.9px off its own header and left the price under the wrong heading. Nothing errors;
+     the grid just grows. Caught by the band-alignment assertion in v140-products.spec.js, which is
+     why that test asserts alignment against the header rather than the template. */
+  .ing-price{grid-column:3;grid-row:1;margin-left:0}
   .ing-price b{font-size:13px}
-  .ing-drift{grid-column:5;grid-row:1;margin-left:0}
+  .ing-drift{grid-column:4;grid-row:1;margin-left:0}
 }
 @media (max-width:560px){ #ingList{margin-left:var(--sp-4);margin-right:var(--sp-4)} }
 
@@ -4044,19 +4254,33 @@ html{scrollbar-gutter:stable}
 }
 .ds-gap{flex:1 1 auto;min-width:0}
 
-/* ---- the trend. The mock draws it on the page canvas: a plain heading row over the plot, no
-       container, no band. Written as an override of `.dash-sec` at the SAME specificity (0-2-0
-       both sides) so which one wins does not depend on file order. ---- */
-.dash-trend.dash-sec{border:0;border-radius:0;overflow:visible}
+/* ---- the trend. ⚠ IT IS A CARD NOW, like every other dashboard section, and the opt-out that used
+       to live here is DELETED rather than overridden. What was here:
+         .dash-trend.dash-sec{border:0;border-radius:0;overflow:visible}
+         .dash-trend .ds-head{display:block;padding:0 0 8px;border-bottom:0;background:none}
+       and it was a faithful reading of the mock, whose trend really is a bare <section> while
+       "Needs attention" beside it is bordered. Max reversed it on 12 Aug 2026 having seen the built
+       screen: alone among the dashboard's blocks the chart read as unfinished rather than as
+       breathing space. The reasoning lives at dashTrendHtml() in js/app.js, at the markup that
+       decides it. Deleting the opt-out is what makes `.dash-sec` the single owner of the card look —
+       an override that re-stated the border would have been two owners again. ---- */
+.dash-trend .ds-head h2{font-size:14px}
+.dash-trend .ds-body{padding:var(--sp-4) var(--sp-5) var(--sp-5)}
+.dash-trend .chart-hint{margin-top:var(--sp-2)}
 /* `display:block`, not the inherited flex, and that is measured: the six-button range bar is ~200px
    wide, so on a 340px column the flex row squeezed the title to ~60px and "Food cost trend" set on
    THREE lines. The mock's own mobile dashboard has no range control at all (§6), so there is nothing
    to be faithful to at this width — the control the app keeps (R3) takes its own line beneath the
-   title, which is where a wrapped flex row would have put it anyway, without wrecking the title. */
-.dash-trend .ds-head{display:block;padding:0 0 var(--sp-2);border-bottom:0;background:none}
-.dash-trend .ds-head h2{font-size:14px}
-.dash-trend .ds-head .range-bar{margin-top:var(--sp-2)}
-.dash-trend .chart-hint{margin-top:var(--sp-2)}
+   title, which is where a wrapped flex row would have put it anyway, without wrecking the title.
+   ⚠ NOW SCOPED to the width that was actually measured. It used to be unconditional, which was
+   harmless while the head was a bare heading row and is not now: at desktop the head is a 960px-wide
+   card BAND, where `display:block` would drop the range control onto its own line inside the band
+   and make it two rows tall for no reason. The title measures ~110px against a ~200px bar, so 560 is
+   comfortably clear of the collision it guards. */
+@media (max-width:560px){
+  .dash-trend .ds-head{display:block}
+  .dash-trend .ds-head .range-bar{margin-top:var(--sp-2)}
+}
 
 /* ---- Needs attention (§3.1). Rows divided by hairlines inside the container. ---- */
 .ins-spark{width:16px;height:16px;flex:0 0 auto;opacity:1}

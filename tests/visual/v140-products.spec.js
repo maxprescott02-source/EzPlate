@@ -47,7 +47,12 @@ async function boot(page, width, errs, opts = {}) {
   await page.waitForTimeout(200);
 }
 
-test('desktop: the band labels five columns, and every row lines up with it', async ({ page }) => {
+/* ⚠ REWRITTEN 12 Aug 2026: FIVE columns became FOUR. The Supplier column is dropped at desktop —
+   counted against the live catalogue, 19 of 412 products carry one and there are 3 distinct values
+   in all — so its 140px went to the name and the category. The cell is still EMITTED (the phone's
+   meta line reads "Category, Supplier", which is the mobile mock's own row); only the desktop column
+   is hidden. Rewritten rather than deleted so a silent return of the column fails here. */
+test('desktop: the band labels four columns, and every row lines up with it', async ({ page }) => {
   const errs = [];
   await boot(page, 1280, errs);
   const band = page.locator('#ingList > .ing-band');
@@ -56,7 +61,7 @@ test('desktop: the band labels five columns, and every row lines up with it', as
      ("$3.45/kg"), computed by dispPrice — the pack price is a different number living on the edit
      form. The honest heading is pinned so a later "make it match the mock" pass has to argue with a
      failing test rather than quietly relabel a figure. Same refusal F3 made of "30-day change". */
-  await expect(band).toHaveText('ProductCategorySupplierUnit costLast change');
+  await expect(band).toHaveText('ProductCategoryUnit costLast change');
 
   const geo = await page.evaluate(() => {
     const l = (e) => e.getBoundingClientRect().left;
@@ -65,10 +70,12 @@ test('desktop: the band labels five columns, and every row lines up with it', as
     return {
       rows: rows.length,
       bandCatLeft: l(document.querySelector('.ing-band > span:nth-child(2)')),
-      bandSupLeft: l(document.querySelector('.ing-band > span:nth-child(3)')),
-      bandChangeRight: r(document.querySelector('.ing-band > span:nth-child(5)')),
+      bandCells: document.querySelectorAll('.ing-band > span').length,
+      bandChangeRight: r(document.querySelector('.ing-band > span:nth-child(4)')),
       catLefts: rows.map((row) => l(row.querySelector('.ing-tag:not(.sup)'))),
-      supLefts: rows.map((row) => l(row.querySelector('.ing-tag.sup'))),
+      // still in the DOM for the phone, and hidden here — asserted, not assumed
+      supPresent: rows.every((row) => !!row.querySelector('.ing-tag.sup')),
+      supHidden: rows.every((row) => getComputedStyle(row.querySelector('.ing-tag.sup')).display === 'none'),
       driftRights: rows.map((row) => r(row.querySelector('.ing-drift'))),
       oneEdge: new Set(rows.map((row) => Math.round(l(row)))).size,
       midRowBottom: getComputedStyle(rows[1]).borderBottomWidth,
@@ -84,9 +91,9 @@ test('desktop: the band labels five columns, and every row lines up with it', as
   for (const left of geo.catLefts) {
     expect(Math.abs(left - geo.bandCatLeft), 'Category sits on its header\'s left edge on every row').toBeLessThanOrEqual(1.5);
   }
-  for (const left of geo.supLefts) {
-    expect(Math.abs(left - geo.bandSupLeft), 'Supplier sits on its header\'s left edge on every row').toBeLessThanOrEqual(1.5);
-  }
+  expect(geo.bandCells, 'four headings, not five').toBe(4);
+  expect(geo.supPresent, 'the supplier cell is still emitted — the phone reads it on the meta line').toBe(true);
+  expect(geo.supHidden, 'and it is hidden at desktop rather than deleted from the row').toBe(true);
   for (const right of geo.driftRights) {
     expect(Math.abs(right - geo.bandChangeRight), 'the change column ends on its header\'s right edge on every row').toBeLessThanOrEqual(1.5);
   }
@@ -95,7 +102,12 @@ test('desktop: the band labels five columns, and every row lines up with it', as
   expect(errs.filter((e) => !/favicon|manifest|net::ERR_FAILED/i.test(e)), 'console clean').toHaveLength(0);
 });
 
-test('desktop: the change cell is a tinted mono pill, or the muted word "steady"', async ({ page }) => {
+/* ⚠ REWRITTEN 12 Aug 2026: "steady" became a dash (Max). The mock's fixture never shows more than
+   three unchanged rows at once; Scoopy's shows fifteen of fifteen, and a page of the same word reads
+   as noise where a dash reads as "nothing here" — which is what every other empty cell in the app
+   already renders. The muted, un-tinted, mono treatment is unchanged; only the glyph moved, and the
+   assertions below still pin that it is NOT a pill. */
+test('desktop: the change cell is a tinted mono pill, or a muted dash', async ({ page }) => {
   await boot(page, 1280);
   const d = await page.evaluate(() => {
     const drift = (id) => document.querySelector(`#ingList > .ing-card[data-id="${id}"]`).querySelector('.ing-drift');
@@ -122,9 +134,9 @@ test('desktop: the change cell is a tinted mono pill, or the muted word "steady"
   expect(d.downCls).toBe(true);
   expect(d.upFg).not.toBe(d.downFg);
   expect(d.upBg, 'a real move is a TINTED pill (mock §3.5)').not.toBe('rgba(0, 0, 0, 0)');
-  // the reversal: no logged move reads as a word, matching what Ingredients says about the same figure
-  expect(d.steady, 'untouched products read "steady", not a dash').toBe('steady');
-  expect(d.steadyBg, 'and "steady" is not a pill — it is the absence of news').toBe('rgba(0, 0, 0, 0)');
+  // no logged move reads as a dash, matching what Ingredients says about the same figure
+  expect(d.steady, 'untouched products read a dash, not the word "steady"').toBe('—');
+  expect(d.steadyBg, 'and the dash is not a pill — it is the absence of news').toBe('rgba(0, 0, 0, 0)');
   expect(d.family, '§4: Geist Mono on every figure').toMatch(/Geist Mono/);
   expect(d.numeric).toBe('tabular-nums');
 });
@@ -172,7 +184,13 @@ test('v99: the basis flag renders exactly where the figure cannot carry it', asy
   expect(d.mono, '§4: money is mono').toMatch(/Geist Mono/);
 });
 
-test('desktop: an absent category or supplier renders a placeholder dash — a column needs a cell', async ({ page }) => {
+/* ⚠ REWRITTEN 12 Aug 2026 with the Supplier column. The CATEGORY half is unchanged and still the
+   point: a desktop column needs a cell, so an absent value renders a dash there and is simply absent
+   on the phone. The SUPPLIER half inverts — the column is gone, so the correct desktop state is a
+   cell that still exists in the DOM (the phone's meta line needs it) and is not displayed. Asserting
+   both halves is what stops the cell being deleted outright, which would take the value off the
+   phone as well as off the table. */
+test('desktop: an absent category renders a placeholder dash, and the supplier cell is hidden not deleted', async ({ page }) => {
   await boot(page, 1280);
   const d = await page.evaluate(() => {
     const row = document.querySelector('#ingList > .ing-card[data-id="P0002"]');   // category cleared in boot()
@@ -194,9 +212,9 @@ test('desktop: an absent category or supplier renders a placeholder dash — a c
   expect(d.catIsNil, 'an empty category is marked as a placeholder, not left bare').toBe(true);
   expect(d.catText).toBe('—');
   expect(d.catShown, 'and the placeholder is VISIBLE at desktop — the mobile rule must not win here').not.toBe('none');
-  expect(d.supNilText).toBe('—');
-  expect(d.supNilShown).not.toBe('none');
-  expect(d.realSup).toBe('Bidfood');
+  expect(d.supNilText, 'the cell still renders its placeholder — the phone hides it via is-nil, not via this').toBe('—');
+  expect(d.supNilShown, 'but no supplier is displayed at desktop: the column is dropped').toBe('none');
+  expect(d.realSup, 'and a REAL supplier is still in the DOM for the phone to read').toBe('Bidfood');
   /* The mobile middot rules are (0,2,0) and (0,3,0), and a single desktop `.ing-tag.sup::before`
      cancels only the first. Scope note, because it was measured rather than assumed: dropping the
      second cancel changes NOTHING on screen today — the no-cat rule's value is an empty string, so

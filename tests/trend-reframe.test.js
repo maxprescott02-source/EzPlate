@@ -48,6 +48,12 @@ function chart(opts) {
     ${extractFn(SRC, 'lastChangeEntry')}
     ${extractFn(SRC, 'sinceLineHtml')}
     ${extractFn(SRC, 'trendPlotSize')}
+    /* The x-axis, EXTRACTED not stubbed, for the same reason trendPlotSize is: it decides real
+       geometry (which readings carry a label, and the anchor that keeps the end labels inside the
+       viewBox), so a hand-rolled copy would agree with whatever this file believed rather than with
+       the shipped arithmetic. */
+    ${extractFn(SRC, 'trendFmtDate')}
+    ${extractFn(SRC, 'trendXTicks')}
     ${extractFn(SRC, 'trendChart')}
     return { trendChart: trendChart, trendMarkers: trendMarkers, sinceLineHtml: sinceLineHtml,
              geo: function(){ return TREND_GEO; } };

@@ -99,6 +99,13 @@ async function gridGeo(page) {
     const r = (sel) => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect() : null; };
     return {
       body: r('#dashBody'), top: r('#dashBody .dash-top'), chartSvg: r('#trendWrap svg'),
+      // the chart's own host: the trend is a CARD now, so the column is no longer its container
+      chartHost: (() => {
+        const el = document.querySelector('#dashBody .dash-trend .ds-body');
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        return { width: el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+      })(),
       trend: r('#dashBody .dash-trend'), ins: r('#dashBody .dash-ins'),
       moved: r('#dashBody .dash-moved'), dig: r('#dashBody .dash-dig')
     };
@@ -116,11 +123,19 @@ function expectGridContract(geo) {
   // the two-up: Dig in beside What moved, top-aligned, each ending at its own content
   expect(geo.dig.left, 'Dig in is the right-hand half').toBeGreaterThanOrEqual(geo.moved.right - 1);
   expect(Math.abs(geo.dig.top - geo.moved.top), 'the two-up is top-aligned').toBeLessThanOrEqual(2);
-  /* The chart FILLS the column. This is the v120 jank Max reported — a 540px-capped chart centred
+  /* The chart FILLS ITS CONTAINER. This is the v120 jank Max reported — a 540px-capped chart centred
      in a ~1000px card — and F6's fix is at the source: the viewBox is sized in rendered pixels, so
-     there is no cap left to swim inside. Tolerance 2, not the old 200: the chart is now exactly the
-     column, and a generous tolerance here would hide the very regression the pin exists for. */
-  expect(geo.chartSvg.width, 'the chart fills the column').toBeGreaterThanOrEqual(geo.body.width - 2);
+     there is no cap left to swim inside. Tolerance 2, not the old 200: a generous tolerance here
+     would hide the very regression the pin exists for.
+     ⚠ REWRITTEN 12 Aug 2026: the reference is the CARD BODY, not the page column. The trend became a
+     bordered card in the same change, so it now has 20px of padding a side and "chart == column" is
+     false BY DESIGN. The regression this guards is unaffected — a 540px cap is still ~290px short of
+     the card body — but the old wording would have had to be relaxed by 40px to pass, which is
+     exactly the "rewrite the spec to fit" move the v145 review caught once already. Measured against
+     the host's CONTENT box so a future padding change cannot silently loosen it. */
+  expect(geo.chartHost, 'the chart has a host to fill').not.toBeNull();
+  expect(geo.chartSvg.width, 'the chart fills its card body').toBeGreaterThanOrEqual(geo.chartHost.width - 2);
+  expect(geo.chartSvg.width, 'and is not a capped block swimming inside it').toBeGreaterThan(geo.body.width * 0.75);
   // every region shares the column's edges (edge pins, not width comparisons — a width check
   // could pass while offset)
   for (const [k, label] of [['top', 'the verdict zone'], ['trend', 'the trend'], ['ins', 'insights']]) {

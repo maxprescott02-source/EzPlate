@@ -1770,6 +1770,12 @@ function showTab(t){
   /* F9 (v148): the priming that openSettings() used to do on every open. A screen has no open event,
      so this line IS the priming — drop it and every control renders its markup default. */
   if(t==='settings')renderSettingsTab();
+  /* The clear × on every search field, re-read after the screen has rendered. The delegated `input`
+     listener covers typing and the delegated click covers the × itself, but a field whose value was
+     set PROGRAMMATICALLY fires neither — a restored `kingQuery`, a filter reset, a modal reopened.
+     One call here catches all of those at the only moment they can matter, which is when a screen
+     is about to be looked at. */
+  syncClearBtns();
   if(_retap){ try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} } }   // re-tap: content is already rendered, so the browser can animate it (OS reduced-motion turns 'smooth' into a jump on its own)
 }
 document.querySelectorAll('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // v132: [data-tab] — the sidebar's Settings entry wears .navbtn for styling but is an overlay, and showTab(undefined) blanked every pane and wrote the string "undefined" into cafeDB_lastTab (review finding)
@@ -1867,16 +1873,29 @@ function rangeBarHtml(){
   var os=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['1y','1Y'],['all','All']];
   return '<div class="range-bar">'+os.map(function(o){return '<button type="button" class="range-btn'+(dashRange===o[0]?' act':'')+'" data-rg="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div>';
 }
-/* F6 (v143): the mock's §3.1 trend SECTION — a plain heading row over the plot, no card around it
-   (in v3 only a table or a list is a bordered container). R3 on the control: the mock draws a single
-   "3 months ▾" text button where this app has a six-option segmented bar that has worked since v29.
-   The app's control survives, in the mock's slot — a real control is never traded for a prettier one
-   that offers less. The chart itself is untouched: trendChart owns the geometry, the scrub wiring,
-   the markers and the caption exactly as before. */
+/* THE TREND IS A CARD, and the range control sits in its header.
+   ⚠ DEVIATION FROM THE MOCK, recorded rather than quietly taken — and it REVERSES F6 (v143), whose
+   comment here read: "the mock's §3.1 trend SECTION — a plain heading row over the plot, no card
+   around it (in v3 only a table or a list is a bordered container)". That was an accurate reading:
+   the mock's trend really is a bare <section> while "Needs attention" beside it is bordered.
+   Max asked for the card on 12 Aug 2026, having seen the screen. R1 would say the mock wins; an
+   explicit owner decision outranks the rubric, and the reason is visible on the built screen in a
+   way it is not in the mock — the app's chart sits between a bordered KPI/empty-state card above and
+   the bordered What-moved/Dig-in pair below, so alone among them it read as unfinished rather than
+   as breathing space. What we give up is the mock's rhythm of one unbordered section per screen.
+
+   R3 on the control, UNCHANGED from F6 and still the reason it is not a "3 months ▾" text button:
+   the mock draws a single dropdown where this app has a six-option segmented bar that has worked
+   since v29. The app's control survives, now in the card's header slot rather than a bare heading
+   row — a real control is never traded for a prettier one that offers less.
+   The chart itself is untouched: trendChart owns the geometry, the scrub wiring, the markers and
+   the caption exactly as before. */
 function dashTrendHtml(scope){
+  // `.dash-sec` alone carries the card — a third class here matched no rule at all and only read as
+  // though it did (pre-push review). The card look has ONE owner and this is not it.
   return '<section class="dash-sec dash-trend">'
     +'<div class="ds-head"><h2>Food cost trend</h2><span class="ds-gap"></span>'+rangeBarHtml()+'</div>'
-    +trendChart(scope)
+    +'<div class="ds-body">'+trendChart(scope)+'</div>'
     +'</section>';
 }
 /* ---- per-product price log — powers price-change alerts + cost ranges.
@@ -2374,8 +2393,8 @@ function emptySearchState(icon,noun,clearFn){
     '<button class="linklike es-clear" type="button" onclick="'+clearFn+'()">Clear search &amp; filters</button>');
 }
 // per-tab clear helpers — shared by the empty-state action AND the header "Clear filters" button.
-function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); renderIngredients(); }
-function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; var c=document.getElementById('kingCatFilter'); if(c) c.value=''; renderKitchenPanel(); }
+function clearProductFilters(){ ['ingSearch','ingCatFilter','ingSupFilter'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); syncClearBtns(); renderIngredients(); }
+function clearIngredientFilters(){ var el=document.getElementById('kingSearch'); if(el) el.value=''; kingQuery=''; var c=document.getElementById('kingCatFilter'); if(c) c.value=''; syncClearBtns(); renderKitchenPanel(); }
 function clearPlateFilters(){ var s=document.getElementById('plateSearch'); if(s) s.value=''; var f=document.getElementById('plateCatFilter'); if(f) f.value=''; renderPlatesTab(); }
 // v68: Menu tab margin-light filter — multi-select tappable chips (green/amber/red). Empty = show all;
 // tapping red shows red only; tapping amber too shows amber+red (the "everything needing attention" case).
@@ -2399,9 +2418,36 @@ function syncMenuLightChips(){                                      // reflect s
 function clearMenuFilters(){ var m=document.getElementById('menuSearch'); if(m) m.value=''; var c=document.getElementById('menuCatFilter'); if(c) c.value=''; menuLightFilter=[]; syncMenuLightChips(); renderAnalysis(); }
 function ingUnitLabel(p){ return p.base_unit==='g'?'per kg':p.base_unit==='ml'?'per litre':p.base_unit==='ea'?'per unit':(p.base_unit||''); }
 var TIDY_DOOR='__tidy__';   // v60 item 8: sentinel option value = "open the Tidy modal scoped to this field"
-function fillFilter(sel, list, label){
+/* CATEGORY CASING — DISPLAY TIME ONLY, and the "only" is the whole point.
+   Product categories are supplier-supplied strings stored verbatim, so the catalogue mixes
+   `DESSERTS`, `CLEANING & JANITORIAL` and `HERBS  SPICES & SEASONINGS` (a real double space) with
+   sentence-case `Fish` and `Squid and Octopus`. The MIXTURE is in the data, not in the rendering.
+   ⚠ Normalising at rest is a data migration with a blast radius well beyond this column: the stored
+   value is what the invoice parser and the category derivation both MATCH AGAINST, so rewriting it
+   would silently stop matching invoices. Nothing here touches storage — `fillFilter` keeps the raw
+   string as the option VALUE and only relabels it, so every comparison in the app still sees what
+   Supabase holds.
+   Small words stay lowercase after the first word, which is what makes `Squid and Octopus` survive
+   the pass unchanged instead of becoming `Squid And Octopus`. Whitespace collapses because the
+   double space in the longest real category is a data quirk, not information. */
+var CAT_SMALL={and:1,or:1,of:1,the:1,in:1,on:1,with:1,a:1,an:1,to:1,for:1};
+function catLabel(s){
+  s=String(s==null?'':s).replace(/\s+/g,' ').trim();
+  if(!s) return s;
+  var first=true;
+  return s.replace(/[A-Za-zÀ-ɏ]+/g, function(w){
+    var lower=w.toLowerCase(), keepSmall=!first && CAT_SMALL[lower]===1;
+    first=false;
+    return keepSmall ? lower : (lower.charAt(0).toUpperCase()+lower.slice(1));
+  });
+}
+/* `fmt` relabels the options WITHOUT touching their values — see catLabel. It is opt-in rather than
+   applied to every filter because this helper also fills supplier names, plate categories and menu
+   sections, and those are Max-authored strings that are already cased the way he wrote them. */
+function fillFilter(sel, list, label, fmt){
   if(!sel) return; var cur=sel.value;
-  var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+  var show=(typeof fmt==='function')?fmt:function(v){return v;};
+  var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(show(v))+'</option>';}).join('');
   if(sel.dataset && sel.dataset.tidyField) html+='<option value="'+TIDY_DOOR+'">✎ Manage list…</option>';   // one door per category/supplier filter
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
@@ -2437,7 +2483,7 @@ function renderIngredients(){
     return;
   }
   showControls(true);
-  fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories');
+  fillFilter(document.getElementById('ingCatFilter'), prodCategories(), 'All categories', catLabel);
   fillFilter(document.getElementById('ingSupFilter'), prodSuppliers(), 'All suppliers');
   var q=(document.getElementById('ingSearch')?document.getElementById('ingSearch').value:'').trim().toLowerCase();
   var toks=searchTokens(q);   // v59: shared token matcher
@@ -2460,17 +2506,34 @@ function renderIngredients(){
      position and the honest heading — the same word Ingredients uses for the same kind of figure, so
      the two screens cannot teach a chef two names for one number. Same refusal F3 made of the
      mock's "30-day change". */
-  var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span><span>Supplier</span>'
+  /* THE SUPPLIER COLUMN IS GONE FROM THE DESKTOP TABLE, and the decision rests on a count rather
+     than on the fixture, because the fixture could not answer it. Counted against the LIVE
+     `ingredients` table on 12 Aug 2026: 19 of 412 products carry a supplier, 393 are empty, and
+     there are 3 distinct values in the whole catalogue — while `brand` is populated on 411 of 412.
+     So the column was 95% dashes and its 140px now goes to the product name, which is what the
+     queue item made the condition.
+     ⚠ NOT a dropped control and not lost data (R3 does not bite): `supCell` below still renders,
+     the phone still reads "Category, Supplier" on its meta line exactly as the mobile mock draws it,
+     the supplier FILTER is untouched, and the value is on the row's own edit form. Only the desktop
+     COLUMN goes — see §27's `.ing-tag.sup{display:none}` at ≥768, which is where it is actually
+     hidden, so the cell keeps existing for the phone.
+     The earlier report that this column "duplicates" the name's secondary text was wrong and is not
+     the reason: that text is the BRAND (Priestleys, Heinz Watties), a different field. */
+  var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span>'
     +'<span class="ib-num">Unit cost</span><span class="ib-num">Last change</span></div>';
   wrap.innerHTML=band+items.map(function(p){
     /* Q7 (v126) unchanged in substance: the change column reads the last LOGGED move, by the same
        ingLastMovePct rule the Ingredients row and the dashboard's What-moved panel use, so the three
        can never disagree. F4 changes only how it LOOKS — a tinted mono pill (mock §3.5), and the
-       muted word "steady" where there is no logged move, replacing the bare dash. "steady" is not
-       "no change": it is "no move worth reporting", which the aria-label says. Semantic colour: a
-       price rise is bad. */
+       DASH where there is no logged move. ⚠ It said "steady" from F4 until 12 Aug 2026 — DECIDED
+       (Max) to a dash, a deliberate deviation from the mock, on the grounds that the mock's fixture
+       never shows more than three unchanged rows at once and Scoopy's shows fifteen of fifteen. A
+       page of the word "steady" reads as noise; a dash is what every other "nothing here" cell in
+       this app already renders. The muted mono styling stays — only the glyph changed. The
+       aria-label still says "no recent price change", because that is what a dash cannot say aloud
+       and it is the part a screen reader needs. Semantic colour: a price rise is bad. */
     var pct=ingLastMovePct(p.id);
-    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">steady</span>'
+    var drift=(pct==null)?'<span class="ing-drift none" aria-label="no recent price change">—</span>'
       :('<span class="ing-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>');
     /* v99's rule survives Q7 by DEDUPING, not hiding: dispPrice's figure carries the basis for the
        normal units ("$3.45/kg"), so the label only renders when it ADDS information — an unknown/dim
@@ -2482,13 +2545,13 @@ function renderIngredients(){
        no columns to keep. The class is what the breakpoint rules key off, so it goes on both paths.
        `no-cat` rides the ROW so the phone's meta separator can be chosen in CSS without a sibling
        chain — the chain it replaces is the one that out-ranked a desktop column rule on F3 (§27). */
-    var catCell='<span class="ing-tag'+(p.category?'':' is-nil')+'">'+esc(p.category||'—')+'</span>';
+    var catCell='<span class="ing-tag'+(p.category?'':' is-nil')+'">'+esc(p.category?catLabel(p.category):'—')+'</span>';
     var supCell='<span class="ing-tag sup'+(p.supplier?'':' is-nil')+'">'+esc(p.supplier||'—')+'</span>';
     return '<button class="ing-card'+(p.category?'':' no-cat')+'" type="button" data-id="'+esc(p.id)+'">'
       +'<span class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</span>'
       +'<span class="ing-meta">'+catCell+supCell+'</span>'
-      +'<span class="ing-price"><b>'+dispPrice(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
+      +'<span class="ing-price"><b>'+ingPriceHtml(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
       +drift
       +'</button>';
   }).join('');
@@ -2680,7 +2743,7 @@ function renderKitchenPanel(){
   }
   var kcat=(document.getElementById('kingCatFilter')||{}).value||'';   // v59 item 6a: filter by DERIVED category
   showControls(true);
-  fillFilter(document.getElementById('kingCatFilter'), kingCategories(), 'All categories');
+  fillFilter(document.getElementById('kingCatFilter'), kingCategories(), 'All categories', catLabel);
   var kcf=document.getElementById('kingClearFilters'); if(kcf) kcf.style.display=(kingQuery||kcat)?'':'none';
   var list=kingSearchFilter(kingQuery, kitchenIngredients, byId)
     .filter(function(k){ return !kcat || kingCategory(k)===kcat; })
@@ -2723,16 +2786,21 @@ function renderKitchenPanel(){
     var link, price, drift, cat;
     if(kp){
       var pct=ingLastMovePct(k.pid);
-      /* Muted "steady" replaces rendering nothing (mock §3.4). It is not "no change": it means no
-         logged move worth reporting, which is also what a sub-1% move reads as. The aria says so. */
+      /* A DASH where there is no logged move — the same change Products made in the same batch, and
+         deliberately not decided per screen: the two share this wording and this figure, and the
+         queue item says so explicitly ("Applies to Ingredients as well — they share the wording and
+         it is one function"). It is not "no change": it means no logged move worth reporting, which
+         is also what a sub-1% move reads as, and the aria still says that aloud. */
       drift=(pct==null)
-        ? '<span class="king-drift none" aria-label="no recent price change">steady</span>'
+        ? '<span class="king-drift none" aria-label="no recent price change">—</span>'
         : '<span class="king-drift '+(pct>0?'up':'down')+'" aria-label="price '+(pct>0?'up':'down')+' '+Math.abs(pct).toFixed(1)+'% at the last logged move">'+(pct>0?'+':'−')+Math.abs(pct).toFixed(1)+'%</span>';
       /* `is-nil` marks a PLACEHOLDER, not a broken link: a linked product with no category of its
          own is empty here too, and without the class the phone showed the bare table dash the
          design forbids. The class is what the breakpoint rules key off, so it goes on both paths. */
       var kc=kingCategory(k);
-      cat='<span class="king-cat'+(kc?'':' is-nil')+'">'+esc(kc||'—')+'</span>';
+      /* catLabel here too: this category is DERIVED from the linked product, so it is the same
+         supplier-supplied string the Products column renders and must not be cased two ways. */
+      cat='<span class="king-cat'+(kc?'':' is-nil')+'">'+esc(kc?catLabel(kc):'—')+'</span>';
       link='<span class="king-link">'+esc(kingProductLabel(k))+'</span>';
       price='<span class="king-price">'+esc(unitCostStr(kp))+'</span>';
     } else {
@@ -2966,6 +3034,10 @@ function renderKingCreateSuggest(){
     var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
     kingChosenPid=pid;
     var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
+    /* The ONE place a clear-\u00d7 field is filled programmatically with a NON-empty value. Assigning
+       `.value` fires no `input` event, so the delegated listener never sees it and the \u00d7 would stay
+       hidden on a field that now has something to clear \u2014 the mirror of the bug being fixed. */
+    syncClearBtns();
     box.style.display='none'; box.innerHTML='';
     kingSyncSave();
   }); });
@@ -3162,6 +3234,43 @@ function wireSearchClear(inputId, clearId, onClear){
   if(!inp||!btn) return;
   btn.addEventListener('click',function(){ inp.value=''; if(typeof onClear==='function') onClear(); inp.focus(); });
 }
+
+/* THE CLEAR × APPEARS ONLY WHEN ITS FIELD HAS A VALUE — one rule for all SEVEN of them, which is
+   what the queue item required. Before this they were plain markup with a click handler and no
+   show/hide anywhere, so every × was permanently visible offering to clear nothing.
+   ⚠ IT IS NOT ONE BUTTON, and fixing only the Products field was the trap named in the item:
+   `.plib-x` dresses #plateSearchClear, #menuSearchClear, #kingSearchClear and #ingSearchClear;
+   `.ms-clear` dresses #qClear, #ad_searchClear and #king_prodClear in the modals. Two classes,
+   seven elements, four different wiring styles (wireSearchClear for two, inline handlers for the
+   rest) — so this is deliberately written as DELEGATION rather than as another per-field wiring,
+   because a per-field pass is exactly what left four of them out last time.
+   Every one of the seven has its <input> as a sibling inside the same wrapper (.plib-search,
+   .search-wrap, .menu-search, .cat-wrap) — checked in index.html for all seven before relying on
+   it — so the parent is a sound handle and no id list has to be maintained here.
+   ⚠ The CSS needs `:not([hidden])` on both classes or this does nothing: `.plib-x{display:flex}`
+   is an AUTHOR rule and beats the UA's `[hidden]{display:none}` on ORIGIN, before specificity is
+   even compared. CLAUDE.md records that trap; see §26 in css/style.css. */
+function clearBtnFor(inp){
+  return (inp && inp.parentElement) ? inp.parentElement.querySelector('.plib-x,.ms-clear') : null;
+}
+function syncClearBtns(root){
+  (root||document).querySelectorAll('.plib-x,.ms-clear').forEach(function(btn){
+    var inp=btn.parentElement && btn.parentElement.querySelector('input,textarea');
+    if(inp) btn.hidden = !String(inp.value||'');
+  });
+}
+/* capture, so it runs whatever a field's own handler does with the event */
+document.addEventListener('input',function(e){
+  var btn=clearBtnFor(e.target);
+  if(btn) btn.hidden = !String(e.target.value||'');
+},true);
+/* BUBBLE, not capture, and that is load-bearing: the seven clear handlers are themselves bubble
+   listeners bound earlier, so they set `value=''` before this runs and the re-sync sees the field
+   already empty. In the capture phase it would read the OLD value and leave the × on screen. */
+document.addEventListener('click',function(e){
+  var btn=e.target && e.target.closest && e.target.closest('.plib-x,.ms-clear');
+  if(btn) syncClearBtns(btn.parentElement);
+});
 wireSearchClear('king_prod','king_prodClear',function(){ kingChosenPid=null; if(typeof kingSyncSave==='function') kingSyncSave(); if(typeof renderKingProdDrop==='function') renderKingProdDrop(); });
 wireSearchClear('ad_search','ad_searchClear',function(){ if(typeof renderDishPicker==='function') renderDishPicker(''); });
 
@@ -3409,6 +3518,60 @@ function trendPlotSize(){
   w=Math.max(MIN, Math.min(MAX, Math.round(w)));
   return { W:w, H:Math.round(w*(w>=DESK_FROM?R_DESK:R_PHONE)) };
 }
+/* THE X-AXIS (queue item "Dashboard trend polish"). The chart had no x-axis at any range — the only
+   <text> elements were the four y-axis ticks.
+   ⚠ THIS IS A DELIBERATE DEVIATION FROM THE MOCK, which draws none either, so it is a decision and
+   not a fix. The argument the item makes and this implements: a trend chart whose x-axis is
+   unlabelled cannot be read against the RANGE CONTROL that governs it — "3M" and "1Y" produce the
+   same picture with no way to tell which you are looking at. The scrub tooltip already carries the
+   full date, but only on hover, which is nothing at all on a phone.
+
+   Ticks are placed at REAL READINGS, not at even time intervals, because `x(i)` spaces points by
+   INDEX rather than by date — the series is irregular (a point exists only when a price changed), so
+   an evenly-spaced date scale would put its labels where no reading sits. Labelling actual readings
+   is the only thing that is true of this plot's geometry.
+
+   Anchoring: `start` on the first and `end` on the last, `middle` between. The first tick sits at
+   x=padL and the last at W-padR, so a centred label at either end would overhang the viewBox and be
+   clipped — which is exactly how the y-axis gutter bug (v52) presented. */
+function trendFmtDate(t, longSpan){
+  var d=new Date(typeof t==='string'?t:Number(t));
+  if(!isFinite(d.getTime())) return '';
+  return longSpan
+    ? d.toLocaleDateString(undefined,{month:'short',year:'2-digit'})
+    : d.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+}
+function trendXTicks(pts, W){
+  if(!pts || pts.length<2) return [];
+  var t0=new Date(typeof pts[0].t==='string'?pts[0].t:Number(pts[0].t)).getTime();
+  var t1=new Date(typeof pts[pts.length-1].t==='string'?pts[pts.length-1].t:Number(pts[pts.length-1].t)).getTime();
+  var days=(isFinite(t0)&&isFinite(t1))?Math.abs(t1-t0)/86400000:0;
+  var longSpan=days>200;                       // beyond ~7 months, "12 Aug" repeats a year apart
+  // room for ~90px per label; never more ticks than readings, never fewer than 2
+  var want=Math.max(2, Math.min(5, Math.floor(W/150)+1, pts.length));
+  var picked=[], seen={};
+  for(var k=0;k<want;k++){
+    var i=Math.round(k*(pts.length-1)/(want-1));
+    var label=trendFmtDate(pts[i].t, longSpan);
+    // an irregular series can land two ticks in the same day (or month, on a long span); a repeated
+    // label reads as a broken axis, so the duplicate is dropped rather than drawn twice
+    if(!label || seen[label]) continue;
+    seen[label]=1;
+    picked.push({ i:i, label:label });
+  }
+  /* ANCHORS ARE ASSIGNED AFTER THE DEDUPE, not during it, and that ordering is the fix rather than a
+     tidy-up. Deriving the anchor from `k` meant it described the position a label was GENERATED at,
+     not the position it ended up in: if the last tick duplicated an earlier label — two readings on
+     one day inside a 1w window, or two points a year apart on the month/year format — it was dropped
+     and NOTHING carried `end`, leaving a middle-anchored label as the rightmost one. Deriving it
+     from the surviving array instead makes "first is start, last is end" true by construction, and
+     a single surviving label correctly takes `start` (at x=padL, where a centred label would
+     overhang). Found by the pre-push review; no fixture in the repo exercises same-day points, and a
+     supplier price corrected twice in one day would have reached it in production. */
+  return picked.map(function(t,n){
+    return { i:t.i, label:t.label, anchor:(n===0?'start':(n===picked.length-1?'end':'middle')) };
+  });
+}
 function trendChart(scope){
   /* v115 stage 2 — the promise the v89 comment made ("Stage 2 gives it the two-line chart once the
      history exists"): per-menu history has been recording since v89 and now holds real points, so a
@@ -3440,7 +3603,13 @@ function trendChart(scope){
      F6 (v143): W and H come from trendPlotSize() instead of being the constants 320/104. Nothing
      else in this function changes — every value below still derives from W and H exactly as it
      did. See trendPlotSize for the measurement that forced it. */
-  var _sz=trendPlotSize(), W=_sz.W, H=_sz.H, padR=10,padT=14,padB=20;
+  /* padB 20 -> 38, and H grows by the same 18, so the PLOT keeps exactly the height it had and only
+     the strip below it gets taller. The strip now stacks two rows: the marker labels ("−2 pts") on
+     top and the x-axis dates under them. They cannot share one row — the marker label is centred on
+     its own x and an axis tick is centred on a reading, so they collide whenever an intervention
+     lands near a tick, which on a sparse series is most of the time. Growing the strip is what makes
+     the x-axis possible at all; every other value below still derives from W and H unchanged. */
+  var _sz=trendPlotSize(), W=_sz.W, padR=10,padT=14,padB=38, H=_sz.H+18;
   TREND_GEO=null;
   if(pts.length<2){                                              // 0 or 1 point: the empty-state card (unchanged); scrub wiring bails on TREND_GEO
     var emptyHint=(priceHistory.length>=2)
@@ -3595,7 +3764,10 @@ function trendChart(scope){
        pixel, so 30 units no longer clears an 8-character label and two markers three days apart
        would have overprinted. */
     if(mag>=0.1 && mx-lastLblX>=52){
-      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+' pts</text>';
+      /* `H-padB+13`, not `H-6`: the marker label takes the TOP row of the strip now and the x-axis
+         dates take the bottom one. Pinned to padB rather than to H so the two rows stay stacked if
+         the strip is ever resized again. */
+      mkLabels+='<text class="mk-lbl" x="'+mx.toFixed(1)+'" y="'+(H-padB+13)+'" text-anchor="middle" font-size="10" fill="var(--accent)">−'+mag+' pts</text>';
       lastLblX=mx;
     }
     mkGeo.push({x:mx, drop:mk.drop, count:mk.count});
@@ -3613,6 +3785,10 @@ function trendChart(scope){
   // so the widest label's left edge = x0 = the title/caption column. Vertically CENTRED on their
   // value so the target tick sits exactly on the dashed rule (v48 invariant, pinned).
   var axis=ticks.map(function(v){ return '<text class="ax" x="'+(padL-axGap)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end">'+fmtTick(v)+'</text>'; }).join('');
+  // the x-axis: real dates, on real readings, in the bottom row of the padB strip (see trendXTicks)
+  var xAxis=trendXTicks(pts, W).map(function(t){
+    return '<text class="ax ax-x" x="'+x(t.i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="'+t.anchor+'">'+esc(t.label)+'</text>';
+  }).join('');
   // v115: the words follow the colour — position against target, plus the markers, not direction.
   var posWord=overNow?('over your '+fmtTargetPct()+' target'):('under your '+fmtTargetPct()+' target');
   var ariaMk=marks.length?(', with '+marks.length+' marked change'+(marks.length===1?'':'s')+' you made'):'';
@@ -3632,6 +3808,7 @@ function trendChart(scope){
     +'<g clip-path="url(#tcClipB)">'+drawing+'</g>'
     +'<g clip-path="url(#tcClipD)" opacity="0.35">'+drawing+'</g>'
     +axis   // v48: the "Target" word is gone (Max's call) — the dashed line lands exactly on the axis tick labelled with the user's own target number, so it explains itself
+    +xAxis
     +mkDots+mkLabels   // v115: marker dots ride the curve OUTSIDE the scrub clip groups (they must not dim), labels live in the empty padB strip
     +'<line id="tcCross" x1="0" x2="0" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--muted2)" stroke-width="1" stroke-dasharray="2 3" visibility="hidden"/>'
     +'<circle id="tcDot" r="4" fill="'+stroke+'" stroke="var(--surface)" stroke-width="1.5" visibility="hidden"/>'
@@ -5073,7 +5250,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v154';
+var APP_VERSION='v156';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -5821,8 +5998,21 @@ if ('serviceWorker' in navigator) {
   function dismissed(){try{return localStorage.getItem(KEY)==='1';}catch(e){return false;}}
   function setDismissed(){try{localStorage.setItem(KEY,'1');}catch(e){}}
   function standalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
-  function show(){ if(!dismissed()&&!standalone()) banner.style.display='flex'; }
-  function hide(){ banner.style.display='none'; }
+  /* `has-install-banner` on <html> is what lets the PAGE reserve room for a FIXED panel. Without it
+     the banner floated over live table rows — measured at 1440: banner x1016-1416 against a table
+     running to x1416, so it sat on top of the rows themselves. A fixed element cannot be "docked
+     clear" of a full-width column by CSS alone; something has to give the document the space back,
+     and only the code that knows the banner is visible can do that. The class is set here rather
+     than in a CSS :has() so it survives the banner being toggled by any of the four paths below. */
+  function show(){
+    if(dismissed()||standalone()) return;
+    banner.style.display='flex';
+    document.documentElement.classList.add('has-install-banner');
+  }
+  function hide(){
+    banner.style.display='none';
+    document.documentElement.classList.remove('has-install-banner');
+  }
   window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferred=e; show(); });
   window.addEventListener('appinstalled',function(){ setDismissed(); hide(); });
   document.getElementById('installClose').addEventListener('click',function(){ setDismissed(); hide(); });
@@ -7223,6 +7413,21 @@ function prodOptions(selId){
   }).join('');
 }
 function dispPrice(p){var c=cpbu(p);if(c==null)return '\u2014';if(p.base_unit==='g')return '$'+(c*1000).toFixed(2)+'/kg';if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';return '$'+c.toFixed(2)+'/unit';}
+/* The Products row's price, with the unit suffix split out so it can be set smaller and dimmer than
+   the figure (176 — "$24.78/kg" rendered the "/kg" at the price's own size, so every row carried two
+   competing figures and the decimals stopped being what the eye lands on).
+   ⚠ THIS WRAPS `dispPrice` RATHER THAN CHANGING IT, deliberately. `dispPrice` returns a plain STRING
+   and two of its four callers put that string somewhere HTML would be wrong or would have to be
+   escaped — the dashboard's Dig-in `disp` field and the invoice review's old-price cell. Making the
+   shared function emit markup to suit one screen is how a helper starts lying to its other callers.
+   Splitting on the LAST slash, not the first: the figure never contains one, and "/unit" and "/kg"
+   both come after it. A value with no slash (the em dash `dispPrice` returns for a missing cost)
+   falls through whole. */
+function ingPriceHtml(p){
+  var s=dispPrice(p), i=s.lastIndexOf('/');
+  if(i<=0) return esc(s);
+  return esc(s.slice(0,i))+'<span class="ing-unit">'+esc(s.slice(i))+'</span>';
+}
 /* ---- new-item inline panel ---- */
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }

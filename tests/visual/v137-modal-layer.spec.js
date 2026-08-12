@@ -369,35 +369,48 @@ test.describe('container: dialog at 12vh, sheet on a phone', () => {
 });
 
 test.describe('shell: the sidebar controls the mock added', () => {
-  test('the compact theme toggle is 22px of paint but clears WCAG 2.5.8 to the pointer', async ({ page }) => {
+  /* ⚠ REWRITTEN 12 Aug 2026: THE TOGGLE IS NO LONGER A 22px SQUARE IN THE WORDMARK ROW.
+     It moved to its own region at the foot of the sidebar (Max) and wears `.navbtn`, so it is a
+     full-width nav row. What that RETIRES is the whole reason the old assertions existed: the 22px
+     square only rendered by overriding the app-wide `button{min-height:44px}` touch floor, and the
+     `::after` hit area only existed to lift that 22px square back over WCAG 2.5.8's 24x24. A nav row
+     clears 2.5.8 on its own paint, so both the override and the hit-area trick were DELETED with the
+     square — and re-adding either would now shrink a target that is already compliant.
+     The assertions are inverted rather than dropped: they now pin that it IS a nav row, that it
+     still clears 2.5.8, and — the part that matters most — that it is NOT a tab. */
+  test('the theme toggle is a sidebar nav row, clears WCAG 2.5.8, and is not a route', async ({ page }) => {
     await boot(page);
     const t = page.locator('#sideThemeToggle');
     const box = await t.boundingBox();
 
-    /* 22x22 is the mock's, and it only renders that way because .side-theme overrides the
-       app-wide `button{min-height:44px}` touch floor. Without the override the control is
-       22 WIDE by 44 TALL — a lopsided pill that is neither the mock nor the rule. That shipped
-       to a browser once during this batch, which is why it is pinned. */
-    expect(Math.round(box.width)).toBe(22);
-    expect(Math.round(box.height)).toBe(22);
+    // a nav row, not a square: full width of the sidebar's padding box, and the nav's own height
+    expect(box.width, 'the toggle spans the sidebar like every other row').toBeGreaterThan(150);
+    expect(box.height, 'WCAG 2.5.8 floor is 24x24 — the row clears it on paint alone').toBeGreaterThanOrEqual(24);
 
-    /* Overriding the touch floor is only defensible because the ::after keeps the POINTER target
-       above WCAG 2.5.8's 24x24. Walk outward from the edge and measure what actually hit-tests,
-       rather than trusting the declaration — the first cut declared -2px and measured 24x24
-       exactly, i.e. no margin at all. */
-    await splashGone(page);
-
-    const hitBox = await page.evaluate(() => {
+    const info = await page.evaluate(() => {
       const el = document.getElementById('sideThemeToggle');
-      const r = el.getBoundingClientRect();
-      const hit = (x, y) => { const e = document.elementFromPoint(x, y); return e === el || el.contains(e); };
-      let l = 0, tp = 0;
-      while (l < 12 && hit(r.x - l - 0.5, r.y + r.height / 2)) l++;
-      while (tp < 12 && hit(r.x + r.width / 2, r.y - tp - 0.5)) tp++;
-      return { w: r.width + 2 * l, h: r.height + 2 * tp };
+      const row = document.querySelector('.bottomnav .navbtn[data-tab]');
+      return {
+        inFoot: !!el.closest('.side-foot'),
+        wearsNavbtn: el.classList.contains('navbtn'),
+        hasDataTab: el.hasAttribute('data-tab'),
+        // the router binds `.navbtn[data-tab]` — borrowing the class must not enrol it as a tab
+        routerWouldBind: [...document.querySelectorAll('.navbtn[data-tab]')].includes(el),
+        labelled: (el.textContent || '').trim().length > 0,
+        sameHeightAsNav: row ? Math.abs(row.getBoundingClientRect().height - el.getBoundingClientRect().height) : null,
+        belowAccount: (() => {
+          const acct = document.getElementById('sideAccount');
+          return acct ? el.getBoundingClientRect().top >= acct.getBoundingClientRect().bottom - 1 : null;
+        })(),
+      };
     });
-    expect(hitBox.w).toBeGreaterThanOrEqual(28);
-    expect(hitBox.h).toBeGreaterThanOrEqual(28);
+    expect(info.inFoot, 'it has its own region rather than riding the wordmark row').toBe(true);
+    expect(info.wearsNavbtn, 'it borrows the nav row type and rhythm').toBe(true);
+    expect(info.hasDataTab, 'and carries NO data-tab').toBe(false);
+    expect(info.routerWouldBind, 'so showTab never binds it — it is a control, not a route').toBe(false);
+    expect(info.labelled, 'an unlabelled glyph at the foot of a sidebar explains nothing').toBe(true);
+    expect(info.sameHeightAsNav, 'it sits in the nav rhythm, not beside it as a second system').toBeLessThanOrEqual(1);
+    expect(info.belowAccount, 'and it sits under Account, per the region it was given').toBe(true);
   });
 
   test('the toggle reports the RESOLVED theme, which is what makes it honest under "system"', async ({ page }) => {

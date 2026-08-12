@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=154">
+<link rel="stylesheet" href="css/style.css?v=156">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -208,7 +208,7 @@
           <input id="plateSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
           <!-- R3: the mock has no clear ×, and `type="search"` gives no native one on iOS Safari —
                Max's phone. The control survives, restyled, rather than being silently deleted. -->
-          <button id="plateSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="plateSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
         <!-- the wrapper exists to carry the chevron: a data-URI arrow cannot read a token, and a
              hard-coded hex in a converted screen is a dark-mode bug by construction (protocol §6) -->
@@ -277,7 +277,7 @@
           <div class="bld-add">
             <div class="search-wrap bld-q">
               <input id="q" type="text" autocomplete="off" placeholder="Add an ingredient" aria-label="Add an ingredient" aria-expanded="false" aria-controls="drop">
-              <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search">&times;</button>
+              <button id="qClear" type="button" class="ms-clear q-clear" aria-label="Clear search" hidden>&times;</button>
               <div id="drop" class="drop" role="listbox"></div>
             </div>
             <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
@@ -411,7 +411,7 @@
           <input id="menuSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
           <!-- R3, as F2/F4: the mock draws no clear ×, and `type="search"` renders no native one on
                iOS Safari — Max's phone. The control survives, restyled. -->
-          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
       </div>
       <!-- R3: the mock's Menu screen has no filters at all, so it has nothing to say about this row.
@@ -477,7 +477,7 @@
       <div class="plib-controls" id="kingControls">
         <div class="plib-search">
           <input id="kingSearch" type="search" placeholder="Search ingredients" aria-label="Search ingredients" autocomplete="off">
-          <button id="kingSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="kingSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
         <span class="plib-selwrap"><select id="kingCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
         <button class="plib-btn2" id="kingClearFilters" type="button" style="display:none">Clear filters</button>
@@ -527,7 +527,7 @@
           <input id="ingSearch" type="search" placeholder="Search products or suppliers" aria-label="Search products" autocomplete="off">
           <!-- R3, as F2: the mock draws no clear ×, and `type="search"` renders no native one on iOS
                Safari — Max's phone. The control survives, restyled. -->
-          <button id="ingSearchClear" type="button" class="plib-x" aria-label="Clear search">&times;</button>
+          <button id="ingSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
         <span class="plib-selwrap"><select id="ingCatFilter" class="plib-filter" aria-label="Filter by category" data-tidy-field="category"></select></span>
         <span class="plib-selwrap"><select id="ingSupFilter" class="plib-filter" aria-label="Filter by supplier" data-tidy-field="supplier"></select></span>
@@ -1114,7 +1114,7 @@
       <p class="hint" style="margin:0 0 8px">Adds to <b id="ad_menuName">this menu</b> at its own price — the plate stays shared.</p>
       <div class="menu-search ad-search-wrap">
         <input id="ad_search" type="text" class="ad-search" placeholder="Search your costed plates…" autocomplete="off">
-        <button id="ad_searchClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+        <button id="ad_searchClear" type="button" class="ms-clear" aria-label="Clear search" hidden>&times;</button>
       </div>
       <div id="ad_list" class="ad-list"></div>
       <div class="field full" style="margin-top:10px"><label for="ad_price">Sell price on this menu ($) *</label><input id="ad_price" type="number" min="0" step="0.01" placeholder="e.g. 24.00"></div>
@@ -1232,7 +1232,7 @@
         <div class="field full"><label for="king_prod">Supplier product to link to *</label>
           <span class="cat-wrap has-clear">
             <input id="king_prod" type="text" autocomplete="off" placeholder="Search your products…" role="combobox" aria-expanded="false" aria-controls="king_prodDrop">
-            <button id="king_prodClear" type="button" class="ms-clear" aria-label="Clear search">&times;</button>
+            <button id="king_prodClear" type="button" class="ms-clear" aria-label="Clear search" hidden>&times;</button>
             <span id="king_prodDrop" class="cat-drop" style="display:none"></span>
           </span>
           <p class="hint" style="font-weight:400;margin:6px 2px 0">Plates cost from this product. Switch it later and every plate follows.</p>
@@ -1335,7 +1335,6 @@
       <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/><path class="mk-arc" d="M 32.000 17.500 A 14.5 14.5 0 0 1 40.523 43.731" fill="none" stroke="#B84E0C" stroke-width="6" stroke-linecap="round"/></svg>
       <span><b><span class="ez">Ez</span>Plate</b></span>
     </div>
-    <button class="side-theme" id="sideThemeToggle" type="button" aria-pressed="false" aria-label="Dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="sideThemeIcon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
   </div>
   <!-- 171: the nav order is §6.1's parity map — "sidebar top-to-bottom = tab bar left-to-right",
        Dashboard(Home), Menu, Plates, Ingredients, with Products/Invoices/Settings/Account as the
@@ -1368,6 +1367,19 @@
   <button class="navbtn nav-bottom" data-tab="invoices" id="sideInvoices" type="button" aria-label="Invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg><span class="nl">Invoices</span></button>
   <button class="navbtn nav-bottom nav-settings" data-tab="settings" id="sideSettings" type="button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg><span class="nl">Settings</span></button>
   <button class="navbtn nav-bottom" data-tab="account" id="sideAccount" type="button" aria-label="Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span class="nl">Account</span></button>
+  <!-- 176: THE THEME TOGGLE'S OWN REGION, moved out of the wordmark row (Max, 12 Aug 2026).
+       In the brand row it was a 22px icon squeezed beside a two-line wordmark, reading as chrome
+       attached to the logo rather than as a control. It is a SETTING, so it belongs with the other
+       settings-ish routes at the foot of the sidebar, under its own hairline.
+       It wears `.navbtn` for the nav's type, rhythm and hover — the same borrowing `.nav-settings`
+       already does — and carries NO `data-tab`, which is what keeps it out of
+       `querySelectorAll('.navbtn[data-tab]')` and therefore out of the tab router. It is not a
+       route and must never become one. The label is real text, not an icon alone: an unlabelled
+       glyph at the foot of a sidebar is the "unexplained" thing the nav-group hairline exists to
+       avoid, and this control has two states a glyph cannot announce. -->
+  <div class="side-foot">
+    <button class="navbtn side-theme" id="sideThemeToggle" type="button" aria-pressed="false" aria-label="Dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path id="sideThemeIcon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span class="nl">Theme</span></button>
+  </div>
   <!-- 171: the phone's fifth tab. Mobile-only — hidden at ≥1024, where the bottom group above IS
        this list. It is LAST in the DOM on purpose and the position is load-bearing: showTab lights
        BOTH this button and the sub-screen's own .nav-bottom entry when a sub-screen is open (they
@@ -1385,7 +1397,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=154"></script>
+<script src="js/app.js?v=156"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

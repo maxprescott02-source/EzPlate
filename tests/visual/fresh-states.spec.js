@@ -442,7 +442,7 @@ for (const size of SIZES) {
      on #plateList.
      F3 (v139) REWROTE this test for the rebuilt five-column row. The Q5 shape it used to assert is
      gone, so asserting it would assert the conversion had not happened; every rendered-state check
-     it carried survives here, plus the states the rebuild added (steady, category, usage). */
+     it carried survives here, plus the states the rebuild added (no-move dash, category, usage). */
   test(`F3: the Ingredients row is five facts, reflowed by width @ ${size.name}`, async ({ page }) => {
     await page.setViewportSize({ width: size.width, height: size.height });
     await installBoot(page);
@@ -518,10 +518,12 @@ for (const size of SIZES) {
     expect(states.driftUp, 'a rise is classed up (bad)').toBe(true);
     expect(states.driftVisible, 'and the pill has real geometry — not clamped away').toBe(true);
     expect(states.driftPill, 'a real move is a TINTED pill (mock §3.4)').not.toBe('rgba(0, 0, 0, 0)');
-    // the mock's muted "steady" replaces rendering nothing, and it is deliberately NOT a pill —
     // tinting "no news" would put a semantic colour on a non-event
-    expect(states.steady, 'no logged move reads "steady", not blank').toBe('steady');
-    expect(states.steadyPlain, 'and steady carries no tint').toBe('rgba(0, 0, 0, 0)');
+    /* ⚠ REWRITTEN 12 Aug 2026: "steady" became a dash on BOTH screens in one change, because the two
+       share this wording and this figure — deciding it per screen is what the queue item forbade.
+       Still deliberately NOT a pill: the absence of news carries no tint. */
+    expect(states.steady, 'no logged move reads as a dash, not blank and not "steady"').toBe('—');
+    expect(states.steadyPlain, 'and the dash carries no tint').toBe('rgba(0, 0, 0, 0)');
     // R1's flip: the category is back on the row, derived from the linked product
     expect(states.cat, 'the derived category renders as its own cell').toBeTruthy();
     expect(states.cat).not.toBe('—');
@@ -787,7 +789,16 @@ for (const size of SIZES) {
          more than four (it widens the step above four). Restored verbatim. */
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeGreaterThanOrEqual(3);
       expect(st.yTicks, `${rg}: 3–4 y ticks`).toBeLessThanOrEqual(4);
-      expect(st.xLbls, `${rg}: x-axis date labels removed (v48)`).toBe(0);
+      /* ⚠ REVERSES v48, deliberately and with its argument answered. v48 removed the x-axis date
+         labels as "declutter", on the grounds that "the range buttons state the window; the scrub
+         tooltip gives exact dates". The queue item that restored them rebuts both: the range buttons
+         name a WINDOW but never say which dates it covers, so 3M and 1Y draw the same picture with
+         no way to tell them apart; and the scrub tooltip is a HOVER, which is nothing at all on the
+         phone Max actually works on. The assertion is inverted rather than deleted, so a future
+         "declutter" has to argue with a failing test. Bounds not an exact count: trendXTicks scales
+         2..5 labels to the plot width and drops duplicates on a sparse series. */
+      expect(st.xLbls, `${rg}: the x-axis is labelled (reverses v48)`).toBeGreaterThanOrEqual(2);
+      expect(st.xLbls, `${rg}: and stays sparse — an axis, not a data dump`).toBeLessThanOrEqual(5);
       // v60: when the target line is drawn (in view), it sits ON a labelled tick (trend-ticks contract).
       // On a tight range where the data is all below the target it isn't drawn — then it isn't a tick, which
       // is correct, so only assert the tick when the line is actually shown.
@@ -934,7 +945,14 @@ test('v47: degenerate data (0/1/2 points) and dark theme render sane', async ({ 
     return { ok: /^M[\d. ]+ C/.test(path), nonPct };
   });
   expect(two.ok, '2 points → a single valid cubic segment').toBe(true);
-  expect(two.nonPct, 'v48: no date labels, no Target word — % ticks are the only text').toBe(0);
+  /* ⚠ REVERSES HALF of v48's pin, and keeps the other half. Date labels are BACK (see the note on
+     the range loop above), so non-% text is expected now — but the "Target" WORD stays gone, which
+     was the other thing this counted and is still Max's call from v48. Counting non-% text can no
+     longer distinguish the two, so the assertion names what it actually forbids. */
+  expect(two.nonPct, 'the x-axis is labelled on a 2-point series too').toBeGreaterThan(0);
+  const targetWord = await page.evaluate(() => Array.from(document.querySelectorAll('#trendWrap text'))
+    .some((t) => /target/i.test(t.textContent)));
+  expect(targetWord, 'v48: the "Target" word on the dashed line stays gone — the tick label explains it').toBe(false);
   await page.locator('.dash-chart').screenshot({ path: 'tests/visual/__shots__/v47-2pts.png' });
   // dark theme render. v115: colour is anchored to the TARGET now, not direction — this rising
   // series tops out at 30.9% against the fixture's 40% target, so it is GREEN (the old semantic
@@ -1097,15 +1115,29 @@ for (const size of SIZES) {
         // phone, which reads as a 28px edge break rather than "that element is not here".
         edges: [head.getBoundingClientRect().left + parseFloat(cs.paddingLeft), L('#tab-analysis .menu-picker-row'), L('#aList')],
         // ONE row, at both widths: two actions in a mobile header is a known, queued deviation, but
-        // a header that WRAPS is a defect — the mock's own "Add existing plate" caused one at 380.
-        // Counted by distinct child CENTRE LINES. Two earlier metrics were wrong for reasons worth
-        // recording, because both looked right: dividing the height by a line height reads 2 on a
-        // one-row header (44px button + 24px padding = 69px), and grouping by TOP reads 4 because
-        // `.scr-head` centres children of four different heights. The centre is the only y that is
-        // shared by everything on one row and differs the moment something wraps.
-        headRows: [...new Set([...head.children]
-          .filter(el => el.offsetParent !== null && el.getBoundingClientRect().height > 0)
-          .map((el) => { const r = el.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }))].length,
+        /* a header that WRAPS is a defect — the mock's own "Add existing plate" caused one at 380.
+           ⚠ THE METRIC CHANGED 12 Aug 2026, because the previous one stopped being true. It counted
+           distinct child CENTRE LINES, on the stated reasoning that "the centre is the only y shared
+           by everything on one row". That held while `.scr-head` centred every child — and the title
+           and its meta line now carry `align-self:baseline` (they were floating at the title's
+           mid-height instead of sitting on its line), so two children legitimately share a BASELINE
+           and not a centre. The old metric read 3 rows on a header that had not wrapped at all.
+           Two earlier metrics were wrong too, both recorded because both looked right: dividing the
+           height by a line height reads 2 on a one-row header (44px button + 24px padding = 69px),
+           and grouping by TOP reads 4 because the bar centres children of four different heights.
+           This one asks the question directly and is alignment-agnostic: a wrap is a child that
+           begins BELOW another child ends. Nothing about how items align within a row can produce
+           that, and nothing that wraps can avoid it. */
+        headRows: (() => {
+          const boxes = [...head.children]
+            .filter((el) => el.offsetParent !== null && el.getBoundingClientRect().height > 0)
+            .map((el) => el.getBoundingClientRect());
+          let rows = 1;
+          for (const a of boxes) for (const b of boxes) {
+            if (a.top >= b.bottom - 0.5) { rows = 2; break; }
+          }
+          return rows;
+        })(),
         suggestedTh: document.getElementById('aSuggestedTh').textContent,
         sub: document.getElementById('menuHeadSub').textContent,
         note: document.getElementById('menuListNote').textContent,

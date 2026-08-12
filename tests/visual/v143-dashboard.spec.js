@@ -134,14 +134,23 @@ for (const width of [380, 1360]) {
   });
 }
 
-test('the plot fills the column rather than sitting in a capped block', async ({ page }) => {
+/* ⚠ REWRITTEN 12 Aug 2026: the reference is the CARD BODY, not the page column. The trend became a
+   bordered card in the same change, so it carries 20px of padding a side and "chart == column" is
+   false by design. What this test exists to catch — the v98/v121 540px cap inside a full-width card,
+   which Max called janky — is untouched, because a 540 cap is still hundreds of pixels short. */
+test('the plot fills its container rather than sitting in a capped block', async ({ page }) => {
   await boot(page, 1360);
-  const m = await page.evaluate(() => ({
-    chart: document.querySelector('.dash-chart svg').getBoundingClientRect().width,
-    column: document.getElementById('dashBody').clientWidth,
-  }));
-  // The v98/v121 layout capped it at 540px inside a full-width card, which Max called janky.
-  expect(m.chart).toBeGreaterThan(m.column - 2);
+  const m = await page.evaluate(() => {
+    const host = document.querySelector('.dash-trend .ds-body');
+    const cs = getComputedStyle(host);
+    return {
+      chart: document.querySelector('.dash-chart svg').getBoundingClientRect().width,
+      host: host.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      column: document.getElementById('dashBody').clientWidth,
+    };
+  });
+  expect(m.chart).toBeGreaterThan(m.host - 2);
+  expect(m.chart, 'and it is still most of the column, not a capped block').toBeGreaterThan(m.column * 0.75);
 });
 
 /* ============================================================================================
