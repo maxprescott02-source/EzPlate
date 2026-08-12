@@ -342,3 +342,15 @@ It is also the honest answer to "is the suite carrying dead weight" - 3.8 min lo
 (Recorded in `HANDOVER-176`, still true at v157.)
 Two of its four callers put the return value where markup would be wrong, so the `/kg` suffix fix wraps it rather than changing it.
 The cleaner shape is for it to return parts and let each caller compose. It touches the invoice review, so it is not a drive-by.
+
+### The `.btn-noun` collapse still shortens two secondaries that now have room
+(Found 12 Aug 2026 by looking at batch 179's own result at 360, after the rehome had shipped.)
+`@media (max-width:639px){.btn-noun{display:none}}` turns "Set up from products" into **"Set up"** and "Import invoice" into **"Import"**. `renderKingProgress` states the reason at its own site: *"the noun span hides on phones so the pantry pair fits one line"* — i.e. it exists to make the HEADER fit, and 179 moved both buttons out of the header. Measured in the `.plib-controls` row at 360, each sits alone on its line with the row's full content width (328px) available and uses ~78–95px of it.
+So the labels are shortened for a constraint that no longer applies to them, and **"Set up" on its own does not say what it sets up** — it is the first thing a café with a full catalogue and no ingredients is offered.
+Not changed in 179 because it is a copy decision rather than the rehome, and because `tests/visual/fresh-states.spec.js` pins **both** short forms on purpose (*"the SECONDARY still shortens — the idiom survives where the room is tight"*), so whoever changes this changes that pin consciously and states what expired — the room is no longer tight.
+⚠️ Do NOT just delete the `.btn-noun` rule: the word "More" on the back chevron is also a `.btn-noun` and `css/style.css` says at that site that the collapse is what stops the Products header wrapping. Scope any change to the rehomed actions.
+
+### "Existing plate" is offered on the Menu screen when there are no menus
+(Found 12 Aug 2026 while rehoming it in 179. **Pre-existing — it sat unhidden in `.scr-head` before, and 179 moved it without changing when it shows.**)
+`#menuAddDishBtn` renders at zero menus, and `openAddDishModal` opens against a null `currentMenuId`: `#ad_menuName` fills from `menuNameById(null)` and `submitAddDish` would publish a dish with `menuId: null`. Every other control on that screen is stood down at zero — the switcher, the filter row, the column band, Delete and the footnote all hide, and `fresh-states.spec.js` asserts each one — so this is the odd one out rather than a considered exception.
+Requirements: decide whether it hides at zero (consistent with every sibling, and there is genuinely nothing to publish onto) or whether it stays and `submitAddDish` refuses with a real message. Do not answer it by adding a fourth `hidden` toggle to `#menuSwitchRow` — 179 moved that row off `hidden` precisely because it hosts an action, so this hides the BUTTON, not the row.

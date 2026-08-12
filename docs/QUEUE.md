@@ -30,50 +30,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · One action in a mobile screen header — rehome the second one (HOME DECIDED 12 Aug 2026)  **[B]**
-
-✅ **UNBLOCKED 12 Aug 2026 by Max's answer to `docs/decisions/2026-08-12.md` §1: option A, and yes to 360.**
-**Build the recommendation below verbatim** — the second action moves into the existing `.plib-controls` row directly beneath the header, **mobile only (≤767)**. Desktop headers keep both, unchanged. The item's requirement that a pattern be PROPOSED and agreed before building is now satisfied; this is no longer an open design question and must not be re-opened as one.
-**And 360px BECOMES A SUPPORTED WIDTH** — his words, *"yes it should be"*. Add it to the three specs named below (`tests/visual/v140-products.spec.js`, `fresh-states.spec.js`, `tests/visual/v151-more.spec.js`), alongside the existing 380 and 430.
-⚠️ **The acceptance test is a WRAP, not a position.** Ingredients must measure one row at 360 AND 380 with `#kingWizBtn` forced visible — the fixture leaves it hidden and Max's data never does, which is the whole reason the suite could not see this. `v151-more.spec.js` is the spec that measures a wrap directly; copy its method rather than asserting coordinates.
-
-§6's mobile header is "screen title + one action max", and three converted screens ship two.
-- **Ingredients (F3):** "Set up from products" beside "New ingredient". Conditional (`renderKingProgress`), so most cafés see one — but Scoopy's catalogue has hundreds of unlinked products, so Max sees two.
-- **Products (F4):** "Import invoice" beside "New product", and here it is UNCONDITIONAL. ⚠️ **Its justification EXPIRED in 171** and the replacement is weaker, so do not read the old one as still standing: it used to be that the sidebar's Invoices entry was desktop-only and `#importBtn` was therefore the ONLY phone route into the import flow. More → Invoices is now a second phone route, so keeping it is a shortcut on the screen the import lands in, not a stranding argument. It was deliberately NOT removed in 171 — taking one screen's secondary away first would answer this item by deletion, for one screen, which is the opposite of the requirement below.
-- **Menu (F5):** "Existing plate" beside "New menu". The mock's own mobile header carries NEITHER — it is menu name + food-cost pill + "Switch ▾" — and F5 took that trio into the control row beneath (R5) rather than answering this a third way.
-Hiding either on mobile was rejected both times: it strands a whole flow on the device Max actually works on.
-**DECIDED (Max, 10 Aug 2026): find another home for the second action.** He did NOT take the recommendation to keep both. §6's "one action max" holds on a phone; the header keeps only the primary.
-Requirements: ONE home used by every screen — they are one question and must not get three answers. The secondary must stay reachable on a phone in one gesture. **The mock has no pattern for this, so the first job is to PROPOSE one and get a yes before building** — a candidate is not a decision.
-⚠️ The mock's desktop label "Add existing plate" WRAPS the 380px header onto two lines; the app's shorter "Existing plate" stays. Two actions is a deviation; a WRAPPED header is a defect, and the two were one keystroke apart. The pair is pinned at both widths in `tests/visual/v140-products.spec.js` and at desktop in `fresh-states.spec.js` — both pins are consciously changed by whoever builds this, never deleted to go green. `tests/visual/v151-more.spec.js` adds a third at 380 and 430, and it is the one that measures a WRAP directly rather than the pair's positions.
-⚠️ **MEASURED 11 Aug 2026 (171): two of these headers already wrap at 360px, and this item is the fix for both.** On `main`, before 171, **Ingredients** measured 121px tall at 360 against the one-row 69 — the "Set up from products" pair, with Scoopy's unlinked catalogue making it visible. 171 added a "‹ More" back chevron to Products and that header now wraps at 360 too. **The chevron is not the cause and shrinking it is not the fix**: it costs 30px, the second action costs 72–130px, and no amount of chevron trimming makes a two-action header fit 360. **360 is not a width anything in this repo has ever tested** — every mobile assertion is at 380 and the mock's reference is 390 — so 171 deliberately left it, rather than inventing a support width and engineering a hit-area workaround that would still have left Ingredients broken there. Rehoming the second action reclaims 72–130px and resolves both screens at once. **Decide as part of this item whether 360 becomes a supported width; if it does, add it to the three specs above. Answer it here, do not route it onward.**
-Out of scope: the desktop headers, which the mock does allow to carry both.
-
-### MEASURED AND PROPOSED 11 Aug 2026 (batch 172) — awaiting Max's yes
-
-Measured in Playwright against the fixture, with `#kingWizBtn` forced visible because that is what Scoopy's unlinked catalogue does to it (`renderKingProgress` sets `wb.style.display=''`). Header height, one row = 69px:
-
-| screen | 360 | 380 | 430 |
-|---|---|---|---|
-| Ingredients | **wraps, 121** | **wraps, 121** | 69 |
-| Products | **wraps, 121** | 69 | 69 |
-| Menu | 69 | 69 | 69 |
-
-⚠️ **THE ITEM UNDERSTATED THIS: Ingredients wraps at 380, not only at 360.** 380 is the width every mobile assertion in this repo uses, so this is not a question about adopting an untested width — it is a **live defect on Max's phone at a supported one**. It is invisible to the suite because the fixture leaves `#kingWizBtn` hidden, and Max's data never does. The `.btn-noun` collapse that `js/app.js` says exists so "the pantry pair fits one line" is already applied at that width and is **not enough**: "New ingredient" is 147px against Products' "New product" at 130, which is the whole difference between the two screens.
-Menu does not wrap at any of the three widths — its pair measures 121 + 113 against a 40px title — so **Menu is in this item for consistency, not for a defect.**
-
-**Proposed home: the existing `.plib-controls` row directly beneath the header, mobile only (≤767). Desktop headers keep both, unchanged.**
-The argument is that **F5 already chose this home for this exact question and said so at the site.** `#menuSwitchRow`'s R5 comment reads: *"that header slot is taken by the shared `.scr-head`, whose 'one action max on a phone' question is ONE queued item and must not be answered per screen — so the mock's trio lands here instead, one line lower."* All three screens already have such a row as their first child after `.scr-head`. So this is not a new pattern being invented against a mock that has none — it is finishing the one the app already started, which is the cheapest way to satisfy "ONE home used by every screen".
-It is one gesture (visible on screen, one tap), it needs **no floating layer** — which matters because *Floating layers and mobile dropdowns* is still open below and any header overflow menu would be built twice — and it reclaims 72–130px, which resolves Ingredients at 380 and both screens at 360.
-Known cost, stated honestly: the row is read as filters on Products and Ingredients, and this puts an action in it. Products' row already measures **2 rows / 112px at every width including 430**, so it absorbs a fourth member without a new structural row; Ingredients' and Menu's may gain one.
-
-Runner-up if that cost is judged too high: **a dedicated one-line mobile action row of its own class between `.scr-head` and `.plib-controls`.** Unambiguous and it never muddles actions with filters, but it costs ~44px of vertical space on every affected screen where the recommendation often costs none.
-Rejected: **an overflow "⋯" in the header** — two taps, so it fails this item's own one-gesture requirement, and it needs the layer system that is still queued. **The screen footer** (where F5 rehomed "Delete this menu") — needs a scroll past the whole list. **Dropping the secondary on mobile** — already rejected twice.
-
-**And the 360 question, answered here as the item instructs:** recommend **yes, 360 becomes a supported width**, added to all three specs — because after this change every mobile header is title + one action, which fits 360 with room (Products' worst case is chevron 22 + title 65 + "New product" 130), so supporting it costs nothing beyond the assertions and it is what pins the fix.
-
-*(`Blocked on: Max's yes to the proposed home` DELETED 12 Aug 2026 — answered, option A. The proposal above is now the specification.)*
-
-## next  2 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
+## next  1 · Unique ID generation — the SEMANTIC KEYS half  **[A — launch blocker]**
 
 ⚠️ **REWRITTEN 12 Aug 2026 (173). The surrogate-id half SHIPPED as `ezplate-v153`; what is left is a different problem with a different fix, and the original item conflated the two.**
 
@@ -90,7 +47,7 @@ Requirements: every one of the four is scoped so two accounts cannot collide, wi
 Do after: **`business_id` PART 2, the policy swap** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
 ✅ Rehearsable on staging when it runs — `docs/STAGING.md` has the procedure, and `04-seed-scale.sql` carries 60 taught packs and a full settings blob to rehearse against.
 
-## next  3 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
+## next  2 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
 
 ⚠️ **REWRITTEN 12 Aug 2026 (174). Email/password sign-in SHIPPED as `ezplate-v154`; three pieces are left and one of them is Max's.**
 
@@ -105,7 +62,7 @@ Do after: **`business_id` PART 2, the policy swap** — all four fixes are "pref
 
 Do after: **`business_id` PART 2, the policy swap** — for the second bullet only; the Google half needs nothing but Max, and could ship any time he creates the OAuth client.
 
-## next  4 · `business_id` on every table — **PART 1, the additive half**  **[A — launch blocker]**
+## next  3 · `business_id` on every table — **PART 1, the additive half**  **[A — launch blocker]**
 
 ⚠️ **SPLIT 12 Aug 2026 (174), on reaching it and finding it too large for one reviewable PR.** Ten tables × (column + backfill + index), plus a `businesses` table, plus a membership table, plus thirteen policy rewrites, plus client changes, plus per-table client verification is not one change set — and the second half is the dangerous one, so bundling them means the safe work cannot be merged until the risky work is finished.
 
@@ -117,7 +74,7 @@ Do after: **`business_id` PART 2, the policy swap** — for the second bullet on
 Requirements: staging first with `04-seed-scale.sql` loaded, then production; the two schemas must match on the `docs/STAGING.md` fingerprint afterwards; the one-statement rollback (drop the columns and the two tables) written into the migration header. Verify as the client that **nothing changed** — same row counts, same reads, writes still succeed.
 Out of scope, deliberately: any policy change, any client change, and roles.
 
-## next  5 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
+## next  4 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
 
 Replace all thirteen `using (true)` policies with `business_id`-scoped ones, one table at a time, and make the client send `business_id` on insert.
 ⚠️ **This is the half that can empty the app.** RLS with no matching policy returns **200 and an empty array, not an error**, so a mistake here looks exactly like "all my data is gone" — and on production that is Max's café. Every table is verified AS THE CLIENT over PostgREST before the next one starts.
@@ -132,13 +89,13 @@ Note **`menus` no longer starts from RLS OFF** — corrected 8 Aug 2026 when `20
 ✅ **Rehearsable as of 172** — `supabase/staging/01-schema.sql` reproduces all thirteen policies under production's exact policy NAMES, which is what this item will look them up by. Rehearse each table's swap there first; `docs/STAGING.md` has the procedure and the fingerprint query that proves the two schemas still match afterwards.
 ⚠️ **What staging CANNOT rehearse here, stated so it is not over-trusted:** neither project has any users, so `anon` is the only role either has ever been exercised as. This item's policies are the first that will distinguish roles, and staging can prove they RUN and that the client sees what it should — not that a second tenant is correctly excluded, which needs auth first.
 
-## next  6 · Roles — owner vs staff  **[A — launch blocker]**
+## next  5 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
 Do after: **`business_id` PART 2, the policy swap** — roles are enforced in the same policies, so they are written once or twice.
 
-## next  7 · Onboarding and empty states  **[A — launch blocker]**
+## next  6 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -146,7 +103,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  8 · The privacy gate  **[A — launch blocker]**
+## next  7 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -154,18 +111,18 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  9 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  8 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  10 · Gate review before public signup  **[A — launch blocker]**
+## next  9 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
 
-## next  11a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  10a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -198,12 +155,12 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  11b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  10b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **11a** — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **10a** — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
-⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is item 11a above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do 11a, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
+⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is item 10a above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do 10a, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
 **That last clause is the operating window, not small talk:** the wipe and restore must run while nothing else is writing, so confirm it still holds before starting and do not leave the database wiped while waiting on anything.
 **The go does NOT waive the preconditions** — a fresh export taken minutes before, the one-statement rollback written down, and the real file rehearsed against staging first. Those are what make the go safe rather than alternatives to it.
 
@@ -218,7 +175,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  12 · Floating layers and mobile dropdowns  **[B]**
+## next  11 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
