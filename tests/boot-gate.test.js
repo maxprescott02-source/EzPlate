@@ -22,7 +22,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -36,10 +36,18 @@ function mkNode(id) {
 }
 
 function makeGate(present, opts) {
+  /* 186: the sign-in form and its error line are gate elements now, and they are REAL nodes here
+     rather than absent ones — a stub DOM that omits them would let every `if(f)` guard pass
+     vacuously, which is the "assertion that cannot fail" shape this repo keeps finding. bgEmail
+     carries a focus() so the transition can be observed rather than merely not-thrown-on. */
   const nodes = present
     ? { bootGate: mkNode('bootGate'), bootGateMsg: mkNode('bootGateMsg'), bootGateRetry: mkNode('bootGateRetry'),
-        bootGateOut: mkNode('bootGateOut') }
+        bootGateOut: mkNode('bootGateOut'), bgSignForm: mkNode('bgSignForm'), bgErr: mkNode('bgErr'),
+        bootGateBrand: mkNode('bootGateBrand'),
+        bgEmail: Object.assign(mkNode('bgEmail'), { focuses: 0, focus() { this.focuses++; } }) }
     : {};
+  // `omit` models the real mixed-version case: a cached index.html without the newer elements.
+  (opts && opts.omit || []).forEach((id) => { delete nodes[id]; });
   const calls = { bootstrapSync: 0, signOut: 0, switched: [] };
   /* 185: authSignOut and authSwitchUser are COLLABORATORS observed here, not shipped decisions
      re-implemented — the thing under test is which of them the gate calls and in what order, and
@@ -60,11 +68,15 @@ function makeGate(present, opts) {
     // the 4s swap itself is exercised in the browser (it needs real elapsed time to mean anything).
     var setTimeout = function(fn, ms){ C.slowTimerMs = ms; return 1; };
     var clearTimeout = function(){ C.slowTimerCleared = (C.slowTimerCleared||0)+1; };
+    ${extractVar(SRC, 'SIGNIN_MSG')}
+    ${extractFn(SRC, 'gateErr')}
     ${extractFn(SRC, 'bootGate')}
-    return { bootGate: bootGate };
+    return { bootGate: bootGate, gateErr: gateErr, SIGNIN_MSG: SIGNIN_MSG };
   `)(nodes, calls, signOutResult);
   return { gate: nodes.bootGate, msg: nodes.bootGateMsg, retry: nodes.bootGateRetry,
-           out: nodes.bootGateOut, run: api.bootGate, calls };
+           out: nodes.bootGateOut, form: nodes.bgSignForm, err: nodes.bgErr, email: nodes.bgEmail,
+           brand: nodes.bootGateBrand,
+           run: api.bootGate, gateErr: api.gateErr, SIGNIN_MSG: api.SIGNIN_MSG, calls };
 }
 
 test('loading shows the gate, with no retry offered yet', () => {
@@ -349,4 +361,169 @@ test('185: Try again still visibly responds when a failure has taken over the no
   assert.strictEqual(g.calls.bootstrapSync, 1, 'the retry must actually re-run the sync');
   assert.match(g.msg.textContent, /Trying again/, 'and the screen must visibly respond to the tap');
   assert.strictEqual(g.gate.classList.contains('is-error'), false, 'and stop claiming it failed');
+});
+
+/* ── 186: the SIGN-IN state ──────────────────────────────────────────────────────────────────
+   The last permissive read in the database comes out in this batch, so a signed-out browser now
+   answers a null tenant exactly as a signed-in non-member does. Same gate, different screen: this
+   one is a way IN, and it is not an error — nobody has failed at anything by opening the app on a
+   device that has never been signed in. */
+
+test('186: the sign-in state shows the form and says why, without claiming a failure', () => {
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('signin');
+  assert.strictEqual(g.gate.hidden, false);
+  assert.strictEqual(g.form.hidden, false, 'the form IS the content of this screen');
+  assert.strictEqual(g.msg.textContent, g.SIGNIN_MSG, 'the message comes from one place');
+  assert.strictEqual(g.gate.classList.contains('is-signin'), true, 'the class the CSS hangs the layout on');
+  assert.strictEqual(g.gate.classList.contains('is-error'), false,
+    'an unsigned-in device is the ordinary state of a new phone, not a fault');
+});
+
+test('186: neither dead button is offered — there is nothing to retry and nothing to sign out of', () => {
+  const g = makeGate(true);
+  g.run('signin');
+  assert.strictEqual(g.retry.hidden, true, 'retrying asks the same question and gets the same answer');
+  assert.strictEqual(g.out.hidden, true, 'and you cannot sign out of nothing');
+});
+
+test('186: the email field is focused ONCE, on the transition, never on a repaint', () => {
+  /* Re-focusing on every re-sync would steal the caret mid-word — and this screen is one a user is
+     typing a password into, so the cost is not cosmetic. */
+  const g = makeGate(true);
+  g.run('signin');
+  assert.strictEqual(g.email.focuses, 1, 'the caret starts where the user must type');
+  g.run('signin');
+  assert.strictEqual(g.email.focuses, 1, 'and is not taken back on a second paint');
+});
+
+test('186: a re-sync does NOT repaint the sign-in screen — a typed password must survive a blip', () => {
+  /* The `online` listener re-runs bootstrapSync, which calls bootGate('loading') first. Without the
+     latch that would swap this screen for a spinner and take the form away mid-typing. Same
+     mechanism 185 needed for its explanation; the consequence here is losing the user's input. */
+  const g = makeGate(true);
+  g.run('signin');
+  g.run('loading');
+  assert.strictEqual(g.form.hidden, false, 'the form must still be there');
+  assert.strictEqual(g.msg.textContent, g.SIGNIN_MSG, 'and still say what it said');
+});
+
+test('186: an ok cannot clear the sign-in gate either — the latch covers both screens', () => {
+  const g = makeGate(true);
+  g.run('signin');
+  g.run('ok');
+  assert.strictEqual(g.gate.hidden, false, 'a success that reached here would paint an empty app');
+  assert.strictEqual(g.form.hidden, false);
+});
+
+test('186: a real connection failure still takes over from the sign-in screen', () => {
+  /* Same shape as the non-member case: the error is the newer, truer fact, and Try again is the
+     action that helps. The form must go with it — a sign-in box under "couldn't reach the server"
+     is two contradictory instructions on one screen. */
+  const g = makeGate(true);
+  g.run('signin');
+  g.run('error', 'Couldn’t load your data');
+  assert.ok(g.gate.classList.contains('is-error'));
+  assert.strictEqual(g.gate.classList.contains('is-signin'), false, 'the sign-in layout must not persist');
+  assert.strictEqual(g.form.hidden, true);
+  assert.strictEqual(g.retry.hidden, false);
+  assert.match(g.msg.textContent, /Couldn’t load/);
+});
+
+test('186: signing in and being told there is no café are different screens, and swap cleanly', () => {
+  /* Reachable in one session: sign in from the gate on an account with no membership, and the
+     reload lands on 'nomember'. Nothing of the first screen may be left behind — a form under
+     "ask the café owner to add this account" invites a second attempt that cannot work. */
+  const g = makeGate(true);
+  g.run('signin');
+  g.run('nomember', 'no café for you@example.com');
+  assert.strictEqual(g.form.hidden, true, 'the form must not survive into the message screen');
+  assert.strictEqual(g.gate.classList.contains('is-signin'), false);
+  assert.strictEqual(g.out.hidden, false, 'and THAT screen’s one action is offered');
+  assert.match(g.msg.textContent, /no café for you@example.com/);
+});
+
+test('186: a stale sign-in error does not follow the user onto another screen', () => {
+  const g = makeGate(true);
+  g.run('signin');
+  g.gateErr('Invalid login credentials');
+  assert.strictEqual(g.err.hidden, false, 'the error shows while it is true');
+  g.run('error', 'boom');
+  assert.strictEqual(g.err.hidden, true, 'and is cleared by the screen that replaces it');
+  assert.strictEqual(g.err.textContent, '');
+});
+
+test('186: the gate still never throws when the sign-in elements are absent', () => {
+  /* An older cached index.html against a newer app.js is exactly this case — the service worker is
+     network-first, but the two files are two requests and one can be served from cache. It must
+     degrade to the message alone rather than dying before it paints anything at all. */
+  const g = makeGate(true, { omit: ['bgSignForm', 'bgEmail', 'bgErr'] });
+  assert.doesNotThrow(() => { g.run('signin'); g.run('loading'); g.run('nomember', 'x'); g.run('error', 'y'); });
+  assert.strictEqual(g.gate.hidden, false, 'and it still paints');
+});
+
+test('186: the two "you cannot use this app" screens cover the chrome; the ERROR state does not', () => {
+  /* v108 chose z-index 60 so a failed boot leaves the nav and Settings reachable — Try again is the
+     action that helps and the app never looks crashed. Neither reason survives behind a sign-in
+     screen or a non-member message: every tab is a café this caller cannot read, so a lit nav bar
+     is five dead controls (ten on the desktop rail). The class is what the CSS hangs that on, so
+     it is pinned here and its z-index is pinned in css-syntax's sibling — see the rule itself. */
+  const g = makeGate(true);
+  g.run('signin');
+  assert.strictEqual(g.gate.classList.contains('is-signin'), true);
+  assert.strictEqual(g.gate.classList.contains('is-nomember'), false);
+
+  g.run('nomember', 'no café');
+  assert.strictEqual(g.gate.classList.contains('is-nomember'), true, 'the message screen covers it too');
+  assert.strictEqual(g.gate.classList.contains('is-signin'), false, 'and never both at once');
+
+  g.run('error', 'boom');
+  assert.strictEqual(g.gate.classList.contains('is-nomember'), false,
+    'an error must NOT swallow the chrome — Settings and the nav stay reachable while data is missing');
+  assert.strictEqual(g.gate.classList.contains('is-signin'), false);
+
+  // and a success leaves nothing behind
+  const h = makeGate(true);
+  h.run('nomember', 'x');
+  assert.strictEqual(h.gate.classList.contains('is-nomember'), true);
+});
+
+test('186: a cleared latch lets ok drop both classes, so the app is not left under a dead overlay', () => {
+  const g = makeGate(true);
+  g.run('signin');
+  // only a definite tenant clears the latch; bootstrapSync owns that, so reach in the way it does
+  g.run('nomember', 'x');
+  g.run('error', 'y');            // an error may take over, and it clears is-nomember
+  assert.strictEqual(g.gate.classList.contains('is-nomember'), false);
+});
+
+test('186: the wordmark answers a stranger on the sign-in screen, and nowhere else', () => {
+  /* The sign-in state covers the header and the rail, which are the only two places that say what
+     this app is — so without it the public URL answers an unlabelled login box. Every other gate
+     state is reached from INSIDE the app, where the name is already on screen. */
+  const g = makeGate(true);
+  g.run('loading');
+  assert.strictEqual(g.brand.hidden, true, 'a spinner does not need a masthead');
+  g.run('signin');
+  assert.strictEqual(g.brand.hidden, false);
+  g.run('nomember', 'x');
+  assert.strictEqual(g.brand.hidden, true);
+  g.run('signin');
+  g.run('error', 'boom');
+  assert.strictEqual(g.brand.hidden, true, 'and it must not survive onto the error screen');
+});
+
+test('186: signing out ELSEWHERE mid-session still surfaces, exactly like a revoked membership', () => {
+  /* Reachable in one session: the token expires, or the account is signed out in another tab, and
+     the `online` listener re-syncs. Without 'signin' in the never-re-gate exemption at the top of
+     bootGate, the app would keep showing whatever was on screen — real prices, from a session that
+     no longer exists, with no way to sign back in. */
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('ok');                              // the app booted fine and is in use
+  g.run('signin');                          // …and a later re-sync finds nobody signed in
+  assert.strictEqual(g.gate.hidden, false, 'a working-looking app on a dead session is the silent failure');
+  assert.strictEqual(g.form.hidden, false, 'and the way back in must be offered');
+  assert.strictEqual(g.msg.textContent, g.SIGNIN_MSG);
 });

@@ -31,6 +31,15 @@ const targets = [
   // both halves of that condition are exactly the kind a mutant flips into a false alarm that locks
   // a legitimate user out of a working café.
   { fn: 'tenantGateState', tests: ['tenant-gate.test.js'] },
+  // 186: which SCREEN a null tenant gets. Once the anon fallback is gone, a signed-out visitor and
+  // a signed-in non-member answer identically and only this tells them apart — so a mutant that
+  // reads a user off a FAILED session read, or drops the error check, shows a stranger "ask the café
+  // owner to add this account" and hands a non-member a form that cannot help them.
+  { fn: 'sessionUser', tests: ['tenant-gate.test.js'] },
+  // 186: the one sign-in sequence, worn by two forms. Its blank guard is what keeps an empty
+  // password off the network, and its two settle paths are what keep the button alive on the one
+  // screen with nothing else on it.
+  { fn: 'authSubmit', tests: ['auth.test.js'] },
 
   { fn: 'publishPlan', tests: ['publish-guard.test.js'] },
   { fn: 'productRefs', tests: ['product-delete-guard.test.js'] },

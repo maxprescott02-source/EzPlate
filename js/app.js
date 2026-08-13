@@ -535,7 +535,13 @@ var _bootGateDone=false, _bootRetrying=false, _bootSlowTimer=null;
    that call would HIDE the gate again, restoring the silent empty app with the explanation flashing
    for a frame on the way past. Measured: deleting that `return` left the whole suite green.
    So 'ok' cannot clear this state. Nothing a client can do turns a non-member into a member, so the
-   only honest way out is the sign-out below, which reloads. */
+   only honest way out is the sign-out below, which reloads.
+
+   186: it latches the 'signin' gate too, and the NAME is still literally true of both — the server
+   said this caller is a member of no café. The reasons are the same reasons: 'ok' must not hide
+   either screen, and an automatic re-sync must not repaint one. On the sign-in screen that second
+   half stops being cosmetic: a repaint while someone is typing their password is a form that
+   empties itself on a network blip. */
 var _bootNoMember=false;
 function bootGate(state, msg){
   var g=document.getElementById('bootGate'); if(!g) return;
@@ -547,9 +553,10 @@ function bootGate(state, msg){
   /* 185: 'nomember' joins 'error' here for the same reason. Membership can be revoked while the
      app is open, and the next re-sync would then return early with nothing painted — leaving stale
      data on screen and no message, which is the silent failure this state exists to end. */
-  if(_bootGateDone && state!=='error' && state!=='nomember' && !showing) return;
+  if(_bootGateDone && state!=='error' && state!=='nomember' && state!=='signin' && !showing) return;
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
   var o=document.getElementById('bootGateOut');
+  var f=document.getElementById('bgSignForm'), bd=document.getElementById('bootGateBrand');
   if(state==='loading'){
     /* 185 — A RE-SYNC DOES NOT DISTURB THE NON-MEMBER GATE, and the latch is NOT cleared here.
        An earlier cut cleared it at the top of every run, to stop it wedging a user whose membership
@@ -567,7 +574,9 @@ function bootGate(state, msg){
        the length of a round trip. An explicit tap must always visibly respond; an automatic
        re-sync, which is the flicker case, must not. */
     if(_bootNoMember && !_bootRetrying) return;
-    g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
+    g.hidden=false; g.classList.remove('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember');
+    if(r) r.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true; gateErr('');
+    if(m) m.textContent=msg||'Loading your data…';
     /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
        of the fetch) — and week-long gaps are the normal case here, so the patient message is the
        honest one. Swapped in place after 4s rather than shown up front: a warm boot (200–300ms)
@@ -582,8 +591,33 @@ function bootGate(state, msg){
   }
   if(state==='ok'){
     if(_bootNoMember) return;                               // 185: see the latch — 'ok' may not clear this one
-    _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); if(o) o.hidden=true;
+    _bootGateDone=true; _bootRetrying=false; g.hidden=true;
+    g.classList.remove('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember');
+    if(o) o.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true;
     if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return;
+  }
+  /* 186 — NOBODY IS SIGNED IN, and after this batch that is the only way to see a café's data.
+     Dropping the anon fallback from `current_business_id()` makes a signed-out visitor answer NULL
+     exactly as a signed-in non-member does: same empty reads, same clean HTTP 200, same silence.
+     They need OPPOSITE screens. This one is not an error and does not read as one — it is the front
+     door, and the form IS the whole content, so the message is one line above it rather than a
+     paragraph of apology. Try again is hidden for 185's reason (it would ask the same question) and
+     Sign out for a plainer one: there is nothing to sign out of. */
+  if(state==='signin'){
+    if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }
+    g.hidden=false; g.classList.remove('is-error'); g.classList.remove('is-nomember'); g.classList.add('is-signin');
+    _bootRetrying=false; _bootNoMember=true;
+    if(m) m.textContent=msg||SIGNIN_MSG;
+    if(r) r.hidden=true; if(o) o.hidden=true; if(bd) bd.hidden=false;
+    /* ⚠️ SHOWN, NEVER RESET. bootReady('signin') runs again on every re-sync that gets this far, and
+       clearing the fields there would empty a half-typed password. The focus is given ONCE, on the
+       transition, for the same reason: re-focusing on a timer steals the caret mid-word. */
+    if(f && f.hidden){
+      f.hidden=false;
+      var em=document.getElementById('bgEmail');
+      if(em && typeof em.focus==='function'){ try{ em.focus(); }catch(e){} }
+    }
+    return;
   }
   if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }   // v115 (review): the patient message must never overwrite an error — cleared here, not just guarded
   /* 185: the account is fine, the connection is fine, and there is genuinely nothing this café can
@@ -591,9 +625,11 @@ function bootGate(state, msg){
      action that cannot help is worse than no action, it invites the user to keep tapping it. The
      one thing that CAN change the outcome is being someone else, so that is the only button. */
   if(state==='nomember'){
-    g.hidden=false; g.classList.add('is-error'); _bootRetrying=false; _bootNoMember=true;
+    g.hidden=false; g.classList.add('is-error'); g.classList.remove('is-signin');
+    g.classList.add('is-nomember');                         // 186: cover the chrome — see the CSS
+    _bootRetrying=false; _bootNoMember=true;
     if(m) m.textContent=msg||'This account isn’t linked to a café yet.';
-    if(r) r.hidden=true;
+    if(r) r.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true; gateErr('');
     if(o){ o.hidden=false; o.onclick=async function(){
       if(o.disabled) return;
       o.disabled=true;
@@ -614,8 +650,8 @@ function bootGate(state, msg){
     return;
   }
   // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
-  g.hidden=false; g.classList.add('is-error'); _bootRetrying=false;
-  if(o) o.hidden=true;
+  g.hidden=false; g.classList.add('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember'); _bootRetrying=false;
+  if(o) o.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true; gateErr('');
   if(m) m.textContent=msg||'Couldn’t load your data.';
   if(r){ r.hidden=false; r.onclick=function(){
     if(_bootRetrying) return;                               // a second tap must not race a second boot
@@ -657,6 +693,34 @@ function tenantGateState(res){
   if(res.data===null) return 'nomember';                   // strict: undefined is not null here
   return res.data===undefined ? 'unknown' : 'ok';
 }
+
+/* ---- 186: SIGNED OUT is not the same failure as SIGNED IN WITHOUT A CAFÉ -------------------
+   This batch removes the `auth.uid() is null` branch from `current_business_id()`, which was the
+   last permissive read in the database: the published anon key resolved to the seeded café, so any
+   reader of index.html could read Scoopy's pricing. Afterwards a signed-out caller answers NULL —
+   MEASURED on staging over PostgREST, not reasoned — which is byte-for-byte what a signed-in
+   non-member answers. The two arrive here identically and deserve opposite screens: a stranger
+   needs a way IN; an account with no café needs telling, because signing in again as themselves
+   would change nothing.
+
+   The session read that separates them already rides bootstrapSync's Promise.all — 185 added it so
+   the gate could name the account — so this costs no extra round trip.
+
+   ⚠️ A THIRD ANSWER AGAIN, AND IT DEFAULTS THE OTHER WAY THIS TIME, which is not an inconsistency.
+   `getSession` can fail, and can be absent entirely (the Playwright shim), so "could not tell
+   whether anyone is signed in" is a real third case. It lands on the SIGN-IN screen, because the
+   form is the action that helps under BOTH readings — a non-member can sign in as someone else —
+   whereas Sign out helps under only one, and 185's rule is that an action which cannot help is
+   worse than no action. The tenant answer is what may not be guessed; which of two screens explains
+   it is a copy decision with no unsafe branch. */
+function sessionUser(res){
+  return (res && !res.error && res.data && res.data.session && res.data.session.user) || null;
+}
+
+/* One line, because the form underneath it is the content. It says what signing in BUYS rather
+   than that access is denied: the visitor is overwhelmingly Max on a device that has not been
+   signed in yet, not an intruder being turned away. */
+var SIGNIN_MSG='Sign in to see your café’s products, plates and menus.';
 
 /* The wording carries three things, because all three are wrong guesses someone would otherwise
    make: WHICH account they are in (Max has more than one, and the email is the whole diagnosis),
@@ -748,9 +812,13 @@ async function bootstrapSync(){
        nothing either way. */
     if(_tg==='ok') _bootNoMember=false;
     if(_tg==='nomember' || (_tg==='unknown' && _bootNoMember)){
-      var _who=(_ses && _ses.data && _ses.data.session && _ses.data.session.user && _ses.data.session.user.email)||'';
+      /* 186: the same null tenant, two screens. See sessionUser — an unreadable session lands on
+         the sign-in form deliberately, and the branch is written as two statements each ending in
+         its own `return` so neither can fall through into the paint. */
+      var _u=sessionUser(_ses);
       setSync('none');                                     // 185: nothing failed — see setSync
-      bootReady('nomember', nonMemberMessage(_who));
+      if(_u){ bootReady('nomember', nonMemberMessage(_u.email||'')); return; }
+      bootReady('signin', SIGNIN_MSG);
       return;
     }
     // v108: setg.error belongs here and was missing (CodeRabbit). app_settings is not a nice-to-have —
@@ -5782,7 +5850,7 @@ restoreLastTab();                                          // safe now: all modu
 // Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
 // of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
 markNonProductionEnv();                                    // 172: no-op on production; the element is not created at all
-wireAccount(); authInit();                                 // 174: sign-in on the Account screen. Gates nothing — see the AUTH block.
+wireAccount(); wireGateSignIn(); authInit();                // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach.
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -5804,7 +5872,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v161';
+var APP_VERSION='v162';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -5939,25 +6007,68 @@ function authErr(msg){
   var e=document.getElementById('acctErr'); if(!e) return;
   e.textContent=msg||''; e.hidden=!msg;
 }
+function gateErr(msg){
+  var e=document.getElementById('bgErr'); if(!e) return;
+  e.textContent=msg||''; e.hidden=!msg;
+}
+
+/* 186 — ONE submit sequence, worn by TWO forms: the Account card's and the boot gate's.
+   What differs between them is what happens AROUND the call — the Account screen has already put
+   the unfinished-plate question to the user and may therefore discard the draft, the gate has asked
+   nothing and may not — and nothing else. Copying validate/disable/report into the second form
+   would be two definitions of one thing, which is the defect CLAUDE.md names rather than a style
+   preference: the copy drifts, and the half nobody drives is the half that rots.
+   Returns whether it signed in, so each caller can do its own follow-through. */
+async function authSubmit(email, pass, btn, showErr){
+  showErr('');
+  if(!email || !pass){ showErr('Enter your email and password.'); return false; }
+  if(btn) btn.disabled=true;
+  var r=await authSignIn(email, pass);
+  if(btn) btn.disabled=false;
+  /* The REAL error, not a friendly guess. CLAUDE.md's writes rule is that the actual
+     server message reaches the user; "something went wrong" on a login is how someone
+     spends ten minutes on a typo'd email. */
+  if(r.error){ showErr(errText(r.error)); return false; }
+  return true;
+}
+
+/* The boot gate's form. It exists because after this batch a signed-out browser can see NOTHING,
+   so the Account screen's copy of this form is behind a screen the user cannot reach.
+   ⚠️ `authUserInitiated` is deliberately NOT set here, and that is not a shortcut — it is what the
+   flag MEANS. It records whether the unfinished-plate question has been put to the user, and this
+   screen has not put it, so authSwitchUser KEEPS the draft. A plate half-built on a device that was
+   then signed out is exactly the work worth saving, and nothing here warned it would go.
+   (185's Sign out button reasons identically, and says so at its own site.)
+   No belt calling authSwitchUser directly, unlike that button: it needed one because sign-out can
+   leave prevId and nextId BOTH null when authInit lost its race, so authApply would do nothing.
+   Signing in cannot — this screen only shows when nobody is signed in, so the id always changes. */
+function wireGateSignIn(){
+  var f=document.getElementById('bgSignForm'); if(!f) return;
+  f.addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    var em=document.getElementById('bgEmail'), pw=document.getElementById('bgPass');
+    var btn=document.getElementById('bgSignBtn');
+    var ok=await authSubmit((em&&em.value||'').trim(), (pw&&pw.value)||'', btn, gateErr);
+    if(!ok) return;
+    if(pw) pw.value='';
+    // no toast and no re-render here: authApply purges this device and reloads.
+  });
+}
 
 function wireAccount(){
   var f=document.getElementById('acctForm');
   if(f) f.addEventListener('submit', async function(ev){
     ev.preventDefault();
-    authErr('');
     var em=document.getElementById('acctEmail'), pw=document.getElementById('acctPass');
     var btn=document.getElementById('acctIn');
     var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
+    /* The blank check runs BEFORE the confirm on purpose: asking someone to discard an unfinished
+       plate and then telling them they left the password empty is a question asked for nothing. */
     if(!email || !pass){ authErr('Enter your email and password.'); return; }
     authGuardUnfinished('Signing in', async function(){
-      if(btn) btn.disabled=true;
       authUserInitiated=true;                                  // they have been asked; the purge may take the draft
-      var r=await authSignIn(email, pass);
-      if(btn) btn.disabled=false;
-      /* The REAL error, not a friendly guess. CLAUDE.md's writes rule is that the actual
-         server message reaches the user; "something went wrong" on a login is how someone
-         spends ten minutes on a typo'd email. */
-      if(r.error){ authUserInitiated=false; authErr(errText(r.error)); return; }
+      var ok=await authSubmit(email, pass, btn, authErr);
+      if(!ok){ authUserInitiated=false; return; }
       if(pw) pw.value='';
       // no toast and no re-render here: authApply is about to reload the page.
     });

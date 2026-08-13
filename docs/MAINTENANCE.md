@@ -300,6 +300,13 @@ Also: `cache.addAll`'s `.catch(function(){})` swallows a partial install silentl
 
 ## C — copy, comments and records
 
+### Google sign-in is still unbuilt, and it needs Max before it needs code
+Arrived here 14 Aug 2026 when batch 186 finished the auth queue item and deleted it. It was the item's last surviving bullet, it was explicitly **optional** from the day it was written, and by the queue's own tier test it is a C: email/password sign-in works, so nobody is blocked, embarrassed or hurt by its absence.
+**It needs a Google Cloud OAuth client id and secret pasted into the Supabase dashboard, which no code can create.** The client half is `signInWithOAuth({provider:'google'})` and a button — two lines and a control on the boot gate's sign-in screen (`#bgSignForm`, 186) and on the Account card, which are the two places the password form already lives.
+Requirements: the dashboard credential exists first — ask Max, do not start without it. Then ONE shared handler, as 186 did for the password form: the two surfaces must not grow a second copy of the sign-in sequence.
+Out of scope: sign-up. An account that joins no café can see nothing at all since 186, so self-service signup's only outcome is the "ask the café owner" screen — that is the roles item's invitation work, and it is written into that item.
+
+
 ### Two CSS comments state the `[hidden]` override mechanism wrongly
 Found 10 Aug 2026 by the pre-push review of the CLAUDE.md batch, which caught the same error in the new Tier 1 rule and then in the code it was describing.
 `css/style.css:3263` says a bare `display:flex` "outranks the UA's `[hidden]{display:none}`", and `:3378-3380` says the same plus "(class beats attribute-less type rules)".

@@ -154,7 +154,8 @@ Written down because a rehearsal you over-trust is worse than none.
 - **The data.** Staging holds invented products at invented prices. It cannot tell you whether a change gives the right answer for Scoopy's — only whether it runs, links and renders.
 - **Scale of history.** The seeds generate tidy series. Production's history is lumpy and has gaps.
 - ⚠️ **Anything auth — THIS BULLET WAS TRUE UNTIL 13 Aug 2026 AND IS NOW THE OPPOSITE.** It read: *"Neither project has users. `anon` is the only role either has ever been exercised as, and the RLS policies are all `using (true)`."* Batch 182 swapped the policies and, to rehearse them honestly, created **three real accounts and a second business in staging** — so this project now exercises `authenticated` as well as `anon`, and a second tenant's exclusion has been demonstrated rather than assumed. See the 182 record below for what that proved.
-  **What is still NOT rehearsable here:** production still has **zero** users, so nothing about a real sign-in on Max's own data has been exercised anywhere. The staging accounts are hand-made rows, not people, and the client has never been driven while signed in. **A signed-in account with no `business_members` row sees an empty app with no error** — that is the designed behaviour of `current_business_id()`, and the client has no way to say so yet. It belongs to the auth queue item.
+  **What is still NOT rehearsable here — REWRITTEN 14 Aug 2026 (186), because most of what this said had been overtaken.** It read: *"production still has zero users, so nothing about a real sign-in on Max's own data has been exercised anywhere… the client has never been driven while signed in… a signed-in account with no `business_members` row sees an empty app with no error, and the client has no way to say so yet."* All three have since happened: Max created his account and membership on production and signed in there (queue item 1 step 1, 14 Aug), batch 185 shipped the screen that tells a non-member instead of showing them nothing, and 186 made sign-in mandatory.
+  **What remains true is narrower and worth keeping:** staging's accounts are hand-made rows rather than people, so what it can prove is that a policy lets the right rows through and keeps the wrong ones out — never that Max's own café answers correctly, because staging does not hold Scoopy's data. **Production still has exactly one account**, so nothing about two real users of the same café — the roles item — has been exercised anywhere but here.
 - **The invoice AI path.** `api/parse-invoice` and `api/insight` are Vercel functions with one `GEMINI_API_KEY`. They do not know which Supabase project the page is talking to, and pointing the client at staging does not point them anywhere new.
 - **Timing.** Free tier, shared hardware. See the note on `04`.
 
@@ -181,6 +182,16 @@ update auth.users set encrypted_password = extensions.crypt('<new password>', ex
 ```
 
 A seed re-run (`02`/`03`/`04`) wipes the DATA but not `auth.users`, `businesses` or `business_members` — none of those are in a seed — so the accounts survive it and the second café's memberships do too. Its one product and one menu do not.
+
+⚠️ **THEIR PASSWORDS ARE NOT WRITTEN DOWN ANYWHERE, AND MUST NOT BE — this repo is public.** Batch 186 needed to sign all three in and had no way to; **set your own for the rehearsal instead of hunting for the old one**, which takes one statement through the MCP and is why nothing is lost by not recording it:
+
+```sql
+update auth.users
+set encrypted_password = extensions.crypt('<a throwaway you generate now>', extensions.gen_salt('bf'))
+where email in ('a@example.com','b@example.com','c@example.com');
+```
+
+Then `POST /auth/v1/token?grant_type=password` for a real JWT, and use it as the `Authorization: Bearer` in the client verification below. **The method is the durable thing; the password is deliberately not.** `pgcrypto` is already installed, and `extensions.` is required because Supabase installs it there rather than in `public`.
 
 ⚠️ **A seed re-run restores the exact counts, because it deletes as `postgres` and therefore across every tenant.** Left after 183: 520 products, 240 kitchen ingredients, 12 menus, 180 plates, 429 dishes, 60 taught packs, 10 settings — the scale seed's own numbers, with café two holding nothing.
 *(This line read "staging's café 1 no longer has the seed's exact counts — 521 products exist, 520 of them Scoopy's" until 13 Aug 2026. That was true while café two held a product; it stopped being true the moment a seed ran, and a warning that has silently expired is worse than none. **The durable form of it: a raw `count(*)` here is only equal to the seed's number while no OTHER tenant holds rows, and nothing enforces that — so filter on `business_id` whenever the answer matters.**)*

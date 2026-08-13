@@ -339,11 +339,18 @@ create policy "members read their business"
                   where m.business_id = businesses.id
                     and m.user_id = auth.uid()));
 
--- The one answer to "which tenant am I": the seeded business for anon (legacy,
--- pre-login), the caller's business for a member, NULL for a signed-in
--- non-member. `security definer` so the answer depends on the data rather than
--- on business_members keeping a select policy forever; `set search_path = ''`
--- because a mutable one on a definer function is an escalation path.
+-- The one answer to "which tenant am I": the caller's business for a member,
+-- NULL for anyone else. `security definer` so the answer depends on the data
+-- rather than on business_members keeping a select policy forever; `set
+-- search_path = ''` because a mutable one on a definer function is an
+-- escalation path.
+--
+-- ⚠️ THE ANON BRANCH IS GONE (186, `20260814_mandatory_sign_in.sql`). It used to
+-- answer the seeded business for any caller with no JWT, which made the anon key
+-- shipped in index.html a full read of the café. A caller with no session now
+-- matches no membership row and the select yields NULL by itself, so the `case`
+-- did not need replacing with anything. The `businesses` row seeded above is
+-- still the schema's, but it is no longer anybody's DEFAULT tenant.
 --
 -- ⚠️ THE BODY BELOW MUST STAY BYTE-IDENTICAL TO THE MIGRATION'S, COMMENTS AND
 -- ALL. `pg_get_functiondef` returns the stored source text, and the seven-value
@@ -361,15 +368,11 @@ stable
 security definer
 set search_path = ''
 as $fn$
-  select case
-    when auth.uid() is null
-      then '00000000-0000-0000-0000-000000000001'::uuid
-    else (select m.business_id
-            from public.business_members m
-           where m.user_id = auth.uid()
-           order by m.created_at, m.business_id
-           limit 1)
-  end;
+  select m.business_id
+    from public.business_members m
+   where m.user_id = auth.uid()
+   order by m.created_at, m.business_id
+   limit 1;
 $fn$;
 
 -- `set search_path = ''` — see the migration header; the Supabase linter flags a

@@ -3329,15 +3329,49 @@ html{scrollbar-gutter:stable}
   background:var(--bg); padding:var(--sp-5);
 }
 #bootGate[hidden]{display:none}
+/* 186 — THE TWO "you cannot use this app right now" STATES COVER THE CHROME; the error state
+   deliberately does NOT. z-index 60 sits under `.bottomnav` (75) and the install banner (78), which
+   is right for a LOADING or FAILED boot: v108 chose it so the app never looks crashed and Settings
+   stays reachable if the data never arrives, and Try again is the action that helps.
+   Neither reason survives here. Behind a sign-in screen there is nothing to reach — every tab is a
+   café this caller cannot read — so a lit nav bar under the front door is five controls that do
+   nothing, and on the desktop rail it is ten. Behind the non-member screen the same is true, and
+   185 left the nav showing only because it was out of that batch's scope; it said so at the time.
+   79 covers the nav and the install prompt and stays UNDER the modal layer (80) and the splash
+   (200), neither of which may ever be swallowed by a gate. */
+#bootGate.is-signin, #bootGate.is-nomember{z-index:79}
 #bootGate .bg-inner{
   display:flex; flex-direction:column; align-items:center; gap:var(--sp-4);
   text-align:center; max-width:34ch;
 }
 #bootGate .bg-msg{margin:0; color:var(--text2); font-size:15px; line-height:1.45}
+/* 186: the wordmark, sign-in state only. No `display` here on purpose — see the note at its markup;
+   a `display` rule would beat the UA's `[hidden]` and leave it sitting over the loading spinner. */
+#bootGate .bg-brand{margin:0; color:var(--text); font-size:22px; font-weight:700; letter-spacing:-0.01em}
 /* The error state speaks in full sentences and gets the Try again button; the spinner goes away so
-   a stalled ring never reads as "still working". */
-#bootGate.is-error .bg-spin{display:none}
-#bootGate.is-error .bg-msg{color:var(--text)}
+   a stalled ring never reads as "still working".
+   186: `.is-signin` wants the same two things and is NOT an error — nobody is signed in yet, which
+   is the ordinary state of a new device. It gets its own class rather than borrowing `.is-error`
+   so the paint can diverge later without a class whose name says the opposite of the screen. */
+#bootGate.is-error .bg-spin,
+#bootGate.is-signin .bg-spin{display:none}
+#bootGate.is-error .bg-msg,
+#bootGate.is-signin .bg-msg{color:var(--text)}
+/* 186 — the sign-in form on the gate.
+   ⚠️ THE GUARD IS LOAD-BEARING. `.acct-form{display:flex}` is an AUTHOR rule, and author origin
+   beats the UA's `[hidden]{display:none}` before specificity is even compared, so the form would
+   sit visible on every screen this gate has. CLAUDE.md's `[hidden]` corollary; ten other rules in
+   this file carry the same guard.
+   ⚠️ AND THE LAYOUT IS SET HERE RATHER THAN BY REUSING `.acct-form`'s phone rules. That rule pair
+   lives at 0-1-0 inside a `@media (max-width:…)` and collides on `align-items`; matching it would
+   mean putting a 0-2-0 selector outside the query and inverting the cascade — the exact trap
+   CLAUDE.md records. Scoping to #bootGate wins at every width instead, which is what this screen
+   wants anyway: one control per line, in a 34ch column, on a phone and on a desktop alike. */
+#bootGate .acct-form[hidden]{display:none}
+#bootGate .acct-form{flex-direction:column;align-items:stretch;width:100%;padding:0}
+#bootGate .acct-in{flex:0 0 auto}
+#bootGate .acct-form .btn{width:100%}
+#bootGate .acct-err{margin:0;width:100%;text-align:left}
 #bootGate .bg-spin{
   width:28px; height:28px; border-radius:50%;
   border:2.5px solid var(--line); border-top-color:var(--accent);   /* v115: --accent head (was --text2) — one ring language across boot, pull-to-refresh and the invoice wait, which all wait on the same Supabase */

@@ -59,10 +59,23 @@ const EMPTY_OK = ['app_settings'];
    It is a THIRD state, distinct from `noProducts` (a real café with an empty catalogue) and from
    `noClient` (cannot reach the database at all) — the app answers all three differently, and
    collapsing any two would hide the distinction the gate exists to draw. */
+/* 186 — `opts.signedOut` is the state EVERY first open lands in once the anon fallback is gone
+   from `current_business_id()`: no session, so the tenant lookup answers null and every table read
+   comes back empty with no error. It is the fourth member of the family above and is distinct from
+   `nonMember` in exactly one respect — whether anyone is signed in — which is the whole thing the
+   two screens are chosen on.
+   The fake `auth` this needs is served for ALL specs, not just these, and that is a deliberate
+   reversal of 185's note ("auth is deliberately still ABSENT"). The reasoning has flipped rather
+   than been forgotten: with a null-answering tenant lookup now a REAL state, an absent auth API
+   means "could not tell whether anyone is signed in", so every spec would exercise the degraded
+   reading instead of the real one — the same argument 185 used to start serving `rpc`.
+   The session lives in localStorage rather than a page global so it SURVIVES THE RELOAD that
+   authApply performs, which is what lets a spec drive sign-in end to end. `purgeLocalState` cannot
+   touch it: it removes `cafeDB_`/`cafeCost_` keys only, by construction. */
 async function installBoot(page, opts = {}) {
   const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
-    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter]) => {
+    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter, signedOut]) => {
       if (noClient) return;                       // opt out: exercise the real "can't reach the database" state
       const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
       /* The spec seeds the in-memory shape; the app now reads rows. This is the same crossing
@@ -156,15 +169,43 @@ async function installBoot(page, opts = {}) {
         };
         return q;
       };
+      const SESSION_KEY = '__ezFakeSession';
+      const fakeSession = () => {
+        if (nonMember) return { user: { id: 'u-nomember', email: 'c@example.com' } };
+        try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; }
+      };
+      let onAuth = null;
       window.supabase = {
         createClient: () => ({
+          /* 186. Enough of the auth surface for the REAL authInit, authApply and the gate's form to
+             run: a session that survives a reload, a sign-in that fires the listener the app relies
+             on to purge and reload, and a sign-out that clears it. `wrongpass` is the one password
+             that fails, so a spec can drive the error path without a second fixture flag. */
+          auth: {
+            getSession: () => Promise.resolve({ data: { session: fakeSession() }, error: null }),
+            onAuthStateChange: (cb) => { onAuth = cb; return { data: { subscription: { unsubscribe() {} } } }; },
+            signInWithPassword: ({ email, password }) => {
+              if (password === 'wrongpass') {
+                return Promise.resolve({ data: null, error: { message: 'Invalid login credentials' } });
+              }
+              const session = { user: { id: 'u-max', email } };
+              try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ }
+              if (onAuth) setTimeout(() => onAuth('SIGNED_IN', session), 0);
+              return Promise.resolve({ data: { session }, error: null });
+            },
+            signOut: () => {
+              try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+              if (onAuth) setTimeout(() => onAuth('SIGNED_OUT', null), 0);
+              return Promise.resolve({ error: null });
+            },
+          },
           /* 185: the tenant lookup. Answers the seeded café, which is what `anon` and a MEMBER both
              get — so every spec boots as a legitimate caller and the non-member gate stays shut.
              Served rather than omitted on purpose: app.js guards a missing `rpc` and falls open, so
              leaving it out would silently exercise the degraded path in all 29 specs and none of
-             them would ever touch the real one. `auth` is deliberately still ABSENT — `authInit`
-             bails on `!SUPA.auth` exactly as it does today, and adding it would change boot
-             behaviour across every spec for a value only the gate's message reads. */
+             them would ever touch the real one. (186 serves `auth` for that same reason now — the
+             note that used to sit here saying it was deliberately absent is above, with why it
+             flipped.) */
           rpc: () => {
             /* `opts.rpcFailsAfter` lets the tenant lookup start FAILING after N calls while every
                table read keeps succeeding. That combination is the shape of a real defect (185's
@@ -176,9 +217,12 @@ async function installBoot(page, opts = {}) {
             if (rpcFailsAfter && window.__rpcCalls > rpcFailsAfter) {
               return Promise.resolve({ data: null, error: { message: 'fixture: tenant lookup timed out' } });
             }
+            /* 186: signed out answers null too, and only signing in changes it — which is what
+               makes the sign-in round trip drivable rather than merely paintable. */
+            const noTenant = nonMember || (signedOut && !fakeSession());
             return Promise.resolve(
-              nonMember ? { data: null, error: null }
-                        : { data: '00000000-0000-0000-0000-000000000001', error: null });
+              noTenant ? { data: null, error: null }
+                       : { data: '00000000-0000-0000-0000-000000000001', error: null });
           },
           from: (table) => ({
             select: () => make(table),
@@ -189,7 +233,7 @@ async function installBoot(page, opts = {}) {
         }),
       };
     },
-    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0],
+    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0, !!opts.signedOut],
   );
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }
