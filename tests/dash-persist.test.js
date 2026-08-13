@@ -72,6 +72,7 @@ function boot(store, MENU, menusList) {
     function toast(m){ SURFACED.push(m); }            // anything user-visible lands here
     function console_error(){ SURFACED.push('error'); }
     var DASH_ALL='all';
+    ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
@@ -227,6 +228,7 @@ function withRows(MENU, menusList) {
     function esc(s){ return (s==null?'':String(s)); }
     var DASH_ALL='all';
     var menuHistory = {}, priceHistory = [], cogsPct = 30;   // v115: sparklines colour by target now
+    ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
@@ -370,6 +372,7 @@ function withComparisons(MENU, priceHistory) {
     function menuNameById(id){ return 'Winter'; }
     function ptMs(h){ return new Date(h.t).getTime(); }
     var DASH_ALL='all';
+    ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'avgOf')}

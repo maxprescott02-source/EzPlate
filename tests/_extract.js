@@ -74,7 +74,9 @@ function build() {
      assigns them per fixture and calls computeInsights exactly as the Dashboard does. */
   const insightPipeline = [
     'cpbu', 'perDisplayValue', 'lineCost', 'lineProduct', 'foodTarget', 'costFromLines',
-    'plateIdOf', 'plateForMenuItem', 'ptMs', 'ingPriceBand', 'priceAtOrBefore', 'priceHeldSince',
+    // 184: menuIdOf is the other axis' resolver — the scope filters inside computeInsights read a
+    // dish's menu through it, exactly as they read its plate through plateIdOf.
+    'plateIdOf', 'menuIdOf', 'plateForMenuItem', 'ptMs', 'ingPriceBand', 'priceAtOrBefore', 'priceHeldSince',
     'costRangeForLines', 'insightPeriod', 'menuSeedHash', 'insightSeedFor', 'ingPriceAt',
     'costAtLines', 'unitWordFor', 'monthLabel', 'movementCulprit', 'computeInsights',
   ].map((n) => extractFn(src, n)).join('\n    ');

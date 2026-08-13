@@ -134,8 +134,14 @@ values
 
 -- ---------------------------------------------------------------------------
 -- MENUS
--- `MENU_ORIGINAL` is the id `ensureDefaultMenu` seeds, so it is used here to
--- keep staging honest about what a real install looks like.
+-- `MENU_ORIGINAL` is kept as a LEGACY id, and the reason has changed as of 184.
+-- It used to be what `ensureDefaultMenu` seeded. It no longer is — that function
+-- now mints `uid('MENU')`, because a hard-coded id is the one value two cafes
+-- could collide on. Production still carries a row with this id (it predates the
+-- code), so staging keeps one too: it is the shape a long-lived install actually
+-- has, and it is the only place the old id is still exercised.
+-- A NEW cafe's first menu looks like `MENU-<random>` — see 02-seed-empty.sql,
+-- which produces the zero state where the app mints one for itself.
 -- ---------------------------------------------------------------------------
 insert into public.menus (id, name, season, created_at) values
   ('MENU_ORIGINAL','All day','',            now()-interval '400 days'),

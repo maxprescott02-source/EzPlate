@@ -29,6 +29,7 @@ function harness(dishes, opts = {}) {
     function costFromLines(lines){ return (lines&&lines[0])?lines[0].cost:0; }
     function foodTarget(){ return cogsPct/100; }
     ${extractFn(APP, 'fmtTargetPct')}
+    ${extractFn(APP, 'menuIdOf')}
     ${extractFn(APP, 'analyze')}
     ${extractFn(APP, 'avgFoodCostForScope')}
     ${extractFn(APP, 'dashPctClass')}

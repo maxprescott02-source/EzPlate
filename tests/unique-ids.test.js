@@ -210,15 +210,31 @@ test('every client-minted row id goes through uid — no bare Date.now() ids rem
 });
 
 test('SCOPE GUARD: the semantic keys are deliberately NOT randomised', () => {
-  // These four are NAMES the code looks things up by, not surrogate ids. Randomising them breaks
-  // the lookup instead of fixing a collision, and their real fix is tenant scoping under the
-  // business_id item. Pinned so "finishing the job" fails loudly rather than silently.
+  // These are NAMES the code looks things up by, not surrogate ids. Randomising them breaks the
+  // lookup instead of fixing a collision; they are tenant-scoped instead, which 183 did by widening
+  // both primary keys to (business_id, …). Pinned so "finishing the job" fails loudly, not silently.
   assert.ok(/function memKey\(supplier, phrase\)\{ return normSupplier\(supplier\)/.test(SRC),
     'supplier_phrases.id must stay content-derived — it is what makes re-teaching a pack UPDATE one row');
   assert.ok(SRC.includes("return 'K'+String(max+1).padStart(4,'0')"),
     'nextKid must stay sequential — kitchen ids live inside an app_settings blob, not a global table');
-  assert.ok(SRC.includes("menusList.unshift({id:'MENU_ORIGINAL'"),
-    'ensureDefaultMenu still seeds MENU_ORIGINAL; changing it means fixing every literal fallback too');
   assert.ok(!SRC.includes("uid('K')") && !SRC.includes('uid(memKey'),
     'kitchen ids and supplier phrases must not be routed through uid()');
+});
+
+/* 184: the fourth member of the list above was 'MENU_ORIGINAL', and it LEFT — so this guard replaces
+   it rather than the line just disappearing. It was never a name anything looked UP by; it was a name
+   things fell back TO, and one of those fallbacks wrote it into menu_items.menu_id, a foreign key to a
+   row only Scoopy's has. The distinction is the rule: a literal READ as a key stays, a literal merely
+   WRITTEN as a default is a collision with a comment on it.
+   Pinned as an absence, because the twenty-odd `(m.menuId||'MENU_ORIGINAL')` spellings are exactly the
+   kind of thing a later batch re-adds one at a time without noticing it is re-adding anything. */
+test('184: the MENU_ORIGINAL literal is gone from the shipped code entirely', () => {
+  const code = SRC
+    .replace(/\/\*[\s\S]*?\*\//g, '')          // 183(a): strip comments FIRST — the prose explaining
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');     // this change names the literal repeatedly, and a grep
+                                                // over a file searches its prose as well as its code.
+  assert.ok(!code.includes('MENU_ORIGINAL'),
+    'no executable line may name MENU_ORIGINAL — menus.id is minted by uid() and a dish with no menu is null');
+  assert.ok(/function ensureDefaultMenu\(\)\{ if\(!menusList\.length\) menusList\.unshift\(\{id:uid\('MENU'\)/.test(code),
+    'the seeded default menu must carry a MINTED id — a hard-coded one is what two cafes collide on');
 });

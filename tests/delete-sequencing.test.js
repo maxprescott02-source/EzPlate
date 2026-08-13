@@ -83,6 +83,7 @@ function makeHarness(opts) {
       if(S.rejectPlate) return Promise.reject(new Error('connection reset'));
       return Promise.resolve(S.failPlate?{error:{message:'violates foreign key constraint'}}:{error:null});
     }
+    ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'dishesOfPlate')}

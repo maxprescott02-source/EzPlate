@@ -116,6 +116,7 @@ function harness(opts) {
     ${extractFn(SRC, 'uid')}
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
+      'menuIdOf',
       'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'unlinkedDishesOn', 'publishPlan', 'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'dbPushMenuAfterPlate',
