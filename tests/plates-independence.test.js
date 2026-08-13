@@ -29,6 +29,7 @@ function makeResolver(menusList, savedPlates, dishes) {
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'dishesOfPlate')}
@@ -201,6 +202,7 @@ function makeDeleteHarness(opts) {
     function renderPlatesTab(){}
     function toast(){}
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'fallbackMenuId')}
     ${extractFn(SRC, 'doDeleteMenu')}
@@ -246,6 +248,7 @@ function makeEnsureHarness() {
     function saveCustomMenu(){}
     function dbPushMenuAfterPlate(item, sp){ S.calls.push('pushAfterPlate:'+(sp&&sp.id)); return Promise.resolve(null); }
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'ensurePlateForDish')}
@@ -324,6 +327,7 @@ test('v112: costing a reloaded, properly-linked dish does NOT mint a second plat
     var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
     function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'ensurePlateForDish')}
@@ -354,6 +358,7 @@ test('v112: the deleted editor\'s shape WOULD have compounded — costing it min
     var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
     function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
     ${extractFn(SRC, 'ensurePlateForDish')}

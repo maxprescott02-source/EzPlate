@@ -269,6 +269,105 @@ test('184: BOTH dish-creating handlers refuse a falsy menu before writing anythi
   });
 });
 
+/* ---------------------------------------------------------------------------
+   5. The two pre-push review findings.
+   --------------------------------------------------------------------------- */
+
+/* FINDING 1. withPublishMenu decides whether a menu needs creating by asking `menusList.length`, so
+   that list has to mean "menus the server has". submitNewMenu broke it: it pushed optimistically and
+   DROPPED the write's promise, so a refused menu stayed in memory, the gate waved every later dish
+   through, and the dish referenced a menus row that does not exist. The route is real and is the one
+   a new cafe takes first: openPublishModal refuses at zero menus and diverts to the new-menu modal. */
+function newMenuHarness(writeResult) {
+  const S = { toasts: [], pushes: [], repaints: 0 };
+  let settle;
+  const write = new Promise((r) => { settle = r; });
+  const factory = new Function('S', 'WRITE', `
+    "use strict";
+    var menusList = [];
+    var currentMenuId = null;
+    var localStorage = { getItem:function(){return null;}, setItem:function(){} };
+    var fields = { nm_name:'Winter', nm_season:'', nm_err:{ textContent:'', style:{} } };
+    var document = { getElementById:function(id){
+      if(id === 'nm_err') return fields.nm_err;
+      if(id in fields) return { value: fields[id] };
+      return null;
+    } };
+    function dbUpsertMenuRecord(rec){ S.pushes.push(rec); return WRITE; }
+    function buildMenuSelector(){ S.repaints++; }
+    function renderAnalysis(){}
+    function closeNewMenuModal(){}
+    function toast(t){ S.toasts.push(t); }
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
+    ${extractFn(SRC, 'fallbackMenuId')}
+    ${extractFn(SRC, 'setCurrentMenuId')}
+    ${extractFn(SRC, 'submitNewMenu')}
+    return { submitNewMenu:submitNewMenu, menus:function(){ return menusList; },
+             current:function(){ return currentMenuId; } };
+  `);
+  return { api: factory(S, write), S, settle: () => settle(writeResult) };
+}
+
+test('184 (review): a REFUSED new menu is taken back out of menusList, not left for the gate to trust', async () => {
+  const { api, S, settle } = newMenuHarness({ error: { message: 'permission denied' } });
+  api.submitNewMenu();
+  assert.strictEqual(api.menus().length, 1, 'optimistic push happens first, as every other path does');
+
+  settle();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.strictEqual(api.menus().length, 0,
+    'THE POINT: menusList must mean "menus the server has" — withPublishMenu reads its length as exactly that');
+  assert.strictEqual(api.current(), null, 'and the current menu cannot point at one that was rolled back');
+  assert.ok(S.toasts.some((t) => /not saved/i.test(t)), 'the user is told, and told what it cost');
+  assert.ok(!S.toasts.some((t) => /menu created/i.test(t)), 'a refused menu was never created');
+});
+
+test('184 (review): a menu the server KEPT stays, and only then says it was created', async () => {
+  const { api, S, settle } = newMenuHarness({ data: [{ id: 'x' }] });
+  api.submitNewMenu();
+  settle();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.strictEqual(api.menus().length, 1);
+  assert.strictEqual(api.current(), api.menus()[0].id);
+  assert.ok(S.toasts.some((t) => /menu created/i.test(t)));
+  assert.ok(!S.toasts.some((t) => /not saved/i.test(t)));
+});
+
+/* FINDING 2. Removing the 'MENU_ORIGINAL' fallback INTRODUCED a hazard the old code could not have:
+   both sides of the membership test can now be null, and null===null is true. So an orphaned dish
+   read as being on the no-menu, at exactly the moment the screen is meant to be empty. */
+test('184 (review): a dish on no menu is not "on" the no-menu — null never equals null here', () => {
+  const { api } = harness();
+  const factory = new Function(`
+    "use strict";
+    ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
+    return dishOnMenu;
+  `);
+  const dishOnMenu = factory();
+
+  assert.strictEqual(dishOnMenu({ menuId: null }, null), false,
+    'THE POINT: zero menus means currentMenuId is null, and an orphan must not match it');
+  assert.strictEqual(dishOnMenu({}, null), false);
+  assert.strictEqual(dishOnMenu({ menuId: null }, 'MENU-w'), false);
+  assert.strictEqual(dishOnMenu({ menuId: 'MENU-w' }, null), false);
+  assert.strictEqual(dishOnMenu({ menuId: 'MENU-w' }, 'MENU-w'), true, 'and a real match still matches');
+  assert.strictEqual(api.menuIdOf({ menuId: 'MENU-w' }), 'MENU-w', 'menuIdOf itself is unchanged');
+});
+
+test('184 (review): every menu-membership test in the app goes through dishOnMenu', () => {
+  // A bare `menuIdOf(x)===<menu>` is the spelling that reintroduces the null match, so it is the
+  // thing to forbid — not merely to have fixed at the three sites that had it.
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const bare = code.match(/menuIdOf\([^)]*\)\s*[!=]==/g) || [];
+  assert.deepStrictEqual(bare, [],
+    'compare through dishOnMenu — a direct === can match null against null when there are no menus');
+});
+
 test('184: both Publish buttons are wired through withPublishMenu', () => {
   assert.match(SRC, /getElementById\('menuSave'\)\.addEventListener\('click',function\(\)\{ withPublishMenu\('mi_err', submitMenuItem\); \}\)/,
     'the Plates → Publish button');

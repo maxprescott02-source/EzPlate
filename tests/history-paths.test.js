@@ -107,7 +107,7 @@ function harness(opts) {
     ${extractFn(SRC, 'uid')}
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
-      'menuIdOf',
+      'menuIdOf', 'dishOnMenu',
       'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'avgFoodCostForScope', 'computeAvgFoodCost',

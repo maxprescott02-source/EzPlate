@@ -154,6 +154,7 @@ function makeHarness(opts) {
     }
     var document={ getElementById:function(id){ return el(id); } };
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'unlinkedDishesOn')}
     ${extractFn(SRC, 'publishPlan')}

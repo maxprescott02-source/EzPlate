@@ -1497,6 +1497,14 @@ function menuNameById(id){ var m=menusList.find(function(x){return x.id===id;});
    that a dish with no menu is on Scoopy's. It answers null instead: a dish belongs to a menu or to
    none, and none is a state the per-menu views must exclude rather than reassign. */
 function menuIdOf(m){ return (m && m.menuId) || null; }
+/* 184, from the pre-push review — and the review found ONE site, this comment is the other half.
+   "Is this dish on that menu" cannot be written as a bare `menuIdOf(m)===menuId`, because BOTH sides
+   can now be null and `null===null` is true: an orphaned dish would read as being on the no-menu, at
+   exactly the moment (zero menus) the screen is supposed to be empty. The old spelling could not do
+   this by construction — its left side was always the truthy string 'MENU_ORIGINAL' — so removing the
+   fallback INTRODUCED the hazard, which is the thing to watch for when a default becomes a null.
+   One named comparison, so the guard cannot be forgotten at the next call site. */
+function dishOnMenu(m, menuId){ var mid=menuIdOf(m); return !!mid && mid===menuId; }
 /* 184 — THE SECOND DEFECT under the same literal, and it is not the collision.
    `ensureDefaultMenu` seeds menusList IN MEMORY and nothing has ever pushed that row. Worse, for a
    brand-new cafe it is not even CALLED: bootstrapSync only seeds when the menus table did not answer
@@ -1536,6 +1544,12 @@ function ensurePublishMenu(){
    making them async would make every one of those assertions race its own subject. The handlers each
    REFUSE a falsy menu as well, so the safety does not live in the wiring alone. */
 function withPublishMenu(errBoxId, fn){
+  /* The `menusList.length` test is deliberately in BOTH this function and ensurePublishMenu, and the
+     pre-push review was right that it makes ensurePublishMenu's first branch unreachable from the app.
+     Kept anyway, for two different jobs: here it keeps the common path SYNCHRONOUS (see below), and
+     there it keeps ensurePublishMenu total, so a future caller reaching it directly gets the menu id
+     rather than a second menu. What menusList.length is trusted to MEAN — only menus the server has —
+     is enforced by submitNewMenu putting back anything the server refused. */
   if(menusList.length) return fn();
   return ensurePublishMenu().then(function(id){
     if(id) return fn();
@@ -1821,13 +1835,13 @@ function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(functio
    plate, and the v112 repair needed the section, the price and the price history in front of a human
    before the call could be made. The app surfaces the choice; it does not make it. */
 function unlinkedDishesOn(dishes, menuId){
-  return (dishes||[]).filter(function(d){ return d && !plateIdOf(d) && menuIdOf(d)===menuId; });
+  return (dishes||[]).filter(function(d){ return d && !plateIdOf(d) && dishOnMenu(d, menuId); });
 }
 function publishPlan(dishes, plateId, menuId){
   // The `plateId ?` is load-bearing: plateIdOf(an unlinked row) is null, so a bare `===plateId`
   // comparison against a null id would read that row as "this plate is already here" and quietly
   // update it — an auto-heal by accident, which is the one thing this was decided against.
-  var existing=plateId ? (dishes||[]).find(function(d){ return d && plateIdOf(d)===plateId && menuIdOf(d)===menuId; }) : null;
+  var existing=plateId ? (dishes||[]).find(function(d){ return d && plateIdOf(d)===plateId && dishOnMenu(d, menuId); }) : null;
   if(existing) return {action:'update', existingId:existing.id, unlinked:[]};   // already on this menu — updating it duplicates nothing, so there is nothing to ask
   return {action:'create', existingId:null, unlinked:unlinkedDishesOn(dishes, menuId)};
 }
@@ -2522,7 +2536,7 @@ function avgFoodCostForScope(scope){
   var vals=[];
   MENU.forEach(function(m){
     if(!(m.price>0)) return;
-    if(scope && scope!==DASH_ALL && menuIdOf(m)!==scope) return;
+    if(scope && scope!==DASH_ALL && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);                                        // the ONLY sanctioned resolution path (rule 6)
     if(!sp) return;
     var c=costFromLines(sp.lines);
@@ -4245,7 +4259,7 @@ function digData(kind, scope){
   if(kind==='foodcost'){
     MENU.forEach(function(m){
       if(!(m.price>0)) return;
-      if(!isAll && menuIdOf(m)!==scope) return;
+      if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp) return;
       var c=costFromLines(sp.lines); if(!(c>0)) return;
       rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%', light:analyze(c, m.price).light});
@@ -4258,7 +4272,7 @@ function digData(kind, scope){
     // narrows it to the plates published there. Deduped by plate: one plate on two menus is one row.
     var seen={};
     MENU.forEach(function(m){
-      if(!isAll && menuIdOf(m)!==scope) return;
+      if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp || seen[sp.id]) return;
       var c=costFromLines(sp.lines); if(!(c>0)) return;
       seen[sp.id]=1;
@@ -4852,7 +4866,7 @@ function computeInsights(scope, seed){
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
-      if(!isAll && menuIdOf(m)!==scope) return;
+      if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m);
       var cost=sp?costFromLines(sp.lines):0;
       if(!sp || !(cost>0)) return;                                   // a priced dish with no plate / no cost has no margin read
@@ -5395,7 +5409,7 @@ function kpiStripHtml(scope, cmp){
   if(pct==null) return '';
   var over=0, costed=0, unready=0;
   MENU.forEach(function(m){
-    if(!isAll && menuIdOf(m)!==scope) return;
+    if(!isAll && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);
     var c=sp?costFromLines(sp.lines):0;
     // "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
@@ -8987,7 +9001,7 @@ function renderAnalysis(){
   var catSel=(document.getElementById('menuCatFilter')||{}).value||'';   // v59: category filter = dish section
   function hit(nm,sec){ if(!toks.length) return true; return matchTokens(toks,(String(nm||'')+' '+String(sec||'')).toLowerCase()); }
   var shown=0;
-  var inMenu=function(m){ return menuIdOf(m)===currentMenuId; };   // only show dishes belonging to the selected menu
+  var inMenu=function(m){ return dishOnMenu(m, currentMenuId); };   // only show dishes belonging to the selected menu
   var secOf=function(m){var s=(m.section||'').trim(); return s?s:'Uncategorised';};
   var sections=[]; MENU.forEach(function(m){ if(!inMenu(m)) return; var s=secOf(m); if(sections.indexOf(s)<0)sections.push(s);});
   sections.sort(function(a,b){
@@ -9127,7 +9141,7 @@ function dbDeleteMenuRecord(id){ return pushWrite(function(){ return SUPA.from('
 // so every plate survives in the Plates library, just unpublished. No reassignment, no holding area. Dishes go
 // first, then the menu row (dishes already gone, so the menu_items.menu_id FK can never be violated).
 function doDeleteMenu(id, name){
-  var affected=customMenu.filter(function(c){return menuIdOf(c)===id;});
+  var affected=customMenu.filter(function(c){return dishOnMenu(c, id);});
   var avgBefore=computeAvgFoodCost();                               // v114: before anything comes off the menu
   affected.forEach(function(c){ removeMenuItem(c.id); });           // v55: remove only THIS menu's entries; plates (and any other menus they're on) survive
   menusList=menusList.filter(function(x){return x.id!==id;});
@@ -9149,7 +9163,7 @@ function deleteCurrentMenu(){
   var id=currentMenuId;
   if(!canDeleteMenu(id)){ toast('This menu can\u2019t be deleted'); return; }
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
-  var affected=customMenu.filter(function(c){return menuIdOf(c)===id;});
+  var affected=customMenu.filter(function(c){return dishOnMenu(c, id);});
   var nm=m.name;
   var msg=affected.length
     ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' plate'+(affected.length===1?'':'s')+' come off this menu \u2014 the plates stay in your library (and on any other menus).')
@@ -9239,10 +9253,28 @@ function submitNewMenu(){
   if(!name){ if(err){ err.textContent='Enter a menu name.'; err.style.display='block'; } return; }
   var id=uid('MENU');
   var rec={id:id, name:name, season:season||null};
-  menusList.push(rec); dbUpsertMenuRecord(rec);
+  var wasCurrent=currentMenuId;
+  menusList.push(rec); var write=dbUpsertMenuRecord(rec);
   setCurrentMenuId(id);
   buildMenuSelector(); renderAnalysis(); closeNewMenuModal();
-  toast('\u201c'+name+'\u201d menu created');
+  /* 184, from the pre-push review. This used to push onto menusList and DROP the promise, and that
+     is what put the hole in this batch's own guarantee: `withPublishMenu` decides whether a menu
+     needs creating by asking `menusList.length`, so a menu the server REFUSED but memory kept made
+     the gate wave every later dish straight through \u2014 against a menus row that does not exist.
+     Publishing then means 23503, or the silent cross-tenant accept the header of this file describes.
+     So menusList now means "menus the server has", which is the invariant the gate was already
+     relying on. Same law as the delete paths: the optimistic repaint stays, the WORDING waits for
+     the server, and anything the server did not keep is put back. */
+  Promise.resolve(write).then(function(r){ return !!(r && !r.error); }, function(){ return false; })
+    .then(function(ok){
+      if(ok){ toast('\u201c'+name+'\u201d menu created'); return; }
+      menusList=menusList.filter(function(x){ return x.id!==id; });
+      setCurrentMenuId(menusList.some(function(x){ return x.id===wasCurrent; }) ? wasCurrent : fallbackMenuId());
+      buildMenuSelector(); renderAnalysis();
+      // pushWrite has already toasted the real error; this one says what it COST, which is the half
+      // a user cannot infer from a Postgres message.
+      toast('\u201c'+name+'\u201d was not saved, so it has been removed. Nothing was published to it.');
+    });
 }
 
 /* ===== Menu Analysis: split "/" items + safe delete ===== */

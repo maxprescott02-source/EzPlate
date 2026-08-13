@@ -30,6 +30,7 @@ function harness(dishes, opts = {}) {
     function foodTarget(){ return cogsPct/100; }
     ${extractFn(APP, 'fmtTargetPct')}
     ${extractFn(APP, 'menuIdOf')}
+    ${extractFn(APP, 'dishOnMenu')}
     ${extractFn(APP, 'analyze')}
     ${extractFn(APP, 'avgFoodCostForScope')}
     ${extractFn(APP, 'dashPctClass')}

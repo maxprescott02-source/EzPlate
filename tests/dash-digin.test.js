@@ -68,6 +68,7 @@ function digHarness() {
     function emptyStateHtml(){ return '<div class="empty-state es-built">empty</div>'; }
     var ICON_MENU_BIG='';
     ${extractFn(APP, 'menuIdOf')}
+    ${extractFn(APP, 'dishOnMenu')}
     ${extractFn(APP, 'analyze')}
     ${extractFn(APP, 'perDisplayValue')}
     ${extractFn(APP, 'dispPrice')}

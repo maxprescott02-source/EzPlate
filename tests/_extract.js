@@ -76,7 +76,7 @@ function build() {
     'cpbu', 'perDisplayValue', 'lineCost', 'lineProduct', 'foodTarget', 'costFromLines',
     // 184: menuIdOf is the other axis' resolver — the scope filters inside computeInsights read a
     // dish's menu through it, exactly as they read its plate through plateIdOf.
-    'plateIdOf', 'menuIdOf', 'plateForMenuItem', 'ptMs', 'ingPriceBand', 'priceAtOrBefore', 'priceHeldSince',
+    'plateIdOf', 'menuIdOf', 'dishOnMenu', 'plateForMenuItem', 'ptMs', 'ingPriceBand', 'priceAtOrBefore', 'priceHeldSince',
     'costRangeForLines', 'insightPeriod', 'menuSeedHash', 'insightSeedFor', 'ingPriceAt',
     'costAtLines', 'unitWordFor', 'monthLabel', 'movementCulprit', 'computeInsights',
   ].map((n) => extractFn(src, n)).join('\n    ');

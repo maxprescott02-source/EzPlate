@@ -36,6 +36,7 @@ function withState(MENU, menusList, cogsPct) {
     function esc(s){ return (s==null?'':String(s)); }
     function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
     ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
