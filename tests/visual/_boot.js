@@ -62,7 +62,7 @@ const EMPTY_OK = ['app_settings'];
 async function installBoot(page, opts = {}) {
   const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
-    ([ingredientRows, emptyOk, noClient, nonMember]) => {
+    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter]) => {
       if (noClient) return;                       // opt out: exercise the real "can't reach the database" state
       const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
       /* The spec seeds the in-memory shape; the app now reads rows. This is the same crossing
@@ -165,9 +165,21 @@ async function installBoot(page, opts = {}) {
              them would ever touch the real one. `auth` is deliberately still ABSENT — `authInit`
              bails on `!SUPA.auth` exactly as it does today, and adding it would change boot
              behaviour across every spec for a value only the gate's message reads. */
-          rpc: () => Promise.resolve(
-            nonMember ? { data: null, error: null }
-                      : { data: '00000000-0000-0000-0000-000000000001', error: null }),
+          rpc: () => {
+            /* `opts.rpcFailsAfter` lets the tenant lookup start FAILING after N calls while every
+               table read keeps succeeding. That combination is the shape of a real defect (185's
+               pre-push review): from an existing non-member gate, a re-sync whose lookup alone
+               fails must not fall open, because RLS returns `[]` rather than an error and nothing
+               downstream would throw. It is unreachable without this hook — one request out of
+               twelve has to fail, and only that one. */
+            window.__rpcCalls = (window.__rpcCalls || 0) + 1;
+            if (rpcFailsAfter && window.__rpcCalls > rpcFailsAfter) {
+              return Promise.resolve({ data: null, error: { message: 'fixture: tenant lookup timed out' } });
+            }
+            return Promise.resolve(
+              nonMember ? { data: null, error: null }
+                        : { data: '00000000-0000-0000-0000-000000000001', error: null });
+          },
           from: (table) => ({
             select: () => make(table),
             upsert: () => Promise.resolve({ data: null, error: null }),
@@ -177,7 +189,7 @@ async function installBoot(page, opts = {}) {
         }),
       };
     },
-    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember],
+    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0],
   );
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }

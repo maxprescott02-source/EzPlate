@@ -58,28 +58,44 @@ test('a member resolves to their own café and is never gated', () => {
   assert.strictEqual(tenantGateState({ data: '000000b2-0000-0000-0000-0000000000b2', error: null }), 'ok');
 });
 
-test('an ERROR is not an answer — a failed lookup must never gate the app', () => {
-  // ⚠️ `data` is null here TOO. If the error check were dropped, the strict-null check alone would
-  // still say 'nomember' and this would be a false alarm on every network blip. That is why the
-  // two fields disagree about the verdict rather than agreeing.
+/* ── "Could not tell" is its OWN answer, and that is the correction the review forced. ────────
+   It used to return 'ok', collapsing "you have a cafe" into "I could not reach the question". Fine
+   on a first boot, where falling open beats a false lockout. NOT fine as a recheck: for a caller
+   already known to have no cafe, falling open shows an app with nothing in it — the very defect.
+   So these assert 'unknown', and the CALLER resolves it against `_bootNoMember`. */
+
+test('an ERROR is not an answer — it is explicitly unknown, never a clean bill of health', () => {
+  // ⚠️ `data` is null here TOO. If the error check were dropped, the null check alone would say
+  // 'nomember' and this would be a false alarm on every network blip. The two fields disagree about
+  // the verdict on purpose, so neither can be read off the other.
   assert.strictEqual(
-    tenantGateState({ data: null, error: { message: 'network' } }), 'ok',
-    'a lookup that failed says nothing about membership');
+    tenantGateState({ data: null, error: { message: 'network' } }), 'unknown',
+    'a lookup that failed says nothing about membership, in either direction');
 });
 
-test('a missing function on an older project degrades rather than locking the user out', () => {
+test('a missing function on an older project is unknown, not a lockout', () => {
   assert.strictEqual(
-    tenantGateState({ data: null, error: { code: '42883', message: 'function does not exist' } }), 'ok');
+    tenantGateState({ data: null, error: { code: '42883', message: 'function does not exist' } }), 'unknown');
 });
 
 test('undefined is not null — an absent body means could-not-tell, not no-membership', () => {
-  assert.strictEqual(tenantGateState({ data: undefined, error: null }), 'ok');
-  assert.strictEqual(tenantGateState({}), 'ok');
+  assert.strictEqual(tenantGateState({ data: undefined, error: null }), 'unknown');
+  assert.strictEqual(tenantGateState({}), 'unknown');
 });
 
-test('no result at all is a no-op, never a lockout', () => {
-  assert.strictEqual(tenantGateState(null), 'ok');
-  assert.strictEqual(tenantGateState(undefined), 'ok');
+test('no result at all is unknown, never a lockout and never an all-clear', () => {
+  assert.strictEqual(tenantGateState(null), 'unknown');
+  assert.strictEqual(tenantGateState(undefined), 'unknown');
+});
+
+test('only a real uuid says ok — the three answers are genuinely distinct', () => {
+  /* The shape of the bug that was here: two of these three collapsed into one. Asserting they are
+     pairwise different is what stops that happening again by a "simplification". */
+  const ok = tenantGateState({ data: '00000000-0000-0000-0000-000000000001', error: null });
+  const no = tenantGateState({ data: null, error: null });
+  const unk = tenantGateState({ data: null, error: { message: 'boom' } });
+  assert.strictEqual(new Set([ok, no, unk]).size, 3,
+    `all three must differ, got ${ok}/${no}/${unk} — collapsing any pair reopens a real defect`);
 });
 
 /* ── The wording. It is the entire deliverable of this state, so it is pinned. ───────────────── */
@@ -106,6 +122,22 @@ test('the message never invents a fifth object noun', () => {
   // CLAUDE.md Tier 2: Product / Ingredient / Plate / Menu, and "dish"/"recipe" are forbidden.
   const m = nonMemberMessage('a@b.com');
   assert.ok(!/\bdish(es)?\b|\brecipe(s)?\b|\bkitchen (word|name)/i.test(m), m);
+});
+
+test('the caller resolves unknown against what it already knows', () => {
+  /* THE REVIEW'S FINDING, pinned at the level it actually lives. bootstrapSync gates when the answer
+     is 'nomember', OR when it is 'unknown' AND the latch is already set. It clears the latch only on
+     a definite 'ok'. Scenario that was broken: gate showing, `online` fires, the tenant RPC alone
+     times out while the four required reads return `[]` (RLS filters rows, it does not error), so
+     nothing throws — and the app rendered empty with no message. */
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const i = src.indexOf('async function bootstrapSync');
+  const boot = src.slice(i, i + 6000);
+  assert.match(boot, /_tg==='nomember'\s*\|\|\s*\(_tg==='unknown'\s*&&\s*_bootNoMember\)/,
+    'an unknown answer must not discard a known non-member state');
+  assert.match(boot, /_tg==='ok'\)\s*_bootNoMember=false/,
+    'and only a DEFINITE answer may clear the latch');
 });
 
 /* ── The early return. ────────────────────────────────────────────────────────────────────────

@@ -83,3 +83,40 @@ test('the gate does NOT fire for an ordinary café — the no-alarm direction', 
   await expect(page.locator('#bootGate')).toBeHidden();
   await expect(page.locator('#bootGateOut')).toBeHidden();
 });
+
+test('a re-sync whose tenant lookup fails does NOT reopen the silent empty app', async ({ page }) => {
+  /* ⚠️ THE PRE-PUSH REVIEW'S FINDING, reproduced at the level it actually lives. The first cut of
+     this batch cleared the non-member latch at the top of every boot run. From an existing gate, the
+     `online` listener re-runs bootstrapSync, and if the tenant lookup ALONE fails — one flaky request
+     out of twelve — `tenantGateState` fell open to 'ok'. The four required reads still succeeded with
+     `[]`, because RLS filters rows rather than erroring, so nothing threw, every store was emptied,
+     and `bootReady('ok')` hid the gate.
+
+     Result: the full app with zero products, zero plates and zero menus, and no message — exactly
+     the state this batch exists to end, restored by a network blip.
+
+     `unknown` is now its own answer and resolves against what is already known: only a definite uuid
+     clears the latch. */
+  await page.setViewportSize({ width: 380, height: 820 });
+  await installBoot(page, { nonMember: true, rpcFailsAfter: 1 });
+  await page.goto('/');
+
+  await expect(page.locator('#bootGate')).toBeVisible();
+  await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+
+  // The blip: the browser comes back online, the app re-syncs, and this time the tenant lookup fails.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForTimeout(600);
+
+  await expect(page.locator('#bootGate')).toBeVisible();
+  await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+  await expect(page.locator('#bootGateOut')).toBeVisible();
+  // and the app underneath must not have been repainted as an empty café
+  const counts = await page.evaluate(() => ({
+    gateHidden: document.getElementById('bootGate').hidden,
+    rpcCalls: window.__rpcCalls,
+  }));
+  expect(counts.gateHidden).toBe(false);
+  expect(counts.rpcCalls, 'the re-sync must actually have run, or this test proves nothing')
+    .toBeGreaterThan(1);
+});

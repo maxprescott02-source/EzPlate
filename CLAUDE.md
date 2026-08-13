@@ -154,6 +154,21 @@ That is harmless while the two agree and silent when they do not. `business_id` 
 
 **So: a DEFAULT and a BEFORE trigger on the same column are ONE mechanism with two entry points, and they must compute the same value.** Point both at the same function — `set default public.current_business_id()`, `new.x := public.current_business_id()` — rather than leaving one a literal. Two definitions of the same thing is the defect; which one is "right" is not the question.
 
+## "Fail open" is what you do with NO information — reusing it as the answer to a RECHECK reopens the hole
+
+(Batch 185, 14 Aug 2026, the non-member boot gate. Caught by the pre-push review, after the fix for one half of it created the other half.)
+
+A guard that refuses on a definite answer and proceeds on anything else is usually right the FIRST time it runs: with nothing known, a false alarm is worse than a miss, and here it would have locked a legitimate user out of a working app.
+**It is wrong the SECOND time, and the wrongness is invisible, because the same expression is still sitting there reading correctly.**
+Once the server has already said *"this caller has no café"*, `could not tell` is **not evidence to the contrary** — but a two-valued gate has nowhere to put that, so it lands on the permissive branch and DISCARDS the known state.
+
+The measured shape: from the standing gate, the `online` listener re-runs `bootstrapSync`; the tenant lookup alone fails, one flaky request out of twelve; the check falls open; **the four required reads still succeed with `[]`, because RLS filters rows rather than erroring**, so nothing throws, every store is emptied and the success path hides the gate.
+A silent empty app, reached by a network blip, on the exact path the guard was hardened for.
+
+**The remedy is a THIRD value.** `ok` / `nomember` / **`unknown`**, resolved by the caller against what it already knows: only a definite answer may change the standing verdict, and "could not tell" changes nothing in either direction.
+**The tell to recognise: a boolean guard whose two branches are "definitely bad" and "everything else".** Ask what it should do when it is asked a second time, by a caller that already has an answer — and if the honest reply is "keep what I had", the guard needs the third value, not a better default.
+This is the same family as the empty-read ambiguity above: **a successful-but-empty read, an RLS-blocked read and a failed read are three different things that arrive looking like two.**
+
 ## A FOREIGN KEY is checked with RLS OFF, so a cross-tenant reference SUCCEEDS instead of erroring
 
 (Batch 184, 13 Aug 2026, removing the `MENU_ORIGINAL` literal.)

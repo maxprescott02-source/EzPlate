@@ -252,15 +252,28 @@ test('membership revoked MID-SESSION still surfaces, exactly like a later failur
   assert.strictEqual(g.out.hidden, false);
 });
 
-test('the non-member button is not left behind on any other state', () => {
+test('a real connection failure still takes over from the non-member gate', () => {
+  /* The one state that MAY replace it, and should. If a later run genuinely throws, the user has a
+     connection problem now, and Try again is the action that can help; signing out is not. It is
+     self-correcting — the retry re-runs the sync and lands back on the non-member gate if that is
+     still the answer. (A re-sync that merely STARTS is different and leaves the screen alone;
+     that is the test above.) */
   const g = makeGate(true);
-  g.run('nomember', 'no café');
-  g.run('loading');
-  assert.strictEqual(g.out.hidden, true, 'a Sign out button over a loading spinner is nonsense');
   g.run('nomember', 'no café');
   g.run('error', 'lost the connection');
   assert.strictEqual(g.out.hidden, true, 'signing out does not fix a dropped connection');
   assert.strictEqual(g.retry.hidden, false, 'and Try again must come back');
+  assert.match(g.msg.textContent, /lost the connection/);
+});
+
+test('the sign-out button never appears on a state that has not earned it', () => {
+  const g = makeGate(true);
+  g.run('loading');
+  assert.strictEqual(g.out.hidden, true, 'a Sign out button over a loading spinner is nonsense');
+  g.run('error', 'boom');
+  assert.strictEqual(g.out.hidden, true);
+  g.run('ok');
+  assert.strictEqual(g.out.hidden, true);
 });
 
 test('185: once the gate says non-member, a later ok CANNOT clear it', () => {
@@ -291,28 +304,33 @@ test('185: the latch does not gate an ordinary boot', () => {
   assert.strictEqual(g.gate.hidden, true, 'pull-to-refresh must keep working forever');
 });
 
-test('185: the latch does not survive into the NEXT boot run', () => {
-  /* ⚠️ THE WEDGE THIS PREVENTS, found by reasoning rather than by a failure. The `online` listener
-     re-runs bootstrapSync, so a user whose membership is granted between two runs would get:
-     'loading' (gate shows a spinner) → tenant check now passes → 'ok' → swallowed by a latch set in
-     the PREVIOUS run. Result: "Loading your data…" and a spinner, forever, on a working account.
-     The latch is therefore scoped to one run and cleared by 'loading'. */
+test('185: a re-sync does NOT disturb the non-member gate', () => {
+  /* ⚠️ REWRITTEN AFTER THE PRE-PUSH REVIEW. This test used to drive loading → nomember → loading →
+     ok and assert the gate HIDES, on the reading "membership was granted between two runs". At the
+     bootGate level that call sequence is indistinguishable from the dangerous one — a re-sync whose
+     tenant lookup failed while every table read returned `[]` — and the old code hid the gate for
+     both. The latch is no longer cleared here at all; only a DEFINITE uuid clears it, in
+     bootstrapSync, which is the only place that can tell the two apart.
+     What bootGate owes the user is therefore narrower and testable: a re-sync leaves this screen
+     exactly as it was. */
   const g = makeGate(true);
   g.run('loading');
   g.run('nomember', 'no café');
-  g.run('loading');                        // a second bootstrapSync — the network came back
-  g.run('ok');                             // and this time the caller has a café
-  assert.strictEqual(g.gate.hidden, true,
-    'a stale latch would strand a legitimate user on a spinner with no way out');
+  g.run('loading');                        // the `online` listener fires after a blip
+  assert.strictEqual(g.gate.hidden, false, 'the gate must not blink out mid-explanation');
+  assert.match(g.msg.textContent, /no café/,
+    'the explanation must not be replaced by a spinner on every network flap');
+  assert.strictEqual(g.out.hidden, false,
+    'and the one way out must not disappear for the duration of a re-sync');
 });
 
-test('185: …but within ONE run the latch still holds', () => {
-  // The other half. A run that reaches 'nomember' has already passed through 'loading', so the
-  // protection against bootstrapSync falling through and hiding the gate with its own 'ok' survives.
+test('185: an ok still cannot clear the gate on its own — only a cleared latch can', () => {
+  // The missing-return case, and the review's case, are now the SAME case, which is the point of
+  // moving the decision to where the tenant answer is read.
   const g = makeGate(true);
   g.run('loading');
   g.run('nomember', 'no café');
-  g.run('ok');                             // the missing-return case: same run, no fresh 'loading'
+  g.run('ok');
   assert.strictEqual(g.gate.hidden, false);
   assert.match(g.msg.textContent, /no café/);
 });

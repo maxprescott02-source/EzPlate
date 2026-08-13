@@ -551,15 +551,16 @@ function bootGate(state, msg){
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
   var o=document.getElementById('bootGateOut');
   if(state==='loading'){
-    /* 185 — THE LATCH IS SCOPED TO ONE BOOT RUN, and cleared HERE is the only place that works.
-       Without this it wedges: the `online` listener re-runs bootstrapSync, so if membership were
-       granted between two runs the gate would show 'loading', the tenant check would pass, and the
-       'ok' that follows would be swallowed by a latch set in the PREVIOUS run — leaving a spinner
-       and "Loading your data…" on screen forever.
-       Clearing it at the start of a run still protects the case it was written for, because a run
-       that reaches 'nomember' has already passed through 'loading': the latch is re-set after this
-       point, so a missing `return` in bootstrapSync still cannot hide the gate with its own 'ok'. */
-    _bootNoMember=false;
+    /* 185 — A RE-SYNC DOES NOT DISTURB THE NON-MEMBER GATE, and the latch is NOT cleared here.
+       An earlier cut cleared it at the top of every run, to stop it wedging a user whose membership
+       was granted between two runs. That fixed the wedge and reopened the defect: the tenant lookup
+       can fail on its own while the table reads succeed with `[]`, and a cleared latch let the
+       resulting 'ok' hide the gate. The clear now lives where the ANSWER is, in bootstrapSync, and
+       only a definite uuid performs it — so the wedge stays fixed without the hole.
+       Returning early also removes the churn: without it, every `online` blip swapped this screen's
+       explanation for a spinner and took its Sign out button away for the duration. The only screen
+       whose entire job is to stay legible should not flicker. */
+    if(_bootNoMember) return;
     g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
     /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
        of the fetch) — and week-long gaps are the normal case here, so the patient message is the
@@ -636,14 +637,19 @@ function bootReady(state, msg){ window.__ezReady=true; bootGate(state, msg); }
    the defect. Asking the server the question it will actually answer costs one entry in a
    Promise.all that was already in flight.
 
-   ⚠️ IT FAILS OPEN, ON PURPOSE. Only an unambiguous null with no error gates the app. An error, a
-   missing function, an undefined body — anything that means "could not tell" — reads as 'ok'.
-   This is a MESSAGE, not a security control; RLS is the control and it is already enforced
-   server-side. A false alarm would lock a legitimate user out of a working app, which is strictly
-   worse than the empty screen this replaces. */
+   ⚠️ THREE ANSWERS, NOT TWO, AND THE THIRD IS THE WHOLE POINT. "Could not tell" is NOT the same as
+   "you are fine", and collapsing the two was a real defect caught by the pre-push review of this
+   batch. Fail-open is right with NO PRIOR INFORMATION — on a first boot the alternative is locking
+   a legitimate user out of a working app, and RLS is already enforcing the real boundary
+   server-side. It is WRONG AS A RECHECK: for a caller already known to have no café, falling open
+   does not show them their data, it shows them an app with nothing in it, which is the exact defect
+   this gate exists to end.
+   So the caller decides what 'unknown' means from what it already knows — see `_bootNoMember`. Only
+   an unambiguous null gates on its own; only an unambiguous uuid clears the latch. */
 function tenantGateState(res){
-  if(!res || res.error) return 'ok';                       // could not tell — say nothing
-  return res.data===null ? 'nomember' : 'ok';              // strict: undefined is not null here
+  if(!res || res.error) return 'unknown';                  // an error is not an answer
+  if(res.data===null) return 'nomember';                   // strict: undefined is not null here
+  return res.data===undefined ? 'unknown' : 'ok';
 }
 
 /* The wording carries three things, because all three are wrong guesses someone would otherwise
@@ -725,7 +731,17 @@ async function bootstrapSync(){
        reads all SUCCEED with zero rows, so nothing below would ever raise; and if something else
        did fail as well, "couldn't load your data" would be the wrong diagnosis for an account that
        has no data to load. Returning here leaves memory untouched and the gate covering the app. */
-    if(tenantGateState(_biz)==='nomember'){
+    var _tg=tenantGateState(_biz);
+    /* ⚠️ 'unknown' RESOLVES AGAINST WHAT IS ALREADY KNOWN, and getting this backwards restores the
+       whole defect. Found by the pre-push review, which traced it end to end: from an existing
+       non-member gate, a re-sync (`online`, or pull-to-refresh) whose tenant lookup ALONE fails
+       would fall open, and the four required reads would still succeed with `[]` — RLS filters
+       rows, it does not error — so nothing throws, every store is emptied, and `bootReady('ok')`
+       hides the gate. A silent empty app, reached by one flaky request out of twelve.
+       Only a definite uuid clears the latch; a definite null sets it; "could not tell" changes
+       nothing either way. */
+    if(_tg==='ok') _bootNoMember=false;
+    if(_tg==='nomember' || (_tg==='unknown' && _bootNoMember)){
       var _who=(_ses && _ses.data && _ses.data.session && _ses.data.session.user && _ses.data.session.user.email)||'';
       setSync('none');                                     // 185: nothing failed — see setSync
       bootReady('nomember', nonMemberMessage(_who));
