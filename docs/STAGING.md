@@ -83,6 +83,7 @@ Applies to every migration from now on. This is what `CLAUDE.md`'s *staging firs
 
 1. **Write the migration** in `supabase/migrations/`, with its one-statement rollback stated in the header.
 2. **Re-mirror staging** — run `01-schema.sql`. It is idempotent, and it guarantees you are rehearsing against today's production schema rather than last month's.
+   ⚠️ **If your migration replaces `restore_backup`, copy its WHOLE `create or replace` block into `01-schema.sql` section 6** — byte identical, not one hand-edited line. `functions_fp` hashes `pg_get_functiondef`, which includes the body's COMMENTS, so a mirror carrying the statements but not the comments makes this very step turn the drift detector red for a reason that is not drift. That was silently the case from 11 to 13 Aug 2026; `tests/semantic-keys.test.js` now pins the two blocks equal, because nothing else can notice.
 3. **Load a seed** that contains the case the migration is about. Empty, realistic or scale.
 4. **Apply the migration to staging.** Order the statements so the dangerous intermediate state cannot exist; keep the transaction as well.
 5. **Verify AS THE CLIENT** — see below. Not through the MCP.

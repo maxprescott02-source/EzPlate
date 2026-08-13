@@ -36,10 +36,44 @@ const MIRROR = fs.readFileSync(
   path.join(ROOT, 'supabase', 'staging', '01-schema.sql'), 'utf8');
 const SRC = loadApp();
 
-/** Strip `--` comments so a spelling in prose is never mistaken for a statement. */
+/**
+ * Strip `--` comments so a spelling in prose is never mistaken for a statement.
+ *
+ * ⚠️ QUOTE-AWARE, AND THAT IS NOT FUSSINESS — the naive `l.replace(/--.*$/,'')` version of this
+ * function ATE REAL CODE in the very file it is pointed at. The migration's own assertion contains
+ * the regex literal `'--[^\n]*'`, and the naive strip truncated that line to a bare quote. It was
+ * benign by luck: no assertion here depends on that line. Left in place it would have quietly
+ * mismeasured the next one added near it — which is 183(a) all over again, in the harness written
+ * to police 183(a). Found by the pre-push review.
+ *
+ * A `--` inside a single-quoted string is code, not a comment, so only cut when the quotes are
+ * balanced to that point. Doubled quotes ('') toggle twice and cancel, which is what we want.
+ */
 function code(sql) {
-  return sql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+  return sql.split('\n').map((line) => {
+    let inQuote = false;
+    for (let i = 0; i < line.length; i += 1) {
+      if (line[i] === "'") inQuote = !inQuote;
+      else if (!inQuote && line[i] === '-' && line[i + 1] === '-') return line.slice(0, i);
+    }
+    return line;
+  }).join('\n');
 }
+
+test('code() removes comments and does NOT eat quoted text that contains --', () => {
+  /* The stripper is the one piece of this file every other assertion runs through, so a silent
+     defect in it weakens all of them at once. Pinned against both directions, and against the
+     REAL line from the migration that the naive version destroyed. */
+  assert.equal(code("select 1; -- a comment"), 'select 1; ');
+  assert.equal(code("-- whole line"), '');
+  assert.equal(code("regexp_replace(src, '--[^\\n]*', '', 'g');"),
+    "regexp_replace(src, '--[^\\n]*', '', 'g');", 'a -- inside a string literal is CODE');
+  assert.equal(code("execute 'x'; -- note about -- dashes"), "execute 'x'; ");
+  // and the real line, read from the migration rather than retyped
+  const real = MIGRATION.split('\n').find((l) => l.includes("'--[^"));
+  assert.ok(real, 'the migration must still contain the regex this guards');
+  assert.equal(code(real), real, 'the migration line survives the stripper intact');
+});
 
 /** Every index of `re` in `s`. Used for all-before-all ordering, never one pair. */
 function positions(s, re) {
@@ -127,6 +161,24 @@ test('the mirror swaps the keys AFTER business_id exists, and is a no-op on a re
     'the key cannot name a column that does not exist yet');
   assert.ok(sql.includes('is distinct from format(\'PRIMARY KEY (business_id, %I)\', col)'),
     're-mirroring must be idempotent — an unguarded drop would take the composite key away');
+});
+
+test('the mirror\'s restore_backup is BYTE-IDENTICAL to the migration\'s', () => {
+  /* ⚠️ Not tidiness, and it was FALSE until 183. `functions_fp` — the mirror's only drift detector
+     — hashes `pg_get_functiondef`, which INCLUDES the body's comments. The mirror's copy carried
+     none of them, so re-running 01-schema.sql (step 2 of docs/STAGING.md's migration procedure,
+     and described there as idempotent) would have replaced the deployed function with a
+     comment-free body and turned that detector red for a reason that is not drift.
+     Nothing noticed for two days because the deployed function on both projects comes from the
+     MIGRATIONS, not from the mirror — so this test is the only thing that can notice. */
+  const grab = (text) => {
+    const a = text.indexOf('create or replace function public.restore_backup(payload jsonb)');
+    const b = text.indexOf('$fn$;', a);
+    assert.ok(a > -1 && b > a, 'both files must carry the function block');
+    return text.slice(a, b + '$fn$;'.length);
+  };
+  assert.equal(grab(MIRROR), grab(MIGRATION),
+    'the mirror must be the migration\'s text verbatim — copy the whole block, never hand-edit one line');
 });
 
 test('the mirror\'s restore_backup carries the composite conflict target too', () => {

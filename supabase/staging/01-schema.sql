@@ -552,9 +552,24 @@ grant usage, select on all sequences in schema public to anon, authenticated, se
 -- ---------------------------------------------------------------------------
 -- 6. THE RESTORE RPC
 --
--- Copied verbatim from production's pg_get_functiondef on 11 Aug 2026. Do not
--- hand-edit it here: if it drifts, staging stops rehearsing the thing that
--- actually runs. When a production migration changes it, re-copy the whole body.
+-- ⚠️ THIS IS THE NEWEST MIGRATION'S `create or replace` TEXT, COPIED MECHANICALLY
+-- — currently 20260813_semantic_keys.sql (183). Do not hand-edit it here: copy
+-- the whole block from the migration that last changed it, so the two are byte
+-- identical and a rebuilt staging stores identical function SOURCE.
+--
+-- THAT BYTE-IDENTITY IS LOAD-BEARING, and it was NOT true until 13 Aug 2026.
+-- This header used to say "copied verbatim from production's pg_get_functiondef
+-- on 11 Aug 2026", and the copy below carried **zero of the ~60 comment lines the
+-- real function has** — so it had never been verbatim, and nothing noticed
+-- because the deployed function on both projects came from the MIGRATIONS, not
+-- from this file. `pg_get_functiondef` returns comments, and `functions_fp`
+-- hashes `pg_get_functiondef`. So re-running this file — which is step 2 of
+-- docs/STAGING.md's migration procedure, described there as idempotent — would
+-- have REPLACED the deployed function with a comment-free body and turned the
+-- mirror's only drift detector red, for a reason that is not drift. A detector
+-- that is always red is one nobody reads.
+-- Found by the pre-push review of 183, which flagged the stale "verbatim" claim;
+-- the consequence above was the part underneath it.
 --
 -- It is SECURITY INVOKER (queue item "Gate review before public signup" requires
 -- it to stay that way), and its `delete ... where true` lines are LOAD-BEARING:
@@ -562,11 +577,12 @@ grant usage, select on all sequences in schema public to anon, authenticated, se
 -- `postgres`, so removing them would break the client while still passing here.
 -- ---------------------------------------------------------------------------
 create or replace function public.restore_backup(payload jsonb)
- returns jsonb
- language plpgsql
- set search_path to 'public'
- set statement_timeout to '30s'
-as $function$
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+set statement_timeout = '30s'
+as $fn$
 declare
   required text[] := array['ingredients','menus','plates','menu_items',
                            'supplier_phrases','ing_price_history','app_settings'];
@@ -574,27 +590,55 @@ declare
   fmt text := payload->>'format';
   n_ing int; n_mnu int; n_pla int; n_men int; n_spr int; n_ipl int; n_set int; n_chg int;
 begin
+  -- The stamp guard exists on BOTH sides on purpose. The client refuses a bad file with an explanation
+  -- the user can act on; this refuses anything that reaches the database without one, so a future caller
+  -- cannot skip the check by not knowing about it.
   if fmt is null or fmt not in ('2','3') then
     raise exception 'restore_backup: unsupported payload format %; only formats 2 and 3 are accepted',
       coalesce(fmt, '(none)');
   end if;
 
+  -- EVERY REPLACED GROUP MUST BE PRESENT AND BE AN ARRAY. A payload missing "ingredients" would
+  -- otherwise populate zero rows from a NULL while the DELETE below stood -- a silently emptied
+  -- catalogue, the "renders as real but isn't" failure. An EMPTY array is allowed through: zero menus is
+  -- a legitimate state (hard rule 7), and judging whether an empty group is plausible is the client's
+  -- job, where it can explain itself to the user.
+  -- menu_change_log is absent from this list by design -- see note 3 in the v3 header.
   foreach grp in array required loop
     if jsonb_typeof(payload->grp) is distinct from 'array' then
       raise exception 'restore_backup: group "%" is missing or is not an array', grp;
     end if;
   end loop;
 
+  -- A change-log group that is PRESENT must still be well-formed. Absent is fine; a string or an object
+  -- where an array belongs is a damaged file and saying so beats inserting nothing and reporting zero.
   if payload ? 'menu_change_log' and jsonb_typeof(payload->'menu_change_log') is distinct from 'array' then
     raise exception 'restore_backup: group "menu_change_log" is present but is not an array';
   end if;
 
+  -- DELETE ORDER IS FORCED BY A CIRCULAR FK, NOT CHOSEN.
+  -- menu_items.plate_id -> plates.id carries NO delete action, so deleting plates first raises 23503.
+  -- plates.menu_id -> menu_items.id is ON DELETE SET NULL and cannot be inserted before the dishes
+  -- exist. Dishes must go first. Do not "tidy" this order.
+  --
+  -- `where true` IS LOAD-BEARING -- DO NOT REMOVE IT AS REDUNDANT. Supabase preloads `safeupdate` for
+  -- the `authenticator` role, which rejects any DELETE with no WHERE clause; the `postgres` role does
+  -- NOT load it, so a bare DELETE works from the SQL editor and from the MCP and fails ONLY on the real
+  -- client path. That is exactly how v110 shipped green through every SQL test and failed on the first
+  -- browser call. Measured, not guessed: bare is blocked, `where true` passes, so safeupdate reads the
+  -- PARSE TREE rather than the plan and constant folding cannot reintroduce the problem.
   delete from menu_items where true;
   delete from plates where true;
   delete from menus where true;
   delete from ingredients where true;
   delete from supplier_phrases where true;
+  -- ing_price_history and menu_change_log are NOT deleted -- see the additive inserts below.
 
+  -- INSERT IN REFERENCE ORDER: products, then menus, then plates, then the dishes that reference both.
+  -- jsonb_populate_recordset(null::<table>, ...) yields exactly the table's column list in table order,
+  -- so `select *` stays correct if a column is added later. Absent JSON keys become NULL rather than the
+  -- column DEFAULT (verified, not assumed), which is why each insert is followed by a timestamp backfill
+  -- and why business_id is filled by a BEFORE INSERT trigger rather than by its DEFAULT.
   insert into ingredients select * from jsonb_populate_recordset(null::ingredients, payload->'ingredients');
   get diagnostics n_ing = row_count;
   update ingredients set updated_at = now() where updated_at is null;
@@ -603,10 +647,14 @@ begin
   get diagnostics n_mnu = row_count;
   update menus set created_at = now() where created_at is null;
 
+  -- plates.menu_id is legacy and unmapped by plateToRow, so restored plates carry NULL there. Nothing
+  -- reads it -- as of v112 plateIdOf does not look at plate.menuId at all -- and 0 of 78 rows still hold
+  -- a value. Stated rather than silently true.
   insert into plates select * from jsonb_populate_recordset(null::plates, payload->'plates');
   get diagnostics n_pla = row_count;
   update plates set updated_at = now() where updated_at is null;
 
+  -- menu_items.photo_url is likewise unmapped and restores as NULL. No code path reads it.
   insert into menu_items select * from jsonb_populate_recordset(null::menu_items, payload->'menu_items');
   get diagnostics n_men = row_count;
   update menu_items set updated_at = now() where updated_at is null;
@@ -615,6 +663,13 @@ begin
   get diagnostics n_spr = row_count;
   update supplier_phrases set updated_at = now() where updated_at is null;
 
+  -- ADDITIVE #1: ing_price_history. Append-only observations, and the export caps each product at 60
+  -- points, so a replace could only ever LOSE observations -- silently, in the series the movers card
+  -- reads. Columns are named here because a keyed merge requires it and because `id` is a nextval()
+  -- default that must NOT come from the payload. DISTINCT ON is not decoration: `not exists` dedupes
+  -- against rows already in the table, but cannot see duplicates WITHIN the payload, and two points
+  -- sharing a timestamp would now raise against ing_price_history_product_moment_key rather than
+  -- silently double-weight an observation. The ORDER BY makes the survivor deterministic.
   insert into ing_price_history (product_id, recorded_at, cost_per_base_unit)
   select distinct on (p.product_id, p.recorded_at)
          p.product_id, p.recorded_at, p.cost_per_base_unit
@@ -628,6 +683,25 @@ begin
    order by p.product_id, p.recorded_at, p.cost_per_base_unit;
   get diagnostics n_ipl = row_count;
 
+  -- ADDITIVE #2: menu_change_log. The conflict target is the entry's own client-generated id, so
+  -- re-running a restore inserts nothing the second time. No DISTINCT ON is needed either: `on conflict
+  -- do nothing` also absorbs duplicates WITHIN the payload, which is the case a unique-constraint merge
+  -- cannot handle on its own.
+  -- coalesce on the group, not a guard clause: a format-2 file has no such group and that is not an error.
+  --
+  -- ⚠️ THE WHERE CLAUSE AND THE NAMED COLUMNS ARE LOAD-BEARING, AND `select *` WAS WRONG HERE.
+  -- Absent JSON keys populate as NULL rather than as the column default (stated at the top of this
+  -- function, and the reason every insert above is followed by a timestamp backfill). id, recorded_at,
+  -- kind and menu_ids are all NOT NULL. So ONE malformed entry -- a hand-edited file, a foreign file, a
+  -- future client with a bug -- would raise a not-null violation and roll back the WHOLE transaction,
+  -- taking the products, plates, dishes and menus with it. This function argues that the change log
+  -- "can destroy exactly nothing because it is never deleted"; with `select *` it was the only group
+  -- able to veto a catalogue recovery. A log has no business doing that. Same filtering discipline as
+  -- ing_price_history above, for the same reason.
+  --
+  -- The conflict target here is UNTOUCHED by batch 183 and must stay that way: menu_change_log's primary
+  -- key is still `id` alone, and it does not need widening because those ids come from uid() (batch 173)
+  -- and are collision-proof across accounts by construction. Only the two CONTENT-derived keys moved.
   insert into menu_change_log (id, recorded_at, kind, plate_id, dish_id, menu_ids,
                                avg_before, avg_after, cost_before, cost_after, detail)
   select p.id, p.recorded_at, p.kind, p.plate_id, p.dish_id, coalesce(p.menu_ids, '{}'),
@@ -640,6 +714,17 @@ begin
   on conflict (id) do nothing;
   get diagnostics n_chg = row_count;
 
+  -- app_settings is UPSERTED, not replaced: the export carries only some of its keys, and the others
+  -- (last_invoice_import, the two AI toggles) are not this file's to destroy. Restore replaces the
+  -- datasets the export CONTAINS.
+  --
+  -- ⚠️ THE ONE LINE THAT DIFFERS FROM v3, AND IT IS FORCED, NOT TIDIED. The v3 arbiter was the bare
+  -- `key`, which stops existing once app_settings' primary key is (business_id, key) — Postgres would
+  -- raise 42P10 at RUNTIME, so the migration applies green and the first restore after it fails.
+  -- business_id is deliberately NOT in the insert column list: the trigger and the DEFAULT both fill it
+  -- with the CALLER'S tenant, which is what makes a restore land in the caller's own café and what makes
+  -- a file carrying another tenant's id fail `with check` instead of being silently adopted. Naming the
+  -- column here would move that decision into the payload, which is the one place it must never live.
   insert into app_settings (key, value, updated_at)
   select s.key, s.value, now()
     from jsonb_populate_recordset(null::app_settings, payload->'app_settings') s
@@ -647,6 +732,8 @@ begin
   on conflict (business_id, key) do update set value = excluded.value, updated_at = now();
   get diagnostics n_set = row_count;
 
+  -- Real counts, so the client reports what happened rather than what it hoped happened, and so the
+  -- tests can assert against the database rather than against the request.
   return jsonb_build_object(
     'ingredients',            n_ing,
     'menus',                  n_mnu,
@@ -658,7 +745,7 @@ begin
     'app_settings',           n_set
   );
 end;
-$function$;
+$fn$;
 
 grant execute on function public.restore_backup(jsonb) to anon, authenticated, service_role;
 
