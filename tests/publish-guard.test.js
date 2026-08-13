@@ -38,8 +38,16 @@ test('an unlinked row is found on its own menu, and only there', () => {
   assert.deepEqual(unlinkedDishesOn(dishes, 'MENU_WINTER').map(d => d.id), ['um2']);
 });
 
-test('a row with no menuId belongs to Original, matching every other resolver in the app', () => {
-  assert.deepEqual(unlinkedDishesOn([{ id: 'x', name: 'x' }], 'MENU_ORIGINAL').map(d => d.id), ['x']);
+/* 184 REVERSED THIS TEST, and it is rewritten rather than deleted because the old contract was real
+   and is worth being able to see. It read "a row with no menuId belongs to Original, matching every
+   other resolver in the app" — true, because every resolver spelled `(m.menuId||'MENU_ORIGINAL')`.
+   That fallback is gone: it named a menu row only Scoopy's has, so on any other cafe it silently
+   attributed an unmenued dish to a menu that does not exist. A dish is on a menu or on none, and
+   none is not a menu you can publish onto. Measured before changing it: 0 of 76 production rows
+   have a null menu_id, so nothing real moves. */
+test('184: a row with no menuId is on NO menu, so it is nobody’s unlinked row', () => {
+  assert.deepEqual(unlinkedDishesOn([{ id: 'x', name: 'x' }], 'MENU_ORIGINAL').map(d => d.id), []);
+  assert.deepEqual(unlinkedDishesOn([{ id: 'x', name: 'x' }], 'MENU_WINTER').map(d => d.id), []);
 });
 
 test('the legacy sourcePlateId link counts as linked — plateIdOf is the only resolver', () => {
@@ -145,6 +153,8 @@ function makeHarness(opts) {
       return els[id];
     }
     var document={ getElementById:function(id){ return el(id); } };
+    ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'unlinkedDishesOn')}
     ${extractFn(SRC, 'publishPlan')}
@@ -346,9 +356,15 @@ test('180: the same plate on a DIFFERENT menu does not count as already here', (
   assert.equal(plan.existingId, null);
 });
 
-test('180: a legacy row with no menuId at all is treated as Original', () => {
-  const legacy = { id: 'umL', name: 'Fish & Chips', plateId: 'SP1' };   // pre-menus row
-  assert.equal(publishPlan([legacy], 'SP1', 'MENU_ORIGINAL').action, 'update',
-    'the fallback is what stops a pre-menus row being duplicated on the menu it is already on');
-  assert.equal(publishPlan([legacy], 'SP1', 'MENU_WINTER').action, 'create');
+/* 184 REVERSED THIS ONE TOO — same reason as the unlinkedDishesOn pair above. It asserted that a row
+   with no menuId counts as already-on-Original, so re-publishing there UPDATED it. It cannot: a row on
+   no menu is not on the menu you are publishing to, and the old answer was only right for the one cafe
+   whose menu happens to be called MENU_ORIGINAL. `create` is the honest plan, and the new row carries a
+   real menu id while the orphan is left alone. */
+test('184: a row with no menuId at all is on no menu, so publishing anywhere CREATES', () => {
+  const orphan = { id: 'umL', name: 'Fish & Chips', plateId: 'SP1' };
+  assert.equal(publishPlan([orphan], 'SP1', 'MENU_ORIGINAL').action, 'create');
+  assert.equal(publishPlan([orphan], 'SP1', 'MENU_WINTER').action, 'create');
+  assert.equal(publishPlan([orphan], 'SP1', 'MENU_ORIGINAL').existingId, null,
+    'nothing is updated in place — the orphan is not the row being published');
 });

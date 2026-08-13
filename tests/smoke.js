@@ -67,7 +67,9 @@ const HYDRATE = '\n;productsById = ' + FIXTURE_PRODUCTS + ';\nrebuild();\n'
      is a legitimate zero-menu state and must not be re-seeded, so only bootstrapSync may decide
      to seed, and only when the table did not answer. smoke has no server, so it supplies what a
      loaded app would hold. */
-  + ";menusList = [{id:'MENU_ORIGINAL',name:'Original menu',season:null}];\n";
+  /* 184: the id here is a uid()-SHAPED literal, not 'MENU_ORIGINAL'. Nothing minted that name any
+     more, and leaving it would have read as "this is what the app produces" to the next person. */
+  + ";menusList = [{id:'MENU-smoke01',name:'Original menu',season:null}];\n";
 
 console.log('\n[1] app.js loads against the real markup');
 let loaded = false, loadErr = null;

@@ -35,6 +35,8 @@ function withState(MENU, menusList, cogsPct) {
     function costFromLines(lines){ return Number(lines) || 0; }
     function esc(s){ return (s==null?'':String(s)); }
     function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
+    ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
@@ -115,10 +117,16 @@ test('selecting a menu narrows to that menu only', () => {
   assert.notStrictEqual(app.avgFoodCostForScope('MENU_WINTER'), app.avgFoodCostForScope('all'));
 });
 
-test('a dish with no menuId counts as MENU_ORIGINAL (the app-wide default)', () => {
+/* 184 REVERSED THIS. It read "a dish with no menuId counts as MENU_ORIGINAL (the app-wide default)",
+   which was true of every scope filter in the app and wrong on every cafe but Scoopy's — 'MENU_ORIGINAL'
+   is a menu row nobody else has. A dish on no menu is now in NO menu's average, and still in the
+   all-menus figure, which is the one scope it genuinely belongs to. */
+test('184: a dish with no menuId is in no MENU scope, but still counts across all menus', () => {
   const MENU = [{ menuId: null, price: 10, plate: { lines: 3 } }];
   const app = withState(MENU, MENUS);
-  near(app.avgFoodCostForScope('MENU_ORIGINAL'), 30, 'a dish with no menuId');
+  assert.strictEqual(app.avgFoodCostForScope('MENU_ORIGINAL'), null, 'it is not on that menu');
+  assert.strictEqual(app.avgFoodCostForScope('MENU_WINTER'), null, 'nor on any other');
+  near(app.avgFoodCostForScope('all'), 30, 'all-menus still sees it — it is a real dish at a real price');
 });
 
 test('unpriced and uncosted dishes are excluded from every scope', () => {

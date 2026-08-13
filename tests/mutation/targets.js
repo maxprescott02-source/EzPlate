@@ -30,7 +30,10 @@ const targets = [
   { fn: 'publishPlan', tests: ['publish-guard.test.js'] },
   { fn: 'productRefs', tests: ['product-delete-guard.test.js'] },
   { fn: 'canDeleteMenu', tests: ['menu-fallback.test.js'] },
-  { fn: 'fallbackMenuId', tests: ['menu-fallback.test.js'] },
+  { fn: 'fallbackMenuId', tests: ['menu-fallback.test.js', 'menu-default.test.js'] },
+  // 184: the OTHER axis' resolver. menuIdOf answers which menu a dish is on, and it used to answer
+  // 'MENU_ORIGINAL' for a dish on none — a menu row only Scoopy's has. Twenty call sites read it.
+  { fn: 'menuIdOf', tests: ['menu-default.test.js'] },
 
   // ── The write sequence. Dispatching in the right order is not sequencing; a test that records
   //    call ORDER passes against the broken code, which is exactly what a mutant can prove. ──
@@ -39,10 +42,17 @@ const targets = [
   { fn: 'pushWrite', tests: ['push-write.test.js'] },
   { fn: 'dbPushMenuAfterPlate', tests: ['publish-guard.test.js', 'menu-plate-order.test.js', 'plates-independence.test.js'] },
   { fn: 'dbDeletePlateAfterDishes', tests: ['delete-sequencing.test.js'] },
+  // 184: the third sequenced write, and the newest. A cafe with no menu row cannot have a dish, so
+  // the menu insert must be CONFIRMED before the dish write is issued — menu_items.menu_id is a FK.
+  { fn: 'ensurePublishMenu', tests: ['menu-default.test.js'] },
+  { fn: 'withPublishMenu', tests: ['menu-default.test.js'] },
 
   // ── The row boundary. camelCase in memory, snake_case in the schema; getting it wrong once cost
   //    76 of 77 dishes with no error raised. ──
   { fn: 'rowToMenu', tests: ['row-boundary.test.js', 'plates-independence.test.js'] },
+  // 184: the WRITE half was the one that could raise 23503 — it fabricated a menu id out of a null
+  // and sent it to a foreign key column. Added the day that was fixed; it was never targeted before.
+  { fn: 'menuToRow', tests: ['row-boundary.test.js', 'plates-independence.test.js'] },
   { fn: 'plateToRow', tests: ['row-boundary.test.js', 'restore.test.js'] },
   { fn: 'parseBackupFile', tests: ['restore.test.js'] },
   { fn: 'backupToPayload', tests: ['restore.test.js'] },

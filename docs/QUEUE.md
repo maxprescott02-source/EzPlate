@@ -31,25 +31,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · `MENU_ORIGINAL` — the LAST semantic key  **[A — launch blocker]**
-
-⚠️ **REWRITTEN 13 Aug 2026 (183), which shipped three of the four keys as `ezplate-v159`. One is left and it is the one that could not use the same fix.**
-
-**What shipped (183), so nobody re-does it.** `20260813_semantic_keys.sql` widened the two CONTENT-derived primary keys — `app_settings` `(key)` → `(business_id, key)` and `supplier_phrases` `(id)` → `(business_id, id)` — and moved `restore_backup` to v4 in the same migration, because its `on conflict (key)` named an arbiter that stopped existing (42P10 at runtime, not at apply time). **`nextKid()`'s `K0001` ids were fixed by that without being touched**: they live inside the `kitchen_ingredients` `app_settings` blob, so they inherit that row's tenant. The client needed no change — PostgREST derives an upsert's conflict target from the table's primary key — and the two upserts now carry comments saying the ABSENCE of an `onConflict` is load-bearing.
-The item's stated fix for `supplier_phrases` was to prefix the tenant onto the id; that was **rewritten to a composite key** so the client still never learns which tenant it is, which is what 182 was careful to protect. Content-addressing is preserved within a café, so re-teaching a pack still updates one row.
-
-**What is LEFT.** `MENU_ORIGINAL`, seeded by `ensureDefaultMenu`. `menus.id` is a global primary key, so two cafés genuinely collide on it.
-
-**Why the composite-key trick does NOT transfer, measured against the live catalogue rather than assumed:** `menus.id` is referenced by **`menu_items.menu_id`** (ON DELETE SET NULL) and by **`plates.menu_id`** (legacy, read by nothing). Widening `menus`' key means composite foreign keys, which on Postgres 17.6 means `on delete set null (menu_id)` — the column-list form — or dropping the FK. That is a real design decision, not a mechanical repeat of 183.
-The other half is the client: the literal appears **27 times in `js/app.js`**, almost all as `(x.menuId||'MENU_ORIGINAL')`, spanning the Dashboard scope maths, the change log, `publishPlan` and the menu pickers. `fallbackMenuId()` already exists and is the shape to use, but it returns `null` when no menu exists, so every `||` site has to be re-judged rather than substituted.
-
-⚠️ **A SECOND DEFECT LIVES UNDER THE SAME LITERAL, and it is not the collision. Fix it here and answer it here — do not route it onward.**
-**`ensureDefaultMenu` seeds `menusList` IN MEMORY ONLY. Nothing ever pushes that row.** Production has a real `MENU_ORIGINAL` row in `menus` only because it predates the current code (verified live, 13 Aug 2026). So for a **brand-new café** the seeded menu does not exist server-side at all, and the first dish saved writes `menu_id='MENU_ORIGINAL'` against `menu_items_menu_id_fkey` → **23503, a foreign key violation on the very first save.** Whichever fix is chosen for the collision has to make the default menu a row that exists, or stop the first dish depending on one.
-
-Requirements: two cafés cannot collide on a menu id; a brand-new café can save its first dish; and the `MENU_ORIGINAL` fallbacks are replaced rather than left pointing at a menu a new café does not have.
-✅ Rehearsable on staging — `docs/STAGING.md` has the procedure, and `02-seed-empty.sql` produces the genuinely-zero state this item's second defect only appears in.
-
-## next  2 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
+## next  1 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
 
 ⚠️ **REWRITTEN 12 Aug 2026 (174). Email/password sign-in SHIPPED as `ezplate-v154`; three pieces are left and one of them is Max's.**
 
@@ -68,23 +50,25 @@ Requirements: two cafés cannot collide on a menu id; a brand-new café can save
 
 *(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182. The second bullet is now this item's own work and carries the empty-app hazard written into it above; the Google half still needs nothing but Max.)*
 
-## next  3 · Roles — owner vs staff  **[A — launch blocker]**
+## next  2 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
 *(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182.)* **Read `20260813_business_id_part2.sql` before starting:** all thirteen policies now read one function, `current_business_id()`, so a role check is added to that shape once rather than to thirteen policies — and `business_members` deliberately has NO `role` column yet, which is this item's to add.
 ⚠️ **Decide here whether one person may belong to TWO cafés, and answer it here — do not route it onward.** `business_members`' primary key is `(business_id, user_id)`, so today nothing forbids it, and `current_business_id()` resolves such a person to their OLDEST membership. That ordering was added by 182's pre-push review to stop the answer being planner-dependent — it makes the choice stable, **not correct**. If two cafés are allowed, the person has to be able to CHOOSE, and that choice needs somewhere to live that the client can set and the function can read; if they are not, add a unique constraint on `user_id` and the question is closed. Either way it stops being a silent arbitrary pick.
 
-## next  4 · Onboarding and empty states  **[A — launch blocker]**
+## next  3 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
 **Fix here, because it is only reachable at zero:** the zero-ingredients builder hint is an **UNSTYLED link** — `catalogueHintHtml()` in `js/app.js` emits `No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>`, and `css/style.css` has **no anchor colour rule anywhere**, so it renders browser-default blue: near-illegible on the dark surface, and wrong in light too. One rule fixes it. It is the first thing a brand-new café sees.
 ⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
-⚠️ **A brand-new café cannot save its first dish, measured 13 Aug 2026 (183).** `ensureDefaultMenu` seeds "Original menu" into `menusList` in memory and **nothing ever writes that row to `menus`** — production only has one because it predates the code. So the first dish save writes `menu_id='MENU_ORIGINAL'` against `menu_items_menu_id_fkey` and raises **23503**. It is the same defect the `MENU_ORIGINAL` item carries and it is stated in both because it is a fact, not a pointer: whichever of the two runs first fixes it, and the other then finds it already true.
+✅ **"A brand-new café cannot save its first dish" is FIXED — batch 184 shipped it as `ezplate-v160`**, and this paragraph is kept rather than deleted because it was stated in two items on purpose ("whichever runs first fixes it, and the other then finds it already true"). This is that sentence being honoured.
+`ensurePublishMenu` now creates "Original menu" as a REAL row, confirmed before the dish write is issued, at the point of first need — so the zero state is publishable. Two things a batch working here still needs to know: **the id is minted (`uid('MENU')`), never the old `MENU_ORIGINAL` literal**, which is gone from `js/app.js` entirely and pinned absent by `tests/unique-ids.test.js`; and **zero menus is still a legitimate state at BOOT** (hard rule 7) — nothing seeds on load, which is what makes the deleted-every-menu case survive a reload.
+⚠️ **What 184 did NOT do, and it is this item's:** the builder's "Add to a menu" dead-ends at zero with *"No menus yet — create one on the Menu tab first"*, while the Menu tab's own **Existing plate** button now silently makes one for you. Neither is wrong; they disagree, and a new café meets the discouraging one first. That is an empty-state decision, not a data one.
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  5 · The privacy gate  **[A — launch blocker]**
+## next  4 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -92,19 +76,19 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  6 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  5 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  7 · Gate review before public signup  **[A — launch blocker]**
+## next  6 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them. *(`business_id` PART 2 struck from this line 13 Aug 2026 — shipped in batch 182.)*
 ⚠️ **One line of this item is now ANSWERED and one is now SHARPER.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that means it is tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. **The anon-key exposure is the opposite:** it is now the LAST permissive read in the database, because `current_business_id()` answers the seeded business for any caller with no JWT. Every other tenant is already isolated from it; Scoopy's is not. Closing it is the auth item's one-function change, and this review is where it gets signed off.
 
-## next  8a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  7a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -139,9 +123,9 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  8b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  7b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered FOUR times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, and to 8a in 182 when the policy swap shipped. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered FIVE times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, and to 7a in 184 when `MENU_ORIGINAL` did. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
 ⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
@@ -159,7 +143,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  9 · Floating layers and mobile dropdowns  **[B]**
+## next  8 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.

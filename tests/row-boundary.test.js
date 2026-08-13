@@ -65,12 +65,51 @@ test('menu_items round-trips row -> model -> row with every link intact', () => 
   assert.strictEqual(back.plate_id, 'PL3', 'plate_id must survive — this is the link the audit found broken');
   assert.strictEqual(back.is_custom, true);
   assert.strictEqual(back.name, 'Cod & Chips');
+  assert.strictEqual(back.notes, 'gf', 'notes survive too — see the note below on why this line is here');
 });
 
-test('a dish with no menu_id falls back to MENU_ORIGINAL, not undefined', () => {
+/* 184 added the two assertions below, and they are here because the MUTATION GATE found the gaps, not
+   because anyone read the code and spotted them. `menuToRow` became a gate target the day its menu_id
+   fallback was fixed, and its first run reported two survivors — two lines that could be broken with
+   row-boundary.test.js, the file named as pinning them, staying green:
+
+   - `pid=(item.plateId||item.sourcePlateId||null)` flipped to `&&` yields null whenever a dish carries
+     the canonical plateId and no legacy sourcePlateId, which is EVERY dish written since v55. That is
+     the write side of the exact failure that once cost 76 of 77 dishes: every row present, no plate
+     link, no error raised.
+   - `notes:item.notes||null` flipped to `&&` silently drops every note.
+
+   The round trip above used only rows where plateId and sourcePlateId were the SAME value, so the
+   fallback could not be distinguished from the primary. That is the shape to watch for: a fixture
+   whose fields agree cannot tell you which one the code read. */
+test('184: the plate link survives when only the CANONICAL plateId is set (v55 shape)', () => {
+  const modern = B.menuToRow({ id: 'MI8', name: 'x', price: 1, menuId: 'MENU-w', plateId: 'PL9' });
+  assert.strictEqual(modern.plate_id, 'PL9', 'a dish with no legacy sourcePlateId must still keep its link');
+  assert.strictEqual(modern.source_plate_id, 'PL9', 'and the legacy column mirrors it, as v55 rolled out');
+
+  const legacyOnly = B.menuToRow({ id: 'MI9', name: 'x', price: 1, menuId: 'MENU-w', sourcePlateId: 'PL7' });
+  assert.strictEqual(legacyOnly.plate_id, 'PL7', 'the legacy field is the FALLBACK, and must still resolve');
+
+  const unlinked = B.menuToRow({ id: 'MI10', name: 'x', price: 1, menuId: 'MENU-w' });
+  assert.strictEqual(unlinked.plate_id, null, 'an unlinked row is null, never undefined');
+});
+
+test('184: notes survive the write, and their absence is null rather than undefined', () => {
+  assert.strictEqual(B.menuToRow({ id: 'M', name: 'x', price: 1, notes: 'no onion' }).notes, 'no onion');
+  assert.strictEqual(B.menuToRow({ id: 'M', name: 'x', price: 1 }).notes, null);
+  assert.strictEqual(B.menuToRow({ id: 'M', name: 'x', price: 1, notes: '' }).notes, null, 'blank is not a note');
+});
+
+/* 184: this pinned the OPPOSITE — "falls back to MENU_ORIGINAL, not undefined" — and the write half of
+   that fallback was a foreign key violation waiting for a second cafe. menu_items.menu_id references
+   menus(id); 'MENU_ORIGINAL' is a row only Scoopy's has, so the round trip below used to MINT a
+   reference to another tenant's menu out of a null. The boundary's job is to translate, not to invent:
+   null in, null out, in both directions. `undefined` is still forbidden — a row must never carry it. */
+test('184: a dish with no menu_id maps to null in BOTH directions, and never undefined', () => {
   const model = B.rowToMenu({ id: 'MI1', name: 'x', price: 1, menu_id: null, plate_id: null });
-  assert.strictEqual(model.menuId, 'MENU_ORIGINAL');
-  assert.strictEqual(B.menuToRow(model).menu_id, 'MENU_ORIGINAL');
+  assert.strictEqual(model.menuId, null);
+  assert.strictEqual(B.menuToRow(model).menu_id, null);
+  assert.ok('menu_id' in B.menuToRow(model), 'the column is still named — null is a value, not an omission');
 });
 
 /* ---------- 2. the structural guard: no camelCase may reach a row ---------- */

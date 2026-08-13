@@ -111,10 +111,19 @@ try{ envFence(window.localStorage, window.SUPA_REF); }catch(e){}
 
    ⚠️ THIS DOES NOT COVER SEMANTIC KEYS, and it must not be extended to them: the nine
    `app_settings` keys, `supplier_phrases.id` (deliberately content-derived, so that
-   re-teaching a pack UPDATES one row instead of duplicating it), the `K0001` kitchen
-   ids and `MENU_ORIGINAL`. Those are NAMES the code looks things up by, not surrogate
-   ids, and randomising them breaks the lookup rather than fixing anything. They need
-   tenant scoping, which is the `business_id` item's job. See docs/QUEUE.md. */
+   re-teaching a pack UPDATES one row instead of duplicating it) and the `K0001` kitchen
+   ids. Those are NAMES the code looks things up by, not surrogate ids, and randomising
+   them breaks the lookup rather than fixing anything. They are tenant-scoped instead —
+   183 widened the first two primary keys to (business_id, …) and the kitchen ids inherit
+   the tenant of the app_settings row they live inside.
+
+   184 REMOVED THE FOURTH, and the exception is worth stating because it reads as a
+   contradiction of the paragraph above. `MENU_ORIGINAL` was on this list and is now
+   minted by uid() like any other menu id. It was never a name anything looked things
+   UP by — it was a name things fell back TO, in twenty `(m.menuId||'MENU_ORIGINAL')`
+   spellings, one of which wrote it to a foreign key column. Nothing resolved a lookup
+   through it, so randomising it broke no lookup. The test above is whether the literal
+   is READ as a key or merely WRITTEN as a default; only the first kind belongs here. */
 var _uidSeq = 0;
 function uidRandom(n){                                       // n base-36 characters of real entropy
   var out = '';
@@ -334,12 +343,20 @@ function rowToIngredient(r){ return {
 /* --- dishes / menu items (table `menu_items`) — the case-crossing one --- */
 // v55: a dish links to its plate via menu_items.plate_id (canonical). source_plate_id is legacy — still
 // READ as a fallback for rows not yet migrated, never relied on as the primary link.
-function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||'MENU_ORIGINAL'), plateId:(r.plate_id||r.source_plate_id||null), sourcePlateId:(r.source_plate_id||null)}; }
+/* 184: BOTH DIRECTIONS USED TO FABRICATE A MENU ID — `(… || 'MENU_ORIGINAL')` — and the write half was
+   a foreign key violation waiting for a second cafe. menu_items.menu_id REFERENCES menus(id), and
+   'MENU_ORIGINAL' is a row only Scoopy's has (it predates the code that seeds it; nothing has ever
+   pushed one). So for a brand-new cafe the first dish save raised 23503, and after 182's policies the
+   nastier case appeared: FK validation runs as the constraint owner and BYPASSES RLS, so the write can
+   succeed against Scoopy's menu row while the cafe that made it cannot read that row — a dish saved and
+   invisible forever, with no error anywhere.
+   A null menu_id is a legitimate column value. A fabricated id is not, in either direction. */
+function rowToMenu(r){ return {id:r.id, section:r.section, name:r.name, price:r.price, notes:r.notes||'', custom:!!r.is_custom, menuId:(r.menu_id||null), plateId:(r.plate_id||r.source_plate_id||null), sourcePlateId:(r.source_plate_id||null)}; }
 /* v108: extracted verbatim from dbPushMenu's inline object literal. Same values, same plate_id/
    source_plate_id mirroring (v55 rollout) — the point is that the column names now appear once. */
 function menuToRow(item){ var pid=(item.plateId||item.sourcePlateId||null); return {
   id:item.id, section:item.section, name:item.name, price:item.price, notes:item.notes||null,
-  is_custom:true, menu_id:(item.menuId||'MENU_ORIGINAL'), plate_id:pid, source_plate_id:pid }; }
+  is_custom:true, menu_id:(item.menuId||null), plate_id:pid, source_plate_id:pid }; }
 
 /* --- plates (table `plates`) --- */
 // v55: plates.menu_id is legacy (a plate no longer belongs to one dish). Not read into the model anymore.
@@ -1139,7 +1156,7 @@ function setDishSellPrice(dishId, price){
   var was=(m.price==null)?null:Number(m.price);
   if(was!=null && Math.abs(was-price)<0.005) return false;
   var avgBefore=computeAvgFoodCost();
-  var mid=(m.menuId||'MENU_ORIGINAL'), plateId=(m.plateId||m.sourcePlateId||null);
+  var mid=menuIdOf(m), plateId=(m.plateId||m.sourcePlateId||null);
   // every MENU row is built from customMenu (see rebuildMenu), so `custom:true` is not a guess —
   // it is what saveMenuEdit writes for every dish, for the same reason.
   var write=upsertCustomMenu({id:dishId, section:m.section, name:m.name, price:price,
@@ -1455,16 +1472,91 @@ var menusList=[];
 /* Seeds "Original menu" ONLY when the caller has established there is no server answer to respect.
    The caller decides; this function must never guess, because an empty menus table and a fresh
    install are indistinguishable from in here — and they mean opposite things. */
-function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:'MENU_ORIGINAL',name:'Original menu',season:null}); }
+/* 184: the seeded id is MINTED, not a literal. It was 'MENU_ORIGINAL' — a NAME two cafes both answer
+   to, on a table whose id is a global primary key. Every menu a user creates has always carried a
+   random uid('MENU') (see submitNewMenu), so the hard-coded seed was the only value that could ever
+   collide, and minting it closes that with no schema change and no composite foreign key.
+   Scoopy's existing row KEEPS its 'MENU_ORIGINAL' id — it is a valid value, and rewriting it would
+   mean chasing every reference for nothing, which is the same trade the uid() header declines. */
+var DEFAULT_MENU_NAME='Original menu';                              // 184: named once — ensureDefaultMenu, ensurePublishMenu and the Add-dish label must all promise the same thing
+function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:uid('MENU'),name:DEFAULT_MENU_NAME,season:null}); }
 function fallbackMenuId(){                                          // v54: never a deleted id; null when no menu exists (a valid zero-menu state)
-  if(menusList.some(function(m){return m.id==='MENU_ORIGINAL';})) return 'MENU_ORIGINAL';
-  return (menusList[0] && menusList[0].id) || null;
+  return (menusList[0] && menusList[0].id) || null;                 // 184: the 'MENU_ORIGINAL'-first preference is gone with the literal
 }
 function canDeleteMenu(id){ return menusList.some(function(m){return m.id===id;}); }   // v54: any existing menu may be deleted — deleting the last one is legitimate now
-function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||'MENU_ORIGINAL'; }catch(e){ return 'MENU_ORIGINAL'; } }
+function loadCurrentMenuId(){ try{ return localStorage.getItem('cafeDB_currentMenuId')||null; }catch(e){ return null; } }
 var currentMenuId=loadCurrentMenuId();
 function setCurrentMenuId(id){ currentMenuId=id||null; try{ localStorage.setItem('cafeDB_currentMenuId', currentMenuId||''); }catch(e){} }   // v54: null is valid (no menus)
-function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
+/* 184: returns '' rather than 'Original menu' for an id no menu answers to. The old default was a
+   guess dressed as a fact — on a cafe with no menu called that, every caller printed a name nothing
+   on screen matched. All four callers run against the current menu, which ensurePublishMenu now
+   guarantees exists before anything is published. */
+function menuNameById(id){ var m=menusList.find(function(x){return x.id===id;}); return m?m.name:''; }
+/* 184: the ONE resolution path for "which menu is this dish on", the same shape as plateIdOf for the
+   other axis. Twenty call sites used to spell it `menuIdOf(m)`, which quietly asserted
+   that a dish with no menu is on Scoopy's. It answers null instead: a dish belongs to a menu or to
+   none, and none is a state the per-menu views must exclude rather than reassign. */
+function menuIdOf(m){ return (m && m.menuId) || null; }
+/* 184, from the pre-push review — and the review found ONE site, this comment is the other half.
+   "Is this dish on that menu" cannot be written as a bare `menuIdOf(m)===menuId`, because BOTH sides
+   can now be null and `null===null` is true: an orphaned dish would read as being on the no-menu, at
+   exactly the moment (zero menus) the screen is supposed to be empty. The old spelling could not do
+   this by construction — its left side was always the truthy string 'MENU_ORIGINAL' — so removing the
+   fallback INTRODUCED the hazard, which is the thing to watch for when a default becomes a null.
+   One named comparison, so the guard cannot be forgotten at the next call site. */
+function dishOnMenu(m, menuId){ var mid=menuIdOf(m); return !!mid && mid===menuId; }
+/* 184 — THE SECOND DEFECT under the same literal, and it is not the collision.
+   `ensureDefaultMenu` seeds menusList IN MEMORY and nothing has ever pushed that row. Worse, for a
+   brand-new cafe it is not even CALLED: bootstrapSync only seeds when the menus table did not answer
+   at all, and an empty table answers fine. So a new cafe reaches the Publish button with menusList
+   empty, and the dish it saves references a menu row that does not exist.
+
+   Zero menus stays a legitimate state and boot still respects it (hard rule 7). This seeds at the
+   point of first NEED instead — the only moment at which the two indistinguishable zero states, a
+   brand-new cafe and a user who deleted everything, want the same answer: you are putting a plate on
+   a menu, so there has to be a menu.
+
+   SEQUENCED, not merely ordered — the same law as dbPushMenuAfterPlate. The menu insert must be
+   CONFIRMED before the dish write is issued, because menu_items.menu_id references menus(id) and
+   commit order is otherwise arbitrary. Resolving to null means DO NOT WRITE THE DISH; pushWrite has
+   already toasted the real error, and the caller says so in the modal rather than saving a dish onto
+   nothing.
+
+   Memoised on the in-flight promise so a double-tap cannot create two menus. Cleared on both settle
+   paths so a failed attempt can be retried. */
+var _ensureMenuInFlight=null;
+function ensurePublishMenu(){
+  if(menusList.length) return Promise.resolve(currentMenuId||fallbackMenuId());
+  if(_ensureMenuInFlight) return _ensureMenuInFlight;
+  var rec={id:uid('MENU'), name:DEFAULT_MENU_NAME, season:null};
+  _ensureMenuInFlight=Promise.resolve(dbUpsertMenuRecord(rec)).then(function(res){
+    _ensureMenuInFlight=null;
+    // pushWrite resolves to the result or {error} and never to null (CLAUDE.md) — the !res arm is
+    // belt and braces, not a contract this relies on.
+    if(!res || res.error) return null;
+    menusList.push(rec); setCurrentMenuId(rec.id); buildMenuSelector();
+    return rec.id;
+  }, function(){ _ensureMenuInFlight=null; return null; });
+  return _ensureMenuInFlight;
+}
+/* The gate sits at the two Publish buttons rather than inside their handlers, because those handlers
+   are extracted and driven SYNCHRONOUSLY by tests/publish-guard.test.js and tests/change-log.test.js —
+   making them async would make every one of those assertions race its own subject. The handlers each
+   REFUSE a falsy menu as well, so the safety does not live in the wiring alone. */
+function withPublishMenu(errBoxId, fn){
+  /* The `menusList.length` test is deliberately in BOTH this function and ensurePublishMenu, and the
+     pre-push review was right that it makes ensurePublishMenu's first branch unreachable from the app.
+     Kept anyway, for two different jobs: here it keeps the common path SYNCHRONOUS (see below), and
+     there it keeps ensurePublishMenu total, so a future caller reaching it directly gets the menu id
+     rather than a second menu. What menusList.length is trusted to MEAN — only menus the server has —
+     is enforced by submitNewMenu putting back anything the server refused. */
+  if(menusList.length) return fn();
+  return ensurePublishMenu().then(function(id){
+    if(id) return fn();
+    var e=document.getElementById(errBoxId);
+    if(e){ e.textContent='Couldn’t create a menu to add this to, so nothing was saved. Check your connection and try again.'; e.style.display='block'; }
+  });
+}
 let MENU=[],menuById={};
 /* v108: the BASE_MENU seed layer is gone — same shape of change as rebuild(). Dishes come from
    `menu_items` alone, so there is one layer and the Object.assign merge onto a built-in has nothing
@@ -1729,7 +1821,9 @@ function plateIdOf(d){ if(!d) return null;
 }
 function plateForMenuItem(m){ if(!m) return null; var pid=plateIdOf(m); return pid?(savedPlates.find(function(s){return s.id===pid;})||null):null; }
 function dishesOfPlate(sp){ if(!sp) return []; return MENU.filter(function(d){ return plateIdOf(d)===sp.id; }); }   // every menu entry backed by this plate
-function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(function(d){ var mid=d.menuId||'MENU_ORIGINAL'; if(seen[mid])return; seen[mid]=1; var m=menusList.find(function(x){return x.id===mid;}); if(m) out.push({menuId:m.id, name:m.name, dishId:d.id, price:d.price, section:d.section}); }); return out; }
+// 184: a dish on no menu is skipped outright. It used to resolve to 'MENU_ORIGINAL' and then fail the
+// menusList lookup anyway on any cafe without that row — same result, by accident rather than by rule.
+function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(function(d){ var mid=menuIdOf(d); if(!mid||seen[mid])return; seen[mid]=1; var m=menusList.find(function(x){return x.id===mid;}); if(m) out.push({menuId:m.id, name:m.name, dishId:d.id, price:d.price, section:d.section}); }); return out; }
 /* v113 — THE PUBLISH GUARD'S BLIND SPOT. "One entry per (plate, menu)" was decided by dishesOfPlate,
    which resolves through plateIdOf — so a dish with NO plate link is invisible to it. Publishing the very
    plate an orphaned dish should have been using could not heal it; it silently added a SECOND row of the
@@ -1741,13 +1835,13 @@ function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(functio
    plate, and the v112 repair needed the section, the price and the price history in front of a human
    before the call could be made. The app surfaces the choice; it does not make it. */
 function unlinkedDishesOn(dishes, menuId){
-  return (dishes||[]).filter(function(d){ return d && !plateIdOf(d) && (d.menuId||'MENU_ORIGINAL')===menuId; });
+  return (dishes||[]).filter(function(d){ return d && !plateIdOf(d) && dishOnMenu(d, menuId); });
 }
 function publishPlan(dishes, plateId, menuId){
   // The `plateId ?` is load-bearing: plateIdOf(an unlinked row) is null, so a bare `===plateId`
   // comparison against a null id would read that row as "this plate is already here" and quietly
   // update it — an auto-heal by accident, which is the one thing this was decided against.
-  var existing=plateId ? (dishes||[]).find(function(d){ return d && plateIdOf(d)===plateId && (d.menuId||'MENU_ORIGINAL')===menuId; }) : null;
+  var existing=plateId ? (dishes||[]).find(function(d){ return d && plateIdOf(d)===plateId && dishOnMenu(d, menuId); }) : null;
   if(existing) return {action:'update', existingId:existing.id, unlinked:[]};   // already on this menu — updating it duplicates nothing, so there is nothing to ask
   return {action:'create', existingId:null, unlinked:unlinkedDishesOn(dishes, menuId)};
 }
@@ -2442,7 +2536,7 @@ function avgFoodCostForScope(scope){
   var vals=[];
   MENU.forEach(function(m){
     if(!(m.price>0)) return;
-    if(scope && scope!==DASH_ALL && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+    if(scope && scope!==DASH_ALL && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);                                        // the ONLY sanctioned resolution path (rule 6)
     if(!sp) return;
     var c=costFromLines(sp.lines);
@@ -4165,7 +4259,7 @@ function digData(kind, scope){
   if(kind==='foodcost'){
     MENU.forEach(function(m){
       if(!(m.price>0)) return;
-      if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+      if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp) return;
       var c=costFromLines(sp.lines); if(!(c>0)) return;
       rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%', light:analyze(c, m.price).light});
@@ -4178,7 +4272,7 @@ function digData(kind, scope){
     // narrows it to the plates published there. Deduped by plate: one plate on two menus is one row.
     var seen={};
     MENU.forEach(function(m){
-      if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+      if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp || seen[sp.id]) return;
       var c=costFromLines(sp.lines); if(!(c>0)) return;
       seen[sp.id]=1;
@@ -4772,7 +4866,7 @@ function computeInsights(scope, seed){
   try{
     (typeof MENU!=='undefined'?MENU:[]).forEach(function(m){
       if(!m || !(m.price>0)) return;
-      if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+      if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m);
       var cost=sp?costFromLines(sp.lines):0;
       if(!sp || !(cost>0)) return;                                   // a priced dish with no plate / no cost has no margin read
@@ -5315,7 +5409,7 @@ function kpiStripHtml(scope, cmp){
   if(pct==null) return '';
   var over=0, costed=0, unready=0;
   MENU.forEach(function(m){
-    if(!isAll && (m.menuId||'MENU_ORIGINAL')!==scope) return;
+    if(!isAll && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);
     var c=sp?costFromLines(sp.lines):0;
     // "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
@@ -5560,7 +5654,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v159';
+var APP_VERSION='v160';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -5890,6 +5984,25 @@ function buildBackup(){
          parseBackupFile accepts 2 and 3, and a format-2 file simply carries no change log, because
          none existed when it was written. That is a true statement about the file, not a guess about
          it — the distinction rule 9 exists to protect. */
+      /* 184 CONSIDERED BUMPING THIS AND DELIBERATELY DID NOT. Say so here, because rule 9 reads as
+         absolute and a silent decision against it is indistinguishable from having missed it.
+         `rowToMenu` changed: a dish whose `menu_id` is NULL now lands in memory as `menuId:null`
+         instead of `menuId:'MENU_ORIGINAL'`, and that is by the letter a change to what
+         bootstrapSync puts in memory. Three reasons it is not a change to the FILE's format:
+           - no group was added, removed or renamed, and no key changed type. The rule's own words
+             are "`format` tells a restore which shape it holds", and the shape is identical.
+           - the reader treats both values the same. backupToPayload goes through menuToRow, which
+             now passes a string through and a null through; a format-3 file's 'MENU_ORIGINAL'
+             restores as 'MENU_ORIGINAL' exactly as it always did.
+           - the precedent below is `format:chg.length?3:2` — this project already treats the number
+             as WHAT THE PAYLOAD CONTAINS, not which build wrote it. Measured against production,
+             0 of 76 dishes carry a null menu_id, so a Scoopy's export is byte-identical to a
+             format-3 one. Calling it 3 is a true statement about the file.
+         THE CASE THIS ACCEPTS, stated so nobody has to rediscover it: a café that somehow holds an
+         orphan dish, exporting on v160 and restoring on a build older than v160, would have that
+         dish's null read back as 'MENU_ORIGINAL'. Nothing can create such a dish after this batch,
+         and none exist. ⚠️ Format 4 is RESERVED by the backup-history queue item, which needs it for
+         three real new groups; spending it on a field value would have taken it for nothing. */
       format:3,                                                       // shape of this file, not the app
       app_version:APP_VERSION
     },
@@ -6932,7 +7045,7 @@ function renderManageMenus(){
 }
 function mmRemove(dishId){
   var m=menuById[dishId]; if(!m) return;
-  var avgBefore=computeAvgFoodCost(), plateId=plateIdOf(m), mid=(m.menuId||'MENU_ORIGINAL'), nm=m.name;
+  var avgBefore=computeAvgFoodCost(), plateId=plateIdOf(m), mid=menuIdOf(m), nm=m.name;
   var write=removeMenuItem(dishId);
   rebuildMenu(); buildMenuOptions(); buildMenuSelector(); renderAnalysis(); renderPlatesTab(); renderManageMenus();
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:dishId, menuIds:[mid], avgBefore:avgBefore,
@@ -7107,12 +7220,17 @@ function linkDishToPlate(dish, sp){
   if(i>=0) customMenu[i]=item; else customMenu.push(item);
   var write=dbPushMenuAfterPlate(item, sp);
   rebuildMenu(); buildMenuOptions();
-  logChangeIfSaved(write, 'dish_linked', {plateId:sp.id, dishId:item.id, menuIds:[item.menuId||'MENU_ORIGINAL'],
+  // 184: changeEntry drops falsy ids from menuIds, so an unmenued dish logs an empty list rather than a
+  // menu it is not on. That is the honest record — the link happened, it just moved no menu.
+  logChangeIfSaved(write, 'dish_linked', {plateId:sp.id, dishId:item.id, menuIds:[menuIdOf(item)],
     avgBefore:avgBefore, costAfter:costFromLines(sp.lines), detail:{name:item.name||null, price:item.price, plate:sp.name||null}});
   // Follow the menu we just acted on, exactly as submitMenuItem does. The Publish modal can target a
   // menu other than the one on screen, so without this the user links a row and is left looking at a
   // different menu, with nothing visibly changed. (CodeRabbit, v113.)
-  setCurrentMenuId(item.menuId||'MENU_ORIGINAL'); buildMenuSelector();
+  // 184: only FOLLOW a menu the dish actually has. Following null would blank the selector and leave
+  // the user on no menu at all, which is worse than staying where they were.
+  if(menuIdOf(item)) setCurrentMenuId(menuIdOf(item));
+  buildMenuSelector();
   logHistory();                                                   // the dish now has a cost — the menu average and its price log move
   renderAnalysis(); renderPlatesTab();
   // openPublishModal is often reached FROM Manage menus, which would otherwise sit behind this showing
@@ -7139,6 +7257,10 @@ function submitMenuItem(){
   var miMenuEl=document.getElementById('mi_menu'); var chosenMenu=(miMenuEl&&miMenuEl.value)?miMenuEl.value:currentMenuId;
   if(!name){err.textContent='Enter a menu item name.';err.style.display='block';return;}
   if(priceV===''||isNaN(parseFloat(priceV))||parseFloat(priceV)<0){err.textContent='Enter a valid sell price.';err.style.display='block';return;}
+  /* 184: refuse rather than write a dish onto no menu. The button is wired through withPublishMenu,
+     which creates one first, so this arm is only reached by a caller that bypassed it — and the thing
+     it prevents is silent: menu_id null saves cleanly and the dish then renders on no menu at all. */
+  if(!chosenMenu){err.textContent='There’s no menu to add this to yet — create one first.';err.style.display='block';return;}
   // one entry per (plate, menu): re-adding to a menu it's already on updates that entry rather than duplicating.
   var plan=publishPlan(MENU, sp.id, chosenMenu);                   // v113: shared with submitAddDish — see publishPlan
   var targetId=plan.existingId||uid('um');
@@ -8879,7 +9001,7 @@ function renderAnalysis(){
   var catSel=(document.getElementById('menuCatFilter')||{}).value||'';   // v59: category filter = dish section
   function hit(nm,sec){ if(!toks.length) return true; return matchTokens(toks,(String(nm||'')+' '+String(sec||'')).toLowerCase()); }
   var shown=0;
-  var inMenu=function(m){ return (m.menuId||'MENU_ORIGINAL')===currentMenuId; };   // only show dishes belonging to the selected menu
+  var inMenu=function(m){ return dishOnMenu(m, currentMenuId); };   // only show dishes belonging to the selected menu
   var secOf=function(m){var s=(m.section||'').trim(); return s?s:'Uncategorised';};
   var sections=[]; MENU.forEach(function(m){ if(!inMenu(m)) return; var s=secOf(m); if(sections.indexOf(s)<0)sections.push(s);});
   sections.sort(function(a,b){
@@ -9019,7 +9141,7 @@ function dbDeleteMenuRecord(id){ return pushWrite(function(){ return SUPA.from('
 // so every plate survives in the Plates library, just unpublished. No reassignment, no holding area. Dishes go
 // first, then the menu row (dishes already gone, so the menu_items.menu_id FK can never be violated).
 function doDeleteMenu(id, name){
-  var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
+  var affected=customMenu.filter(function(c){return dishOnMenu(c, id);});
   var avgBefore=computeAvgFoodCost();                               // v114: before anything comes off the menu
   affected.forEach(function(c){ removeMenuItem(c.id); });           // v55: remove only THIS menu's entries; plates (and any other menus they're on) survive
   menusList=menusList.filter(function(x){return x.id!==id;});
@@ -9041,7 +9163,7 @@ function deleteCurrentMenu(){
   var id=currentMenuId;
   if(!canDeleteMenu(id)){ toast('This menu can\u2019t be deleted'); return; }
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
-  var affected=customMenu.filter(function(c){return (c.menuId||'MENU_ORIGINAL')===id;});
+  var affected=customMenu.filter(function(c){return dishOnMenu(c, id);});
   var nm=m.name;
   var msg=affected.length
     ? ('Delete \u201c'+m.name+'\u201d? Its '+affected.length+' plate'+(affected.length===1?'':'s')+' come off this menu \u2014 the plates stay in your library (and on any other menus).')
@@ -9082,7 +9204,9 @@ function renderAddDishUnlinked(){
 function menuNameForPlate(sp){ return plateMenuSummary(sp)||(sp.name||''); }
 function openAddDishModal(){
   adSelectedPlateId=null;
-  var nm=document.getElementById('ad_menuName'); if(nm) nm.textContent=menuNameById(currentMenuId);
+  // 184: with no menu yet, name the one the Add button is about to create rather than rendering blank.
+  // The promise is kept because ensurePublishMenu seeds under the same DEFAULT_MENU_NAME.
+  var nm=document.getElementById('ad_menuName'); if(nm) nm.textContent=menuNameById(currentMenuId)||DEFAULT_MENU_NAME;
   var s=document.getElementById('ad_search'); if(s) s.value='';
   var p=document.getElementById('ad_price'); if(p) p.value='';
   var e=document.getElementById('ad_err'); if(e) e.style.display='none';
@@ -9097,6 +9221,9 @@ function submitAddDish(){
   if(!sp){ if(err){err.textContent='Pick a plate from the list first.';err.style.display='block';} return; }
   var pv=document.getElementById('ad_price').value;
   if(pv===''||isNaN(parseFloat(pv))||parseFloat(pv)<0){ if(err){err.textContent='Enter a sell price for this menu.';err.style.display='block';} return; }
+  // 184: the same refusal submitMenuItem carries, for the same reason — see there. Both dish-creating
+  // paths need it, which is the pair v113 found the hard way.
+  if(!currentMenuId){ if(err){err.textContent='There’s no menu to add this to yet — create one first.';err.style.display='block';} return; }
   var plan=publishPlan(MENU, sp.id, currentMenuId);                // v113: the SAME decision submitMenuItem uses — this path had the identical blind spot
   if(plan.action==='update'){ if(err){err.textContent='That plate is already on this menu.';err.style.display='block';} return; }
   var id=uid('um');
@@ -9126,10 +9253,28 @@ function submitNewMenu(){
   if(!name){ if(err){ err.textContent='Enter a menu name.'; err.style.display='block'; } return; }
   var id=uid('MENU');
   var rec={id:id, name:name, season:season||null};
-  menusList.push(rec); dbUpsertMenuRecord(rec);
+  var wasCurrent=currentMenuId;
+  menusList.push(rec); var write=dbUpsertMenuRecord(rec);
   setCurrentMenuId(id);
   buildMenuSelector(); renderAnalysis(); closeNewMenuModal();
-  toast('\u201c'+name+'\u201d menu created');
+  /* 184, from the pre-push review. This used to push onto menusList and DROP the promise, and that
+     is what put the hole in this batch's own guarantee: `withPublishMenu` decides whether a menu
+     needs creating by asking `menusList.length`, so a menu the server REFUSED but memory kept made
+     the gate wave every later dish straight through \u2014 against a menus row that does not exist.
+     Publishing then means 23503, or the silent cross-tenant accept the header of this file describes.
+     So menusList now means "menus the server has", which is the invariant the gate was already
+     relying on. Same law as the delete paths: the optimistic repaint stays, the WORDING waits for
+     the server, and anything the server did not keep is put back. */
+  Promise.resolve(write).then(function(r){ return !!(r && !r.error); }, function(){ return false; })
+    .then(function(ok){
+      if(ok){ toast('\u201c'+name+'\u201d menu created'); return; }
+      menusList=menusList.filter(function(x){ return x.id!==id; });
+      setCurrentMenuId(menusList.some(function(x){ return x.id===wasCurrent; }) ? wasCurrent : fallbackMenuId());
+      buildMenuSelector(); renderAnalysis();
+      // pushWrite has already toasted the real error; this one says what it COST, which is the half
+      // a user cannot infer from a Postgres message.
+      toast('\u201c'+name+'\u201d was not saved, so it has been removed. Nothing was published to it.');
+    });
 }
 
 /* ===== Menu Analysis: split "/" items + safe delete ===== */
@@ -9208,7 +9353,7 @@ function openMenuEdit(id){
   document.getElementById('ed_name').value=m.name||'';
   document.getElementById('ed_price').value=(m.price!=null)?m.price:'';
   document.getElementById('ed_cat').value=m.section||'';
-  buildMenuPickers(); var edMenu=document.getElementById('ed_menu'); if(edMenu){ var wm=m.menuId||'MENU_ORIGINAL'; if(menusList.some(function(x){return x.id===wm;})) edMenu.value=wm; }
+  buildMenuPickers(); var edMenu=document.getElementById('ed_menu'); if(edMenu){ var wm=menuIdOf(m); if(wm && menusList.some(function(x){return x.id===wm;})) edMenu.value=wm; }
   edCatState.chosen=m.section||null; edCatState.chosenIsNew=false;
   var d=document.getElementById('ed_catDrop'); if(d)d.style.display='none';
   var nn=document.getElementById('ed_catNew'); if(nn)nn.style.display='none';
@@ -9236,7 +9381,7 @@ function saveMenuEdit(){
   var cat=resolveEditCat();
   if(cat===null){ err.textContent='\u201c'+document.getElementById('ed_cat').value.trim()+'\u201d is a new category \u2014 pick \u201cCreate new category\u201d from the list to confirm, or choose an existing one.'; err.style.display='block'; if(edCat)edCat.render(); return; }
   var price=parseFloat(priceV);
-  var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:(m.menuId||'MENU_ORIGINAL');
+  var edMenuEl=document.getElementById('ed_menu'); var chosenMenu=(edMenuEl&&edMenuEl.value)?edMenuEl.value:menuIdOf(m);
   /* v114 \u2014 ONE user action is ONE entry, so this picks a single kind even when the save moved both the
      price and the menu: price wins, and the move is recorded in `detail`.
      \u26a0\ufe0f WHAT THAT COSTS A LATER READER, and it is not obvious from here (PR review, #58): a query
@@ -9249,7 +9394,7 @@ function saveMenuEdit(){
      log that fires on a typo correction cannot be read as "what you last did about food cost".
      `_priceMoved` is measured to the cent, matching logMenuPrice's own dedupe: re-saving an unchanged
      price hands back a value differing in the eighteenth decimal, which is a keystroke, not a decision. */
-  var _avgBefore=computeAvgFoodCost(), _wasMenu=(m.menuId||'MENU_ORIGINAL'), _wasPrice=(m.price==null?null:Number(m.price));
+  var _avgBefore=computeAvgFoodCost(), _wasMenu=menuIdOf(m), _wasPrice=(m.price==null?null:Number(m.price));
   var _priceMoved=(_wasPrice==null || Math.abs(_wasPrice-price)>=0.005), _menuMoved=(chosenMenu!==_wasMenu);
   var _plateId=(m.plateId||m.sourcePlateId||null);
   // v55: a dish keeps its own name/price/category per menu \u2014 editing it never renames the shared plate.
@@ -9306,7 +9451,7 @@ function closeDelChoice(){ hide('delChoiceModal'); delChoiceId=null; }
 function doDeleteMenuOnly(){
   var id=delChoiceId; if(!id||!menuById[id]){ closeDelChoice(); return; }
   var m=menuById[id], nm=m.name;
-  var avgBefore=computeAvgFoodCost(), plateId=plateIdOf(m), mid=(m.menuId||'MENU_ORIGINAL'), price=m.price;
+  var avgBefore=computeAvgFoodCost(), plateId=plateIdOf(m), mid=menuIdOf(m), price=m.price;
   var write=removeMenuItem(id);
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:id, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:price, via:'menu-tab'}});
@@ -9325,7 +9470,7 @@ function doDeleteEverything(){
     // v112: no FK to order, but the same honesty rule as the branch below \u2014 the word "deleted" waits for
     // the server, and a dish the server kept is put back rather than left missing until the next reload.
     var only=menuById[id];
-    var onlyMid=(only.menuId||'MENU_ORIGINAL'), onlyPrice=only.price;
+    var onlyMid=menuIdOf(only), onlyPrice=only.price;
     forgetMenuItems([id]); repaint();
     Promise.resolve(dbDeleteMenu(id)).then(function(r){ return !!(r && !r.error); }, function(){ return false; })
       .then(function(ok){
@@ -9393,7 +9538,9 @@ document.getElementById('invParse').addEventListener('click',parseInvoice);
 document.getElementById('invClose').addEventListener('click',closeInv);
 document.getElementById('menuClose').addEventListener('click',closeMenuModal);
 document.getElementById('menuCancel').addEventListener('click',closeMenuModal);
-document.getElementById('menuSave').addEventListener('click',submitMenuItem);
+// 184: both dish-creating buttons go through withPublishMenu — a cafe with no menu row yet gets one
+// created and CONFIRMED before the dish write is issued. See ensurePublishMenu.
+document.getElementById('menuSave').addEventListener('click',function(){ withPublishMenu('mi_err', submitMenuItem); });
 (function(){
   var ms=document.getElementById('menuSelect'); if(ms) ms.addEventListener('change',onMenuSelectChange);
   var mnb=document.getElementById('menuNewBtn'); if(mnb) mnb.addEventListener('click',openNewMenuModal);
@@ -9402,7 +9549,7 @@ document.getElementById('menuSave').addEventListener('click',submitMenuItem);
   var smd=document.getElementById('smemDone'); if(smd) smd.addEventListener('click',closeSmem);
   var adc=document.getElementById('addDishClose'); if(adc) adc.addEventListener('click',closeAddDishModal);
   var adca=document.getElementById('addDishCancel'); if(adca) adca.addEventListener('click',closeAddDishModal);
-  var ads=document.getElementById('addDishSave'); if(ads) ads.addEventListener('click',submitAddDish);
+  var ads=document.getElementById('addDishSave'); if(ads) ads.addEventListener('click',function(){ withPublishMenu('ad_err', submitAddDish); });
   var adsr=document.getElementById('ad_search'); if(adsr) adsr.addEventListener('input',function(e){ renderDishPicker(e.target.value); });
   var mdb=document.getElementById('menuDelBtn'); if(mdb) mdb.addEventListener('click',deleteCurrentMenu);
   var nmc=document.getElementById('newMenuClose'); if(nmc) nmc.addEventListener('click',closeNewMenuModal);
