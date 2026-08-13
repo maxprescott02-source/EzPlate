@@ -617,3 +617,31 @@ beneath it, pushed to the right.
 ingredients yet, "Set up" must still be visible under the Ingredients header. That screen hides its
 search and filters when there is nothing to search, and the button lives in that same row now - it is
 deliberately exempt, but it is the kind of thing that only shows up on a genuinely empty account.
+
+---
+
+## 186 - you will be signed out, and the phone is where that lands
+
+**READ THIS ONE FIRST: after this deploy, opening EzPlate on any device shows a sign-in screen.**
+That is the batch, not a fault.
+The anon key that shipped in the page could read the whole cafe, and it no longer can - so the app
+asks who you are before it shows anything.
+
+- **Sign in on your phone with the account you made yesterday** (`maxprescott02@gmail.com`).
+  You may need to install the app again from the sign-in screen, or just open the installed one.
+  **A failure is the password being rejected, or signing in and landing straight back on the same
+  screen.** The second one would mean the session is not surviving the reload, and only a real
+  device with a real PWA container can show that - Safari's storage rules for an installed app are
+  not the same as a browser tab's, and nothing in the suite runs there.
+- **Check the keyboard.** The screen is three controls in a centred column: email, password, Sign in.
+  **A failure is the keyboard covering the Sign in button with no way to scroll to it.**
+  This is the one thing about the screen that a desktop browser at a phone-sized window cannot
+  reproduce, because it has no on-screen keyboard.
+- **Then close the app completely and reopen it.** You should go straight in, no sign-in.
+  **A failure is being asked to sign in every time**, which would mean the session token is being
+  cleared on launch and is a real bug rather than a preference.
+- **If a plate was half-built on that device before you signed in, it should still be there.**
+  Signing in from this screen deliberately KEEPS an unfinished plate, because nothing warned you it
+  would go. **A failure is the builder being empty when you knew it was not.**
+- **On the desktop machine too, once**, because the sign-in screen now covers the whole window
+  including the left rail - so if anything is off-screen there, there is no nav to escape with.
