@@ -65,8 +65,9 @@ The `_bootNoMember` latch makes that benign and an assertion now kills it.
 
 **The latch I added to fix that then wedged the app, and no test would have caught it either.**
 It survived into the next `bootstrapSync`, and the `online` listener re-runs that, so a user whose membership was granted between two runs would get a spinner and "Loading your data..." forever on a working account.
-Scoping it to one boot run, cleared in the `loading` branch, fixes both: a run that reaches `nomember` has already passed through `loading`, so the latch is re-set before any stray `ok` can arrive.
-Both directions are pinned and both mutations are killed.
+My fix was to scope it to one boot run by clearing it in the `loading` branch.
+**That fix is itself wrong and was overturned by the review below; it is written down rather than tidied away, because the sequence of three is the actual lesson here.**
+The clear now lives where the ANSWER is, in `bootstrapSync`, and only a definite uuid performs it.
 
 **My own theme axis was vacuous on the first cut**, and `tests/visual/v142-menu.spec.js` already records the identical mistake on the identical key.
 `THEME_KEY` is `cafeCost_theme`, not `cafeDB_theme`, so light and dark ran as two copies of one test.
@@ -84,6 +85,14 @@ Once the server has said "this caller has no cafe", "I could not reach the quest
 The fix is a third answer, `unknown`, resolved by the caller against what it already knows.
 `tests/visual/v161-nonmember.spec.js` now reproduces it in a browser: the spec fails against the reviewed code and passes against the fix, which was checked by reverting.
 The review's second finding, that the gate flickered its explanation away on every re-sync, is fixed by the same change.
+
+**And that fix had a fourth defect in it, found by tracing rather than by a test.**
+Four in a row on the same twenty lines, which is the honest count and the reason this section is long.
+The early return that stops an automatic re-sync disturbing the gate also swallowed the `loading` produced by an explicit Try again tap, reachable once a real connection failure has taken over the screen.
+That is the same "the button looks dead" bug v115 already fixed once, in the same function.
+`!_bootRetrying` separates a tap from an automatic re-sync, and both mutants are killed.
+**The pattern across all four: every one of them was a state machine gaining a state, and each fix was correct about the case in front of it and silent about the case behind it.**
+A screen with four states and a latch is worth drawing out in full before editing, not reasoning about one transition at a time.
 
 **The Playwright shim had no `rpc` and no `auth`**, so the first version of the `Promise.all` entry threw while the array was still being built, inside the try, and reported "couldn't load your data" on a working database.
 `softCall` guards that, and the shim now serves `rpc` so the specs exercise the real path rather than the degraded one.
