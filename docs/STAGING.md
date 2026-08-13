@@ -165,8 +165,10 @@ Left on the **scale seed** (520 products, 12 menus, 180 plates, 429 dishes) — 
 
 | | |
 |---|---|
-| `businesses` | the seeded Scoopy's `…0001`, and `…00b2` "Second Cafe (staging)" holding one product and one menu |
+| `businesses` | the seeded Scoopy's `…0001`, and `…00b2` "Second Cafe (staging)" — **which holds NO data rows as of 13 Aug 2026 (183)**, because that batch re-ran the scale seed at the end and a seed wipes every tenant's rows |
 | accounts | `a@example.com` → member of `…0001` · `b@example.com` → member of `…00b2` · `c@example.com` → **member of nothing**, the empty-app case |
+
+⚠️ **The passwords were reset in 183 and are still not written down** — use the `crypt` recipe below, which is the whole point of not recording them.
 
 The three are hand-made rows in `auth.users` + `auth.identities`, not sign-ups: Supabase rejects `.test` addresses and rate-limits confirmation emails, so the API route ran out almost immediately. **Two things are needed or GoTrue answers `Database error querying schema` on sign-in, which reads like a server fault and is not:** `email_confirmed_at` must be set, and the token columns (`confirmation_token`, `recovery_token`, `email_change*`, `phone_change*`, `reauthentication_token`) must be `''` and never NULL — the Go scanner cannot read a NULL into them.
 
@@ -179,7 +181,8 @@ update auth.users set encrypted_password = extensions.crypt('<new password>', ex
 
 A seed re-run (`02`/`03`/`04`) wipes the DATA but not `auth.users`, `businesses` or `business_members` — none of those are in a seed — so the accounts survive it and the second café's memberships do too. Its one product and one menu do not.
 
-⚠️ **Staging's café 1 therefore no longer has the seed's exact counts on every table** — 521 products exist, 520 of them Scoopy's. Anything comparing a raw `count(*)` against the seed's numbers must filter on `business_id`.
+⚠️ **A seed re-run restores the exact counts, because it deletes as `postgres` and therefore across every tenant.** Left after 183: 520 products, 240 kitchen ingredients, 12 menus, 180 plates, 429 dishes, 60 taught packs, 10 settings — the scale seed's own numbers, with café two holding nothing.
+*(This line read "staging's café 1 no longer has the seed's exact counts — 521 products exist, 520 of them Scoopy's" until 13 Aug 2026. That was true while café two held a product; it stopped being true the moment a seed ran, and a warning that has silently expired is worse than none. **The durable form of it: a raw `count(*)` here is only equal to the seed's number while no OTHER tenant holds rows, and nothing enforces that — so filter on `business_id` whenever the answer matters.**)*
 
 ⚠️ **Batch 181 restored Max's REAL 412-product export into staging as part of rehearsing `business_id`, and then reloaded the scale seed to get rid of it.** Do the same if you ever need the real file here: staging's anon key is public in `index.html` and its policies are all `using (true)`, so anything left in it is readable by anyone who reads the page. **Staging is synthetic by contract, and a rehearsal that needs real data ends by wiping it.**
 
@@ -206,3 +209,15 @@ This is the one this file said could not be done. It was worth the hour: **the r
 - **`restore_backup` is tenant-scoped for free**, because it is SECURITY INVOKER. Called as café two it restored into café two and left café one's 520 products, 12 menus, 180 plates and 429 dishes untouched. Its five `delete … where true` statements now only reach the caller's own café.
 - **A known limit, measured rather than predicted, and WIDER than it first looked.** `app_settings.key` is a global primary key and `dbSetSetting` upserts against it, so a second café is refused `42501` on the USING expression the first time it saves ANY setting that already exists — a food cost target, a GST default, its kitchen ingredients. Restoring a file containing `app_settings` fails for the same reason and is one instance of it. Loud, not silent. That is the queue's semantic-keys item, and it now carries this measurement.
   ⚠️ **This bullet said "café two restoring a file containing `app_settings`" until the batch's own pre-push review reproduced the LIVE write path.** Worth keeping visible: the read-side exclusion proof above is real, and it tempted a summary — "isolation works" — that the write side does not support. **Isolation holding is not multi-tenancy working.**
+  ✅ **CLOSED by batch 183** — `20260813_semantic_keys.sql` widened both keys. See below.
+
+### And on 13 Aug 2026 (batch 183), the semantic keys — the first rehearsal that STARTED by reproducing the bug
+
+The order is the point and is worth copying: the 42501 pair was reproduced **as the client, before a line of the migration was written**, so the fix had something to be measured against rather than reasoned about.
+
+- **Before:** signed in as café two, `POST /rest/v1/app_settings {"key":"food_cost_target"}` → `42501 new row violates row-level security policy (USING expression)`, and the same for `supplier_phrases` against an id café one already held.
+- **After:** both return a row. Café two saved a target, a GST default and its kitchen ingredients; re-upserting the same key UPDATED one row rather than duplicating it, which is the property the composite key exists to preserve. Café one's values and all 60 of its taught packs were untouched throughout, and the two cafés now hold **the same `supplier_phrases.id` with different suppliers and quantities** — the collision, resolved rather than avoided.
+- **No client change was needed, and that was measured rather than assumed:** PostgREST derives an upsert's `ON CONFLICT` target from the table's primary key, so `dbSetSetting` kept working untouched. `js/app.js` now says at both call sites that the ABSENCE of an `onConflict` is load-bearing.
+- **`restore_backup` v4 exercised as BOTH callers** — as café two and as **anon**, which is production's caller. Its `app_settings` upsert updated the keys the file carried and left the ones it did not, and neither restore touched the other tenant. Format `1` still refused by name.
+- ⚠️ **The rollback was RUN, both ways, and both results were worth having.** With café two holding rows it **refused with 23505** — a narrowing key correctly declining to throw a row away — and after café two's rows were cleared it restored both primary keys and the v3 function body in one statement. Then the migration was re-applied. `docs/STAGING.md`'s own advice, taken.
+- ⚠️ **One 23505 in this session was NOT a defect and is recorded so the next reader does not chase it.** An anon restore raised `duplicate key value violates unique constraint "ingredients_pkey"` — because the test payload reused an id café two already owned. `ingredients.id`, `plates.id`, `menus.id` and `menu_items.id` are **still global keys**, and their non-collision rests on `uid()`'s entropy (batch 173), not on the schema. **What that proves is the good half: a cross-tenant id collision on restore fails LOUDLY and rolls the whole transaction back, rather than corrupting anything.**

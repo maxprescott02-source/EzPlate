@@ -132,6 +132,18 @@ That is harmless while the two agree and silent when they do not. `business_id` 
 
 **So: a DEFAULT and a BEFORE trigger on the same column are ONE mechanism with two entry points, and they must compute the same value.** Point both at the same function — `set default public.current_business_id()`, `new.x := public.current_business_id()` — rather than leaving one a literal. Two definitions of the same thing is the defect; which one is "right" is not the question.
 
+## A PRIMARY KEY's column list is a contract with every `ON CONFLICT` that names it — and with the client that names none
+
+(Batch 183, 13 Aug 2026, widening `app_settings` to `(business_id, key)` and `supplier_phrases` to `(business_id, id)`.)
+
+**Postgres resolves an `on conflict (cols)` arbiter at RUNTIME, not when the function is created.** So changing a primary key leaves every `on conflict` naming the old columns syntactically fine, stored happily, and **42P10 the first time it runs** — "there is no unique or exclusion constraint matching the ON CONFLICT specification".
+`restore_backup` carried exactly one such clause. **A migration that widens a key and does not replace that function applies GREEN and breaks disaster recovery**, which is the path nobody exercises until they need it most. The two are one change; 183 does them in one transaction, function first, so no intermediate state names a dead arbiter.
+
+**The client half is the opposite shape and is easier to break by being helpful.** `dbSetSetting` and `dbPushSupplierPhrase` name **no** conflict target, and that silence is what makes them correct: **PostgREST derives an upsert's `ON CONFLICT` from the table's PRIMARY KEY**, so the write resolves against the caller's own row and the server stays the only thing that decides the tenant.
+Adding `onConflict:'key'` "for clarity" re-globalises the key and puts the whole defect back — a second café's first save of a food cost target refused **42501 on the USING expression**, permanently, with no workaround. Both call sites say so; `tests/semantic-keys.test.js` pins it.
+
+**The general law: a key's width is depended on in three places that never mention each other** — the SQL that names it, the client that deliberately does not, and the schema mirror in `supabase/staging/01-schema.sql`. Change one and grep for all three.
+
 ## `ingredients.updated_at` is not history
 
 It means nothing.
@@ -259,7 +271,7 @@ A test that re-implements a shipped function in order to test around it **passes
 
 **The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
 
-**FOURTEEN incidents, one remedy.** (Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, then twelve after 180 reconciled the lists, and fourteen after 182 added two of its own.  `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
+**SIXTEEN incidents, one remedy.** (Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, then twelve after 180 reconciled the lists, fourteen after 182 added two of its own, and sixteen after 183 added two more.  `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
 
 - **v113** - a passthrough stub hid a real escaping bug.
 - **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
@@ -276,7 +288,10 @@ A test that re-implements a shipped function in order to test around it **passes
 - **182 (a)** - an assertion built its regex around a table NAME (`create policy…'ing_price_history'…for all`) where the SQL builds the statement from a loop VARIABLE, so it matched nothing and passed whatever the policy said. Turning three append-only logs into `for all` sailed through it.
 - **182 (b)** - an ordering test compared ONE named create against ONE named drop, and survived a DIFFERENT drop being moved above the creates. The invariant was "every create before every drop"; the test pinned one pair of it.
 
-**Both 182s were caught BEFORE merge, by running the mutation** - which is the point of recording them rather than quietly fixing them. They were written in the same hour as the paragraph above telling you to do exactly that, by someone who believed the tests were sound. **The count is 14 and the belief is never the check.**
+- **183 (a)** - a SQL assertion inside a migration searched the deployed function body for a forbidden `on conflict` spelling. **`pg_get_functiondef` returns the body's COMMENTS**, and the comment above that very statement quoted both spellings in prose - so the negative half fired on its own explanation, and **the POSITIVE half would have passed on the prose alone, green whatever the statement said.** The fix is to strip `--` comments before searching. ⚠️ **Generalise it: any assertion that greps a function body, a source file or a diff is searching PROSE as well as CODE, and the prose is usually written by the same person, in the same hour, saying the same words.**
+- **183 (b)** - a test pinned `memKey` with a SUBSTRING match, so gluing a tenant onto either end left the substring intact and the test green - which is the exact change it existed to forbid. Caught by mutating it; fixed by comparing the whole normalised body.
+
+**Both 182s AND both 183s were caught BEFORE merge, by running the mutation** - which is the point of recording them rather than quietly fixing them. They were written in the same hour as the paragraph above telling you to do exactly that, by someone who believed the tests were sound. **The count is 16 and the belief is never the check.**
 
 **Most of these are a WIDER failure than a stub**, and that is the point of recording them here: 141 and before were copies that disagreed with the real function; 162, 167, 172, 173, 174, 175 and 176 were tests whose assertion **never executed, or could not distinguish right from wrong**. Same green, same false assurance, and no stub involved.
 **So the check is not "did I hand-roll a copy" but "would this test FAIL if I broke the thing it names?"** Answer it by breaking the thing and watching it go red - the only proof that costs one minute and settles it.
