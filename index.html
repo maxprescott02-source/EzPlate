@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=160">
+<link rel="stylesheet" href="css/style.css?v=161">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -180,6 +180,12 @@
     <div class="bg-spin" aria-hidden="true"></div>
     <p class="bg-msg" id="bootGateMsg">Loading your data…</p>
     <button type="button" class="btn" id="bootGateRetry" hidden>Try again</button>
+    <!-- 185: shown ONLY in the 'nomember' state — a signed-in account with no café. Try again is
+         hidden in that state instead: it would ask the same question and get the same answer, and
+         being someone else is the only thing that changes the outcome. `.btn` carries no `display`
+         rule of its own (checked, not assumed), so the UA's `[hidden]` is not overridden and this
+         needs no `:not([hidden])` guard. -->
+    <button type="button" class="btn" id="bootGateOut" hidden>Sign out</button>
   </div>
 </div>
 <div class="wrap" id="appMain">
@@ -1443,7 +1449,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=160"></script>
+<script src="js/app.js?v=161"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

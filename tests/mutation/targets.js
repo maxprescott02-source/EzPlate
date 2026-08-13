@@ -27,6 +27,11 @@ const targets = [
   { fn: 'flagNeedsAttention', tests: ['inv-attention.test.js'] },
 
   // ── The publish decision and the delete guards. Two row-creating paths share publishPlan. ──
+  // 185: the tenant gate. It fails OPEN on purpose — only an unambiguous null gates the app — so
+  // both halves of that condition are exactly the kind a mutant flips into a false alarm that locks
+  // a legitimate user out of a working café.
+  { fn: 'tenantGateState', tests: ['tenant-gate.test.js'] },
+
   { fn: 'publishPlan', tests: ['publish-guard.test.js'] },
   { fn: 'productRefs', tests: ['product-delete-guard.test.js'] },
   { fn: 'canDeleteMenu', tests: ['menu-fallback.test.js'] },

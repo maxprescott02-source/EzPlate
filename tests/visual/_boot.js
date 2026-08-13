@@ -52,10 +52,17 @@ const EMPTY_OK = ['app_settings'];
    cannot empty it from outside — and §4 makes that state part of every screen's definition of done.
    It is a successful EMPTY read, not an error: `noClient` already covers the cannot-reach case, and
    the two must not be confused (the app answers them differently, on purpose). */
+/* `opts.nonMember` makes the tenant lookup answer NULL — a signed-in account with no
+   `business_members` row. It is served here rather than left to each spec because the state is
+   otherwise UNREACHABLE in a browser: every table read succeeds with zero rows, so there is no
+   error to inject and no seed that produces it. Measured on staging as `c@example.com` (185).
+   It is a THIRD state, distinct from `noProducts` (a real café with an empty catalogue) and from
+   `noClient` (cannot reach the database at all) — the app answers all three differently, and
+   collapsing any two would hide the distinction the gate exists to draw. */
 async function installBoot(page, opts = {}) {
   const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
-    ([ingredientRows, emptyOk, noClient]) => {
+    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter]) => {
       if (noClient) return;                       // opt out: exercise the real "can't reach the database" state
       const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
       /* The spec seeds the in-memory shape; the app now reads rows. This is the same crossing
@@ -151,6 +158,28 @@ async function installBoot(page, opts = {}) {
       };
       window.supabase = {
         createClient: () => ({
+          /* 185: the tenant lookup. Answers the seeded café, which is what `anon` and a MEMBER both
+             get — so every spec boots as a legitimate caller and the non-member gate stays shut.
+             Served rather than omitted on purpose: app.js guards a missing `rpc` and falls open, so
+             leaving it out would silently exercise the degraded path in all 29 specs and none of
+             them would ever touch the real one. `auth` is deliberately still ABSENT — `authInit`
+             bails on `!SUPA.auth` exactly as it does today, and adding it would change boot
+             behaviour across every spec for a value only the gate's message reads. */
+          rpc: () => {
+            /* `opts.rpcFailsAfter` lets the tenant lookup start FAILING after N calls while every
+               table read keeps succeeding. That combination is the shape of a real defect (185's
+               pre-push review): from an existing non-member gate, a re-sync whose lookup alone
+               fails must not fall open, because RLS returns `[]` rather than an error and nothing
+               downstream would throw. It is unreachable without this hook — one request out of
+               twelve has to fail, and only that one. */
+            window.__rpcCalls = (window.__rpcCalls || 0) + 1;
+            if (rpcFailsAfter && window.__rpcCalls > rpcFailsAfter) {
+              return Promise.resolve({ data: null, error: { message: 'fixture: tenant lookup timed out' } });
+            }
+            return Promise.resolve(
+              nonMember ? { data: null, error: null }
+                        : { data: '00000000-0000-0000-0000-000000000001', error: null });
+          },
           from: (table) => ({
             select: () => make(table),
             upsert: () => Promise.resolve({ data: null, error: null }),
@@ -160,7 +189,7 @@ async function installBoot(page, opts = {}) {
         }),
       };
     },
-    [rows, EMPTY_OK, !!opts.noClient],
+    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0],
   );
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }
