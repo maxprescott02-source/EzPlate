@@ -551,6 +551,15 @@ function bootGate(state, msg){
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
   var o=document.getElementById('bootGateOut');
   if(state==='loading'){
+    /* 185 — THE LATCH IS SCOPED TO ONE BOOT RUN, and cleared HERE is the only place that works.
+       Without this it wedges: the `online` listener re-runs bootstrapSync, so if membership were
+       granted between two runs the gate would show 'loading', the tenant check would pass, and the
+       'ok' that follows would be swallowed by a latch set in the PREVIOUS run — leaving a spinner
+       and "Loading your data…" on screen forever.
+       Clearing it at the start of a run still protects the case it was written for, because a run
+       that reaches 'nomember' has already passed through 'loading': the latch is re-set after this
+       point, so a missing `return` in bootstrapSync still cannot hide the gate with its own 'ok'. */
+    _bootNoMember=false;
     g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
     /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
        of the fetch) — and week-long gaps are the normal case here, so the patient message is the

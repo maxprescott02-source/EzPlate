@@ -290,3 +290,29 @@ test('185: the latch does not gate an ordinary boot', () => {
   g.run('ok');
   assert.strictEqual(g.gate.hidden, true, 'pull-to-refresh must keep working forever');
 });
+
+test('185: the latch does not survive into the NEXT boot run', () => {
+  /* ⚠️ THE WEDGE THIS PREVENTS, found by reasoning rather than by a failure. The `online` listener
+     re-runs bootstrapSync, so a user whose membership is granted between two runs would get:
+     'loading' (gate shows a spinner) → tenant check now passes → 'ok' → swallowed by a latch set in
+     the PREVIOUS run. Result: "Loading your data…" and a spinner, forever, on a working account.
+     The latch is therefore scoped to one run and cleared by 'loading'. */
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('nomember', 'no café');
+  g.run('loading');                        // a second bootstrapSync — the network came back
+  g.run('ok');                             // and this time the caller has a café
+  assert.strictEqual(g.gate.hidden, true,
+    'a stale latch would strand a legitimate user on a spinner with no way out');
+});
+
+test('185: …but within ONE run the latch still holds', () => {
+  // The other half. A run that reaches 'nomember' has already passed through 'loading', so the
+  // protection against bootstrapSync falling through and hiding the gate with its own 'ok' survives.
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('nomember', 'no café');
+  g.run('ok');                             // the missing-return case: same run, no fresh 'loading'
+  assert.strictEqual(g.gate.hidden, false);
+  assert.match(g.msg.textContent, /no café/);
+});
