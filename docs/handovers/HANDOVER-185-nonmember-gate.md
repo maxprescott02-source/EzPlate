@@ -80,10 +80,9 @@ That reopened the hole from the other side: from an existing gate, the `online` 
 The four required reads still succeed with `[]`, because RLS filters rows rather than erroring, so nothing throws, every store is emptied, and `bootReady('ok')` hides the gate.
 The silent empty app, restored by a network blip, on the exact path the latch was hardened for.
 
-The lesson is the one worth carrying: **fail-open is a claim about what you do with NO information, and it must not be reused as the answer to a recheck.**
-Once the server has said "this caller has no cafe", "I could not reach the question" is not evidence to the contrary, and treating the two as the same value is what collapsed them.
-The fix is a third answer, `unknown`, resolved by the caller against what it already knows.
-`tests/visual/v161-nonmember.spec.js` now reproduces it in a browser: the spec fails against the reviewed code and passes against the fix, which was checked by reverting.
+The general lesson is now a Tier 1 rule in `CLAUDE.md` and is not restated here.
+What belongs here is the fix and its proof: a third answer, `unknown`, resolved by the caller against what it already knows.
+`tests/visual/v161-nonmember.spec.js` reproduces it in a browser, and the spec fails against the reviewed code, which was checked by reverting.
 The review's second finding, that the gate flickered its explanation away on every re-sync, is fixed by the same change.
 
 **And that fix had a fourth defect in it, found by tracing rather than by a test.**
