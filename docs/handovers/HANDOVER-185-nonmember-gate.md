@@ -94,6 +94,15 @@ That is the same "the button looks dead" bug v115 already fixed once, in the sam
 **The pattern across all four: every one of them was a state machine gaining a state, and each fix was correct about the case in front of it and silent about the case behind it.**
 A screen with four states and a latch is worth drawing out in full before editing, not reasoning about one transition at a time.
 
+**The verification pass confirmed both findings closed, and independently found the fourth defect I had already fixed an hour earlier.**
+Two readers reaching the same twenty lines by different routes is the useful part; it is not a third finding.
+
+**One residual is accepted and named rather than fixed, because it cannot be fixed here.**
+On a FIRST boot, if the tenant lookup errors while the four required reads succeed with `[]`, the latch has never been armed, so the app falls open and shows an empty café with no message.
+That is the documented fail-open trade and it is not closable from the client: gating on "could not tell, and everything came back empty" would false-alarm on a genuinely brand-new cafe, which is exactly the zero state the onboarding item exists to build.
+Distinguishing "a new cafe" from "no cafe" is precisely what the lookup answers, so when the lookup does not answer, the client has nothing left to reason from.
+A miss costs the empty screen we already had; a false alarm locks a real user out of a working app.
+
 **The Playwright shim had no `rpc` and no `auth`**, so the first version of the `Promise.all` entry threw while the array was still being built, inside the try, and reported "couldn't load your data" on a working database.
 `softCall` guards that, and the shim now serves `rpc` so the specs exercise the real path rather than the degraded one.
 `auth` is still deliberately absent, because `authInit` bails on it exactly as it does today.
