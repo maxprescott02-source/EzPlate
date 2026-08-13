@@ -40,9 +40,19 @@ This file wins wherever the two disagree.
 ## ⚠️ THE REPOSITORY IS PUBLIC (13 Aug 2026). NOTHING SECRET MAY EVER BE COMMITTED.
 
 Every file, every branch and **the entire git history** is world-readable, and a commit that leaks a secret is not fixable by deleting it later - scanning bots archive public repos within minutes, and a fork survives the repo going private again.
-**So the only safe rule is: it never goes in.** API keys stay in Vercel env vars, as the `api/` section already requires. Real café data stays out of fixtures.
-Checked before the switch and clean: no `.env` ever committed, `.mcp.json` carries project refs and no token, and the `service_role` matches are all `GRANT` statements.
-**Two things ARE public and were accepted knowingly:** `tests/fixtures/base-products.json` (393 real products with real unit costs, no supplier names), and the Supabase anon key - which was already public because it ships in `index.html`, so **rotating it achieves nothing while it ships in the page.** The real fix is the auth item's one-function change closing the anon fallback.
+**So the only safe rule for anything NEW is: it never goes in.** API keys stay in Vercel env vars, as the `api/` section already requires.
+**No credentials were exposed** - checked before the switch: no `.env` ever committed, `.mcp.json` carries project refs and no token, and the `service_role` matches are all `GRANT` statements.
+
+⚠️ **WHAT IS PUBLIC THAT IS NOT A CREDENTIAL - and this list was WRONG when it was first written, which is the point of writing it out.**
+The pre-switch check looked for secrets and declared the repo clean. **It never looked for real-world business data, and there is some.** Caught by the pre-push review AFTER the switch, not before it.
+
+- **Scoopy's real food distributor is identifiable.** `Bidfood` appears in **26 tracked files**, including the real letterhead string `BIDFOOD SUNSHINE COAST a division of` in `js/app.js`, and handovers and tests that say outright they were *"proved against his four real Bidfood PDFs"*.
+  ⚠️ **Two of those files were ALREADY public and the rest were not** - Vercel serves `js/app.js` and `css/style.css`, so the parser comments were world-readable before any of this; the ~20 test files, `docs/PHONE.md` and the handovers are newly so.
+- **`tests/fixtures/base-products.json`** - 393 real products with real unit costs. **Supplier names are absent from THIS FILE**, which is what made the first check answer "no supplier names". That was true of the fixture and false of the repo, and stating a narrow grep as a broad conclusion is the whole mistake.
+- **Every commit carries Max's real name and personal Gmail** - 512 of them, permanently. Not fixable without a history rewrite. Set GitHub's *Keep my email address private* for future commits.
+- **The Supabase anon key**, which was already public because it ships in `index.html`. **Rotating it achieves nothing while it ships in the page.** The real fix is the auth item's one-function change closing the anon fallback.
+
+**The transferable rule: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** "No secrets" is not "safe to publish", and this file said the second on the strength of the first.
 
 **Process docs live in `docs/` because Vercel serves the repo root**, so anything left there is publicly fetchable.
 ⚠️ **That was a PRIVACY reason and it no longer is one** - the docs are world-readable on GitHub whatever `.vercelignore` says. The rule stands for a different reason: keeping non-user-facing files off the deployed origin. **Do not delete it, and do not trust it to hide anything.**
