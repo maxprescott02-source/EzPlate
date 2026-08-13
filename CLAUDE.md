@@ -37,7 +37,15 @@ Existing `HANDOVER-vNN.md` files keep their names - they are write-once, and ren
 Global working preferences live in `~/.claude/AGENTS.md` and are not repeated here.
 This file wins wherever the two disagree.
 
+## ⚠️ THE REPOSITORY IS PUBLIC (13 Aug 2026). NOTHING SECRET MAY EVER BE COMMITTED.
+
+Every file, every branch and **the entire git history** is world-readable, and a commit that leaks a secret is not fixable by deleting it later - scanning bots archive public repos within minutes, and a fork survives the repo going private again.
+**So the only safe rule is: it never goes in.** API keys stay in Vercel env vars, as the `api/` section already requires. Real café data stays out of fixtures.
+Checked before the switch and clean: no `.env` ever committed, `.mcp.json` carries project refs and no token, and the `service_role` matches are all `GRANT` statements.
+**Two things ARE public and were accepted knowingly:** `tests/fixtures/base-products.json` (393 real products with real unit costs, no supplier names), and the Supabase anon key - which was already public because it ships in `index.html`, so **rotating it achieves nothing while it ships in the page.** The real fix is the auth item's one-function change closing the anon fallback.
+
 **Process docs live in `docs/` because Vercel serves the repo root**, so anything left there is publicly fetchable.
+⚠️ **That was a PRIVACY reason and it no longer is one** - the docs are world-readable on GitHub whatever `.vercelignore` says. The rule stands for a different reason: keeping non-user-facing files off the deployed origin. **Do not delete it, and do not trust it to hide anything.**
 `CLAUDE.md` is the exception and stays at root - it is only auto-loaded from the project root, so moving it would silently stop it loading.
 `.vercelignore` keeps it, and everything else non-user-facing, off the origin.
 **Anything new that is process rather than product goes in `docs/`.**
@@ -534,7 +542,11 @@ Fetch the alias, and check WHICH build answered before concluding anything from 
 
 Max has no human reviewer, so this is the only second reader the code gets.
 
-**Nothing can actually BLOCK a merge.** Branch protection and rulesets need GitHub Pro on a private repo - the API returns 403 - so "mandatory" below is a convention you keep, not a mechanism that stops you.
+⚠️ **THE REPOSITORY WENT PUBLIC ON 13 AUG 2026 (Max's call, taken twice), AND THAT REVERSED THIS PARAGRAPH.**
+It read: *"Nothing can actually BLOCK a merge. Branch protection and rulesets need GitHub Pro on a private repo - the API returns 403 - so 'mandatory' below is a convention you keep, not a mechanism that stops you."*
+**Branch protection is FREE on a public repository.** The API now answers `404 Branch not protected` - "none is configured" - where it used to answer `403`. So the mechanism this file has always said was unavailable is now available and simply **not yet turned on**.
+Until someone turns it on, the sentence above still describes reality: **"mandatory" is a convention you keep.** Do not read the unlock as the gate.
+The reason it went public was GitHub blocking Actions on a billing cap; **Actions are unlimited and free on a public repo, measured at `billable_ms: 0` for an 8-minute run.**
 
 **DECIDED, 8 Aug 2026 (Max): no second reader beyond the pre-push agent. CodeRabbit is NO and GitHub Pro is NO - do not re-propose either.**
 Both were put to him with costs, records and a recommendation to take CodeRabbit; he declined both.
