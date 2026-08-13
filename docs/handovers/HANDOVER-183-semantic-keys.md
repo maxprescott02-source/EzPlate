@@ -77,6 +77,14 @@ Files were backed up by `cp`, never `git checkout --`.
 An anon restore on staging raised `duplicate key value violates unique constraint "ingredients_pkey"` because my own test payload reused an id the second tenant already owned.
 What it actually demonstrates is the good half: a cross-tenant id collision on restore fails loudly and rolls the whole transaction back rather than corrupting anything.
 
+**GitHub Actions is blocked at the ACCOUNT level, and all four checks went red without running.**
+"The job was not started because recent account payments have failed or your spending limit needs to be increased."
+Batch 182 ran clean at 00:10Z the same day; this push at 09:45Z is the first blocked one, so it is nothing to do with the change.
+It matters more than one red PR: `CLAUDE.md` designates the CI `unit` job as the copy of the mutation gate that actually HOLDS, because the pre-push hook needs `git config core.hooksPath .githooks` per clone and a fresh clone runs no gate at all while looking identical to one that passed.
+With Actions blocked, the only mechanical gate this repo has is whatever runs on the machine doing the work.
+All four jobs were reproduced locally instead: unit 1094, the full unconditional `npm run mutate`, smoke, and Playwright 301.
+Merged on that basis. **Max needs to clear the billing block before the next batch**, and this is flagged to him rather than only recorded here.
+
 **The rollback refused, correctly.**
 Rehearsed both ways on staging: with the second cafe holding rows it raised 23505, which is a narrowing key declining to throw a row away; with those rows cleared it restored both primary keys and the v3 function body in one statement.
 `docs/STAGING.md` says to rehearse the rollback because batch 181 found its own was broken. Taking that advice is what produced both results.
