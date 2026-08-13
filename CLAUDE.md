@@ -54,6 +54,10 @@ The pre-switch check looked for secrets and declared the repo clean. **It never 
 
 **The transferable rule: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** "No secrets" is not "safe to publish", and this file said the second on the strength of the first.
 
+✅ **GitHub secret scanning AND push protection are ON** (enabled 13 Aug 2026, free on a public repo). Push protection is the useful half: it **rejects the push** rather than telling you afterwards, which is the only timing that helps when a leak cannot be undone.
+**It is a backstop, not the rule** - it knows vendor key formats and knows nothing about a café's invoices or a supplier's name, which is exactly the class this repo actually leaked. Do not let a green push mean the diff was checked.
+*(Dependabot alerts are also free and remain OFF - deliberately unaddressed rather than forgotten: `pdf.js` loads from a CDN and would be invisible to it, and this repo's standing rule is no new dependencies.)*
+
 **Process docs live in `docs/` because Vercel serves the repo root**, so anything left there is publicly fetchable.
 ⚠️ **That was a PRIVACY reason and it no longer is one** - the docs are world-readable on GitHub whatever `.vercelignore` says. The rule stands for a different reason: keeping non-user-facing files off the deployed origin. **Do not delete it, and do not trust it to hide anything.**
 `CLAUDE.md` is the exception and stays at root - it is only auto-loaded from the project root, so moving it would silently stop it loading.
