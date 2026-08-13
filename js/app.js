@@ -196,6 +196,13 @@ function markNonProductionEnv(){
 
 function setSync(state){
   var el=document.getElementById('syncBanner'); if(!el) return;
+  /* 185 \u2014 'none' is not a sync outcome, it is the ABSENCE of one, and it exists because of what the
+     alternative said out loud. The tenant gate reaches the server, gets a clean HTTP 200 and a clear
+     answer; nothing failed and nothing is pending. Wearing 'error' there printed "Can't reach server
+     \u2014 working offline" \u2014 both halves false \u2014 one pill's width from a full-screen message saying no
+     data has been lost. Two messages telling the user different stories is worse than either alone,
+     and the wrong one is the one that mentions losing things. Found by driving it, not by a test. */
+  if(state==='none'){ clearTimeout(el.__t); el.hidden=true; return; }
   var map={loading:'Loading latest data\u2026', saving:'Saving\u2026', ok:'Saved',
            offline:"Offline \u2014 changes won't save", error:"Can't reach server \u2014 working offline"};
   el.textContent=map[state]||''; el.setAttribute('data-state',state||''); el.hidden=false;
@@ -522,6 +529,14 @@ function dbPushChange(e){
    `bootReady` is what index.html's splash polls (window.__ezReady) — kept so the two cannot disagree
    about whether the app is usable. */
 var _bootGateDone=false, _bootRetrying=false, _bootSlowTimer=null;
+/* 185. A ONE-WAY LATCH, and it is defence in depth rather than a state flag.
+   The 'nomember' gate depends on bootstrapSync RETURNING before it paints — and a missing `return`
+   is invisible: the app would load empty stores, reach its own `bootReady('ok')` at the end, and
+   that call would HIDE the gate again, restoring the silent empty app with the explanation flashing
+   for a frame on the way past. Measured: deleting that `return` left the whole suite green.
+   So 'ok' cannot clear this state. Nothing a client can do turns a non-member into a member, so the
+   only honest way out is the sign-out below, which reloads. */
+var _bootNoMember=false;
 function bootGate(state, msg){
   var g=document.getElementById('bootGate'); if(!g) return;
   var showing=!g.hidden;
@@ -529,8 +544,12 @@ function bootGate(state, msg){
      overlay on every refresh would be worse than useless. But once the gate IS showing an error,
      'loading' must be allowed through or Try again looks dead: the sync reruns while the screen still
      says it failed. (CodeRabbit — my own test missed this because it never reached 'ok' first.) */
-  if(_bootGateDone && state!=='error' && !showing) return;
+  /* 185: 'nomember' joins 'error' here for the same reason. Membership can be revoked while the
+     app is open, and the next re-sync would then return early with nothing painted — leaving stale
+     data on screen and no message, which is the silent failure this state exists to end. */
+  if(_bootGateDone && state!=='error' && state!=='nomember' && !showing) return;
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
+  var o=document.getElementById('bootGateOut');
   if(state==='loading'){
     g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
     /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
@@ -542,12 +561,45 @@ function bootGate(state, msg){
       var g2=document.getElementById('bootGate'), m2=document.getElementById('bootGateMsg');
       if(g2 && !g2.hidden && !g2.classList.contains('is-error') && m2) m2.textContent='Still loading — the first open after a break takes a little longer.';
     }, 4000);
+    if(o) o.hidden=true;
     return;
   }
-  if(state==='ok'){ _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return; }
-  // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
+  if(state==='ok'){
+    if(_bootNoMember) return;                               // 185: see the latch — 'ok' may not clear this one
+    _bootGateDone=true; _bootRetrying=false; g.hidden=true; g.classList.remove('is-error'); if(o) o.hidden=true;
+    if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return;
+  }
   if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }   // v115 (review): the patient message must never overwrite an error — cleared here, not just guarded
+  /* 185: the account is fine, the connection is fine, and there is genuinely nothing this café can
+     show. Try again is HIDDEN because it would ask the same question and get the same answer — an
+     action that cannot help is worse than no action, it invites the user to keep tapping it. The
+     one thing that CAN change the outcome is being someone else, so that is the only button. */
+  if(state==='nomember'){
+    g.hidden=false; g.classList.add('is-error'); _bootRetrying=false; _bootNoMember=true;
+    if(m) m.textContent=msg||'This account isn’t linked to a café yet.';
+    if(r) r.hidden=true;
+    if(o){ o.hidden=false; o.onclick=async function(){
+      if(o.disabled) return;
+      o.disabled=true;
+      var res=await authSignOut();
+      o.disabled=false;
+      if(res && res.error){ if(m) m.textContent='Could not sign out: '+errText(res.error); return; }
+      /* ⚠️ DO NOT leave the reload to `onAuthStateChange`. authApply only switches when the user id
+         CHANGES, and `authUser` is populated by authInit, which is not awaited before bootstrapSync
+         — so on a boot where it lost that race prevId and nextId are both null, authApply does
+         nothing at all, and this gate sits on screen forever with the session already gone.
+         Calling it here is the belt: if authApply did fire, both paths purge and reload, and both
+         are idempotent.
+         `false` is not a shortcut — it is what the flag MEANS. It records whether the
+         unfinished-plate question has been put to the user, and here it has not, so the draft is
+         KEPT rather than discarded. Nothing on this screen told them it would go. */
+      authSwitchUser(false);
+    }; }
+    return;
+  }
+  // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
   g.hidden=false; g.classList.add('is-error'); _bootRetrying=false;
+  if(o) o.hidden=true;
   if(m) m.textContent=msg||'Couldn’t load your data.';
   if(r){ r.hidden=false; r.onclick=function(){
     if(_bootRetrying) return;                               // a second tap must not race a second boot
@@ -555,6 +607,44 @@ function bootGate(state, msg){
   }; }
 }
 function bootReady(state, msg){ window.__ezReady=true; bootGate(state, msg); }
+
+/* ---- 185: the signed-in NON-MEMBER ---------------------------------------------------------
+   Since batch 182 every RLS policy reads `current_business_id()`, which answers the seeded café
+   for `anon`, the caller's café for a member, and NULL for a signed-in account with no
+   `business_members` row. NULL equals no business_id, so every policy is false for every row —
+   and PostgREST reports that as SUCCESS with an empty array, not as a refusal.
+
+   MEASURED, not reasoned (staging, over PostgREST, 14 Aug 2026): as `c@example.com`, a member of
+   nothing, `GET /ingredients` returns `[]` with HTTP 200 and `rpc/current_business_id` returns
+   `null` with HTTP 200. As `anon` and as a member the same rpc returns the café's uuid.
+
+   So the app loads cleanly, throws nothing, and paints every screen at zero. To the person holding
+   the phone that is indistinguishable from their café having been deleted.
+
+   WHY THE RPC AND NOT A `business_members` READ. The client could count its own membership rows —
+   there is a policy for exactly that — but that is the else-branch of `current_business_id()`
+   rewritten in JavaScript, and CLAUDE.md's own law is that two definitions of the same thing IS
+   the defect. Asking the server the question it will actually answer costs one entry in a
+   Promise.all that was already in flight.
+
+   ⚠️ IT FAILS OPEN, ON PURPOSE. Only an unambiguous null with no error gates the app. An error, a
+   missing function, an undefined body — anything that means "could not tell" — reads as 'ok'.
+   This is a MESSAGE, not a security control; RLS is the control and it is already enforced
+   server-side. A false alarm would lock a legitimate user out of a working app, which is strictly
+   worse than the empty screen this replaces. */
+function tenantGateState(res){
+  if(!res || res.error) return 'ok';                       // could not tell — say nothing
+  return res.data===null ? 'nomember' : 'ok';              // strict: undefined is not null here
+}
+
+/* The wording carries three things, because all three are wrong guesses someone would otherwise
+   make: WHICH account they are in (Max has more than one, and the email is the whole diagnosis),
+   that nothing has been destroyed, and what to do about it. */
+function nonMemberMessage(email){
+  return (email ? 'You’re signed in as ' + email + ', but that account' : 'You’re signed in, but this account')
+    + ' isn’t linked to a café yet, so there’s nothing to show. No data has been lost.'
+    + ' Ask the café owner to add this account, or sign out.';
+}
 
 /* pull everything from Supabase and refresh the UI */
 async function bootstrapSync(){
@@ -586,6 +676,14 @@ async function bootstrapSync(){
        Naming the columns explicitly makes the REAL query answer the same question — it errors if the
        column is missing — so support is now read off the query that had to happen anyway. */
     var soft=function(p){ return Promise.resolve(p).then(function(r){ return r; }, function(e){ return {error:e}; }); };
+    /* 185: `soft` protects against a REJECTED promise; it cannot protect against a method that is
+       not there, because `SUPA.rpc(…)` on a client without `rpc` throws while the array is still
+       being BUILT — before Promise.all, inside the try, so the whole boot would report "couldn't
+       load your data" on a working database. Not hypothetical: the Playwright shim's fake client
+       has neither `rpc` nor `auth`, and `authInit` already guards for exactly this reason.
+       Both readings land on tenantGateState's fail-open path, which is where "could not tell"
+       belongs. */
+    var softCall=function(fn){ try{ return soft(fn()); }catch(e){ return {error:e}; } };
     var results=await Promise.all([
       SUPA.from('ingredients').select('*'),
       SUPA.from('menu_items').select('*'),
@@ -599,10 +697,31 @@ async function bootstrapSync(){
       // v114: DESCENDING + limit, unlike every read above it. The others are bounded by the data (412
       // products, 78 dishes); this one grows for as long as the app is used, and it is on the boot
       // critical path. Newest-500 is the window the chart can draw; the server keeps the lot.
-      soft(SUPA.from('menu_change_log').select('*').order('recorded_at',{ascending:false}).limit(500))
+      soft(SUPA.from('menu_change_log').select('*').order('recorded_at',{ascending:false}).limit(500)),
+      /* 185 — WHICH TENANT AM I. Rides this batch rather than costing a round trip of its own, which
+         is the only reason it is affordable on the boot critical path at all. `soft` because an
+         older project may not have the function: see tenantGateState on why not knowing reads as
+         'ok'. */
+      softCall(function(){ return SUPA.rpc('current_business_id'); }),
+      /* And WHO. This is here purely so the gate's message can name the account, and it is read
+         here rather than off `authUser` because `authInit()` is not awaited before this function
+         runs — reading the global would make the wording depend on a race. getSession is local
+         unless the token needs refreshing. */
+      softCall(function(){ return SUPA.auth.getSession(); })
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
     var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7], _ipl=results[8], _chg=results[9];
+    var _biz=results[10], _ses=results[11];
+    /* 185 — BEFORE the required-table throw and before a single store is assigned. A non-member's
+       reads all SUCCEED with zero rows, so nothing below would ever raise; and if something else
+       did fail as well, "couldn't load your data" would be the wrong diagnosis for an account that
+       has no data to load. Returning here leaves memory untouched and the gate covering the app. */
+    if(tenantGateState(_biz)==='nomember'){
+      var _who=(_ses && _ses.data && _ses.data.session && _ses.data.session.user && _ses.data.session.user.email)||'';
+      setSync('none');                                     // 185: nothing failed — see setSync
+      bootReady('nomember', nonMemberMessage(_who));
+      return;
+    }
     // v108: setg.error belongs here and was missing (CodeRabbit). app_settings is not a nice-to-have —
     // it carries `kitchen_ingredients`, so a failed read empties every kitchen word AND silently drops
     // the food-cost target back to its 40% default, which moves every suggested price on the Menu tab.
@@ -5654,7 +5773,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v160';
+var APP_VERSION='v161';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

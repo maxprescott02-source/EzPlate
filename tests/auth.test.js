@@ -187,18 +187,46 @@ test('the Supabase session token is NOT purged — it is how the session survive
     'purging the auth token would undo the sign-in that triggered the purge');
 });
 
-test('AUTH GATES NOTHING — no boot path or render path consults authUser', () => {
-  /* The design decision, pinned because it is the one a later batch is most likely to "fix"
-     accidentally. Every RLS policy is still `using (true)`, so a signed-in session sees exactly
-     what a signed-out one sees; gating the app before isolation exists would lock Max out of his
-     own data for no benefit. Enforcement belongs with the business_id + RLS item.
-     If that item makes auth mandatory, this test SHOULD be rewritten, deliberately, not deleted. */
-  const gated = /if\s*\(\s*!\s*authUser\s*\)/.test(SRC)
-    || /authUser\s*\?[^:]*:\s*return/.test(SRC)
-    || /bootGate\([^)]*authUser/.test(SRC);
+test('BEING SIGNED OUT STILL RUNS THE WHOLE APP — nothing refuses to work without a session', () => {
+  /* ⚠️ REWRITTEN IN 185, DELIBERATELY, WHICH IS WHAT ITS OWN NOTE ASKED FOR. It read
+     "AUTH GATES NOTHING — no boot path or render path consults authUser" and ended:
+     "If that item makes auth mandatory, this test SHOULD be rewritten, deliberately, not deleted."
+     Batch 182 made RLS distinguish tenants and 185 made the app SAY SO when it resolves to none, so
+     "gates nothing" is no longer the whole truth. What survives is the half that is still
+     load-bearing and still the thing a later batch would break by accident:
+
+       being signed OUT must keep working, because `current_business_id()` still answers the seeded
+       café for `anon`. Closing that is the auth item's one-function change, and until it lands a
+       client-side sign-in wall would lock Max out of his own café for no gain.
+
+     ⚠️ COMMENTS ARE STRIPPED FIRST. 185's own explanation of why bootstrapSync reads the session
+     from its Promise.all *rather than off `authUser`* contains the word `authUser`, and the naive
+     scan below failed on that prose — a test going red at its own documentation. Third time this
+     shape has bitten (172, then the CSS test forty lines down), so it is applied here too. */
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const gated = /if\s*\(\s*!\s*authUser\s*\)/.test(code)
+    || /authUser\s*\?[^:]*:\s*return/.test(code)
+    || /bootGate\([^)]*authUser/.test(code);
   assert.ok(!gated, 'nothing may refuse to run because there is no signed-in user');
-  const boot = SRC.slice(SRC.indexOf('async function bootstrapSync'), SRC.indexOf('async function bootstrapSync') + 4000);
-  assert.ok(!boot.includes('authUser'), 'bootstrapSync must not consult the session');
+  const i = code.indexOf('async function bootstrapSync');
+  const boot = code.slice(i, i + 5000);
+  assert.ok(!boot.includes('authUser'),
+    'the boot DECISION is the server’s answer to which tenant this is, never the client’s idea of who is signed in');
+});
+
+test('185: the tenant gate reads the SERVER, and refuses only on an unambiguous null', () => {
+  /* The companion to the test above, and the reason it could be narrowed rather than deleted.
+     The app may now stop at boot — but never on the client's own opinion of the session. It stops
+     because `current_business_id()` answered null, which is a fact only the server holds.
+     tenant-gate.test.js pins the decision itself; what is pinned HERE is that bootstrapSync asks. */
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  assert.ok(/rpc\(\s*'current_business_id'\s*\)/.test(code),
+    'the tenant must be asked of the server, not inferred');
+  const i = code.indexOf('async function bootstrapSync');
+  const boot = code.slice(i, i + 5000);
+  assert.ok(/tenantGateState\(/.test(boot), 'and bootstrapSync must act on the answer');
+  assert.ok(/bootReady\('nomember'/.test(boot),
+    'a signed-in account with no café is TOLD; an empty app with no message is the defect');
 });
 
 test('there is NO sign-up path — the anon key already grants what an account would', () => {
