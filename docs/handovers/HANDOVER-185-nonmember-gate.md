@@ -66,7 +66,7 @@ The `_bootNoMember` latch makes that benign and an assertion now kills it.
 **The latch I added to fix that then wedged the app, and no test would have caught it either.**
 It survived into the next `bootstrapSync`, and the `online` listener re-runs that, so a user whose membership was granted between two runs would get a spinner and "Loading your data..." forever on a working account.
 My fix was to scope it to one boot run by clearing it in the `loading` branch.
-**That fix is itself wrong and was overturned by the review below; it is written down rather than tidied away, because the sequence of three is the actual lesson here.**
+**That fix is itself wrong and was overturned by the review below; it is written down rather than tidied away, because the SEQUENCE is the actual lesson here, not any one of its steps.**
 The clear now lives where the ANSWER is, in `bootstrapSync`, and only a definite uuid performs it.
 
 **My own theme axis was vacuous on the first cut**, and `tests/visual/v142-menu.spec.js` already records the identical mistake on the identical key.
