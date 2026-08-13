@@ -198,6 +198,14 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 ## C — code hygiene and latent defects
 
+### The staging seeds' assertions assume exactly one tenant
+(Found 13 Aug 2026 while widening the two semantic keys in 183. **Not wrong today, and that is why it is C.**)
+`03-seed-realistic.sql` and `04-seed-scale.sql` verify themselves with statements like
+`select jsonb_array_length(value) into m from public.app_settings where key = 'kitchen_ingredients'`.
+Since 183 that key is only unique per café, so with two tenants seeded the query matches **two rows** and `select … into` silently takes an arbitrary one — no error, and the assertion then checks whichever café Postgres happened to return.
+It cannot bite yet, because each seed's first act is to `delete … where true` as `postgres`, which is not RLS-scoped and therefore empties every tenant. **The assumption is load-bearing and unwritten**, which is the whole finding: the day a seed stops wiping across tenants, or someone runs an assertion block on its own against a two-tenant staging, it reports success on the wrong data.
+Requirements: the self-checks filter on `business_id`, or say at their own site that they are only valid immediately after the wipe. Same for the summary `select` at the bottom of each seed.
+
 ### The Invoices screen still has the boot-race priming gap that F9 fixed for Settings
 Filed 11 Aug 2026 by the F9 batch. **Half of it was fixed by F10 (v149) and this is the surviving half** — the original entry also described `currentTab()`'s fallback list, which is now the shared `TAB_PANES` constant and no longer has a hole.
 What remains: `rerenderCurrentTab`'s `if/else` chain names `analysis`, `ingredients`, `dashboard`, `pantry` and `settings`, returns early for `account`, and falls through to `renderPlatesTab()` for everything else — so **`invoices` gets `renderPlatesTab()`**. `restoreLastTab()` runs before `bootstrapSync()` resolves, so a refresh landing on Invoices renders `#lastImport3` against pre-boot state and never corrects it, while a hidden Plates library is repainted instead.

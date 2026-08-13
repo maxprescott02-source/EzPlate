@@ -92,15 +92,24 @@ test('01-schema.sql keeps restore_backup SECURITY INVOKER', () => {
   // fires on something other than the thing it names is the failure this repo keeps finding; the fix
   // is to make it pin what it says, not to delete it.
   //
-  // Note the mirrored copy carries no `security invoker` clause at all — it is verbatim from
-  // pg_get_functiondef, which omits the default. So the absence of `definer` IS the assertion, and
-  // requiring the word `invoker` here would go red against a faithful copy.
+  // ⚠️ RE-SCOPED AGAIN IN 183, AND THE ASSERTION GOT STRONGER RATHER THAN LOOSER.
+  // This used to say: "the mirrored copy carries no `security invoker` clause at all — it is
+  // verbatim from pg_get_functiondef, which omits the default. So the ABSENCE of `definer` is the
+  // assertion, and requiring the word `invoker` would go red against a faithful copy."
+  // That stopped being true in 183: the mirror now carries the newest migration's own
+  // `create or replace` text (see 01-schema.sql section 6 for why byte-identity is load-bearing),
+  // which states `security invoker` explicitly. So both halves can be required now — and requiring
+  // the WORD is the better test, because a body that says nothing and a body that says `invoker`
+  // are only equivalent while nobody changes the default.
+  // It is also why the terminator moved from `$function$;` to `$fn$;`: this test going red is what
+  // told me the splice had landed, which is a test doing its job.
   const sql = code(read('01-schema.sql'));
   const start = sql.indexOf('create or replace function public.restore_backup');
   assert.ok(start > 0, 'the RPC must be mirrored');
-  const end = sql.indexOf('$function$;', start);
-  assert.ok(end > start, 'restore_backup\'s body is no longer terminated by $function$; — re-scope this test');
+  const end = sql.indexOf('$fn$;', start);
+  assert.ok(end > start, 'restore_backup\'s body is no longer terminated by $fn$; — re-scope this test');
   const body = sql.slice(start, end);
+  assert.ok(/security\s+invoker/i.test(body), 'restore_backup must say SECURITY INVOKER outright');
   assert.ok(!/security\s+definer/i.test(body), 'restore_backup must not become SECURITY DEFINER');
 });
 
