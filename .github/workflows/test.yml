@@ -34,7 +34,15 @@ jobs:
   # ---------------------------------------------------------------------------
   # WHAT CHANGED — the gate that stops a prose diff paying for Chromium.
   #
-  # WHY. This repo is PRIVATE, so Actions minutes are billed, and `tests` is the only
+  # ⚠️ THE COST ARGUMENT BELOW EXPIRED ON 13 AUG 2026 — THE GATE DID NOT.
+  # The repo went PUBLIC, so Actions are unlimited and free (measured: billable_ms 0 for
+  # an 8-minute run). Every "minutes are billed" sentence in this header is now history,
+  # kept because it explains why the gate is shaped the way it is.
+  # WHAT STILL JUSTIFIES IT: wall-clock. The browser job is ~8.7 minutes and a prose diff
+  # waiting on it is 8.7 minutes of nobody learning anything. The fail-closed design below
+  # is unchanged and must stay — it was never really about money.
+  #
+  # WHY (as written when it was built). This repo is PRIVATE, so Actions minutes are billed, and `tests` is the only
   # workflow that consumes any (code-review.yml is workflow_dispatch + the deep-review
   # label and does not fire on its own). The browser job is ~8.7 minutes and runs TWICE
   # per merged PR - once on `pull_request`, once on the `push` to main. Measured on the

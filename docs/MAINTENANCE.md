@@ -120,23 +120,17 @@ Requirements: one owner for the bottom stack. v141 established the three-way spl
 
 ## C — tests and CI
 
-### CI minutes: the two remaining levers, measured 13 Aug 2026
-(Found after GitHub blocked all Actions on a billing cap. Max's fix that day was to raise the spending limit; this is the work that makes the cap comfortable rather than tight.)
+### ~~CI minutes~~ — EXPIRED THE DAY IT WAS WRITTEN, 13 Aug 2026
+Written when GitHub blocked all Actions on a billing cap, proposing two ways to cut minutes. **Max made the repo PUBLIC instead, which makes Actions unlimited and free** (measured: `billable_ms` 0 for an 8-minute run), so neither lever saves money and neither should be built for that reason.
+Measured usage at the time: **330 runs since 1 Aug; 168 in the five days from 9 Aug (94 `pull_request`, 74 `push` to main)** — about 34 a day, against a four-minute-per-run billing floor caused by GitHub rounding each JOB up to a whole minute.
 
-`test.yml` is already well optimised — the `changes` gate skips Playwright on prose-only diffs, concurrency cancels superseded branch runs, and Chromium is cached. **Do not go looking for easy wins; they are taken.** What is left, with the measurements:
+**Three things outlived the cost argument and are kept in full, because they are the expensive parts to re-derive:**
 
-**Measured usage.** 330 runs since 1 Aug; 168 in the five days from 9 Aug (94 `pull_request`, 74 `push` to main), so about 34 runs a day.
-
-**Lever 1 — the per-job minute floor. Saves ~170 min/month and weakens NOTHING.**
-GitHub rounds each JOB up to the nearest minute, so four jobs is a **four-minute floor per run** whatever they actually cost — roughly 1,300 min/month before any real work. The `changes` job exists only to compute one output (a `git diff` and a node one-liner) and pays a full runner startup plus a whole billed minute to do it. Folding it into `unit` and pointing `playwright`'s `needs:`/`if:` at `unit` instead removes that floor at no cost to what is tested.
-⚠️ The only loss is one named entry in the checks list, which `test.yml`'s own header calls deliberate ("FOUR JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke"). Weigh that; it is a real UX property, not decoration.
-⚠️ **`tests/ci-workflow.test.js` EXTRACTS that script by its surrounding double quotes.** Move it and you must move the extractor in the same change, or the test throws rather than passing quietly — which is the failure this repo keeps finding.
-
-**Lever 2 — the duplicate push-to-main run. Saves ~670 min/month and DOES weaken something.**
-Every merged PR runs the whole workflow twice, and `test.yml`'s header says so. The `pull_request` event tests `refs/pull/N/merge` — the merge RESULT, not the branch head — so the push-to-main Playwright run usually re-tests an identical tree.
-**"Usually" is the catch and it is why this is not a free win.** GitHub re-runs a PR on `synchronize` but NOT when the BASE moves, so if main advances between the last PR run and the merge, the tested tree is not the merged tree. Single-developer sequential batches make that rare, not impossible.
-It also gives up the stated reason main is exempt from concurrency cancellation: *"every commit that reaches production gets its own recorded result."* Keeping `unit` and `smoke` on push to main (seconds each) and dropping only `playwright` retains most of that.
-**This is a safety trade, not an implementation choice — it needs Max, not a batch.**
+1. **Folding `changes` into `unit` is still a real simplification** (one fewer runner startup, one fewer job in the checks list), it just no longer saves money. If anyone does it, repoint `playwright`'s `needs:` AND `if:` at `unit` — `test.yml` says at its own site that those two are a pair and neither works alone.
+   ⚠️ **`tests/ci-workflow.test.js` EXTRACTS that script by its surrounding double quotes.** Move the script and you must move the extractor in the same change, **or the test throws rather than passing quietly** — which is the failure class this repo keeps finding.
+   ⚠️ Against it: `test.yml`'s header calls the four-job split deliberate — *"FOUR JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke without opening a log"*. That is a real property, not decoration.
+2. **Dropping the duplicate push-to-main Playwright run is a SAFETY trade, not an implementation choice — it needs Max, not a batch.** It gives up the stated reason main is exempt from concurrency cancellation: *"every commit that reaches production gets its own recorded result."* Keeping `unit` and `smoke` on push to main and dropping only `playwright` retains most of it.
+3. **`pull_request` tests `refs/pull/N/merge` — the merge RESULT — but GitHub does NOT re-run it when the BASE moves.** So a PR whose base advanced after its last run was never tested against what actually merges. Rare with sequential single-developer batches; still true, and independent of billing.
 
 ### One unit test fails for 60 seconds a day, and it is the clock, not the code
 Caught live 10 Aug 2026 at **23:59:53 local**, three runs for three failures, then passing a minute later.
