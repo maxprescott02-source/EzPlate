@@ -441,6 +441,15 @@ function dbDeleteIngredient(id){ return pushWrite(function(){ return SUPA.from('
 // dbDeletePlate: a helper that swallows its promise cannot be sequenced by anyone, however much a caller
 // wants to. The ingredient paths need it — a change-log entry must not be written for a change the
 // server refused. Existing callers ignore the return and are unaffected.
+/* ⚠️ 183: THE ABSENCE OF AN `onConflict` HERE IS LOAD-BEARING — DO NOT "SPECIFY IT FOR CLARITY".
+   `app_settings`' primary key is (business_id, key), not (key), and PostgREST derives an upsert's
+   ON CONFLICT target from the table's primary key when the call does not name one. That is what makes
+   this write resolve against the CALLER'S OWN row: the tenant column is filled by the server's trigger
+   and DEFAULT, so the client neither sends it nor needs to know it. Naming `onConflict:'key'` would
+   re-globalise the key and put back the exact defect 183 fixed — a second café's first save of a food
+   cost target refused 42501 against a row it cannot see, permanently, with no workaround.
+   Same applies to dbPushSupplierPhrase. Measured over PostgREST as a second tenant, 13 Aug 2026;
+   tests/semantic-keys.test.js pins that neither call names a conflict target. */
 function dbSetSetting(key,val){ return pushWrite(function(){ return SUPA.from('app_settings').upsert({key:key, value:val}); }, 'setting'); }
 /* v114: the change log is INSERT-only by policy as well as by intent — there is no dbUpdateChange or
    dbDeleteChange, and the table grants neither to the app's role.
@@ -2548,6 +2557,10 @@ var invSupplier='';
 var supplierMem={};
 function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
+/* The id is memKey(supplier, phrase) — content-derived ON PURPOSE, so re-teaching the same pack UPDATES
+   one row instead of duplicating it. Since 183 the primary key is (business_id, id), which keeps that
+   property WITHIN a café and stops two cafés colliding on a common supplier and phrase. No onConflict
+   here for the same load-bearing reason as dbSetSetting — read the note there before adding one. */
 function dbPushSupplierPhrase(e){ pushWrite(function(){ return SUPA.from('supplier_phrases').upsert(supplierPhraseToRow(e)); }, 'supplier phrase'); }
 function dbDeleteSupplierPhrase(id){ pushWrite(function(){ return SUPA.from('supplier_phrases').delete().eq('id',id); }, 'supplier phrase delete'); }
 function rememberSupplierPhrase(supplier, phrase, qty, unit, pid){
@@ -5547,7 +5560,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v158';
+var APP_VERSION='v159';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

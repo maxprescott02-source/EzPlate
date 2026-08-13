@@ -272,7 +272,10 @@ create index if not exists price_history_menu_id_recorded_at_idx
 -- 20260813_business_id_part1.sql (batch 181) added the column, the two tenant
 -- tables and the filling trigger; 20260813_business_id_part2.sql (batch 182)
 -- added `current_business_id()`, repointed the trigger and the column DEFAULTS
--- at it, and replaced all thirteen `using (true)` policies with scoped ones.
+-- at it, and replaced all thirteen `using (true)` policies with scoped ones;
+-- 20260813_semantic_keys.sql (batch 183) widened the two content-derived
+-- primary keys to include the tenant — section 4b, which must come after the
+-- loop below because the column it keys on is created there.
 --
 -- ⚠️ THE TENANT MACHINERY COMES FIRST, AND THAT ORDER IS NOW LOAD-BEARING. Part
 -- 1's half of this lived in a section 7 at the end of the file, which was right
@@ -425,6 +428,49 @@ begin
     execute format('alter table public.%I alter column business_id set not null', t);
   end loop;
 end $mig$;
+
+-- ---------------------------------------------------------------------------
+-- 4b. THE TWO SEMANTIC KEYS ARE PER-TENANT — 20260813_semantic_keys.sql (183).
+--
+-- ⚠️ THIS CANNOT BE INLINE IN SECTION 1 AND THE REASON IS THE WHOLE POINT OF
+-- PUTTING IT HERE. `business_id` does not exist until the loop above runs, so
+-- `create table` cannot name it in a primary key. And `create table if not
+-- exists` SKIPS an existing table (docs/STAGING.md says so at the columns_fp
+-- note), so a mirror that only ever declared the narrow key in section 1 would
+-- keep the narrow key forever on every staging that already exists — which is
+-- every staging. The swap has to be an ALTER, and it has to be idempotent.
+--
+-- What it fixes: `app_settings.key` and `supplier_phrases.id` are CONTENT keys
+-- shared by every café, so a second tenant's first upsert of a key another
+-- tenant already holds is refused 42501 on the USING expression. Widening the
+-- primary key is what makes them per-café while keeping the content-addressing
+-- WITHIN a café, which is what makes re-teaching a pack update one row.
+-- The migration's header carries the measurement and the rollback.
+-- ---------------------------------------------------------------------------
+
+do $keys$
+declare
+  spec text[][] := array[['app_settings','key'], ['supplier_phrases','id']];
+  i int;
+  tbl text;
+  col text;
+begin
+  for i in 1 .. array_length(spec, 1) loop
+    tbl := spec[i][1];
+    col := spec[i][2];
+    -- Idempotent by asking the catalogue what the key IS, rather than by
+    -- swallowing an error: a re-mirror must be a no-op, and `drop constraint`
+    -- on an already-swapped table would take the composite key away.
+    if (select pg_get_constraintdef(oid) from pg_constraint where conname = tbl || '_pkey')
+       is distinct from format('PRIMARY KEY (business_id, %I)', col) then
+      execute format('create unique index %I on public.%I (business_id, %I)',
+                     tbl || '_biz_' || col || '_uk', tbl, col);
+      execute format('alter table public.%I drop constraint %I', tbl, tbl || '_pkey');
+      execute format('alter table public.%I add constraint %I primary key using index %I',
+                     tbl, tbl || '_pkey', tbl || '_biz_' || col || '_uk');
+    end if;
+  end loop;
+end $keys$;
 
 -- Policy names are production's post-182 names, because that is what a batch
 -- reading this file will look them up by.
@@ -598,7 +644,7 @@ begin
   select s.key, s.value, now()
     from jsonb_populate_recordset(null::app_settings, payload->'app_settings') s
    where s.key is not null
-  on conflict (key) do update set value = excluded.value, updated_at = now();
+  on conflict (business_id, key) do update set value = excluded.value, updated_at = now();
   get diagnostics n_set = row_count;
 
   return jsonb_build_object(
