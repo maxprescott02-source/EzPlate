@@ -100,21 +100,34 @@
 --     notify pgrst, 'reload schema';
 --   end $$;
 --
---   ⚠️ IT WILL RAISE 23505 IF A SECOND TENANT HAS ALREADY SAVED A SETTING OR
---   TAUGHT A PACK — because that is the rollback correctly refusing to throw a
---   row away. Narrowing a key is only reversible while the wider key is unused.
---   On production today there is exactly one tenant, so it is clean; it was
---   rehearsed on staging BEFORE the second café's rows existed, for that reason.
+--   ⚠️ IT RAISES 23505 IF A SECOND TENANT HAS ALREADY SAVED A SETTING OR TAUGHT
+--   A PACK — because that is the rollback correctly refusing to throw a row away.
+--   Narrowing a key is only reversible while the wider key is unused. On
+--   production today there is exactly one tenant, so it is clean; before running
+--   it anywhere else, move or delete the other tenants' rows first and know that
+--   you are choosing which of two rows survives.
 --   Re-runnable: no. `create unique index` has no `if not exists` escape that
 --   would also be correct here, and a second run would raise 42P07.
 --
 -- REHEARSED: staging (pboidoxjghntalovzrke), 13 Aug 2026, on 04-seed-scale with
---   the two businesses and three accounts batch 182 left there. See the handover
---   for the transcript; the two results that matter:
---   * the 42501 pair above, reproduced as the client BEFORE the migration and
---     both returning a row AFTER it, as tenant two, over PostgREST;
---   * tenant one's own settings and taught packs unchanged throughout, and
---     neither tenant able to see the other's.
+--   the two businesses and three accounts batch 182 left there. Verified AS THE
+--   CLIENT over PostgREST, not through the MCP. What was actually run, in order:
+--   * the 42501 pair above, reproduced as tenant two BEFORE a line of this file
+--     was written, so the fix had something to be measured against;
+--   * after applying: tenant two saved a target, a GST default and its kitchen
+--     ingredients; re-upserting a key UPDATED one row rather than duplicating it;
+--     the two cafés now hold the SAME `supplier_phrases.id` with different
+--     suppliers and quantities; tenant one's 10 settings and 60 taught packs were
+--     unchanged throughout and neither café could see the other's;
+--   * `restore_backup` v4 called as tenant two AND as anon — anon being
+--     production's caller — updating the keys the file carried, leaving the ones
+--     it did not, and touching no other tenant. Format `1` still refused by name;
+--   * THE ROLLBACK ABOVE, RUN BOTH WAYS. With tenant two holding rows it raised
+--     23505, exactly as this header claims. With those rows cleared it restored
+--     both primary keys and the v3 function body in one statement. The migration
+--     was then re-applied. `docs/STAGING.md` says to rehearse the rollback
+--     because batch 181 found its own was broken; this is that, and the refusal
+--     is the half that would not have been discovered by reading.
 --
 -- APPLIED TO PRODUCTION: 13 Aug 2026, by Claude (batch 183), to
 --   izrnptxhdylllodvglla. Verified as the anon client over PostgREST — every
