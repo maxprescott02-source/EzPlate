@@ -1949,6 +1949,17 @@ function offerPlateDraftResume(){
      offer. The call site does not move - deferring further is strictly safer for the v83 __confirmFn
      ordering, not less safe. */
   if(!window.__ezReady && _draftOfferWaits++ < 50){ setTimeout(offerPlateDraftResume, 200); return; }
+  /* ⚠️ 186 — NOT WHILE THE GATE OWNS THE SCREEN, and the comment above is why this is load-bearing
+     rather than tidy: it says outright that "the confirm modal outranks the boot gate in z-index, so
+     Resume is tappable while the gate is still up". True and harmless while the only gate was a
+     failed boot on the owner's own device. Since this batch the gate is also the front door, and
+     `_bootNoMember` means the SERVER said this caller belongs to no café — a signed-out stranger, or
+     an account with no membership.
+     Offering them a draft names somebody else's plate in a dialog before anyone has signed in, and
+     Resume loads its `{kid,qty}` lines, whose ids mean something in a café this caller cannot read.
+     Found by the pre-push review. Nothing is destroyed by returning: the draft stays in storage, and
+     signing in RELOADS, so a legitimate owner is offered it on the next pass. */
+  if(_bootNoMember) return;
   var n=(Array.isArray(d.lines)?d.lines.filter(function(l){return l&&!l.misc;}).length:0);
   var what=(d.name&&d.name.trim())?('“'+d.name.trim()+'”'):(n+' ingredient'+(n===1?'':'s'));
   askConfirm('Unfinished plate', 'You were building '+what+'. Resume it, or discard?', 'Resume',
@@ -6034,24 +6045,41 @@ async function authSubmit(email, pass, btn, showErr){
 
 /* The boot gate's form. It exists because after this batch a signed-out browser can see NOTHING,
    so the Account screen's copy of this form is behind a screen the user cannot reach.
-   ⚠️ `authUserInitiated` is deliberately NOT set here, and that is not a shortcut — it is what the
-   flag MEANS. It records whether the unfinished-plate question has been put to the user, and this
-   screen has not put it, so authSwitchUser KEEPS the draft. A plate half-built on a device that was
-   then signed out is exactly the work worth saving, and nothing here warned it would go.
-   (185's Sign out button reasons identically, and says so at its own site.)
-   No belt calling authSwitchUser directly, unlike that button: it needed one because sign-out can
-   leave prevId and nextId BOTH null when authInit lost its race, so authApply would do nothing.
-   Signing in cannot — this screen only shows when nobody is signed in, so the id always changes. */
+
+   ⚠️ IT ASKS ABOUT AN UNFINISHED PLATE, EXACTLY AS THE ACCOUNT FORM DOES, and the first cut of this
+   batch did NOT — it left `authUserInitiated` false so `authSwitchUser` would KEEP the draft, on the
+   reasoning that this screen has asked nothing and a plate half-built before a device was signed in
+   is worth saving. That reasoning holds for one case and one case only: the SAME person coming back.
+   The pre-push review found the case it ignores. This is the only sign-in a signed-out browser can
+   reach, so it is also how a DIFFERENT account signs in on a device — and `cafeDB_plateDraft` is a
+   single global key with no tenant in it. A kept draft would then be offered to the new account by
+   name, and its `{kid,qty}` lines resolve against ids that mean something else in another café.
+   Silently carrying one tenant's work into another's session is the defect this whole batch exists
+   to close, reached through localStorage instead of RLS.
+   So: ask. Nothing is destroyed without the user being told, which is the rule the flag encodes;
+   they simply get told here too. There is no unfinished plate on the overwhelming majority of boots,
+   and `authGuardUnfinished` is silent when there is none.
+
+   No belt calling authSwitchUser directly, unlike 185's Sign out button: it needed one because
+   sign-out can leave prevId and nextId BOTH null when authInit lost its race, so authApply would do
+   nothing. Signing in cannot — this screen shows only when nobody is signed in, so the id changes. */
 function wireGateSignIn(){
   var f=document.getElementById('bgSignForm'); if(!f) return;
-  f.addEventListener('submit', async function(ev){
+  f.addEventListener('submit', function(ev){
     ev.preventDefault();
     var em=document.getElementById('bgEmail'), pw=document.getElementById('bgPass');
     var btn=document.getElementById('bgSignBtn');
-    var ok=await authSubmit((em&&em.value||'').trim(), (pw&&pw.value)||'', btn, gateErr);
-    if(!ok) return;
-    if(pw) pw.value='';
-    // no toast and no re-render here: authApply purges this device and reloads.
+    var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
+    // the blank check BEFORE the confirm, for wireAccount's reason: asking someone to discard a
+    // plate and then telling them the password was empty is a question asked for nothing.
+    if(!email || !pass){ gateErr('Enter your email and password.'); return; }
+    authGuardUnfinished('Signing in', async function(){
+      authUserInitiated=true;                                  // they have been asked; the purge may take the draft
+      var ok=await authSubmit(email, pass, btn, gateErr);
+      if(!ok){ authUserInitiated=false; return; }
+      if(pw) pw.value='';
+      // no toast and no re-render here: authApply purges this device and reloads.
+    });
   });
 }
 

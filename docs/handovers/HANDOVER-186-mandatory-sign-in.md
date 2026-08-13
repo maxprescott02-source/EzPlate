@@ -21,9 +21,26 @@ The gate's form does not set `authUserInitiated`, and that is the one line in th
 The Account card's copy said signing in "does not change what you can see or do".
 True until this batch, false the moment the migration ran.
 
+## The pre-push review found two, and both were real
+
+**1. The gate's sign-in kept the plate draft, and that carries one café's unsaved work into another's session.**
+I had written the opposite as a deliberate decision, with a comment arguing it: the screen asks nothing, so it may not destroy anything.
+That holds for the same person coming back and for nobody else.
+This is the ONLY sign-in a signed-out browser can reach, so it is also how a different account signs in on a device, and `cafeDB_plateDraft` is one global key with no tenant in it - the new session would be offered the previous account's plate BY NAME, with `{kid,qty}` lines pointing at ids that mean something else.
+It now asks, exactly as the Account card does, which satisfies the same underlying rule (nothing goes without the user being told) on the correct side of it.
+**The sharper half needed no account switch at all:** `offerPlateDraftResume`'s own comment says the confirm modal outranks the boot gate, so a stranger opening the URL on a device that once held a session was shown a dialog naming a plate, and could load it. Guarded now, before the dialog, with a return.
+The test that pinned the old contract was INVERTED rather than deleted, with the reversal written into it, and both fixes were hand-mutated to confirm the assertions go red.
+
+**2. The migration header claimed it had already been applied to production, and it had not.**
+I drafted that paragraph ahead of time - date, method, "his 412 products" - and never removed it.
+With `list_migrations` empty the file is the only audit trail these migrations have, so that is the trail lying, and it contradicted the sequencing rule this same diff adds.
+Replaced with a NOT YET APPLIED note carrying the reason, and the general rule is now in `CLAUDE.md`.
+
+Nothing was dismissed. The review's other four categories came back clean and I did not go looking for reasons to disagree with the two that did not.
+
 ## Into CLAUDE.md
 
-Three edits, under standing authority.
+Four edits, under standing authority.
 
 **Tier 1, appended to 185's fail-open trap: a fail-open default is a decision about CONSEQUENCE, not about epistemics.**
 A second unreadable answer landed one line from the first and is deliberately collapsed to two values.
@@ -35,6 +52,9 @@ Here the window is minutes with a phone in it, and the safe order was client fir
 
 **Tier 3, migrations: a migration whose failure mode is a lockout can refuse to run.**
 A `do $$ ... raise exception ... $$;` block asserting the precondition, and proved to FIRE rather than merely written.
+
+**Tier 3, migrations: write the "applied to production" record WHEN IT HAPPENS, never ahead of it.**
+From finding 2 above. A pre-written record reads exactly like a verified one, because that is the form the rule asks for.
 
 ## New docs/QUEUE.md items
 
@@ -58,9 +78,13 @@ The migration is nine lines; the screen it requires is a new gate state, a secon
 Reading "one-function change" as the size of the batch would have produced a migration with no front door.
 
 **What did you not propose because it was out of scope?**
-Two.
+Three.
 The sign-in screen has no "forgot password" and no way to recover an account - there is no route at all today, and for a one-account cafe that is survivable, but it stops being survivable the moment a second real person has a login.
-And the boot gate is now three screens with a shared `.bg-inner`; a fourth would be the point to stop adding states to one function, which I would rather say now than discover later.
+The boot gate is now three screens with a shared `.bg-inner`; a fourth would be the point to stop adding states to one function, which I would rather say now than discover later.
+And `cafeDB_plateDraft` still has no tenant in it.
+The review's finding is closed by asking, which is correct and cheap, but the underlying fact is that one localStorage key holds authored work belonging to whichever café was last signed in.
+Stamping the draft with its author - the `envFence` pattern, one field - would let a switch keep the right draft and ignore the wrong one instead of discarding either.
+I did not build it here because it changes the draft's shape for a case that cannot occur until a second account exists, which is the Roles item.
 
 ## Surprises
 

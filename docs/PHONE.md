@@ -640,8 +640,12 @@ asks who you are before it shows anything.
 - **Then close the app completely and reopen it.** You should go straight in, no sign-in.
   **A failure is being asked to sign in every time**, which would mean the session token is being
   cleared on launch and is a real bug rather than a preference.
-- **If a plate was half-built on that device before you signed in, it should still be there.**
-  Signing in from this screen deliberately KEEPS an unfinished plate, because nothing warned you it
-  would go. **A failure is the builder being empty when you knew it was not.**
+- **If a plate was half-built on that device, signing in will ASK you about it first**, exactly as
+  the Account screen has always done: "You were building X. Signing in clears this device, so it will
+  be discarded." **Say yes.** There is no way to keep it - a signed-out browser cannot save anything,
+  so the plate cannot be rescued first, and carrying it across would put it in whichever cafe you
+  sign into. **A failure is being asked and then signing in anyway, or not being asked and the
+  builder later offering a plate you had already discarded.**
+  If you have real unfinished work in the builder right now, **save it before this deploy lands.**
 - **On the desktop machine too, once**, because the sign-in screen now covers the whole window
   including the left rail - so if anything is off-screen there, there is no nav to escape with.

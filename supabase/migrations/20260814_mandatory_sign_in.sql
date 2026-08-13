@@ -97,10 +97,16 @@
 --   after the migration: anon went straight back to the café's uuid and its 520
 --   products. The migration was then re-applied so staging stays mirrored.
 --
--- APPLIED TO PRODUCTION: 14 Aug 2026, by Claude, after `ezplate-v162` was live on
---   https://scoopyscosting.vercel.app. Verified the same way as staging, from the
---   client over PostgREST: anon -> `null` + `[]`, and Max's account -> his café's
---   uuid + his 412 products.
+-- ⚠️ NOT YET APPLIED TO PRODUCTION AS THIS FILE MERGES, AND THAT IS THE PLAN
+--   RATHER THAN AN OMISSION — see WHY THE CLIENT SHIPPED FIRST above. It goes on
+--   once `ezplate-v162` is answering at https://scoopyscosting.vercel.app, and the
+--   line recording that lands in a follow-up commit.
+--   ⚠️ This header carried a written-out "APPLIED TO PRODUCTION: 14 Aug 2026 …
+--   verified … his 412 products" while none of it had happened — drafted ahead of
+--   time and not removed. The pre-push review caught it. With `list_migrations`
+--   empty, this file is the ONLY audit trail these migrations have, so a
+--   pre-written record is not a formatting slip: it is the trail lying.
+--   The general rule, now in CLAUDE.md: write the record when the thing happens.
 
 do $$
 declare n int;

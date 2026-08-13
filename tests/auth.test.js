@@ -321,29 +321,52 @@ test('a stale error is cleared before a new attempt, not left contradicting it',
   assert.strictEqual(h.S.errs[0], '', 'the first thing it does is clear the previous message');
 });
 
-test('THE BOOT GATE\'S FORM MUST NOT CLAIM THE USER WAS ASKED — that flag decides whether a plate dies', () => {
-  /* ⚠️ THE ONE ASSERTION IN THIS BATCH THAT GUARDS DATA. `authUserInitiated` records whether the
-     unfinished-plate question has been PUT to the user; authSwitchUser reads it to decide whether
-     the draft goes with the purge. The Account screen sets it because `authGuardUnfinished` has
-     just asked. The boot gate has asked nothing — it is a full-screen sign-in on a device that may
-     hold a plate half-built before it was ever signed in — so setting it there destroys unsaved
-     authored work with nobody having consented to anything.
-     STRUCTURAL, and it says so: the flag is read two functions away, inside a reload path, so there
-     is no behavioural seam short of driving a whole boot. Added after MEASURING that adding
-     `authUserInitiated=true` to that handler left all 1174 tests green.
-     Comments are stripped first — this file has been bitten by its own prose three times. */
+test('BOTH sign-in forms ask before an unfinished plate can be discarded, and both record that they asked', () => {
+  /* ⚠️ THIS TEST ASSERTED THE OPPOSITE ONE COMMIT AGO, and the reversal is the point of writing it
+     out. It pinned that the boot gate's form must NOT set `authUserInitiated`, so `authSwitchUser`
+     would KEEP the plate draft — on the reasoning that the gate has put no question to the user and
+     may therefore not destroy their work.
+     THE PRE-PUSH REVIEW FOUND THE CASE THAT REASONING IGNORES. The gate's form is the only sign-in a
+     signed-out browser can reach, so it is also how a DIFFERENT account signs in on this device, and
+     `cafeDB_plateDraft` is a single global key with no tenant in it. Keeping it carries one café's
+     unsaved plate into another café's session, where it is offered BY NAME and its `{kid,qty}` lines
+     point at ids that mean something else.
+     Both readings agree on the underlying rule — nothing is destroyed without the user being told —
+     and they disagree about which side of it this screen sits on. Asking satisfies it directly.
+     STRUCTURAL, and it says so: the flag is read two functions away inside a reload path, so there
+     is no behavioural seam short of driving a whole boot. Comments are stripped first; this file has
+     been bitten by its own prose three times. */
   const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
   const gateForm = strip(SRC.slice(SRC.indexOf('function wireGateSignIn'), SRC.indexOf('function wireAccount')));
   const acctForm = strip(SRC.slice(SRC.indexOf('function wireAccount'), SRC.indexOf('function renderSettingsTab')));
 
-  assert.ok(!/authUserInitiated\s*=/.test(gateForm),
-    'the gate\'s sign-in may not set authUserInitiated — it asked nothing, so the plate draft is KEPT');
-  /* And the mirror, so this cannot pass by the flag having been deleted everywhere: the Account
-     form MUST still set it, or a user who was asked and said "discard" keeps a stale draft. */
-  assert.match(acctForm, /authUserInitiated\s*=\s*true/,
-    'the Account form must still record that the question WAS asked');
-  assert.match(acctForm, /authUserInitiated\s*=\s*false/,
-    'and must take it back when the sign-in fails, or the next event purges a draft for nothing');
+  for (const [label, form] of [['the boot gate', gateForm], ['the Account card', acctForm]]) {
+    assert.match(form, /authGuardUnfinished\(/,
+      `${label}'s sign-in must put the unfinished-plate question BEFORE the session changes — CLAUDE.md: gating the last committing action is not a gate`);
+    assert.match(form, /authUserInitiated\s*=\s*true/,
+      `${label} must record that the question WAS asked, or the purge keeps a draft the user agreed to lose`);
+    assert.match(form, /authUserInitiated\s*=\s*false/,
+      `${label} must take it back when the sign-in fails, or the next involuntary event purges a draft for nothing`);
+  }
+});
+
+test('a signed-out or non-member boot is NEVER offered somebody else\'s plate draft', () => {
+  /* The other half of the same finding, and the sharper half, because it needs no account switch at
+     all. `offerPlateDraftResume`'s own comment states that the confirm modal outranks the boot gate
+     in z-index, so Resume is tappable while the gate is up — harmless while the only gate was a
+     failed boot on the owner's device, and not harmless now that the gate is the front door.
+     Without the guard, a stranger who opens the URL on a device that once held a session is shown a
+     dialog naming a plate, and can load its lines. */
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const fn = strip(SRC.slice(SRC.indexOf('function offerPlateDraftResume'), SRC.indexOf('function saveCurrentPlate')));
+  const guard = fn.indexOf('_bootNoMember');
+  const ask = fn.indexOf('askConfirm');
+  assert.ok(guard > -1, 'the resume offer must consult the gate at all');
+  assert.ok(ask > -1, 'and must still ask on a normal boot');
+  assert.ok(guard < ask,
+    'the guard must come BEFORE the dialog — after it, the plate name has already been shown');
+  assert.match(fn.slice(Math.max(0, guard - 6), ask), /if\s*\(\s*_bootNoMember\s*\)\s*return/,
+    'and it must RETURN, not merely branch: falling through is the whole defect');
 });
 
 test('the password field is cleared after a successful attempt — in BOTH forms', () => {
