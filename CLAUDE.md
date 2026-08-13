@@ -122,6 +122,16 @@ The three other restore paths (`ing_price_history`, `menu_change_log`, `app_sett
 **The remedy that cannot be forgotten is a `BEFORE INSERT` trigger**, not a fix to the five inserts — because the next batch to rewrite `restore_backup` would have to remember the fix again. `set_default_business_id` + ten `set_business_id` triggers is the working example.
 ⚠️ **The general law is wider than one column:** any DEFAULT you add to those five tables is a claim that holds on every path except the one that runs after a disaster, which is the path nobody exercises.
 
+### The other half: a DEFAULT is applied BEFORE the trigger, so the two must say the SAME thing
+
+(Measured 13 Aug 2026, staging, batch 182 — and it is the mirror image of everything above, on the path that runs every day.)
+
+A DEFAULT fires when the column is **ABSENT from the INSERT**, which is what every client write does. So by the time a `BEFORE` trigger runs, the column is already **non-NULL**, and a trigger written as *"fill it if it is null"* **correctly does nothing on the normal path**. It only ever fires on the restore, where the key is present and explicitly NULL.
+
+That is harmless while the two agree and silent when they do not. `business_id` carried `default '<the legacy café>'::uuid` and a trigger that filled nulls with *the caller's tenant*; the moment a tenant-scoped `with check` existed, **every café except the seeded one could READ its rows and could not WRITE any** — `42501` on its own insert. Nothing in SQL catches it: the column is populated, the trigger is present, and a single-tenant database behaves perfectly. **It appears only as a SECOND tenant**, which is why it was invisible until staging had one.
+
+**So: a DEFAULT and a BEFORE trigger on the same column are ONE mechanism with two entry points, and they must compute the same value.** Point both at the same function — `set default public.current_business_id()`, `new.x := public.current_business_id()` — rather than leaving one a literal. Two definitions of the same thing is the defect; which one is "right" is not the question.
+
 ## `ingredients.updated_at` is not history
 
 It means nothing.
@@ -249,7 +259,7 @@ A test that re-implements a shipped function in order to test around it **passes
 
 **The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
 
-**TWELVE incidents, one remedy.** (Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, and `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
+**FOURTEEN incidents, one remedy.** (Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, then twelve after 180 reconciled the lists, and fourteen after 182 added two of its own.  `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
 
 - **v113** - a passthrough stub hid a real escaping bug.
 - **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
@@ -263,9 +273,15 @@ A test that re-implements a shipped function in order to test around it **passes
 - **174** - `S.purges` was read but never incremented, so the line asserting it could not fail.
 - **175** - a spec wrapped its comparison in `if (rows.mk.length)` while `boot()` never seeded the data, so the loop never ran. **Caught by the pre-push review, not by the batch.**
 - **176** - a truncation test went vacuous when the fix removed the pressure its own precondition assumed.
+- **182 (a)** - an assertion built its regex around a table NAME (`create policy…'ing_price_history'…for all`) where the SQL builds the statement from a loop VARIABLE, so it matched nothing and passed whatever the policy said. Turning three append-only logs into `for all` sailed through it.
+- **182 (b)** - an ordering test compared ONE named create against ONE named drop, and survived a DIFFERENT drop being moved above the creates. The invariant was "every create before every drop"; the test pinned one pair of it.
+
+**Both 182s were caught BEFORE merge, by running the mutation** - which is the point of recording them rather than quietly fixing them. They were written in the same hour as the paragraph above telling you to do exactly that, by someone who believed the tests were sound. **The count is 14 and the belief is never the check.**
 
 **Most of these are a WIDER failure than a stub**, and that is the point of recording them here: 141 and before were copies that disagreed with the real function; 162, 167, 172, 173, 174, 175 and 176 were tests whose assertion **never executed, or could not distinguish right from wrong**. Same green, same false assurance, and no stub involved.
 **So the check is not "did I hand-roll a copy" but "would this test FAIL if I broke the thing it names?"** Answer it by breaking the thing and watching it go red - the only proof that costs one minute and settles it.
+
+⚠️ **And when you run that check by hand, BACK THE FILE UP BY COPYING IT, never with `git checkout --`.** (13 Aug 2026, batch 182.) `git checkout -- <tracked> <untracked>` restores **NOTHING** - one pathspec git does not know aborts the whole command - so a new file being mutation-tested is never put back, and if the loop is quiet about it the mutations **ACCUMULATE**. Two files were silently corrupted that way, and the run's own results were confounded: every "red" after the first was red for the wrong reason. `cp` to a scratch path and `cp` back. **A mutation harness that cannot restore is worse than no harness, because it reports green results you then believe.**
 
 **Since 180 that check is MECHANISED for the code most likely to need it: `npm run mutate`.** It flips one operator (or deletes one call) in a listed function of `js/app.js`, runs ONLY the test files that claim to pin it, and reports any mutant that survived. `tests/mutation/targets.js` holds the list and the allowances; `.githooks/pre-push` runs the changed-scope version alongside `npm test`.
 **It is not a substitute for the reasoning above and it is deliberately not repo-wide** - it cannot see a wrong premise, a backwards comment or a control that does nothing, which is what the `code-review` agent is for. What it removes is the excuse: the answer to "would this fail?" is now one command for anything on that list.

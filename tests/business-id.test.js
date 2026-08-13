@@ -114,7 +114,17 @@ test('WRITE BOUNDARY: no writer sends business_id, so the client can never clear
    --------------------------------------------------------------------------- */
 const ROOT = path.join(__dirname, '..');
 const MIGRATION = fs.readFileSync(path.join(ROOT, 'supabase/migrations/20260813_business_id_part1.sql'), 'utf8');
+const PART2 = fs.readFileSync(path.join(ROOT, 'supabase/migrations/20260813_business_id_part2.sql'), 'utf8');
 const MIRROR = fs.readFileSync(path.join(ROOT, 'supabase/staging/01-schema.sql'), 'utf8');
+
+/* Both migration files carry their rollback IN THE HEADER, as commented-out SQL — and Part 2's
+   rollback necessarily contains `using (true)`, the very thing its executable half must not. So
+   every assertion about what a file DOES runs against the comment-stripped text; assertions about
+   what a file SAYS run against the whole thing. Getting that backwards would make the central
+   "nothing permissive survives" test pass on a file that never swapped anything. */
+const stripComments = (sql) => sql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+const PART2_EXEC = stripComments(PART2);
+const MIRROR_EXEC = stripComments(MIRROR);
 
 // The ten public tables that carry the tenant column, read off the code rather than written down:
 // the array literal each file loops over.
@@ -192,4 +202,270 @@ test('SQL: the trigger function pins its search_path', () => {
     'set_default_business_id lost its empty search_path');
   assert.match(MIRROR, /language plpgsql\s*\nset search_path = ''/,
     'the staging mirror lost the search_path pin');
+});
+
+/* ---------------------------------------------------------------------------
+   PART 2 — the policy swap (batch 182).
+
+   Part 1's claim was that nothing changes. Part 2's is the opposite: thirteen
+   permissive policies become tenant-scoped ones, and the app must carry on
+   working. Everything below pins a property whose failure is SILENT — an app
+   that returns 200 and an empty array, or a tenant that can read its rows and
+   not write any. None of it can be caught by reading the SQL, which is why the
+   rehearsal in the migration header is a client call and not a query.
+   --------------------------------------------------------------------------- */
+
+test('PART 2: nothing permissive survives in the executable SQL', () => {
+  /* The whole swap. A `using (true)` left in the executable half would sit
+     ALONGSIDE the scoped policy, and permissive policies are OR'd — so every
+     tenant would see everything and every check in this file would still pass.
+     The rollback in the header legitimately contains these strings, which is
+     why this runs on the stripped text. */
+  assert.ok(!/using\s*\(true\)/.test(PART2_EXEC),
+    'the migration still creates a `using (true)` policy — OR\'d with the scoped one, that is no swap at all');
+  assert.ok(!/with check\s*\(true\)/.test(PART2_EXEC),
+    'the migration still creates a `with check (true)` policy');
+  assert.ok(!/using\s*\(true\)/.test(MIRROR_EXEC) && !/with check\s*\(true\)/.test(MIRROR_EXEC),
+    'the staging mirror still creates permissive policies, so a re-mirror would rehearse a database production does not have');
+});
+
+test('PART 2: every old policy name is dropped, by name', () => {
+  /* Renaming is what makes create-before-drop possible, and it is also what
+     makes a FORGOTTEN drop invisible: the new policy works, the old one still
+     grants everything, and no test that only looks at the new policies would
+     ever notice. All thirteen old names must appear in a drop. */
+  const OLD = [
+    ['app_settings', 'staff full access'], ['ingredients', 'staff full access'],
+    ['menu_items', 'staff full access'], ['menus', 'staff full access'],
+    ['plates', 'staff full access'],
+    ['price_history', 'price_history all'],
+    ['supplier_phrases', 'open access (single-tenant, pre-login)'],
+    ['ing_price_history', 'anon select'], ['ing_price_history', 'anon insert'],
+    ['menu_change_log', 'anon select'], ['menu_change_log', 'anon insert'],
+    ['menu_price_history', 'anon select'], ['menu_price_history', 'anon insert'],
+  ];
+  /* Asserted LINE BY LINE: the old name must appear on a line that also drops a policy. Merely
+     appearing somewhere in the file is not evidence of anything — the header quotes all thirteen
+     names in the rollback — and an assertion that cannot tell those two cases apart is the
+     tautology this repo has now shipped twelve times. */
+  const dropLines = PART2_EXEC.split('\n').filter((l) => l.includes('drop policy'));
+  const NAMES = ['staff full access', 'price_history all',
+    'open access (single-tenant, pre-login)', ' anon select', ' anon insert'];
+  NAMES.forEach((name) => {
+    assert.ok(dropLines.some((l) => l.includes(name)),
+      `the permissive policy "${name}" is never dropped — it would sit alongside the scoped one and keep granting everything`);
+  });
+
+  // The five identical "staff full access" tables are dropped by one loop over an array literal;
+  // a table missing from THAT array keeps its permissive policy while everything else looks right.
+  const dropLoop = PART2_EXEC.slice(PART2_EXEC.indexOf("foreach t in array array['app_settings'"));
+  const arr = dropLoop.slice(0, dropLoop.indexOf(']'));
+  ['app_settings', 'ingredients', 'menu_items', 'menus', 'plates'].forEach((t) => {
+    assert.ok(arr.includes(`'${t}'`),
+      `${t} is missing from the array its "staff full access" policy is dropped by, so that policy survives`);
+  });
+  assert.ok(dropLoop.slice(0, dropLoop.indexOf(';') + 1).includes('drop policy'),
+    'the array found is not the one the drop loop iterates — re-anchor this test');
+});
+
+test('PART 2: the scoped policy is CREATED before the permissive one is DROPPED', () => {
+  /* The reason the policies are renamed at all. Both are permissive, so during
+     the overlap access is exactly what it is today and a failure at any
+     statement leaves a working app. Reverse these and there is a moment with
+     RLS on and no policy, which is an empty app — and on production that is
+     indistinguishable from data loss. */
+  /* EVERY create before EVERY drop, not just the two this batch happened to think of. The first
+     version of this test compared one named create against one named drop, and survived a mutation
+     that moved a DIFFERENT drop above the creates — caught by running the mutation, which is the
+     only way this class of hole is ever found. */
+  const creates = [...PART2_EXEC.matchAll(/create policy/g)].map((m) => m.index);
+  const drops = [...PART2_EXEC.matchAll(/drop policy/g)].map((m) => m.index);
+  assert.ok(creates.length >= 3, 'the scoped policies are gone');
+  assert.ok(drops.length >= 3, 'the permissive policies are never dropped');
+  assert.ok(Math.max(...creates) < Math.min(...drops),
+    'a policy is dropped before the last scoped policy is created — that ordering has a window where ' +
+    'a table has RLS on and no policy, and the symptom is an app with no data and no error');
+});
+
+test('PART 2: the trigger and the column DEFAULT read the same function as the policy', () => {
+  /* THE FINDING OF THE BATCH, and it was found only by rehearsing as a real
+     second tenant. Part 1's DEFAULT is the legacy café's id as a literal, and a
+     DEFAULT is applied when the column is ABSENT — which is every write the
+     client makes. So the column is already non-NULL when the BEFORE trigger
+     runs, the trigger correctly leaves it, and `with check` then refuses the
+     row: every tenant but the seeded one could read and not write, with reads
+     looking perfect. Restore the literal and this goes red. */
+  assert.match(PART2_EXEC, /alter column business_id set default public\.current_business_id\(\)/,
+    'the column DEFAULT is not the function — a literal names the legacy café and every other tenant is refused 42501 on its own writes');
+  assert.match(PART2_EXEC, /new\.business_id := public\.current_business_id\(\)/,
+    'the trigger no longer reads current_business_id() — the DEFAULT and the trigger would disagree');
+  assert.ok(!/alter column business_id set default '00000000/.test(PART2_EXEC),
+    'a literal DEFAULT is being set somewhere in the executable SQL');
+  assert.ok(!/add column if not exists business_id uuid '\s*\|\| 'default '/.test(MIRROR_EXEC)
+    && /alter column business_id set default public\.current_business_id\(\)/.test(MIRROR_EXEC),
+    'the staging mirror still gives the column a literal default, so a rehearsal would not reproduce the bug this batch fixed');
+});
+
+test('PART 2: the mirror builds the tenant machinery BEFORE the policies', () => {
+  /* Newly load-bearing. The policies now reference both the business_id column
+     and current_business_id(), so a mirror that creates them first fails
+     outright — and the tempting repair (enable RLS up there, add policies down
+     here) is the locked-out window that section's own rule forbids. */
+  const fn = MIRROR_EXEC.indexOf('create or replace function public.current_business_id');
+  const col = MIRROR_EXEC.indexOf('add column if not exists business_id');
+  const pol = MIRROR_EXEC.indexOf("' tenant access'");
+  assert.ok(fn !== -1 && col !== -1 && pol !== -1, 'the mirror lost one of the three');
+  assert.ok(fn < pol, 'the mirror creates a policy that calls current_business_id() before defining it');
+  assert.ok(col < pol, 'the mirror creates a policy on business_id before the column exists');
+});
+
+test('PART 2: current_business_id is security definer with a pinned search_path', () => {
+  /* A mutable search_path on a SECURITY DEFINER function is a privilege
+     escalation path, not just a linter warning. And DEFINER itself is load
+     bearing: as INVOKER the membership lookup would depend on business_members
+     keeping a select policy forever, and if one were dropped every member would
+     silently resolve to NULL — an empty app for every café at once. */
+  const fn = PART2_EXEC.slice(PART2_EXEC.indexOf('create or replace function public.current_business_id'));
+  assert.match(fn.slice(0, 300), /security definer/, 'current_business_id is no longer security definer');
+  assert.match(fn.slice(0, 300), /set search_path = ''/, 'current_business_id lost its pinned search_path');
+  const mfn = MIRROR_EXEC.slice(MIRROR_EXEC.indexOf('create or replace function public.current_business_id'));
+  assert.match(mfn.slice(0, 300), /security definer/, 'the mirror\'s copy is not security definer');
+  assert.match(mfn.slice(0, 300), /set search_path = ''/, 'the mirror\'s copy lost its pinned search_path');
+});
+
+test('PART 2: the anon branch names the seeded business, and both files agree', () => {
+  /* The anon fallback IS today's behaviour: production has zero auth users, so
+     every request the app makes is anon. Point it at any other uuid — or delete
+     the branch — and Max's app is empty on the next boot, with no error. The
+     literal must also match the row `businesses` is seeded with, in both files,
+     or the fallback resolves to a business that does not exist. */
+  const SEED = '00000000-0000-0000-0000-000000000001';
+  [['the migration', PART2_EXEC], ['the mirror', MIRROR_EXEC]].forEach(([label, sql]) => {
+    const fn = sql.slice(sql.indexOf('create or replace function public.current_business_id'));
+    const body = fn.slice(0, fn.indexOf('$fn$;') > -1 ? fn.indexOf('$fn$;') : 600);
+    assert.match(body, /when auth\.uid\(\) is null/,
+      `${label} dropped the anon branch — every request this app makes today is anon, so that is an empty app`);
+    assert.ok(body.includes(SEED),
+      `${label}'s anon branch does not name the seeded business ${SEED}`);
+  });
+  assert.ok(MIRROR_EXEC.includes(`values ('${SEED}'`),
+    'the mirror no longer seeds the business the anon branch falls back to');
+});
+
+test('PART 2: the append-only tables keep exactly select and insert', () => {
+  /* ing_price_history, menu_change_log and menu_price_history have no update or
+     delete policy, and that absence is a real constraint rather than an
+     oversight — CLAUDE.md calls them the supplier-side series that must never be
+     rewritten. A `for all` policy here would quietly grant both. */
+  /* ⚠️ The table names never appear as literals next to these statements — the policies are built
+     in a loop from a variable — so an assertion written around `'ing_price_history'` matches
+     NOTHING and passes whatever the SQL says. That is what the first version did, and a mutation
+     turning the log tables' `for select` into `for all` sailed straight through it.
+     The checkable claim is about the whole file: the ONLY `for all` here is the one granted to
+     `public` on the seven full-access tables. The log loop grants to `anon, authenticated`, so a
+     `for all` reaching it is visible as a second entry. */
+  const forAll = [...PART2_EXEC.matchAll(/for all to \w+/g)].map((m) => m[0]);
+  assert.deepStrictEqual(forAll, ['for all to public'],
+    'the only "for all" policy in this migration must be the one on the seven full-access tables — ' +
+    `found ${JSON.stringify(forAll)}, and a "for all" on a history table grants update and delete on an append-only log`);
+  assert.match(PART2_EXEC, /' tenant select'/, 'the append-only select policies are gone');
+  assert.match(PART2_EXEC, /' tenant insert'/, 'the append-only insert policies are gone');
+});
+
+test('PART 2: the migration asserts its own result rather than reporting success', () => {
+  /* Every failure this migration can cause is silent from the client's side, so
+     the file raises instead of finishing quietly. These four are the ones whose
+     absence would let a broken swap report success. */
+  assert.match(PART2_EXEC, /raise exception '% permissive policy expressions still stand/,
+    'the migration no longer refuses a leftover permissive policy');
+  assert.match(PART2_EXEC, /expected 13 tenant-scoped policies/,
+    'the migration no longer counts the thirteen scoped policies');
+  assert.match(PART2_EXEC, /has RLS on and no policy at all/,
+    'the migration no longer refuses a table left with no policy — that table is an empty app');
+  assert.match(PART2_EXEC, /business_id defaults are not current_business_id\(\)/,
+    'the migration no longer checks the defaults, which is the one thing that passed every other check while a tenant could not write');
+});
+
+test('PART 2: every table list in the migration agrees with the canonical ten', () => {
+  /* ⚠️ THE THIRD INCIDENT OF THE SHAPE THIS FILE ALREADY RECORDS TWICE — found by the pre-push
+     review, which mutated the migration rather than reading it, and watched all eighteen tests stay
+     green. The migration types the table list FIVE times: once to repoint the defaults, once as the
+     seven full-access tables, once as the three append-only ones, once as the five whose permissive
+     policy is dropped by a loop, and once more in the assertions. Nothing cross-checked them.
+
+     Two mutations passed the whole suite:
+       · drop 'plates' from the DEFAULT-repoint array  -> plates keeps Part 1's literal default, and
+         that café can read its rows and write none;
+       · drop 'menus' from the create array            -> menus has its permissive policy dropped and
+         NO replacement, which is RLS on with zero policies: an empty app with no error.
+     Both are caught by the migration's own runtime assertions, so neither reached a database — but
+     that net only exists once the SQL is APPLIED, and by then it has been reviewed and merged.
+     This is the same net, one step earlier and for free. */
+  const canonical = tableList(MIGRATION, 'the Part 1 migration');   // the ten, read off Part 1
+  assert.strictEqual(canonical.length, 10);
+
+  const arraysNamed = (name) => [...PART2_EXEC.matchAll(
+    new RegExp(`(?<![\\w])${name}\\s+text\\[\\]\\s*:=\\s*array\\[([\\s\\S]*?)\\]`, 'g'))]
+    .map((m) => (m[1].match(/'([a-z_]+)'/g) || []).map((s) => s.replace(/'/g, '')).sort());
+
+  // The two `tables text[]` declarations — section 3's defaults and section 5's assertions.
+  const tens = arraysNamed('tables');
+  assert.strictEqual(tens.length, 2,
+    'the migration no longer declares exactly two ten-table lists — re-anchor this test rather than deleting it');
+  tens.forEach((list, i) => assert.deepStrictEqual(list, canonical,
+    `ten-table list #${i + 1} does not match the canonical ten — a table missing from the DEFAULT loop keeps ` +
+    'a literal tenant, which lets that café read its rows and write none'));
+
+  // The 7/3 split must partition the same ten, with nothing dropped and nothing counted twice.
+  const [full] = arraysNamed('full_tables');
+  const [logs] = arraysNamed('log_tables');
+  assert.ok(full && logs, 'the full_tables / log_tables split is gone');
+  assert.strictEqual(full.length, 7, 'the full-access list is no longer seven tables');
+  assert.strictEqual(logs.length, 3, 'the append-only list is no longer three tables');
+  assert.deepStrictEqual(full.concat(logs).sort(), canonical,
+    'the seven full-access and three append-only tables do not partition the canonical ten — a table in ' +
+    'neither list gets its permissive policy dropped with no scoped policy to replace it, which is RLS ' +
+    'on with no policy at all: an empty app, reported as 200 and an empty array');
+  assert.strictEqual(new Set(full.concat(logs)).size, 10, 'a table appears in both lists');
+
+  /* The five dropped by a loop, plus the two dropped by name, must cover exactly the seven. Those two
+     are separate statements only because their old policy names match no pattern. */
+  const loopDrop = (PART2_EXEC.match(/foreach t in array array\[([^\]]*)\] loop\s*\n\s*execute format\('drop policy/) || [])[1];
+  assert.ok(loopDrop, 'the permissive-drop loop is gone');
+  const byName = [...PART2_EXEC.matchAll(/drop policy if exists "[^"]+" on public\.(\w+)/g)].map((m) => m[1]);
+  const dropped = (loopDrop.match(/'([a-z_]+)'/g) || []).map((s) => s.replace(/'/g, '')).concat(byName).sort();
+  assert.deepStrictEqual(dropped, full,
+    'the tables whose permissive policy is dropped are not the same seven that get a scoped one — a table ' +
+    'left out keeps `using (true)`, which is OR\'d with the scoped policy and grants everything to everyone');
+});
+
+test('PART 2: the rollback in the header names the same ten tables', () => {
+  /* The rollback is COMMENTED SQL, so every other test in this file — which reads the
+     comment-stripped text on purpose — is blind to it. Found by accident while mutation-testing the
+     test above: a mutation aimed at the migration landed in the rollback instead and nothing went
+     red, which is the correct result for that test and a gap in this file.
+
+     It matters because of when a rollback runs. CLAUDE.md: "a rollback that fails is worse than
+     none, because it is only ever reached when something has already gone wrong." A rollback that
+     restores nine of the ten literal DEFAULTs leaves one table pointing at a function the last line
+     of that same rollback drops, and every insert into it then raises 42883. */
+  const canonical = tableList(MIGRATION, 'the Part 1 migration');
+  const rollback = PART2.slice(PART2.indexOf('-- ROLLBACK'), PART2.indexOf('-- REHEARSED'));
+  assert.ok(rollback.length > 200, 'the rollback block is gone from the header');
+
+  const m = rollback.match(/tables text\[\] := array\[([\s\S]*?)\]/);
+  assert.ok(m, 'the rollback no longer declares the table list it loops over');
+  const listed = (m[1].match(/'([a-z_]+)'/g) || []).map((s) => s.replace(/'/g, '')).sort();
+  assert.deepStrictEqual(listed, canonical,
+    'the rollback restores a different set of tables from the one the migration changed — the ones it ' +
+    'misses keep a DEFAULT calling current_business_id(), which the rollback then drops, so every ' +
+    'insert into them raises 42883 at the exact moment someone is trying to undo a bad deploy');
+
+  // ...and it must put the literal defaults back before dropping the function they would otherwise call.
+  const setDefaults = rollback.indexOf('set default ');
+  const dropFn = rollback.indexOf('drop function if exists public.current_business_id');
+  assert.ok(setDefaults !== -1 && dropFn !== -1, 'the rollback lost one of its two halves');
+  assert.ok(setDefaults < dropFn,
+    'the rollback drops current_business_id() before restoring the literal defaults that stop the ' +
+    'columns calling it');
 });

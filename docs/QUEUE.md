@@ -45,8 +45,13 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 - **`MENU_ORIGINAL`** from `ensureDefaultMenu`. `menus.id` IS a global key, so this genuinely collides — but the literal appears **28 times across 26 lines of `js/app.js`** as the fallback for a null `menu_id` (one of those lines is the pointer comment in `uid`, so the real work is 27), so changing the seed means replacing every one of those with a dynamic lookup (`fallbackMenuId()` already exists and is the shape to use). That is a real piece of work and it is why this was not bundled into 173.
 
 Requirements: every one of the four is scoped so two accounts cannot collide, with the supplier-phrase content-addressing preserved within an account, and the `MENU_ORIGINAL` fallbacks replaced rather than left pointing at a menu a new café does not have.
-Do after: **`business_id` PART 2, the policy swap** — all four fixes are "prefix or compose the key with the tenant", and the tenant column does not exist yet. Doing it first would mean inventing a placeholder tenant and then rewriting all four again once the real column lands, which is the same work twice. *(This ordering is the opposite of what the queue assumed when it called this item "first of the A items because every other multi-tenant table change inherits it" — true of the surrogate ids, which have now shipped independently, and false of the semantic keys.)*
-✅ Rehearsable on staging when it runs — `docs/STAGING.md` has the procedure, and `04-seed-scale.sql` carries 60 taught packs and a full settings blob to rehearse against.
+*(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182 as `20260813_business_id_part2.sql`. The tenant column is now the thing every policy reads, so all four keys can be composed against it.)*
+⚠️ **`app_settings` is no longer theoretical. The failure was MEASURED on staging in 182, and it is the FIRST thing a second café hits, not an import edge case.**
+`app_settings.key` is the primary key and is global, and **`dbSetSetting` is the one writer for every setting**, upserting with no `onConflict` so it resolves against that key. Once any tenant holds a key, a second tenant's identical upsert becomes an `ON CONFLICT DO UPDATE` against a row RLS will not let it see, and the write is refused **42501 on the USING expression**.
+The key names are literals in `js/app.js`, so there is nothing to collide *around*: **a second café's first attempt to save a food cost target, a GST default or its kitchen ingredients fails, permanently.** Restoring a backup containing `app_settings` fails for the same reason and is one instance of it, not the scope.
+It fails LOUDLY and `pushWrite` toasts the real error, so it is not silent loss — but it means **the database can keep two cafés apart before it can carry two of them**, and this item is the whole of that gap.
+The fix is the composite key `(business_id, key)`. *(This paragraph was written restore-only when 182 shipped and corrected by that batch's own pre-push review, which measured the live write path rather than reading the header.)*
+✅ Rehearsable on staging — `docs/STAGING.md` has the procedure, `04-seed-scale.sql` carries 60 taught packs and a full settings blob, and since 182 staging also has **two real businesses and three real accounts** to rehearse a collision against.
 
 ## next  2 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
 
@@ -57,34 +62,24 @@ Do after: **`business_id` PART 2, the policy swap** — all four fixes are "pref
 
 **What is LEFT:**
 - **Google sign-in.** Needs a Google Cloud OAuth client id and secret pasted into the Supabase dashboard, which is **Max's to do** — no code can create it. The client call is two lines once it exists. It was listed as "optional" and stays optional.
-- **Making an account mean something.** Until RLS distinguishes tenants, signing in is a no-op with a real session behind it. That is the `business_id` item, not this one.
+- **Making an account mean something.** ⚠️ **RLS NOW DISTINGUISHES TENANTS — batch 182 shipped it — so this bullet has changed from "waiting on another item" to "the work of this one", and it carries a real hazard.** `current_business_id()` answers the seeded Scoopy's business for `anon`, the caller's business for a member, and **NULL for a signed-in account with no `business_members` row**. NULL matches nothing, so that account sees an empty app with no error.
+  **Do these three here, and answer them here — do not route them onward:**
+  1. **Max has no account at all** (`auth.users` is empty in production, measured 13 Aug 2026). Whichever account is created for him in the dashboard **must get a membership row in the same sitting**, or signing in on his phone empties EzPlate: `insert into public.business_members (business_id, user_id) values ('00000000-0000-0000-0000-000000000001', '<the new auth.users id>');`
+  2. **The client must say so rather than rendering nothing.** A signed-in non-member currently gets a silent empty app, which is indistinguishable from data loss. It needs a boot-time message and a way back out (sign out), and that was deliberately NOT built in 182 because it is this item's scope and item 5's empty-state work, not a migration's.
+  3. **Only then is dropping the anon fallback possible.** Removing the `auth.uid() is null` branch from `current_business_id()` is what makes sign-in mandatory and closes the last permissive read in the database — it is a **one-function change**, and it must not land before 1 and 2, or Max is locked out of his own café.
 - **Opening sign-up.** There is deliberately no sign-up path: the anon key ships in `index.html`, so anyone reading the page already has the access an account would grant, and a form would advertise it. Accounts are made in the Supabase dashboard until RLS closes that gap. ⚠️ **Supabase sign-ups are open by default at the API level regardless**, which is not made worse by this item but IS part of the gate review.
 - **Email confirmation is ON**, found while rehearsing: an account created without confirmation cannot sign in ("Email not confirmed"). A dashboard-created account must be marked confirmed, or the first real sign-in fails in a way that looks like a wrong password.
 
-Do after: **`business_id` PART 2, the policy swap** — for the second bullet only; the Google half needs nothing but Max, and could ship any time he creates the OAuth client.
+*(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182. The second bullet is now this item's own work and carries the empty-app hazard written into it above; the Google half still needs nothing but Max.)*
 
-## next  3 · `business_id` — **PART 2, the policy swap**  **[A — launch blocker]**
-
-Replace all thirteen `using (true)` policies with `business_id`-scoped ones, one table at a time, and make the client send `business_id` on insert.
-⚠️ **This is the half that can empty the app.** RLS with no matching policy returns **200 and an empty array, not an error**, so a mistake here looks exactly like "all my data is gone" — and on production that is Max's café. Every table is verified AS THE CLIENT over PostgREST before the next one starts.
-⚠️ **What staging still cannot rehearse:** neither project has more than one user, so these policies can be proved to RUN and to let the right rows through — not that a second tenant is correctly EXCLUDED. That needs two accounts and belongs to the first real multi-tenant test.
-*(`Do after: business_id PART 1` DELETED 13 Aug 2026 — PART 1 shipped in batch 181 as `20260813_business_id_part1.sql`, applied to staging and production, ten tables carrying the column with zero null rows. **Read its header before writing PART 2**: the tenant is filled by a BEFORE INSERT trigger as well as a column DEFAULT, and PART 2 replaces that function's BODY with a membership lookup rather than deleting the triggers.)*
-
-### Notes shared by both `business_id` parts
-
-Requirements: staged, one table at a time, each migration verified before the next.
-⚠️ **RLS with no matching policy returns 200 and an empty array, not an error — a policy mistake looks exactly like "no data".** And an anon UPDATE or DELETE returns 204 with no error and touches nothing, so **verify AS THE CLIENT over PostgREST with `Prefer: return=representation`**, never through the MCP, which bypasses RLS entirely.
-Note **`menus` no longer starts from RLS OFF** — corrected 8 Aug 2026 when `20260808_menus_rls.sql` was applied. All **ten** public tables now have RLS on with at least one policy, so no table needs ENABLING as well as policying; they all need their permissive `using (true)` policy REPLACED with a `business_id` one. *(Was "eleven" until 172; `20260809_drop_kitchen_items.sql` had already made it ten and the count was never updated. Counted against the live catalogue, not inferred.)*
-✅ **Rehearsable as of 172** — `supabase/staging/01-schema.sql` reproduces all thirteen policies under production's exact policy NAMES, which is what this item will look them up by. *(Both projects now carry **fifteen** policies after 181, but the two extra are on `businesses` and `business_members` and are not yours to replace — the thirteen `using (true)` ones on the ten data tables are still exactly the set this item swaps.)* Rehearse each table's swap there first; `docs/STAGING.md` has the procedure and the fingerprint query that proves the two schemas still match afterwards.
-⚠️ **What staging CANNOT rehearse here, stated so it is not over-trusted:** neither project has any users, so `anon` is the only role either has ever been exercised as. This item's policies are the first that will distinguish roles, and staging can prove they RUN and that the client sees what it should — not that a second tenant is correctly excluded, which needs auth first.
-
-## next  4 · Roles — owner vs staff  **[A — launch blocker]**
+## next  3 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
-Do after: **`business_id` PART 2, the policy swap** — roles are enforced in the same policies, so they are written once or twice.
+*(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182.)* **Read `20260813_business_id_part2.sql` before starting:** all thirteen policies now read one function, `current_business_id()`, so a role check is added to that shape once rather than to thirteen policies — and `business_members` deliberately has NO `role` column yet, which is this item's to add.
+⚠️ **Decide here whether one person may belong to TWO cafés, and answer it here — do not route it onward.** `business_members`' primary key is `(business_id, user_id)`, so today nothing forbids it, and `current_business_id()` resolves such a person to their OLDEST membership. That ordering was added by 182's pre-push review to stop the answer being planner-dependent — it makes the choice stable, **not correct**. If two cafés are allowed, the person has to be able to CHOOSE, and that choice needs somewhere to live that the client can set and the function can read; if they are not, add a unique constraint on `user_id` and the question is closed. Either way it stops being a silent arbitrary pick.
 
-## next  5 · Onboarding and empty states  **[A — launch blocker]**
+## next  4 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -92,7 +87,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  6 · The privacy gate  **[A — launch blocker]**
+## next  5 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -100,18 +95,19 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  7 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  6 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  8 · Gate review before public signup  **[A — launch blocker]**
+## next  7 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
-Do after: **`business_id` PART 2, the policy swap**, **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them.
+Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them. *(`business_id` PART 2 struck from this line 13 Aug 2026 — shipped in batch 182.)*
+⚠️ **One line of this item is now ANSWERED and one is now SHARPER.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that means it is tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. **The anon-key exposure is the opposite:** it is now the LAST permissive read in the database, because `current_business_id()` answers the seeded business for any caller with no JWT. Every other tenant is already isolated from it; Scoopy's is not. Closing it is the auth item's one-function change, and this review is where it gets signed off.
 
-## next  9a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  8a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -145,9 +141,9 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  9b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  8b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered THREE times: 10a → 11a when the mutation-testing gate took slot 1, and back to 10a in 180 when that gate shipped and its slot freed. **Name it, never the number** — this line is the standing evidence for why.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered FOUR times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, and to 8a in 182 when the policy swap shipped. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
 ⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
@@ -165,7 +161,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  10 · Floating layers and mobile dropdowns  **[B]**
+## next  9 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
