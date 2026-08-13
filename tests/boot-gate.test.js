@@ -334,3 +334,19 @@ test('185: an ok still cannot clear the gate on its own — only a cleared latch
   assert.strictEqual(g.gate.hidden, false);
   assert.match(g.msg.textContent, /no café/);
 });
+
+test('185: Try again still visibly responds when a failure has taken over the non-member gate', () => {
+  /* ⚠️ THE SAME BUG v115 ALREADY FIXED ONCE, nearly reintroduced by 185's early return. A real
+     connection failure MAY replace this screen — Try again is the action that helps then, signing
+     out is not — and an unconditional `if(_bootNoMember) return` in the 'loading' branch would have
+     swallowed the tap's own 'loading', leaving the button looking dead for a whole round trip.
+     An explicit tap always responds; an automatic re-sync does not disturb the screen. */
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('nomember', 'no café');
+  g.run('error', 'lost the connection');   // a later run genuinely threw
+  g.retry.onclick();
+  assert.strictEqual(g.calls.bootstrapSync, 1, 'the retry must actually re-run the sync');
+  assert.match(g.msg.textContent, /Trying again/, 'and the screen must visibly respond to the tap');
+  assert.strictEqual(g.gate.classList.contains('is-error'), false, 'and stop claiming it failed');
+});

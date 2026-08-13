@@ -559,8 +559,14 @@ function bootGate(state, msg){
        only a definite uuid performs it — so the wedge stays fixed without the hole.
        Returning early also removes the churn: without it, every `online` blip swapped this screen's
        explanation for a spinner and took its Sign out button away for the duration. The only screen
-       whose entire job is to stay legible should not flicker. */
-    if(_bootNoMember) return;
+       whose entire job is to stay legible should not flicker.
+
+       ⚠️ `!_bootRetrying` is not a refinement, it is the same bug v115 already fixed once. If a
+       real connection failure takes over this screen, Try again is offered — and an unconditional
+       early return would swallow the 'loading' that tap produces, so the button would look dead for
+       the length of a round trip. An explicit tap must always visibly respond; an automatic
+       re-sync, which is the flicker case, must not. */
+    if(_bootNoMember && !_bootRetrying) return;
     g.hidden=false; g.classList.remove('is-error'); if(r) r.hidden=true; if(m) m.textContent=msg||'Loading your data…';
     /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
        of the fetch) — and week-long gaps are the normal case here, so the patient message is the
