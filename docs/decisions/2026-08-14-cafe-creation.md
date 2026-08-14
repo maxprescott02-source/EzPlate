@@ -1,3 +1,14 @@
+> ## ✅ ANSWERED, 14 Aug 2026 — **1B, 2A.**
+>
+> **1 = B, self-service signup.** A stranger creates an account and names their own café, unattended. He was told in this file and in chat that B reverses his own "a self-service sign-up form is still NO" call of the same day, and chose it anyway. A and C are declined.
+> **Consequence, recorded rather than re-argued:** B is now ordered behind the privacy gate and pdf.js 4.2.67+, because a stranger's café is a non-Scoopy's row and the privacy-gate rule is "before the first one exists, not after". That is a `Do after:` on the queue item, not a second question.
+>
+> **2 = A, CSV only.** No third dependency. The importer accepts CSV and says so.
+>
+> Both recorded in `CLAUDE.md`'s privacy-gate section and at their queue items. The questions below are kept verbatim as the record of what was asked.
+
+---
+
 # Decision — 14 Aug 2026: how does a new café come into existence?
 
 One question. It is prose rather than a rendered file because nothing here is visual — it is about who is allowed to do a thing, not what it looks like.

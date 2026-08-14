@@ -31,9 +31,12 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
-Blocked on: **Does a café come into existence because MAX provisioned it, or because a stranger signed up for one?** It is one question and it decides the whole shape; both answers are buildable and neither is more work than the other. See "The decision, and why it is his" below — `docs/decisions/2026-08-14-cafe-creation.md` puts it in plain language.
+✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
+He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
+
+Do after: **the privacy gate** and **pdf.js 4.2.67+** — and this is a scheduling fact rather than a second opinion on his answer. B's whole point is that a stranger's café can exist without Max, and this file's privacy-gate item says *"before the first non-Scoopy's row exists, not after"*; a café row is such a row, and the stranger who owns it will import a PDF invoice through `pdf.js` into Gemini's free tier on day one. **Shipping signup first is the one ordering that cannot be undone**, because the data has already left. Both named items are directly above/below this one and neither is blocked on anything.
 
 **Found by batch 191 while shipping invitations, by reading the policy list rather than by hitting it.** Measured against production, 14 Aug 2026:
 
@@ -121,8 +124,8 @@ He was unsure whether the first release should read only this supplier's export 
 - **The Australian ecosystem is a genuine gap and also a trap.** US-built tools are described as missing it entirely, and the local competitor positions squarely on naming PFD, Bidfood and Holco. **But a preset per supplier does not scale**, so the presets must sit on a generic mapper rather than replace it.
 
 ⚠️ **"CSV/XLSX" IS NOT FREE, AND THE ITEM DOES NOT ACKNOWLEDGE IT — flagged by batch 192 reading this against `CLAUDE.md`, before building.** An `.xlsx` is a ZIP of XML and **cannot be parsed without a library**, which collides head-on with the standing rule: two third-party scripts ship today and *"adding a third needs Max's yes, not a judgement call."*
-**This does NOT block the item.** CSV needs no dependency and is the whole of the generic mapper; build that, and every spreadsheet program exports it. What it does mean is that **XLSX is a separate question with Max's name on it**, and the honest first release says which formats it accepts rather than silently failing on a workbook. Put to him in `docs/decisions/2026-08-14-cafe-creation.md` as question 2, so it can be answered before the file picker's copy is written rather than after.
-⚠️ **The supplier export's actual FORMAT was never recorded** — the columns were read from the portal, the download was not taken. If its Export offers CSV, question 2 is moot for the preset and matters only for the generic path. Check that first; it may cost nothing to answer.
+✅ **ANSWERED 14 Aug 2026 (Max): CSV ONLY** (`docs/decisions/2026-08-14-cafe-creation.md` q2, answer A). No third dependency. **The file picker accepts CSV and SAYS so** — it must not silently fail on a workbook, because "nothing happened" is the worst possible first minute of a new café's life. Adding XLSX later is a fresh yes, not an enhancement.
+⚠️ **The supplier export's actual FORMAT was never recorded** — the columns were read from the portal, the download was not taken. **Confirm its Export offers CSV before building the preset**; if it only offers a workbook, that is a finding to bring back rather than a reason to add a library, and "save it as CSV first" is a legitimate one-line instruction in the UI.
 
 **So the shape:** parse a CSV → detect a known header signature and pre-fill the mapping → otherwise ask the user to map, with the app's own fields named in plain words. The supplier export becomes zero-config for the common case, and a café on any other supplier is still served on day one. **This supersedes the earlier note in this item that a named-format importer was the honest option and a generic CSV was not** — the honest thing is a mapper that SHOWS the mapping it guessed and lets it be corrected, which is neither of the two things that were originally put to Max.
 
