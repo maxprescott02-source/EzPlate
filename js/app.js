@@ -731,6 +731,76 @@ function nonMemberMessage(email){
     + ' Ask the café owner to add this account, or sign out.';
 }
 
+/* ---- 188: WHICH ROLE, AND WHY "COULD NOT TELL" MEANS OWNER --------------------------------
+   187 taught the database owner vs staff and ENFORCES four refusals — delete a plate, delete a
+   menu, change the food cost target, restore a backup. This is the client half: the affordances,
+   so a staff account is never offered a button that comes back as a raw 42501 toast.
+
+   THE SAME THREE-ANSWER DISCIPLINE AS THE TENANT GATE, DEFAULTING THE OPPOSITE WAY, and the
+   asymmetry is deliberate rather than an inconsistency (CLAUDE.md: a fail-open default is a
+   decision about CONSEQUENCE, not about epistemics):
+     * the TENANT answer decides whether the app is USABLE, so an unreadable one may not be
+       guessed — it gets a third value the caller resolves against what it already knows;
+     * the ROLE answer decides only which four controls are OFFERED, and the server refuses
+       either way. Guessing "staff" hides four controls from the person who OWNS the café, with
+       nothing on screen to explain why. Guessing "owner" shows a control that then fails
+       honestly, with the server's own words in a toast. So `unknown` reads as OWNER.
+   The three-value shape still earns its keep on the second reading: only a DEFINITE answer
+   changes the standing role, so a re-sync whose role lookup alone fails leaves a known staff
+   account staff rather than promoting it. Same law as `_bootNoMember`, opposite starting point.
+
+   NULL IS NOT A ROLE. `current_business_role()` answers NULL for a caller with no membership —
+   the non-member case the tenant gate has already returned on, several lines above this ever
+   being read. It arrives here as 'unknown' rather than being invented into a role. */
+var businessRole='owner';
+function roleState(res){
+  if(!res || res.error) return 'unknown';                  // an error is not an answer
+  return (res.data==='owner'||res.data==='staff') ? res.data : 'unknown';
+}
+/* The ONE reader, written as "not definitely staff" rather than "=== 'owner'" on purpose: any
+   value this function has never heard of — a third role added server-side later, a shape change —
+   then lands on the permissive side by construction rather than by someone remembering to come
+   back here. The server is what actually refuses; being wrong in this direction costs a toast. */
+function isOwner(){ return businessRole!=='staff'; }
+/* Hiding a control is an affordance, not enforcement, and each of these actions is reachable
+   through more than one door — the builder AND the menu-item modal both delete plates. This is
+   the guard at the ACTION, so a stale screen, a keyboard path or a call site added later cannot
+   walk past a missing button. It is not a substitute for the server, which refuses regardless. */
+function ownerOnly(what){
+  if(isOwner()) return true;
+  toast('Only the café owner can '+what+'.');
+  return false;
+}
+/* 188 — every control the server refuses, resolved in ONE place so the four can never drift out
+   of step with the four policies. Called whenever the role is (re)resolved.
+   Two of them are gated INSIDE the functions that already own their visibility rather than being
+   assigned a second time here: #bldDelete and #menuDelBtn are re-shown by their own render paths,
+   so a second assignment here would be silently overwritten on the next repaint AND would be a
+   second definition of the same thing. This function calls those owners instead. */
+function applyRoleUi(){
+  var owner=isOwner();
+  syncBuilderPlateActions();                               // #bldDelete
+  updateMenuDelBtn();                                      // #menuDelBtn
+  var rr=document.getElementById('setRestoreRow'); if(rr) rr.hidden=!owner;
+  /* The target is made READ-ONLY rather than hidden, unlike the three destructive buttons, and
+     the difference is the point. A Delete button carries no information, so removing it costs
+     nothing. This row carries the NUMBER that drives every suggested price and every good/bad
+     colour a staff member reads all day — hiding it would take away a fact in order to prevent an
+     edit. Read-only keeps the fact legible (unlike `disabled`, which greys it out and drops it
+     from the tab order) and removes the edit, and the help line says who can change it so the
+     field does not merely look broken. */
+  var ci=document.getElementById('setCogsInput');
+  if(ci){ ci.readOnly=!owner; ci.setAttribute('aria-readonly', owner?'false':'true'); }
+  var ch=document.getElementById('setCogsHelp');
+  if(ch) ch.textContent = owner
+    ? 'Share of the sell price going to ingredients. Drives suggested prices and the target line.'
+    : 'Share of the sell price going to ingredients. Only the café owner can change it.';
+  var tr=document.getElementById('teamRole');
+  if(tr) tr.textContent = owner
+    ? 'You’re the owner of this café, so all of that is yours.'
+    : 'You’re signed in as staff, so those four are hidden for you.';
+}
+
 /* pull everything from Supabase and refresh the UI */
 async function bootstrapSync(){
   /* v108: no client and no connection are DIFFERENT failures and say so. Neither falls back to
@@ -792,11 +862,17 @@ async function bootstrapSync(){
          here rather than off `authUser` because `authInit()` is not awaited before this function
          runs — reading the global would make the wording depend on a race. getSession is local
          unless the token needs refreshing. */
-      softCall(function(){ return SUPA.auth.getSession(); })
+      softCall(function(){ return SUPA.auth.getSession(); }),
+      /* 188 — AND WHICH ROLE. Rides this batch for the same reason the tenant lookup does: it is
+         one more entry in a Promise.all that was already in flight, so it costs no round trip on
+         the boot critical path. `softCall` for the same two reasons as well — an older project may
+         not have the function, and the Playwright shim's fake client has no `rpc` at all. Both
+         land on roleState's 'unknown', which reads as owner. */
+      softCall(function(){ return SUPA.rpc('current_business_role'); })
     ]);
     var ing=results[0], men=results[1], pla=results[2], setg=results[3];
     var mres=results[4], _h=results[5], _mp2=results[6], spr=results[7], _ipl=results[8], _chg=results[9];
-    var _biz=results[10], _ses=results[11];
+    var _biz=results[10], _ses=results[11], _role=results[12];
     /* 185 — BEFORE the required-table throw and before a single store is assigned. A non-member's
        reads all SUCCEED with zero rows, so nothing below would ever raise; and if something else
        did fail as well, "couldn't load your data" would be the wrong diagnosis for an account that
@@ -821,6 +897,12 @@ async function bootstrapSync(){
       bootReady('signin', SIGNIN_MSG);
       return;
     }
+    /* 188 — AFTER the tenant gate, never before it. A non-member's role is NULL, which is not a
+       role and must not become one; and there is no screen to apply a role to while the gate is
+       covering the app. Only a definite answer moves the standing role — see roleState. */
+    var _rs=roleState(_role);
+    if(_rs!=='unknown') businessRole=_rs;
+    applyRoleUi();
     // v108: setg.error belongs here and was missing (CodeRabbit). app_settings is not a nice-to-have —
     // it carries `kitchen_ingredients`, so a failed read empties every kitchen word AND silently drops
     // the food-cost target back to its 40% default, which moves every suggested price on the Menu tab.
@@ -5883,7 +5965,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v162';
+var APP_VERSION='v163';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -6600,11 +6682,21 @@ function clearCacheAndRefresh(){
   (function(){
     var b=document.getElementById('setRestore'), f=document.getElementById('setRestoreFile');
     if(!b||!f) return;
-    b.addEventListener('click', function(){ f.value=''; f.click(); });
-    f.addEventListener('change', function(){ var fl=f.files&&f.files[0]; if(fl) restoreFromBackupFile(fl); });
+    /* 188 — the row is hidden for staff (applyRoleUi), and the guard is here as well because a
+       file picker is the one control on this screen with a second way in: a `change` event can
+       arrive after the row was hidden mid-flow, and restore_backup's own first statement raises
+       for a non-owner, which would surface as a raw exception string. Better to say it plainly
+       before anything is read off disk. */
+    b.addEventListener('click', function(){ if(!ownerOnly('restore a backup')) return; f.value=''; f.click(); });
+    f.addEventListener('change', function(){ var fl=f.files&&f.files[0]; if(fl && ownerOnly('restore a backup')) restoreFromBackupFile(fl); });
   })();
   var ci=document.getElementById('setCogsInput');
-  if(ci) ci.addEventListener('input',function(){ var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs re-renders every consumer, the v133 nav badge included
+  /* 188: `readOnly` already stops typing for staff, so this guard is the belt to that pair of
+     braces — an `input` event can still be dispatched programmatically, and setCogs(…,true)
+     writes `food_cost_target`, which is the one app_settings key three restrictive policies
+     refuse. Silent rather than toasting: the help line beside the field already says who can
+     change it, and a toast per keystroke would be noise on a control that cannot be typed into. */
+  if(ci) ci.addEventListener('input',function(){ if(!isOwner()) return; var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs re-renders every consumer, the v133 nav badge included
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: AI feature toggles
@@ -7192,7 +7284,12 @@ function setBuilderSaved(on){
 function syncBuilderPlateActions(){
   var on=!!loadedPlateId;
   var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!on;
-  var del=document.getElementById('bldDelete'); if(del) del.hidden=!on;
+  /* 188: staff may not delete a plate (a restrictive policy on `plates` refuses it), so the button
+     is not offered. The role condition lives HERE rather than in applyRoleUi because this function
+     is the owner of #bldDelete's visibility and runs on every path that changes loadedPlateId — an
+     assignment made anywhere else is undone by the next one of those. Duplicate is untouched:
+     staff create plates freely, they just cannot delete them. */
+  var del=document.getElementById('bldDelete'); if(del) del.hidden=!on || !isOwner();
 }
 /* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
    used to bin unfinished work in silence: press ×, go to the Ingredients tab, come back and tap
@@ -7261,6 +7358,7 @@ function duplicateCurrentPlate(){
    server rejects the delete: the rollback puts the plate back in the library and says so in a toast,
    which is a better place to be than re-entering a builder the user has just left. */
 function deletePlate(id, onRemoved){
+  if(!ownerOnly('delete a plate')) return;                           // 188 — see ownerOnly: the guard at the action, not only the button
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
   var nm=sp.name||'plate'; var on=menusOfPlate(sp);
   var msg=on.length
@@ -9450,6 +9548,7 @@ function doDeleteMenu(id, name){
 // library (and on any other menus it was published to). Any menu may be deleted (incl. the last).
 function deleteCurrentMenu(){
   var id=currentMenuId;
+  if(!ownerOnly('delete a menu')) return;                            // 188 \u2014 see ownerOnly
   if(!canDeleteMenu(id)){ toast('This menu can\u2019t be deleted'); return; }
   var m=menusList.find(function(x){return x.id===id;}); if(!m){ return; }
   var affected=customMenu.filter(function(c){return dishOnMenu(c, id);});
@@ -9459,7 +9558,10 @@ function deleteCurrentMenu(){
     : ('Delete \u201c'+m.name+'\u201d? It has no plates on it.');
   askConfirm('Delete menu?', msg, 'Delete menu', function(){ doDeleteMenu(id, nm); });
 }
-function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=canDeleteMenu(currentMenuId)?'':'none'; }
+// 188: `&& isOwner()` — staff may not delete a menu. Same reasoning as #bldDelete: this function
+// owns the button's visibility and is re-run by rebuildMenu, so the role has to be part of ITS
+// answer rather than a second assignment that the next repaint overwrites.
+function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) b.style.display=(canDeleteMenu(currentMenuId)&&isOwner())?'':'none'; }
 
 /* ---- reuse an existing costed dish on another menu (shares the source plate) ---- */
 var adSelectedPlateId=null;
@@ -9732,7 +9834,17 @@ function setEditMode(){
 function onEditSave(){ saveMenuEdit(); }
 function openDelChoice(id,nm){
   delChoiceId=id;
-  var msg=document.getElementById('delChoiceMsg'); if(msg)msg.textContent='Delete \u201c'+nm+'\u201d from the menu. Keep its saved plate for reuse, or delete everything?';
+  /* 188 \u2014 the affordance half of doDeleteEverything's guard, and it is conditional on the same
+     `sp` for the same reason: "Delete everything" only deletes a plate when there IS one. For a
+     staff account looking at a dish that has one, the button is not offered and the question the
+     modal asks stops being a question \u2014 so the wording changes too, rather than leaving a
+     choice-of-two message above a single button. */
+  var owns=!plateForMenuItem(menuById[id]) || isOwner();
+  var all=document.getElementById('delChoiceAll'); if(all) all.hidden=!owns;
+  var msg=document.getElementById('delChoiceMsg');
+  if(msg)msg.textContent = owns
+    ? ('Delete \u201c'+nm+'\u201d from the menu. Keep its saved plate for reuse, or delete everything?')
+    : ('Remove \u201c'+nm+'\u201d from the menu? Its saved plate stays in your library \u2014 only the caf\u00e9 owner can delete a plate.');
   show('delChoiceModal');
 }
 function closeDelChoice(){ hide('delChoiceModal'); delChoiceId=null; }
@@ -9752,6 +9864,12 @@ function doDeleteMenuOnly(){
 function doDeleteEverything(){
   var id=delChoiceId; if(!id||!menuById[id]){ closeDelChoice(); return; }
   var nm=menuById[id].name; var sp=plateForMenuItem(menuById[id]);
+  /* 188 — THE SECOND DOOR TO A PLATE DELETE, and the guard is conditional on `sp` rather than
+     sitting at the top of the function, because this button means two different things. With a
+     plate it deletes the plate, which staff may not do. WITHOUT one there is no plate to delete
+     and the branch below only removes the menu_items row — everyday unpublishing, which staff may
+     do and which 187 deliberately left them. Guarding the whole function would take that away. */
+  if(sp && !ownerOnly('delete a plate')){ closeDelChoice(); return; }
   var repaint=function(){ rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); };
   closeDelChoice();
   var avgBefore=computeAvgFoodCost();                     // v114: before anything is forgotten

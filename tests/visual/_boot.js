@@ -75,7 +75,7 @@ const EMPTY_OK = ['app_settings'];
 async function installBoot(page, opts = {}) {
   const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
-    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter, signedOut]) => {
+    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter, signedOut, role]) => {
       if (noClient) return;                       // opt out: exercise the real "can't reach the database" state
       const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
       /* The spec seeds the in-memory shape; the app now reads rows. This is the same crossing
@@ -206,7 +206,7 @@ async function installBoot(page, opts = {}) {
              them would ever touch the real one. (186 serves `auth` for that same reason now — the
              note that used to sit here saying it was deliberately absent is above, with why it
              flipped.) */
-          rpc: () => {
+          rpc: (name) => {
             /* `opts.rpcFailsAfter` lets the tenant lookup start FAILING after N calls while every
                table read keeps succeeding. That combination is the shape of a real defect (185's
                pre-push review): from an existing non-member gate, a re-sync whose lookup alone
@@ -220,6 +220,16 @@ async function installBoot(page, opts = {}) {
             /* 186: signed out answers null too, and only signing in changes it — which is what
                makes the sign-in round trip drivable rather than merely paintable. */
             const noTenant = nonMember || (signedOut && !fakeSession());
+            /* 188 — AND THE SHIM NOW DISPATCHES ON THE FUNCTION NAME, which it did not have to
+               while there was only one RPC. It is the same argument the paragraph above makes for
+               serving `rpc` at all: app.js reads an unrecognised answer as "could not tell", which
+               for the ROLE resolves to owner — so a shim that handed the tenant uuid back for
+               `current_business_role` would put all 30 specs on the degraded path and none of them
+               would ever exercise a real role. `opts.role` is what lets a spec be staff; a caller
+               with no tenant has no role either, which is what the server answers. */
+            if (name === 'current_business_role') {
+              return Promise.resolve({ data: noTenant ? null : (role || 'owner'), error: null });
+            }
             return Promise.resolve(
               noTenant ? { data: null, error: null }
                        : { data: '00000000-0000-0000-0000-000000000001', error: null });
@@ -233,7 +243,8 @@ async function installBoot(page, opts = {}) {
         }),
       };
     },
-    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0, !!opts.signedOut],
+    [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0, !!opts.signedOut,
+      opts.role || 'owner'],
   );
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }
