@@ -248,6 +248,25 @@ input,button,select,textarea{font-family:inherit;font-size:var(--fs-base)}
 input,select,textarea{font-size:16px!important} /* stops iOS zoom-on-focus */
 button,.btn,.navbtn,input,select{min-height:44px}   /* touch targets */
 ::placeholder{color:var(--muted2);opacity:.8}
+/* 190 — ANCHORS HAD NO COLOUR RULE AT ALL, in either theme, so every one painted the UA's blue.
+   The app owns exactly three <a> elements and two of them carry a class that sets a colour
+   (.linklike, .del-link), which is why this went unnoticed: the only bare one is #bhGo, the single
+   sentence offering a brand-new cafe its first ingredient. It is the first thing that cafe reads,
+   and it read as violet-blue on the dark surface.
+   Written as a BASE rule rather than #bhGo's own, because nothing in this sheet has ever spoken
+   about anchors — an id rule would fix this link and leave the next one blue.
+   Specificity is 0-0-1, so both classed anchors keep winning; each sets `color` explicitly.
+
+   ⚠️ THERE IS NO `a:hover`, AND ITS ABSENCE IS THE RULE — deleting one is what the pre-push review
+   of this batch caught. `a:hover` is (0,1,1): the pseudo-class scores in the CLASS column and the
+   type selector then breaks the tie, so it OUT-RANKS `.del-link{color:var(--bad)}` (0,1,0), which
+   has no hover colour of its own. Measured, not reasoned: `.del-link` rests at rgb(192,57,47) and
+   the hover rule painted it rgb(150,64,9) — the destructive-action red turning brand orange under
+   the pointer, on the Delete control. The comment above this one claimed the classed anchors "keep
+   winning" and was true only of the bare rule.
+   **So: adding any pseudo-class to a bare type selector in this sheet re-opens that.** If an anchor
+   ever needs a hover state, give it to the CLASS that wants one. */
+a{color:var(--accent-ink)}
 button:focus-visible,a:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 input:focus,select:focus,textarea:focus{
   outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak);
@@ -1088,6 +1107,14 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .mm-price{font-variant-numeric:tabular-nums;color:var(--muted2)}
 .mm-row .btn{min-height:36px;padding:6px 14px}
 .mm-empty{padding:18px 4px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
+/* 190: the zero-menus branch is an empty state with an ACTION now, not a sentence. The heading takes
+   the body colour because .mm-empty's --muted2 is the right weight for explanatory prose and the
+   wrong one for the line that names the state. `:not([hidden])` on the error line is the ten-rule
+   idiom: an author `display` rule beats the UA's [hidden] on ORIGIN, before specificity is compared,
+   so without the guard the failure message would show before anything had failed. */
+.mm-empty-t{margin:0 0 6px;color:var(--text);font-weight:700;font-size:var(--fs-lg)}
+.mm-empty-b{margin:0 auto var(--sp-4);max-width:34ch;line-height:1.5}
+.mm-empty-err:not([hidden]){display:block;margin:var(--sp-3) 0 0;color:var(--bad);font-size:var(--fs-sm)}
 /* F2 (v138) tombstone: `.ing-price.notcosted` is gone with the plate card. §B's rule stands and
    moved with the screen — an uncosted plate reads "not costed" (`.plib-cost.is-nil`), never $0.00. */
 /* v54: unit type is create-only on the product EDIT form — shown, not editable */

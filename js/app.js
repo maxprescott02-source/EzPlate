@@ -5965,7 +5965,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v163';
+var APP_VERSION='v164';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -7408,6 +7408,73 @@ function rollbackPlateDelete(sp, wasLoaded, dishes, r, repaint, nm){
 }
 /* ---- Manage menus: a plate can be published to any number of menus, each its own price/category ---- */
 var manageMenusPid=null;
+/* 190 — THE ZERO-MENUS BRANCH USED TO BE A SENTENCE AND A `return`, and that made it the only one of
+   the app's THREE answers to "no menus yet" that offered no way forward:
+
+     withPublishMenu (both Save buttons)  creates DEFAULT_MENU_NAME at the point of need — 184
+     openPublishModal                     toasts and opens the new-menu modal
+     renderManageMenus                    "create one on the Menu tab first", and nothing to press
+
+   A brand-new cafe meets the third one FIRST: build a plate, save it, tap Add to a menu. It was told
+   to go to another screen while the Menu tab's own Existing-plate button silently made the menu for
+   it. The two are not both wrong — they DISAGREE, which is the queue item's complaint.
+
+   So this routes through ensurePublishMenu, the same machinery the Save buttons use, rather than
+   growing a fourth answer. Three properties are load-bearing and each is pinned:
+
+   - THE FAILURE IS REPORTED IN THIS BOX, not by a toast. pushWrite has already toasted the real
+     error; a second toast would say the same thing twice and neither would be where the user is
+     looking. It also must not open the publish dialog onto a menu that was never created — a null
+     from ensurePublishMenu means DO NOT PROCEED, exactly as withPublishMenu reads it.
+   - THE MENU TAB IS REPAINTED on success. ensurePublishMenu calls buildMenuSelector but not
+     renderAnalysis, so without this the Menu tab would still be showing "No menus yet." over a menu
+     that exists — submitNewMenu calls both, and this is the same obligation.
+   - THE BUTTON IS DISABLED WHILE IN FLIGHT, AND THE HANDLER CHECKS THAT ITSELF. ensurePublishMenu is
+     memoised so a double-tap cannot create two menus, but a button that does nothing visible for a
+     second on cafe wifi gets pressed again, and the second press must be seen to be refused rather
+     than silently coalesced. The explicit `if(b.disabled) return` is not belt-and-braces on the
+     attribute: `disabled` is enforced by the BROWSER's dispatch, so every non-browser caller — a
+     test, a future keyboard handler calling onclick directly — walks straight past it, and this
+     handler would then be relying on the memo two functions away for a property it states itself.
+     The test for this failed before the line existed. */
+function renderManageMenusZero(box){
+  box.innerHTML='<div class="mm-empty"><p class="mm-empty-t">No menus yet.</p>'
+    +'<p class="mm-empty-b">A menu is a set of plates with sell prices. Put this plate on one and EzPlate tracks its food cost.</p>'
+    +'<button class="btn primary mm-first" type="button">Add to a new menu</button>'   // primary, like every other empty-state CTA — it is the only action on this screen
+    +'<p class="mm-empty-err" hidden></p></div>';
+  var b=box.querySelector('.mm-first'), errEl=box.querySelector('.mm-empty-err');
+  if(!b) return;
+  b.onclick=function(){
+    if(b.disabled) return;                                    // the handler refuses re-entry ITSELF — see the note above
+    var pid=manageMenusPid;                                   // read BEFORE the await: closeManageMenus nulls it
+    b.disabled=true;
+    if(errEl){ errEl.hidden=true; errEl.textContent=''; }
+    Promise.resolve(ensurePublishMenu()).then(function(id){
+      b.disabled=false;
+      if(!id){
+        if(errEl){ errEl.textContent='Couldn’t create a menu, so nothing was saved. Check your connection and try again.'; errEl.hidden=false; }
+        return;
+      }
+      /* The menu EXISTS now whatever the user has since done, so the Menu tab is repainted
+         unconditionally — skipping it is what would leave "No menus yet." over a real row. */
+      renderAnalysis();
+      /* ⚠️ BUT THE DIALOG ONLY OPENS IF THIS FLOW IS STILL THE ONE ON SCREEN, and the pre-push
+         review of this batch is why. Capturing `pid` before the await protects the VALUE and says
+         nothing about whether the user is still here — so on cafe wifi the sequence "tap, wait, give
+         up, tap Done, start doing something else" ended with the Add-to-menu dialog opening over
+         whatever they had moved on to, stealing focus for a plate they had left. Worse with two
+         plates: ensurePublishMenu is memoised across concurrent callers, so a second plate opened
+         while the first write was in flight gets BOTH .then callbacks, and the stale one opens the
+         dialog on plate A while the modal on screen is plate B.
+         The guard is the idiom this file already uses at its two other renderManageMenus call
+         sites — is the modal still open — plus the plate still being the one it was opened for. */
+      var mm=document.getElementById('manageMenusModal');
+      if(!(mm && mm.classList.contains('open') && manageMenusPid===pid)) return;
+      renderManageMenus();                                    // this modal now has a row to list
+      openPublishModal(pid, id);
+    });
+  };
+}
 function openManageMenus(pid){
   var sp=savedPlates.find(function(s){return s.id===pid;}); if(!sp) return;
   manageMenusPid=pid;
@@ -7418,7 +7485,7 @@ function closeManageMenus(){ hide('manageMenusModal'); manageMenusPid=null; }
 function renderManageMenus(){
   var box=document.getElementById('mmList'); if(!box) return;
   var sp=savedPlates.find(function(s){return s.id===manageMenusPid;}); if(!sp){ box.innerHTML=''; return; }
-  if(!menusList.length){ box.innerHTML='<div class="mm-empty">No menus yet — create one on the Menu tab first, then publish this plate to it.</div>'; return; }
+  if(!menusList.length){ renderManageMenusZero(box); return; }
   var onById={}; menusOfPlate(sp).forEach(function(o){ onById[o.menuId]=o; });
   box.innerHTML=menusList.map(function(m){
     var o=onById[m.id];

@@ -80,6 +80,12 @@ const targets = [
   // the menu insert must be CONFIRMED before the dish write is issued — menu_items.menu_id is a FK.
   { fn: 'ensurePublishMenu', tests: ['menu-default.test.js'] },
   { fn: 'withPublishMenu', tests: ['menu-default.test.js'] },
+  // 190: the THIRD caller of that machinery, and the one a brand-new cafe reaches first. It was
+  // stubbed in three test files and pinned by none, which is 184's lesson restated: a function that
+  // is not a target has never been asked the question. Two of its branches are the ones that matter
+  // — a null id must open no dialog, and a confirmed id must repaint the Menu tab as well as this
+  // modal — and both are invisible until the cafe has no menus, which production never has.
+  { fn: 'renderManageMenusZero', tests: ['onboarding-zero.test.js'] },
 
   // ── The row boundary. camelCase in memory, snake_case in the schema; getting it wrong once cost
   //    76 of 77 dishes with no error raised. ──
