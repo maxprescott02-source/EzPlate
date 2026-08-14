@@ -769,6 +769,7 @@ as $fn$
 declare
   uid uuid := auth.uid();
   em  text;
+  n   int;
   inv public.business_invites%rowtype;
 begin
   if uid is null then
@@ -792,7 +793,8 @@ begin
    where i.email = em
      and i.accepted_at is null
    order by i.created_at, i.id
-   limit 1;
+   limit 1
+     for update;
   if not found then
     return null;
   end if;
@@ -803,6 +805,10 @@ begin
   update public.business_invites
      set accepted_at = now(), accepted_by = uid
    where id = inv.id;
+  get diagnostics n = row_count;
+  if n <> 1 then
+    raise exception 'invitation % could not be marked accepted (% rows) - refusing to leave a membership with no invitation behind it', inv.id, n;
+  end if;
 
   return inv.business_id;
 end;
@@ -841,12 +847,19 @@ grant execute on function public.business_team() to authenticated, service_role;
 do $$
 declare t text;
 begin
-  foreach t in array array['app_settings','business_invites','ingredients','ing_price_history',
+  foreach t in array array['app_settings','ingredients','ing_price_history',
                            'menu_change_log','menu_items','menu_price_history','menus','plates',
                            'price_history','supplier_phrases'] loop
     execute format('grant all on table public.%I to anon, authenticated, service_role', t);
   end loop;
 end $$;
+
+-- ⚠️ `business_invites` is DELIBERATELY NOT IN THAT LOOP, and it is the only
+-- table here that is not. It gets no UPDATE: nothing legitimately edits an
+-- invitation, and an owner with UPDATE can mark one accepted with no membership
+-- behind it — a policy decides which ROWS, never which columns, so the grant is
+-- the only bar that works. See the migration's header at this statement.
+grant select, insert, delete on table public.business_invites to anon, authenticated, service_role;
 
 grant usage, select on all sequences in schema public to anon, authenticated, service_role;
 

@@ -162,8 +162,43 @@
 --   * Staging was returned to its documented state afterwards: c@ a member of
 --     nothing again, no invitations left, café one still 520 products.
 --
+-- ⚠️ AND THEN THE PRE-PUSH REVIEW FOUND THREE MORE, TWO OF THEM REAL DEFECTS IN
+--   WHAT HAD ALREADY BEEN APPLIED. This file was amended and BOTH databases were
+--   brought to the amended version before merge; the records above and below
+--   describe the file as it now stands. Recorded rather than quietly rewritten,
+--   because "applied, then corrected before anyone could use it" and "applied
+--   correctly" are different facts and only one of them is true here.
+--   * THE RACE, and it was the sharpest thing in the batch: the invitation was
+--     read and later marked accepted in two statements with no lock, so a revoke
+--     committing between them left the UPDATE matching zero rows while the
+--     membership INSERT had already happened — and the function still returned
+--     the café's id. A revoke landing mid-claim would not have stopped the join.
+--     Fixed with `for update`, which also collapses the concurrent double-claim
+--     into a clean `null`. See the note at the function.
+--   * THE FORGEABLE ACCEPTANCE: `grant all` let an owner PATCH `accepted_at` and
+--     `accepted_by` on a pending invitation directly. A policy decides which
+--     ROWS, never which columns, so no policy could have stopped it. Fixed by
+--     granting the table select/insert/delete and no UPDATE at all — measured
+--     afterwards as `42501 permission denied` on the PATCH, with INSERT and
+--     DELETE still working for an owner.
+--   * THE GUARD WAS PROVED TO FIRE rather than assumed, on staging, with the
+--     accept UPDATE deliberately pointed at an id that cannot exist: the claim
+--     raised `P0001 … (0 rows)` over PostgREST AND the membership insert was
+--     rolled back — zero memberships afterwards, the invitation still pending.
+--     Without that demonstration it is an assertion nobody has watched execute,
+--     which is this repo's most common defect.
+--   * The third finding was a test that read only this file and not the mirror,
+--     so a hand-edit turning a mirror policy into `for all` would have stayed
+--     green. Fixed in tests/invites.test.js and proved by mutating the MIRROR
+--     alone, which is now red.
+--
 -- APPLIED TO PRODUCTION: 14 Aug 2026, by Claude, in the commit that added these
---   lines — written after the statements ran, never before. Verified:
+--   lines — written after the statements ran, never before. Applied TWICE, and
+--   the second time is the one that counts: the first application was of the
+--   pre-review file, and the two fixes above were applied to production before
+--   merge (the `for update` + row-count guard as a `create or replace`, and the
+--   grant as `revoke all` then `grant select, insert, delete`). Nothing had used
+--   the feature in between, because no client calls it. Verified:
 --   * as the ANON CLIENT over PostgREST, with the publishable key that ships in
 --     index.html: `GET /business_invites` -> `[]`, `invite_pending` -> `false`,
 --     `business_team()` -> `[]`, `claim_business_invite()` -> `null`, and an
@@ -199,7 +234,12 @@ begin;
 -- `role` carries the same two values as `business_members.role` rather than
 -- being pinned to 'staff'. It has to: the invite is what DECIDES the
 -- membership's role, so a narrower vocabulary here would be a second, disagreeing
--- definition of what a role is. The client half offers staff only.
+-- definition of what a role is.
+-- ⚠️ SO NOTHING HERE STOPS AN OWNER INVITING A CO-OWNER, and the client half
+-- offering staff only is a UI promise rather than an enforced rule. Spelled out
+-- because the pre-push review read the shorter wording as a claim that staff-only
+-- was enforced somewhere. If it ever needs to BE enforced, that is a check
+-- constraint or a policy, not a sentence.
 --
 -- `business_id` gets BOTH a default and a trigger, and both call
 -- `current_business_id()` — CLAUDE.md's rule that a DEFAULT and a BEFORE trigger
@@ -346,7 +386,20 @@ create policy "business_invites owner-only delete" on public.business_invites
   as restrictive for delete to public
   using ((select public.current_business_role()) = 'owner');
 
-grant all on table public.business_invites to anon, authenticated, service_role;
+-- ⚠️ NOT `grant all`, unlike every other table here, and the difference is the
+-- point. The review found that an owner could PATCH `accepted_at`/`accepted_by`
+-- on a pending invitation directly — marking it accepted with no membership
+-- behind it, which the `both or neither` constraint cannot catch because it can
+-- only see the row. The restrictive UPDATE policy above does not help: a policy
+-- decides WHICH ROWS, never which columns.
+--   There is no legitimate client UPDATE on this table at all. An invitation is
+--   created, and then either claimed by the server or revoked; nothing edits one.
+--   So the grant is the bar, and it is a stronger one than any policy could be:
+--   `claim_business_invite` is SECURITY DEFINER and runs as the owner of the
+--   function, so withholding UPDATE from the API roles costs it nothing.
+--   The restrictive UPDATE policy STAYS as a backstop, and because 187's lesson
+--   is to name every command rather than the ones your client happens to send.
+grant select, insert, delete on table public.business_invites to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 3. THE GATE ON THE SIGN-UP FORM
@@ -408,6 +461,36 @@ grant execute on function public.invite_pending(text) to anon, authenticated, se
 -- `security definer` is what lets it insert into `business_members`, which no
 -- client may write. Everything it inserts is derived from `auth.uid()` and from
 -- the matched invitation, so the caller supplies none of it.
+--
+-- ⚠️ `FOR UPDATE` IS LOAD-BEARING AND WAS ADDED BY THE PRE-PUSH REVIEW. Without
+-- it the SELECT and the UPDATE are two statements with two snapshots, and under
+-- READ COMMITTED a revoke committing between them leaves the UPDATE matching
+-- ZERO rows — while the membership INSERT has already happened and the function
+-- still returns the café's id. A revoke that lands mid-claim would not have
+-- stopped the join; it would have produced a member with no invitation behind
+-- them, silently, on the success path. The window is small and it is on an
+-- ordinary path rather than an exotic one, because the client half calls this
+-- automatically from the tenant gate on every boot of a memberless account.
+--   Locking the row makes the two orders both correct rather than one of them
+--   lucky: a revoke that commits FIRST means the locked read finds nothing and
+--   the answer is a clean `null`; a revoke that arrives SECOND waits, and then
+--   deletes an invitation that was legitimately claimed.
+--   It also settles the concurrent DOUBLE-claim the review raised separately:
+--   the second caller waits, re-reads under the lock, sees `accepted_at` is no
+--   longer null and returns `null` instead of raising a unique violation.
+--   ⚠️ Honestly stated, one narrow case survives: two pending invitations for the
+--   same address from DIFFERENT cafés, claimed concurrently, lock different rows
+--   and race the membership insert. One of them raises 23505 on 187's
+--   one-café-per-person constraint — which is that constraint doing its job, and
+--   the client already treats an error as "change nothing".
+--
+-- THE `get diagnostics` CHECK IS NOT DEAD CODE, and it is unreachable on purpose.
+-- With the lock above, the UPDATE cannot match zero rows. It is here so that if
+-- a later edit removes `for update` — the exact thing the review found missing —
+-- the failure is a raised exception that rolls the membership insert back, not a
+-- silent success. Proved to fire before it was believed: on staging, with the
+-- `where` deliberately pointed at a non-existent id, the claim raised and the
+-- `business_members` row was rolled back rather than left behind.
 -- ---------------------------------------------------------------------------
 create or replace function public.claim_business_invite()
 returns uuid
@@ -418,6 +501,7 @@ as $fn$
 declare
   uid uuid := auth.uid();
   em  text;
+  n   int;
   inv public.business_invites%rowtype;
 begin
   if uid is null then
@@ -441,7 +525,8 @@ begin
    where i.email = em
      and i.accepted_at is null
    order by i.created_at, i.id
-   limit 1;
+   limit 1
+     for update;
   if not found then
     return null;
   end if;
@@ -452,6 +537,10 @@ begin
   update public.business_invites
      set accepted_at = now(), accepted_by = uid
    where id = inv.id;
+  get diagnostics n = row_count;
+  if n <> 1 then
+    raise exception 'invitation % could not be marked accepted (% rows) - refusing to leave a membership with no invitation behind it', inv.id, n;
+  end if;
 
   return inv.business_id;
 end;

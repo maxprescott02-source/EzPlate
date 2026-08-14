@@ -23,6 +23,38 @@ That is the documented Supabase pattern and it was written first, then rejected 
 A sign-up trigger only ever fires for a person who has NO account, and the person an owner invites may already have one - every account this project has ever had was made by hand in the dashboard.
 A claim covers both cases with one mechanism, at the moment the tenant gate already discovers there is no cafe, and it cannot break sign-up or email confirmation the way a failing trigger in the auth schema can.
 
+## The pre-push review, which found two real defects in what was already applied
+
+Run on a different model, without the brief, after the suite was green. Five findings, three fixed, two answered.
+
+**1. A race in `claim_business_invite()`, and it is the sharpest thing in the batch. FIXED.**
+The invitation was read and later marked accepted in two statements with no lock.
+Under READ COMMITTED a revoke committing between them left the UPDATE matching zero rows while the membership INSERT had already run, and the function still returned the cafe's id.
+A revoke landing mid-claim would not have stopped the join; it would have produced a member with no invitation behind them, on the SUCCESS path, silently.
+Fixed with `for update`, which also collapses the concurrent double-claim the review raised separately into a clean `null` instead of a unique violation.
+Added a row-count guard beside it that is unreachable while the lock is there, and **proved it fires** on staging with the accept UPDATE pointed at an id that cannot exist: it raised over PostgREST and the membership insert was rolled back.
+
+**2. Two tests read the migration and not the mirror. FIXED.**
+Every other policy test in the file loops over both; those two closed over `MIG` alone, so a hand-edit in `01-schema.sql` turning `for insert` into `for all` would have left the suite green - and staging is rebuilt from that file.
+Proved by mutating the MIRROR alone, which is now red and was not.
+
+**3. An owner could forge an acceptance. FIXED, and the fix is a GRANT rather than a policy.**
+`grant all` let an owner PATCH `accepted_at`/`accepted_by` on a pending invitation, marking it accepted with no membership behind it.
+No policy could have stopped that: **a policy decides which ROWS, never which columns.**
+Nothing legitimately edits an invitation, so the table now carries select/insert/delete and no UPDATE at all; `claim_business_invite` is SECURITY DEFINER and loses nothing.
+Measured afterwards as 42501 on the PATCH with insert and delete still working.
+
+**4. The staff-only wording. FIXED as wording.**
+The server permits an owner-role invitation and the review read the shorter text as a claim that staff-only was enforced.
+Both the header and the queue item now say outright that it is a UI promise and nothing else.
+
+**5. Concurrent double-claim. Answered by finding 1's fix.**
+The residual case is two pending invitations for one address from different cafes, claimed concurrently, where one raises 23505 on 187's one-cafe-per-person constraint.
+That is the constraint doing its job and the client already treats an error as "change nothing". Stated in the header rather than locked further.
+
+**Both fixes were applied to production before merge**, so the file and both databases agree; all seven fingerprints match.
+The header records that it was applied twice and why, because "applied, then corrected before anyone could use it" and "applied correctly" are different facts.
+
 ## Into CLAUDE.md
 
 **Nothing new, and that is a deliberate answer rather than an empty one.**
@@ -71,9 +103,9 @@ Nothing in this batch needs to turn an email into a `user_id` at all: the invita
 An owner cannot remove a member or change a role - only invite, and revoke a pending invitation.
 That is stated in the item now rather than left implied, because it is the obvious next question a Team card raises and it needs its own policy work.
 
-`accepted_by` and `accepted_at` can be rewritten by an owner through a direct PATCH, unlike `invited_by`, which the trigger freezes.
-It costs nothing today - only `claim_business_invite()` creates a membership, so falsifying those columns neuters an invitation rather than granting anything - and freezing them would have meant a second freeze branch for a column nothing reads for authorisation.
-Written down here rather than fixed, because the reasoning is what a later reader needs.
+I also saw that `accepted_by`/`accepted_at` were rewritable by an owner through a direct PATCH, and decided to document it rather than fix it, on the grounds that it grants no access.
+**The review found the same thing and I was wrong to leave it**, not because the impact assessment was wrong but because the fix turned out to be one word of a GRANT rather than the trigger machinery I had priced it at.
+That is the lesson worth keeping: I skipped it on an estimate of the FIX rather than an estimate of the RISK, and never checked the estimate.
 
 ## Surprises
 
@@ -84,6 +116,10 @@ It is not, and I wrote the migration header claiming it was before the rehearsal
 **I drafted the header's REHEARSED and APPLIED TO PRODUCTION records before either had happened**, in the correct form, with plausible detail - which is precisely the failure 186's header was caught for and which `CLAUDE.md` now has a rule about.
 Caught it on re-reading rather than by any mechanism, replaced both with an explicit "not yet", and wrote them for real afterwards.
 The form of the rule is what makes it easy to do: the header asks for a record, and writing one is the same motion whether or not the thing happened.
+
+**The review found a defect in a batch that had already been rehearsed end to end against a real database as four different accounts.**
+The rehearsal exercised every case I thought to name, and a race is not a case you think to name - it is one you only get by someone reading the statements and asking what happens between them.
+That is the argument for the pre-push agent stated better than I could have stated it beforehand.
 
 **A verification of mine was wrong twice before it was right**, both times because the precondition had not been established rather than because the code misbehaved.
 A claim I expected to refuse succeeded, correctly, because a pending invitation I had forgotten about was still there.
