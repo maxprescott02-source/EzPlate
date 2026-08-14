@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=164">
+<link rel="stylesheet" href="css/style.css?v=165">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -207,7 +207,35 @@
       <input class="acct-in" id="bgPass" type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
       <button class="btn primary" id="bgSignBtn" type="submit">Sign in</button>
     </form>
+    <!-- 192: the way IN for somebody an owner has just invited. It is a LINK rather than a second
+         button because it is not the action this screen is for — the overwhelming majority of
+         arrivals here are Max signing back in on a device — and a second primary control beside
+         "Sign in" would be §7's forbidden duplicate intent.
+         Both alt links are driven by JS, not CSS: bootGate's `hideForms` hides them with the forms
+         they belong to, and `gateMode` swaps which one is up. That keeps ONE place deciding what
+         this overlay is showing, rather than a state class and a JS branch that can disagree. -->
+    <!-- ⚠️ `hidden` is on it for the same reason its three siblings carry it, and the first cut
+         left it off — caught by the pre-push review. It is harmless today only because every path
+         into this overlay runs `hideForms()` first, which is a claim about the ORDER of two other
+         functions rather than about this element, and the discipline everywhere else on this screen
+         is that a toggled element starts in its hidden state and JS decides when it does not. -->
+    <p class="bg-alt" id="bgAltIn" hidden><a href="#" id="bgToSignUp">Been invited? Create your account</a></p>
+    <!-- 192: the sign-up form. SEPARATE from the sign-in one rather than a mode of it, because
+         `autocomplete` is the difference that matters: `current-password` asks a password manager to
+         offer a saved password and `new-password` asks it to generate one, and managers do not
+         re-read that attribute if it is swapped at runtime. The person reading this is creating
+         their first password, on a phone. -->
+    <form class="acct-form" id="bgSignUpForm" hidden autocomplete="on">
+      <input class="acct-in" id="bgUpEmail" type="email" name="email" placeholder="you@example.com" aria-label="Email you were invited at" autocomplete="username" required>
+      <input class="acct-in" id="bgUpPass" type="password" name="new-password" placeholder="Choose a password" aria-label="Choose a password" autocomplete="new-password" required>
+      <button class="btn primary" id="bgUpBtn" type="submit">Create account</button>
+    </form>
+    <p class="bg-alt" id="bgAltUp" hidden><a href="#" id="bgToSignIn">Already have an account? Sign in</a></p>
     <p class="acct-err" id="bgErr" hidden role="alert"></p>
+    <!-- 192: the confirmation email is the whole remaining step, and `signUp` succeeds silently —
+         without this the screen looks identical to a failure. `role="status"` rather than "alert":
+         it is the good outcome, and an alert interrupts a screen reader mid-sentence for it. -->
+    <p class="bg-done" id="bgDone" hidden role="status"></p>
   </div>
 </div>
 <div class="wrap" id="appMain">
@@ -985,10 +1013,44 @@
           <div class="stg-body">
             <!-- 188: this said the two roles were "planned". They exist and the database enforces
                  them (187), so the sentence had to become true on the day the client could read a
-                 role. It keeps `.stg-soon` because the card still describes ONE capability that
-                 does not exist — adding someone — and §R4 says that is stated in a sentence,
-                 never mimed with a control. #teamRole is filled by applyRoleUi. -->
-            <p class="stg-soon">Two roles: the owner, and staff who can import invoices and edit ingredients, plates and menus &mdash; but can&rsquo;t delete plates or menus, change the target food cost, or restore a backup. <span id="teamRole"></span> Adding someone is done by hand for now.</p>
+                 role. #teamRole is filled by applyRoleUi.
+                 192: it LOSES `.stg-soon` and its closing "Adding someone is done by hand for now."
+                 Both were honest when 188 wrote them and both became false the moment this card
+                 could send an invitation — §R4's rule is that a missing capability is stated in a
+                 sentence rather than mimed with a control, and the other side of that rule is that
+                 the sentence goes when the control arrives. `.stg-help` is what the same copy wears
+                 everywhere else on this screen. -->
+            <p class="stg-help">Two roles: the owner, and staff who can import invoices and edit ingredients, plates and menus &mdash; but can&rsquo;t delete plates or menus, change the target food cost, or restore a backup. <span id="teamRole"></span></p>
+
+            <!-- 192: OWNER-ONLY, hidden as one block by applyRoleUi. Everything inside it is
+                 refused to staff by four restrictive policies (191), the SELECT included — so a
+                 staff account shown this would get an empty list under an Invite button with
+                 nothing to explain it. The #teamRole sentence above is what they see instead.
+                 ⚠️ `.team-own` DELIBERATELY CARRIES NO `display` RULE — checked in css/style.css,
+                 not assumed — so the UA's `[hidden]{display:none}` is not overridden and no
+                 `:not([hidden])` guard is needed. A div is display:block already; adding a rule
+                 that restates that would create the exact hole CLAUDE.md records twelve fixes for.
+                 Same reasoning as #bootGateOut and #bootGateBrand above. If a later batch gives
+                 this class a display rule, it needs the guard in the same change. -->
+            <div class="team-own" id="teamOwner" hidden>
+              <!-- §4's states are drawn by renderTeam: loading, error, and the list. There is no
+                   true empty — an owner is always a member of their own café. -->
+              <div class="team-list" id="teamList"></div>
+              <form class="acct-form team-form" id="teamForm" autocomplete="off">
+                <input class="acct-in" id="teamEmail" type="email" name="invite" placeholder="name@example.com" aria-label="Email address to invite" required>
+                <button class="btn primary" id="teamAdd" type="submit">Invite</button>
+              </form>
+              <!-- ⚠️ THE SENTENCE THIS CARD MOST NEEDS, and the first draft got it wrong by
+                   assuming an invitation is a thing that gets emailed. IT IS NOT: 191 writes a row
+                   and nothing else — no email leaves EzPlate at any point in this flow. An owner
+                   told "invitation sent" and left to wait for a delivery that never happens has
+                   been lied to by the app. Max's own answer to how this would be used was
+                   "standing next to them", which is exactly the flow this describes. (The one
+                   email anybody gets is Supabase's confirmation link, and that arrives later,
+                   when THEY sign up.) -->
+              <p class="stg-help">Then tell them to open EzPlate and choose &ldquo;Been invited?&rdquo; on the sign-in screen &mdash; EzPlate doesn&rsquo;t email them. They must use that exact address, and they&rsquo;ll join as staff.</p>
+              <p class="acct-err" id="teamErr" hidden role="alert"></p>
+            </div>
           </div>
         </section>
 
@@ -1491,7 +1553,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=164"></script>
+<script src="js/app.js?v=165"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

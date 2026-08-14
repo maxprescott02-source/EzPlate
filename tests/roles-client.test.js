@@ -54,15 +54,21 @@ function mkNode(id) {
 function harness(opts) {
   opts = opts || {};
   const ids = ['bldDuplicate', 'bldDelete', 'menuDelBtn', 'setRestoreRow', 'setCogsInput',
-    'setCogsHelp', 'teamRole', 'delChoiceAll', 'delChoiceMsg'];
+    'setCogsHelp', 'teamRole', 'teamOwner', 'delChoiceAll', 'delChoiceMsg'];
   const D = {};
   ids.forEach((id) => { D[id] = mkNode(id); });
   (opts.omit || []).forEach((id) => { delete D[id]; });
-  const calls = { toasts: [], shown: [] };
+  const calls = { toasts: [], shown: [], teamLoads: 0 };
   // eslint-disable-next-line no-new-func
   const api = new Function('D', 'C', 'OPT', `
     "use strict";
-    var document = { getElementById: function(id){ return D[id] || null; } };
+    /* 192: applyRoleUi asks whether the Account PANE is on screen, which is the pane element's own
+       display — the same thing showTab sets. Served here rather than stubbed away, because which
+       question the guard asks IS what the promotion test is checking. */
+    var document = { getElementById: function(id){
+      if(id==='tab-account') return { style: { display: OPT.acctShowing ? '' : 'none' } };
+      return D[id] || null;
+    } };
     function toast(m){ C.toasts.push(m); }
     function show(id){ C.shown.push(id); }
     var loadedPlateId = OPT.loadedPlateId || null;
@@ -72,6 +78,14 @@ function harness(opts) {
     var delChoiceId = null;
     function canDeleteMenu(id){ return menusList.some(function(m){return m.id===id;}); }
     function plateForMenuItem(mi){ return (mi && mi.plate) || null; }
+    /* 192 — applyRoleUi now also refreshes the Team card. Both of these are COLLABORATORS observed
+       here, not decisions re-implemented: what is under test is WHETHER applyRoleUi re-reads the
+       team, and on which condition — never what loadTeam does, which invites-client.test.js runs
+       for real. teamData starts idle, which is the shipped initial state.
+       (No backticks in this comment: it lives inside a template literal, and one would end the
+       string. That cost a syntax error the first time it was written.) */
+    var teamData = OPT.teamData || {status:'idle', members:[], invites:[], err:''};
+    function loadTeam(){ C.teamLoads++; }
     ${extractFn(SRC, 'roleState')}
     ${extractFn(SRC, 'isOwner')}
     ${extractFn(SRC, 'ownerOnly')}
@@ -342,10 +356,28 @@ test('the Team card states the roles as fact and names the one you hold', () => 
   ['delete plates', 'menus', 'target food cost', 'restore a backup'].forEach((s) => {
     assert.ok(body.indexOf(s) > 0, `the card names "${s}"`);
   });
-  /* It keeps its .stg-soon sentence, because ONE capability here still does not exist — adding
-     someone — and §R4 says that is stated in a sentence, never mimed with a control. */
-  assert.ok(body.indexOf('class="stg-soon"') > 0);
-  assert.ok(body.indexOf('<button') < 0, 'invitations are not built, so no control pretends they are');
+  /* ⚠️ THESE TWO WERE THE EXACT OPPOSITE UNTIL 192, and inverting them is the batch doing its job
+     rather than a test being loosened. 188 asserted a `.stg-soon` sentence and NO `<button>`,
+     because adding someone did not exist and §R4 forbids miming an absent capability with a
+     control. 191 built it and this batch ships it — so the same rule now requires the reverse: the
+     sentence saying it is done by hand is a false statement to a customer, and the control is
+     honest. The rule never changed; the fact underneath it did.
+     Kept as assertions rather than deleted, so a revert that removes the invite form but leaves
+     the card claiming to have one still goes red. */
+  assert.ok(body.indexOf('class="stg-soon"') < 0,
+    'adding someone is no longer "for now" — the sentence goes when the capability arrives');
+  assert.ok(body.indexOf('done by hand') < 0, 'and so does the claim that it is done by hand');
+  assert.ok(/id="teamForm"/.test(body) && /id="teamEmail"/.test(body) && /id="teamAdd"/.test(body),
+    'the card carries a real invite form');
+  assert.ok(/id="teamList"/.test(body), 'and the list it invites people into');
+  /* ⚠️ THE HONEST SENTENCE, and it is the one thing a reader of this card cannot work out for
+     themselves. 191 writes a ROW; no email leaves EzPlate at any point in this flow. An owner told
+     "invitation sent" waits for a delivery that never happens instead of telling the person, and
+     the feature silently does nothing. The first draft of this card got it wrong. */
+  /* `.{0,8}` rather than `.` for the apostrophe: the copy is written with `&rsquo;`, which is seven
+     characters, and a single-dot match went red against markup that says exactly the right thing. */
+  assert.match(body, /EzPlate doesn.{0,8}t email them/i,
+    'the card must say EzPlate sends nothing, or an owner waits for an email that never arrives');
   /* The SECOND stale claim on this screen, and it was found by looking at it rather than by any
      test: the header subtitle said "roles and billing are still to come". Half of that is now
      false, and a screen that contradicts itself two cards apart is worse than either sentence
@@ -360,6 +392,83 @@ test('the Team card states the roles as fact and names the one you hold', () => 
   const staff = harness({ role: 'staff' });
   staff.api.applyRoleUi();
   assert.match(staff.D.teamRole.textContent, /signed in as staff/);
+});
+
+test('192: the invitations block is hidden from staff as ONE block, not control by control', () => {
+  /* 191 refuses staff every command on `business_invites`, the SELECT included, so a staff account
+     shown this would get an empty list under an Invite button and nothing to explain it. §R4 again:
+     the #teamRole sentence is what they get instead. Hiding the container rather than each control
+     is what makes "did I remember all of them" not a question — a fifth control added inside
+     inherits the gate. */
+  const owner = harness();
+  owner.api.applyRoleUi();
+  assert.equal(owner.D.teamOwner.hidden, false, 'an owner sees the list and the invite form');
+
+  const staff = harness({ role: 'staff' });
+  staff.api.applyRoleUi();
+  assert.equal(staff.D.teamOwner.hidden, true, 'staff see neither');
+
+  /* ⚠️ AND `.team-own` MUST CARRY NO `display` RULE, which is the half that is not in the JS at all.
+     An author `display` rule beats the UA's `[hidden]{display:none}` on ORIGIN, before specificity
+     is compared, so one line of CSS would show every staff account the invite form with the
+     assertion above still green. CLAUDE.md records twelve `:not([hidden])` repairs of exactly this;
+     the cheaper fix is not to write the rule, and this is what holds someone to it.
+     Comments stripped first — CLAUDE.md 183(a): the CSS comment here NAMES the class and uses the
+     word "display" to explain why there is no rule, and an unstripped match would fail on its own
+     documentation. */
+  const css = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/\.team-own[^{,]*\{[^}]*display\s*:/.test(css),
+    '.team-own must have no display rule, or hiding it from staff does nothing');
+  /* The same trap one level down, and it is the one a later batch is likeliest to spring: the two
+     gate lines toggled by bootGate/gateMode. */
+  ['bg-alt', 'bg-done'].forEach((c) => {
+    assert.ok(!new RegExp(`\\.${c}[^{,]*\\{[^}]*display\\s*:`).test(css),
+      `.${c} is toggled with [hidden] and must carry no display rule`);
+  });
+});
+
+test('192: a PROMOTED account whose card is on screen re-reads it — the review finding', () => {
+  /* ⚠️ THE CASE THE FIRST CONDITION GOT WRONG, and it is worth stating why the wrong version read
+     as correct. The guard was `teamData.status!=='idle'`, with a comment claiming that meant "the
+     card has been opened". It does not: `loadTeam` RESETS the state to 'idle' for a staff caller,
+     so a staff account is idle however many times the Account screen has been opened.
+     Promote that account — another owner adds the role — while they are looking at the Account
+     screen, let an `online` blip re-sync, and `applyRoleUi` unhides the invitations block while the
+     guard skips the fetch. An empty card, for the person who just gained the right to see it. It
+     self-healed on the next navigation, which is what would have kept it unreported. */
+  const shown = harness({ acctShowing: true, teamData: { status: 'idle', members: [], invites: [], err: '' } });
+  shown.api.applyRoleUi();
+  assert.equal(shown.D.teamOwner.hidden, false, 'the block is revealed to the new owner');
+  assert.equal(shown.calls.teamLoads, 1, 'and its contents are fetched, or it is revealed EMPTY');
+
+  /* And the boot-cost property is unchanged: idle AND not showing is still no request. Without
+     this half the fix would be "fetch always", which is the two-round-trips-per-boot cost the
+     condition exists to avoid. */
+  const hidden = harness({ acctShowing: false, teamData: { status: 'idle', members: [], invites: [], err: '' } });
+  hidden.api.applyRoleUi();
+  assert.equal(hidden.calls.teamLoads, 0, 'a card nobody is looking at still costs nothing at boot');
+});
+
+test('192: a role that arrives later re-reads the team, but boot does not', () => {
+  /* THE COST THIS CONDITION EXISTS TO AVOID. `applyRoleUi` runs inside `bootstrapSync` on EVERY
+     load, so an unconditional `loadTeam()` would spend two round trips per boot on a card nobody
+     is looking at — on a phone, on the boot critical path v108 spent a whole batch shortening.
+     `!== 'idle'` is what keeps it off there, and it is not merely an optimisation: it is the
+     difference between the Account screen paying for itself and every screen paying for it. */
+  const cold = harness();                                    // teamData starts idle, as it ships
+  cold.api.applyRoleUi();
+  assert.equal(cold.calls.teamLoads, 0, 'boot must not fetch a card nobody has opened');
+
+  /* But once the card HAS been opened, a re-sync that changes the role must not leave a stale list
+     on screen — a demoted owner would otherwise keep reading their team's addresses off a rendered
+     list until they navigated away. */
+  const warm = harness({ teamData: { status: 'ok', members: [{}], invites: [], err: '' } });
+  warm.api.applyRoleUi();
+  assert.equal(warm.calls.teamLoads, 1, 'an opened card is re-read when the role resolves');
+  const warmStaff = harness({ role: 'staff', teamData: { status: 'ok', members: [{}], invites: [], err: '' } });
+  warmStaff.api.applyRoleUi();
+  assert.equal(warmStaff.calls.teamLoads, 1,
+    'including for staff — loadTeam is what CLEARS a list that was read as owner');
 });
 
 /* ---------------------------------------------------------------------------------------------

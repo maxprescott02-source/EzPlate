@@ -203,13 +203,20 @@ test('1280px: the account screen renders, and only its BACKED card carries contr
      does nothing".
      ⚠️ 174 NARROWED this from "no control anywhere in the body" to "no control in Team or Plan",
      because Profile now HAS the capability — real Supabase sign-in — and a card that earned its
-     controls is the rule working, not the rule being dodged. Team and Plan still describe backends
-     that do not exist and are still asserted empty. */
-  const promiseCards = '#tab-account .stg-card:not(:has(#acctForm))';
+     controls is the rule working, not the rule being dodged.
+     ⚠️ 192 NARROWS IT AGAIN, to Plan alone, by the identical argument — and the repetition is the
+     point rather than a slide. The mock's "Invite a teammate" is BUILT now: 191 shipped
+     `business_invites` and this batch shipped the form. Team has earned its controls exactly as
+     Profile did, so asserting it empty would enforce the letter of §R4 against its purpose. Plan
+     still describes billing that does not exist and is still asserted empty. */
+  const promiseCards = '#tab-account .stg-card:not(:has(#acctForm)):not(:has(#teamForm))';
   await expect(page.locator(`${promiseCards} button, ${promiseCards} input, ${promiseCards} select, ${promiseCards} a`)).toHaveCount(0);
-  // and the backed card really is backed, so this cannot pass by the form having vanished
+  /* And BOTH exempt cards really are backed, so this cannot pass by a form having vanished — which
+     is the only way narrowing twice could turn into a ratchet. */
   await expect(page.locator('#tab-account #acctForm')).toBeVisible();
   await expect(page.locator('#tab-account #acctIn')).toBeVisible();
+  await expect(page.locator('#tab-account #teamForm')).toBeVisible();
+  await expect(page.locator('#tab-account #teamAdd')).toBeVisible();
   // 171: scoped to the body. The screen gained a "‹ More" chevron in its shared header — navigation,
   // not a capability — and at 1280 it is display:none anyway, which is asserted rather than assumed.
   await expect(page.locator('#tab-account .scr-back')).toBeHidden();

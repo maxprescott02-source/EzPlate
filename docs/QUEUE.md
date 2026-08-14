@@ -31,51 +31,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · Invitations — the CLIENT half  **[A — launch blocker]**
-
-### ⚙️ THE SERVER HALF SHIPPED IN BATCH 191. This item is now only the client.
-
-**Split for size, not for taste**, on the precedent of 182/183 and 187/188: the table, its policies, the claim, the probe and the team read were one reviewable PR, and the Team card + a gated sign-up form on two screens + the `tests/auth.test.js` rewrite + Playwright are another. Nothing 191 shipped is reachable from the app, so this batch is adding affordances rather than inventing enforcement.
-
-**What exists on the server now** — measured on production, verified as the client over PostgREST, and recorded in `supabase/migrations/20260814_invitations.sql`'s header. Read that header before planning; do not re-derive any of it:
-
-- **`business_invites`** — an owner may create, read, revoke; **staff cannot even SEE the table** (four restrictive policies, one per command). `email` is normalised and its shape checked; `invited_by` is stamped from the session by a trigger and cannot be spoofed or rewritten; one pending invitation per address per café.
-- **`invite_pending(p_email text) -> boolean`**, callable by **anon**. This is the gate the sign-up form asks BEFORE calling `signUp`, so an uninvited address never creates an account.
-- **`claim_business_invite() -> uuid`**, callable by **authenticated**, **takes no argument**. Returns the café joined, or `null` when there is nothing to claim. Refuses an unconfirmed address, somebody else's invitation, and a second café.
-- **`business_team() -> (user_id, email, role)`**, owner-only. The Team card cannot list anybody without it, because `auth.users` is unreadable.
-
-**What the client has to do, and the one piece of it that is not obvious:**
-
-- **The claim belongs at the TENANT GATE, not on a button.** `bootstrapSync` already discovers "this account has no café" and paints 185's screen. That is the exact moment to call `claim_business_invite()`: a uuid back means re-sync and carry on, `null` means paint 185's screen as today, an error means leave the standing verdict alone — the same three-answer discipline as `tenantGateState` and `roleState`, which are the models to copy.
-  ⚠️ **This is what makes shape B work for a person who ALREADY has an account** — Max's, or any made by hand in the dashboard, which is how every account in this project has been made. A sign-up-only path would serve nobody who already exists.
-- **The Team card owns the whole feature** (188's handover says so): list the members from `business_team()`, list pending invitations, add one, revoke one. It is an owner-only surface and resolves in **`applyRoleUi`**, not in a fifth place. `tests/roles-client.test.js` asserts the card ships **no `<button>`** and that it carries `.stg-soon` saying adding someone is done by hand — **both of those assertions are this batch's to change**, deliberately, not to trip over.
-- **The sign-up form.** Ask `invite_pending` first; only then `signUp`. It is reachable from the boot gate's sign-in screen (a signed-out browser can see nothing else) and the copy has to explain the confirmation email, because email confirmation is ON.
-- ⚠️ **`tests/auth.test.js:250` pins `!/signUp\s*\(/` with the stated reason *"no signUp call may ship while an account cannot join a café."* Rewrite that assertion to pin the CONDITION — a sign-up reachable without a pending invite must still fail the suite. Do not simply delete it.**
-- **Invitations create STAFF, and that is a CLIENT choice which the server does not enforce.** The `role` column accepts `'owner'` as well, deliberately — it is what decides the membership's role, so a narrower vocabulary there would be a second, disagreeing definition of what a role is. Nothing in the database stops an owner-role invitation. **So "staff only" is a promise this batch makes in the UI and nowhere else**; if that ever needs to be a guarantee it is a check constraint or a policy, not a comment. Say staff in the copy.
-
-**Two things 191 deliberately did NOT do, so they are decisions rather than omissions:**
-- **No trigger on `auth.users`.** The header argues it: it only ever fires for someone with no account, which is the case shape B least needs, and its failure mode is a broken sign-up rather than a recoverable missing café.
-- **An owner cannot REMOVE a member or change their role.** Only invite and revoke-a-pending-invite. If this batch wants removal it needs its own policy work; **it is not required to close the launch blocker** and should be its own item if it grows.
-
-⚠️ **`invite_pending` is unauthenticated and this file's "Gate review" item now carries it** — see there.
-
-### ✅ MAX'S DECISION, 14 Aug 2026 — shape B. Kept in full, because it is HIS call and may not be re-litigated.
-
-**His answers, because the reasoning matters more than the letter:**
-
-- *Are you standing next to them?* **"i think standing next to them."**
-- *How often?* **"its rare that a new member would need to be added."**
-- *Do you want to add someone you can't hand a password to?* **"i think so."**
-
-**That last one ruled out "the owner creates the account outright" outright** — its whole mechanism is the owner conveying a password by some channel EzPlate does not own, which is precisely what he said he wants to be able to avoid. It also drops the `service_role` key, and with it the only thing in the app that would bypass every policy 181-187 built. **Do not re-propose it.**
-**"Existing accounts only" was rejected on the launch-blocker test, not on effort:** it leaves the Supabase dashboard in the loop for every real hire.
-**Rarity (his second answer) is what makes B's extra build affordable** — a flow used twice a year can be a few taps longer if it is safer.
-
-⚠️ **B SHIPS A SIGN-UP FORM, AND THAT IS A REFINEMENT OF HIS "NO SIGN-UP FORM" CALL RATHER THAN A REVERSAL — he was told so explicitly before answering, and answered anyway.** Under B the account joins a café **by construction**: the sign-up cannot be reached without an owner having created an invite for that exact address first, and 191's `invite_pending` is the server side of that. A **self-service** sign-up form is still NO.
-
-⚠️ **Two facts this batch needs and would otherwise rediscover:** email confirmation is ON, so an account that is not marked confirmed fails its first sign-in with "Email not confirmed", which reads exactly like a wrong password (**Auto Confirm User** is the dashboard fix); and **Supabase sign-ups are open at the API level** whatever the client ships — which is the gate-review item's to close, and is survivable because an uninvited account that signs up joins no café and sees 185's screen.
-
-## next  2 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
 **Found by batch 191 while shipping invitations, by reading the policy list rather than by hitting it.** Measured against production, 14 Aug 2026:
 
@@ -86,17 +42,17 @@ business_members  → ONE policy, "members read their own membership", SELECT, a
 
 **Select and nothing else.** No client role may INSERT into either table, and nothing in `js/app.js` tries. The only write path to `business_members` anywhere is 191's `claim_business_invite()`, which is `SECURITY DEFINER` and can only ever join somebody to a café that **already exists**. So:
 
-- Invitations (item 1) let an owner add people to an existing café. **They do not create cafés.**
+- Invitations let an owner add people to an existing café. **They do not create cafés.** *(Both halves have now SHIPPED — the server in 191, the client in 192 — so this is a statement about a live feature rather than a planned one, and it makes this item the only remaining hole in the signup story.)*
 - Every `businesses` row and every founding `business_members` row in this project has been made **by hand in the Supabase dashboard**, and there is no other way to make one today.
 - `set_member_role` already says what a founder IS — the first member of a business becomes `owner` — so the vocabulary exists; what is missing is anything that can insert the two rows.
 
-**Why this is A and not B:** a second café literally cannot come into existence without Max opening the Supabase dashboard, which is the same sentence item 1 was written to delete, one level up. The launch story is signup → café → catalogue → plates, and this is the second step.
+**Why this is A and not B:** a second café literally cannot come into existence without Max opening the Supabase dashboard, which is the same sentence the invitations item was written to delete, one level up. The launch story is signup → café → catalogue → plates, and this is the second step.
 
 Requirements: a brand-new account can create a café and become its owner, without the dashboard. Decide whether that is a sign-up-time step or a first-run screen.
 ⚠️ **Do NOT open this by widening the policies on `businesses`/`business_members`.** A plain INSERT policy on `business_members` would let any signed-in account write itself a membership row for **any** business id it can name — which is every tenant policy 181-187 built, undone by one statement. The shape that fits what is already here is a `SECURITY DEFINER` function that creates the business and the founding membership together, exactly as `claim_business_invite()` creates a membership and nothing else can.
-⚠️ **It interacts with item 1 and the ordering matters:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. Doing this FIRST would make item 1 testable with a real second café rather than a hand-made one — but item 1 is not blocked by it, so this is a note rather than a `Do after:`.
+⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  3 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
+## next  2 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
 
 **Split out of `Onboarding and empty states` by batch 190, which shipped the rest of that item.** It was inside it by implication only, and an implied requirement is one nobody builds — so it is its own item now, because it is a FEATURE and the rest was two view-layer fixes.
 
@@ -151,7 +107,7 @@ He was unsure whether the first release should read only this supplier's export 
 ⚠️ **Do not re-derive the zero state; 190 measured it.** `installBoot(page, {noProducts:true})` with clean storage is genuine zero and `tests/visual/v164-onboarding.spec.js` boots it. `Second Cafe (staging)` also holds zero rows on every table with `b@example.com` as its owner, so no seed needs running to get a real RLS-enforced zero.
 ⚠️ **The privacy gate binds this if the answer routes through `api/parse-invoice`** — a second café's invoices reaching Gemini's free tier is the exact thing that item forbids before launch.
 
-## next  4 · The privacy gate  **[A — launch blocker]**
+## next  3 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -159,21 +115,21 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  5 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  4 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  6 · Gate review before public signup  **[A — launch blocker]**
+## next  5 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them. *(`business_id` PART 2 struck from this line 13 Aug 2026 — shipped in batch 182.)*
 ⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
 **So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
-⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way.
+⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way. **192 made it REACHABLE**: the boot gate's sign-up form calls it on every attempt, so it is no longer a function nothing invokes — it is now the first thing an uninvited stranger's browser can ask this database, and the only rate limit on it is Supabase's per-IP one.
 
-## next  7a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  6a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -208,9 +164,9 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  7b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  6b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered EIGHT times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, to 5a in that same batch when invitations went blocked, back to 6a when they were unblocked, and to **7a in 191**, which both shipped an item above it AND inserted a new one. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered NINE times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, to 5a in that same batch when invitations went blocked, back to 6a when they were unblocked, to **7a in 191**, which both shipped an item above it AND inserted a new one, and back to **6a in 192** when the invitations client half shipped and its item was deleted. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
 ⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
@@ -228,14 +184,14 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  8 · Floating layers and mobile dropdowns  **[B]**
+## next  7 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
 
-## next  9 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+## next  8 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
 **What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
 

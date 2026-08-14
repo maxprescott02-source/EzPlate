@@ -414,8 +414,16 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
      Profile now HAS the capability — real Supabase sign-in — so a sentence there would be the
      dishonest option. Team and Plan still describe backends that do not exist and still get
      sentences. The assertions below are narrowed to those two for the same reason. */
-  assert.equal((body.match(/class="stg-soon"/g) || []).length, 2,
-    'Team and Plan are still sentences; Profile is real as of 174');
+  /* ⚠️ 192 CHANGED IT FROM 2 TO 1, by the SAME reasoning 174 used to change it from 3 to 2, and
+     that repetition is what makes it a rule rather than a ratchet. The invariant has never been a
+     count — it is "a capability that does not exist is stated in a sentence, never mimed with a
+     control that does nothing", and its other half is that the sentence GOES when the capability
+     arrives. Team now sends real invitations against 191's `business_invites`, so leaving it a
+     `.stg-soon` sentence saying adding someone is done by hand would be the dishonest option, the
+     way a sentence on Profile would have been in 174. Plan still describes billing that does not
+     exist and still gets one. The assertions below narrow with it, for the same reason. */
+  assert.equal((body.match(/class="stg-soon"/g) || []).length, 1,
+    'only Plan is still a sentence; Profile is real as of 174 and Team as of 192');
   /* THE assertion. The mock draws Edit profile, Invite a teammate, Manage billing and Sign out;
      none has any backing, so none may ship. A shell is not a licence for a dead control.
      ⚠️ 171 narrowed this from "no control of any kind" to "no control in the screen's BODY", and the
@@ -429,17 +437,23 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
   assert.ok(cards.indexOf('class="stg-cards"') === 0, 'the body is where a capability control would go');
   /* 174: scoped to the sections that still promise nothing. The Profile card is excluded because
      its controls are BACKED — that is the whole distinction this test exists to enforce, so
-     excluding a card that earned its controls is applying the rule, not weakening it. Team and Plan
-     are still scanned exactly as before, and a dead control in either still fails. */
-  const teamOnward = cards.slice(cards.indexOf('Team'));
-  assert.ok(teamOnward.length > 0, 'the Team card must still be found');
-  assert.ok(!/<(input|select|button|a\s)/.test(teamOnward.replace(/<!--[\s\S]*?-->/g, '')),
-    'no control of any kind in Team or Plan — every capability they describe is still absent');
-  /* And the Profile card must NOT have quietly reverted to a promise: if its controls disappear,
-     the sentence count above would also change, but this says which direction is which. */
-  const profile = cards.slice(cards.indexOf('Profile'), cards.indexOf('Team'));
+     excluding a card that earned its controls is applying the rule, not weakening it.
+     192: Team leaves the scan for exactly that reason and Plan is what is left. */
+  const planOnward = cards.slice(cards.indexOf('>Plan<'));
+  assert.ok(planOnward.length > 0, 'the Plan card must still be found');
+  assert.ok(!/<(input|select|button|a\s)/.test(planOnward.replace(/<!--[\s\S]*?-->/g, '')),
+    'no control of any kind in Plan — billing does not exist');
+  /* ⚠️ AND THE TWO CARDS THAT LEFT THE SCAN ARE NOT SIMPLY UNGUARDED NOW, which is what would make
+     this a ratchet. Each has to keep the controls that bought its exemption: if Profile's sign-in
+     or Team's invite form is ever deleted, the card is back to describing a capability it does not
+     have, and this goes red rather than quietly widening what "no dead controls" is allowed to
+     mean. That is the direction the sentence count alone cannot tell you. */
+  const profile = cards.slice(cards.indexOf('Profile'), cards.indexOf('>Team<'));
   assert.ok(/id="acctForm"/.test(profile) && /id="acctOutBtn"/.test(profile),
     'Profile ships a real sign-in and sign-out, or its sentence should come back');
+  const team = cards.slice(cards.indexOf('>Team<'), cards.indexOf('>Plan<'));
+  assert.ok(/id="teamForm"/.test(team) && /id="teamList"/.test(team),
+    'Team ships a real invite form and member list, or its sentence should come back');
   // and the one thing in the header is navigation, nothing else
   const head = body.slice(0, body.indexOf('class="stg-cards"')).replace(/<!--[\s\S]*?-->/g, '');
   assert.deepEqual([...head.matchAll(/<button[^>]*class="([^"]+)"/g)].map((m) => m[1]), ['scr-back'],

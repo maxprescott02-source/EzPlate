@@ -75,8 +75,13 @@ const EMPTY_OK = ['app_settings'];
 async function installBoot(page, opts = {}) {
   const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
-    ([ingredientRows, emptyOk, noClient, nonMember, rpcFailsAfter, signedOut, role]) => {
-      if (noClient) return;                       // opt out: exercise the real "can't reach the database" state
+    ([ingredientRows, emptyOk, noClient, nonMemberOpt, rpcFailsAfter, signedOut, role, invited, claimLoops]) => {
+      if (noClient) return;
+      /* 192: `nonMember` and `claimed` are LET rather than const, because the claim RPC below
+         changes them — a successful claim really does turn a non-member into a member, and the
+         re-sync that follows has to see the café. Everything else here is fixed for the run. */
+      let nonMember = nonMemberOpt;
+      let claimed = false;                       // opt out: exercise the real "can't reach the database" state
       const ls = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
       /* The spec seeds the in-memory shape; the app now reads rows. This is the same crossing
          js/app.js's menuToRow does — spelled out here rather than imported, because the shim runs in
@@ -154,16 +159,22 @@ async function installBoot(page, opts = {}) {
           })), error: null };
         }
         if (table === 'app_settings') return { data: settingRows(), error: null };
+        /* 192: backed by localStorage rather than a constant, so an insert and a delete are
+           OBSERVABLE — a spec can invite somebody and see the row come back on the re-read, which
+           is what makes the Team card drivable end to end rather than merely paintable. */
+        if (table === 'business_invites') return { data: ls('__ezInvites', []), error: null };
         if (emptyOk.includes(table)) return { data: [], error: null };
         return { data: null, error: { message: 'fixture: table not served' } };
       };
       // A thenable query builder: .select().order() etc. all chain and finally resolve.
+      // 192: `.is()` joins them, for the Team card's pending-invitations read.
       const make = (table) => {
         const q = {
           select: () => q,
           order: () => q,
           limit: () => q,
           eq: () => q,
+          is: () => q,
           then: (res) => Promise.resolve(result(table)).then(res),
           catch: () => q,
         };
@@ -193,6 +204,11 @@ async function installBoot(page, opts = {}) {
               if (onAuth) setTimeout(() => onAuth('SIGNED_IN', session), 0);
               return Promise.resolve({ data: { session }, error: null });
             },
+            /* 192: sign-up. It returns NO session, which is what Supabase does with e-mail
+               confirmation on — so `onAuthStateChange` must NOT fire here, and the app is expected
+               to show "check your email" rather than reload. A shim that signed the user in would
+               make that assertion untestable and would hide the case entirely. */
+            signUp: ({ email }) => Promise.resolve({ data: { user: { id: 'u-new', email }, session: null }, error: null }),
             signOut: () => {
               try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
               if (onAuth) setTimeout(() => onAuth('SIGNED_OUT', null), 0);
@@ -221,6 +237,41 @@ async function installBoot(page, opts = {}) {
             if (name === 'current_business_role') {
               return Promise.resolve({ data: noTenant ? null : (role || 'owner'), error: null });
             }
+            /* 192 — the three invitation RPCs, all ABOVE the counter for the same reason the role
+               is: `__rpcCalls` means "how many times was the TENANT asked" and nothing else. That
+               note is one branch up and it is the whole of why 188 had to move the counter; adding
+               three more callers to it would retire v161's re-sync assertion all over again.
+
+               THE CLAIM is the one with real behaviour rather than a canned answer. `opts.invited`
+               is an owner having invited this address BEFORE the app loaded, so the claim answers a
+               café id ONCE and null afterwards — which is what the real function does (a second
+               call finds the caller already a member) and is what makes the app's re-entrancy latch
+               drivable rather than merely inspectable. Flipping `nonMember` off is the fixture
+               standing in for the membership row the real claim writes: every read after it must
+               answer as a member, or the re-sync would find the same empty café. */
+            if (name === 'claim_business_invite') {
+              /* ⚠️ `claimLoops` IS THE ONLY WAY THE RE-ENTRANCY LATCH CAN BE DRIVEN, and it exists
+                 because the spec that claimed to test the latch SURVIVED the latch being deleted —
+                 caught by hand-mutating a brand-new spec, which is CLAUDE.md 190's whole argument.
+                 In the ordinary fixture a claim flips `nonMember` off, so the nested re-sync
+                 succeeds and never reaches the claim branch again: the latch is never consulted and
+                 removing it changes nothing.
+                 This is the shape that DOES consult it — the claim keeps answering a café id while
+                 the tenant keeps answering none, which is replication lag, a server bug, or a
+                 membership revoked in the same instant. Without the latch bootstrapSync calls
+                 itself forever; with it there is exactly one nested run and then the gate paints. */
+              if (claimLoops) return Promise.resolve({ data: '00000000-0000-0000-0000-000000000001', error: null });
+              if (!invited || claimed) return Promise.resolve({ data: null, error: null });
+              claimed = true; nonMember = false;
+              return Promise.resolve({ data: '00000000-0000-0000-0000-000000000001', error: null });
+            }
+            if (name === 'invite_pending') return Promise.resolve({ data: !!invited, error: null });
+            if (name === 'business_team') {
+              /* Owner-only on the server, and the shim says so rather than always answering: a spec
+                 that boots as staff must see what staff see, which is zero rows. */
+              if (noTenant || (role && role !== 'owner')) return Promise.resolve({ data: [], error: null });
+              return Promise.resolve({ data: [{ user_id: 'u-max', email: 'max@example.com', role: 'owner' }], error: null });
+            }
             /* `opts.rpcFailsAfter` lets the tenant lookup start FAILING after N calls while every
                table read keeps succeeding. That combination is the shape of a real defect (185's
                pre-push review): from an existing non-member gate, a re-sync whose lookup alone
@@ -243,17 +294,45 @@ async function installBoot(page, opts = {}) {
               noTenant ? { data: null, error: null }
                        : { data: '00000000-0000-0000-0000-000000000001', error: null });
           },
-          from: (table) => ({
-            select: () => make(table),
-            upsert: () => Promise.resolve({ data: null, error: null }),
-            insert: () => Promise.resolve({ data: null, error: null }),
-            delete: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
-          }),
+          /* 192 — WRITES ARE THENABLE BUILDERS NOW, not bare promises. The Team card writes
+             `.insert(...).select()` and `.delete().eq(id).select()`, and both READ what comes back:
+             HTTP 200 with no rows is the measured silent no-op (191's rehearsal, as staff), so the
+             app treats an empty body as a failure. A fixture that resolved `{data:null}` from
+             `.insert()` would therefore make every invitation report as refused — the shim has to
+             answer the way PostgREST does, with the row. `business_invites` is kept in
+             localStorage so the effect survives to the next read. */
+          from: (table) => {
+            const invites = () => ls('__ezInvites', []);
+            const saveInv = (v) => { try { localStorage.setItem('__ezInvites', JSON.stringify(v)); } catch (e) { /* ignore */ } };
+            const done = (data) => { const t = { then: (r) => Promise.resolve({ data, error: null }).then(r), select: () => t, eq: () => t }; return t; };
+            return {
+              select: () => make(table),
+              upsert: () => Promise.resolve({ data: null, error: null }),
+              insert: (row) => {
+                if (table !== 'business_invites') return done(null);
+                const r = { id: 'inv-' + invites().length, email: row.email, role: row.role, created_at: new Date(0).toISOString(), accepted_at: null };
+                saveInv(invites().concat([r]));
+                return done([r]);
+              },
+              delete: () => {
+                if (table !== 'business_invites') return { eq: () => done(null) };
+                const t = {
+                  eq: (col, val) => {
+                    const gone = invites().filter((r) => r[col] === val);
+                    saveInv(invites().filter((r) => r[col] !== val));
+                    return done(gone);
+                  },
+                  select: () => t,
+                };
+                return t;
+              },
+            };
+          },
         }),
       };
     },
     [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0, !!opts.signedOut,
-      opts.role || 'owner'],
+      opts.role || 'owner', !!opts.invited, !!opts.claimLoops],
   );
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }

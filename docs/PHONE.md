@@ -649,3 +649,42 @@ asks who you are before it shows anything.
   If you have real unfinished work in the builder right now, **save it before this deploy lands.**
 - **On the desktop machine too, once**, because the sign-in screen now covers the whole window
   including the left rail - so if anything is off-screen there, there is no nav to escape with.
+
+---
+
+## 192 - the sign-up form, and inviting a real second person
+
+Two of these need a phone because they are about the on-screen keyboard and the password manager,
+and one needs a second human. Nothing here is urgent - **no existing behaviour changed for you**,
+so a failure is a new feature not working, never the app breaking.
+
+- **Open the sign-in screen and tap "Been invited? Create your account".** The screen swaps to a
+  sign-up form with the same three controls. Tap "Already have an account? Sign in" to go back.
+  **A failure is both forms showing at once, or the link taking away the only way back.**
+- **Does the password field offer to GENERATE a password?** On the sign-up form it is marked
+  `new-password`, which is what tells iOS Keychain or 1Password to suggest a strong one rather than
+  offering the password you already have saved for EzPlate. This is the entire reason sign-up is a
+  separate form instead of a mode of the sign-in one, and **a desktop browser cannot show it** -
+  only a real device with a real password manager can. **A failure is being offered your EXISTING
+  EzPlate password on the sign-up form**, which would mean the two forms have been collapsed
+  somewhere and the separation bought nothing.
+- **Check the keyboard again, on the sign-up form this time.** Same failure as 186's: the keyboard
+  covering "Create account" with no way to scroll to it. The form is one control taller than the
+  sign-in one, so it is the worse case of the two and 186's pass does not cover it.
+- **Then the real thing, when you actually want to add someone.** Account -> Team. Type their email,
+  tap Invite. The address appears in the list marked "invited", with a Revoke button.
+  ⚠️ **EZPLATE DOES NOT EMAIL THEM. Nothing is sent.** You have to tell them yourself: open EzPlate,
+  tap "Been invited?", and sign up with **that exact address**. The card says so under the form -
+  **a failure is that sentence being missing or wrong**, because without it you would sit waiting
+  for a delivery that was never going to happen.
+  They will get one email, from Supabase, with a confirmation link, **after** they sign up. They must
+  click it before their first sign-in works - an unconfirmed account fails with "Email not
+  confirmed", which reads exactly like a wrong password.
+- **When they open the app after confirming, they should land straight in your cafe.** There is no
+  button to press and nothing for them to accept: the app notices they have an invitation and uses
+  it while it is loading. **A failure is them seeing "This account isn't linked to a cafe yet"** -
+  which would mean the address they signed up with is not the address you invited. Check for a typo
+  before assuming it is broken; that is the one way this fails that is not a bug.
+- **Have them check what they CANNOT do**, since an invitation makes them staff: no Delete on a
+  plate or a menu, the target food cost is read-only, and no Restore backup in Settings. They can
+  still import invoices and edit ingredients, plates and menus.

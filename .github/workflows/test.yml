@@ -358,7 +358,7 @@ jobs:
       # spec in that directory - INCLUDING screenshots.spec.js, the one spec excluded above because
       # it reads the cafe's live production database. So the failure mode is not "runs nothing and
       # goes green"; it is "silently runs the non-hermetic spec in a job documented as hermetic".
-      # Latent today (36 specs, 35 survive the filter) - pinned here so it stays that way.
+      # Latent today (37 specs, 36 survive the filter) - pinned here so it stays that way.
       # (That count read "9 specs, 8 survive" until 10 Aug 2026, was corrected to "22 specs, 21
       # survive" on that date, and had drifted AGAIN to 31/30 by v156 - found stale by three
       # consecutive audits. The GUARD is correct and fails closed; only the number lied.
