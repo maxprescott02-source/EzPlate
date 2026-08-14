@@ -70,3 +70,35 @@ The hint's two homes are chosen by `noCatalogue && plate.length`, and `noCatalog
 The test now boots with products and asserts its own precondition.
 
 **The mutation gate found a branch I had written and not covered.** Clearing the previous error on retry survived every assertion, because all of them pressed the button at most once.
+
+---
+
+## Appended after merge, 14 Aug 2026 — the pre-push review
+
+⚠️ **This section was added in a second, docs-only commit, and the reason matters more than its contents.**
+Everything above was written while the `code-review` agent was still running, to use the wait.
+The review then found two things, both were fixed in the same branch, and the handover went into the PR still describing a batch that had not had them.
+Nothing above is being revised: it is what was believed at the time, which is what a handover is for.
+**The lesson is about ORDER, and the `batch` skill already has it right — review is step 7 and the handover is step 10.** Writing the diary during the wait feels efficient and produces a record that does not match its own diff.
+
+**Finding 1, and it is the better one: `a:hover` was (0,1,1) and out-ranked `.del-link`'s (0,1,0).**
+A pseudo-class scores in the CLASS column and the type selector then breaks the tie, so a hover colour on a bare anchor beat the class that had no hover colour of its own.
+Measured in Chromium rather than argued: `.del-link` rests `rgb(192,57,47)` and the rule painted it `rgb(150,64,9)` — the Delete control turning from danger-red to brand orange under the pointer.
+**The comment I had written above the rule claimed the classed anchors "keep winning", and that was true only of the bare rule.** A correct sentence about one rule, sitting above two.
+The hover rule is deleted, its absence is now the documented rule at the site, and a test fails on any bare-anchor selector that sets a COLOUR with a pseudo-class.
+That test is scoped to colour deliberately: the first draft flagged the pre-existing `a:focus-visible`, which is (0,1,1) too and sets only `outline`, a property no classed anchor competes for. A test that cries wolf is one someone deletes.
+
+**Finding 2: the success callback opened the publish dialog unconditionally.**
+Capturing `pid` before the await protects the VALUE and says nothing about whether the user is still there.
+So the cafe-wifi sequence — tap, wait, give up, tap Done, start something else — ended with the Add-to-menu dialog opening over whatever they had moved on to.
+Worse with two plates: `ensurePublishMenu` is memoised across concurrent callers, so a second plate opened mid-flight receives BOTH callbacks and the stale one opens a dialog for plate A while plate B is on screen.
+Guarded on the modal still being open for the same plate, which is the idiom this file already uses at its two other `renderManageMenus` call sites — the review found it there, I had not.
+`renderAnalysis()` stays unconditional: the menu exists whatever the user did next, and skipping it would leave "No menus yet." over a real row.
+
+**The test that had encoded the old behaviour was rewritten, not deleted**, and it says so in place: it asserted that the dialog DID open after the modal was closed, on the reasoning that the captured id was the whole of the problem.
+
+## Probe, second answer
+
+**What did the review tell you that you would have argued with?**
+Nothing. Both findings were correct, and finding 1 was correct about a claim I had written into the code as a comment — which is the most useful kind, because a wrong comment outlives the wrong code.
+I checked both by measurement before fixing either, per the rule about a finding whose mechanism is wrong still pointing at a real bug; here both mechanisms were right too.
