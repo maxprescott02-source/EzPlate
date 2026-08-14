@@ -51,6 +51,24 @@ A and C solve the same problem; C is less work for you per café and reuses mach
 
 If you want to be able to hand EzPlate to someone at a trade show and have them be using it that afternoon without you touching anything, that is B and only B, and the two blockers above need doing first.
 
+---
+
+# Question 2 — should the catalogue importer accept Excel files, or CSV only?
+
+Different question, same reply. This one is only here because the rule says a new third-party script needs your yes rather than my judgement.
+
+**The background.** The next item builds the importer that fills a new café's product list from a supplier export. The queue item says "CSV/XLSX". CSV is plain text and costs nothing to read. **An `.xlsx` is a zipped bundle of XML and cannot be read without adding a library** — EzPlate ships two third-party scripts today and adding a third is your call.
+
+**A — CSV only.**
+Every spreadsheet program and every supplier portal I have seen offers CSV, and "Save as CSV" is one menu item. No new dependency, no new thing to keep patched, and the file picker says plainly which formats it takes.
+
+**B — CSV and Excel.**
+Nobody has to think about file formats. Costs a new third-party library that parses zip archives and XML, permanently, in a page that holds your pricing — and every dependency here is pinned and hash-checked by hand, so it is a standing maintenance cost rather than a one-off.
+
+**My recommendation: A**, and I would revisit it only if a real café actually hands us a workbook and cannot produce a CSV from it.
+
+⚠️ **One thing to check before you even answer**: when you export "Previous purchases" from the supplier portal, **does it offer CSV?** Nobody wrote the format down — only the columns. If it gives you a CSV, question 2 barely matters and A is obviously right.
+
 ## To answer
 
-Reply in chat with the letter. `1C` is enough.
+Reply in chat with the letters, e.g. `1C 2A`.
