@@ -59,7 +59,18 @@ So "an owner adds someone by email" only ever succeeds for a person whose accoun
 
 Scoopy's catalogue arrived over months of invoice imports. A second café starting from an empty `ingredients` table has no such history, and **an empty catalogue means no ingredients, so no plates, so nothing the app can do.** Every empty state 190 verified is honest and every one of them points at this hole: Products says *"Import an invoice to fill your catalogue, or add one product by hand"*, and by-hand for 400 products is not an answer.
 
-Requirements: a brand-new café can populate a usable catalogue without hand-typing it. What "without" means is the open question — an invoice import that is already the intended route (so: does it work from zero, and is one PDF enough to start?), a CSV import, or a starter catalogue — and **that choice is the item, not a detail of it.**
+Requirements: a brand-new café can populate a usable catalogue without hand-typing it.
+
+⚠️ **"THE INVOICE IMPORTER IS ALREADY THE ROUTE" IS THE OBVIOUS ANSWER AND IT IS WRONG AT ZERO — read this before planning, because 190 nearly recommended it and then measured it.** Traced through `invRowState` against an empty `ingredients` table:
+
+- `invRowState` returns `'matched'` only when `r.bestId` resolves to an existing product. With **zero** products nothing can match, so **every line falls to `'review'`** by way of `if(!r.bestId) return 'review'`.
+- The auto-tick rule (a hard rule in `CLAUDE.md`) pre-ticks **only** `'matched'` rows. So on the first import of a new café's life, **not one line is pre-ticked** and the importer's whole leverage — confirm a screenful at once — is absent exactly when it is needed most.
+- Clearing a line means opening its add-new panel and settling **five** fields: name plus the four `NI_COMBOS` (`brand`, `cat`, `sup`, `king`). Gemini prefills four of them when the AI check is on (`AI_FIELD`), and **never `king`**, the kitchen word — so every line needs a human regardless.
+
+**So a 60-line first invoice is 60 panels, and that is hand-typing wearing a different hat.** The importer is not broken and needs no fix for Scoopy's; it is simply designed around a catalogue that already exists.
+
+**That measurement is what makes the choice real rather than a design session:** a CSV price-list import (suppliers send these, and it sidesteps the per-line panel entirely), a starter catalogue, or a bulk mode for the existing importer that treats a zero catalogue as "accept all as new" instead of "review all". **The third reuses the most and is the smallest build; the first is the one a real café can actually feed.**
+⚠️ **Which of those depends on what suppliers actually send a café — trade knowledge, not code — so it is Max's call and this item should be put to him rather than guessed at.** Everything above it is settled and should not be re-derived.
 ⚠️ **Do not re-derive the zero state; 190 measured it.** `installBoot(page, {noProducts:true})` with clean storage is genuine zero and `tests/visual/v164-onboarding.spec.js` boots it. `Second Cafe (staging)` also holds zero rows on every table with `b@example.com` as its owner, so no seed needs running to get a real RLS-enforced zero.
 ⚠️ **The privacy gate binds this if the answer routes through `api/parse-invoice`** — a second café's invoices reaching Gemini's free tier is the exact thing that item forbids before launch.
 
