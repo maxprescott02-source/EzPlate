@@ -375,6 +375,70 @@ as $fn$
    limit 1;
 $fn$;
 
+-- 187: the role column, its ONE entry point, and "which role am I".
+--
+-- The column has NO DEFAULT on purpose (CLAUDE.md: a DEFAULT and a BEFORE trigger
+-- on one column are one mechanism with two entry points and must compute the same
+-- value — and a DEFAULT cannot see the row, so it cannot answer "is this business's
+-- first member?"). Added with `add column if not exists` + a backfill rather than
+-- in the `create table` above, because that create is `if not exists` and would
+-- skip an existing staging table entirely, leaving the mirror silently short of a
+-- column. Same reason the ten `business_id` columns are added that way below.
+alter table public.business_members add column if not exists role text;
+update public.business_members set role = 'owner' where role is null;
+alter table public.business_members alter column role set not null;
+alter table public.business_members drop constraint if exists business_members_role_check;
+alter table public.business_members add constraint business_members_role_check
+  check (role in ('owner','staff'));
+
+-- ONE café per person. The decision, and its one-statement reversal, are in
+-- supabase/migrations/20260814_roles_part1.sql's header.
+alter table public.business_members drop constraint if exists business_members_one_business_per_user;
+alter table public.business_members add constraint business_members_one_business_per_user
+  unique (user_id);
+
+create or replace function public.set_member_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+begin
+  if new.role is null then
+    if exists (select 1 from public.business_members m
+                where m.business_id = new.business_id) then
+      new.role := 'staff';
+    else
+      new.role := 'owner';
+    end if;
+  end if;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists set_member_role on public.business_members;
+create trigger set_member_role
+  before insert on public.business_members
+  for each row execute function public.set_member_role();
+
+-- Reads the role OF THE ROW current_business_id() already picked, so the two can
+-- never disagree about which membership is yours.
+create or replace function public.current_business_role()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select m.role
+    from public.business_members m
+   where m.user_id = auth.uid()
+     and m.business_id = (select public.current_business_id());
+$fn$;
+
+revoke all on function public.current_business_role() from public;
+grant execute on function public.current_business_role() to anon, authenticated, service_role;
+
 -- `set search_path = ''` — see the migration header; the Supabase linter flags a
 -- mutable search_path, so every object below is schema-qualified.
 create or replace function public.set_default_business_id()
@@ -532,6 +596,46 @@ begin
   end loop;
 end $$;
 
+-- 187: the four RESTRICTIVE policies. They AND with the permissive tenant policies
+-- above rather than replacing them, so this section can be read on its own: what
+-- staff may not do is exactly these four statements and nothing else.
+drop policy if exists "plates owner-only delete" on public.plates;
+create policy "plates owner-only delete" on public.plates
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+drop policy if exists "menus owner-only delete" on public.menus;
+create policy "menus owner-only delete" on public.menus
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+drop policy if exists "app_settings owner-only target insert" on public.app_settings;
+create policy "app_settings owner-only target insert" on public.app_settings
+  as restrictive for insert to public
+  with check (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
+
+drop policy if exists "app_settings owner-only target update" on public.app_settings;
+create policy "app_settings owner-only target update" on public.app_settings
+  as restrictive for update to public
+  using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner')
+  with check (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
+
+-- ⚠️ AND DELETE, WHICH THE PRE-PUSH REVIEW FOUND MISSING AND WHICH IS THE WHOLE
+-- LESSON OF THIS SECTION. The first cut covered "the upsert's two halves" and
+-- stopped, because an upsert HAS two halves — but the restriction is keyed to a
+-- VALUE rather than to a command, and a value can also be REMOVED. Reproduced as
+-- a real staff account on staging before it was fixed: `DELETE /app_settings
+-- ?key=eq.food_cost_target` returned HTTP 200 with the row, and the target was
+-- gone. The client then falls back to its hardcoded default on the next boot
+-- (`cogsPct` is 40 until app_settings says otherwise) with nothing raised
+-- anywhere, which moves every suggested price and every good/bad colour in the
+-- app — the quiet-wrong-number failure this repo keeps finding.
+drop policy if exists "app_settings owner-only target delete" on public.app_settings;
+create policy "app_settings owner-only target delete" on public.app_settings
+  as restrictive for delete to public
+  using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
+
+
 -- ---------------------------------------------------------------------------
 -- 5. GRANTS
 --
@@ -593,6 +697,17 @@ declare
   fmt text := payload->>'format';
   n_ing int; n_mnu int; n_pla int; n_men int; n_spr int; n_ipl int; n_set int; n_chg int;
 begin
+  -- 187 -- ONLY AN OWNER MAY RESTORE, AND THIS IS THE FIRST STATEMENT IN THE FUNCTION.
+  -- Everything below deletes five tables before it inserts anything, so a check placed after any of
+  -- it would be a check on a database that had already been emptied. RLS cannot express this one:
+  -- the restore is SECURITY INVOKER, so its deletes already run as the caller, and staff legitimately
+  -- delete ingredients and dishes in the ordinary course of work -- there is nothing in a row to tell
+  -- the two apart. `is distinct from` rather than `<>` because a caller with no membership answers
+  -- NULL, and NULL <> 'owner' is NULL, which would fall through the `if` and let them past.
+  if (select public.current_business_role()) is distinct from 'owner' then
+    raise exception 'restore_backup: only an owner may restore a backup';
+  end if;
+
   -- The stamp guard exists on BOTH sides on purpose. The client refuses a bad file with an explanation
   -- the user can act on; this refuses anything that reaches the database without one, so a future caller
   -- cannot skip the check by not knowing about it.

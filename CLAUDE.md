@@ -184,6 +184,33 @@ This is the same family as the empty-read ambiguity above: **a successful-but-em
 **The transferable rule: a foreign key does NOT confine a reference to your own tenant, and it is easy to assume it does** because every other operation on that table is scoped. If a column can be written with a value the caller did not read from its own rows — a literal, a default, an id from an imported file — then **only the application can guarantee the target is yours.** The restore path is the standing example of the import case.
 **The symptom to recognise: a row that saved without error and is invisible.** Reach for this before assuming a render bug.
 
+## A policy that RESTRICTS and a policy that GRANTS differ by one word and read identically
+
+(Batch 187, 14 Aug 2026, owner-vs-staff.)
+
+**Postgres ORs permissive policies together and ANDs restrictive ones in.** Every table here already carries a permissive `for all` tenant policy from 182, so a new policy meant to take something AWAY must say `as restrictive` — and `as permissive` is the DEFAULT, so the word is omitted far more naturally than it is written.
+
+```sql
+create policy "plates owner-only delete" on public.plates
+  as restrictive for delete using (current_business_role() = 'owner');   -- takes away
+create policy "plates owner-only delete" on public.plates
+  for delete using (current_business_role() = 'owner');                  -- takes away NOTHING
+```
+
+The second is OR'd with the tenant policy, which already permits the delete, so **staff can delete plates again, the SQL still says `owner`, no error is raised anywhere and the policy list still shows a policy with the right name.** Dropping two words silently repeals the rule while leaving every trace of it in place.
+
+**The tell: a policy whose NAME says what someone may not do.** Read its first line, not its condition — a restriction that is not `as restrictive` is decoration. `tests/roles.test.js` pins all four, and the mutation was run: flipping one to `permissive` turns it red.
+
+**⚠️ AND THE ONE THAT ACTUALLY SHIPPED PAST THE FIRST DRAFT: a restriction keyed to a VALUE must cover every command that can change that value, INCLUDING DELETE.**
+The other three restrictions here name a command on a table — "staff may not delete a plate" — so the policy is the whole of it. The fourth names a *value*: `key = 'food_cost_target'` in a shared settings table. `dbSetSetting` upserts, so the frame was "an upsert has two halves", INSERT and UPDATE were both covered, and a test asserting exactly that passed.
+**DELETE is not part of an upsert, so it never entered the frame.** A staff account could delete the row outright — measured, not reasoned: HTTP 200, row returned, target gone — and the client then boots on its hardcoded default with nothing raised anywhere, which moves every suggested price and every good/bad colour in the app. Caught by the pre-push review.
+**The transferable question is "what are ALL the ways this value can stop being what the owner set", not "which commands does my client use".** A client that only ever upserts is not a bound on what a caller can send; the whole point of the policy is the caller you did not write. Enumerate the commands in the test, so the next one cannot be missed by having a smaller frame.
+
+**Two corollaries that cost as much and are less obvious:**
+- **`as restrictive for all` is not "restrict everything", it is "require this to READ".** On a tenant table that means staff open the app to an empty café. Name the command.
+- **NULL refuses.** `current_business_role() = 'owner'` is NULL for a caller with no membership, and a policy evaluating to NULL denies — which is what you want on the server, and is the exact OPPOSITE of the client-side rule two sections up. **The server refuses when it cannot establish permission; the client must not lock anyone out when it cannot tell.** Same expression shape, opposite correct default, because the consequences are not symmetrical.
+  In PL/pgSQL the same NULL is a trap rather than a help: `if role <> 'owner' then raise` never fires for a NULL role, so a guard written that way lets exactly the caller it was written for straight through. Use `is distinct from`.
+
 ## A PRIMARY KEY's column list is a contract with every `ON CONFLICT` that names it — and with the client that names none
 
 (Batch 183, 13 Aug 2026, widening `app_settings` to `(business_id, key)` and `supplier_phrases` to `(business_id, id)`.)

@@ -168,7 +168,7 @@ Left on the **scale seed** (520 products, 12 menus, 180 plates, 429 dishes) — 
 | | |
 |---|---|
 | `businesses` | the seeded Scoopy's `…0001`, and `…00b2` "Second Cafe (staging)" — **which holds NO data rows as of 13 Aug 2026 (183)**, because that batch re-ran the scale seed at the end and a seed wipes every tenant's rows |
-| accounts | `a@example.com` → member of `…0001` · `b@example.com` → member of `…00b2` · `c@example.com` → **member of nothing**, the empty-app case |
+| accounts | `a@example.com` → **owner** of `…0001` · `b@example.com` → **owner** of `…00b2` · `c@example.com` → **member of nothing**, the empty-app case · `d@example.com` → **staff** of `…0001` (added by 187, and the only account that can exercise a restriction) |
 
 ⚠️ **The passwords were reset in 183 and are still not written down** — use the `crypt` recipe below, which is the whole point of not recording them.
 
@@ -191,7 +191,15 @@ set encrypted_password = extensions.crypt('<a throwaway you generate now>', exte
 where email in ('a@example.com','b@example.com','c@example.com');
 ```
 
-Then `POST /auth/v1/token?grant_type=password` for a real JWT, and use it as the `Authorization: Bearer` in the client verification below. **The method is the durable thing; the password is deliberately not.** `pgcrypto` is already installed, and `extensions.` is required because Supabase installs it there rather than in `public`.
+Then `POST /auth/v1/token?grant_type=password` for a real JWT, and use it as the `Authorization: Bearer` in the client verification below.
+
+⚠️ **MAKING A NEW ACCOUNT BY HAND TAKES THREE THINGS, AND MISSING EITHER OF THE LAST TWO FAILS AS `500 Database error querying schema`** — a message that says nothing about what is wrong, and which cost batch 187 three attempts. The signup API is not an option: it rejects `@example.com` outright (`email_address_invalid`), which is why every account here is hand-made.
+
+1. the `auth.users` row (copy an existing one's `instance_id`/`aud`/`role` rather than guessing);
+2. **an `auth.identities` row with `provider = 'email'`** — GoTrue looks the password up through it, and a user without one simply cannot sign in;
+3. **`''` rather than NULL in `confirmation_token`, `recovery_token`, `email_change`, `email_change_token_new`, `email_change_token_current`, `phone_change`, `phone_change_token` and `reauthentication_token`.** GoTrue scans them into non-nullable strings, so one NULL anywhere in the row breaks sign-in for that user with the schema error above.
+
+Set `email_confirmed_at` too, or the first sign-in fails with "Email not confirmed", which reads exactly like a wrong password. **The method is the durable thing; the password is deliberately not.** `pgcrypto` is already installed, and `extensions.` is required because Supabase installs it there rather than in `public`.
 
 ⚠️ **A seed re-run restores the exact counts, because it deletes as `postgres` and therefore across every tenant.** Left after 183: 520 products, 240 kitchen ingredients, 12 menus, 180 plates, 429 dishes, 60 taught packs, 10 settings — the scale seed's own numbers, with café two holding nothing.
 *(This line read "staging's café 1 no longer has the seed's exact counts — 521 products exist, 520 of them Scoopy's" until 13 Aug 2026. That was true while café two held a product; it stopped being true the moment a seed ran, and a warning that has silently expired is worse than none. **The durable form of it: a raw `count(*)` here is only equal to the seed's number while no OTHER tenant holds rows, and nothing enforces that — so filter on `business_id` whenever the answer matters.**)*
