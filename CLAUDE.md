@@ -538,6 +538,15 @@ Vercel zero-config Node serverless functions - the invoice AI second-reader and 
 **BEFORE any multi-tenant customer's data flows through those endpoints or any future one that ships user data to a third-party model, revisit:** a paid-tier project that excludes training use, or a privacy-policy disclosure.
 This is the single most important thing to reopen before EzPlate is used by anyone else.
 
+⚠️ **AND ON 14 AUG 2026 MAX SET A DATE ON IT WITHOUT NAMING ONE, which is why this paragraph now has teeth it did not have yesterday.**
+
+**He chose SELF-SERVICE SIGNUP** - a stranger creates an account and names their own café, unattended - **reversing his own "a self-service sign-up form is still NO" call of the same day.** He was told in writing that it was a reversal, and told that it makes this gate urgent, and chose it anyway. So it is a decision, not an oversight, and it may not be re-litigated. (`docs/decisions/2026-08-14-cafe-creation.md`, question 1, answer B.)
+
+**What that changes here: the trigger for this gate stops being hypothetical.** The moment self-service signup ships, a stranger's café exists, and *"before the first non-Scoopy's row exists, not after"* is this section's own wording. **So the signup work is ordered BEHIND this gate and behind pdf.js 4.2.67+**, and that ordering is a scheduling fact rather than a second decision - it lives as a `Do after:` on the queue item, per this file's own rule about where sequencing belongs.
+**Do not read the reversal as permission to ship signup first.** He reversed which mechanism creates a café; he did not reverse this.
+
+**He also chose CSV-ONLY for the catalogue importer** (same file, question 2, answer A), which is a decision about the no-new-dependencies rule rather than about privacy: an `.xlsx` is a ZIP of XML and cannot be read without a third third-party script. **So the importer accepts CSV and says so; adding XLSX is a fresh yes, not an enhancement.**
+
 ## Fragile areas - regression tests mandatory
 
 Read the relevant tests first, diagnose with a truth table before patching, lock the fix with a regression test.
