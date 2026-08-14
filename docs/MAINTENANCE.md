@@ -120,6 +120,15 @@ Requirements: one owner for the bottom stack. v141 established the three-way spl
 
 ## C — tests and CI
 
+### `tests/visual/screenshots.spec.js` has been UNABLE TO PASS since 186, and nothing says so
+Found by batch 190, running the full Playwright suite: **13 of its specs fail**, and they fail identically on unmodified `main` — verified by stashing the branch and re-running one, so this is not a regression from any recent batch.
+
+**Why.** That spec is the one that deliberately talks to the **live production database** rather than the boot shim (its own header says so, and it is the sole reason CI filters it out — `test.yml`'s "N specs, N-1 survive the filter"). Batch 186 made sign-in mandatory and removed the anon fallback from `current_business_id()`, so an unauthenticated page load now resolves to no tenant and every screen it screenshots is the sign-in door.
+
+**Why it matters more than a broken screenshot.** CI never runs it, so nothing goes red; `npm run shots` is the only thing that does, and it now fails 13 ways for one cause, which trains a reader to skim past the failures. **A suite with a permanently-red corner is one nobody reads.**
+
+The options, none obviously right, which is why this is C and not a fix: give it a signed-in session the way the shim now can (186 added `auth` to `_boot.js` for exactly this reason); point it at staging instead of production; or delete it and accept that the shim-based specs are the whole visual suite. **Deleting is a real answer** — every other spec boots the shim, and a screenshot of the live café is not something CI has been allowed to take for a long time.
+
 ### ~~CI minutes~~ — EXPIRED THE DAY IT WAS WRITTEN, 13 Aug 2026
 Written when GitHub blocked all Actions on a billing cap, proposing two ways to cut minutes. **Max made the repo PUBLIC instead, which makes Actions unlimited and free** (measured: `billable_ms` 0 for an 8-minute run), so neither lever saves money and neither should be built for that reason.
 Measured usage at the time: **330 runs since 1 Aug; 168 in the five days from 9 Aug (94 `pull_request`, 74 `push` to main)** — about 34 a day, against a four-minute-per-run billing floor caused by GitHub rounding each JOB up to a whole minute.

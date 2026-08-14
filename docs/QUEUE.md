@@ -53,16 +53,15 @@ So "an owner adds someone by email" only ever succeeds for a person whose accoun
 ⚠️ **A self-service sign-up form is still NO.** Since 186 an account that joins no café sees nothing at all, so a sign-up form's only possible outcome is 185's "ask the café owner to add this account" screen. `tests/auth.test.js` pins its absence with that reason. Invitations are what replace it.
 ✅ **What 188 leaves you, so it is not rediscovered.** The client now reads `current_business_role()` on bootstrapSync's existing `Promise.all` and holds it in `businessRole`; `isOwner()` is the one reader and `applyRoleUi()` is where every role-dependent control resolves — **an invitation control is an owner-only control and belongs in that function, not in a fifth place.** The Team card is where it goes: it already names the role the reader holds and ends *"Adding someone is done by hand for now"*, which is the sentence this item deletes. `tests/roles-client.test.js` asserts the card ships **no `<button>`** while that is true — so the batch that builds this changes that assertion rather than tripping over it.
 
-## next  1 · Onboarding and empty states  **[A — launch blocker]**
+## next  1 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
 
-Every screen at zero, which production has never shown.
-**Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
-**Fix here, because it is only reachable at zero:** the zero-ingredients builder hint is an **UNSTYLED link** — `catalogueHintHtml()` in `js/app.js` emits `No ingredients yet — <a href="#" id="bhGo">add your first ingredient</a>`, and `css/style.css` has **no anchor colour rule anywhere**, so it renders browser-default blue: near-illegible on the dark surface, and wrong in light too. One rule fixes it. It is the first thing a brand-new café sees.
-⚠️ **It has TWO homes and you must style both, or the fix works on one screen and not the other** (170): `renderPlate` puts it inside `#lines`' `.bld-empty` when the plate is empty, and in `#builderHint` when the plate has lines but the catalogue is empty. Never both at once. **Cited by function name on purpose — this item carried `js/app.js:820` and the line had already drifted before 170 moved the code.**
-✅ **"A brand-new café cannot save its first dish" is FIXED — batch 184 shipped it as `ezplate-v160`**, and this paragraph is kept rather than deleted because it was stated in two items on purpose ("whichever runs first fixes it, and the other then finds it already true"). This is that sentence being honoured.
-`ensurePublishMenu` now creates "Original menu" as a REAL row, confirmed before the dish write is issued, at the point of first need — so the zero state is publishable. Two things a batch working here still needs to know: **the id is minted (`uid('MENU')`), never the old `MENU_ORIGINAL` literal**, which is gone from `js/app.js` entirely and pinned absent by `tests/unique-ids.test.js`; and **zero menus is still a legitimate state at BOOT** (hard rule 7) — nothing seeds on load, which is what makes the deleted-every-menu case survive a reload.
-⚠️ **What 184 did NOT do, and it is this item's:** the builder's "Add to a menu" dead-ends at zero with *"No menus yet — create one on the Menu tab first"*, while the Menu tab's own **Existing plate** button now silently makes one for you. Neither is wrong; they disagree, and a new café meets the discouraging one first. That is an empty-state decision, not a data one.
-✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
+**Split out of `Onboarding and empty states` by batch 190, which shipped the rest of that item.** It was inside it by implication only, and an implied requirement is one nobody builds — so it is its own item now, because it is a FEATURE and the rest was two view-layer fixes.
+
+Scoopy's catalogue arrived over months of invoice imports. A second café starting from an empty `ingredients` table has no such history, and **an empty catalogue means no ingredients, so no plates, so nothing the app can do.** Every empty state 190 verified is honest and every one of them points at this hole: Products says *"Import an invoice to fill your catalogue, or add one product by hand"*, and by-hand for 400 products is not an answer.
+
+Requirements: a brand-new café can populate a usable catalogue without hand-typing it. What "without" means is the open question — an invoice import that is already the intended route (so: does it work from zero, and is one PDF enough to start?), a CSV import, or a starter catalogue — and **that choice is the item, not a detail of it.**
+⚠️ **Do not re-derive the zero state; 190 measured it.** `installBoot(page, {noProducts:true})` with clean storage is genuine zero and `tests/visual/v164-onboarding.spec.js` boots it. `Second Cafe (staging)` also holds zero rows on every table with `b@example.com` as its owner, so no seed needs running to get a real RLS-enforced zero.
+⚠️ **The privacy gate binds this if the answer routes through `api/parse-invoice`** — a second café's invoices reaching Gemini's free tier is the exact thing that item forbids before launch.
 
 ## next  2 · The privacy gate  **[A — launch blocker]**
 
@@ -146,6 +145,17 @@ Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is 
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
+
+## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+
+**What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
+
+⚠️ **190 measured every screen at genuine zero — nine panes, 380 and 1280, light and dark — and the headline claim was already mostly built.** The v58 empty-state system (`emptyStateHtml` / `emptySearchState`) already gives Products, Ingredients, Plates, Menu, Dashboard and Invoices a real true-empty state with a CTA; Settings and Account render fine; and at zero plates the Add-dish picker says *"No costed plates found. Build and save a plate first."* — honest, with no dead control. **Do not re-audit that; look only at what is below.**
+
+Two things a reader could reasonably call wrong, both cosmetic:
+
+- **The Menu screen offers "Existing plate" at zero plates**, and at 380 it wraps onto its own row under the header and reads as an orphan. It is not broken — the modal it opens explains itself — but it is a control offered before it can do anything.
+- **The six empty states have never been read end to end as one sequence.** Each was written by the batch that built its screen, months apart; nobody has read all six together to ask whether a new café is being told the same story in the same words, or six unrelated ones. Screenshots of all nine panes at zero are cheap to retake — see the spec named above.
 
 ---
 
