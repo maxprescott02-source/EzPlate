@@ -97,10 +97,24 @@
 --   after the migration: anon went straight back to the café's uuid and its 520
 --   products. The migration was then re-applied so staging stays mirrored.
 --
--- ⚠️ NOT YET APPLIED TO PRODUCTION AS THIS FILE MERGES, AND THAT IS THE PLAN
---   RATHER THAN AN OMISSION — see WHY THE CLIENT SHIPPED FIRST above. It goes on
---   once `ezplate-v162` is answering at https://scoopyscosting.vercel.app, and the
---   line recording that lands in a follow-up commit.
+-- APPLIED TO PRODUCTION: 14 Aug 2026, by Claude, in the commit that added these
+--   four lines — AFTER `ezplate-v162` was confirmed answering at
+--   https://scoopyscosting.vercel.app (fetched `sw.js` and `js/app.js` from the
+--   alias and read the version out of both), per WHY THE CLIENT SHIPPED FIRST.
+--   Verified:
+--   * as the ANON CLIENT over PostgREST — `rpc/current_business_id` -> `null`,
+--     and `ingredients`, `plates`, `menus`, `menu_items` all `*/0`. The café is
+--     no longer readable with the key that ships in the page.
+--   * as MAX'S ACCOUNT — `set local role authenticated` with his `sub` claim, so
+--     RLS APPLIES (a plain MCP query would bypass it and prove nothing):
+--     tenant `…0001`, 412 products, 79 plates, 2 menus, 76 dishes, 72 price
+--     points. Exactly his café, unchanged.
+--     ⚠️ STATED HONESTLY: that is the policies exercised with his claims, NOT a
+--     real sign-in over PostgREST — his password is his. The real sign-in is a
+--     docs/PHONE.md check, and it is the first one on the list.
+--   * schema fingerprints (docs/STAGING.md) IDENTICAL to staging afterwards,
+--     policies / functions / RLS and the `current_business_id` body md5
+--     (`9565547…`), so the mirror is not stale.
 --   ⚠️ This header carried a written-out "APPLIED TO PRODUCTION: 14 Aug 2026 …
 --   verified … his 412 products" while none of it had happened — drafted ahead of
 --   time and not removed. The pre-push review caught it. With `list_migrations`
