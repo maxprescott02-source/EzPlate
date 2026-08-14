@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=165">
+<link rel="stylesheet" href="css/style.css?v=166">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -853,6 +853,18 @@
         <section class="stg-card">
           <h3 class="stg-card-h">Data</h3>
           <div class="stg-body">
+            <!-- 193: the PERMANENT route to the catalogue importer. The Products empty state is the
+                 other one, and it is the route a new café actually finds — but it stops existing the
+                 moment the first product lands, and this importer's second job is refreshing prices
+                 from a newer export. A feature reachable only from an empty state is a feature you
+                 can use exactly once. -->
+            <div class="stg-row">
+              <div class="stg-text">
+                <span class="stg-lbl">Import product catalogue</span>
+                <p class="stg-help">Create or re-price products in bulk from a supplier&rsquo;s CSV export. Matches on product code, so importing a newer file updates prices rather than duplicating.</p>
+              </div>
+              <button class="btn stg-ctl" id="catImportBtn" type="button">Import</button>
+            </div>
             <div class="stg-row">
               <div class="stg-text">
                 <span class="stg-lbl">Export backup</span>
@@ -1247,6 +1259,54 @@
   </div>
 </div>
 
+<!-- Import catalogue modal (193) -->
+<!-- The same three-step grammar as the invoice upload above — choose → check → done — because a café
+     that has used one should recognise the other. `catStep()` in js/app.js is the ONLY thing that
+     switches panels. `.invz` and `.inv-step` are reused rather than rebuilt: both are already worn by
+     two elements each (see CLAUDE.md's shared-CSS-families note), and this is a third home for the
+     same pattern, not a new one. -->
+<div class="modal-overlay" id="catModal" aria-hidden="true">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="catModalTitle">
+    <div class="mhead"><h3 id="catModalTitle">Import your product catalogue</h3><button class="x" id="catClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <div class="ferr" id="catErr" style="display:none"></div>
+
+      <!-- step 1 — choose -->
+      <div class="inv-step" id="catStepChoose">
+        <input type="file" id="catFile" accept="text/csv,.csv" style="display:none">
+        <button class="invz" id="catFileBtn" type="button">
+          <span class="invz-t">Drop a CSV here</span>
+          <span class="invz-s">or click to browse. Nothing is saved until you have checked what it found.</span>
+        </button>
+        <!-- The format is named rather than assumed. A workbook is the likeliest first mistake and
+             catHandleFile refuses it BY NAME; this says so before it happens. -->
+        <p class="hint cat-formats">EzPlate reads <b>CSV</b> files. If your supplier gives you a spreadsheet, open it and choose <b>Save as</b> or <b>Export</b> &rarr; CSV first.</p>
+        <p class="hint cat-formats">Most suppliers can export your purchase history from their online account &mdash; that file already has everything EzPlate needs.</p>
+      </div>
+
+      <!-- step 2 — check the mapping. The preview under it is the gate, not this form. -->
+      <div class="inv-step" id="catStepMap" hidden>
+        <div class="field full cat-supfield">
+          <label for="cat_sup">Which supplier is this file from? *</label>
+          <input id="cat_sup" type="text" autocomplete="off" placeholder="e.g. your main food supplier">
+          <div class="drop cat-drop" id="cat_supDrop" style="display:none"></div>
+          <p class="hint">Saved against every product in the file, so importing it again later updates these products instead of adding them twice.</p>
+        </div>
+        <div id="catMapBody"></div>
+      </div>
+
+      <!-- step 3 — done -->
+      <div class="inv-step" id="catStepDone" hidden>
+        <div id="catDoneBody"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" id="catCancel" type="button">Close</button>
+      <button class="btn primary" id="catGo" type="button" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
 <!-- Supplier memory list -->
 <div class="modal-overlay" id="smemModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="smemTitle">
@@ -1553,7 +1613,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=165"></script>
+<script src="js/app.js?v=166"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

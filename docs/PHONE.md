@@ -688,3 +688,39 @@ so a failure is a new feature not working, never the app breaking.
 - **Have them check what they CANNOT do**, since an invitation makes them staff: no Delete on a
   plate or a menu, the target food cost is read-only, and no Restore backup in Settings. They can
   still import invoices and edit ingredients, plates and menus.
+
+## 193 - the catalogue importer (Settings -> Import product catalogue, and the Products empty state)
+
+**What it is:** the way a new cafe fills its catalogue from a supplier's CSV export instead of by
+hand, and the way you refresh prices later from a newer export.
+**None of these needs a second person.** All of them need a real file and most need a real phone.
+
+- ⚠️ **THE ONE THAT MATTERS MOST, AND ONLY YOU CAN ANSWER IT: does the supplier portal's Export
+  actually offer CSV?** Accounts -> Reports -> Previous purchases -> Export. The columns were read
+  from the portal on 14 Aug 2026 but **the file was never downloaded**, so nothing in this repo knows
+  what format the button produces. If it only gives a spreadsheet, the importer refuses it by name
+  and tells you to save it as CSV first - which is a legitimate answer, not a bug, but it is worth
+  knowing which one you are in before a customer meets it.
+- ⚠️ **AND THE SECOND ONE, WHICH NO TEST CAN SETTLE: is `LAST PRICE PAID` the price of ONE PACK or
+  of the WHOLE CARTON?** The mapping screen asks, and it defaults to "one pack of the size above".
+  **Import your real file and look at the unit costs in the preview before pressing the button.**
+  If chips you know cost about $6.50/kg are showing about $1.08/kg, the answer is "the whole carton"
+  and you switch the radio. Getting this wrong makes every cost in the app wrong by the carton size,
+  and it will look completely plausible - that is why it is asked rather than guessed.
+  **If you pick "the whole carton" and a row has no units-per-carton, that row is REFUSED rather
+  than guessed at**, and the preview says so by line number. That is deliberate: a missing carton
+  size means the multiplier is unknown, and pricing it as a carton of one would be wrong by exactly
+  the carton size with nothing on screen to show it.
+- **Try it on a phone, with a file from your email.** Tap Import, pick the CSV from Files/Downloads.
+  A failure here is the file picker not offering a CSV that is sitting in your email attachments,
+  which is an iOS Files question rather than an EzPlate one - but it is the real route a cafe owner
+  would take, and nobody has driven it on a device.
+- **Read the mapping screen at 380 with one hand.** Eight dropdowns and two radio buttons is the
+  densest form in the app. A failure is having to zoom, or the keyboard covering the supplier field.
+- **Check the preview table does not need sideways scrolling** on your phone. Four columns of
+  product name, pack, unit cost and new/update. It fits in the browser used for testing; a real
+  device with a different text size may not agree.
+- **Then import the SAME file twice.** The second time it must say "0 new products - N to update"
+  and the product count on the Products screen must NOT double. **A doubled count is the one
+  failure here that costs real work to undo**, and it is the thing the supplier code column exists
+  to prevent.

@@ -67,7 +67,10 @@ function harness(opts) {
     function dbDeletePlate(id){ S.writes.push('delplate:'+id); return res('plate'); }
     function dbDeleteMenuRecord(id){ S.writes.push('delmenurec:'+id); return res('menurec'); }
     function dbSetSetting(k,v){ S.writes.push('setting:'+k); return res('setting'); }
-    function dbPushIngredient(id){ S.writes.push('ingredient:'+id); return res('ingredient'); }
+    /* 193: the plural boundary, because setProducts is the implementation now and calls this. It
+       records one write per product exactly as the singular stub did, so every assertion below still
+       counts what it counted. */
+    function dbPushIngredients(ids){ (ids||[]).forEach(function(id){ S.writes.push('ingredient:'+id); }); return res('ingredient'); }
     function dbPushChange(e){ S.pushed.push(changeToRow(e));
       return Promise.resolve(S.fail.changelog ? {error:{message:'42501'}} : {ok:true})
         .then(function(r){ if(!r || r.error) changeLogSupported=false; return r; }); }
@@ -103,7 +106,7 @@ function harness(opts) {
     function rebuildKById(){ kById={}; kitchenIngredients.forEach(function(k){ if(k&&k.id) kById[k.id]=k; }); }
     function builderCategoryValue(){ return ''; }
     function menuMarginPreview(){ return {}; } function marginLightWord(){ return ''; }
-    function dbPushIngPrice(){ S.writes.push('ingprice'); }   // the OTHER log — proving it fires while this one does not
+    function dbPushIngPrices(pts){ (pts||[]).forEach(function(){ S.writes.push('ingprice'); }); return res('ingprice'); }   // the OTHER log — proving it fires while this one does not
     function cpbu(p){ return p.cost_per_base_unit; }
 
     /* --- real bodies, from the shipped file --- */
@@ -128,7 +131,7 @@ function harness(opts) {
       // 188: deletePlate and doDeleteEverything open with a role guard now. EXTRACTED, not stubbed.
       'isOwner', 'ownerOnly',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
-      'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog', 'confirmGuardedRepoints', 'kingRepointGuard',
+      'setProducts', 'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog', 'confirmGuardedRepoints', 'kingRepointGuard',
       'mergeChangeLog', 'linkDishToPlate', 'deleteKitchenIngredient', 'saveKingModal',
       'kingValid', 'kingRenameCheck', 'kingNameExists', 'nextKid',
       // READ, never edited — CLAUDE.md hard rule 2 forbids changing unitCatCategory, not slicing it in.

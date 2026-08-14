@@ -436,3 +436,11 @@ Not changed in 179 because it is a copy decision rather than the rehome, and bec
 (Found 12 Aug 2026 while rehoming it in 179. **Pre-existing — it sat unhidden in `.scr-head` before, and 179 moved it without changing when it shows.**)
 `#menuAddDishBtn` renders at zero menus, and `openAddDishModal` opens against a null `currentMenuId`: `#ad_menuName` fills from `menuNameById(null)` and `submitAddDish` would publish a dish with `menuId: null`. Every other control on that screen is stood down at zero — the switcher, the filter row, the column band, Delete and the footnote all hide, and `fresh-states.spec.js` asserts each one — so this is the odd one out rather than a considered exception.
 Requirements: decide whether it hides at zero (consistent with every sibling, and there is genuinely nothing to publish onto) or whether it stays and `submitAddDish` refuses with a real message. Do not answer it by adding a fourth `hidden` toggle to `#menuSwitchRow` — 179 moved that row off `hidden` precisely because it hosts an action, so this hides the BUTTON, not the row.
+
+### The sync pill flickers between chunks on a large catalogue import
+(Found 15 Aug 2026 by batch 193, in the code it wrote, and left alone deliberately.)
+`dbPushIngredients` and `dbPushIngPrices` chunk at 200 rows and each chunk is its own `pushWrite`, so a 412-product import runs `setSync('saving')` then `setSync('ok')` three times in a row rather than showing one continuous "Saving".
+It is cosmetic and the end state is correct either way, which is why it is here and not in the queue.
+The fix is not "chunk less" - the chunking is what keeps a request a sane size and what makes a partial failure reportable.
+It is either a `pushWrite` variant that brackets a whole sequence, or a caller-held "busy" that the pill respects; the first is the tidier shape and touches every write path, so it is not a drive-by.
+Whoever does it should check the import's own button state first, which already says "Importing…" for the whole run and is the thing the user is actually looking at.

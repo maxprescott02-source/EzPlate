@@ -251,3 +251,21 @@ The measurements are in `supabase/migrations/20260814_invitations.sql`'s header,
 - **Step 2 was satisfied by MEASUREMENT rather than by re-running the file.** All seven fingerprints were diffed against production first and came back identical, which proves the mirror is current far better than re-running `01-schema.sql` and assuming it worked. Re-run it when they differ; diff them first either way.
 - ⚠️ **The defect the rehearsal found could not have been found by reading, and reading is what nearly happened.** `invited_by uuid default auth.uid()` looks like "the server decides who invited". It is not: a DEFAULT fires only when the column is **absent** from the INSERT, so an owner POSTing `"invited_by":"<somebody else>"` had it stored verbatim. This is `CLAUDE.md`'s DEFAULT-vs-BEFORE-trigger law read in the other direction — 182 hit the half where the default wins when it should not, and this is the half where it does not fire when it should. **Any column that must not be caller-controlled needs the trigger; the default alone is decoration.** The fix was verified by re-POSTing the spoof and by a PATCH trying to rewrite it.
 - **A rehearsal that CONSUMES an account has to put it back.** See the warning at the accounts table above.
+
+### And on 15 Aug 2026 (batch 193), `ingredients.supplier_code` — the rehearsal that mostly confirmed a NEGATIVE
+
+The migration itself is one nullable column, and the interesting part of the rehearsal is what it ruled out rather than what it proved.
+
+- **Step 2 was satisfied by measurement again, and it is worth saying twice.** All seven fingerprints matched production before anything ran, so `01-schema.sql` was not re-run. Diffing first is strictly better than re-running and assuming: it tells you whether the mirror is current, which re-running does not.
+- ⚠️ **THE DESIGN THIS RULED OUT IS THE ONE ANYBODY WOULD REACH FOR FIRST.** The importer needs a stable identity so a re-import updates rather than duplicates, and the cheap way to get one is to DERIVE `ingredients.id` from (supplier, product code) — no column, no migration, upsert on the primary key. It is wrong here, and one query says why:
+
+  ```sql
+  select pg_get_constraintdef(oid) from pg_constraint
+   where conrelid = 'public.ingredients'::regclass and contype = 'p';
+  -->  PRIMARY KEY (id)
+  ```
+
+  **`ingredients_pkey` is on `id` ALONE — it is not `(business_id, id)`.** 183 widened `app_settings` and `supplier_phrases` for exactly this reason and `ingredients` was never widened; it gets away with a global key only because `uid()` mints random ids. A content-derived one means two cafés importing the same supplier's export collide on one primary key, and the second one's write is refused or silently affects nothing. **Check the primary key's WIDTH before making any id meaningful** — the tables in this database do not all agree about it.
+- **The column was verified as the client, not through the MCP.** Signed in as `a@example.com` over PostgREST: a write carrying `supplier_code` came back with the value in the representation, a bulk upsert of three rows returned three rows, and re-upserting one of them left the count at three rather than four.
+- **A 204 that is not a defect, recorded so the next reader does not chase it.** Cleaning the probe rows up, `DELETE /rest/v1/ing_price_history` returned success having deleted nothing. That table carries INSERT and SELECT policies and no DELETE policy — it is append-only by design — and this is the documented silent no-op behaving exactly as this file warns it does. The cleanup was done as `postgres` instead.
+- **`a@example.com`'s password was reset to a throwaway for this rehearsal and is not written down**, per the recipe above. Nothing was consumed: no membership was changed, and every probe row was deleted.

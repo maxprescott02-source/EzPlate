@@ -317,6 +317,10 @@ function ingredientToRow(p){ return {
   current_price_exgst:(p.current_price_exgst==null?null:p.current_price_exgst),
   price_as_of:(p.price_as_of||null), search_aliases:(p.search_aliases||[]),
   supplier:p.supplier||null,
+  /* 193: the catalogue importer's identity. `||null` rather than a bare pass-through so an empty
+     string never becomes a code — the importer's dedup key is (supplier, supplier_code), and '' would
+     make every product with no code look like the same product. */
+  supplier_code:p.supplier_code||null,
   pack_qty:(p.pack_qty==null?null:p.pack_qty), pack_unit:p.pack_unit||null,
   /* v108: was `!BASE_IDS.has(p.id)`, derived from the deleted literal. Now it round-trips: a base row
      arrives from the server carrying false and keeps it, while a product the app is CREATING has no
@@ -342,6 +346,7 @@ function rowToIngredient(r){ return {
   current_price_exgst:(r.current_price_exgst==null?null:Number(r.current_price_exgst)),
   price_as_of:(r.price_as_of||null), search_aliases:(Array.isArray(r.search_aliases)?r.search_aliases:[]),
   supplier:r.supplier||null,
+  supplier_code:r.supplier_code||null,                              // 193 — see ingredientToRow
   pack_qty:(r.pack_qty==null?null:Number(r.pack_qty)), pack_unit:r.pack_unit||null,
   // v108: carried into the model now that BASE_IDS is gone — it is the only remaining record of which
   // rows the user made. Nothing renders it; it exists so the write direction can put it back unchanged.
@@ -446,7 +451,35 @@ function rowsToSeries(rows, valueCol, keyCol){
 }
 
 /* writes */
-function dbPushIngredient(id){ var p=byId[id]; if(!p) return; pushWrite(function(){ return SUPA.from('ingredients').upsert(ingredientToRow(p)); }, 'ingredient'); }
+/* 193 — THE PRODUCT WRITE IS PLURAL NOW, and the single case is the N=1 call of it.
+   The catalogue importer creates or re-prices a whole supplier catalogue at once: at Scoopy's size
+   that is 412 products, and one HTTP upsert each is 412 requests on a café's mobile data, most of a
+   minute, and a partial catalogue whenever one of them fails. `upsert` takes an array, so the shape
+   was always available.
+   It is written as one function with a loop rather than a second helper beside the old one, because
+   two functions that must agree about `ingredientToRow` and about `pushWrite` is exactly the copy
+   this project keeps being burned by.
+   CHUNKED because a single request must stay a sane size — 412 rows is ~120KB, which is fine, but
+   nothing here bounds a catalogue and a 5000-row one would not be. Chunks are awaited IN SEQUENCE
+   and the first failure STOPS: a caller that has already been told "3 of 5 chunks saved" can re-run
+   the import (which updates rather than duplicates, by construction), whereas firing all of them and
+   reporting the last error would leave nobody able to say what landed.
+   RETURNS the write, per CLAUDE.md — a helper that swallows its promise cannot be sequenced, and the
+   importer genuinely needs to know whether the catalogue reached the server before it says so. */
+var ING_PUSH_CHUNK=200;
+function dbPushIngredients(ids){
+  var rows=(ids||[]).map(function(id){ return byId[id]; }).filter(Boolean).map(ingredientToRow);
+  if(!rows.length) return Promise.resolve({data:[], error:null});
+  var chunks=[]; for(var i=0;i<rows.length;i+=ING_PUSH_CHUNK) chunks.push(rows.slice(i,i+ING_PUSH_CHUNK));
+  var label=(rows.length===1?'ingredient':'products');
+  return chunks.reduce(function(prev, chunk){
+    return prev.then(function(res){
+      if(res && res.error) return res;                              // stop at the first failure; do not pile more toasts on
+      return pushWrite(function(){ return SUPA.from('ingredients').upsert(chunk); }, label);
+    });
+  }, Promise.resolve({data:[], error:null}));
+}
+function dbPushIngredient(id){ return dbPushIngredients([id]); }
 // v55: write plate_id (canonical) and MIRROR it to source_plate_id, so a device still running v54 keeps
 // resolving the dish's plate during the rollout. Requires the plate_id migration applied first (v43 lesson).
 // v108: the row literal moved to menuToRow — this is the write, not the translation.
@@ -1225,18 +1258,47 @@ function rebuild(){
    write — applyInvoice's pack teach, which patches pack_qty/pack_unit only — would have sailed past
    that dedupe and fabricated a point for a change that never happened. The two guards compose: this
    one asks "did the stored price move", logIngPrice's asks "is this a new observation". */
-function setProduct(id, patch){
-  var had=productsById[id]?productsById[id].cost_per_base_unit:undefined;
-  productsById[id] = Object.assign({}, productsById[id]||{}, patch);
-  rebuild(); dbPushIngredient(id);
-  if(patch && Object.prototype.hasOwnProperty.call(patch, 'cost_per_base_unit')){
-    var now=patch.cost_per_base_unit;
+/* 193 — THIS IS THE IMPLEMENTATION AND `setProduct` BELOW IS ITS N=1 CASE.
+   Everything the comment above says about setProduct is a statement about this function; nothing
+   about the rule changed, only how many products one call may carry. The catalogue importer needs to
+   create or re-price a whole supplier catalogue, and doing that through 412 separate setProduct calls
+   would mean 412 upserts, 412 price-log inserts and 412 full `rebuild()` passes over the catalogue.
+   Written as ONE function with the single case delegating INTO it, never as a second function beside
+   it: a near-copy of setProduct that has to keep agreeing with it about the had==null guard, the
+   ordering of the two writes and which patches count as a price change is precisely the mirrored
+   copy CLAUDE.md's twenty-incident roster is about.
+   THE ORDER IS PRESERVED EXACTLY: every product lands in memory, then ONE rebuild, then the product
+   write, then the price points. setProduct did those four things in that order for one product and
+   this does them in that order for N. `dbPushIngredients` reads `byId`, so the rebuild has to be
+   ahead of it — that is the reason for the order, not a preference. */
+function setProducts(entries){
+  entries=(entries||[]).filter(function(e){ return e && e.id!=null; });
+  if(!entries.length) return Promise.resolve({data:[], error:null});
+  var priced=[];
+  entries.forEach(function(e){
+    var had=productsById[e.id]?productsById[e.id].cost_per_base_unit:undefined;
+    productsById[e.id] = Object.assign({}, productsById[e.id]||{}, e.patch);
+    if(e.patch && Object.prototype.hasOwnProperty.call(e.patch, 'cost_per_base_unit')){
+      priced.push({id:e.id, had:had, now:e.patch.cost_per_base_unit});
+    }
+  });
+  rebuild();
+  var write=dbPushIngredients(entries.map(function(e){ return e.id; }));
+  priced.forEach(function(p){
     // had==null covers a brand-new product (undefined) and a product that never had a price: both are
     // a first observation, not a no-op. Max's call, 3 Aug — one row, and it is the difference between
     // a product's first price move being reconstructible and being invisible.
-    if((had==null || !samePrice(had, now)) && logIngPrice(id, now)) saveIngLog();
-  }
+    if(p.had==null || !samePrice(p.had, p.now)) logIngPrice(p.id, p.now);
+  });
+  /* UNCONDITIONAL, where setProduct guarded this on "did I log anything". The guard was already
+     duplicated inside saveIngLog, which returns early on an empty queue — and the mutation gate
+     found it: flipping the flag's initial value changed no observable behaviour, which is what a
+     redundant branch looks like from the outside. Calling it every time is also strictly safer,
+     because anything a previous caller left pending is flushed rather than stranded. */
+  saveIngLog();
+  return write;
 }
+function setProduct(id, patch){ return setProducts([{id:id, patch:patch}]); }
 rebuild();
 
 function unitNoun(p){return p.base_unit==='g'?'g':p.base_unit==='ml'?'ml':p.base_unit==='ea'?'unit':'';}
@@ -1877,6 +1939,549 @@ modal.addEventListener('mousedown',e=>{if(e.target===modal)closeModal();});
 let toastT;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
 
+/* ============================================================================
+   193 — THE CATALOGUE CSV IMPORTER. How a café that is not Scoopy's gets a
+   product catalogue at all.
+
+   WHY THE INVOICE IMPORTER IS NOT THIS, measured rather than assumed (batch 190,
+   restated at the queue item): `invRowState` returns 'matched' only when a line
+   resolves to an EXISTING product, so against an empty `ingredients` table every
+   line falls to 'review' and not one row is pre-ticked. The importer's whole
+   leverage — confirm a screenful at once — is absent exactly when a new café
+   needs it, and a 60-line first invoice becomes 60 hand-filled panels. That
+   importer is not broken; it is designed around a catalogue that already exists.
+
+   WHAT THIS IS INSTEAD: a generic mapped CSV importer, with one supplier's
+   export recognised as a preset on top of it. That ordering is Max's, taken on
+   market research (14 Aug 2026) rather than on cost — a column-mapping step is
+   the industry norm and a named supplier integration is the premium tier, so a
+   preset that REPLACED the mapper would be below market and would need one build
+   per supplier forever.
+
+   NO MODEL IS IN THIS PATH, and that is the property being bought rather than a
+   coincidence. Bulk-accepting invoice lines was the recommendation until Max
+   answered it: "it shouldnt really be messy that would be a turn off for
+   customers". Every field here is read from a column or left alone. It also
+   means the privacy gate does not bind this feature — nothing goes near
+   `api/parse-invoice`.
+
+   CSV ONLY (Max, 14 Aug 2026, q2 answer A). An .xlsx is a ZIP of XML and cannot
+   be read without a third third-party script, which needs his yes and did not
+   get it. So the picker names CSV and REFUSES a workbook by name — "nothing
+   happened" is the worst possible first minute of a new café's life.
+   ============================================================================ */
+
+/* ---- 1. The file. A real CSV reader, because the invoice one is not. ----
+   `parseInvoiceCSV` splits on commas and takes the last field as a price, which
+   is right for the thing it does and wrong for every quoted description in a
+   supplier export ("CHIPS, STRAIGHT CUT, 10MM" is ONE field). This is RFC4180:
+   quoted fields, doubled quotes inside them, CRLF or LF or a lone CR, and a BOM
+   — which Excel writes on every "Save as CSV" and which would otherwise make the
+   first header unmatchable while LOOKING identical on screen. */
+function csvSniffDelim(firstLine){
+  var best=',', bestN=-1;
+  [',',';','\t','|'].forEach(function(d){
+    var n=0, inQ=false;
+    for(var i=0;i<firstLine.length;i++){
+      var c=firstLine[i];
+      if(c==='"') inQ=!inQ;
+      else if(c===d && !inQ) n++;
+    }
+    if(n>bestN){ bestN=n; best=d; }
+  });
+  return best;
+}
+function parseCsvTable(text, delim){
+  var s=String(text==null?'':text).replace(/^\uFEFF/,'');   // Excel writes a BOM on every "Save as CSV"; written as an ESCAPE because a literal one here is invisible and an editor would strip it silently
+  if(!s.trim()) return {headers:[], rows:[]};
+  var d=delim||csvSniffDelim(s.split(/\r?\n/)[0]||'');
+  var out=[], row=[], field='', inQ=false, i=0;
+  var endRow=function(){ row.push(field); out.push(row); row=[]; field=''; };
+  while(i<s.length){
+    var c=s.charAt(i);
+    if(inQ){
+      if(c==='"'){
+        if(s.charAt(i+1)==='"'){ field+='"'; i+=2; continue; }
+        inQ=false; i++; continue;
+      }
+      field+=c; i++; continue;
+    }
+    if(c==='"'){ inQ=true; i++; continue; }
+    if(c===d){ row.push(field); field=''; i++; continue; }
+    if(c==='\r'){ endRow(); if(s.charAt(i+1)==='\n') i+=2; else i++; continue; }
+    if(c==='\n'){ endRow(); i++; continue; }
+    field+=c; i++;
+  }
+  endRow();
+  // A file that ends in a newline leaves one empty row; so does a blank line anywhere.
+  out=out.filter(function(r){ return r.some(function(v){ return String(v).trim()!==''; }); });
+  if(!out.length) return {headers:[], rows:[]};
+  var headers=out[0].map(function(h){ return String(h||'').trim(); });
+  return {headers:headers, rows:out.slice(1)};
+}
+
+/* ---- 2. The mapping. What the app's own fields are, in the app's own words. ----
+   `key` is what the plan reads; `label` is what a human maps onto. Only `name`
+   and `price` are required, and the screen says so. */
+var CAT_FIELDS=[
+  {key:'name',        label:'Product name',        need:true},
+  {key:'code',        label:'Product code',        need:false},
+  {key:'brand',       label:'Brand',               need:false},
+  {key:'category',    label:'Category',            need:false},
+  {key:'packSize',    label:'Pack size',           need:false},
+  {key:'packUnit',    label:'Pack unit',           need:false},
+  {key:'unitsPerPack',label:'Units per carton',    need:false},
+  {key:'price',       label:'Price',               need:true}
+];
+function catNormHead(h){ return String(h==null?'':h).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+/* The recognised presets. A preset is a HEADER SIGNATURE plus the mapping it
+   implies — it never changes what the importer does, only what the mapping
+   starts as, and the screen shows the mapping it guessed so a wrong guess is one
+   the user can see and correct.
+   ⚠️ THE SUPPLIER EXPORT'S COLUMNS WERE READ FROM THE LIVE PORTAL (14 Aug 2026)
+   AND THE FILE ITSELF WAS NEVER DOWNLOADED. So the column NAMES here are
+   measured and the question of what `LAST PRICE PAID` is the price OF is not —
+   which is exactly why `priceCovers` is asked rather than baked in below. */
+var CAT_PRESETS=[
+  {
+    id:'bidfood-standard',
+    name:'supplier purchase history export',
+    // Enough of the signature to be sure, and no more: a preset that demands all
+    // twelve columns stops recognising the file the day the supplier adds one.
+    signature:['product code','description','pack size','last price paid'],
+    map:{name:'description', code:'product code', brand:'brand', packSize:'pack size',
+         packUnit:'uom', unitsPerPack:'ctn qty', price:'last price paid', category:''},
+    note:'Standard export has no category column, so categories are left blank — you can set them later.'
+  }
+];
+function catPresetFor(headers){
+  var norm=(headers||[]).map(catNormHead);
+  for(var i=0;i<CAT_PRESETS.length;i++){
+    var p=CAT_PRESETS[i];
+    var hit=p.signature.every(function(sig){ return norm.indexOf(sig)>=0; });
+    if(!hit) continue;
+    var map={};
+    Object.keys(p.map).forEach(function(k){
+      var want=p.map[k]; if(!want){ map[k]=''; return; }
+      var at=norm.indexOf(want);
+      map[k]=(at>=0)?headers[at]:'';
+    });
+    return {id:p.id, name:p.name, note:p.note, map:map};
+  }
+  return null;
+}
+/* No preset matched, so guess from the header words. A guess the user can see
+   and correct beats an empty form: the alternative is asking somebody who has
+   never used this app to map eight fields from scratch on their first minute. */
+var CAT_GUESS=[
+  {key:'code',        any:['product code','item code','item number','item no','sku','code','stock code','product id']},
+  {key:'name',        any:['description','product name','product','item description','item name','name']},
+  {key:'brand',       any:['brand','manufacturer']},
+  {key:'category',    any:['category','group','department','product group']},
+  {key:'packSize',    any:['pack size','pack','size','pack qty','unit size']},
+  {key:'packUnit',    any:['uom','unit of measure','unit','measure']},
+  {key:'unitsPerPack',any:['ctn qty','carton qty','units per carton','qty per carton','pack count']},
+  {key:'price',       any:['last price paid','unit price','price ex gst','price','cost','unit cost','case price']}
+];
+function catGuessMap(headers){
+  var norm=(headers||[]).map(catNormHead), map={}, taken={};
+  CAT_GUESS.forEach(function(g){
+    for(var i=0;i<g.any.length;i++){
+      var at=norm.indexOf(g.any[i]);
+      if(at>=0 && !taken[at]){ map[g.key]=headers[at]; taken[at]=1; return; }
+    }
+    map[g.key]='';
+  });
+  return map;
+}
+
+/* ---- 3. Reading one row's numbers. ----
+   Every one of these returns NULL rather than 0 for "not a number", because
+   `isFinite('')` is TRUE (`Number('')` is 0) and a catalogue CSV is full of
+   blank cells. A blank price that became 0 would create a real-looking free
+   product AND, through setProducts, a real-looking $0.00 price observation. */
+function catNum(v){
+  if(v==null) return null;
+  var s=String(v).replace(/[$\s,]/g,'').replace(/[^0-9.\-]/g,'');
+  /* The finite check is the WHOLE guard, and there is deliberately no early return above it for
+     ''/'-'/'.'. There was one; the mutation gate showed it changed nothing, because parseFloat
+     answers NaN for all three and that lands here anyway. A second guard that cannot fire is a line
+     a later reader trusts.
+     It still has to be BOTH tests and not just isFinite: `s` can be '--5' or '.-' — a cell this
+     regex leaves non-empty and parseFloat cannot read — and returning NaN from a function whose
+     callers check `== null` puts a NaN into a price. */
+  var n=parseFloat(s);
+  return (typeof n==='number' && isFinite(n)) ? n : null;
+}
+var CAT_UNITS={kg:'kg', kgs:'kg', kilo:'kg', kilos:'kg', kilogram:'kg', kilograms:'kg',
+               g:'g', gm:'g', gms:'g', gram:'g', grams:'g',
+               l:'l', lt:'l', ltr:'l', litre:'l', litres:'l', liter:'l', liters:'l',
+               ml:'ml', mls:'ml', millilitre:'ml', millilitres:'ml',
+               ea:'ea', each:'ea', unit:'ea', units:'ea', pc:'ea', pcs:'ea', piece:'ea', pieces:'ea'};
+function catUnit(v){
+  var s=String(v==null?'':v).toLowerCase().replace(/[^a-z]/g,'');
+  return CAT_UNITS[s]||null;
+}
+/* For a human, not for storage. A lowercase 'l' in the preview's tabular-nums column is
+   indistinguishable from a 1 — "2 l" of milk reads as "21". Everything else is already unambiguous
+   lowercase, and the app writes 'l' internally either way. */
+function catUnitLabel(u){ return u==='l' ? 'L' : String(u==null?'':u); }
+/* "2.5KG" · "500 g" · "6X2.5KG" · "1 L" · "20" — the pack-size cell, into a
+   quantity and (when the cell carries one) a unit.
+   The NxM form is a carton written into the size cell, so it MULTIPLIES: 6x2.5kg
+   is 15kg of product for one price. Getting that backwards is a 6x error in
+   every cost the café sees, which is why it is spelled out rather than left to
+   the leading-number regex to trip over. */
+function catPackSize(v){
+  var s=String(v==null?'':v).trim();
+  if(!s) return null;
+  // [xX×*], not [x×*]: supplier exports shout, and "6X2.5KG" falling through to the single-number
+  // branch below reads as a 6 kg pack instead of 15 kg — a 2.4x error, silently, with a plausible
+  // number on screen. Caught by its own test rather than by reading.
+  var mult=s.match(/^\s*([0-9]*\.?[0-9]+)\s*[xX×*]\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)/);
+  if(mult){
+    var a=parseFloat(mult[1]), b=parseFloat(mult[2]);
+    if(a>0 && b>0) return {qty:a*b, unit:catUnit(mult[3])};
+  }
+  var one=s.match(/^\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)/);
+  if(one){
+    var q=parseFloat(one[1]);
+    if(q>0) return {qty:q, unit:catUnit(one[2])};
+  }
+  return null;
+}
+
+/* ---- 4. THE PLAN. Pure: same inputs, same answer, no DOM, no clock, no ids. ----
+   It decides everything and writes nothing, which is what lets the screen show
+   the user what is ABOUT to happen — and gates the FIRST committing action
+   rather than the last, per CLAUDE.md. Ids are minted in catImportApply, not
+   here, so the plan a test drives is the plan the screen showed. */
+function catImportPlan(o){
+  o=o||{};
+  var headers=o.headers||[], rows=o.rows||[], map=o.map||{};
+  var supplier=String(o.supplier||'').trim();
+  var carton=(o.priceCovers==='carton');
+  var existing=o.existing||[];
+  var col={};
+  Object.keys(map).forEach(function(k){ var at=headers.indexOf(map[k]); col[k]=(map[k] && at>=0)?at:-1; });
+  var cell=function(r,k){ return (col[k]>=0 && r[col[k]]!=null) ? String(r[col[k]]).trim() : ''; };
+
+  /* The identity of a row, and the whole reason `supplier_code` exists.
+     Keyed on the supplier too, because a product code is only unique WITHIN a
+     supplier — two suppliers sharing the code "1001" is ordinary. */
+  var byCode={}, byName={};
+  var usingNames=(col.code<0);
+  existing.forEach(function(p){
+    if(!p || normSupplier(p.supplier)!==normSupplier(supplier)) return;
+    if(p.supplier_code) byCode[String(p.supplier_code).toLowerCase().trim()]=p;
+    if(p.description) byName[String(p.description).toLowerCase().replace(/\s+/g,' ').trim()]=p;
+  });
+
+  var items=[], skipped=[], seen={}, folded=0;
+  rows.forEach(function(r, idx){
+    var line=idx+2;                                            // the header is line 1, as a spreadsheet counts
+    var name=cell(r,'name');
+    if(!name){ skipped.push({line:line, name:'', reason:'no product name'}); return; }
+    var price=catNum(cell(r,'price'));
+    if(price==null){ skipped.push({line:line, name:name, reason:'no usable price'}); return; }
+    if(price<0){ skipped.push({line:line, name:name, reason:'the price is negative'}); return; }
+
+    /* THE MATCH IS RESOLVED BEFORE THE PACK MATHS, and the order is load-bearing rather than tidy:
+       an UPDATE can borrow the pack the product already carries, which is the only way to price a
+       row that has a price and no pack size without guessing. See below. */
+    var code=cell(r,'code');
+    var key=usingNames
+      ? ('n:'+name.toLowerCase().replace(/\s+/g,' ').trim())
+      : ('c:'+code.toLowerCase());
+    if(!usingNames && !code){ skipped.push({line:line, name:name, reason:'no product code'}); return; }
+    var match=usingNames ? byName[key.slice(2)] : byCode[key.slice(2)];
+
+    var ps=catPackSize(cell(r,'packSize'));
+    var unitCell=catUnit(cell(r,'packUnit'));
+    var qty, unit;
+    if(ps || unitCell){
+      unit=(ps&&ps.unit) || unitCell || 'ea';
+      qty=ps?ps.qty:1;
+    } else if(match){
+      /* THE ROW CARRIES A PRICE AND NO PACK AT ALL, and this product already exists — which is
+         exactly what a generic code/name/price list is, and the market research in this item's queue
+         entry says cafés will bring one.
+         Falling back to "1 each" is what a plain `qty=1, unit='ea'` does, and on an UPDATE that is
+         data corruption rather than a default: a product correctly priced at $6.50/kg would have its
+         base_unit rewritten to 'ea' and its cost set to the whole pack price — a 10x error on a 10kg
+         pack, silent, reported as a successful update. Found by the pre-push review.
+         So there are two sub-cases and only one of them can be answered:
+           - the product knows its own pack → USE IT. $65 against a stored 10 kg is $6.50/kg, which
+             is what "refresh my prices" means.
+           - the product has no pack either → nothing here knows what the $65 covers, so REFUSE the
+             row. Skipping is visible in the preview; guessing is not.
+         (A NEW product takes neither branch: with no prior belief, "one unit at $65" is a faithful
+          reading of what the file literally says rather than a guess about something already known.) */
+      if(match.pack_qty>0 && match.pack_unit){ qty=match.pack_qty; unit=match.pack_unit; }
+      else { skipped.push({line:line, name:name, reason:'no pack size, and EzPlate doesn’t know what pack this product comes in'}); return; }
+    } else {
+      unit='ea'; qty=1;                                        // a NEW product with no pack: one unit, which is what it says
+    }
+    var per=catNum(cell(r,'unitsPerPack'));
+    var total=qty;
+    if(carton){
+      /* ⚠️ NO SILENT ×1 HERE. The user has said the price covers a carton; if this row does not say
+         how many packs that is, the multiplier is UNKNOWN and the honest answer is to refuse the row,
+         not to price it as though the carton held one. The quiet fallback was the first draft, and a
+         test in this batch ASSERTED it as intended before the review pointed out what it was: an
+         invisible error of exactly the carton size, on a screen showing a plausible number.
+         The refusal is visible and self-correcting — the preview lists it, and the fix is either to
+         map the units-per-carton column or to switch the radio back. */
+      if(!(per>0)){ skipped.push({line:line, name:name, reason:'the price is for a carton, but this row has no units per carton'}); return; }
+      total=qty*per;
+    }
+    var calc=packToUnitCost(total, unit, price);
+    if(!calc){ skipped.push({line:line, name:name, reason:'couldn’t work out a unit cost from the pack size and price'}); return; }
+
+    var item={
+      line:line, name:name, code:code||null, isNew:!match,
+      existingId:match?match.id:null,
+      unitCost:calc.cost_per_base_unit, dispPer:calc.dispPer, dispUnit:calc.dispUnit,
+      packQty:total, packUnit:unit, price:price,
+      /* WHAT AN UPDATE MAY TOUCH, and it is not everything the file holds.
+         `description` is deliberately absent: once a product exists, its name is
+         the café's, and a re-import exists to refresh PRICES. A supplier
+         renaming its own line item must not silently rename a product somebody
+         has been cooking from. Brand and category are only written when the file
+         actually carries them, so an unmapped column never blanks a value the
+         user set by hand. */
+      patch:(function(){
+        var p={ cost_per_base_unit:calc.cost_per_base_unit, base_unit:calc.base_unit,
+                cost_basis:calc.cost_basis, current_price_exgst:price,
+                pack_qty:total, pack_unit:unit, pack_size_raw:total+' '+unit,
+                supplier:supplier||null, supplier_code:code||null };
+        if(cell(r,'brand')) p.brand=cell(r,'brand');
+        if(cell(r,'category')) p.category=cell(r,'category');
+        if(!match){
+          p.description=name; p.sub_category=''; p.item_type=null; p.search_aliases=[];
+          p.is_food=true; p.sold_by='';
+          if(!p.brand) p.brand=null;
+          if(!p.category) p.category=null;
+        }
+        return p;
+      })()
+    };
+    /* A "previous purchases" report can legitimately list the same product once
+       per order, so a repeat is NOT an error and must not be refused. The LAST
+       occurrence wins, because these files run oldest-to-newest and the last
+       price is the current one — and the count is reported so that the folding
+       is something the user is told rather than something that just happens. */
+    if(seen[key]!=null){ items[seen[key]]=item; folded++; return; }
+    seen[key]=items.length; items.push(item);
+  });
+
+  return {
+    items:items, skipped:skipped, folded:folded,
+    created:items.filter(function(i){ return i.isNew; }).length,
+    updated:items.filter(function(i){ return !i.isNew; }).length,
+    matchedOn:(usingNames?'name':'code')
+  };
+}
+
+/* ---- 5. The screen. Three steps: choose a file → check the mapping → done. ----
+   Same grammar as the invoice modal's §4 upload, deliberately: a café that has
+   used one should recognise the other. Every id below is read only by this
+   section. */
+var catState={headers:[], rows:[], map:{}, preset:null, fileName:'', plan:null, busy:false};
+function catStep(which){
+  ['Choose','Map','Done'].forEach(function(s){
+    var el=document.getElementById('catStep'+s); if(el) el.hidden=(s.toLowerCase()!==which);
+  });
+  /* The Import button only exists while there is something to import. On step 1 there is no file
+     yet and on step 3 it has already happened — leaving it there would offer a second import of
+     the same file, which is harmless (it updates) and still reads as "did it not work?".
+     `[hidden]` rather than a display rule: an author `display` rule beats the UA's [hidden] on
+     ORIGIN, before specificity is even compared, and this app has ten selector guards for exactly
+     that mistake. Nothing styles #catGo's display, so the attribute is enough — and using the
+     attribute is what keeps it that way. */
+  var go=document.getElementById('catGo'); if(go) go.hidden=(which!=='map');
+  var cancel=document.getElementById('catCancel'); if(cancel) cancel.textContent=(which==='done')?'Done':'Close';
+}
+function catErr(msg){
+  var e=document.getElementById('catErr');
+  if(!e) return;
+  if(!msg){ e.style.display='none'; e.textContent=''; return; }
+  e.textContent=msg; e.style.display='block';
+}
+function openCatImport(){
+  catState={headers:[], rows:[], map:{}, preset:null, fileName:'', plan:null, busy:false};
+  catErr('');
+  var f=document.getElementById('catFile'); if(f) f.value='';
+  var sup=document.getElementById('cat_sup'); if(sup) sup.value='';
+  makeInlineCombo('cat_sup','cat_supDrop',prodSuppliers);
+  catStep('choose');
+  openOverlay(document.getElementById('catModal'));
+}
+function closeCatImport(){ closeOverlay(document.getElementById('catModal')); }
+/* CSV only, and it says so BY NAME rather than by failing. A workbook dropped
+   here is the single likeliest first mistake — "export from the portal" gives an
+   .xlsx as often as a .csv — and `FileReader.readAsText` on a ZIP produces
+   binary noise, which would surface as "no rows found" and teach the user
+   nothing. Adding XLSX support needs a third third-party script and therefore
+   Max's yes (14 Aug 2026, answered NO), so the honest move is to name the
+   refusal and say what to do instead. */
+function catHandleFile(file){
+  if(!file) return;
+  catErr('');
+  if(/\.(xlsx|xls|xlsm|numbers|ods)$/i.test(file.name)){
+    catErr('EzPlate reads CSV files. Open ' + file.name + ' in your spreadsheet app and choose “Save as” or “Export” → CSV, then bring that file back here.');
+    return;
+  }
+  var r=new FileReader();
+  r.onload=function(){
+    var t=parseCsvTable(String(r.result||''));
+    if(!t.headers.length || !t.rows.length){
+      catErr('That file had no rows EzPlate could read. It needs a header row naming the columns, then one line per product.');
+      return;
+    }
+    catState.headers=t.headers; catState.rows=t.rows; catState.fileName=file.name;
+    catState.preset=catPresetFor(t.headers);
+    catState.map=catState.preset ? catState.preset.map : catGuessMap(t.headers);
+    renderCatMap();
+    catStep('map');
+  };
+  r.onerror=function(){ catErr('Could not read that file.'); };
+  r.readAsText(file);
+}
+function catFieldSelect(f){
+  var opts='<option value="">— not in my file —</option>'+catState.headers.map(function(h){
+    return '<option value="'+esc(h)+'"'+((catState.map[f.key]||'')===h?' selected':'')+'>'+esc(h)+'</option>';
+  }).join('');
+  return '<label class="cat-maprow"><span class="cat-mapf">'+esc(f.label)+(f.need?' *':'')+'</span>'
+    +'<select class="cat-mapsel" data-field="'+esc(f.key)+'">'+opts+'</select></label>';
+}
+function renderCatMap(){
+  var box=document.getElementById('catMapBody'); if(!box) return;
+  /* The accent colour carries ONE sentence — that the file was recognised — and the preset's caveat
+     follows it in ordinary muted body text. Emphasising the whole paragraph put four lines of bold
+     orange at the top of a phone screen, which reads as a warning rather than as reassurance. */
+  var lead=catState.preset
+    ? '<p class="cat-lead ok">Recognised this as a <b>'+esc(catState.preset.name)+'</b> — the columns below are already matched up.</p>'
+      +(catState.preset.note?('<p class="cat-lead-note">'+esc(catState.preset.note)+'</p>'):'')
+    : '<p class="cat-lead">EzPlate guessed which column is which. <b>Check them</b> — the preview underneath shows what it worked out.</p>';
+  box.innerHTML=lead
+    +'<p class="hint cat-file">'+esc(catState.fileName)+' · '+catState.rows.length+' row'+(catState.rows.length===1?'':'s')+'</p>'
+    +'<div class="cat-maprows">'+CAT_FIELDS.map(catFieldSelect).join('')+'</div>'
+    +'<div class="cat-price-covers"><span class="cat-mapf">The price is for</span>'
+      +'<label class="cat-radio"><input type="radio" name="catCovers" value="pack" checked> one pack of the size above</label>'
+      +'<label class="cat-radio"><input type="radio" name="catCovers" value="carton"> the whole carton (pack size × units per carton)</label></div>'
+    +'<div id="catPreview" class="cat-preview"></div>';
+  box.querySelectorAll('.cat-mapsel').forEach(function(sel){
+    sel.addEventListener('change', function(){ catState.map[sel.dataset.field]=sel.value; renderCatPreview(); });
+  });
+  box.querySelectorAll('input[name="catCovers"]').forEach(function(radio){
+    radio.addEventListener('change', renderCatPreview);
+  });
+  renderCatPreview();
+}
+function catCovers(){
+  var el=document.querySelector('input[name="catCovers"]:checked');
+  return (el && el.value==='carton') ? 'carton' : 'pack';
+}
+/* THE PREVIEW IS THE GATE. The mapping cannot be verified by reading it — the
+   only thing that shows a wrong column, or a price that turns out to be per
+   carton, is the unit cost the app would store. So the first committing action
+   is the button UNDER this, never the file picker. */
+function renderCatPreview(){
+  var box=document.getElementById('catPreview'); if(!box) return;
+  var sup=document.getElementById('cat_sup');
+  var plan=catImportPlan({headers:catState.headers, rows:catState.rows, map:catState.map,
+    supplier:sup?sup.value.trim():'', priceCovers:catCovers(), existing:PRODUCTS});
+  catState.plan=plan;
+  var go=document.getElementById('catGo');
+  var rows=plan.items.slice(0,5).map(function(i){
+    return '<tr><td class="cat-pv-n">'+esc(i.name)+'</td>'
+      +'<td class="cat-pv-p">'+esc(String(i.packQty))+' '+esc(catUnitLabel(i.packUnit))+'</td>'
+      +'<td class="cat-pv-c">$'+i.dispPer.toFixed(2)+'/'+esc(i.dispUnit)+'</td>'
+      +'<td class="cat-pv-s">'+(i.isNew?'new':'update')+'</td></tr>';
+  }).join('');
+  var head='';
+  if(!plan.items.length){
+    head='<p class="cat-none">Nothing in this file can be imported yet. Check that <b>Product name</b> and <b>Price</b> point at the right columns.</p>';
+  } else {
+    head='<p class="cat-count"><b>'+plan.created+'</b> new product'+(plan.created===1?'':'s')
+      +' · <b>'+plan.updated+'</b> to update'
+      +(plan.skipped.length?(' · <b>'+plan.skipped.length+'</b> skipped'):'')
+      +(plan.folded?(' · '+plan.folded+' repeated line'+(plan.folded===1?'':'s')+' folded into the latest price'):'')
+      +'</p>';
+  }
+  var warn='';
+  if(plan.items.length && plan.matchedOn==='name'){
+    warn='<p class="cat-warn">No <b>Product code</b> column is mapped, so products are matched by name. Mapping a code column makes a later re-import safer.</p>';
+  }
+  var skips='';
+  if(plan.skipped.length){
+    skips='<details class="cat-skips"><summary>'+plan.skipped.length+' line'+(plan.skipped.length===1?'':'s')+' will be skipped</summary><ul>'
+      +plan.skipped.slice(0,20).map(function(s){ return '<li>Line '+s.line+(s.name?(' — '+esc(s.name)):'')+': '+esc(s.reason)+'</li>'; }).join('')
+      +(plan.skipped.length>20?'<li>…and '+(plan.skipped.length-20)+' more</li>':'')
+      +'</ul></details>';
+  }
+  box.innerHTML=head+warn
+    +(rows?('<table class="cat-pv"><thead><tr><th>Product</th><th>Pack</th><th>Unit cost</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<p class="hint cat-pv-note">'+(plan.items.length>5?('The first 5 of '+plan.items.length+'. '):'')+'If a unit cost looks wrong, the pack size or “the price is for” is the thing to change.</p>'):'')
+    +skips;
+  if(go){
+    go.disabled=!plan.items.length || catState.busy;
+    go.textContent=plan.items.length?('Import '+plan.items.length+' product'+(plan.items.length===1?'':'s')):'Import';
+  }
+}
+/* The one impure step. Ids are minted HERE rather than in the plan, so the plan
+   the screen showed and the plan a test drives are the same object. */
+function catImportApply(){
+  var plan=catState.plan;
+  if(!plan || !plan.items.length || catState.busy) return;
+  var supR=resolveCombo('cat_sup', prodSuppliers);
+  if(!supR.ok){ catErr('“'+supR.value+'” is a new supplier — pick “Create new” from the list to confirm.'); return; }
+  if(!supR.value){ catErr('Choose which supplier this file is from — it is what lets a later import update these products instead of duplicating them.'); return; }
+  /* ⚠️ A RE-PLAN AGAINST supR.value WAS WRITTEN HERE AND THEN DELETED, which is worth a note
+     because it looked like free insurance. Every input the plan reads — the eight column selects,
+     the two radios, the supplier field — already repaints the preview through a listener, so
+     re-planning here could never reach a different answer, and the test written to pin it PASSED
+     WITH IT REMOVED. That is this repo's most-recorded defect: a line nobody can break.
+     Case is not a reason to keep it either. `resolveCombo` canonicalises ("bidfood" typed against
+     an existing "Bidfood" returns "Bidfood"), but matching goes through `normSupplier`, so the two
+     spellings already decide identically — and the canonical value is written to every patch below
+     regardless. If a future change ever sets that field WITHOUT firing its listener, the fix is to
+     make it fire, not to re-plan behind it. */
+  catErr('');
+  catState.busy=true;
+  var go=document.getElementById('catGo'); if(go){ go.disabled=true; go.textContent='Importing…'; }
+  var entries=plan.items.map(function(i){
+    var id=i.existingId || uid('IMP');
+    var patch=Object.assign({}, i.patch, {supplier:supR.value});
+    if(i.isNew) patch.id=id;
+    return {id:id, patch:patch};
+  });
+  return setProducts(entries).then(function(res){
+    catState.busy=false;
+    if(res && res.error){
+      /* pushWrite has already said what went wrong, in a toast. Do NOT close the
+         modal and do NOT claim a count: the user is one button press from
+         re-running this, and a re-run updates rather than duplicates, which is
+         the whole reason the code column exists. */
+      catErr('The import did not finish saving. Nothing is lost — press Import again when you have a connection.');
+      if(go){ go.disabled=false; go.textContent='Import '+plan.items.length+' product'+(plan.items.length===1?'':'s'); }
+      return res;
+    }
+    var d=document.getElementById('catDoneBody');
+    if(d){
+      d.innerHTML='<p class="cat-done-lead"><b>'+plan.created+'</b> product'+(plan.created===1?'':'s')+' added'
+        +(plan.updated?(' and <b>'+plan.updated+'</b> updated'):'')+'.</p>'
+        +(plan.skipped.length?('<p class="hint">'+plan.skipped.length+(plan.skipped.length===1?' line was':' lines were')+' skipped — no name, no usable price, or a pack size EzPlate could not read.</p>'):'')
+        +'<p class="hint">Next: on the Ingredients screen, name the ones you cook with, then build a plate.</p>';
+    }
+    catStep('done');
+    if(typeof renderIngredients==='function') renderIngredients();
+    if(typeof renderKitchenPanel==='function') renderKitchenPanel();
+    toast(plan.created+plan.updated+' products imported');
+    return res;
+  });
+}
 
 /* ===== Suggested pricing + Menu analysis ===== */
 /* v108: BASE_MENU (69 dishes) was deleted here, with NO migration — 66 of its ids were already rows in
@@ -2727,14 +3332,29 @@ function recentChangesHtml(scope, current){
    append-only series while memory keeps the recent window. ---- */
 var ingPriceLog = {};
 var _ingLogPending=[];                                              // points added since the last flush
+/* 193: the flush is ONE insert per chunk, not one per point. It was one request per point, which is
+   why the batching variable is named "pending" and flushed rather than pushed as it goes — the shape
+   was already here, only the flush was still serial. A catalogue import logs a point for every
+   product it re-prices, so at Scoopy's size the old flush was 412 inserts; an invoice apply was 60.
+   Same rows, same order, same append-only table. */
 function saveIngLog(){
-  if(!_ingLogPending.length) return;
+  if(!_ingLogPending.length) return Promise.resolve({data:[], error:null});
   var batch=_ingLogPending; _ingLogPending=[];
-  batch.forEach(function(p){ dbPushIngPrice(p.pid, p.t, p.v); });
+  return dbPushIngPrices(batch);
 }
-function dbPushIngPrice(pid, t, v){
-  pushWrite(function(){ return SUPA.from('ing_price_history').insert(pointToRow(t, v, 'cost_per_base_unit', 'product_id', pid)); }, 'price history');
+var ING_LOG_CHUNK=200;
+function dbPushIngPrices(points){
+  var rows=(points||[]).map(function(p){ return pointToRow(p.t, p.v, 'cost_per_base_unit', 'product_id', p.pid); });
+  if(!rows.length) return Promise.resolve({data:[], error:null});
+  var chunks=[]; for(var i=0;i<rows.length;i+=ING_LOG_CHUNK) chunks.push(rows.slice(i,i+ING_LOG_CHUNK));
+  return chunks.reduce(function(prev, chunk){
+    return prev.then(function(res){
+      if(res && res.error) return res;
+      return pushWrite(function(){ return SUPA.from('ing_price_history').insert(chunk); }, 'price history');
+    });
+  }, Promise.resolve({data:[], error:null}));
 }
+function dbPushIngPrice(pid, t, v){ return dbPushIngPrices([{pid:pid, t:t, v:v}]); }
 /* "the same price", one definition — asked twice: by setProduct against the product's PREVIOUS STORED
    value, and by logIngPrice below against the LAST LOGGED point. The exact-equality arm carries $0.00:
    the relative tolerance is scaled BY the value, so at zero it collapses to `0 < 0` and every repeat
@@ -3299,9 +3919,23 @@ function renderIngredients(){
     showNote(false); showControls(false);   // nothing to search, and fillFilter has not run — an option-less select is a control that does nothing (F2's true-empty defect)
     /* §5's composed empty state, and this screen's FIRST-RUN state (§5 makes them one).
        "New product" without the "+": §7 allows one label per intent, and the header's primary now
-       carries it. Import stays the primary here — a new café gets its catalogue from invoices. */
-    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet.','Import an invoice to fill your catalogue, or add one product by hand.',
-      '<button class="btn primary" type="button" onclick="document.getElementById(\'importBtn\').click()">Import invoice</button>'
+       carries it.
+       193 CHANGED WHICH ACTION IS PRIMARY, and the old copy is the reason. It read "Import an
+       invoice to fill your catalogue, or add one product by hand", and BOTH halves are bad advice at
+       zero: an invoice import against an empty catalogue pre-ticks nothing (invRowState can only
+       return 'matched' against an existing product), so every line becomes a hand-filled panel; and
+       "by hand" for 400 products is not an answer at all. The catalogue import is the route that
+       works from nothing, so it is the primary and the invoice is the secondary. */
+    /* TWO actions, not three, and "Import invoice" is the one that went. It was here as the PRIMARY
+       and is now not offered at all — measured, not tidied: at zero products `invRowState` can
+       return 'matched' for nothing, so every line of a first invoice arrives untickable and the
+       import becomes a hand-filled panel per line. Offering it as the first thing a new café does is
+       advice this batch proved wrong. It has not been taken AWAY from anyone: `#importBtn` sits in
+       this screen's header at every width (179 moves it into #ingControls below 768), so the route
+       survives for a café that wants it — it just stops being the recommendation at zero. Three
+       stacked buttons at 380 was the other half of the argument. */
+    wrap.innerHTML=emptyStateHtml(ICON_BOX_BIG,'No products yet.','Import your supplier’s product list to fill your catalogue in one go, or add products one at a time.',
+      '<button class="btn primary" type="button" onclick="openCatImport()">Import catalogue</button>'
       +'<button class="btn" type="button" onclick="openModal()">New product</button>');   // v45 item 4: "Add product" -> "New product" everywhere
     return;
   }
@@ -6101,7 +6735,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v165';
+var APP_VERSION='v166';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10462,6 +11096,43 @@ document.getElementById('invParse').addEventListener('click',parseInvoice);
   var ub=document.getElementById('invUploadBtn'); if(ub) ub.addEventListener('click',openInv);   // the screen header's primary — the mock's §3.6 "Upload invoice"
 })();
 document.getElementById('invClose').addEventListener('click',closeInv);
+/* 193 — the catalogue importer's wiring, the same shape as the invoice one above and for the same
+   reason: the drag listeners live on the ZONE, never on the window. */
+(function(){
+  var fi=document.getElementById('catFile');
+  if(!fi) return;
+  fi.addEventListener('change',function(){ if(fi.files&&fi.files[0]) catHandleFile(fi.files[0]); });
+  var z=document.getElementById('catFileBtn');
+  if(z){
+    z.addEventListener('click',function(){ fi.click(); });
+    ['dragenter','dragover'].forEach(function(ev){ z.addEventListener(ev,function(e){ e.preventDefault(); z.classList.add('dragover'); }); });
+    ['dragleave','dragend'].forEach(function(ev){ z.addEventListener(ev,function(){ z.classList.remove('dragover'); }); });
+    z.addEventListener('drop',function(e){
+      e.preventDefault(); z.classList.remove('dragover');
+      var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+      if(f) catHandleFile(f);
+    });
+  }
+  ['catClose','catCancel'].forEach(function(id){ var b=document.getElementById(id); if(b) b.addEventListener('click',closeCatImport); });
+  var go=document.getElementById('catGo'); if(go) go.addEventListener('click',catImportApply);
+  /* The supplier decides which existing products a row can MATCH, so the counts and the new-vs-update
+     column are wrong until it is set. Repaint on input rather than on blur — the combo's own blur is
+     already 150ms deferred, and a count that updates a moment after you stop typing reads as broken. */
+  var sup=document.getElementById('cat_sup');
+  if(sup) sup.addEventListener('input',function(){ if(catState.rows.length) renderCatPreview(); });
+  /* ⚠️ AND THE SECOND HALF, WHICH THE `input` LISTENER ALONE DOES NOT COVER — a defect, not a nicety.
+     `makeInlineCombo` sets `inp.value` PROGRAMMATICALLY when an option is clicked, and a programmatic
+     value assignment fires NEITHER `input` NOR `change`. So typing "Fict", then picking the existing
+     "Fictional Supplier Co" from the list, left the plan computed against the supplier "Fict" — which
+     matches no existing product, so the screen said "4 new products" and the import would have
+     created a SECOND COPY of all four. Exactly the duplication the supplier code exists to prevent,
+     reached through the control that exists to prevent it.
+     The listener is on the drop CONTAINER: the option's own handler is on the option, so this one
+     bubbles to it afterwards, and the timeout puts the repaint after the value has landed. */
+  var supDrop=document.getElementById('cat_supDrop');
+  if(supDrop) supDrop.addEventListener('mousedown',function(){ setTimeout(function(){ if(catState.rows.length) renderCatPreview(); },0); });
+  var cb=document.getElementById('catImportBtn'); if(cb) cb.addEventListener('click',openCatImport);
+})();
 document.getElementById('menuClose').addEventListener('click',closeMenuModal);
 document.getElementById('menuCancel').addEventListener('click',closeMenuModal);
 // 184: both dish-creating buttons go through withPublishMenu — a cafe with no menu row yet gets one
