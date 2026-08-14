@@ -31,32 +31,15 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · Roles — the CLIENT half  **[A — launch blocker]**
-
-⚠️ **REWRITTEN 14 Aug 2026 (187). The server half SHIPPED; two of this item's three claims were wrong and are corrected here rather than left to be re-derived.**
-
-**What shipped (`20260814_roles_part1.sql`, no client asset, no version bump).** `business_members.role` with a check constraint, one trigger that makes the FIRST member of a business its owner and everyone after staff, `current_business_role()`, and four RESTRICTIVE policies plus a guard inside `restore_backup`. Staff cannot delete a plate, delete a menu, change the food cost target or restore a backup; they keep everything else, including deleting a `menu_items` row, which is unpublishing a dish. **Proved with a real staff account signed in over PostgREST on staging** — all four refused, everything else allowed, owner unaffected. Max is `owner`.
-**One café per person was DECIDED and enforced** with a unique constraint on `user_id`, because nobody holds two memberships and a silent arbitrary pick is worse than a refusal an owner can read. The one-statement reversal is in the migration header, for the day a real person has two cafés.
-
-⚠️ **THE ITEM'S OPENING CLAIM WAS FALSE.** It read *"The app currently tells staff 'owner and staff access is already planned' while nothing is built. That copy ships or comes out."* No such string exists. `index.html` says *"Two roles are **planned**: an owner, and working staff who can import invoices and edit ingredients and plates but not delete menus, change the target or restore a backup"* — an accurate statement of a plan, on the Account screen, which only the account holder reaches. Nothing was misleading anyone, and there were no staff to mislead.
-**It becomes wrong NOW, which is this item's first job:** two roles are no longer "planned", they exist and are enforced. That card has to say what is true.
-
-**What is LEFT, and it is all client:**
-- **The app must know its role.** `current_business_role()` rides bootstrapSync's existing `Promise.all` the way the tenant lookup does — no extra round trip, and the same three-answer discipline (`owner` / `staff` / could-not-tell). ⚠️ **Could-not-tell must read as OWNER, not staff**: the server refuses either way, so guessing "staff" only hides controls from the person who owns the café, while guessing "owner" shows a control that then fails honestly. That is the opposite default from the tenant gate and the reason is in `CLAUDE.md`'s restrictive-policy section — answer it here, do not route it onward.
-- **Four controls hide for staff**, matching the four the server refuses, or a staff member meets a raw `42501` toast. Delete plate · delete menu · the food-cost-target field in Settings · Restore backup.
-- **The Team card stops saying "planned".**
-- Out of scope: invitations. That is the item below.
-
-## next  2 · Roles — invitations, so an owner can add someone  **[A — launch blocker]**
-
-Do after: **Roles — the CLIENT half** — the app has to be able to SHOW a role before it can offer to grant one, and both touch the same Account screen.
+## next  1 · Roles — invitations, so an owner can add someone  **[A — launch blocker]**
 
 Accounts are made by hand in the Supabase dashboard today. That is fine for one café and impossible for a customer.
 **An owner adds someone by email; that is a `business_members` row, and the `role` column it needs already exists.** The hard part is not the row, it is that the client has no way to turn an email address into a `user_id` — `auth.users` is not readable — so this needs a `SECURITY DEFINER` function, and **that function is an information-disclosure surface**: written naively it answers "does an account exist for this email", for any email, to anyone signed in. Decide there rather than in the client.
 ⚠️ **Two facts a batch here needs and would otherwise rediscover:** email confirmation is ON, so an account that is not marked confirmed fails its first sign-in with "Email not confirmed", which reads exactly like a wrong password (**Auto Confirm User** is the fix); and **Supabase sign-ups are open at the API level** whatever the client ships, which is the gate-review item's to close.
 ⚠️ **A self-service sign-up form is still NO.** Since 186 an account that joins no café sees nothing at all, so a sign-up form's only possible outcome is 185's "ask the café owner to add this account" screen. `tests/auth.test.js` pins its absence with that reason. Invitations are what replace it.
+✅ **What 188 leaves you, so it is not rediscovered.** The client now reads `current_business_role()` on bootstrapSync's existing `Promise.all` and holds it in `businessRole`; `isOwner()` is the one reader and `applyRoleUi()` is where every role-dependent control resolves — **an invitation control is an owner-only control and belongs in that function, not in a fifth place.** The Team card is where it goes: it already names the role the reader holds and ends *"Adding someone is done by hand for now"*, which is the sentence this item deletes. `tests/roles-client.test.js` asserts the card ships **no `<button>`** while that is true — so the batch that builds this changes that assertion rather than tripping over it.
 
-## next  3 · Onboarding and empty states  **[A — launch blocker]**
+## next  2 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -67,7 +50,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **What 184 did NOT do, and it is this item's:** the builder's "Add to a menu" dead-ends at zero with *"No menus yet — create one on the Menu tab first"*, while the Menu tab's own **Existing plate** button now silently makes one for you. Neither is wrong; they disagree, and a new café meets the discouraging one first. That is an empty-state decision, not a data one.
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  4 · The privacy gate  **[A — launch blocker]**
+## next  3 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -75,12 +58,12 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  5 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  4 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  6 · Gate review before public signup  **[A — launch blocker]**
+## next  5 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
@@ -88,7 +71,7 @@ Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through
 ⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
 **So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
 
-## next  7a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  6a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -123,9 +106,9 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  7b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  6b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered FIVE times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, and to 7a in 184 when `MENU_ORIGINAL` did. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered SIX times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, and to 6a in 188 when the roles client half did. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
 ⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
@@ -143,7 +126,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  8 · Floating layers and mobile dropdowns  **[B]**
+## next  7 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.

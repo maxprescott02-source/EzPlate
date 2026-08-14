@@ -207,28 +207,37 @@ async function installBoot(page, opts = {}) {
              note that used to sit here saying it was deliberately absent is above, with why it
              flipped.) */
           rpc: (name) => {
+            /* 186: signed out answers null too, and only signing in changes it — which is what
+               makes the sign-in round trip drivable rather than merely paintable. */
+            const noTenant = nonMember || (signedOut && !fakeSession());
+            /* 188 — THE SHIM DISPATCHES ON THE FUNCTION NAME, which it did not have to while there
+               was only one RPC. Same argument the paragraph above makes for serving `rpc` at all:
+               app.js reads an unrecognised answer as "could not tell", which for the ROLE resolves
+               to owner — so a shim that handed the tenant uuid back for `current_business_role`
+               would put all 30 specs on the degraded path and none of them would ever exercise a
+               real role. `opts.role` is what lets a spec be staff; a caller with no tenant has no
+               role either, which is what the server answers.
+               ⚠️ IT RETURNS ABOVE THE COUNTER ON PURPOSE — see the counter's own note. */
+            if (name === 'current_business_role') {
+              return Promise.resolve({ data: noTenant ? null : (role || 'owner'), error: null });
+            }
             /* `opts.rpcFailsAfter` lets the tenant lookup start FAILING after N calls while every
                table read keeps succeeding. That combination is the shape of a real defect (185's
                pre-push review): from an existing non-member gate, a re-sync whose lookup alone
                fails must not fall open, because RLS returns `[]` rather than an error and nothing
                downstream would throw. It is unreachable without this hook — one request out of
-               twelve has to fail, and only that one. */
+               twelve has to fail, and only that one.
+               ⚠️ `__rpcCalls` COUNTS THE TENANT LOOKUP ONLY, and 188 had to move it below the role
+               branch to keep that true. Counting both would be a quiet correctness bug in a
+               HARNESS, which is the worst place for one: a boot now issues TWO rpc calls, so
+               v161-nonmember.spec.js's `expect(rpcCalls).toBeGreaterThan(1)` — written to prove the
+               re-sync actually ran, or "this test proves nothing" in its own words — would have
+               been satisfied by the first boot alone and could no longer fail. Exactly the
+               assertion-that-cannot-fail class CLAUDE.md counts eighteen of, introduced by adding
+               an unrelated RPC. The counter means "how many times was the TENANT asked". */
             window.__rpcCalls = (window.__rpcCalls || 0) + 1;
             if (rpcFailsAfter && window.__rpcCalls > rpcFailsAfter) {
               return Promise.resolve({ data: null, error: { message: 'fixture: tenant lookup timed out' } });
-            }
-            /* 186: signed out answers null too, and only signing in changes it — which is what
-               makes the sign-in round trip drivable rather than merely paintable. */
-            const noTenant = nonMember || (signedOut && !fakeSession());
-            /* 188 — AND THE SHIM NOW DISPATCHES ON THE FUNCTION NAME, which it did not have to
-               while there was only one RPC. It is the same argument the paragraph above makes for
-               serving `rpc` at all: app.js reads an unrecognised answer as "could not tell", which
-               for the ROLE resolves to owner — so a shim that handed the tenant uuid back for
-               `current_business_role` would put all 30 specs on the degraded path and none of them
-               would ever exercise a real role. `opts.role` is what lets a spec be staff; a caller
-               with no tenant has no role either, which is what the server answers. */
-            if (name === 'current_business_role') {
-              return Promise.resolve({ data: noTenant ? null : (role || 'owner'), error: null });
             }
             return Promise.resolve(
               noTenant ? { data: null, error: null }
