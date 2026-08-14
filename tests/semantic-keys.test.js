@@ -163,7 +163,42 @@ test('the mirror swaps the keys AFTER business_id exists, and is a no-op on a re
     're-mirroring must be idempotent — an unguarded drop would take the composite key away');
 });
 
-test('the mirror\'s restore_backup is BYTE-IDENTICAL to the migration\'s', () => {
+/* ⚠️ 187 REWROTE THIS TEST RATHER THAN RE-POINTING IT, and the rewrite is the durable half.
+   It compared the mirror against `20260813_semantic_keys.sql` BY NAME, which was right for exactly
+   as long as 183 was the last migration to touch the function. 187 adds an owner-only guard to it,
+   so the named comparison went red on a change that was correct — a test failing because the world
+   moved, which is one re-point away from being deleted by someone in a hurry.
+   The invariant was never "the mirror matches 183". It is "the mirror matches whichever migration
+   LAST changed this function", so the file list is read off the directory and the newest one wins.
+   Now it cannot rot, and the next batch to touch `restore_backup` gets the check for free. */
+const RESTORE_SIG = 'create or replace function public.restore_backup(payload jsonb)';
+const MIGRATIONS_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
+
+function restoreBlock(text) {
+  const a = text.indexOf(RESTORE_SIG);
+  if (a < 0) return null;
+  /* ⚠️ THE DOLLAR TAG IS READ, NOT ASSUMED. The first cut hardcoded `$fn$` — which is what 183 and
+     187 use — and `20260806_restore_backup_v3.sql` quotes its body `$$`, so `indexOf` returned -1
+     and the extractor threw on a file it was supposed to be comparing. Then the SECOND cut capped
+     the search at 400 characters, which `20260803_restore_backup_fn.sql` breaks because it carries a
+     comment between the signature and the body. Two assumptions about a format, both true of the
+     newest files only, both read as a broken test rather than as what they were. The window is now
+     the whole remainder: the first `as $tag$` after the signature IS the body opener. */
+  const tag = /\bas\s+(\$[A-Za-z_]*\$)/.exec(text.slice(a));
+  assert.ok(tag, `a restore_backup block must open a dollar-quoted body: ${text.slice(a, a + 120)}`);
+  const b = text.indexOf(tag[1] + ';', a + tag.index + tag[0].length);
+  assert.ok(b > a, 'a restore_backup block must be terminated');
+  return text.slice(a, b + tag[1].length + 1);
+}
+
+/** Every migration carrying the function, oldest first — filenames are datestamped, so sorted. */
+function migrationsDefiningRestore() {
+  return fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => ({ file: f, block: restoreBlock(fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8')) }))
+    .filter((m) => m.block);
+}
+
+test('the mirror\'s restore_backup is BYTE-IDENTICAL to the NEWEST migration that defines it', () => {
   /* ⚠️ Not tidiness, and it was FALSE until 183. `functions_fp` — the mirror's only drift detector
      — hashes `pg_get_functiondef`, which INCLUDES the body's comments. The mirror's copy carried
      none of them, so re-running 01-schema.sql (step 2 of docs/STAGING.md's migration procedure,
@@ -171,14 +206,24 @@ test('the mirror\'s restore_backup is BYTE-IDENTICAL to the migration\'s', () =>
      comment-free body and turned that detector red for a reason that is not drift.
      Nothing noticed for two days because the deployed function on both projects comes from the
      MIGRATIONS, not from the mirror — so this test is the only thing that can notice. */
-  const grab = (text) => {
-    const a = text.indexOf('create or replace function public.restore_backup(payload jsonb)');
-    const b = text.indexOf('$fn$;', a);
-    assert.ok(a > -1 && b > a, 'both files must carry the function block');
-    return text.slice(a, b + '$fn$;'.length);
-  };
-  assert.equal(grab(MIRROR), grab(MIGRATION),
-    'the mirror must be the migration\'s text verbatim — copy the whole block, never hand-edit one line');
+  const defs = migrationsDefiningRestore();
+  assert.ok(defs.length >= 2, 'the function has been replaced more than once; that history is the point');
+  const newest = defs[defs.length - 1];
+  const mirror = restoreBlock(MIRROR);
+  assert.ok(mirror, 'the mirror must carry the function block');
+  assert.equal(mirror, newest.block,
+    `the mirror must be ${newest.file}'s text verbatim — copy the whole block, never hand-edit one line`);
+});
+
+test('an OLDER migration keeps its own body — a migration file is a record, not a document', () => {
+  /* The corollary, and it is what stops the test above being "make them all the same". Each
+     migration says what IT did on the day it ran; only the newest is what the database now holds.
+     Editing an old one to match today would make the only audit trail these migrations have
+     (`list_migrations` is empty) describe a past that did not happen. */
+  const defs = migrationsDefiningRestore();
+  const older = defs.slice(0, -1);
+  assert.ok(older.some((m) => m.block !== defs[defs.length - 1].block),
+    'every historical copy is identical to the newest, which means one of them was rewritten in place');
 });
 
 test('the mirror\'s restore_backup carries the composite conflict target too', () => {
