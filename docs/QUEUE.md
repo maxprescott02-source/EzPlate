@@ -31,7 +31,9 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+
+Blocked on: **Does a café come into existence because MAX provisioned it, or because a stranger signed up for one?** It is one question and it decides the whole shape; both answers are buildable and neither is more work than the other. See "The decision, and why it is his" below — `docs/decisions/2026-08-14-cafe-creation.md` puts it in plain language.
 
 **Found by batch 191 while shipping invitations, by reading the policy list rather than by hitting it.** Measured against production, 14 Aug 2026:
 
@@ -48,7 +50,25 @@ business_members  → ONE policy, "members read their own membership", SELECT, a
 
 **Why this is A and not B:** a second café literally cannot come into existence without Max opening the Supabase dashboard, which is the same sentence the invitations item was written to delete, one level up. The launch story is signup → café → catalogue → plates, and this is the second step.
 
-Requirements: a brand-new account can create a café and become its owner, without the dashboard. Decide whether that is a sign-up-time step or a first-run screen.
+### ⚠️ THE DECISION, AND WHY IT IS HIS — added by batch 192, which went to build this and stopped
+
+**This item's requirement presupposes something Max has said NO to, and nobody noticed because the two were decided a day apart.**
+
+- 192 shipped a sign-up form **gated by `invite_pending`**. The only way to get an account today is to be invited, and an invitation joins you to the café that sent it.
+- So there is **no such thing as "a brand-new account" that is not already destined for somebody else's café.** The requirement below cannot be met without opening a SECOND sign-up path that is not invitation-gated.
+- That second path is **self-service signup**, which is the exact thing the invitations decision says is still NO: *"A **self-service** sign-up form is still NO"* (Max, 14 Aug 2026, recorded in the invitations item and now in `HANDOVER-192`).
+
+**`CLAUDE.md` makes reversing his own call his, however good the reason.** So this is not a scheduling question and not an implementation choice; it is the one class that defers an item.
+
+**Three shapes, and only the middle one needs the reversal.** Measured against production 14 Aug 2026, not assumed: `businesses` and `business_members` carry exactly two policies, both `SELECT` to `authenticated`, and no INSERT anywhere. ⚠️ **The GRANTS are wide open on both tables to `anon` and `authenticated`** — it is RLS's default-deny, not the grants, that stops a write today. That is worth knowing before touching either table, and it is the opposite of what 191's `business_invites` does deliberately.
+
+- **A — Max provisions each café.** A `SECURITY DEFINER` function he calls, which creates the business and its founding membership together; he then invites the owner with the machinery 191/192 already shipped. **No self-service, no reversal, and it satisfies this item's literal words ("without the dashboard").** Max stays in the loop for every café that will ever exist.
+- **B — a first-run "name your café" screen** for any confirmed account with no membership and no invitation. Full self-service SaaS signup. **This is the reversal.**
+- **C — a FOUNDER invitation.** Max creates an invite that says "this address starts a NEW café" rather than "joins mine"; the existing gated sign-up is unchanged, and `claim_business_invite` grows one branch. **Reuses everything 191 and 192 built, keeps sign-up invitation-gated, and still lets a café exist without the dashboard.** This is the shape that fits what is already there, and it is the recommendation if he does not want B.
+
+⚠️ **AND THE ORDERING IS NOT A MATTER OF TASTE EITHER.** If the answer is B, a stranger's invoices reach `api/parse-invoice` and Gemini's free tier the day it ships — which **the privacy gate item forbids outright** ("before the first non-Scoopy's row exists, not after"), and pdf.js 4.2.67+ becomes real rather than theoretical the same day. **B cannot ship before those two, whatever he answers.** A and C do not have that problem, because Max still chooses every café.
+
+Requirements: a café can be created and get an owner **without the Supabase dashboard**. Which of A/B/C decides who may do the creating, and that is the blocked question — the sign-up-time-step-versus-first-run-screen wording this item used to carry presupposed B and has been deleted for that reason.
 ⚠️ **Do NOT open this by widening the policies on `businesses`/`business_members`.** A plain INSERT policy on `business_members` would let any signed-in account write itself a membership row for **any** business id it can name — which is every tenant policy 181-187 built, undone by one statement. The shape that fits what is already here is a `SECURITY DEFINER` function that creates the business and the founding membership together, exactly as `claim_business_invite()` creates a membership and nothing else can.
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
