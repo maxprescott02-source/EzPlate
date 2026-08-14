@@ -24,7 +24,7 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -33,10 +33,13 @@ const api = new Function(`
   "use strict";
   ${extractFn(SRC, 'tenantGateState')}
   ${extractFn(SRC, 'nonMemberMessage')}
-  return { tenantGateState: tenantGateState, nonMemberMessage: nonMemberMessage };
+  ${extractFn(SRC, 'sessionUser')}
+  ${extractVar(SRC, 'SIGNIN_MSG')}
+  return { tenantGateState: tenantGateState, nonMemberMessage: nonMemberMessage,
+           sessionUser: sessionUser, SIGNIN_MSG: SIGNIN_MSG };
 `)();
 
-const { tenantGateState, nonMemberMessage } = api;
+const { tenantGateState, nonMemberMessage, sessionUser, SIGNIN_MSG } = api;
 
 /* ── The one case that gates ─────────────────────────────────────────────────────────────────── */
 
@@ -140,6 +143,61 @@ test('the caller resolves unknown against what it already knows', () => {
     'and only a DEFINITE answer may clear the latch');
 });
 
+/* ── 186: the SAME null tenant, two screens ───────────────────────────────────────────────────
+   Dropping the `auth.uid() is null` branch from current_business_id() makes a SIGNED-OUT caller
+   answer null too — measured on staging over PostgREST, the same 200-with-null a signed-in
+   non-member gets. Everything above still decides WHETHER to gate; these decide WHICH screen, and
+   the whole distinction is the session. */
+
+test('a real session yields its user, which is what makes the screen a message and not a form', () => {
+  const u = { id: 'u-1', email: 'max@example.com' };
+  assert.deepStrictEqual(sessionUser({ data: { session: { user: u } }, error: null }), u);
+});
+
+test('a definite NO session is null — that visitor gets the sign-in form', () => {
+  // The exact shape supabase-js resolves getSession with when nobody is signed in.
+  assert.strictEqual(sessionUser({ data: { session: null }, error: null }), null);
+});
+
+test('a session that could not be READ is null too, and that is the decision', () => {
+  /* ⚠️ The fixture DISAGREES with itself on purpose (CLAUDE.md 184(b)): there IS a user in `data`,
+     and the error is what must win. Reading the user off a failed call would make the screen depend
+     on a value the client had no right to trust — and this is the one place the two fields can be
+     told apart, so a fixture where they agreed would prove nothing.
+     WHY null rather than a third state: the form is the action that helps under BOTH readings — a
+     non-member can sign in as someone else — while Sign out helps under only one. Unlike the tenant
+     answer above, neither branch here is unsafe; it is a choice of copy. */
+  assert.strictEqual(
+    sessionUser({ data: { session: { user: { id: 'u-1' } } }, error: { message: 'network' } }), null);
+  assert.strictEqual(sessionUser({ error: { message: 'boom' } }), null);
+  assert.strictEqual(sessionUser({}), null, 'an absent body is not a signed-in user');
+  assert.strictEqual(sessionUser(null), null, 'and neither is nothing at all');
+  assert.strictEqual(sessionUser(undefined), null);
+});
+
+test('the shim case — no auth API at all — reaches the sign-in screen, not a crash', () => {
+  /* softCall answers `{error}` when `SUPA.auth` is missing entirely, which is a real client: the
+     Playwright fake, and any boot where the auth module failed to construct. */
+  assert.strictEqual(sessionUser({ error: new TypeError('SUPA.auth is undefined') }), null);
+});
+
+test('the sign-in message says what signing in BUYS, and never that something failed', () => {
+  assert.match(SIGNIN_MSG, /sign in/i, 'it has to name the action: ' + SIGNIN_MSG);
+  assert.ok(!/error|failed|denied|not allowed|couldn|can’t|cannot/i.test(SIGNIN_MSG),
+    'nothing has gone wrong — a device that has not been signed in yet is the ordinary state: ' + SIGNIN_MSG);
+  // CLAUDE.md Tier 2: the four object nouns, and "dish"/"recipe" are forbidden.
+  assert.ok(!/\bdish(es)?\b|\brecipe(s)?\b|\bkitchen (word|name)/i.test(SIGNIN_MSG), SIGNIN_MSG);
+});
+
+test('the two screens are different screens — the copy may never be shared', () => {
+  /* If these ever collapse, one of two real failures is back: a stranger told to "ask the café
+     owner to add this account" when they have not signed in at all, or a signed-in non-member
+     handed a form that will not change their answer without saying why. */
+  assert.notStrictEqual(SIGNIN_MSG, nonMemberMessage(''));
+  assert.ok(!/No data has been lost/i.test(SIGNIN_MSG),
+    'nobody signed out has lost anything — saying so invents an alarm');
+});
+
 /* ── The early return. ────────────────────────────────────────────────────────────────────────
    ⚠️ THIS ONE IS STRUCTURAL AND SAYS SO. Everything above pins a condition, which is what this
    repo prefers; this pins a control-flow fact, because there is no cheaper way to reach it — the
@@ -162,6 +220,31 @@ test('the non-member branch RETURNS — it must never fall through into the pain
   const after = src.slice(i, i + 200);
   assert.match(after, /bootReady\('nomember'[^;]*\);\s*return\s*;/,
     'the gate must be the last thing this path does — anything after it paints an app with no data in it');
+});
+
+test('186: and so does the sign-in branch, which is now the FIRST one a stranger reaches', () => {
+  /* Structural for the same reason as its twin above, and stated as such. The two live one line
+     apart and the second is the one a mutant would find easier to drop: the non-member path had a
+     latch behind it from 185, and a fall-through here would paint an empty app for every
+     signed-out visitor — which, once the anon fallback is gone, is every first open on a device. */
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const i = src.indexOf("bootReady('signin'");
+  assert.ok(i > 0, 'bootstrapSync must raise the sign-in gate at all');
+  assert.match(src.slice(i, i + 200), /bootReady\('signin'[^;]*\);\s*return\s*;/);
+  // and the choice between the two must be made on the session, not on anything the client believes
+  const branch = src.slice(src.indexOf("_tg==='nomember' ||"), i);
+  assert.match(branch, /sessionUser\(\s*_ses\s*\)/,
+    'which screen is a question about the SESSION; which gate is a question about the tenant');
+
+  /* ⚠️ AND THE POLARITY, which is not pedantry: this assertion was ADDED after hand-mutating
+     `if(_u)` to `if(!_u)` and watching every unit test stay green. Only the browser specs caught it,
+     and they do not run in `npm test`. Inverted, a stranger who has never signed in is told "you're
+     signed in as , but that account isn't linked to a café" and offered Sign out, while a real
+     non-member gets a form that cannot change their answer. Both screens exist and both are wrong,
+     which is precisely the failure a count-the-states test cannot see. */
+  assert.match(branch, /if\(_u\)\s*\{\s*bootReady\('nomember'/,
+    'a SESSION means the non-member message; no session means the sign-in form. Inverting this ships two wrong screens');
 });
 
 /* ── The sync pill. Found by DRIVING it, not by a test. ───────────────────────────────────────── */

@@ -333,23 +333,62 @@ test('PART 2: current_business_id is security definer with a pinned search_path'
   assert.match(mfn.slice(0, 300), /set search_path = ''/, 'the mirror\'s copy lost its pinned search_path');
 });
 
-test('PART 2: the anon branch names the seeded business, and both files agree', () => {
-  /* The anon fallback IS today's behaviour: production has zero auth users, so
-     every request the app makes is anon. Point it at any other uuid — or delete
-     the branch — and Max's app is empty on the next boot, with no error. The
-     literal must also match the row `businesses` is seeded with, in both files,
-     or the fallback resolves to a business that does not exist. */
+/* ⚠️ 186 REWROTE THE TEST THAT WAS HERE, AND DID NOT DELETE IT TO GO GREEN.
+   It asserted that BOTH files carried `when auth.uid() is null` — the anon fallback — because at
+   the time production had zero auth users and dropping the branch would have emptied Max's app on
+   the next boot. `20260814_mandatory_sign_in.sql` deliberately drops it: he has an account and a
+   membership now (measured before applying), the anon key ships in `index.html`, and that branch
+   was the last permissive read in the database.
+   So the invariant it was protecting has INVERTED, and the useful half of it survives in a
+   different shape: the two files must still agree, and now they must agree on the NEW body.
+   Part 2's own file keeps its anon branch untouched — it is history, and rewriting a migration
+   that already ran would make the record lie. What the mirror must match is the LATEST migration
+   to touch the function. */
+const SIGNIN_MIG = fs.readFileSync(
+  path.join(__dirname, '..', 'supabase', 'migrations', '20260814_mandatory_sign_in.sql'), 'utf8');
+
+test('186: the anon fallback is GONE, from the migration and from the mirror alike', () => {
+  const bodyOf = (sql) => {
+    const i = sql.indexOf('create or replace function public.current_business_id');
+    assert.ok(i > -1, 'the function must be defined at all');
+    const from = sql.slice(i);
+    return from.slice(0, from.indexOf('$fn$;') + 5);
+  };
+  const mig = bodyOf(stripComments(SIGNIN_MIG));
+  const mirror = bodyOf(MIRROR_EXEC);
+  for (const [label, body] of [['the migration', mig], ['the mirror', mirror]]) {
+    assert.ok(!/auth\.uid\(\)\s*is\s*null/.test(body),
+      `${label} still carries the anon fallback — the published anon key would still read the café`);
+    assert.ok(!body.includes('00000000-0000-0000-0000-000000000001'),
+      `${label} still names the legacy business as a default tenant`);
+    assert.match(body, /where m\.user_id = auth\.uid\(\)/,
+      `${label} must still resolve a MEMBER to their own café`);
+    assert.match(body, /order by m\.created_at, m\.business_id/,
+      `${label} must keep the tie-break, or a two-café person's answer is planner-dependent`);
+  }
+  /* ⚠️ BYTE-IDENTICAL, not merely equivalent. `pg_get_functiondef` returns the stored source text,
+     docs/STAGING.md's fingerprint hashes it, and a mirror that differs by one space makes the only
+     drift detector this project has go permanently red. This is the assertion that catches it
+     before the fingerprint does. */
+  assert.strictEqual(mirror.trim(), mig.trim(),
+    'the mirror and the migration must define this function identically, whitespace included');
+});
+
+test('186: the seeded business row stays — it is data now, not a fallback target', () => {
+  /* The uuid stops being anybody's DEFAULT tenant and remains the id every one of Scoopy's rows
+     carries, so the mirror must still create it or staging restores into a business that does not
+     exist. Dropping the branch and the row together is the easy over-correction. */
   const SEED = '00000000-0000-0000-0000-000000000001';
-  [['the migration', PART2_EXEC], ['the mirror', MIRROR_EXEC]].forEach(([label, sql]) => {
-    const fn = sql.slice(sql.indexOf('create or replace function public.current_business_id'));
-    const body = fn.slice(0, fn.indexOf('$fn$;') > -1 ? fn.indexOf('$fn$;') : 600);
-    assert.match(body, /when auth\.uid\(\) is null/,
-      `${label} dropped the anon branch — every request this app makes today is anon, so that is an empty app`);
-    assert.ok(body.includes(SEED),
-      `${label}'s anon branch does not name the seeded business ${SEED}`);
-  });
   assert.ok(MIRROR_EXEC.includes(`values ('${SEED}'`),
-    'the mirror no longer seeds the business the anon branch falls back to');
+    'the mirror no longer seeds the business every existing row points at');
+});
+
+test('186: Part 2 is left exactly as it ran — a migration file is a record, not a document', () => {
+  /* It still carries the anon branch, and that is correct: it is what was applied on 13 Aug 2026.
+     Editing it to match today would make `list_migrations`-less history unreadable, and this repo's
+     only audit trail IS these files plus their commit messages. */
+  assert.match(PART2_EXEC, /when auth\.uid\(\) is null/,
+    'Part 2 was rewritten — the file must keep saying what it actually did');
 });
 
 test('PART 2: the append-only tables keep exactly select and insert', () => {

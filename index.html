@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=161">
+<link rel="stylesheet" href="css/style.css?v=162">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -178,6 +178,14 @@
 <div id="bootGate" hidden role="status" aria-live="polite">
   <div class="bg-inner">
     <div class="bg-spin" aria-hidden="true"></div>
+    <!-- 186: the app's name, shown ONLY on the sign-in state. Every other gate state is reached
+         from inside the app, where the header or the rail already says what this is; the sign-in
+         screen covers both (see the z-index note in css/style.css), so without this the public URL
+         answers a stranger with an unlabelled login box.
+         It carries no `display` rule, so the UA's `[hidden]` is not overridden and it needs no
+         `:not([hidden])` guard — same reasoning as the two buttons below, checked rather than
+         assumed. -->
+    <p class="bg-brand" id="bootGateBrand" hidden>EzPlate</p>
     <p class="bg-msg" id="bootGateMsg">Loading your data…</p>
     <button type="button" class="btn" id="bootGateRetry" hidden>Try again</button>
     <!-- 185: shown ONLY in the 'nomember' state — a signed-in account with no café. Try again is
@@ -186,6 +194,20 @@
          rule of its own (checked, not assumed), so the UA's `[hidden]` is not overridden and this
          needs no `:not([hidden])` guard. -->
     <button type="button" class="btn" id="bootGateOut" hidden>Sign out</button>
+    <!-- 186: shown ONLY in the 'signin' state — nobody is signed in, and after this batch a
+         signed-out browser can see nothing at all, so the Account screen's copy of this form sits
+         behind a screen that cannot be reached. Same classes as that one, so there is one form
+         language and no second set of field styles to keep in step.
+         ⚠️ THIS ONE DOES NEED A [hidden] GUARD, unlike the two buttons above: `.acct-form` sets
+         `display:flex`, and an author rule beats the UA's `[hidden]{display:none}` because origin
+         is decided before specificity — CLAUDE.md's `[hidden]` corollary. The guard is in
+         css/style.css, scoped to #bootGate. -->
+    <form class="acct-form" id="bgSignForm" hidden autocomplete="on">
+      <input class="acct-in" id="bgEmail" type="email" name="email" placeholder="you@example.com" aria-label="Email" autocomplete="username" required>
+      <input class="acct-in" id="bgPass" type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
+      <button class="btn primary" id="bgSignBtn" type="submit">Sign in</button>
+    </form>
+    <p class="acct-err" id="bgErr" hidden role="alert"></p>
   </div>
 </div>
 <div class="wrap" id="appMain">
@@ -921,7 +943,12 @@
                        clears this browser's saved view, and would have taken an unfinished plate
                        with it without saying so. Signing in now asks first if there is one, and the
                        copy no longer promises that nothing happens. -->
-                  <p class="stg-help">EzPlate does not need an account yet, and signing in does not change what you can see or do — every account shares this data until workspaces arrive. It clears this device’s saved view.</p>
+                  <!-- 186: this said "EzPlate does not need an account yet, and signing in does not
+                       change what you can see or do — every account shares this data until
+                       workspaces arrive". Both halves stopped being true the moment the anon
+                       fallback came out of `current_business_id()`: an account is now the ONLY way
+                       to see anything, and each account sees its own café and no other. -->
+                  <p class="stg-help">EzPlate needs an account: your café’s data is visible only to accounts its owner has added. Signing in clears this device’s saved view.</p>
                 </div>
               </div>
               <form class="acct-form" id="acctForm" autocomplete="on">
@@ -1449,7 +1476,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=161"></script>
+<script src="js/app.js?v=162"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

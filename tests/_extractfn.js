@@ -84,6 +84,14 @@ function extractFn(src, name, opts) {
         : `extractFn: function not found -> ${name}. app.js changed; update the caller (see the stack below)`);
     }
   }
+  /* 186: KEEP A PRECEDING `async`. The signature search finds the `function` keyword, so an async
+     function was sliced from there — dropping the modifier and turning every `await` in the body
+     into a syntax error. It surfaced as "await is only valid in async functions" pointing at the
+     extractor rather than at the function, which is exactly the confusion the parse check below
+     exists to prevent; it just could not see a cause it had created itself. */
+  const before = src.slice(Math.max(0, i - 12), i);
+  const am = /(?:^|[^\w$])(async\s+)$/.exec(before);
+  if (am) i -= am[1].length;
   const start = src.indexOf('{', i);
   let depth = 0;
   for (let n = start; n < src.length; n++) {

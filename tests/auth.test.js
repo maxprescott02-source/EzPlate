@@ -187,17 +187,24 @@ test('the Supabase session token is NOT purged — it is how the session survive
     'purging the auth token would undo the sign-in that triggered the purge');
 });
 
-test('BEING SIGNED OUT STILL RUNS THE WHOLE APP — nothing refuses to work without a session', () => {
-  /* ⚠️ REWRITTEN IN 185, DELIBERATELY, WHICH IS WHAT ITS OWN NOTE ASKED FOR. It read
-     "AUTH GATES NOTHING — no boot path or render path consults authUser" and ended:
-     "If that item makes auth mandatory, this test SHOULD be rewritten, deliberately, not deleted."
-     Batch 182 made RLS distinguish tenants and 185 made the app SAY SO when it resolves to none, so
-     "gates nothing" is no longer the whole truth. What survives is the half that is still
-     load-bearing and still the thing a later batch would break by accident:
+test('THE SERVER DECIDES WHETHER THERE IS A CAFÉ — the client never refuses on its own idea of who you are', () => {
+  /* ⚠️ REWRITTEN AGAIN IN 186, deliberately, and the TITLE changed because the old one is now false.
+     It read "BEING SIGNED OUT STILL RUNS THE WHOLE APP", on this reasoning:
 
        being signed OUT must keep working, because `current_business_id()` still answers the seeded
        café for `anon`. Closing that is the auth item's one-function change, and until it lands a
        client-side sign-in wall would lock Max out of his own café for no gain.
+
+     `20260814_mandatory_sign_in.sql` IS that one-function change, and Max has an account and a
+     membership (measured on production before it was applied), so the "for no gain" no longer holds
+     either. Being signed out now reaches a sign-in screen and nothing else.
+
+     THE HALF THAT SURVIVES IS THE ONE THAT ALWAYS MATTERED, and it is not weaker for the rewrite:
+     the app may only refuse on the SERVER's answer to which tenant this is. A client-side
+     `if(!authUser)` wall would be a second definition of that decision — the defect CLAUDE.md names
+     — and it would fire on a race, because `authInit` is not awaited before bootstrapSync runs. The
+     sign-in gate is raised by a null coming back from `rpc('current_business_id')`; the session is
+     read only to choose which of two SCREENS explains it.
 
      ⚠️ COMMENTS ARE STRIPPED FIRST. 185's own explanation of why bootstrapSync reads the session
      from its Promise.all *rather than off `authUser`* contains the word `authUser`, and the naive
@@ -229,23 +236,148 @@ test('185: the tenant gate reads the SERVER, and refuses only on an unambiguous 
     'a signed-in account with no café is TOLD; an empty app with no message is the defect');
 });
 
-test('there is NO sign-up path — the anon key already grants what an account would', () => {
-  assert.ok(!/signUp\s*\(/.test(SRC), 'no signUp call may ship while RLS is still using(true)');
+test('there is NO sign-up path — an account is created for you, never by you', () => {
+  /* ⚠️ 186 changed WHY, and the why is the whole test. It used to be "the anon key already grants
+     what an account would, so a form would only advertise it" — true until this batch, and dead the
+     moment the anon fallback came out of `current_business_id()`: a stranger with the anon key now
+     gets nothing at all.
+     The reason it stays absent is now the ordinary multi-tenant one, and it is stronger: a self-made
+     account lands in NO café, so a sign-up form's whole outcome is 185's "ask the café owner to add
+     this account" screen. Shipping a form whose only possible result is a dead end is worse than not
+     shipping one. Accounts are made in the dashboard until the roles item builds invitations.
+     ⚠️ Supabase sign-ups remain open at the API LEVEL regardless — that is the gate-review item's,
+     and this assertion does not and cannot cover it. */
+  assert.ok(!/signUp\s*\(/.test(SRC), 'no signUp call may ship while an account cannot join a café');
   assert.ok(!/id="acctSignUp"/.test(HTML), 'and no sign-up control');
   assert.ok(/signInWithPassword/.test(SRC), 'sign-in itself must be real');
   assert.ok(/auth\.signOut/.test(SRC), 'and so must sign-out');
 });
 
-test('the sign-in error surfaces the REAL server message', () => {
+/* ── 186: authSubmit, the ONE sign-in sequence both forms wear ────────────────────────────────
+   These used to be substring greps of wireAccount's body. They are behavioural now, for two
+   reasons: the sequence moved out of that function (a grep would have gone quietly vacuous rather
+   than red — CLAUDE.md's whole roster), and there are two callers, so "it says the right words in
+   one of them" stopped being the question. The REAL authSubmit and the REAL errText run below;
+   only `authSignIn` — the network boundary — is a fixture, and it is a fixture rather than a
+   re-implementation: it returns the two shapes the real one is defined to resolve with. */
+function submitHarness(result) {
+  const S = { calls: 0, args: null, errs: [], btnStates: [] };
+  const btn = { set disabled(v) { S.btnStates.push(v); this._d = v; }, get disabled() { return this._d; }, _d: false };
+  // eslint-disable-next-line no-new-func
+  const authSubmit = new Function('S', 'R', `
+    "use strict";
+    var authSignIn = async function(email, pass){ S.calls++; S.args=[email,pass]; return R; };
+    ${extractFn(SRC, 'errText')}
+    ${extractFn(SRC, 'authSubmit')}
+    return authSubmit;
+  `)(S, result);
+  const showErr = (m) => S.errs.push(m);
+  return { S, btn, showErr, run: (e, p) => authSubmit(e, p, btn, showErr) };
+}
+
+test('the sign-in error surfaces the REAL server message', async () => {
   // A friendly generic message on a login is how someone spends ten minutes on a typo'd email.
-  const wire = SRC.slice(SRC.indexOf('function wireAccount'), SRC.indexOf('function renderSettingsTab'));
-  assert.ok(wire.includes('authErr(errText(r.error))'), 'the real error must reach the user');
-  assert.ok(!/authErr\('Something went wrong/.test(wire), 'no generic swallow');
+  const h = submitHarness({ error: { message: 'Invalid login credentials' } });
+  const ok = await h.run('a@b.com', 'hunter2');
+  assert.strictEqual(ok, false, 'a failed sign-in must report failure to its caller');
+  assert.ok(h.S.errs.includes('Invalid login credentials'),
+    'the server’s own words must reach the user, got: ' + JSON.stringify(h.S.errs));
 });
 
-test('the password field is cleared after a successful attempt', () => {
-  const wire = SRC.slice(SRC.indexOf('function wireAccount'), SRC.indexOf('function renderSettingsTab'));
-  assert.ok(/pw\.value=''/.test(wire), 'a password must not sit in the DOM after use');
+test('an unconfirmed account says so, rather than looking like a wrong password', async () => {
+  /* Measured while rehearsing the real account: Supabase answers "Email not confirmed", and a
+     generic swallow here is what would send someone to reset a password that was never wrong. */
+  const h = submitHarness({ error: { message: 'Email not confirmed' } });
+  await h.run('a@b.com', 'hunter2');
+  assert.ok(h.S.errs.includes('Email not confirmed'), JSON.stringify(h.S.errs));
+});
+
+test('a blank field never reaches the network', async () => {
+  for (const [e, p] of [['', 'pw'], ['a@b.com', ''], ['', '']]) {
+    const h = submitHarness({ data: {} });
+    const ok = await h.run(e, p);
+    assert.strictEqual(ok, false);
+    assert.strictEqual(h.S.calls, 0, `"${e}"/"${p}" must not be sent anywhere`);
+    assert.ok(/Enter your email and password/.test(h.S.errs.join(' ')), h.S.errs.join(' '));
+  }
+});
+
+test('the button is re-enabled on BOTH settle paths, not just the happy one', async () => {
+  /* CLAUDE.md 184(a): a promise has two settle paths, and the uncommon one here is the one that
+     fires when the café has no signal. A button left disabled is a screen the user cannot leave —
+     and on the boot gate there is nothing else on the screen at all. */
+  const good = submitHarness({ data: { user: { id: 'u1' } } });
+  assert.strictEqual(await good.run('a@b.com', 'pw'), true);
+  assert.deepStrictEqual(good.S.btnStates, [true, false], 'disabled while in flight, then released');
+
+  const bad = submitHarness({ error: { message: 'network' } });
+  assert.strictEqual(await bad.run('a@b.com', 'pw'), false);
+  assert.deepStrictEqual(bad.S.btnStates, [true, false], 'released on the failure path too');
+});
+
+test('a stale error is cleared before a new attempt, not left contradicting it', async () => {
+  const h = submitHarness({ data: {} });
+  await h.run('a@b.com', 'pw');
+  assert.strictEqual(h.S.errs[0], '', 'the first thing it does is clear the previous message');
+});
+
+test('BOTH sign-in forms ask before an unfinished plate can be discarded, and both record that they asked', () => {
+  /* ⚠️ THIS TEST ASSERTED THE OPPOSITE ONE COMMIT AGO, and the reversal is the point of writing it
+     out. It pinned that the boot gate's form must NOT set `authUserInitiated`, so `authSwitchUser`
+     would KEEP the plate draft — on the reasoning that the gate has put no question to the user and
+     may therefore not destroy their work.
+     THE PRE-PUSH REVIEW FOUND THE CASE THAT REASONING IGNORES. The gate's form is the only sign-in a
+     signed-out browser can reach, so it is also how a DIFFERENT account signs in on this device, and
+     `cafeDB_plateDraft` is a single global key with no tenant in it. Keeping it carries one café's
+     unsaved plate into another café's session, where it is offered BY NAME and its `{kid,qty}` lines
+     point at ids that mean something else.
+     Both readings agree on the underlying rule — nothing is destroyed without the user being told —
+     and they disagree about which side of it this screen sits on. Asking satisfies it directly.
+     STRUCTURAL, and it says so: the flag is read two functions away inside a reload path, so there
+     is no behavioural seam short of driving a whole boot. Comments are stripped first; this file has
+     been bitten by its own prose three times. */
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const gateForm = strip(SRC.slice(SRC.indexOf('function wireGateSignIn'), SRC.indexOf('function wireAccount')));
+  const acctForm = strip(SRC.slice(SRC.indexOf('function wireAccount'), SRC.indexOf('function renderSettingsTab')));
+
+  for (const [label, form] of [['the boot gate', gateForm], ['the Account card', acctForm]]) {
+    assert.match(form, /authGuardUnfinished\(/,
+      `${label}'s sign-in must put the unfinished-plate question BEFORE the session changes — CLAUDE.md: gating the last committing action is not a gate`);
+    assert.match(form, /authUserInitiated\s*=\s*true/,
+      `${label} must record that the question WAS asked, or the purge keeps a draft the user agreed to lose`);
+    assert.match(form, /authUserInitiated\s*=\s*false/,
+      `${label} must take it back when the sign-in fails, or the next involuntary event purges a draft for nothing`);
+  }
+});
+
+test('a signed-out or non-member boot is NEVER offered somebody else\'s plate draft', () => {
+  /* The other half of the same finding, and the sharper half, because it needs no account switch at
+     all. `offerPlateDraftResume`'s own comment states that the confirm modal outranks the boot gate
+     in z-index, so Resume is tappable while the gate is up — harmless while the only gate was a
+     failed boot on the owner's device, and not harmless now that the gate is the front door.
+     Without the guard, a stranger who opens the URL on a device that once held a session is shown a
+     dialog naming a plate, and can load its lines. */
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const fn = strip(SRC.slice(SRC.indexOf('function offerPlateDraftResume'), SRC.indexOf('function saveCurrentPlate')));
+  const guard = fn.indexOf('_bootNoMember');
+  const ask = fn.indexOf('askConfirm');
+  assert.ok(guard > -1, 'the resume offer must consult the gate at all');
+  assert.ok(ask > -1, 'and must still ask on a normal boot');
+  assert.ok(guard < ask,
+    'the guard must come BEFORE the dialog — after it, the plate name has already been shown');
+  assert.match(fn.slice(Math.max(0, guard - 6), ask), /if\s*\(\s*_bootNoMember\s*\)\s*return/,
+    'and it must RETURN, not merely branch: falling through is the whole defect');
+});
+
+test('the password field is cleared after a successful attempt — in BOTH forms', () => {
+  /* Two callers now, and the clear lives in each handler rather than in authSubmit: the field
+     element is the caller's, not the sequence's. So this counts, rather than matching once and
+     calling it proved. */
+  const wire = SRC.slice(SRC.indexOf('function wireGateSignIn'), SRC.indexOf('function renderSettingsTab'))
+    .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  const hits = wire.match(/pw\.value=''/g) || [];
+  assert.strictEqual(hits.length, 2,
+    'a password must not sit in the DOM after use, on either form — found ' + hits.length);
 });
 
 test('the account markup toggles with [hidden] and carries no display rule that would beat it', () => {

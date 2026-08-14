@@ -31,37 +31,16 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · Supabase Auth — the REMAINDER  **[A — launch blocker]**
-
-⚠️ **REWRITTEN 12 Aug 2026 (174). Email/password sign-in SHIPPED as `ezplate-v154`; three pieces are left and one of them is Max's.**
-
-**What shipped.** Real `signInWithPassword` / `signOut` on the Account screen's Profile card, session restored on boot, and a change of user purging local state through the same `purgeLocalState` the environment fence uses — one rule, not two. The initial session event deliberately never purges, because `onAuthStateChange` fires `INITIAL_SESSION` on every load and treating that as a switch would wipe the plate draft on every boot.
-**It gates nothing, on purpose.** Every RLS policy is still `using (true)` for `public`, so a signed-in session sees exactly what a signed-out one sees; `tests/auth.test.js` pins that nothing consults `authUser`. Gating before isolation exists would lock the door on a building with no walls.
-
-**What is LEFT:**
-- **Google sign-in.** Needs a Google Cloud OAuth client id and secret pasted into the Supabase dashboard, which is **Max's to do** — no code can create it. The client call is two lines once it exists. It was listed as "optional" and stays optional.
-- **Making an account mean something.** ⚠️ **RLS NOW DISTINGUISHES TENANTS — batch 182 shipped it — so this bullet has changed from "waiting on another item" to "the work of this one", and it carries a real hazard.** `current_business_id()` answers the seeded Scoopy's business for `anon`, the caller's business for a member, and **NULL for a signed-in account with no `business_members` row**. NULL matches nothing, so that account sees an empty app with no error.
-  **Do these three here, and answer them here — do not route them onward:**
-  1. ✅ **DONE, 14 Aug 2026. Max has an account and it is a member.** He created it in the dashboard with Auto Confirm ticked; the membership row went in before he signed in, and `current_business_id()` resolves him to `Scoopy's Family Cafe` with exactly one membership. Sign-in was then driven on production and behaves correctly — the app is unchanged, which is the point, because `anon` and a signed-in member both resolve to the same café today.
-     ⚠️ **This is now a PRECONDITION of step 3 rather than a task**, and step 3 is the one that can lock him out, so the numbers are worth carrying: user `a6a165ce-451c-4e5f-ab34-7f7d9d8e91fc`, business `00000000-0000-0000-0000-000000000001`. **Re-measure both before dropping the anon fallback — do not trust this line.** One-statement rollback: `delete from public.business_members where user_id = 'a6a165ce-451c-4e5f-ab34-7f7d9d8e91fc';`
-     What this did NOT prove: he is the only account, so **a signed-in NON-member has still never been driven through the app UI on production**, which is exactly what step 2 is about. Staging has `c@example.com` for that case.
-  2. ✅ **DONE, 14 Aug 2026 — batch 185 shipped it as `ezplate-v161`.** A signed-in non-member now gets a full-screen boot gate naming the account, saying no data has been lost, and offering **Sign out** — with **Try again hidden**, because retrying asks the same question and gets the same answer. The decision is `tenantGateState`, which reads `rpc('current_business_id')` off bootstrapSync's existing `Promise.all` and answers **three** things — `ok` / `nomember` / `unknown`. Only a definite uuid clears the gate, only a strict null raises it, and "could not tell" changes nothing in either direction; the caller resolves `unknown` against what it already knows. **Do not simplify that back to a boolean** — it was one, the pre-push review found the defect, and `CLAUDE.md` Tier 1 now carries the rule.
-     ⚠️ **Two things step 3 needs from this and must not re-derive.** First, the signal: measured over PostgREST, `anon` and a MEMBER both get the café's uuid and only a signed-in non-member gets `null` — so **when the anon branch goes, `anon` starts returning `null` too, and every signed-out visitor will hit this gate saying "ask the café owner to add this account".** That wording is right for a stranger and wrong for Max on a fresh browser; step 3 must decide what a signed-OUT caller sees before it drops the branch, and it is a sign-in screen, not this. Second: `tests/visual/_boot.js` now takes `nonMember:true`, which is the only way to reach the state in a browser.
-  3. **Only then is dropping the anon fallback possible.** Removing the `auth.uid() is null` branch from `current_business_id()` is what makes sign-in mandatory and closes the last permissive read in the database — it is a **one-function change**, and it must not land before 1 and 2, or Max is locked out of his own café.
-     ⚠️ **Re-measure his membership before running it** — the ids in step 1 are recorded, not to be trusted. And read step 2's warning above: this change re-points the gate at every anonymous visitor, so the signed-out experience has to exist first.
-- **Opening sign-up.** There is deliberately no sign-up path: the anon key ships in `index.html`, so anyone reading the page already has the access an account would grant, and a form would advertise it. Accounts are made in the Supabase dashboard until RLS closes that gap. ⚠️ **Supabase sign-ups are open by default at the API level regardless**, which is not made worse by this item but IS part of the gate review.
-- **Email confirmation is ON**, found while rehearsing: an account created without confirmation cannot sign in ("Email not confirmed"). A dashboard-created account must be marked confirmed, or the first real sign-in fails in a way that looks like a wrong password. ✅ Confirmed again on the real account, 14 Aug 2026 — the dashboard's **Auto Confirm User** checkbox is the thing to tick, and it works.
-
-*(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182. The second bullet is now this item's own work and carries the empty-app hazard written into it above; the Google half still needs nothing but Max.)*
-
-## next  2 · Roles — owner vs staff  **[A — launch blocker]**
+## next  1 · Roles — owner vs staff  **[A — launch blocker]**
 
 The app currently tells staff "owner and staff access is already planned" while nothing is built. **That copy ships or comes out.**
 **DECIDED (Max, 9 Aug 2026): TWO roles — owner + working staff.** Staff import invoices and edit ingredients/plates; staff cannot delete plates or menus, change the target, restore backups, or touch billing. No manager role unless a real person at a real café needs one later.
 *(`Do after: business_id PART 2` DELETED 13 Aug 2026 — PART 2 shipped in batch 182.)* **Read `20260813_business_id_part2.sql` before starting:** all thirteen policies now read one function, `current_business_id()`, so a role check is added to that shape once rather than to thirteen policies — and `business_members` deliberately has NO `role` column yet, which is this item's to add.
+⚠️ **HOW AN ACCOUNT GETS CREATED IS THIS ITEM'S, and it arrived here when the auth item was deleted on 14 Aug 2026 — answer it here, do not route it onward.** Since batch 186 sign-in is mandatory and `current_business_id()` has no anon branch, so **an account that joins no café can see nothing at all**: a self-service sign-up form's only possible outcome is 185's "ask the café owner to add this account" screen, which is why no sign-up path ships and why `tests/auth.test.js` pins its absence with that reason written in. Accounts are made in the Supabase dashboard today, and **the thing that replaces that is an invitation, which is a role decision** — an owner adds someone, which is a `business_members` row plus the `role` column this item adds anyway.
+Two operational facts a batch here will otherwise rediscover: **email confirmation is ON**, so a dashboard-created account that is not marked confirmed fails its first sign-in with "Email not confirmed", which reads exactly like a wrong password (the **Auto Confirm User** checkbox is the fix, proved twice on real accounts); and **Supabase sign-ups are open by default at the API level** whatever the client ships, which is the gate-review item's to close, not this one's.
 ⚠️ **Decide here whether one person may belong to TWO cafés, and answer it here — do not route it onward.** `business_members`' primary key is `(business_id, user_id)`, so today nothing forbids it, and `current_business_id()` resolves such a person to their OLDEST membership. That ordering was added by 182's pre-push review to stop the answer being planner-dependent — it makes the choice stable, **not correct**. If two cafés are allowed, the person has to be able to CHOOSE, and that choice needs somewhere to live that the client can set and the function can read; if they are not, add a unique constraint on `user_id` and the question is closed. Either way it stops being a silent arbitrary pick.
 
-## next  3 · Onboarding and empty states  **[A — launch blocker]**
+## next  2 · Onboarding and empty states  **[A — launch blocker]**
 
 Every screen at zero, which production has never shown.
 **Including how a new café gets a product catalogue at all** — named explicitly because "bulk catalogue bootstrap" was inside this item by implication only, and an implied requirement is one nobody builds. Scoopy's catalogue arrived over months of invoice imports; a second café starting from an empty `ingredients` table has no such history, and an empty catalogue means no ingredients, so no plates, so nothing the app can do.
@@ -72,7 +51,7 @@ Every screen at zero, which production has never shown.
 ⚠️ **What 184 did NOT do, and it is this item's:** the builder's "Add to a menu" dead-ends at zero with *"No menus yet — create one on the Menu tab first"*, while the Menu tab's own **Existing plate** button now silently makes one for you. Neither is wrong; they disagree, and a new café meets the discouraging one first. That is an empty-state decision, not a data one.
 ✅ **Testable as of 172.** This item is only reachable at zero and production is never empty, which is why it could not be started before. `supabase/staging/02-seed-empty.sql` now produces exactly that state — every table empty INCLUDING `app_settings`, so there are no kitchen words either, which is the only honest zero. Point the app at it with `?env=staging`; `docs/STAGING.md` has the procedure.
 
-## next  4 · The privacy gate  **[A — launch blocker]**
+## next  3 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -80,19 +59,19 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  5 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  4 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  6 · Gate review before public signup  **[A — launch blocker]**
+## next  5 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
 Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them. *(`business_id` PART 2 struck from this line 13 Aug 2026 — shipped in batch 182.)*
 ⚠️ **One line of this item is now ANSWERED and one is now SHARPER.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that means it is tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. **The anon-key exposure is the opposite:** it is now the LAST permissive read in the database, because `current_business_id()` answers the seeded business for any caller with no JWT. Every other tenant is already isolated from it; Scoopy's is not. Closing it is the auth item's one-function change, and this review is where it gets signed off.
 
-## next  7a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  6a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -127,7 +106,7 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  7b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  6b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
 Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered FIVE times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, and to 7a in 184 when `MENU_ORIGINAL` did. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
@@ -147,7 +126,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  8 · Floating layers and mobile dropdowns  **[B]**
+## next  7 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
