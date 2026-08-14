@@ -51,8 +51,14 @@ function sandbox(seed) {
     var _ingLogPending = [];
     function saveProductCache(){}
     function rebuild(){}
-    function dbPushIngredient(id){ PUSHED_P.push(id); }
-    function dbPushIngPrice(pid, t, v){ PUSHED_H.push({pid:pid, t:t, v:v}); }
+    /* 193: the stubs moved DOWN to the plural boundary, because that is where the real chain now
+       ends — setProducts calls dbPushIngredients/dbPushIngPrices, and stubbing the singular ones
+       would have left two functions nothing calls while the real writers ran for real. They flatten
+       back to one entry per product and per point, so every assertion below still means exactly what
+       it meant: this product was pushed, and this point was flushed rather than stranded. */
+    function dbPushIngredients(ids){ (ids||[]).forEach(function(id){ PUSHED_P.push(id); }); return Promise.resolve({error:null}); }
+    function dbPushIngPrices(pts){ (pts||[]).forEach(function(p){ PUSHED_H.push({pid:p.pid, t:p.t, v:p.v}); }); return Promise.resolve({error:null}); }
+    ${extractFn(SRC, 'setProducts')}
     ${extractFn(SRC, 'setProduct')}
     ${extractFn(SRC, 'samePrice')}
     ${extractFn(SRC, 'logIngPrice')}

@@ -75,64 +75,19 @@ Requirements: a café can be created and get an owner **without the Supabase das
 ⚠️ **Do NOT open this by widening the policies on `businesses`/`business_members`.** A plain INSERT policy on `business_members` would let any signed-in account write itself a membership row for **any** business id it can name — which is every tenant policy 181-187 built, undone by one statement. The shape that fits what is already here is a `SECURITY DEFINER` function that creates the business and the founding membership together, exactly as `claim_business_invite()` creates a membership and nothing else can.
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  2 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
+## next  2 · `project-audit`  **[A — the counter fired]**
 
-**Split out of `Onboarding and empty states` by batch 190, which shipped the rest of that item.** It was inside it by implication only, and an implied requirement is one nobody builds — so it is its own item now, because it is a FEATURE and the rest was two view-layer fixes.
+**Queued by batch 193 because the gap reached 10, which is the trigger and the whole mechanism.**
+The newest report is `docs/audits/AUDIT-v156.md`; 193 shipped `ezplate-v166`. 192's handover predicted this exactly: *"the next batch to ship a client asset will hit it and must queue the audit above every unblocked item."* This is that.
 
-Scoopy's catalogue arrived over months of invoice imports. A second café starting from an empty `ingredients` table has no such history, and **an empty catalogue means no ingredients, so no plates, so nothing the app can do.** Every empty state 190 verified is honest and every one of them points at this hole: Products says *"Import an invoice to fill your catalogue, or add one product by hand"*, and by-hand for 400 products is not an answer.
+It sits above every UNBLOCKED item. The café-creation item above it is not unblocked — its `Do after:` is unmet — so nothing here reorders anything real.
 
-Requirements: a brand-new café can populate a usable catalogue without hand-typing it.
+Requirements: run the `project-audit` agent, then **FILE THE REPORT YOURSELF** to `docs/audits/AUDIT-v166.md`. The agent is read-only and hands the report back rather than saving it, and an unfiled report leaves the counter unchanged, so the next audit is never queued and this whole mechanism silently stops. Route its findings by the tier test in this file's header — the default is `docs/MAINTENANCE.md`, and the audit does not add queue items itself.
 
-⚠️ **"THE INVOICE IMPORTER IS ALREADY THE ROUTE" IS THE OBVIOUS ANSWER AND IT IS WRONG AT ZERO — read this before planning, because 190 nearly recommended it and then measured it.** Traced through `invRowState` against an empty `ingredients` table:
-
-- `invRowState` returns `'matched'` only when `r.bestId` resolves to an existing product. With **zero** products nothing can match, so **every line falls to `'review'`** by way of `if(!r.bestId) return 'review'`.
-- The auto-tick rule (a hard rule in `CLAUDE.md`) pre-ticks **only** `'matched'` rows. So on the first import of a new café's life, **not one line is pre-ticked** and the importer's whole leverage — confirm a screenful at once — is absent exactly when it is needed most.
-- Clearing a line means opening its add-new panel and settling **five** fields: name plus the four `NI_COMBOS` (`brand`, `cat`, `sup`, `king`). Gemini prefills four of them when the AI check is on (`AI_FIELD`), and **never `king`**, the kitchen word — so every line needs a human regardless.
-
-**So a 60-line first invoice is 60 panels, and that is hand-typing wearing a different hat.** The importer is not broken and needs no fix for Scoopy's; it is simply designed around a catalogue that already exists.
-
-### ✅ DECIDED, 14 Aug 2026 (Max) — a SUPPLIER EXPORT import, and the source was measured in his own account
-
-Three shapes were put to him: a supplier file import, a starter catalogue, or a bulk "accept all as new" mode for the existing importer.
-
-- **Bulk-accept is OUT, and it was the recommendation until he answered.** Asked whether a messy catalogue would be acceptable on day one, his answer was *"i dont think so it shouldnt really be messy that would be a turn off for customers."* Accepting invoice lines wholesale means AI-guessed names, brands and categories across every row, which is exactly that.
-- **A shipped starter catalogue is OUT and should not be reopened.** Any realistic one would be built from Scoopy's data, which would publish a real café's supplier list and pricing to every stranger who installs EzPlate. See the repository-is-public section of `CLAUDE.md`.
-- **A supplier export import is IN**, and 2b is why: Scoopy's own 393-product catalogue never came from invoices at all. Max downloaded a file from the supplier portal and had an LLM turn it into the products JSON, once. That is the bootstrap that actually happened, and it is clean by construction.
-
-⚠️ **THE SOURCE FILE EXISTS AND ITS SHAPE WAS READ FROM THE LIVE PORTAL, 14 Aug 2026** — signed in as the café, in Chrome, read-only; nothing was downloaded and nothing was changed. **Do not go and re-derive this, and do not guess the columns.**
-
-**Where it is:** the supplier portal's `Accounts → Reports → Previous purchases`, which has its own **Export** button and offers **up to 24 months of history**. A `Report exports` page sits beside it. The report has a **Standard** and an **Advanced** form; Advanced adds `ORDER BY: CUSTOMER / CATEGORY / PREFERRED` and subtotal rows, which is how a **category** is obtained — Standard has no category column.
-
-**The Standard columns, in order:** `PRODUCT CODE · BRAND · DESCRIPTION · PACK SIZE · CTN QTY · UOM · QTY · LAST PRICE PAID · TOTAL EX GST · GST · TOTAL INCL GST · ACCOUNT`.
-
-**Why that settles the design rather than merely informing it:** those columns carry **every input the app already computes a unit cost from**, so nothing has to be inferred and no model has to be asked. `PACK SIZE` + `UOM` + `CTN QTY` are exactly what `packToUnitCost` takes; `LAST PRICE PAID` is the price; `PRODUCT CODE` is a stable per-supplier id that makes re-importing an update rather than a duplicate; `BRAND` and `DESCRIPTION` map straight across. **This is a deterministic import with no AI in the path**, which is what makes it satisfy the not-messy requirement that killed bulk-accept — and it means the privacy gate below does **not** bind this item, because nothing here goes near `api/parse-invoice`.
-
-Requirements when this is built:
-- Import a supplier export and create products from it, deterministically. **No model in the path** — that is the property being bought.
-- **Re-importing must UPDATE on `PRODUCT CODE`, never duplicate**, so the same file can be used to refresh prices later. Decide against `setProduct`, which is `ing_price_history`'s one writer — a bulk price refresh is a real price movement and belongs in that series, so **do not bypass it**; and read the `isFinite('')` trap before parsing a single number.
-- ⚠️ **The format is one supplier's, and the item must not pretend otherwise.** Ask what happens for a café on a different supplier before designing the file picker: a named-format importer that says which formats it knows is honest, a "CSV importer" that silently assumes these column headings is not.
-- Prove it against a real export end to end, and **do not commit the file or any row of it** — the repository is public.
-### ✅ AND THE LAST OPEN QUESTION IS ANSWERED — market research, 14 Aug 2026, at Max's instruction
-
-He was unsure whether the first release should read only this supplier's export or a generic CSV too, and asked for the market to be checked rather than the cheapest thing built. **The answer is BOTH, in one build, and the ordering matters:**
-
-**Build the generic mapped importer FIRST, then ship the supplier export as a recognised preset on top of it.**
-
-- **A column-mapping step is the industry norm, not a luxury.** Every serious tool imports a spreadsheet and has the user map their columns onto its fields; Restaurant365's own docs describe columns needing to be mapped to record rows. A fixed-template-only importer is below market.
-- **Named supplier integrations are the PREMIUM tier and are per-supplier work.** MarketMan's supplier integrations (Sysco, Gordon, Performance Foodservice and others) auto-update prices, product codes and new items. That is the top end, it is sold as a differentiator, and it is one build per supplier — which is exactly why it cannot be the only path.
-- **Onboarding speed is where the incumbents are weak, so it is the thing worth winning.** MarketMan quotes **2-3 weeks** to get running *with a dedicated onboarding team*, and the trade press calls building the item master the most labour-intensive phase of any implementation. A café that goes from signup to a costed catalogue in minutes, unattended, is a real competitive claim — and it is only true if the file it needs is one the café can already produce.
-- **The Australian ecosystem is a genuine gap and also a trap.** US-built tools are described as missing it entirely, and the local competitor positions squarely on naming PFD, Bidfood and Holco. **But a preset per supplier does not scale**, so the presets must sit on a generic mapper rather than replace it.
-
-⚠️ **"CSV/XLSX" IS NOT FREE, AND THE ITEM DOES NOT ACKNOWLEDGE IT — flagged by batch 192 reading this against `CLAUDE.md`, before building.** An `.xlsx` is a ZIP of XML and **cannot be parsed without a library**, which collides head-on with the standing rule: two third-party scripts ship today and *"adding a third needs Max's yes, not a judgement call."*
-✅ **ANSWERED 14 Aug 2026 (Max): CSV ONLY** (`docs/decisions/2026-08-14-cafe-creation.md` q2, answer A). No third dependency. **The file picker accepts CSV and SAYS so** — it must not silently fail on a workbook, because "nothing happened" is the worst possible first minute of a new café's life. Adding XLSX later is a fresh yes, not an enhancement.
-⚠️ **The supplier export's actual FORMAT was never recorded** — the columns were read from the portal, the download was not taken. **Confirm its Export offers CSV before building the preset**; if it only offers a workbook, that is a finding to bring back rather than a reason to add a library, and "save it as CSV first" is a legitimate one-line instruction in the UI.
-
-**So the shape:** parse a CSV → detect a known header signature and pre-fill the mapping → otherwise ask the user to map, with the app's own fields named in plain words. The supplier export becomes zero-config for the common case, and a café on any other supplier is still served on day one. **This supersedes the earlier note in this item that a named-format importer was the honest option and a generic CSV was not** — the honest thing is a mapper that SHOWS the mapping it guessed and lets it be corrected, which is neither of the two things that were originally put to Max.
-
-⚠️ **COMPETITIVE FACT FOUND WHILE RESEARCHING THIS, AND IT IS NOT ABOUT THE IMPORTER — READ IT BEFORE PLANNING ANY LAUNCH WORK.** The supplier's own portal ships **MyRecipes / Menu Planning**, a recipe-costing feature, free to account holders, and it is promoted on **live pricing** — the nav item is visible in the account this export was measured from. So the nearest competitor to EzPlate for its own first customer is **free, already installed, and has price data EzPlate cannot match without an integration.**
-**That is not a reason to stop; it is a reason to know what the answer is.** The defensible ground is that it costs one supplier's products only, that a supplier's costing tool will never tell a café to buy elsewhere, and that EzPlate is multi-supplier by construction — **all of which argue for the generic mapper above rather than against it.** Whether any of that is worth building a business on is Max's call and nobody has put it to him yet.
-⚠️ **Do not re-derive the zero state; 190 measured it.** `installBoot(page, {noProducts:true})` with clean storage is genuine zero and `tests/visual/v164-onboarding.spec.js` boots it. `Second Cafe (staging)` also holds zero rows on every table with `b@example.com` as its owner, so no seed needs running to get a real RLS-enforced zero.
-⚠️ **The privacy gate binds this if the answer routes through `api/parse-invoice`** — a second café's invoices reaching Gemini's free tier is the exact thing that item forbids before launch.
+⚠️ **Three things this audit should be pointed at, because 193 touched them and they are the kind of claim that rots:**
+- `CLAUDE.md`'s row-boundary section, which now has a fourth column-list to keep in step (`supplier_code` in `ingredientToRow`/`rowToIngredient`, the migration, and `supabase/staging/01-schema.sql` — the "three places" law).
+- The twenty-incident test roster, which 193 added to and which has undercounted itself before.
+- Whether `ingredients_pkey` being `PRIMARY KEY (id)` rather than `(business_id, id)` is worth closing. 193 designed AROUND it (random ids, never content-derived) and recorded why in `supabase/migrations/20260815_supplier_code.sql`, but nothing enforces that a future batch will read that file before making an id meaningful.
 
 ## next  3 · The privacy gate  **[A — launch blocker]**
 

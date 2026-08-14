@@ -497,6 +497,25 @@ begin
 end $mig$;
 
 -- ---------------------------------------------------------------------------
+-- 4a2. THE CATALOGUE IMPORTER'S IDENTITY COLUMN — 20260815_supplier_code.sql (193).
+--
+-- ⚠️ IT IS DOWN HERE RATHER THAN IN SECTION 1's `create table` FOR A REASON THAT
+-- IS ABOUT THE FINGERPRINT, NOT ABOUT TIDINESS. `columns_fp` in docs/STAGING.md
+-- includes `ordinal_position`, and production got this column by ALTER, so it
+-- sits at position 22 — AFTER `business_id`, which the loop above adds at 21.
+-- Declaring it inside the `create table` would put it mid-table on a FRESH
+-- staging and leave the drift detector permanently red against production for a
+-- difference that is not drift. The same argument the `business_id` loop makes
+-- one comment up, for the same detector.
+--
+-- Nullable, NO default: `restore_backup` inserts `ingredients` with no column
+-- list, and an absent JSON key becomes an EXPLICIT NULL that overrides a
+-- DEFAULT. NULL is the right answer for every product not created by an import,
+-- so this column wants exactly what that path gives it. Do not give it one.
+-- ---------------------------------------------------------------------------
+alter table public.ingredients add column if not exists supplier_code text;
+
+-- ---------------------------------------------------------------------------
 -- 4b. THE TWO SEMANTIC KEYS ARE PER-TENANT — 20260813_semantic_keys.sql (183).
 --
 -- ⚠️ THIS CANNOT BE INLINE IN SECTION 1 AND THE REASON IS THE WHOLE POINT OF

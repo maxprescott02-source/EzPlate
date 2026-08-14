@@ -428,8 +428,18 @@ test('true-empty: §5\'s composed onboarding card, no band, no dead controls', a
   const errs = [];
   await boot(page, 1280, errs, { noProducts: true });
   await expect(page.locator('#ingList .empty-state')).toBeVisible();
-  await expect(page.locator('#ingList .es-actions .btn.primary'), 'import is the primary — a new café gets its catalogue from invoices').toHaveText('Import invoice');
+  /* ⚠️ THIS ASSERTION READ `toHaveText('Import invoice')` UNTIL 193, with the reason "a new café
+     gets its catalogue from invoices". That reason was measured and found false, which is why the
+     assertion is REWRITTEN here rather than deleted to go green: at zero products `invRowState`
+     can return 'matched' for nothing, so every line of a first invoice arrives untickable and a
+     60-line invoice becomes 60 hand-filled panels. The catalogue CSV import is the route that
+     works from nothing, so it is the primary now, and "Import invoice" is not offered on this
+     card at all — it stays in the screen header (#importBtn) at every width, so nothing is
+     stranded. The count is still exactly two: one primary, one not, which is what §7 asks. */
+  await expect(page.locator('#ingList .es-actions .btn.primary'), 'the route that works from an empty catalogue is the primary').toHaveText('Import catalogue');
   await expect(page.locator('#ingList .es-actions .btn:not(.primary)')).toHaveText('New product');
+  await expect(page.locator('#ingList .es-actions .btn'), 'two actions, not three — three stacked buttons is what 380 cannot carry').toHaveCount(2);
+  await expect(page.locator('#importBtn'), 'and the invoice route is still reachable from the header').toBeVisible();
   await expect(page.locator('#ingList > .ing-band')).toHaveCount(0);
   await expect(page.locator('#ingListNote')).toBeHidden();
   await expect(page.locator('#ingHeadSub'), 'nothing to count, so it says nothing — the card is speaking').toHaveText('');

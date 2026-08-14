@@ -17,7 +17,17 @@
 
 const targets = [
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
-  { fn: 'setProduct', tests: ['price-log-paths.test.js', 'pack-survives.test.js', 'cat-label.test.js'] },
+  /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
+     implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields
+     ZERO mutants, which this gate reports as nothing at all rather than as a problem. Leaving the
+     target on the delegate would have silently unpinned the had==null guard, the samePrice call and
+     the flush, which is the same shape as 188: an assertion that quietly stopped being able to fail
+     because something else moved underneath it. */
+  { fn: 'setProducts', tests: ['price-log-paths.test.js', 'pack-survives.test.js', 'cat-label.test.js', 'bulk-product-writes.test.js'] },
+  /* 193: the writer the plural exists FOR. Its chunk boundary and its stop-at-the-first-failure fold
+     are the difference between "the catalogue saved" and "some of the catalogue saved and nobody was
+     told which" — and neither is visible to any test that stubs the network. */
+  { fn: 'dbPushIngredients', tests: ['bulk-product-writes.test.js'] },
   { fn: 'logIngPrice', tests: ['price-log-paths.test.js'] },
   { fn: 'samePrice', tests: ['price-log-paths.test.js'] },
 
@@ -82,6 +92,33 @@ const targets = [
   // submitInvite: the two duplicate guards and the landed check, all of which fail quietly.
   { fn: 'submitInvite', tests: ['invites-client.test.js'] },
 
+  // 193: the catalogue importer's decision layer. Every one of these fails by producing a PLAUSIBLE
+  // WRONG NUMBER rather than by throwing, on the one path a new café takes before it knows enough to
+  // doubt what it sees — a whole catalogue costed 6x out is indistinguishable, on screen, from a
+  // catalogue costed correctly.
+  // catImportPlan: the create-vs-update decision (a wrong answer duplicates a café's whole
+  // catalogue on the second import), the refusals, and the fold of repeated lines.
+  { fn: 'catImportPlan', tests: ['catalogue-import.test.js'] },
+  // catNum: this batch's instance of isFinite('') — a catalogue CSV is mostly blank cells, and a
+  // blank that became 0 is a free product AND a fabricated $0.00 point in ing_price_history.
+  { fn: 'catNum', tests: ['catalogue-import.test.js'] },
+  // catPackSize: "6X2.5KG". The x-multiplier branch was written wrong first and its own test caught
+  // it within a minute; the branch is one regex and one multiplication, both silent when wrong.
+  { fn: 'catPackSize', tests: ['catalogue-import.test.js'] },
+  // parseCsvTable: the quote state machine. Getting it wrong splits a description on its own comma
+  // and shifts every column after it — which imports prices into the wrong products.
+  { fn: 'parseCsvTable', tests: ['catalogue-import.test.js'] },
+  // catPresetFor: a false positive here maps the wrong columns onto the right-looking fields.
+  { fn: 'catPresetFor', tests: ['catalogue-import.test.js'] },
+  // Added on the pre-push review's prompting — it noted these three had example coverage but no
+  // gate. They are simple, which is the usual reason a function is left off the list and is not a
+  // reason: catUnit decides whether a price is per kilo or per unit, catGuessMap decides which
+  // column an unrecognised file's price comes from, and csvSniffDelim decides whether the file
+  // parses at all. All three fail silently and all three are two lines to add.
+  { fn: 'catUnit', tests: ['catalogue-import.test.js'] },
+  { fn: 'catGuessMap', tests: ['catalogue-import.test.js'] },
+  { fn: 'csvSniffDelim', tests: ['catalogue-import.test.js'] },
+
   { fn: 'publishPlan', tests: ['publish-guard.test.js'] },
   { fn: 'productRefs', tests: ['product-delete-guard.test.js'] },
   { fn: 'canDeleteMenu', tests: ['menu-fallback.test.js'] },
@@ -132,19 +169,46 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* ⚠️ TWO `setProduct ::` ALLOWANCES WERE DELETED HERE IN 193, AND ONE OF THEM WAS WRONG — worth
+     recording, because a wrong allowance is the quietest failure this gate has: it turns a mutant
+     the gate DID catch into one nobody looks at again, and unlike a stale one it is never reported.
+
+     The first claimed that `Object.assign({}, productsById[id]||{}, patch)` and `…&&{}` cannot be
+     told apart, reasoning only about the case where the product is ABSENT. With the product
+     PRESENT, `x&&{}` evaluates to `{}`, so the assign becomes `Object.assign({}, {}, patch)` and
+     every field the patch does not mention is WIPED — a price-only invoice write erasing the
+     description, supplier and taught pack of every product it touches. It was always killable; it
+     just needed an assertion that a partial patch MERGES, which tests/bulk-product-writes.test.js
+     now carries. The second is killed by that file too, by passing an entry with no patch at all.
+
+     The transferable bit: an allowance's argument is only as wide as the case it reasons about, and
+     "no input distinguishes them" is a claim about EVERY input. Neither had been re-checked since
+     the day it was written. */
+  /* The same equivalent-mutant shape as the parseCsvTable one below, twice more, and PROVED the
+     same way rather than argued: real vs mutated run side by side over a spread of inputs, deep-equal
+     every time. Reading one index past the end yields undefined (or '' for a string), which matches
+     nothing and appends nothing, so the extra pass is a no-op before the loop ends. */
   {
-    key: 'setProduct :: productsById[id] = Object.assign({}, productsById[id]||{}, patch); :: logical ||>&& #0',
-    reason: '`Object.assign` IGNORES a null or undefined source. With the product absent, `x||{}` gives `{}` '
-      + 'and `x&&{}` gives undefined, and Object.assign treats the two identically — the `||{}` is there for '
-      + 'readers, not for the runtime. No input distinguishes them, so no assertion can.',
+    key: 'csvSniffDelim :: for(var i=0;i<firstLine.length;i++){ :: relational <><= #0',
+    reason: 'One extra pass reads firstLine.charAt(length), which is the empty string — it equals none of the '
+      + 'four candidate delimiters and is not a quote, so neither the count nor the quote state changes. '
+      + 'Run against 11 header lines (empty, single-field, each delimiter, quoted separators, ties): identical '
+      + 'answers on all 11.',
   },
   {
-    key: "setProduct :: if(patch && Object.prototype.hasOwnProperty.call(patch, 'cost_per_base_unit')){ :: logical &&>|| #0",
-    reason: 'The two guards compose, and the second one absorbs this. With any object patch, `patch||hasOwn(…)` '
-      + 'is true, the branch runs with `now === undefined`, and logIngPrice refuses it on `typeof` — the exact '
-      + 'guard CLAUDE.md insists on, doing its job one layer down. The only input that tells them apart is a '
-      + 'FALSY patch, where the mutant throws on hasOwnProperty.call(null) — and no caller passes one; the `&&` '
-      + 'is defending against a shape the app does not produce. A test for it would pin the defence, not the app.',
+    key: 'catGuessMap :: for(var i=0;i<g.any.length;i++){ :: relational <><= #0',
+    reason: 'One extra pass reads g.any[length] === undefined, and norm.indexOf(undefined) is -1, so the '
+      + 'branch never fires and the loop falls out to the same blank assignment. Run against 8 header sets '
+      + '(empty, no-match, full match, blanks, duplicates-competing): identical maps every time.',
+  },
+  {
+    key: 'parseCsvTable :: while(i<s.length){ :: relational <><= #0',
+    reason: 'One extra iteration reads `s.charAt(s.length)`, which is the empty string — it matches no branch '
+      + '(not the delimiter, not a quote, not CR or LF), so it falls to `field+=\'\'` and appends nothing before '
+      + 'the loop ends. The trailing endRow() then runs identically either way. PROVED rather than argued: the '
+      + 'real and mutated functions were run against 12 inputs including an unterminated quote, a bare trailing '
+      + 'CR, a BOM, a CRLF file with no final newline and a quoted embedded newline, and returned deep-equal '
+      + 'results on all 12. The `<` is correct and conventional; there is simply no input that can tell them apart.',
   },
   {
     key: 'logIngPrice :: a.push({t:now, v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60); :: relational >>>= #0',

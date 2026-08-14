@@ -1233,6 +1233,54 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @keyframes invBar{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
 @media (prefers-reduced-motion:reduce){ .inv-bar > span{animation:none} }
 #invFileName{color:var(--muted2);font-size:13px}
+
+/* ===== 193 — the catalogue importer ==========================================
+   It reuses `.invz` and `.inv-step` above rather than growing a second dropzone
+   and a second step system: those two are already worn by two elements each, and
+   this is a third home for the same pattern. Everything below is only the parts
+   the invoice modal has no equivalent of — the mapping form and the preview.
+   Every colour is a token, per §4. */
+.cat-formats{margin:var(--sp-3) 0 0;line-height:1.5;max-width:64ch}
+.cat-supfield{margin-bottom:var(--sp-4)}
+.cat-lead{margin:0 0 var(--sp-2);font-size:var(--fs-sm);line-height:1.5;color:var(--text)}
+.cat-lead.ok{color:var(--accent-ink);font-weight:600}
+.cat-lead-note{margin:0 0 var(--sp-2);font-size:var(--fs-sm);line-height:1.5;color:var(--muted2)}
+.cat-file{margin:0 0 var(--sp-4);font-family:var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+
+/* The mapping form. Two columns on a desktop, stacked on a phone — a <select>
+   beside a label that can be two words long has nowhere to go at 380. */
+.cat-maprows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-3) var(--sp-4)}
+.cat-maprow{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cat-mapf{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+.cat-mapsel{width:100%;box-sizing:border-box;min-height:44px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:var(--radius-ctl);background:var(--surface);color:var(--text);font-size:15px}
+.cat-price-covers{display:flex;flex-direction:column;gap:6px;margin-top:var(--sp-4)}
+.cat-radio{display:flex;align-items:center;gap:8px;min-height:36px;font-size:var(--fs-sm);color:var(--text);cursor:pointer}
+
+/* The preview — the thing that makes a wrong mapping visible, so it is given
+   real weight rather than being a footnote. */
+.cat-preview{margin-top:var(--sp-4);border-top:1px solid var(--line);padding-top:var(--sp-4)}
+.cat-count{margin:0 0 var(--sp-3);font-size:15px;color:var(--text)}
+.cat-none{margin:0;font-size:var(--fs-sm);color:var(--muted2);line-height:1.5}
+.cat-warn{margin:0 0 var(--sp-3);font-size:var(--fs-sm);color:var(--muted2);line-height:1.5}
+.cat-pv{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.cat-pv th{text-align:left;font-weight:600;color:var(--muted2);padding:4px 8px 8px 0;border-bottom:1px solid var(--line)}
+.cat-pv td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.cat-pv-n{color:var(--text);overflow-wrap:anywhere}
+.cat-pv-p,.cat-pv-c{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cat-pv th:nth-child(3),.cat-pv-c{text-align:right}          /* §4: mono figures right */
+.cat-pv-s{color:var(--muted2);white-space:nowrap;text-align:right}
+.cat-pv-note{margin:var(--sp-3) 0 0;line-height:1.5}
+.cat-skips{margin-top:var(--sp-3);font-size:var(--fs-sm);color:var(--muted2)}
+.cat-skips summary{cursor:pointer;min-height:36px;display:flex;align-items:center}
+.cat-skips ul{margin:6px 0 0;padding-left:20px;line-height:1.6}
+.cat-done-lead{margin:0 0 var(--sp-3);font-size:16px;color:var(--text)}
+@media (max-width:767px){
+  /* SAME specificity as the rule above, per CLAUDE.md — a multi-class selector
+     outside a media query beats a single-class one inside it, and the symptom is
+     a rule that looks right in the file and does nothing on screen. */
+  .cat-maprows{grid-template-columns:minmax(0,1fr)}
+}
 #invCsv{
   width:100%;border:1.5px solid var(--border2);border-radius:var(--radius-ctl);padding:12px;
   font-family:var(--mono);font-size:13px!important;resize:vertical;
