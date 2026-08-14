@@ -31,9 +31,23 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  1 · Roles — invitations, so an owner can add someone  **[A — launch blocker]**
+## next  1 · Roles — invitations, so an owner can add someone  **[A — launch blocker]**
 
-Blocked on: **which of the three onboarding shapes below EzPlate should have.** One of them brushes a decision Max made himself, and all three turn on how a real café actually puts a new person on the app rather than on anything in the code.
+### ✅ UNBLOCKED, 14 Aug 2026 (Max) — shape **B**, invite first, then a GATED sign-up
+
+*(`Blocked on: which of the three onboarding shapes` DELETED — answered. It is the top item now: it is the last launch blocker that was waiting on a person, and the three below it are gates that can be read in any order.)*
+
+**His answers, because the reasoning matters more than the letter:**
+
+- *Are you standing next to them?* **"i think standing next to them."**
+- *How often?* **"its rare that a new member would need to be added."**
+- *Do you want to add someone you can't hand a password to?* **"i think so."**
+
+**That last one decides it and rules out C outright** — C's whole mechanism is the owner conveying a password by some channel EzPlate does not own, which is precisely what he said he wants to be able to avoid. It also drops the `service_role` key, and with it the only thing in the app that would bypass every policy 181-187 built. **Do not re-propose C.**
+**A was rejected on the launch-blocker test, not on effort:** it leaves the Supabase dashboard in the loop for every real hire, so the item's own opening sentence ("impossible for a customer") survives it shipping.
+**Rarity (his second answer) is what makes B's extra build affordable** — a flow used twice a year can be a few taps longer if it is safer, and B degrades gracefully given he is usually present anyway.
+
+⚠️ **B SHIPS A SIGN-UP FORM, AND THAT IS A REFINEMENT OF HIS "NO SIGN-UP FORM" CALL RATHER THAN A REVERSAL — he was told so explicitly before answering, and answered anyway.** `tests/auth.test.js` pins the absence of any `signUp(` call, and its stated reason is *"no signUp call may ship while an account cannot join a café."* Under B the account joins a café **by construction**: the sign-up cannot be reached without an owner having created an invite for that exact address first. **So the batch that builds this rewrites that test's assertion to pin the CONDITION rather than the absence** — a sign-up that is reachable without a pending invite must still fail the suite. Do not simply delete the test.
 
 ⚠️ **THIS ITEM'S STATED HARD PART IS THE WRONG ONE, found 14 Aug 2026 while taking it (188).** It read: *"The hard part is not the row, it is that the client has no way to turn an email address into a `user_id` — `auth.users` is not readable — so this needs a `SECURITY DEFINER` function, and that function is an information-disclosure surface."*
 **All of that is true and none of it is the blocker.** Turning an email into a `user_id` is a solved shape: a `SECURITY DEFINER` function that takes an email, is callable only by an owner, and returns nothing an owner could not already learn by trying — the disclosure surface is real and is an implementation decision, not a scheduling one.
@@ -53,7 +67,7 @@ So "an owner adds someone by email" only ever succeeds for a person whose accoun
 ⚠️ **A self-service sign-up form is still NO.** Since 186 an account that joins no café sees nothing at all, so a sign-up form's only possible outcome is 185's "ask the café owner to add this account" screen. `tests/auth.test.js` pins its absence with that reason. Invitations are what replace it.
 ✅ **What 188 leaves you, so it is not rediscovered.** The client now reads `current_business_role()` on bootstrapSync's existing `Promise.all` and holds it in `businessRole`; `isOwner()` is the one reader and `applyRoleUi()` is where every role-dependent control resolves — **an invitation control is an owner-only control and belongs in that function, not in a fifth place.** The Team card is where it goes: it already names the role the reader holds and ends *"Adding someone is done by hand for now"*, which is the sentence this item deletes. `tests/roles-client.test.js` asserts the card ships **no `<button>`** while that is true — so the batch that builds this changes that assertion rather than tripping over it.
 
-## next  1 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
+## next  2 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
 
 **Split out of `Onboarding and empty states` by batch 190, which shipped the rest of that item.** It was inside it by implication only, and an implied requirement is one nobody builds — so it is its own item now, because it is a FEATURE and the rest was two view-layer fixes.
 
@@ -69,12 +83,32 @@ Requirements: a brand-new café can populate a usable catalogue without hand-typ
 
 **So a 60-line first invoice is 60 panels, and that is hand-typing wearing a different hat.** The importer is not broken and needs no fix for Scoopy's; it is simply designed around a catalogue that already exists.
 
-**That measurement is what makes the choice real rather than a design session:** a CSV price-list import (suppliers send these, and it sidesteps the per-line panel entirely), a starter catalogue, or a bulk mode for the existing importer that treats a zero catalogue as "accept all as new" instead of "review all". **The third reuses the most and is the smallest build; the first is the one a real café can actually feed.**
-⚠️ **Which of those depends on what suppliers actually send a café — trade knowledge, not code — so it is Max's call and this item should be put to him rather than guessed at.** Everything above it is settled and should not be re-derived.
+### ✅ DECIDED, 14 Aug 2026 (Max) — a SUPPLIER EXPORT import, and the source was measured in his own account
+
+Three shapes were put to him: a supplier file import, a starter catalogue, or a bulk "accept all as new" mode for the existing importer.
+
+- **Bulk-accept is OUT, and it was the recommendation until he answered.** Asked whether a messy catalogue would be acceptable on day one, his answer was *"i dont think so it shouldnt really be messy that would be a turn off for customers."* Accepting invoice lines wholesale means AI-guessed names, brands and categories across every row, which is exactly that.
+- **A shipped starter catalogue is OUT and should not be reopened.** Any realistic one would be built from Scoopy's data, which would publish a real café's supplier list and pricing to every stranger who installs EzPlate. See the repository-is-public section of `CLAUDE.md`.
+- **A supplier export import is IN**, and 2b is why: Scoopy's own 393-product catalogue never came from invoices at all. Max downloaded a file from the supplier portal and had an LLM turn it into the products JSON, once. That is the bootstrap that actually happened, and it is clean by construction.
+
+⚠️ **THE SOURCE FILE EXISTS AND ITS SHAPE WAS READ FROM THE LIVE PORTAL, 14 Aug 2026** — signed in as the café, in Chrome, read-only; nothing was downloaded and nothing was changed. **Do not go and re-derive this, and do not guess the columns.**
+
+**Where it is:** the supplier portal's `Accounts → Reports → Previous purchases`, which has its own **Export** button and offers **up to 24 months of history**. A `Report exports` page sits beside it. The report has a **Standard** and an **Advanced** form; Advanced adds `ORDER BY: CUSTOMER / CATEGORY / PREFERRED` and subtotal rows, which is how a **category** is obtained — Standard has no category column.
+
+**The Standard columns, in order:** `PRODUCT CODE · BRAND · DESCRIPTION · PACK SIZE · CTN QTY · UOM · QTY · LAST PRICE PAID · TOTAL EX GST · GST · TOTAL INCL GST · ACCOUNT`.
+
+**Why that settles the design rather than merely informing it:** those columns carry **every input the app already computes a unit cost from**, so nothing has to be inferred and no model has to be asked. `PACK SIZE` + `UOM` + `CTN QTY` are exactly what `packToUnitCost` takes; `LAST PRICE PAID` is the price; `PRODUCT CODE` is a stable per-supplier id that makes re-importing an update rather than a duplicate; `BRAND` and `DESCRIPTION` map straight across. **This is a deterministic import with no AI in the path**, which is what makes it satisfy the not-messy requirement that killed bulk-accept — and it means the privacy gate below does **not** bind this item, because nothing here goes near `api/parse-invoice`.
+
+Requirements when this is built:
+- Import a supplier export and create products from it, deterministically. **No model in the path** — that is the property being bought.
+- **Re-importing must UPDATE on `PRODUCT CODE`, never duplicate**, so the same file can be used to refresh prices later. Decide against `setProduct`, which is `ing_price_history`'s one writer — a bulk price refresh is a real price movement and belongs in that series, so **do not bypass it**; and read the `isFinite('')` trap before parsing a single number.
+- ⚠️ **The format is one supplier's, and the item must not pretend otherwise.** Ask what happens for a café on a different supplier before designing the file picker: a named-format importer that says which formats it knows is honest, a "CSV importer" that silently assumes these column headings is not.
+- Prove it against a real export end to end, and **do not commit the file or any row of it** — the repository is public.
+⚠️ **Still open, and it is Max's:** whether the first release supports only this supplier's export or a mapped/generic CSV as well. Everything else above is decided.
 ⚠️ **Do not re-derive the zero state; 190 measured it.** `installBoot(page, {noProducts:true})` with clean storage is genuine zero and `tests/visual/v164-onboarding.spec.js` boots it. `Second Cafe (staging)` also holds zero rows on every table with `b@example.com` as its owner, so no seed needs running to get a real RLS-enforced zero.
 ⚠️ **The privacy gate binds this if the answer routes through `api/parse-invoice`** — a second café's invoices reaching Gemini's free tier is the exact thing that item forbids before launch.
 
-## next  2 · The privacy gate  **[A — launch blocker]**
+## next  3 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -82,12 +116,12 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  3 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  4 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  4 · Gate review before public signup  **[A — launch blocker]**
+## next  5 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
@@ -95,7 +129,7 @@ Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through
 ⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
 **So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
 
-## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  6a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -130,7 +164,7 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  5b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  6b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
 Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered SIX times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, and to 5a in that same batch when invitations went blocked. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
@@ -150,14 +184,14 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  6 · Floating layers and mobile dropdowns  **[B]**
+## next  7 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
 
-## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+## next  8 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
 **What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
 
