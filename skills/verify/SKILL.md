@@ -53,6 +53,11 @@ npm install jsdom --no-save && node tests/smoke.js
 
 Run it for anything touching rendering, wiring or Settings.
 
+⚠️ **"Run it alone" USED TO BE THE WHOLE STORY AND IS NOW A FALLBACK: since 192 the pre-push hook runs it for you** (`.githooks/pre-push`, check 2 of 3, ~8s). That is deliberate mechanism rather than convenience.
+**The failure it removes has now happened twice, in 174 and in 192, on the SAME assertion** - the one about which Account cards may carry controls, which is stated in three places of which `tests/smoke.js` is the only one outside `npm test`. Both times the batch moved the other two, saw `npm test`, the mutation gate and Playwright all green, and went red in CI on push.
+174 left a warning inside `tests/smoke.js` saying precisely this would happen. It did not help, because it is only readable by somebody already opening the file they are about to break.
+**So do not read the hook as permission to stop thinking about it** - a fresh clone runs no hook at all (`git config core.hooksPath .githooks` is per-clone) and looks exactly like a clone that passed one. If you have not confirmed the hook is installed, run it by hand.
+
 **jsdom trap:** every `window.eval()` gets its own lexical environment, so top-level `let`s in `js/app.js` (`productsById`, `savedPlates`, `customMenu`, `byId`, `plate`) are unreachable from outside.
 Concatenate your code onto `app.js` and evaluate them together.
 
@@ -140,7 +145,7 @@ Only the phone tells you whether it feels right.
 
 ## Before opening the PR
 
-Suite green · `node -c` clean · `npm run mutate` green if you wrote or changed a test · smoke if anything renders · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
+Suite green · `node -c` clean · `npm run mutate` green if you wrote or changed a test · **`npm run smoke` — not "if anything renders", ALWAYS, because it is outside `npm test` and has caught two batches that were green everywhere else** · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
 
 Open the PR when the diff is **final**.
 **No review fires on its own** - the workflow is on demand since 8 Aug 2026, by manual run or the `deep-review` label.

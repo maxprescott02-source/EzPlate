@@ -38,6 +38,23 @@ It found no critical defect and said so; these are the two genuine gaps and the 
 
 Both code fixes have a test, and **both tests were mutated to confirm they fail without the fix** - the generation check deleted turns two red, the reverted guard turns one red.
 
+## The check that was skipped, and the gate that now prevents it
+
+**CI went red on `smoke (jsdom)` after the PR opened.**
+The Account-cards contract - which cards may carry controls - is asserted in **three** places, and `tests/smoke.js` is the only one outside `npm test`.
+Two were moved, `npm test` was green, the mutation gate was green, 326 Playwright specs were green, and the third went red on push.
+
+**174 did exactly this, on exactly this assertion, and left a warning inside `tests/smoke.js` saying it would happen again.**
+It did not help, because a comment in a file is only readable by somebody already opening the file they are about to break.
+
+So the fix is not a fourth comment:
+
+- **`.githooks/pre-push` now runs `npm run smoke`** as check 2 of 3. It takes 8 seconds. The hook was `npm test` + the mutation gate, which is not a local copy of CI - CI runs smoke as its own job, so this whole class could only ever be caught after pushing.
+- **The `verify` skill's pre-PR list says `npm run smoke` ALWAYS**, not "if anything renders", with the two-incident count as the reason.
+
+Both are process files, so both were edited rather than proposed, per `CLAUDE.md`'s standing authority.
+Nothing was pushed with `--no-verify`.
+
 ## Into CLAUDE.md
 
 Nothing.
