@@ -557,6 +557,16 @@ function bootGate(state, msg){
   var m=document.getElementById('bootGateMsg'), r=document.getElementById('bootGateRetry');
   var o=document.getElementById('bootGateOut');
   var f=document.getElementById('bgSignForm'), bd=document.getElementById('bootGateBrand');
+  /* 192 — the gate now carries TWO forms, and every branch below that hid one must hide both or a
+     stale sign-up sits over an error screen. `hideForms` is that, in one place, so the next state
+     added here cannot forget the second one the way this batch nearly did. */
+  var su=document.getElementById('bgSignUpForm'), dn=document.getElementById('bgDone');
+  var ai=document.getElementById('bgAltIn'), au=document.getElementById('bgAltUp');
+  var hideForms=function(){
+    if(f) f.hidden=true; if(su) su.hidden=true;
+    if(ai) ai.hidden=true; if(au) au.hidden=true;
+    if(dn){ dn.hidden=true; dn.textContent=''; }
+  };
   if(state==='loading'){
     /* 185 — A RE-SYNC DOES NOT DISTURB THE NON-MEMBER GATE, and the latch is NOT cleared here.
        An earlier cut cleared it at the top of every run, to stop it wedging a user whose membership
@@ -575,7 +585,7 @@ function bootGate(state, msg){
        re-sync, which is the flicker case, must not. */
     if(_bootNoMember && !_bootRetrying) return;
     g.hidden=false; g.classList.remove('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember');
-    if(r) r.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true; gateErr('');
+    if(r) r.hidden=true; hideForms(); if(bd) bd.hidden=true; gateErr('');
     if(m) m.textContent=msg||'Loading your data…';
     /* v115: after a week idle the FIRST request pays Supabase's cold start (~1.1s measured, on top
        of the fetch) — and week-long gaps are the normal case here, so the patient message is the
@@ -593,7 +603,7 @@ function bootGate(state, msg){
     if(_bootNoMember) return;                               // 185: see the latch — 'ok' may not clear this one
     _bootGateDone=true; _bootRetrying=false; g.hidden=true;
     g.classList.remove('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember');
-    if(o) o.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true;
+    if(o) o.hidden=true; hideForms(); if(bd) bd.hidden=true;
     if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return;
   }
   /* 186 — NOBODY IS SIGNED IN, and after this batch that is the only way to see a café's data.
@@ -607,8 +617,17 @@ function bootGate(state, msg){
     if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }
     g.hidden=false; g.classList.remove('is-error'); g.classList.remove('is-nomember'); g.classList.add('is-signin');
     _bootRetrying=false; _bootNoMember=true;
-    if(m) m.textContent=msg||SIGNIN_MSG;
     if(r) r.hidden=true; if(o) o.hidden=true; if(bd) bd.hidden=false;
+    /* ⚠️ 192 — THE SIGN-UP SIDE OF THIS SCREEN IS NOT REPAINTED, and it is the same rule as the one
+       below rather than a new one. `bootReady('signin')` runs again on every re-sync that gets this
+       far — an `online` blip, a pull-to-refresh — and the sign-up form and its "check your email"
+       line are both reached from here. Without this guard a blip would swap a half-typed sign-up
+       back to the sign-in form, or clear the one sentence telling somebody a confirmation email is
+       waiting, and in both cases the message below would overwrite the wording that explains what
+       they are looking at. So: if the sign-up side is up, this state has nothing to say. */
+    if((su && !su.hidden) || (dn && !dn.hidden)) return;
+    if(m) m.textContent=msg||SIGNIN_MSG;
+    if(ai) ai.hidden=false;                                 // 192: the way through to sign-up, offered whenever the sign-in form is
     /* ⚠️ SHOWN, NEVER RESET. bootReady('signin') runs again on every re-sync that gets this far, and
        clearing the fields there would empty a half-typed password. The focus is given ONCE, on the
        transition, for the same reason: re-focusing on a timer steals the caret mid-word. */
@@ -629,7 +648,7 @@ function bootGate(state, msg){
     g.classList.add('is-nomember');                         // 186: cover the chrome — see the CSS
     _bootRetrying=false; _bootNoMember=true;
     if(m) m.textContent=msg||'This account isn’t linked to a café yet.';
-    if(r) r.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true; gateErr('');
+    if(r) r.hidden=true; hideForms(); if(bd) bd.hidden=true; gateErr('');
     if(o){ o.hidden=false; o.onclick=async function(){
       if(o.disabled) return;
       o.disabled=true;
@@ -651,7 +670,7 @@ function bootGate(state, msg){
   }
   // error / offline: say which, offer the one action that can help, and keep the app's chrome usable
   g.hidden=false; g.classList.add('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember'); _bootRetrying=false;
-  if(o) o.hidden=true; if(f) f.hidden=true; if(bd) bd.hidden=true; gateErr('');
+  if(o) o.hidden=true; hideForms(); if(bd) bd.hidden=true; gateErr('');
   if(m) m.textContent=msg||'Couldn’t load your data.';
   if(r){ r.hidden=false; r.onclick=function(){
     if(_bootRetrying) return;                               // a second tap must not race a second boot
@@ -731,6 +750,51 @@ function nonMemberMessage(email){
     + ' Ask the café owner to add this account, or sign out.';
 }
 
+/* ---- 192: THE CLAIM — the one moment an invitation becomes a membership ---------------------
+   191 shipped `claim_business_invite()`: it takes no argument, reads the caller's own confirmed
+   address off `auth.uid()`, and joins them to the café that invited it. Read that migration's
+   header before changing anything here; it argues every refusal.
+
+   WHY IT IS CALLED FROM THE TENANT GATE AND NOT FROM A BUTTON. `bootstrapSync` has just discovered
+   "this account is a member of nothing", which is EXACTLY the population an invitation is for, and
+   it is the only place in the app that ever learns it. A button would have to live on a screen a
+   memberless account can reach, and the only screen it can reach is 185's — so the button would sit
+   under a sentence saying there is nothing to show, doing something the app could have done itself.
+   It also covers the case shape B exists for: somebody who ALREADY has an account. A sign-up-only
+   path serves nobody who was made by hand in the dashboard, which is every account this project has.
+
+   THREE ANSWERS, and they resolve the same way as `tenantGateState` and `roleState`:
+     * a uuid  — joined. Re-sync, and the café appears.
+     * null    — there was nothing to claim. This is the ordinary answer for a genuine non-member,
+                 and it changes nothing: 185's screen paints exactly as it did before this batch.
+     * error   — could not tell. Also changes nothing, for the reason CLAUDE.md gives: the standing
+                 verdict was reached from a definite answer, and an unreadable one is not evidence
+                 against it. The user sees the same screen they would have seen, and the next boot
+                 or `online` event tries again.
+   Note the asymmetry that makes this safe to run automatically: the claim can only ever IMPROVE the
+   outcome. Every failure mode lands on the screen that was already going to be painted. */
+function claimState(res){
+  if(!res || res.error) return 'unknown';                  // an error is not an answer
+  if(res.data===null) return 'none';                       // strict: an EXPLICIT null is the definite "nothing to claim"
+  /* ⚠️ ANYTHING THAT IS NOT A UUID STRING IS 'unknown', NOT 'joined', and the first cut wrote this
+     as `res.data ? 'joined' : 'none'` — which reads correctly and is wrong twice. An absent body
+     (`undefined`, an older project with no such function) became a DEFINITE "nothing to claim",
+     which is the same could-not-tell/definitely-not collapse the tenant gate exists to forbid; and
+     any truthy non-string would have triggered the re-sync. Same shape as `tenantGateState`, where
+     undefined is deliberately not null. Caught by its own test, not by reading. */
+  return (typeof res.data==='string' && res.data) ? 'joined' : 'unknown';
+}
+
+/* ⚠️ RE-ENTRANCY, AND IT IS THE ONLY THING STANDING BETWEEN THIS AND AN INFINITE BOOT LOOP.
+   A successful claim re-runs `bootstrapSync`, and that run reaches this same branch if the tenant
+   lookup still says nomember — replication lag, a flaky request, a server bug. Without a latch the
+   two would call each other forever, on a phone, with the gate showing a spinner.
+   The latch makes it provably terminate: the NESTED run never claims, so it either paints or
+   succeeds. It is cleared in a `finally` so an exception cannot wedge the app into never claiming
+   again, and it is per-attempt rather than per-page — a later `online` event gets a fresh try, which
+   is what lets somebody sitting on 185's screen be invited and picked up without reloading. */
+var _claiming=false;
+
 /* ---- 188: WHICH ROLE, AND WHY "COULD NOT TELL" MEANS OWNER --------------------------------
    187 taught the database owner vs staff and ENFORCES four refusals — delete a plate, delete a
    menu, change the food cost target, restore a backup. This is the client half: the affordances,
@@ -753,6 +817,15 @@ function nonMemberMessage(email){
    the non-member case the tenant gate has already returned on, several lines above this ever
    being read. It arrives here as 'unknown' rather than being invented into a role. */
 var businessRole='owner';
+/* 192 — THE TEAM CARD'S STATE, DECLARED HERE RATHER THAN BESIDE THE FUNCTIONS THAT USE IT, which
+   are 5,000 lines below. `applyRoleUi` reads `teamData.status`, and `applyRoleUi` runs inside
+   `bootstrapSync`, which is INVOKED at line ~6054 — above the Team card's own section. The
+   assignment does still win, because `bootstrapSync` awaits before reaching `applyRoleUi` and the
+   rest of the synchronous script therefore finishes first — but that is a temporal argument about
+   microtask ordering standing between a boot and a TypeError, and it would stop holding the day
+   somebody calls `applyRoleUi` synchronously. Declared next to the role it travels with instead,
+   where it is unambiguously assigned before anything can read it. */
+var teamData={status:'idle', members:[], invites:[], err:''};
 function roleState(res){
   if(!res || res.error) return 'unknown';                  // an error is not an answer
   return (res.data==='owner'||res.data==='staff') ? res.data : 'unknown';
@@ -799,6 +872,36 @@ function applyRoleUi(){
   if(tr) tr.textContent = owner
     ? 'You’re the owner of this café, so all of that is yours.'
     : 'You’re signed in as staff, so those four are hidden for you.';
+  /* 192 — the invitations surface, hidden as ONE block rather than control by control. Everything
+     inside it is refused to staff by 191's four restrictive policies, including the SELECT, so a
+     staff account shown the list would get an empty box with an Invite button under it and no
+     explanation. §R4's rule is that a capability you do not have is stated in a sentence, never
+     mimed with a control — and `#teamRole` above is that sentence.
+     ⚠️ `.team-own` carries NO `display` rule in css/style.css, on purpose, so this `hidden` is not
+     fighting an author rule and needs no `:not([hidden])` guard. Checked, not assumed — the
+     markup says the same thing at its own site. */
+  var to=document.getElementById('teamOwner'); if(to) to.hidden=!owner;
+  /* A role that arrives AFTER the card was painted must not leave the card disagreeing with it, so
+     the team is re-read here — but NOT unconditionally, because `applyRoleUi` runs inside
+     `bootstrapSync` on every single load and two round trips per boot for a card nobody is looking
+     at is the cost v108 spent a whole batch removing.
+
+     ⚠️ THE CONDITION IS "IS THE CARD IN FRONT OF SOMEBODY", NOT "HAS IT BEEN LOADED", and the first
+     cut wrote the second — `teamData.status!=='idle'` — with a comment claiming the two were the
+     same thing. They are not, and the pre-push review found the case that separates them:
+     `loadTeam` RESETS the state to 'idle' for a staff caller, so a staff account's status is idle
+     no matter how many times the card has been opened. Promote that account while the Account
+     screen is open, let an `online` blip re-sync, and the line above unhides `#teamOwner` while
+     this line skips the fetch — an empty card, for the person who just gained the right to see it.
+     It self-healed on the next navigation, which is exactly what makes it the kind of bug nobody
+     reports.
+     So: fetch if the pane is SHOWING (the user can see the answer, so it must be right), or if the
+     state is not idle (a list already in memory must be refreshed or cleared even while hidden, so
+     a team read as owner cannot survive into a staff session). Both halves are load-bearing and
+     neither implies the other. */
+  var _ap=document.getElementById('tab-account');
+  var _acctShowing=!!(_ap && _ap.style.display!=='none');
+  if(_acctShowing || teamData.status!=='idle') loadTeam();
 }
 
 /* pull everything from Supabase and refresh the UI */
@@ -892,6 +995,28 @@ async function bootstrapSync(){
          the sign-in form deliberately, and the branch is written as two statements each ending in
          its own `return` so neither can fall through into the paint. */
       var _u=sessionUser(_ses);
+      /* 192 — BEFORE the screen is painted, and only for somebody who is actually signed in.
+         An anon caller has no address to match an invitation against (`claim_business_invite`
+         returns null on a null `auth.uid()`), so asking would be a round trip on the PUBLIC path —
+         the one every stranger who opens the URL takes — to be told what we already know.
+         `_claiming` keeps the nested re-sync from claiming again; see the latch. */
+      if(_u && !_claiming){
+        var _cl=claimState(await softCall(function(){ return SUPA.rpc('claim_business_invite'); }));
+        if(_cl==='joined'){
+          /* The café exists now, so the answer to every read above has changed. Re-running the
+             whole sync is deliberate rather than patching `businessId` in place: this function IS
+             the definition of what a booted app holds, and half of it was fetched as a member of
+             nothing. `bootGate('loading')` at the top of the nested run leaves 185's screen alone
+             if it was already up (see the latch there), so nothing flickers.
+             `finally`, so a throw inside the nested run still clears the flag. */
+          _claiming=true;
+          try{ await bootstrapSync(); } finally{ _claiming=false; }
+          return;
+        }
+        /* 'none' and 'unknown' both fall through to the screen that was going to be painted
+           anyway. Neither is worth a message of its own: "there was no invitation for you" is
+           what 185's copy already says, in words that also tell them what to do about it. */
+      }
       setSync('none');                                     // 185: nothing failed — see setSync
       if(_u){ bootReady('nomember', nonMemberMessage(_u.email||'')); return; }
       bootReady('signin', SIGNIN_MSG);
@@ -2251,10 +2376,18 @@ function rerenderCurrentTab(){                                         // re-run
   /* F9 (v148): Settings is listed because restoreLastTab() runs BEFORE bootstrapSync resolves — a
      refresh landing on Settings would otherwise paint cogsPct/gstDefault/the AI flags at their
      pre-boot defaults and never correct them, which is the priming failure in its quietest form. */
-  /* F10 (v149): 'account' returns early rather than falling through. The screen is static markup
-     with nothing to render, and the fallthrough is renderPlatesTab() — which would repaint a HIDDEN
-     Plates library every time boot data lands while Account is showing. Harmless today and wrong,
-     which is the shape docs/MAINTENANCE.md records for 'invoices' on this same line. */
+  /* F10 (v149): 'account' returns early rather than falling through. The fallthrough is
+     renderPlatesTab() — which would repaint a HIDDEN Plates library every time boot data lands
+     while Account is showing. Harmless today and wrong, which is the shape docs/MAINTENANCE.md
+     records for 'invoices' on this same line.
+     ⚠️ 192 — THE REASON CHANGED AND THE EARLY RETURN DID NOT, which is worth saying because the two
+     look like one thing. This used to read "the screen is static markup with nothing to render",
+     and that stopped being true the moment the Team card started fetching. It is STILL correct to
+     return here, for a different reason: the one thing this screen has to refresh is the team, and
+     `applyRoleUi` already re-reads it inside bootstrapSync whenever the card has been opened —
+     which is the same call, one function earlier, so doing it here as well would be two reads per
+     re-sync. If a SECOND fetching card is ever added to Account, this line is where it gets
+     forgotten. */
   /* 171: 'more' joins 'account' for the same reason — four fixed routes, no data, nothing to
      render, and the fallthrough would repaint a hidden Plates library on every boot-data arrival. */
   if(t==='account'||t==='more') return;
@@ -2354,6 +2487,9 @@ function showTab(t){
   /* F9 (v148): the priming that openSettings() used to do on every open. A screen has no open event,
      so this line IS the priming — drop it and every control renders its markup default. */
   if(t==='settings')renderSettingsTab();
+  /* 192: the Account screen stopped being static markup the moment the Team card started fetching,
+     so it joins the eight lines above. Read HERE and not at boot on purpose — see applyRoleUi. */
+  if(t==='account')loadTeam();
   /* The clear × on every search field, re-read after the screen has rendered. The delegated `input`
      listener covers typing and the delegated click covers the × itself, but a field whose value was
      set PROGRAMMATICALLY fires neither — a restored `kingQuery`, a filter reset, a modal reopened.
@@ -5943,7 +6079,7 @@ restoreLastTab();                                          // safe now: all modu
 // Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
 // of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
 markNonProductionEnv();                                    // 172: no-op on production; the element is not created at all
-wireAccount(); wireGateSignIn(); authInit();                // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach.
+wireAccount(); wireGateSignIn(); wireGateSignUp(); wireTeam(); authInit();   // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach. 192: sign-up behind an invitation, and the Team card that sends them.
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -5965,7 +6101,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v164';
+var APP_VERSION='v165';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -6073,6 +6209,53 @@ async function authSignIn(email, password){
   }catch(e){ return {error:{message:errText(e)}}; }
 }
 
+/* ---- 192: SIGN-UP, WHICH ONLY EXISTS BEHIND AN INVITATION ------------------------------------
+   `tests/auth.test.js` forbade the string `signUp(` outright until this batch, with the stated
+   reason "no signUp call may ship while an account cannot join a café". That reason is now spent —
+   191 built the join — and the assertion has been rewritten to pin the CONDITION rather than
+   deleted, because the condition is what was ever worth having: a sign-up that is not gated by an
+   invitation is a self-service sign-up, which is still NO (Max, 14 Aug 2026).
+
+   ⚠️ THE GATE IS A COURTESY, NOT THE ENFORCEMENT, and reading it as enforcement is the mistake this
+   comment exists to stop. Supabase sign-ups are open at the API level whatever this client ships,
+   so anyone can create an account with curl. What makes that survivable is 186 and 182, not this
+   function: an account nobody invited joins no café, `current_business_id()` answers null, and every
+   read comes back empty behind 185's screen. The gate buys two real things and no more — an
+   uninvited address is told plainly rather than being left to wonder why the app is empty after
+   confirming an email, and it does not burn one of the project's rate-limited confirmation sends. */
+async function authInvitePending(email){
+  if(!SUPA || !SUPA.rpc) return {error:{message:'No connection to the server.'}};
+  try{
+    var r=await SUPA.rpc('invite_pending', {p_email:email});
+    if(r && r.error) return {error:r.error};
+    return {data:r && r.data===true};                      // strict: only TRUE is an invitation
+  }catch(e){ return {error:{message:errText(e)}}; }
+}
+
+async function authSignUp(email, password){
+  if(!SUPA || !SUPA.auth || !SUPA.auth.signUp) return {error:{message:'No connection to the server.'}};
+  try{
+    var r=await SUPA.auth.signUp({email:email, password:password});
+    if(r && r.error) return {error:r.error};
+    return {data:r && r.data};
+  }catch(e){ return {error:{message:errText(e)}}; }
+}
+
+/* The two in ORDER, as one call, so `authSubmit` can wear it exactly as it wears `authSignIn`.
+   ⚠️ THE ORDER IS THE WHOLE FUNCTION. Asking afterwards would mean the account already exists and
+   the email has already gone out, which is both things the gate buys, spent. A gate that runs
+   second is not a gate — CLAUDE.md's rule about the FIRST committing action, one screen over.
+   An unreadable answer REFUSES here, which is the opposite of the client's usual fail-open and is
+   right for the same reason the server's policies refuse on NULL: this branch creates an account,
+   and the cost of guessing wrong is an unrecoverable row in `auth.users` plus a wasted send,
+   against a cost of "try again in a moment" for guessing the other way. */
+async function authSignUpGated(email, password){
+  var g=await authInvitePending(email);
+  if(g.error) return {error:g.error};
+  if(!g.data) return {error:{message:'We couldn’t find an invitation for that email. Ask the café owner to invite this exact address, then come back.'}};
+  return authSignUp(email, password);
+}
+
 async function authSignOut(){
   if(!SUPA || !SUPA.auth) return {error:{message:'No connection to the server.'}};
   try{
@@ -6096,6 +6279,200 @@ function renderAccountTab(){
     : '';
 }
 
+/* ============================================================================================
+   192 — THE TEAM CARD. The whole invitations feature lives here, which is 188's handover's call
+   and the queue item's: one owner-only surface that lists who is in the café, lists who has been
+   invited and not yet joined, adds one, and revokes one.
+
+   IT IS OWNER-ONLY IN THREE PLACES AND ONLY ONE OF THEM IS REAL. `applyRoleUi` hides the block
+   (an affordance), `loadTeam` refuses to fetch for staff (a round trip nobody can use), and 191's
+   four restrictive policies refuse the caller (the enforcement). The first two exist so a staff
+   account is never shown a control that comes back as a raw 42501 toast — 188's whole argument —
+   and neither is a substitute for the third.
+
+   ⚠️ EVERY WRITE HERE CHECKS THAT A ROW CAME BACK, and that is not belt-and-braces. CLAUDE.md:
+   a blocked DELETE returns HTTP 200 having changed NOTHING — measured on staging as part of 191,
+   as staff, on this exact table. `pushWrite` reports `res.error`, and there is no error to report;
+   the caller would set the sync pill green and repaint a list with the row gone from it, and the
+   invitation would still be live. So `.select()` on both writes, and zero rows is a FAILURE.
+
+   `teamData` itself is declared UP with `businessRole`, not here — see the note at its site.
+   ============================================================================================ */
+
+/* Normalised the same two ways the server does — `lower(btrim())` in `stamp_invite`. This copy is
+   for the client's OWN comparison and display only; the server is still what decides what is
+   stored, and 191's check constraint is what proves its trigger ran. If the two ever disagreed the
+   cost is bounded and visible: a duplicate this function failed to spot arrives back as the unique
+   violation, which the caller already reports. That is why this is not the second definition
+   CLAUDE.md forbids — it decides nothing, it only predicts. */
+function normEmail(s){ return String(s==null?'':s).trim().toLowerCase(); }
+
+/* ⚠️ THE GENERATION TOKEN, and it is the same mechanism as `gemToken` in the invoice referee —
+   which CLAUDE.md records as a rule ("the watchdog MUST bump `gemToken`, or a late response is
+   still merged"). The pre-push review pointed out that the precedent was not applied here.
+   `loadTeam` has at least three triggers that can overlap: `applyRoleUi` on every boot and every
+   `online` blip, `showTab('account')` on every entry to the screen, and the re-read after an
+   invite or a revoke. Two in flight together can resolve out of order on a phone, and then the
+   OLDER response lands last and wins — so an invitation the owner just revoked reappears as
+   pending, from a read that was issued before the delete. It self-corrects on the next load, which
+   is what makes it a stale-number bug rather than a loud one, and this repo's whole character is
+   that a quietly wrong number is the worst kind.
+   Only the newest request may write. Everything else is discarded on arrival. */
+var _teamGen=0;
+
+async function loadTeam(){
+  var gen=++_teamGen;
+  /* Staff can read NEITHER source — `business_team()` returns zero rows for a non-owner and the
+     invites table is invisible to them — so this would be two round trips to render nothing. The
+     card's role sentence is what a staff member is shown instead.
+     This branch is synchronous, so it cannot be raced by anything; bumping the generation above is
+     what makes it CANCEL an in-flight owner read, which is the case that matters — a demotion
+     landing while a team read is on the wire must not be overwritten by that read's answer. */
+  if(!isOwner()){ teamData={status:'idle', members:[], invites:[], err:''}; renderTeam(); return; }
+  if(!SUPA){ teamData={status:'error', members:[], invites:[], err:'No database connection.'}; renderTeam(); return; }
+  teamData.status='loading'; teamData.err=''; renderTeam();
+  var res;
+  try{
+    res=await Promise.all([
+      SUPA.rpc('business_team'),
+      /* Pending only. An accepted invitation is a member, and the list above already has them —
+         showing both would state one person twice and imply an action that no longer applies. */
+      SUPA.from('business_invites').select('id,email,created_at').is('accepted_at',null).order('created_at',{ascending:true})
+    ]);
+  }catch(e){ res=[{error:e},{error:e}]; }
+  /* ⚠️ THE ONE PLACE THE TOKEN IS READ, and it is above BOTH writes below rather than only the
+     success one. A stale ERROR is as wrong as stale data: a read that failed before a newer read
+     succeeded would otherwise replace a good list with "couldn't load your team". */
+  if(gen!==_teamGen) return;
+  var t=res[0]||{}, i=res[1]||{};
+  /* ONE error state for the pair rather than a half-painted card. They answer one question — who
+     is in this café, now and pending — and a list of members above an unexplained blank where the
+     invitations should be is the quiet-wrong-answer failure this repo keeps finding. */
+  if(t.error||i.error){
+    teamData={status:'error', members:[], invites:[], err:errText(t.error||i.error)};
+    renderTeam(); return;
+  }
+  teamData={status:'ok', members:(t.data||[]), invites:(i.data||[]), err:''};
+  renderTeam();
+}
+
+function teamMemberHtml(m){
+  var you=(authUser && authUser.id===m.user_id);
+  return '<div class="team-row"><span class="team-em">'+esc(m.email||'')+(you?' <span class="team-you">you</span>':'')
+    +'</span><span class="team-role">'+esc(m.role==='owner'?'Owner':'Staff')+'</span></div>';
+}
+function teamInviteHtml(v){
+  return '<div class="team-row"><span class="team-em">'+esc(v.email||'')+' <span class="team-pend">invited</span></span>'
+    +'<button type="button" class="btn stg-danger team-x" data-revoke="'+esc(v.id)+'">Revoke</button></div>';
+}
+
+/* §4's five states, which this card owes because it is the first thing on the Account screen that
+   FETCHES. Loading, error and content are drawn; "permission denied" is the staff case, which is
+   the role sentence rather than a message here; and there is no true empty — `business_team()`
+   always contains the owner asking, so a members list that came back empty means the role changed
+   underneath us and the error state is the honest reading of it. */
+function renderTeam(){
+  var box=document.getElementById('teamList'); if(!box) return;
+  if(teamData.status==='loading'){ box.innerHTML='<p class="team-note">Loading your team…</p>'; return; }
+  if(teamData.status==='error'){
+    box.innerHTML='<p class="team-note team-bad">Couldn’t load your team: '+esc(teamData.err)+'</p>';
+    return;
+  }
+  if(teamData.status!=='ok'){ box.innerHTML=''; return; }
+  var h=(teamData.members||[]).map(teamMemberHtml).join('')
+       +(teamData.invites||[]).map(teamInviteHtml).join('');
+  /* Belt for the case above: an owner is always a member of their own café, so nothing at all
+     means the answer was not the one we asked for. Saying so beats an empty box. */
+  box.innerHTML = h || '<p class="team-note team-bad">Couldn’t read who is in this café.</p>';
+}
+
+function teamErr(msg){
+  var e=document.getElementById('teamErr'); if(!e) return;
+  e.textContent=msg||''; e.hidden=!msg;
+}
+
+/* ⚠️ `role:'staff'` IS WRITTEN OUT even though the column defaults to it, and 191's header explains
+   why the column accepts 'owner' at all: the invitation is what DECIDES the membership's role, so
+   pinning the column to one value would be a second, disagreeing definition of what a role is.
+   Nothing in the database stops an owner-role invitation. "Staff only" is a promise this UI makes
+   and the server does not enforce — so the promise is stated at the write, where a reader asking
+   "what role does this create" can see the answer without opening a migration. */
+function dbInviteMember(email){
+  return pushWrite(function(){
+    return SUPA.from('business_invites').insert({email:email, role:'staff'}).select();
+  }, 'the invitation');
+}
+function dbRevokeInvite(id){
+  return pushWrite(function(){
+    return SUPA.from('business_invites').delete().eq('id', id).select();
+  }, 'the revoke');
+}
+/* Both writes answer the same question — did a row actually change — and both have to, for the
+   silent-no-op reason at the top of this section. One reader so they cannot drift. */
+function teamWriteLanded(res){ return !!(res && !res.error && res.data && res.data.length); }
+
+async function submitInvite(){
+  var inp=document.getElementById('teamEmail'), btn=document.getElementById('teamAdd');
+  if(!inp) return;
+  var email=normEmail(inp.value);
+  teamErr('');
+  if(!email){ teamErr('Enter the email address to invite.'); return; }
+  /* The two cases the client can name better than Postgres can. Both would otherwise arrive as a
+     raw constraint violation — `duplicate key value violates unique constraint
+     "business_invites_pending_uk"` is not a sentence to show a café owner. A genuine race still
+     falls through to the server's own words, which is CLAUDE.md's rule for everything unforeseen. */
+  if((teamData.members||[]).some(function(m){ return normEmail(m.email)===email; })){
+    teamErr('That address is already in your café.'); return;
+  }
+  if((teamData.invites||[]).some(function(v){ return normEmail(v.email)===email; })){
+    teamErr('That address has already been invited and hasn’t joined yet.'); return;
+  }
+  if(btn) btn.disabled=true;
+  var res=await dbInviteMember(email);
+  if(btn) btn.disabled=false;
+  /* pushWrite has already toasted a real error. This adds the case it cannot see — a write the
+     server accepted and silently applied to nothing. */
+  if(!teamWriteLanded(res)){
+    if(!(res && res.error)) teamErr('That invitation was not saved. Only the café owner can invite someone.');
+    return;
+  }
+  inp.value='';
+  /* ⚠️ NOT "invitation sent". Nothing is sent — 191 writes a row and no email leaves EzPlate at any
+     point in this flow, so the word "sent" would promise a delivery that never happens and leave
+     an owner waiting instead of telling the person. The help line under the form carries the
+     instruction; this only reports what actually occurred. */
+  toast(email+' can now create an account.');
+  loadTeam();
+}
+
+function revokeInvite(id){
+  var v=(teamData.invites||[]).find(function(x){ return x.id===id; });
+  askConfirm('Revoke invitation',
+    'Cancel the invitation to '+(v?v.email:'this address')+'? They will not be able to create an account until you invite them again.',
+    'Revoke', async function(){
+      teamErr('');
+      var res=await dbRevokeInvite(id);
+      if(!teamWriteLanded(res)){
+        if(!(res && res.error)) teamErr('That invitation was not revoked. Only the café owner can revoke one.');
+        return;
+      }
+      toast('Invitation revoked.');
+      loadTeam();
+    }, 'Keep it', null);
+}
+
+function wireTeam(){
+  var f=document.getElementById('teamForm');
+  if(f) f.addEventListener('submit', function(ev){ ev.preventDefault(); submitInvite(); });
+  /* Delegated, because the rows are re-rendered on every load and a per-button listener would be
+     rebound on each one — the same reason every other list in this app delegates. */
+  var box=document.getElementById('teamList');
+  if(box) box.addEventListener('click', function(ev){
+    var b=ev.target && ev.target.closest && ev.target.closest('[data-revoke]');
+    if(b) revokeInvite(b.getAttribute('data-revoke'));
+  });
+}
+
 function authErr(msg){
   var e=document.getElementById('acctErr'); if(!e) return;
   e.textContent=msg||''; e.hidden=!msg;
@@ -6111,12 +6488,20 @@ function gateErr(msg){
    nothing and may not — and nothing else. Copying validate/disable/report into the second form
    would be two definitions of one thing, which is the defect CLAUDE.md names rather than a style
    preference: the copy drifts, and the half nobody drives is the half that rots.
-   Returns whether it signed in, so each caller can do its own follow-through. */
-async function authSubmit(email, pass, btn, showErr){
+   Returns whether it signed in, so each caller can do its own follow-through.
+
+   192 — AND WORN BY A THIRD FORM, the gate's sign-up, via the optional `fn`. What that form needs
+   is the same five things in the same order (clear the error, refuse a blank, disable the button,
+   report the REAL message, re-enable whatever happened); only the network call in the middle
+   differs. Copying the five to get a different middle is precisely the two-definitions defect —
+   and the half nobody drives is the half that rots, which here would be the one screen a brand-new
+   staff member ever sees. `fn` defaults to `authSignIn`, so the two existing callers are untouched
+   and the mutation gate keeps pointing at one function rather than three near-copies. */
+async function authSubmit(email, pass, btn, showErr, fn){
   showErr('');
   if(!email || !pass){ showErr('Enter your email and password.'); return false; }
   if(btn) btn.disabled=true;
-  var r=await authSignIn(email, pass);
+  var r=await (fn||authSignIn)(email, pass);
   if(btn) btn.disabled=false;
   /* The REAL error, not a friendly guess. CLAUDE.md's writes rule is that the actual
      server message reaches the user; "something went wrong" on a login is how someone
@@ -6161,6 +6546,73 @@ function wireGateSignIn(){
       if(!ok){ authUserInitiated=false; return; }
       if(pw) pw.value='';
       // no toast and no re-render here: authApply purges this device and reloads.
+    });
+  });
+}
+
+/* ---- 192: the gate's SIGN-UP form, and the toggle between the two -----------------------------
+   Two forms rather than one form in two modes, and the reason is not tidiness. The fields differ
+   where it counts: `autocomplete="current-password"` tells a password manager to OFFER a saved
+   password, `new-password` tells it to GENERATE one, and swapping that attribute at runtime is not
+   something managers re-read. A person being invited to a café is creating their first password on
+   a phone; getting that wrong makes the one screen they will ever see here worse.
+
+   THERE IS NO SIGN-UP ON THE ACCOUNT SCREEN, deliberately. Since 186 a signed-out browser sees
+   nothing but this gate, so the Account card's sign-in form is already behind a screen nobody can
+   reach — putting a second sign-up there would be a control that cannot be arrived at, which §R4
+   forbids, and a second copy of a flow whose whole risk is that it is rarely driven. */
+function gateMode(signup){
+  var si=document.getElementById('bgSignForm'), su=document.getElementById('bgSignUpForm');
+  var m=document.getElementById('bootGateMsg'), d=document.getElementById('bgDone');
+  var ai=document.getElementById('bgAltIn'), au=document.getElementById('bgAltUp');
+  if(!si || !su) return;
+  si.hidden=!!signup; su.hidden=!signup;
+  if(ai) ai.hidden=!!signup; if(au) au.hidden=!signup;      // each side offers the way back to the other, never both at once
+  gateErr('');
+  if(d){ d.hidden=true; d.textContent=''; }
+  if(m) m.textContent = signup ? SIGNUP_MSG : SIGNIN_MSG;
+  var focus=document.getElementById(signup?'bgUpEmail':'bgEmail');
+  if(focus && typeof focus.focus==='function'){ try{ focus.focus(); }catch(e){} }
+}
+
+/* Says what an invitation IS, because the person reading it was invited by a human who probably
+   said "I've added you" and nothing else. It names the address as the thing that must match — the
+   single most common way this flow fails is signing up with a personal address after being invited
+   at a work one, and the server cannot tell them apart. */
+var SIGNUP_MSG='Been invited to a café? Create your account with the email address the owner invited.';
+
+function wireGateSignUp(){
+  var link=document.getElementById('bgToSignUp'), back=document.getElementById('bgToSignIn');
+  if(link) link.addEventListener('click', function(ev){ ev.preventDefault(); gateMode(true); });
+  if(back) back.addEventListener('click', function(ev){ ev.preventDefault(); gateMode(false); });
+
+  var f=document.getElementById('bgSignUpForm'); if(!f) return;
+  f.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var em=document.getElementById('bgUpEmail'), pw=document.getElementById('bgUpPass');
+    var btn=document.getElementById('bgUpBtn'), done=document.getElementById('bgDone');
+    var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
+    if(done){ done.hidden=true; done.textContent=''; }
+    /* NO unfinished-plate question here, unlike the sign-in beside it, and the difference is real
+       rather than an omission. `authGuardUnfinished` exists because signing in PURGES this device;
+       creating an account does not — email confirmation is on, so `signUp` returns no session,
+       `onAuthStateChange` never fires and nothing is destroyed. Asking someone to discard a plate
+       in order to do something that would not have touched it is a question asked for nothing.
+       ⚠️ If confirmation is ever turned off in the dashboard, sign-up starts returning a session
+       and that reasoning expires with it — the purge would then run unasked. The guard belongs
+       here on the day that changes. */
+    authSubmit(email, pass, btn, gateErr, authSignUpGated).then(function(ok){
+      if(!ok) return;
+      if(pw) pw.value='';
+      /* The confirmation email is the entire remaining step and nothing on screen would otherwise
+         say so — `signUp` succeeds silently and the app looks identical, so without this the user
+         waits on a screen that has already done its job. It replaces the form rather than sitting
+         under it: submitting twice sends a second email and reads as failure. */
+      f.hidden=true;
+      if(done){
+        done.hidden=false;
+        done.textContent='Account created. Check '+email+' for a confirmation link, then come back and sign in.';
+      }
     });
   });
 }

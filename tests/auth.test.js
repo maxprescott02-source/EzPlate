@@ -236,21 +236,148 @@ test('185: the tenant gate reads the SERVER, and refuses only on an unambiguous 
     'a signed-in account with no café is TOLD; an empty app with no message is the defect');
 });
 
-test('there is NO sign-up path — an account is created for you, never by you', () => {
-  /* ⚠️ 186 changed WHY, and the why is the whole test. It used to be "the anon key already grants
-     what an account would, so a form would only advertise it" — true until this batch, and dead the
-     moment the anon fallback came out of `current_business_id()`: a stranger with the anon key now
-     gets nothing at all.
-     The reason it stays absent is now the ordinary multi-tenant one, and it is stronger: a self-made
-     account lands in NO café, so a sign-up form's whole outcome is 185's "ask the café owner to add
-     this account" screen. Shipping a form whose only possible result is a dead end is worse than not
-     shipping one. Accounts are made in the dashboard until the roles item builds invitations.
+test('a sign-up exists, and it CANNOT be reached without a pending invitation', async () => {
+  /* ⚠️ THIS ASSERTION USED TO BE `!/signUp\s*\(/` — no sign-up call may ship at all — with the
+     stated reason "while an account cannot join a café". 191 built the join, so that reason is
+     spent, and the queue item was explicit that the line be REWRITTEN TO PIN THE CONDITION rather
+     than deleted. The condition is what was ever worth having and it survives 191 intact:
+     SELF-SERVICE sign-up is still NO (Max, 14 Aug 2026). Shape B is a refinement of that call, not
+     a reversal — under B the sign-up cannot be reached unless an owner created an invite for that
+     exact address first.
+     So this is BEHAVIOURAL, not a grep. A grep for "invite_pending appears above signUp" would pass
+     against a version that called the gate and ignored its answer, which is the whole
+     assertion-that-cannot-fail roster in CLAUDE.md. The REAL `authSignUpGated` runs below; only the
+     two network boundaries it calls are fixtures, and each returns the shape the real one is
+     defined to resolve with.
      ⚠️ Supabase sign-ups remain open at the API LEVEL regardless — that is the gate-review item's,
-     and this assertion does not and cannot cover it. */
-  assert.ok(!/signUp\s*\(/.test(SRC), 'no signUp call may ship while an account cannot join a café');
-  assert.ok(!/id="acctSignUp"/.test(HTML), 'and no sign-up control');
+     and this assertion does not and cannot cover it. What makes that survivable is 186 and 182, not
+     this function: an uninvited account joins no café and sees 185's screen. */
+  function gateHarness(pendingResult) {
+    const S = { pendingCalls: [], signUpCalls: [] };
+    // eslint-disable-next-line no-new-func
+    const fn = new Function('S', 'P', `
+      "use strict";
+      var authInvitePending = async function(e){ S.pendingCalls.push(e); return P; };
+      var authSignUp = async function(e,p){ S.signUpCalls.push([e,p]); return {data:{user:{id:'u1'}}}; };
+      ${extractFn(SRC, 'authSignUpGated')}
+      return authSignUpGated;
+    `)(S, pendingResult);
+    return { S, run: (e, p) => fn(e, p) };
+  }
+
+  /* 1. NO INVITATION. The refusal is the point, and `signUp` must never have been reached — an
+     account created here is an unrecoverable row in auth.users and a burnt confirmation send. */
+  const no = gateHarness({ data: false });
+  const rNo = await no.run('stranger@example.com', 'pw123456');
+  assert.deepEqual(no.S.signUpCalls, [], 'an uninvited address must not reach signUp');
+  assert.ok(rNo.error, 'and is refused');
+  assert.match(rNo.error.message, /invitation/i, 'in words that say what is missing');
+
+  /* 2. THE GATE ITSELF FAILING refuses too, which is the OPPOSITE of this client's usual fail-open
+     and is deliberate. CLAUDE.md: a fail-open default is a decision about CONSEQUENCE. Guessing
+     "probably invited" creates the account; guessing the other way costs "try again in a moment". */
+  const err = gateHarness({ error: { message: 'network' } });
+  const rErr = await err.run('someone@example.com', 'pw123456');
+  assert.deepEqual(err.S.signUpCalls, [], 'an unreadable gate must not create an account');
+  assert.ok(rErr.error, 'and says so');
+
+  /* 3. AND AN INVITED ADDRESS GETS THROUGH — or the gate is just a wall and nobody can ever join. */
+  const yes = gateHarness({ data: true });
+  const rYes = await yes.run('invited@example.com', 'pw123456');
+  assert.deepEqual(yes.S.pendingCalls, ['invited@example.com'], 'the gate is asked about the address being signed up');
+  assert.deepEqual(yes.S.signUpCalls, [['invited@example.com', 'pw123456']], 'and only then is the account created');
+  assert.ok(!rYes.error && rYes.data, 'which succeeds');
+
+  /* The ORDER, which the four cases above already prove, stated once more where a reader of the
+     shipped code will look: the gate cannot be moved below `signUp` without cases 1-3 going red,
+     because by then the account exists whatever the gate answers. */
+  assert.ok(!/id="acctSignUp"/.test(HTML),
+    'and there is still no sign-up on the Account screen — it sits behind a screen 186 made unreachable');
   assert.ok(/signInWithPassword/.test(SRC), 'sign-in itself must be real');
   assert.ok(/auth\.signOut/.test(SRC), 'and so must sign-out');
+  /* The ONE call site. A second `authSignUp(` anywhere would be a path around the gate, which is
+     exactly the shape this test exists to forbid — and a grep is the right tool for "there is no
+     other door", where it is the wrong tool for "this door is locked". */
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  /* ⚠️ THE LOOKBEHIND IS LOAD-BEARING: without it the DECLARATION matches too and the count is
+     always one higher than the number of call sites, so the assertion would be measuring "does this
+     function exist" while reading as "is there exactly one door". Caught by it going red at 2. */
+  assert.equal((code.match(/(?<!function\s)\bauthSignUp\s*\(/g) || []).length, 1,
+    'authSignUp is called from authSignUpGated and nowhere else');
+  assert.equal((code.match(/auth\.signUp\s*\(/g) || []).length, 1,
+    'and the raw supabase signUp is called only from authSignUp');
+});
+
+test('192: only a real TRUE is an invitation — the narrowing at the wire boundary', async () => {
+  /* ⚠️ THIS IS SPLIT OUT OF THE TEST ABOVE ON PURPOSE, and the reason is worth writing down because
+     the first cut got it wrong. That test stubs `authInvitePending`, so it exercises the ORDER and
+     cannot see the narrowing at all — a case asserting "the string 'true' is not a yes" passed a
+     value straight past the code that decides it and failed for the right reason on the wrong
+     function. CLAUDE.md's whole roster is tests that measure something other than what they name.
+     So the narrowing is tested where it lives: at the boundary that reads the wire.
+     What it buys: `invite_pending` returns a boolean today, but PostgREST shape changes and an
+     older deployed function returning a row object would both arrive TRUTHY, and truthy would
+     open a sign-up for an address nobody invited. `=== true` is the only reading that cannot. */
+  function pendingHarness(rpcResult) {
+    const S = { calls: [] };
+    // eslint-disable-next-line no-new-func
+    const fn = new Function('S', 'R', `
+      "use strict";
+      var SUPA = { rpc: function(name, args){ S.calls.push([name, args]); return Promise.resolve(R); } };
+      ${extractFn(SRC, 'errText')}
+      ${extractFn(SRC, 'authInvitePending')}
+      return authInvitePending;
+    `)(S, rpcResult);
+    return { S, run: (e) => fn(e) };
+  }
+
+  const yes = pendingHarness({ data: true, error: null });
+  assert.deepEqual((await yes.run('a@b.co')).data, true, 'a real yes is a yes');
+  assert.deepEqual(yes.S.calls, [['invite_pending', { p_email: 'a@b.co' }]],
+    'and the server is asked by name, with the address as its one argument');
+
+  for (const odd of ['true', 1, {}, [], 'yes']) {
+    const h = pendingHarness({ data: odd, error: null });
+    assert.strictEqual((await h.run('a@b.co')).data, false,
+      `${JSON.stringify(odd)} is not an invitation`);
+  }
+  const no = pendingHarness({ data: false, error: null });
+  assert.strictEqual((await no.run('a@b.co')).data, false, 'and false is plainly not one');
+
+  /* An error is an ERROR, never a false — the two mean different things to authSignUpGated, which
+     refuses on both but only says "no invitation" for one. Telling somebody they were not invited
+     when the truth is that the lookup timed out sends them back to the café owner for nothing. */
+  const err = pendingHarness({ data: null, error: { message: 'timeout' } });
+  const rErr = await err.run('a@b.co');
+  assert.ok(rErr.error && !('data' in rErr), 'an unreadable answer is an error, not a no');
+
+  /* ⚠️ NO CLIENT AT ALL must RETURN an error, never throw — and this assertion exists because the
+     mutation gate found it. Flipping the guard's `||` to `&&` made a null SUPA evaluate
+     `!SUPA.rpc` and raise a TypeError BEFORE the try block, which `authSubmit` does not catch: the
+     button would stay disabled forever on a device with no configuration, on the one screen a new
+     staff member ever sees. The guard has to short-circuit, and this is what says so. */
+  // eslint-disable-next-line no-new-func
+  const noClient = new Function(`
+    "use strict";
+    var SUPA = null;
+    ${extractFn(SRC, 'errText')}
+    ${extractFn(SRC, 'authInvitePending')}
+    return authInvitePending;
+  `)();
+  const rNone = await noClient('a@b.co');
+  assert.ok(rNone.error, 'no client is an error');
+  assert.match(rNone.error.message, /connection/i, 'and it says so in words');
+  /* And a client that exists but predates the RPC — the Playwright shim's shape, and an older
+     deployment's. Same requirement, different half of the same guard. */
+  // eslint-disable-next-line no-new-func
+  const noRpc = new Function(`
+    "use strict";
+    var SUPA = {};
+    ${extractFn(SRC, 'errText')}
+    ${extractFn(SRC, 'authInvitePending')}
+    return authInvitePending;
+  `)();
+  assert.ok((await noRpc('a@b.co')).error, 'a client with no rpc is an error too, not a crash');
 });
 
 /* ── 186: authSubmit, the ONE sign-in sequence both forms wear ────────────────────────────────
@@ -370,14 +497,20 @@ test('a signed-out or non-member boot is NEVER offered somebody else\'s plate dr
 });
 
 test('the password field is cleared after a successful attempt — in BOTH forms', () => {
-  /* Two callers now, and the clear lives in each handler rather than in authSubmit: the field
-     element is the caller's, not the sequence's. So this counts, rather than matching once and
-     calling it proved. */
+  /* THREE callers as of 192 — the gate's sign-in, the gate's sign-up and the Account form — and the
+     clear lives in each handler rather than in authSubmit, because the field element is the
+     caller's and not the sequence's. So this counts, rather than matching once and calling it
+     proved.
+     ⚠️ THE COUNT IS THE ASSERTION, and it is the shape CLAUDE.md warns about (188: a counter coupled
+     to every future caller). It is kept deliberately, and made safe by being a count of the
+     handlers themselves rather than of a shared fixture: adding a fourth form that handles a
+     password and forgetting to clear it must go RED here, which is the only thing that would catch
+     it. If you add one, the number changes in the same commit as the handler. */
   const wire = SRC.slice(SRC.indexOf('function wireGateSignIn'), SRC.indexOf('function renderSettingsTab'))
     .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
   const hits = wire.match(/pw\.value=''/g) || [];
-  assert.strictEqual(hits.length, 2,
-    'a password must not sit in the DOM after use, on either form — found ' + hits.length);
+  assert.strictEqual(hits.length, 3,
+    'a password must not sit in the DOM after use, on any of the three forms — found ' + hits.length);
 });
 
 test('the account markup toggles with [hidden] and carries no display rule that would beat it', () => {

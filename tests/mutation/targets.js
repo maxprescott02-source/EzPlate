@@ -61,6 +61,27 @@ const targets = [
   // the same button only unpublishes a dish, which staff may do — so both halves need proving.
   { fn: 'openDelChoice', tests: ['roles-client.test.js'] },
 
+  // 192: invitations. Every one of these decides whether somebody gets INTO a café or is kept out,
+  // and all four failure modes are silent — which is why they are on the list rather than trusted.
+  // claimState: a wrong 'joined' re-syncs forever behind a spinner, a wrong 'none' leaves an
+  // invited person staring at "ask the café owner to add this account" after they were added.
+  { fn: 'claimState', tests: ['invites-client.test.js'] },
+  // teamWriteLanded: the measured silent no-op. A blocked DELETE on business_invites returns HTTP
+  // 200 having changed NOTHING (191's rehearsal, as staff), so `!res.error` is not a landing — a
+  // mutant that loosens this reports a revoke that did not happen, with the row still live.
+  { fn: 'teamWriteLanded', tests: ['invites-client.test.js'] },
+  // authSignUpGated: the ONE thing standing between "invited people may sign up" and self-service
+  // sign-up, which Max declined. Flipping its `!g.data` opens the gate to every address.
+  { fn: 'authSignUpGated', tests: ['auth.test.js'] },
+  // authInvitePending: and the narrowing underneath it. `=== true` is what stops a truthy shape
+  // change — a row object, a string — reading as an invitation.
+  { fn: 'authInvitePending', tests: ['auth.test.js'] },
+  // loadTeam: its owner check is what keeps a list read as owner from surviving into a staff
+  // session, and its error branch is what stops half a card painting as "nobody is invited".
+  { fn: 'loadTeam', tests: ['invites-client.test.js'] },
+  // submitInvite: the two duplicate guards and the landed check, all of which fail quietly.
+  { fn: 'submitInvite', tests: ['invites-client.test.js'] },
+
   { fn: 'publishPlan', tests: ['publish-guard.test.js'] },
   { fn: 'productRefs', tests: ['product-delete-guard.test.js'] },
   { fn: 'canDeleteMenu', tests: ['menu-fallback.test.js'] },

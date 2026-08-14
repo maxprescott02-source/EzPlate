@@ -2863,6 +2863,32 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .stg-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
 /* Account / Team — a coming feature, not a disabled control (F10 owns whether they stay) */
 .stg-soon{margin:var(--sp-4) 0;font-size:var(--fs-base);color:var(--text2)}
+/* 192 — the Team card's list, form and states.
+   ⚠️ `.team-own` IS ABSENT FROM THIS FILE ON PURPOSE. It is the block applyRoleUi hides from staff
+   with `hidden`, it is a <div> and therefore display:block already, and giving it a rule that said
+   so would beat the UA's `[hidden]{display:none}` on ORIGIN and show every staff account the
+   invite form. The twelve `:not([hidden])` guards elsewhere in this file are all repairs of exactly
+   that mistake; the cheaper fix is not to write the rule. Same for `.bg-alt`/`.bg-done` above.
+   `.team-row` and `.team-form` are never hidden themselves — their container is — so they may
+   carry layout freely. */
+.team-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-3) 0;border-top:1px solid var(--hairline)}
+.team-row:first-child{border-top:0}
+.team-em{font-size:var(--fs-base);color:var(--text);overflow-wrap:anywhere;min-width:0}
+/* Mono + tabular for the role, so Owner/Staff form a column the eye can scan rather than ragged
+   words — the §4 row grammar (identity left, status pill rightmost) the whole redesign uses. */
+.team-role{flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-sm);font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
+.team-you,.team-pend{font-size:var(--fs-sm);font-weight:700;color:var(--muted2)}
+.team-pend{color:var(--accent-ink)}
+.team-x.btn{flex:0 0 auto;min-height:36px;padding:6px 12px;font-size:var(--fs-sm)}
+.team-note{margin:var(--sp-3) 0;font-size:var(--fs-sm);color:var(--text2)}
+.team-bad{color:var(--bad)}
+.team-form{padding-top:var(--sp-4)}
+@media (max-width:640px){
+  /* Matching specificity with the wide rule above (0-1-0 both sides), which is the @media trap
+     CLAUDE.md records five instances of in one screen: specificity is compared BEFORE source
+     order, so a narrower selector here would silently lose to the plain one outside the query. */
+  .team-row{flex-wrap:wrap}
+}
 .stg-about p{margin:0 0 4px}
 .stg-about p:first-child{margin-top:var(--sp-4)}
 .stg-about p:last-child{margin-bottom:var(--sp-4)}
@@ -3414,6 +3440,19 @@ html{scrollbar-gutter:stable}
 #bootGate .acct-in{flex:0 0 auto}
 #bootGate .acct-form .btn{width:100%}
 #bootGate .acct-err{margin:0;width:100%;text-align:left}
+/* 192 — the two alt links (sign-in <-> sign-up) and the "check your email" line.
+   ⚠️ NEITHER CARRIES A `display` RULE, and that is checked rather than incidental: both are <p>,
+   both are toggled with `hidden` by bootGate and gateMode, and a `display` rule here would beat the
+   UA's `[hidden]{display:none}` on origin and leave them on screen. CLAUDE.md's `[hidden]`
+   corollary — the twelve rules in this file that DO need `:not([hidden])` all needed it because
+   somebody gave a JS-hidden element a display rule. Do not give these one.
+   The colour is stated rather than inherited: `a{color:var(--accent-ink)}` at the top of this file
+   already sets it, and it is repeated at #bootGate scope because this overlay is the one surface
+   that renders over `--surface2` in both themes and the contrast is checked there. */
+#bootGate .bg-alt{margin:0;width:100%;text-align:center;font-size:var(--fs-sm)}
+#bootGate .bg-alt a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:3px}
+#bootGate .bg-alt a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+#bootGate .bg-done{margin:0;width:100%;text-align:left;font-size:var(--fs-sm);line-height:1.5;color:var(--good);font-weight:600}
 #bootGate .bg-spin{
   width:28px; height:28px; border-radius:50%;
   border:2.5px solid var(--line); border-top-color:var(--accent);   /* v115: --accent head (was --text2) — one ring language across boot, pull-to-refresh and the invoice wait, which all wait on the same Supabase */

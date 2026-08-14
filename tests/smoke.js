@@ -153,13 +153,27 @@ ok('the account screen carries the three mock sections',
    THIS IS THE THIRD PLACE the same contract is asserted (the others are
    tests/settings-toggles.test.js and tests/visual/q9-settings.spec.js). All three had to move
    together, and only this one is outside `npm test`, so it went red in CI after the other two
-   were green locally. */
+   were green locally.
+
+   ⚠️ 192: narrowed to PLAN ALONE, by the same argument a third time — Team now sends real
+   invitations against 191's `business_invites`, so it has earned its controls exactly as Profile
+   did in 174.
+   AND THE WARNING ABOVE FIRED AGAIN, WORD FOR WORD, ON THE BATCH THAT WROTE THIS LINE. The other
+   two sites were moved, `npm test` was green, Playwright was green, and CI went red on this file —
+   because `npm run smoke` is a separate command and nothing local runs it as part of the suite.
+   The paragraph 174 left here is exactly the note that would have prevented it, and it was
+   unreadable from outside the file it protects. **The fix is not another comment: it is to run
+   `npm run smoke` before pushing, which the `verify` skill already says and this batch skipped.** */
 const acctPromiseCards = [...window.document.querySelectorAll('#tab-account .stg-card')]
-  .filter(c => !c.querySelector('#acctForm'));
+  .filter(c => !c.querySelector('#acctForm') && !c.querySelector('#teamForm'));
 ok('and no control of any kind in the cards that promise something',
    acctPromiseCards.every(c => c.querySelectorAll('button, input, select, a').length === 0));
 ok('…while Profile ships the sign-in that earned its controls',
    !!window.document.querySelector('#tab-account #acctForm') && !!window.document.querySelector('#tab-account #acctIn'));
+/* 192: and Team ships the invite form that earned ITS controls. Without this the narrowing above
+   would be a hole rather than a rule — a card can leave the scan only by proving it is backed. */
+ok('…and Team ships the invite form that earned its own',
+   !!window.document.querySelector('#tab-account #teamForm') && !!window.document.querySelector('#tab-account #teamAdd'));
 ok('currentTab reports account', window.currentTab() === 'account');
 
 /* 171: the More screen and the routes it owns, driven end to end. This is the batch's whole point,

@@ -1,12 +1,21 @@
 #!/bin/sh
 #
-# EzPlate pre-push gate. Two checks, both deterministic, both a few seconds.
+# EzPlate pre-push gate. Three checks, all deterministic, all a few seconds.
 #
 #   1. npm test          — the suite must be green.
-#   2. mutate --changed  — every test file or target function this branch touched must still KILL
+#   2. npm run smoke     — the jsdom walkthrough, which is NOT part of `npm test`.
+#   3. mutate --changed  — every test file or target function this branch touched must still KILL
 #                          the mutants of the code it claims to pin.
 #
-# WHY (2) EXISTS. A test that cannot fail is this project's most common defect class: ten instances
+# WHY (2) IS HERE, ADDED IN 192. It was not, and CI runs it as a separate job — so a batch could
+# have `npm test` green, the mutation gate green and Playwright green locally, and still go red on
+# push. That happened twice: 174 and 192, both times on the SAME assertion, which is stated in three
+# places of which `tests/smoke.js` is the only one outside `npm test`. 174 left a warning in that
+# file saying exactly this; it did not help, because it is only readable by someone already opening
+# the file they are about to break.
+# The gate is the mechanism and the comment was not. Eight seconds is worth it.
+#
+# WHY (3) EXISTS. A test that cannot fail is this project's most common defect class: ten instances
 # across batches 165-176, several written INSIDE the file that warns about the pattern. A rule in a
 # context file is advice a model can reason past; this is not. `tests/mutation/targets.js` says which
 # functions are covered and which test files claim them.
@@ -23,8 +32,11 @@
 
 set -e
 
-echo "pre-push 1/2: npm test"
+echo "pre-push 1/3: npm test"
 npm test --silent
 
-echo "pre-push 2/2: mutation gate (changed scope)"
+echo "pre-push 2/3: npm run smoke (jsdom — not covered by npm test)"
+npm run smoke --silent
+
+echo "pre-push 3/3: mutation gate (changed scope)"
 node tests/mutation/run.js --changed
