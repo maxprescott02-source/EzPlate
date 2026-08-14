@@ -15,7 +15,9 @@
 -- WHAT STAFF MAY NOT DO, and where each one is enforced
 --   * delete a plate ................. restrictive policy on `plates`
 --   * delete a menu .................. restrictive policy on `menus`
---   * change the food cost target .... restrictive policies on `app_settings`
+--   * change the food cost target .... restrictive policies on `app_settings`,
+--     one for EACH of insert, update AND delete — see the note at that section:
+--     covering the upsert's two halves and stopping was this batch's real defect.
 --   * restore a backup ............... a guard inside `restore_backup` itself
 --   Staff KEEP everything else, including deleting a `menu_items` row. That is
 --   unpublishing a dish from a menu, which is everyday editing; the decision's
@@ -80,29 +82,39 @@
 --   it — which is Max refused permission to delete his own plates. The
 --   transaction is kept as well; the ordering is not a substitute for it.
 --
--- ROLLBACK, one statement. It removes everything this file adds, in the order
--- that cannot fail half way (policies first, so nothing consults a function that
--- is about to go):
+-- ROLLBACK, and it is TWO STEPS IN THIS ORDER, not one.
+-- ⚠️ This header said "one statement" until the pre-push review read it against
+-- what it actually does. The `do` block below drops `current_business_role()`,
+-- and `restore_backup` CALLS that function — so running the block on its own
+-- leaves every restore raising 42883 for everybody, owner included. Restore was
+-- working before this migration; a rollback performed as the headline described
+-- would have left production worse off than not rolling back at all. The body of
+-- the note did say to do both, which is exactly the shape that gets skimmed.
+--
+--   STEP 1, FIRST: re-run the whole `create or replace function
+--   public.restore_backup` block from `supabase/migrations/20260813_semantic_keys.sql`.
+--   That is the previous definition, guard-free. It is not copied here on
+--   purpose: 170 lines in a comment is a second copy to keep in step, which is
+--   the defect this repo names rather than a safeguard.
+--
+--   STEP 2, AFTER IT: everything else, policies first so nothing consults a
+--   function that is about to go:
 --   do $$ begin
 --     drop policy if exists "plates owner-only delete" on public.plates;
 --     drop policy if exists "menus owner-only delete" on public.menus;
 --     drop policy if exists "app_settings owner-only target insert" on public.app_settings;
 --     drop policy if exists "app_settings owner-only target update" on public.app_settings;
+--     drop policy if exists "app_settings owner-only target delete" on public.app_settings;
 --     alter table public.business_members drop constraint if exists business_members_one_business_per_user;
 --     drop trigger if exists set_member_role on public.business_members;
 --     drop function if exists public.set_member_role();
 --     drop function if exists public.current_business_role();
 --     alter table public.business_members drop column if exists role;
 --   end $$;
---   ⚠️ IT IS RE-RUNNABLE (every statement is a drop), and it does NOT restore
---   `restore_backup`'s previous body — that block is 170 lines and copying it
---   into a comment would create a second copy to keep in step, which is the
---   defect this repo names rather than a safeguard. The previous definition is
---   the `create or replace` block in `supabase/migrations/20260813_semantic_keys.sql`;
---   re-run that block to revert this function. Leaving the guard in place after a
---   rollback is also harmless-but-wrong: it would call a function that no longer
---   exists and raise 42883 on every restore, so if you roll back, roll this back
---   too.
+--   Step 2 is re-runnable — every statement in it is a drop. Step 1 is a
+--   `create or replace`, so it is too. Doing them in the other order is what
+--   breaks the restore, which is why the order is in the heading and not only
+--   in the prose.
 --
 -- ⚠️ THE `restore_backup` BLOCK BELOW IS 183's, COPIED MECHANICALLY, WITH ONE
 --   INSERTION. It was extracted from `20260813_semantic_keys.sql` by script and
@@ -151,6 +163,14 @@
 --   MEASURED BEFORE THE UNIQUE CONSTRAINT WENT ON, in both projects: nobody
 --   holds two memberships, so it locked nothing out that exists.
 --
+--   ⚠️ RE-REHEARSED AFTER THE PRE-PUSH REVIEW, because the first pass had a hole:
+--   there was no restrictive DELETE on `app_settings`, so a staff account could
+--   REMOVE the target rather than change it. Reproduced as `d@example.com` before
+--   the fix — `DELETE /app_settings?key=eq.food_cost_target` returned HTTP 200
+--   with the row, and the target was gone. After the fix, same request: `[]` and
+--   the row survived; staff deleting a DIFFERENT key still works; the owner can
+--   still delete the target. The deleted row was put back.
+--
 -- APPLIED TO PRODUCTION: 14 Aug 2026, by Claude, written here after it ran
 --   (batch 186's rule: a pre-written record is the audit trail lying).
 --   Unlike 186 this has NO client half, so there is no deploy-order hazard — the
@@ -167,6 +187,8 @@
 --     the rollback: 79 plates still there and the target still 30, so the proof
 --     cost nothing. ⚠️ Not a real sign-in over PostgREST — his password is his.
 --     The staff half above IS a real sign-in, which is the half that needed one.
+--   * the missing DELETE policy went on BOTH projects when the review found it,
+--     and the fingerprints below were taken after that, so they cover it.
 --   * fingerprints (docs/STAGING.md, plus `permissive` added to the policy line
 --     for this batch — the column that distinguishes a restriction from a grant)
 --     IDENTICAL to staging afterwards: policies 19, functions 5, constraints 31,
@@ -280,6 +302,21 @@ create policy "app_settings owner-only target update" on public.app_settings
   as restrictive for update to public
   using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner')
   with check (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
+
+-- ⚠️ AND DELETE, WHICH THE PRE-PUSH REVIEW FOUND MISSING AND WHICH IS THE WHOLE
+-- LESSON OF THIS SECTION. The first cut covered "the upsert's two halves" and
+-- stopped, because an upsert HAS two halves — but the restriction is keyed to a
+-- VALUE rather than to a command, and a value can also be REMOVED. Reproduced as
+-- a real staff account on staging before it was fixed: `DELETE /app_settings
+-- ?key=eq.food_cost_target` returned HTTP 200 with the row, and the target was
+-- gone. The client then falls back to its hardcoded default on the next boot
+-- (`cogsPct` is 40 until app_settings says otherwise) with nothing raised
+-- anywhere, which moves every suggested price and every good/bad colour in the
+-- app — the quiet-wrong-number failure this repo keeps finding.
+drop policy if exists "app_settings owner-only target delete" on public.app_settings;
+create policy "app_settings owner-only target delete" on public.app_settings
+  as restrictive for delete to public
+  using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
 
 -- ---------------------------------------------------------------------------
 -- 6. the restore. See the header: this block is 183's, copied by script, with

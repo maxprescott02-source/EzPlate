@@ -201,6 +201,11 @@ The second is OR'd with the tenant policy, which already permits the delete, so 
 
 **The tell: a policy whose NAME says what someone may not do.** Read its first line, not its condition — a restriction that is not `as restrictive` is decoration. `tests/roles.test.js` pins all four, and the mutation was run: flipping one to `permissive` turns it red.
 
+**⚠️ AND THE ONE THAT ACTUALLY SHIPPED PAST THE FIRST DRAFT: a restriction keyed to a VALUE must cover every command that can change that value, INCLUDING DELETE.**
+The other three restrictions here name a command on a table — "staff may not delete a plate" — so the policy is the whole of it. The fourth names a *value*: `key = 'food_cost_target'` in a shared settings table. `dbSetSetting` upserts, so the frame was "an upsert has two halves", INSERT and UPDATE were both covered, and a test asserting exactly that passed.
+**DELETE is not part of an upsert, so it never entered the frame.** A staff account could delete the row outright — measured, not reasoned: HTTP 200, row returned, target gone — and the client then boots on its hardcoded default with nothing raised anywhere, which moves every suggested price and every good/bad colour in the app. Caught by the pre-push review.
+**The transferable question is "what are ALL the ways this value can stop being what the owner set", not "which commands does my client use".** A client that only ever upserts is not a bound on what a caller can send; the whole point of the policy is the caller you did not write. Enumerate the commands in the test, so the next one cannot be missed by having a smaller frame.
+
 **Two corollaries that cost as much and are less obvious:**
 - **`as restrictive for all` is not "restrict everything", it is "require this to READ".** On a tenant table that means staff open the app to an empty café. Name the command.
 - **NULL refuses.** `current_business_role() = 'owner'` is NULL for a caller with no membership, and a policy evaluating to NULL denies — which is what you want on the server, and is the exact OPPOSITE of the client-side rule two sections up. **The server refuses when it cannot establish permission; the client must not lock anyone out when it cannot tell.** Same expression shape, opposite correct default, because the consequences are not symmetrical.

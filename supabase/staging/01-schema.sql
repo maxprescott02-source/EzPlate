@@ -620,6 +620,21 @@ create policy "app_settings owner-only target update" on public.app_settings
   using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner')
   with check (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
 
+-- ⚠️ AND DELETE, WHICH THE PRE-PUSH REVIEW FOUND MISSING AND WHICH IS THE WHOLE
+-- LESSON OF THIS SECTION. The first cut covered "the upsert's two halves" and
+-- stopped, because an upsert HAS two halves — but the restriction is keyed to a
+-- VALUE rather than to a command, and a value can also be REMOVED. Reproduced as
+-- a real staff account on staging before it was fixed: `DELETE /app_settings
+-- ?key=eq.food_cost_target` returned HTTP 200 with the row, and the target was
+-- gone. The client then falls back to its hardcoded default on the next boot
+-- (`cogsPct` is 40 until app_settings says otherwise) with nothing raised
+-- anywhere, which moves every suggested price and every good/bad colour in the
+-- app — the quiet-wrong-number failure this repo keeps finding.
+drop policy if exists "app_settings owner-only target delete" on public.app_settings;
+create policy "app_settings owner-only target delete" on public.app_settings
+  as restrictive for delete to public
+  using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
+
 
 -- ---------------------------------------------------------------------------
 -- 5. GRANTS

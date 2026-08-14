@@ -39,6 +39,7 @@ const RESTRICTED = [
   { policy: 'menus owner-only delete', table: 'menus', cmd: 'delete' },
   { policy: 'app_settings owner-only target insert', table: 'app_settings', cmd: 'insert' },
   { policy: 'app_settings owner-only target update', table: 'app_settings', cmd: 'update' },
+  { policy: 'app_settings owner-only target delete', table: 'app_settings', cmd: 'delete' },
 ];
 
 /* ── The one-word edits ───────────────────────────────────────────────────────────────────────── */
@@ -81,13 +82,34 @@ test('the role is compared for equality with owner, never merely for existence',
   }
 });
 
-test('the target restriction covers BOTH halves of the upsert', () => {
-  /* `dbSetSetting` upserts, so the write is an INSERT that may become an UPDATE. Whichever half the
-     row's existence selects is the half that must refuse — covering one leaves the restriction
-     reachable on a database where that row happens to exist, or happens not to. */
-  const insert = MIG.indexOf('create policy "app_settings owner-only target insert"');
+test('a VALUE-keyed restriction covers EVERY command that can change that value', () => {
+  /* ⚠️ THIS TEST REPLACED ONE CALLED "the target restriction covers BOTH halves of the upsert",
+     WHICH PASSED WHILE THE RESTRICTION WAS BROKEN. `dbSetSetting` upserts, so I checked INSERT and
+     UPDATE, found both, and stopped — the frame was "an upsert has two halves" and DELETE is not
+     part of an upsert.
+     The pre-push review found it and it was REPRODUCED as a real staff account on staging:
+     `DELETE /app_settings?key=eq.food_cost_target` returned HTTP 200 with the row, and the target
+     was gone. The client then boots on its hardcoded default with nothing raised anywhere, which
+     moves every suggested price in the app.
+     THE GENERAL SHAPE, which is why this test is written as an enumeration rather than a third
+     assertion: the other three restrictions name a COMMAND on a table, so "restrict delete" is the
+     whole of it. This one names a VALUE — `key = 'food_cost_target'` — and a value can be written,
+     rewritten OR REMOVED. Enumerating the commands is the only form of this test that cannot miss
+     the next one. */
+  const commands = ['insert', 'update', 'delete'];
+  for (const cmd of commands) {
+    const name = `app_settings owner-only target ${cmd}`;
+    const i = MIG.indexOf(`create policy "${name}"`);
+    assert.ok(i > -1,
+      `no restrictive ${cmd.toUpperCase()} policy on app_settings — a staff account can reach the target through it`);
+    const head = MIG.slice(i, MIG.indexOf(';', i));
+    assert.match(head, /\bas restrictive\b/, `"${name}" must be restrictive`);
+    assert.match(head, /key <> 'food_cost_target' or /, `"${name}" must let every other setting through`);
+    assert.ok(MIR.includes(`create policy "${name}"`), `the mirror is missing "${name}"`);
+  }
+  // and the update half needs both sides: USING judges the old row, WITH CHECK the new one — which
+  // is what stops a staff account RENAMING another key to food_cost_target.
   const update = MIG.indexOf('create policy "app_settings owner-only target update"');
-  assert.ok(insert > -1 && update > -1, 'both halves must exist');
   const upd = MIG.slice(update, MIG.indexOf(';', update));
   assert.match(upd, /using \(/, 'the update policy needs a USING — it decides which rows may be touched');
   assert.match(upd, /with check \(/, 'and a WITH CHECK — it decides what they may become');
