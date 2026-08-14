@@ -637,6 +637,200 @@ create policy "app_settings owner-only target delete" on public.app_settings
 
 
 -- ---------------------------------------------------------------------------
+-- 4c. INVITATIONS — 20260814_invitations.sql (191).
+--
+-- The server half of shape B: an owner creates a pending invitation for an email
+-- address, and that address — and only that address — can then join the café.
+-- The migration's header carries the reasoning, the disclosure argument for
+-- `invite_pending`, and why the join is a CLAIM function rather than a trigger on
+-- `auth.users`. It lives here rather than in section 1 for the same reason 4b
+-- does: `business_id`, `current_business_id()` and `current_business_role()` must
+-- all exist before this table's default and policies can reference them.
+--
+-- ⚠️ THE FUNCTION BODIES BELOW MUST STAY BYTE-IDENTICAL TO THE MIGRATION'S.
+-- `pg_get_functiondef` returns the stored source text, and `functions_fp` hashes
+-- it — so a comment added INSIDE the dollar quotes on one side and not the other
+-- makes the mirror's only drift detector red forever. The explanations are in the
+-- migration; nothing is repeated inside a body here.
+-- ---------------------------------------------------------------------------
+create table if not exists public.business_invites (
+  id           uuid primary key default gen_random_uuid(),
+  business_id  uuid not null default public.current_business_id()
+                 references public.businesses(id) on delete cascade,
+  email        text not null,
+  role         text not null default 'staff',
+  invited_by   uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at   timestamptz not null default now(),
+  accepted_at  timestamptz,
+  accepted_by  uuid references auth.users(id) on delete set null,
+  constraint business_invites_role_check check (role in ('owner','staff')),
+  constraint business_invites_email_check check (
+    email = lower(btrim(email))
+    and email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+  ),
+  constraint business_invites_accepted_check check (
+    (accepted_at is null) = (accepted_by is null)
+  )
+);
+
+create unique index if not exists business_invites_pending_uk
+  on public.business_invites (business_id, email)
+  where accepted_at is null;
+
+create index if not exists business_invites_email_idx
+  on public.business_invites (email) where accepted_at is null;
+
+create or replace function public.stamp_invite()
+returns trigger
+language plpgsql
+set search_path = ''
+as $fn$
+begin
+  new.email := lower(btrim(coalesce(new.email, '')));
+  if tg_op = 'INSERT' then
+    new.invited_by := auth.uid();
+  else
+    new.invited_by := old.invited_by;
+  end if;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists stamp_invite on public.business_invites;
+create trigger stamp_invite
+  before insert or update on public.business_invites
+  for each row execute function public.stamp_invite();
+
+drop trigger if exists set_business_id on public.business_invites;
+create trigger set_business_id
+  before insert or update on public.business_invites
+  for each row execute function public.set_default_business_id();
+
+-- RLS BEFORE the policies here, which is the opposite order to the tables above
+-- and is the same law: a NEW empty table's dangerous intermediate state is
+-- "granted but unprotected", and RLS with no policies denies everything.
+alter table public.business_invites enable row level security;
+
+drop policy if exists "business_invites tenant access" on public.business_invites;
+create policy "business_invites tenant access" on public.business_invites
+  for all to public
+  using (business_id = (select public.current_business_id()))
+  with check (business_id = (select public.current_business_id()));
+
+-- Four restrictive policies, one per command. `as restrictive` is what makes them
+-- take something away — permissive would be OR'd with the tenant policy above and
+-- restrict nothing while still reading as though it did (187's lesson) — and all
+-- four commands are named because a client that only inserts and deletes is not a
+-- bound on what a caller can send (187's OTHER lesson, the one that shipped).
+drop policy if exists "business_invites owner-only select" on public.business_invites;
+create policy "business_invites owner-only select" on public.business_invites
+  as restrictive for select to public
+  using ((select public.current_business_role()) = 'owner');
+
+drop policy if exists "business_invites owner-only insert" on public.business_invites;
+create policy "business_invites owner-only insert" on public.business_invites
+  as restrictive for insert to public
+  with check ((select public.current_business_role()) = 'owner');
+
+drop policy if exists "business_invites owner-only update" on public.business_invites;
+create policy "business_invites owner-only update" on public.business_invites
+  as restrictive for update to public
+  using ((select public.current_business_role()) = 'owner')
+  with check ((select public.current_business_role()) = 'owner');
+
+drop policy if exists "business_invites owner-only delete" on public.business_invites;
+create policy "business_invites owner-only delete" on public.business_invites
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+create or replace function public.invite_pending(p_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select exists (
+    select 1 from public.business_invites i
+     where i.email = lower(btrim(coalesce(p_email, '')))
+       and i.accepted_at is null
+  );
+$fn$;
+
+revoke all on function public.invite_pending(text) from public;
+grant execute on function public.invite_pending(text) to anon, authenticated, service_role;
+
+create or replace function public.claim_business_invite()
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  uid uuid := auth.uid();
+  em  text;
+  inv public.business_invites%rowtype;
+begin
+  if uid is null then
+    return null;
+  end if;
+
+  if exists (select 1 from public.business_members m where m.user_id = uid) then
+    return null;
+  end if;
+
+  select lower(btrim(u.email)) into em
+    from auth.users u
+   where u.id = uid
+     and u.email_confirmed_at is not null;
+  if em is null or em = '' then
+    return null;
+  end if;
+
+  select i.* into inv
+    from public.business_invites i
+   where i.email = em
+     and i.accepted_at is null
+   order by i.created_at, i.id
+   limit 1;
+  if not found then
+    return null;
+  end if;
+
+  insert into public.business_members (business_id, user_id, role)
+       values (inv.business_id, uid, inv.role);
+
+  update public.business_invites
+     set accepted_at = now(), accepted_by = uid
+   where id = inv.id;
+
+  return inv.business_id;
+end;
+$fn$;
+
+revoke all on function public.claim_business_invite() from public;
+grant execute on function public.claim_business_invite() to authenticated, service_role;
+
+create or replace function public.business_team()
+returns table (user_id uuid, email text, role text)
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select m.user_id, u.email::text, m.role
+    from public.business_members m
+    join auth.users u on u.id = m.user_id
+   where m.business_id = (select public.current_business_id())
+     and (select public.current_business_role()) = 'owner'
+   order by m.created_at, m.user_id;
+$fn$;
+
+revoke all on function public.business_team() from public;
+grant execute on function public.business_team() to authenticated, service_role;
+
+
+-- ---------------------------------------------------------------------------
 -- 5. GRANTS
 --
 -- Production carries Supabase's stock grant-all to the three API roles on every
@@ -647,8 +841,8 @@ create policy "app_settings owner-only target delete" on public.app_settings
 do $$
 declare t text;
 begin
-  foreach t in array array['app_settings','ingredients','ing_price_history','menu_change_log',
-                           'menu_items','menu_price_history','menus','plates',
+  foreach t in array array['app_settings','business_invites','ingredients','ing_price_history',
+                           'menu_change_log','menu_items','menu_price_history','menus','plates',
                            'price_history','supplier_phrases'] loop
     execute format('grant all on table public.%I to anon, authenticated, service_role', t);
   end loop;

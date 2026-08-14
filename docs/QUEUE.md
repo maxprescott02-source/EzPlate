@@ -31,11 +31,35 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · Roles — invitations, so an owner can add someone  **[A — launch blocker]**
+## next  1 · Invitations — the CLIENT half  **[A — launch blocker]**
 
-### ✅ UNBLOCKED, 14 Aug 2026 (Max) — shape **B**, invite first, then a GATED sign-up
+### ⚙️ THE SERVER HALF SHIPPED IN BATCH 191. This item is now only the client.
 
-*(`Blocked on: which of the three onboarding shapes` DELETED — answered. It is the top item now: it is the last launch blocker that was waiting on a person, and the three below it are gates that can be read in any order.)*
+**Split for size, not for taste**, on the precedent of 182/183 and 187/188: the table, its policies, the claim, the probe and the team read were one reviewable PR, and the Team card + a gated sign-up form on two screens + the `tests/auth.test.js` rewrite + Playwright are another. Nothing 191 shipped is reachable from the app, so this batch is adding affordances rather than inventing enforcement.
+
+**What exists on the server now** — measured on production, verified as the client over PostgREST, and recorded in `supabase/migrations/20260814_invitations.sql`'s header. Read that header before planning; do not re-derive any of it:
+
+- **`business_invites`** — an owner may create, read, revoke; **staff cannot even SEE the table** (four restrictive policies, one per command). `email` is normalised and its shape checked; `invited_by` is stamped from the session by a trigger and cannot be spoofed or rewritten; one pending invitation per address per café.
+- **`invite_pending(p_email text) -> boolean`**, callable by **anon**. This is the gate the sign-up form asks BEFORE calling `signUp`, so an uninvited address never creates an account.
+- **`claim_business_invite() -> uuid`**, callable by **authenticated**, **takes no argument**. Returns the café joined, or `null` when there is nothing to claim. Refuses an unconfirmed address, somebody else's invitation, and a second café.
+- **`business_team() -> (user_id, email, role)`**, owner-only. The Team card cannot list anybody without it, because `auth.users` is unreadable.
+
+**What the client has to do, and the one piece of it that is not obvious:**
+
+- **The claim belongs at the TENANT GATE, not on a button.** `bootstrapSync` already discovers "this account has no café" and paints 185's screen. That is the exact moment to call `claim_business_invite()`: a uuid back means re-sync and carry on, `null` means paint 185's screen as today, an error means leave the standing verdict alone — the same three-answer discipline as `tenantGateState` and `roleState`, which are the models to copy.
+  ⚠️ **This is what makes shape B work for a person who ALREADY has an account** — Max's, or any made by hand in the dashboard, which is how every account in this project has been made. A sign-up-only path would serve nobody who already exists.
+- **The Team card owns the whole feature** (188's handover says so): list the members from `business_team()`, list pending invitations, add one, revoke one. It is an owner-only surface and resolves in **`applyRoleUi`**, not in a fifth place. `tests/roles-client.test.js` asserts the card ships **no `<button>`** and that it carries `.stg-soon` saying adding someone is done by hand — **both of those assertions are this batch's to change**, deliberately, not to trip over.
+- **The sign-up form.** Ask `invite_pending` first; only then `signUp`. It is reachable from the boot gate's sign-in screen (a signed-out browser can see nothing else) and the copy has to explain the confirmation email, because email confirmation is ON.
+- ⚠️ **`tests/auth.test.js:250` pins `!/signUp\s*\(/` with the stated reason *"no signUp call may ship while an account cannot join a café."* Rewrite that assertion to pin the CONDITION — a sign-up reachable without a pending invite must still fail the suite. Do not simply delete it.**
+- **Invitations create STAFF.** The column carries both roles because it is what decides the membership's role, but the client offers staff only; say so in the copy.
+
+**Two things 191 deliberately did NOT do, so they are decisions rather than omissions:**
+- **No trigger on `auth.users`.** The header argues it: it only ever fires for someone with no account, which is the case shape B least needs, and its failure mode is a broken sign-up rather than a recoverable missing café.
+- **An owner cannot REMOVE a member or change their role.** Only invite and revoke-a-pending-invite. If this batch wants removal it needs its own policy work; **it is not required to close the launch blocker** and should be its own item if it grows.
+
+⚠️ **`invite_pending` is unauthenticated and this file's "Gate review" item now carries it** — see there.
+
+### ✅ MAX'S DECISION, 14 Aug 2026 — shape B. Kept in full, because it is HIS call and may not be re-litigated.
 
 **His answers, because the reasoning matters more than the letter:**
 
@@ -43,29 +67,13 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 - *How often?* **"its rare that a new member would need to be added."**
 - *Do you want to add someone you can't hand a password to?* **"i think so."**
 
-**That last one decides it and rules out C outright** — C's whole mechanism is the owner conveying a password by some channel EzPlate does not own, which is precisely what he said he wants to be able to avoid. It also drops the `service_role` key, and with it the only thing in the app that would bypass every policy 181-187 built. **Do not re-propose C.**
-**A was rejected on the launch-blocker test, not on effort:** it leaves the Supabase dashboard in the loop for every real hire, so the item's own opening sentence ("impossible for a customer") survives it shipping.
-**Rarity (his second answer) is what makes B's extra build affordable** — a flow used twice a year can be a few taps longer if it is safer, and B degrades gracefully given he is usually present anyway.
+**That last one ruled out "the owner creates the account outright" outright** — its whole mechanism is the owner conveying a password by some channel EzPlate does not own, which is precisely what he said he wants to be able to avoid. It also drops the `service_role` key, and with it the only thing in the app that would bypass every policy 181-187 built. **Do not re-propose it.**
+**"Existing accounts only" was rejected on the launch-blocker test, not on effort:** it leaves the Supabase dashboard in the loop for every real hire.
+**Rarity (his second answer) is what makes B's extra build affordable** — a flow used twice a year can be a few taps longer if it is safer.
 
-⚠️ **B SHIPS A SIGN-UP FORM, AND THAT IS A REFINEMENT OF HIS "NO SIGN-UP FORM" CALL RATHER THAN A REVERSAL — he was told so explicitly before answering, and answered anyway.** `tests/auth.test.js` pins the absence of any `signUp(` call, and its stated reason is *"no signUp call may ship while an account cannot join a café."* Under B the account joins a café **by construction**: the sign-up cannot be reached without an owner having created an invite for that exact address first. **So the batch that builds this rewrites that test's assertion to pin the CONDITION rather than the absence** — a sign-up that is reachable without a pending invite must still fail the suite. Do not simply delete the test.
+⚠️ **B SHIPS A SIGN-UP FORM, AND THAT IS A REFINEMENT OF HIS "NO SIGN-UP FORM" CALL RATHER THAN A REVERSAL — he was told so explicitly before answering, and answered anyway.** Under B the account joins a café **by construction**: the sign-up cannot be reached without an owner having created an invite for that exact address first, and 191's `invite_pending` is the server side of that. A **self-service** sign-up form is still NO.
 
-⚠️ **THIS ITEM'S STATED HARD PART IS THE WRONG ONE, found 14 Aug 2026 while taking it (188).** It read: *"The hard part is not the row, it is that the client has no way to turn an email address into a `user_id` — `auth.users` is not readable — so this needs a `SECURITY DEFINER` function, and that function is an information-disclosure surface."*
-**All of that is true and none of it is the blocker.** Turning an email into a `user_id` is a solved shape: a `SECURITY DEFINER` function that takes an email, is callable only by an owner, and returns nothing an owner could not already learn by trying — the disclosure surface is real and is an implementation decision, not a scheduling one.
-
-**The blocker is that the person being invited HAS NO ACCOUNT AND NO WAY TO GET ONE.**
-Measured against production, 14 Aug 2026: **`auth.users` holds exactly ONE row**, Max's, confirmed. Self-service sign-up is refused and `tests/auth.test.js` pins the absence of any `signUp(` call. Accounts are made by hand in the Supabase dashboard.
-So "an owner adds someone by email" only ever succeeds for a person whose account Max already created by hand — **it moves the dashboard step, it does not remove it**, and the item's own opening sentence ("impossible for a customer") stays true after it ships.
-
-**The three honest shapes, so the answer is a choice rather than a design session:**
-
-- **A · Existing accounts only.** The item exactly as written. An owner invites an email that already has an account; anything else is refused. Smallest build, and it leaves the dashboard in the loop for every real hire, so it does not close the launch blocker on its own.
-- **B · Invite first, then a GATED sign-up.** The owner creates a pending invite for an email; that email, and only that email, can then complete a sign-up that lands them straight in the café. **This is not self-service sign-up** — it cannot be reached without an owner acting first — but it does ship a sign-up form, and `tests/auth.test.js` forbids one. ⚠️ **Read that test's stated REASON before treating this as a reversal:** *"no signUp call may ship while an account cannot join a café."* Under B the account joins a café by construction, so B satisfies the condition the ban was written on rather than overriding it. **Max's call anyway, because it is his decision the wording sits closest to.**
-- **C · The owner creates the account outright.** Needs `auth.admin.createUser`, which is a GoTrue call and not SQL, so it means a new `api/` route holding the **`service_role` key** — a key that bypasses every RLS policy 181-187 built. Biggest new attack surface in the app by a wide margin, and it hands the owner a password to convey to the person by some channel EzPlate does not own.
-
-**What does NOT need deciding, and should not be re-litigated in the answer:** the `role` column exists (187), the client already reads and applies the role (188), and an invitation control is an owner-only control that belongs in `applyRoleUi` on the Team card — see the note below.
-⚠️ **Two facts a batch here needs and would otherwise rediscover:** email confirmation is ON, so an account that is not marked confirmed fails its first sign-in with "Email not confirmed", which reads exactly like a wrong password (**Auto Confirm User** is the fix); and **Supabase sign-ups are open at the API level** whatever the client ships, which is the gate-review item's to close.
-⚠️ **A self-service sign-up form is still NO.** Since 186 an account that joins no café sees nothing at all, so a sign-up form's only possible outcome is 185's "ask the café owner to add this account" screen. `tests/auth.test.js` pins its absence with that reason. Invitations are what replace it.
-✅ **What 188 leaves you, so it is not rediscovered.** The client now reads `current_business_role()` on bootstrapSync's existing `Promise.all` and holds it in `businessRole`; `isOwner()` is the one reader and `applyRoleUi()` is where every role-dependent control resolves — **an invitation control is an owner-only control and belongs in that function, not in a fifth place.** The Team card is where it goes: it already names the role the reader holds and ends *"Adding someone is done by hand for now"*, which is the sentence this item deletes. `tests/roles-client.test.js` asserts the card ships **no `<button>`** while that is true — so the batch that builds this changes that assertion rather than tripping over it.
+⚠️ **Two facts this batch needs and would otherwise rediscover:** email confirmation is ON, so an account that is not marked confirmed fails its first sign-in with "Email not confirmed", which reads exactly like a wrong password (**Auto Confirm User** is the dashboard fix); and **Supabase sign-ups are open at the API level** whatever the client ships — which is the gate-review item's to close, and is survivable because an uninvited account that signs up joins no café and sees 185's screen.
 
 ## next  2 · Bulk catalogue bootstrap — how a new café gets a product catalogue at all  **[A — launch blocker]**
 
@@ -142,6 +150,7 @@ Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-fre
 Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through of the gates, not a substitute for them. *(`business_id` PART 2 struck from this line 13 Aug 2026 — shipped in batch 182.)*
 ⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
 **So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
+⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way.
 
 ## next  6a · The backup does not carry three of the five history series  **[A — data integrity]**
 
