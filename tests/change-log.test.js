@@ -114,6 +114,7 @@ function harness(opts) {
     ${extractVar(SRC, '_uidSeq')}
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
+    var businessRole='owner';   // 188: the standing role these paths assume
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
       'menuIdOf', 'dishOnMenu',
@@ -124,6 +125,8 @@ function harness(opts) {
       'saveKitchenIngredients', 'saveCurrentPlate', 'upsertCustomMenu',
       'submitAddDish', 'submitMenuItem', 'saveMenuEdit', 'resolveEditCat', 'setDishSellPrice',
       'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
+      // 188: deletePlate and doDeleteEverything open with a role guard now. EXTRACTED, not stubbed.
+      'isOwner', 'ownerOnly',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
       'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog', 'confirmGuardedRepoints', 'kingRepointGuard',
       'mergeChangeLog', 'linkDishToPlate', 'deleteKitchenIngredient', 'saveKingModal',

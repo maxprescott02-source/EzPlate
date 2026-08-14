@@ -62,6 +62,8 @@ function savedState(opts) {
     ${extractVar(SRC, '_uidSeq')}
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
+    var businessRole='owner';   // 188: syncBuilderPlateActions consults isOwner — staff are not offered Delete plate
+    ${extractFn(SRC, 'isOwner')}
     ${extractFn(SRC, 'syncBuilderPlateActions')}
     function savePlateDraft(){}
     ${extractFn(SRC, 'setBuilderSaved')}
@@ -181,6 +183,9 @@ test('F7: deletePlate calls onRemoved once, after the confirm and after the opti
     function rebuildMenu(){} function buildMenuOptions(){} function buildMenuSelector(){}
     function updateEditTag(){} function renderPlate(){} function renderAnalysis(){} function renderPlatesTab(){}
     function logChange(){} function logHistory(){} function toast(){}
+    var businessRole='owner';   // 188: deletePlate refuses a non-owner before anything else
+    ${extractFn(SRC, 'isOwner')}
+    ${extractFn(SRC, 'ownerOnly')}
     function rollbackPlateDelete(){ S.order.push('rollback'); }
     function dbDeletePlateAfterDishes(){ S.order.push('serverCall'); return {then:function(cb){ S.serverCb=cb; return this; }}; }
     ${extractFn(SRC, 'deletePlate')}
@@ -254,6 +259,8 @@ test('F7: Clear plate hides Duplicate and Delete, because it drops the plate id'
       return S.els[id];
     }};
     function hideMatchPrompt(){} function updateEditTag(){} function clearPlateDraft(){} function renderPlate(){}
+    var businessRole='owner';   // 188: see the other harnesses in this file
+    ${extractFn(SRC, 'isOwner')}
     ${extractFn(SRC, 'syncBuilderPlateActions')}
     var run=eval('(' + HANDLER + ')');
     return function(){ syncBuilderPlateActions(); return { before:{d:S.els.bldDuplicate.hidden, x:S.els.bldDelete.hidden}, run:function(){ run(); return {d:S.els.bldDuplicate.hidden, x:S.els.bldDelete.hidden}; } }; };

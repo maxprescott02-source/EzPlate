@@ -2800,7 +2800,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .stg-card-h{margin:0;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface2);font-size:var(--fs-sm);font-weight:700;letter-spacing:0;color:var(--text)}
 .stg-body{padding:4px 20px}
 /* the ONE settings-row pattern: label + help left, control right */
-.stg-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) 0;border-top:1px solid var(--hairline)}
+/* 188 — `:not([hidden])` because 188 hides #setRestoreRow for staff, and an author `display` rule
+   beats the UA's `[hidden]{display:none}` whatever the specificity (origin is compared first), so
+   the row would stay visible. Eleventh use of the guard in this file; CLAUDE.md calls it the
+   default for any `display` rule on an element the JS hides.
+   ⚠️ IT IS ON BOTH `.stg-row` RULES ON PURPOSE — the narrow-screen one below repeats
+   `align-items` and `gap`, and specificity is compared BEFORE source order, so guarding only this
+   one would raise it to (0,2,0) and silently kill the mobile override. Same specificity at both
+   breakpoints; do not "tidy" the guard off the media-query copy. */
+.stg-row:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:var(--sp-4) 0;border-top:1px solid var(--hairline)}
 .stg-row:first-child{border-top:0}
 .stg-text{flex:1 1 auto;min-width:0}
 .stg-lbl{display:block;font-size:var(--fs-base);font-weight:700;color:var(--text)}
@@ -2818,6 +2826,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    sole consumer is this row; the old menu-analysis block holds only a tombstone. */
 .stg-ctl.cogs-in{display:inline-flex;align-items:center;gap:6px}
 .stg-ctl.cogs-in input{width:74px;min-height:44px;padding:10px;text-align:right;font:inherit;font-family:var(--mono);font-weight:600;font-size:var(--fs-base);border:1px solid var(--border2);border-radius:var(--radius-ctl);background:var(--surface);color:var(--text)}
+/* 188 — staff see the target and cannot change it. Read-only rather than `disabled` on purpose:
+   the FIGURE is information they use all day, and a disabled control greys it toward illegible and
+   drops it out of the tab order. This says "not yours to edit" — no field background, no caret —
+   while the number stays at full contrast. `--field2` is the same surface the app uses for other
+   Transparent + a hairline edge rather than a named surface token, so it sits on whatever the card
+   is painted in and reads the same way in both themes. */
+.stg-ctl.cogs-in input[readonly]{background:transparent;border-color:var(--hairline);cursor:default}
 .stg-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
 /* Account / Team — a coming feature, not a disabled control (F10 owns whether they stay) */
 .stg-soon{margin:var(--sp-4) 0;font-size:var(--fs-base);color:var(--text2)}
@@ -2831,7 +2846,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
   .stg-cards{gap:var(--sp-3);max-width:none}
   .stg-body{padding:2px 16px}
   .stg-card-h{padding:12px 16px}
-  .stg-row{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
+  .stg-row:not([hidden]){flex-direction:column;align-items:stretch;gap:var(--sp-2)}   /* 188: the guard is here to MATCH the specificity above, not to hide anything — see the note there */
   .stg-ctl{align-self:flex-start}
   .stg-body select.stg-ctl{width:100%;max-width:none}
 }

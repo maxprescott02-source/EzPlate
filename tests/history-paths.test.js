@@ -105,6 +105,7 @@ function harness(opts) {
     ${extractVar(SRC, '_uidSeq')}
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
+    var businessRole='owner';   // 188: the standing role these paths assume — see isOwner/ownerOnly below
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
       'menuIdOf', 'dishOnMenu',
@@ -114,6 +115,10 @@ function harness(opts) {
       'ptMs', 'logHistory', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',
       'saveKitchenIngredients',
       'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
+      // 188: isOwner/ownerOnly are dependencies of deletePlate and doDeleteEverything now — EXTRACTED,
+      // not stubbed, because a hand-rolled `return true` here would pass against a guard that was
+      // silently inverted. businessRole defaults to 'owner', which is the role these paths assume.
+      'isOwner', 'ownerOnly',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
       'confirmGuardedRepoints', 'kingRepointGuard',
       'deleteKitchenIngredient', 'saveKingModal',

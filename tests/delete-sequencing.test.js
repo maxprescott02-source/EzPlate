@@ -93,6 +93,11 @@ function makeHarness(opts) {
     ${extractFn(SRC, 'removeMenuItem')}
     ${extractFn(SRC, 'dbDeletePlateAfterDishes')}
     ${extractFn(SRC, 'rollbackPlateDelete')}
+    /* 188: the role guard both of these now open with. Extracted rather than stubbed — see
+       CLAUDE.md on a stub written from the same belief as the code. */
+    var businessRole='owner';
+    ${extractFn(SRC, 'isOwner')}
+    ${extractFn(SRC, 'ownerOnly')}
     ${extractFn(SRC, 'deletePlate')}
     ${extractFn(SRC, 'doDeleteEverything')}
     rebuildMenu();

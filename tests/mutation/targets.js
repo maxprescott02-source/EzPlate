@@ -40,6 +40,26 @@ const targets = [
   // password off the network, and its two settle paths are what keep the button alive on the one
   // screen with nothing else on it.
   { fn: 'authSubmit', tests: ['auth.test.js'] },
+  // 188: the role. Every one of these defaults the OPPOSITE way to the tenant gate above — the
+  // server refuses a non-owner regardless, so the client's job is to avoid offering a button that
+  // fails, and being wrong toward "owner" costs a toast while being wrong toward "staff" hides four
+  // controls from the person who owns the café with nothing on screen to explain it. A mutant that
+  // flips `businessRole!=='staff'` into `==='staff'`, or turns roleState's strict equality into
+  // something looser, does exactly that — and a single-tenant production database, where the one
+  // account IS the owner, cannot tell the difference.
+  { fn: 'roleState', tests: ['roles-client.test.js'] },
+  { fn: 'isOwner', tests: ['roles-client.test.js'] },
+  { fn: 'ownerOnly', tests: ['roles-client.test.js'] },
+  { fn: 'applyRoleUi', tests: ['roles-client.test.js'] },
+  // The two whose visibility is owned elsewhere, so the role condition lives inside THEM. Both
+  // carry a second condition that predates this batch (a plate must be loaded; a menu must exist),
+  // and a mutant that swaps the `&&` for an `||` restores the control for staff while leaving the
+  // word `isOwner` sitting in the source, reading correctly.
+  { fn: 'syncBuilderPlateActions', tests: ['roles-client.test.js', 'builder-page.test.js'] },
+  { fn: 'updateMenuDelBtn', tests: ['roles-client.test.js'] },
+  // The second door to a plate delete. Its guard is conditional on `sp` on purpose — with no plate
+  // the same button only unpublishes a dish, which staff may do — so both halves need proving.
+  { fn: 'openDelChoice', tests: ['roles-client.test.js'] },
 
   { fn: 'publishPlan', tests: ['publish-guard.test.js'] },
   { fn: 'productRefs', tests: ['product-delete-guard.test.js'] },

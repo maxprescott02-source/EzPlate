@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=162">
+<link rel="stylesheet" href="css/style.css?v=163">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -733,7 +733,10 @@
             <div class="stg-row">
               <div class="stg-text">
                 <label class="stg-lbl" for="setCogsInput">Target food cost</label>
-                <p class="stg-help">Share of the sell price going to ingredients. Drives suggested prices and the target line.</p>
+                <!-- 188: the id is applyRoleUi's hook. Staff see the same number (it drives every
+                     suggested price and every good/bad colour they read) with the field read-only
+                     and this line saying who can change it. -->
+                <p class="stg-help" id="setCogsHelp">Share of the sell price going to ingredients. Drives suggested prices and the target line.</p>
               </div>
               <div class="stg-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
             </div>
@@ -829,7 +832,11 @@
               </div>
               <button class="btn stg-ctl" id="setExport" type="button">Export</button>
             </div>
-            <div class="stg-row">
+            <!-- 188: id + `hidden` are applyRoleUi's hook — restore_backup refuses a non-owner in
+                 its first statement, so the row is not offered to staff. `.stg-row` carries a
+                 `:not([hidden])` guard in the CSS at BOTH breakpoints, or `display:flex` would beat
+                 the UA's [hidden] rule and this would do nothing. -->
+            <div class="stg-row" id="setRestoreRow">
               <div class="stg-text">
                 <span class="stg-lbl">Restore from backup</span>
                 <p class="stg-help">Replaces your products, ingredients, plates and menus with the contents of a backup file. Can&rsquo;t be undone.</p>
@@ -914,7 +921,10 @@
         <!-- 174: was "Arrives with EzPlate accounts", which stopped being true the moment sign-in
              shipped below. The subtitle now says which part is real and which is not, because the
              screen carries both and a reader has no other way to tell them apart. -->
-        <span class="scr-sub">Sign-in works; roles and billing are still to come</span>
+        <!-- 188: this said "roles and billing are still to come". Roles arrived — 187 enforces them
+             and this batch shows them — so the half that is still true is billing. Same stale-claim
+             class as the Team card below; found by looking at the screen rather than by any test. -->
+        <span class="scr-sub">Sign-in and roles work; billing is still to come</span>
       </div>
       <div class="stg-cards">
 
@@ -973,7 +983,12 @@
         <section class="stg-card">
           <h3 class="stg-card-h">Team</h3>
           <div class="stg-body">
-            <p class="stg-soon">Two roles are planned: an owner, and working staff who can import invoices and edit ingredients and plates but not delete menus, change the target or restore a backup.</p>
+            <!-- 188: this said the two roles were "planned". They exist and the database enforces
+                 them (187), so the sentence had to become true on the day the client could read a
+                 role. It keeps `.stg-soon` because the card still describes ONE capability that
+                 does not exist — adding someone — and §R4 says that is stated in a sentence,
+                 never mimed with a control. #teamRole is filled by applyRoleUi. -->
+            <p class="stg-soon">Two roles: the owner, and staff who can import invoices and edit ingredients, plates and menus &mdash; but can&rsquo;t delete plates or menus, change the target food cost, or restore a backup. <span id="teamRole"></span> Adding someone is done by hand for now.</p>
           </div>
         </section>
 
@@ -1476,7 +1491,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=162"></script>
+<script src="js/app.js?v=163"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
