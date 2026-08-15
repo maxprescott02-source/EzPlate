@@ -37,7 +37,8 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
 
 Do after: **the privacy gate** — and this is a scheduling fact rather than a second opinion on his answer. B's whole point is that a stranger's café can exist without Max, and this file's privacy-gate item says *"before the first non-Scoopy's row exists, not after"*; a café row is such a row, and the stranger who owns it will send invoice text into Gemini's free tier on day one. **Shipping signup first is the one ordering that cannot be undone**, because the data has already left.
-⚠️ **This line named TWO items until 15 Aug 2026 and now names one: pdf.js 4.2.67+ SHIPPED in batch 195** (`ezplate-v167`, 4.10.38), so its half is deleted per this file's own rule that a satisfied dependency is removed rather than left standing. **What remains is the harder half.** The privacy gate is `blocked` on Max — both of its available answers are his, his billing or a disclosure his business makes — so **this item is now behind a DECISION and nothing else**, where a day ago it was also behind real work. There is no longer any code between this item and Max's answer.
+⚠️ **This line named TWO items until 15 Aug 2026 and now names one: pdf.js 4.2.67+ SHIPPED in batch 195** (`ezplate-v167`, 4.10.38), so its half is deleted per this file's own rule that a satisfied dependency is removed rather than left standing.
+⚠️ **And the remaining half stopped being a DECISION later the same day.** Max answered the privacy gate — option B, disclose it — so that item is `next` rather than `blocked` and is ordinary work again. **This item is therefore behind WORK, not behind Max.** Nothing here is waiting on a person; the disclosure simply has to ship first, because B's whole point is that a stranger is told before their invoice text reaches Google, and a stranger cannot be told if signup exists before the telling does.
 
 **Found by batch 191 while shipping invitations, by reading the policy list rather than by hitting it.** Measured against production, 14 Aug 2026:
 
@@ -66,18 +67,38 @@ Requirements: a café can be created and get an owner **without the Supabase das
 *(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## blocked  2 · The privacy gate  **[A — launch blocker]**
+## next  2 · The privacy gate — ship the DISCLOSURE  **[A — launch blocker]**
 
-`CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
-Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
-Max accepted this for his own café — his call, made — and **that acceptance does not extend to a second customer's data.**
-Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
-**Before the first non-Scoopy's row exists, not after.**
+✅ **ANSWERED 15 Aug 2026 (Max): option B — disclose it.** His words: *"for now do b and we can sort this later post launch."*
+He was shown both options with measured costs and a recommendation of A (paid tier, ~5–20c per café per month), and chose B. **It is a decision; do not re-put the A/B question.** Full reasoning, the measured figures and Google's exact terms: `docs/decisions/2026-08-15-privacy-gate.md`.
+*(`Blocked on: Max` DELETED 15 Aug 2026 — answered. This item is now ordinary work.)*
 
-Blocked on: **Max — both available answers are his, and neither is a code question.** A paid-tier Google project needs his billing details on a Google Cloud account; a privacy policy that discloses training use is a statement his business makes to its customers. Marked blocked by batch 194 rather than attempted.
-⚠️ **This is the item the whole launch is behind**, so it is worth saying what is NOT blocked: everything needed to make his answer a one-liner can be prepared without him — exactly what data each endpoint sends, what the paid tier costs at this volume, and a draft policy. **A future batch should do that preparation and then run `decide`**, rather than putting the bare question to him. Do not treat "blocked" as "nothing to do here."
+Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. Google's terms for that tier: it **uses submissions to improve its products**, and **human reviewers may read them**.
+Requirements: **a privacy policy that discloses this, shown before the data moves.**
 
-## next  3 · Gate review before public signup  **[A — launch blocker]**
+⚠️ **A POLICY NOBODY READS BEFORE THE DATA MOVES IS NOT A DISCLOSURE**, and this is the half that is easy to ship wrong. The gate's own wording is *"before the first non-Scoopy's row exists, not after"*; the same logic applies inside the app.
+
+- Written policy naming **Google specifically**, saying the free tier may use the data for training and that humans may review it. **Vague wording does not discharge this** — "we may share data with service providers" is exactly the phrasing that hides the material fact. The unusual specific is the whole point.
+- Shown and accepted **at signup**, before an account exists.
+- Restated **at the invoice import screen**, because that is the moment data actually leaves. Someone who accepted a policy three weeks ago has not meaningfully consented to today's upload.
+- Check what the Dashboard insight toggle currently says; it is already user-controllable, so it may be the cheapest of the four.
+
+**The WORDING is Max's to approve before it publishes** — a privacy policy is a statement his business makes. Drafting it does not need him and must not wait on him; only the sign-off does.
+Out of scope: switching to the paid tier. That is the item below.
+
+## next  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
+
+**DEFERRED, not declined (Max, 15 Aug 2026):** *"we can sort this later post launch."*
+On the paid tier Google *"doesn't use your prompts... or responses to improve our products."* Recorded here rather than dropped, because a deferred decision that leaves no trace is indistinguishable from one nobody thought of.
+
+Measured 15 Aug 2026 against the real prompt (443 tokens of instructions) at $0.25/M input and $1.50/M output: **~0.4c per invoice, ~0.02c per insight, roughly 5–20c per café per month.** 100 cafés is about $20/month.
+No code change and no new key — enabling billing on the existing Google Cloud project upgrades the key automatically. Google requires a **$10 minimum prepaid credit**, then pure pay-per-use.
+
+Do after: **The privacy gate — ship the DISCLOSURE** — B is what makes launch legitimate; this is the upgrade that later makes the disclosure milder. Shipping this first would moot B, which is fine, but it is not the order Max chose.
+⚠️ **This needs Max at the billing console** (his card, and the assistant may not enter payment details), so it will be `blocked` the day it is taken. **Set a project SPEND CAP in the same sitting** — on a paid key an abused endpoint costs real money, which is the one genuine downside of A and the reason the rate-limit work in the gate-review item matters more once this lands.
+When it ships, the policy stops saying *"Google may train on this"* and starts saying *"we pay for a tier that contractually cannot"*. The screens and the acceptance record all stay.
+
+## next  4 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
@@ -87,7 +108,7 @@ Do after: **the privacy gate** — it is the read-through of the gates, not a su
 ✅ **The pdf.js gate is SETTLED and this review only has to confirm it: 195 shipped 4.10.38**, which closes CVE-2024-4367 outright rather than mitigating it, keeps `isEvalSupported:false` as a second layer, and keeps the SRI hash across the move to an ESM load. `tests/third-party-pins.test.js` now pins both scripts' version-and-hash pair and encodes both known advisory windows, so a future "bump to latest" into GHSA-hq66-cqwq-w95j (5.6.83 ≤ v < 6.2.108) fails the suite. **Read that test rather than re-deriving the version question.**
 ⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way. **192 made it REACHABLE**: the boot gate's sign-up form calls it on every attempt, so it is no longer a function nothing invokes — it is now the first thing an uninvited stranger's browser can ask this database, and the only rate limit on it is Supabase's per-IP one.
 
-## next  4a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -122,7 +143,7 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  4b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  5b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
 Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered ELEVEN times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, to 5a in that same batch when invitations went blocked, back to 6a when they were unblocked, to **7a in 191**, which both shipped an item above it AND inserted a new one, back to **6a in 192** when the invitations client half shipped and its item was deleted, to **5a in 194** when the audit item was completed and deleted, and to **4a in 195** when pdf.js shipped and its item was deleted. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
@@ -142,14 +163,14 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  5 · Floating layers and mobile dropdowns  **[B]**
+## next  6 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
 
-## next  6 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
 **What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
 
