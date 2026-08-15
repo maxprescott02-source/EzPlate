@@ -31,6 +31,15 @@ const targets = [
   { fn: 'logIngPrice', tests: ['price-log-paths.test.js'] },
   { fn: 'samePrice', tests: ['price-log-paths.test.js'] },
 
+  /* 195: the pdf.js loader, added because its pre-push review found the batch's OWN new tests
+     could not fail. Every assertion written for it was a source grep, so deleting `res()` from the
+     import() success arm left all of them green — and the shipped result is worse than the error
+     they did cover: the promise never settles, extractPdfText awaits it forever, and picking a PDF
+     hangs the upload with no toast and nothing in the console. The fix was three tests that RUN the
+     function; this target is what keeps them honest, since "a function that is not a target has
+     never been asked the question". */
+  { fn: 'ensurePdfjs', tests: ['third-party-pins.test.js'] },
+
   // ── The invoice referee. A late Gemini answer must not be merged over a ruling the user made. ──
   { fn: 'invConfirmState', tests: ['invoice-gate.test.js'] },
   { fn: 'invRowState', tests: ['invoice-gate.test.js', 'inv-rowmarkup.test.js'] },

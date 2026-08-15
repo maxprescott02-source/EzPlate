@@ -731,3 +731,26 @@ hand, and the way you refresh prices later from a newer export.
   and the product count on the Products screen must NOT double. **A doubled count is the one
   failure here that costs real work to undo**, and it is the thing the supplier code column exists
   to prevent.
+
+## 195 / v167 - the pdf.js 4.10.38 upgrade, on YOUR four Bidfood invoices
+
+**This is the only check that matters for this batch, and it is the one no harness here can do.**
+The PDF reader was upgraded from 3.11.174 to 4.10.38 — the version that actually closes CVE-2024-4367
+rather than working around it. Nothing about the invoice screens changed; what changed is the library
+underneath that turns a PDF into text, and how it is loaded.
+
+**It was proved to work** end to end in a real browser — the module loads with its integrity hash
+checked, the worker runs, and text comes back grouped into lines correctly. **But that was proved on a
+synthetic one-page invoice made for the test, not on a real one**, because your Bidfood PDFs are yours
+and are not in this repo. pdf.js 4.x can group text into lines differently from 3.x, and the parser
+downstream reads those lines by position.
+
+- **Import each of your four real Bidfood PDFs**, the same way you normally do.
+- **A failure looks like the parse getting WORSE, not like an error**: fewer rows detected than you
+  expect, a product's description running into the next column, a price landing in the wrong field, or
+  "Couldn't auto-detect priced lines" on a file that used to work. The upload itself doing nothing at
+  all would be the load path failing — that would show as "Could not load the PDF reader".
+- **Compare against what you remember of the last import of the same supplier.** The row count and the
+  matched/new split are the quickest tells.
+- **If a file parses worse than it used to, keep the file** and say which one. That is the whole
+  evidence needed, and rolling back is a one-line version change.

@@ -225,6 +225,17 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 ## C — code hygiene and latent defects
 
+### "Try again" after a PDF-reader load failure cannot work, for TWO independent reasons
+(Found 15 Aug 2026 by batch 195 while rewriting `ensurePdfjs()` for the 4.10.38 upgrade. **Pre-existing, not introduced — but 195 added the second reason, so it is written down rather than half-fixed.**)
+
+A pdf.js load failure toasts *"Could not load the PDF reader — check your connection and try again"* and returns the user to step 1 of the import, which invites exactly the retry the wording names. Re-picking the file re-enters `handleInvFile` → `extractPdfText` → `ensurePdfjs()`, and **nothing is re-attempted**:
+
+1. **`__pdfjsPromise` memoises the REJECTION** and is never cleared, so every later call returns the same settled failure. This has been true since v88 and is the older half.
+2. **A failed module fetch is sticky in the document's MODULE MAP** (added by 195's ESM move). Per the HTML spec a failed fetch stores a null entry, and re-importing the same URL fails immediately without re-fetching — so even clearing the memo would not restore the retry.
+
+Only a page reload actually retries. **Reason 2 is why this is filed rather than fixed**: clearing the memo is the obvious one-line "fix" and would leave the retry just as dead while *looking* repaired, which is worse than the honest current state. That is also why `ensurePdfjs()` says so at its own site.
+Requirements: either make the retry real — a fresh URL on retry (a cache-busting param) so the module map has no entry, with the SRI hash re-checked against it since the bytes are identical — or change the wording so it does not promise something only a reload delivers. **Decide which; do not clear the memo alone.**
+
 ### The staging seeds' assertions assume exactly one tenant
 (Found 13 Aug 2026 while widening the two semantic keys in 183. **Not wrong today, and that is why it is C.**)
 `03-seed-realistic.sql` and `04-seed-scale.sql` verify themselves with statements like
