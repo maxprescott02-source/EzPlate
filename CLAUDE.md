@@ -128,7 +128,17 @@ Two groups have **no row mapper and that is not an oversight**: `kitchen_ingredi
 
 **The general law:** a backup that dumps live in-memory objects inherits every assumption those objects carry.
 Change what fills them and you have changed the file format without touching the exporter - silently, with the tests still green.
-**Any change to what `bootstrapSync` puts in memory is a change to the backup format, and must bump `stamp.format`.** `parseBackupFile` accepts formats 2 and 3 and refuses everything else by name; it refuses format 1 outright because the literal needed to tell a delta from a snapshot was deleted.
+**Any change to what `bootstrapSync` puts in memory is a change to the backup format, and must bump `stamp.format`** - **UNLESS ALL FOUR of these hold**, which is the carve-out 184 and 193 each applied on their own and which read as a violation both times because this rule did not carry it:
+
+1. **no group is added, removed or renamed**;
+2. **no key is removed or renamed**, and none changes type;
+3. **the new key is NULLABLE with NO COLUMN DEFAULT**, if it lands in one of the five tables `restore_backup` inserts with `select *`;
+4. both directions were **restored on staging and checked**, not reasoned about.
+
+A new nullable, default-less field inside an existing group is the case that passes: both directions read it as null, an old file restores clean and a new file restores into an old build clean, so the number would be announcing a compatibility break that did not happen. `buildBackup`'s own `format:chg.length?3:2` is the precedent - **the number declares what the PAYLOAD CONTAINS, not which build sent it.**
+⚠️ **CONDITION 3 IS NOT BELT-AND-BRACES AND IT IS WHY THIS CARVE-OUT IS FOUR CLAUSES RATHER THAN ONE.** (Added 15 Aug 2026 by batch 194's pre-push review, which caught the first draft stating only conditions 1 and 2.) The DEFAULT section below is the reason: `jsonb_populate_recordset` turns a key that is ABSENT from an old file into an **explicit NULL that overrides the column DEFAULT**. So a new column WITH a default satisfies "no group touched, no type changed" perfectly, skips the bump under a two-clause rule, and then **restores every old file with that column null instead of defaulted** - silently, with the right row counts. The two rules would have been in one file disagreeing about what is safe. **A defaulted column is a format change even though nothing about the JSON shape says so.**
+⚠️ **AND IF YOU DECIDE IT DOES NOT NEED A BUMP, SAY SO AT `buildBackup`'S OWN SITE.** 184 wrote that note and gave the reason in one line: *a silent decision against this rule is indistinguishable from having missed it.* 193 made the same call, its handover said the note was written, and **it was not** - so the audit trail claimed a comment that did not exist. The carve-out is the cheap half of this; the note at the site is the half that makes it checkable.
+`parseBackupFile` accepts formats 2 and 3 and refuses everything else by name; it refuses format 1 outright because the literal needed to tell a delta from a snapshot was deleted.
 
 ## A column DEFAULT does not survive the restore
 
@@ -199,10 +209,11 @@ create policy "plates owner-only delete" on public.plates
 
 The second is OR'd with the tenant policy, which already permits the delete, so **staff can delete plates again, the SQL still says `owner`, no error is raised anywhere and the policy list still shows a policy with the right name.** Dropping two words silently repeals the rule while leaving every trace of it in place.
 
-**The tell: a policy whose NAME says what someone may not do.** Read its first line, not its condition — a restriction that is not `as restrictive` is decoration. `tests/roles.test.js` pins all four, and the mutation was run: flipping one to `permissive` turns it red.
+**The tell: a policy whose NAME says what someone may not do.** Read its first line, not its condition — a restriction that is not `as restrictive` is decoration. **Two test files pin these, not one** — `tests/roles.test.js` holds 187's five (`plates`, `menus`, and three on the `food_cost_target` setting) and `tests/invites.test.js` holds 191's four on `business_invites`; the mutation was run on both, and flipping one to `permissive` turns it red.
+*(This read "pins all four" until 15 Aug 2026, naming one file and one number, and it was already contradicted three lines further down by the paragraph describing the FIFTH being added. A reader who counts and finds five stops trusting the paragraph, which is the one thing this section cannot afford.)*
 
 **⚠️ AND THE ONE THAT ACTUALLY SHIPPED PAST THE FIRST DRAFT: a restriction keyed to a VALUE must cover every command that can change that value, INCLUDING DELETE.**
-The other three restrictions here name a command on a table — "staff may not delete a plate" — so the policy is the whole of it. The fourth names a *value*: `key = 'food_cost_target'` in a shared settings table. `dbSetSetting` upserts, so the frame was "an upsert has two halves", INSERT and UPDATE were both covered, and a test asserting exactly that passed.
+Two of 187's restrictions name a command on a table — "staff may not delete a plate" — so the policy is the whole of it. The other three name a *value*: `key = 'food_cost_target'` in a shared settings table, one policy per command, **and it took three because of exactly the mistake below.** `dbSetSetting` upserts, so the frame was "an upsert has two halves", INSERT and UPDATE were both covered, and a test asserting exactly that passed.
 **DELETE is not part of an upsert, so it never entered the frame.** A staff account could delete the row outright — measured, not reasoned: HTTP 200, row returned, target gone — and the client then boots on its hardcoded default with nothing raised anywhere, which moves every suggested price and every good/bad colour in the app. Caught by the pre-push review.
 **The transferable question is "what are ALL the ways this value can stop being what the owner set", not "which commands does my client use".** A client that only ever upserts is not a bound on what a caller can send; the whole point of the policy is the caller you did not write. Enumerate the commands in the test, so the next one cannot be missed by having a smaller frame.
 
@@ -229,7 +240,8 @@ It means nothing.
 Every product row carries the **same single timestamp** - the restore's - so it records when the table was last rewritten wholesale, not when anything changed.
 Never read it as a modification time, a price date, or an ordering key.
 
-The real per-product series is `ing_price_history`, and **`setProduct` is its one writer**.
+The real per-product series is `ing_price_history`, and **`setProducts` is its one writer** - plural, since batch 193.
+⚠️ **This said `setProduct` until 15 Aug 2026 and the singular is now the WRAPPER, not the writer.** `setProduct(id, patch)` is `setProducts([{id, patch}])`, its N=1 case; the catalogue importer calls `setProducts` **directly** with up to a whole catalogue at once. So a reader asking *"who can write `ing_price_history`?"* who greps `setProduct(` finds six call sites, every one of them a single row, and **misses the one path that writes hundreds**. Grep the plural.
 Its condition is the PREVIOUS STORED price, not the last logged point - two separate guards, deliberately not merged.
 Product creation logs a first point on purpose.
 
@@ -259,9 +271,9 @@ A caller checking only for an error would believe it had written.
 
 ## Three foreign keys between the DATA tables, and only one can ever error
 
-⚠️ **This heading said "Three foreign keys" until 13 Aug 2026, and the live count is now FIFTEEN** (batch 181 added `business_id → businesses` on all ten public tables, plus two on `business_members`).
-**The three below are still the only ones that constrain the app**, which is why the section is scoped rather than rewritten: the ten tenant FKs can only raise if someone deletes a `businesses` row, and nothing does.
-Counted against the live catalogue, not inferred - and the count is stated because a reader who greps and finds fifteen needs to know which three this section means.
+⚠️ **This heading said "Three foreign keys" until 13 Aug 2026, and the live count is MUCH HIGHER** - fifteen after **181** added `business_id → businesses` on all ten public tables plus two on `business_members`, eighteen after **191** added `business_invites`'s three, and **whatever it is when you read this.** (182 is the policy swap and the key widening and adds no foreign key at all; a first draft of this line credited it and was corrected by batch 194's pre-push review. Only two migrations have ever added one of these: `20260813_business_id_part1.sql` and `20260814_invitations.sql`.)
+**The three below are still the only ones that constrain the app**, which is why the section is scoped rather than rewritten: the tenant FKs can only raise if someone deletes a `businesses` row, and nothing does.
+⚠️ **The number used to be written out here and it went stale TWICE in ten deploy versions** - both times because a batch added a table without owning a count in a file it had no reason to open. **Grep `pg_constraint` for the live figure**; what this section is for is telling a reader which three of them matter, and that part does not rot.
 
 - `menu_items.plate_id → plates.id` - **NO ACTION**.
   Deleting a plate while a dish references it raises **23503**.
@@ -322,7 +334,7 @@ A dish once read as uncosted while its recipe sat unreferenced in the library, b
 
 The last is not a price series at all: **`menu_change_log` records what MAX did; every other log records what a SUPPLIER did.** A supplier price movement must NEVER reach it - it is the thing being measured.
 
-**The condition is a function, not a list: if `setProduct` wrote it, it is drift and belongs in `ing_price_history`.** Two more:
+**The condition is a function, not a list: if `setProducts` wrote it, it is drift and belongs in `ing_price_history`.** (Plural - `setProduct` is its N=1 wrapper and the importer bypasses it; see the `updated_at` section above.) Two more:
 
 - **`avgBefore` must be read BEFORE the mutation** - `computeAvgFoodCost()` is live, so one line later it is already the AFTER figure.
 - **`kind` alone does not answer "did this move menus"** - a save that changes the price AND the menu logs `dish_price`; the move is in `detail.menuFrom` / `detail.menuTo`.
@@ -350,7 +362,9 @@ A test that re-implements a shipped function in order to test around it **passes
 
 **The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
 
-**TWENTY incidents, one remedy.** (Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, then twelve after 180 reconciled the lists, fourteen after 182 added two of its own, sixteen after 183 added two more, eighteen after 184, **nineteen after 188 — which added its entry to the list below and left this number reading eighteen, so the header undercounted its own roster for two batches** — and twenty after 190.  `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
+**TWENTY incidents, one remedy — and the roster records new SHAPES, not every instance, so the raw count is HIGHER.**
+⚠️ **That clause was added 15 Aug 2026 and it settles a question the header kept re-asking of itself.** 193 found two more of this exact class (a new Playwright test that pinned one of the two things it claimed; a `/pack/` regex that matched both refusal messages so it was green whichever branch fired) and correctly added no rule, because both were already covered — but the header reads as a TALLY, so "twenty" then understates the frequency while looking like arithmetic. **Add a bullet when the SHAPE is new; leave the number alone when it is not, and do not treat the number as a census.** The alternative — every instance getting a bullet — is what took this list from four entries to twenty in a month.
+(Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, then twelve after 180 reconciled the lists, fourteen after 182 added two of its own, sixteen after 183 added two more, eighteen after 184, **nineteen after 188 — which added its entry to the list below and left this number reading eighteen, so the header undercounted its own roster for two batches** — and twenty after 190.  `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
 
 - **v113** - a passthrough stub hid a real escaping bug.
 - **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
@@ -407,9 +421,10 @@ F2/v138 hit the same class twice more, as `[hidden]` overrides: a single-class r
 
 **The `[hidden]` corollary is a DIFFERENT mechanism with the same symptom, and the specificity advice above does not fix it.**
 An author rule beats the UA's `[hidden]{display:none}` because **author origin wins over UA origin, and origin is decided BEFORE specificity is even compared** - so `.thing{display:block}` overrides it no matter how the selectors measure. Matching specificity therefore achieves nothing here.
-**The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. It is used on **ten** rules in `css/style.css` - `#builderPage`, `.bld-pill`, `.inv-step`, `.ms-clear`, `.plib-controls`, `.plib-x`, `.plib-note`, `.mnu-pct` (twice) and `.mnu-band` - each after a renderer's hide was silently ignored and an element sat visible.
-(Was "twice, `.plib-controls` and `.plib-note`" until 12 Aug 2026; corrected by AUDIT-v156. **The count is the point**: at two it reads as a curiosity worth remembering, at ten it is an app-wide idiom, and a new `display` rule on a JS-hidden element needs the guard by default rather than on recall.)
-**So: any `display` rule on an element the JS hides with `hidden` needs the guard.**
+**The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. **It is an app-wide idiom, not a curiosity.** Every one was added after a renderer's hide was silently ignored and an element sat visible.
+⚠️ **This paragraph used to ENUMERATE them and state a count, and the number has now been wrong three times running** - "twice" until 12 Aug 2026, then "ten" (AUDIT-v156's correction), then wrong again inside ten deploy versions because three more were added by batches that had no reason to open this file. `css/style.css` itself still says "twelve" in two of its own comments. **Four places carried four different numbers, and every hand-correction bought about a week.** The enumeration is deleted rather than re-counted: it was never what made the rule work.
+⚠️ **AND IF YOU GO AND COUNT THEM, READ THE HITS - DO NOT TRUST THE COUNT.** `grep -n ':not(\[hidden\])' css/style.css` returned **24** at v166 against **13** actual rules; narrowing it to lines with a brace still returns 14, because one comment contains the literal `[hidden]{display:none}` while explaining the mechanism. **This is roster entry 183(a) in miniature - a grep over a source file searches PROSE as well as CODE, and here the prose is this very idiom being described.** The first draft of this paragraph told you to grep for the live set and was caught by the pre-push review saying so; it is left written out because the trap bit inside the sentence warning about it.
+**So: any `display` rule on an element the JS hides with `hidden` needs the guard** - by default, not on recall. That sentence is the whole rule and it never needed a number.
 
 ## A CSS syntax error is SILENT, and it discards every rule after it
 
@@ -476,7 +491,8 @@ Describing without naming is fine - "the name you'll use when building plates" i
   (This line previously said the grep "finds the other nine keys and MISSES this one". Wrong on both halves, and it implied the draft was the single exception when it is one of seven.)
   **So: grep the STRING `cafeDB_`/`cafeCost_`, never the call site** - that finds all thirteen, constants and tombstone included. No line number here on purpose; grep the name.
 - Products come from the Supabase `ingredients` table and nowhere else.
-  Custom ids are `CX*`.
+  Client-minted product ids carry a `uid()` prefix - **`CX` from the invoice add-new flow and `IMP` from the catalogue importer** - and **NOTHING READS EITHER PREFIX**. The column that says a row is the user's is **`is_custom`**, which both mappers round-trip and which `js/app.js` calls, at its own site, *"the column that tells a restore which rows the user made."*
+  ⚠️ **This said "Custom ids are `CX*`" until 15 Aug 2026, which invited a filter that is now half-blind:** `id.startsWith('CX')` silently misses every imported product, and a café that onboards through the importer has a catalogue that is **100% `IMP*`**. The sentence was true when there was one mint and became a trap when 193 added the second. Read the column, never the prefix.
 - NEW plate lines are written `{kid, qty}`; legacy `{pid, qty}` and `{misc, label, cost}` lines are LIVE data (84 of 179 lines at the v125 count) that every reader must keep resolving. Kitchen-word renames are display-only. (The word "only" was dropped 9 Aug 2026, Max's yes - it invited a refactor or importer to discard the legacy shapes on the authority of a hard rule.)
 - `nextKid()` scans the live `kitchenIngredients` array - push immediately, never batch ids.
 
@@ -542,7 +558,8 @@ This is the single most important thing to reopen before EzPlate is used by anyo
 
 **He chose SELF-SERVICE SIGNUP** - a stranger creates an account and names their own café, unattended - **reversing his own "a self-service sign-up form is still NO" call of the same day.** He was told in writing that it was a reversal, and told that it makes this gate urgent, and chose it anyway. So it is a decision, not an oversight, and it may not be re-litigated. (`docs/decisions/2026-08-14-cafe-creation.md`, question 1, answer B.)
 
-**What that changes here: the trigger for this gate stops being hypothetical.** The moment self-service signup ships, a stranger's café exists, and *"before the first non-Scoopy's row exists, not after"* is this section's own wording. **So the signup work is ordered BEHIND this gate and behind pdf.js 4.2.67+**, and that ordering is a scheduling fact rather than a second decision - it lives as a `Do after:` on the queue item, per this file's own rule about where sequencing belongs.
+**What that changes here: the trigger for this gate stops being hypothetical.** The moment self-service signup ships, a stranger's café exists, and *"before the first non-Scoopy's row exists, not after"* is this section's own wording - a standing precondition on a CLASS of work, which is why it belongs here and never expires.
+**The ordering it implies lives in `docs/QUEUE.md` as a `Do after:`, and this file deliberately does not restate it.** *(A sentence naming pdf.js and the signup item's position sat here until 15 Aug 2026. It was correct, and it was also exactly the second kind of claim Tier 3 forbids this file from holding: the day the gate ships, the queue deletes its `Do after:` by the mechanism designed for it and the copy here rots with nothing able to notice. Found by AUDIT-v166.)*
 **Do not read the reversal as permission to ship signup first.** He reversed which mechanism creates a café; he did not reverse this.
 
 **He also chose CSV-ONLY for the catalogue importer** (same file, question 2, answer A), which is a decision about the no-new-dependencies rule rather than about privacy: an `.xlsx` is a ZIP of XML and cannot be read without a third third-party script. **So the importer accepts CSV and says so; adding XLSX is a fresh yes, not an enhancement.**
@@ -595,6 +612,8 @@ Its highest-value output is "this is the wrong question": one request asked whic
   Work arriving from **chat, a brief or a screenshot** is unapproved and the brief may be wrong: restate it as a scoped, root-cause-framed plan and get a yes before editing, asking any clarifying questions up front with your recommended answer for each.
   An item **already in `docs/QUEUE.md` is approved** - Max said yes when he queued it, so `/batch` runs it without stopping.
   Re-asking there spends the only resource that is actually scarce.
+  ⚠️ **BUT A QUEUED ITEM'S APPROVAL DOES NOT EXPIRE AND ITS FACTS DO, AND THOSE ARE TWO DIFFERENT THINGS.** (Added 15 Aug 2026 by AUDIT-v166, which measured it: **four of the last seven batches found their item materially wrong at the point of execution** - 187 *"wrong in two places, and split in a third"*, 189 *"its stated hard part was the wrong one"*, 192 *"presupposes something Max has said NO to"*, 193 *"lists two options, then supersedes itself"*. Four different framings, which is why no batch named it as one thing.)
+  The cause is not carelessness, it is age: an item's claims about the code were true when it was written and the batches above it then shipped. **So read a queued item's factual claims exactly as you would a brief's - check them against the code before planning off them - and when they disagree, rewrite the item and carry on.** That is not re-asking and it is not a stop condition; every one of those four batches did it unprompted and nothing shipped wrong. Only the *approval* is settled by the item being in the file.
 - **Rollbacks happen.** If Max says the baseline is X, believe him - then verify it yourself and report discrepancies before working.
 - **Keep commentary in the PR and the handover - never in user-visible app copy.**
 

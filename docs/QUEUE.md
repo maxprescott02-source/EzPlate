@@ -53,43 +53,19 @@ business_members  → ONE policy, "members read their own membership", SELECT, a
 
 **Why this is A and not B:** a second café literally cannot come into existence without Max opening the Supabase dashboard, which is the same sentence the invitations item was written to delete, one level up. The launch story is signup → café → catalogue → plates, and this is the second step.
 
-### ⚠️ THE DECISION, AND WHY IT IS HIS — added by batch 192, which went to build this and stopped
+### What B has to build
 
-**This item's requirement presupposes something Max has said NO to, and nobody noticed because the two were decided a day apart.**
+**Measured against production 14 Aug 2026, not assumed:** `businesses` and `business_members` carry exactly two policies, both `SELECT` to `authenticated`, and no INSERT anywhere. ⚠️ **The GRANTS are wide open on both tables to `anon` and `authenticated`** — it is RLS's default-deny, not the grants, that stops a write today. Know that before touching either table; it is the opposite of what 191's `business_invites` does deliberately.
 
-- 192 shipped a sign-up form **gated by `invite_pending`**. The only way to get an account today is to be invited, and an invitation joins you to the café that sent it.
-- So there is **no such thing as "a brand-new account" that is not already destined for somebody else's café.** The requirement below cannot be met without opening a SECOND sign-up path that is not invitation-gated.
-- That second path is **self-service signup**, which is the exact thing the invitations decision says is still NO: *"A **self-service** sign-up form is still NO"* (Max, 14 Aug 2026, recorded in the invitations item and now in `HANDOVER-192`).
+**192 shipped a sign-up form gated by `invite_pending`**, so today the only way to get an account is to be invited, and an invitation joins you to the café that sent it. B opens a **second** sign-up path that is not invitation-gated: a confirmed account with no membership and no pending invitation reaches a first-run "name your café" screen, and naming it creates the business and the founding membership together. `set_member_role` already makes the first member an `owner`, so the café has one by construction and invitations work on it immediately.
 
-**`CLAUDE.md` makes reversing his own call his, however good the reason.** So this is not a scheduling question and not an implementation choice; it is the one class that defers an item.
-
-**Three shapes, and only the middle one needs the reversal.** Measured against production 14 Aug 2026, not assumed: `businesses` and `business_members` carry exactly two policies, both `SELECT` to `authenticated`, and no INSERT anywhere. ⚠️ **The GRANTS are wide open on both tables to `anon` and `authenticated`** — it is RLS's default-deny, not the grants, that stops a write today. That is worth knowing before touching either table, and it is the opposite of what 191's `business_invites` does deliberately.
-
-- **A — Max provisions each café.** A `SECURITY DEFINER` function he calls, which creates the business and its founding membership together; he then invites the owner with the machinery 191/192 already shipped. **No self-service, no reversal, and it satisfies this item's literal words ("without the dashboard").** Max stays in the loop for every café that will ever exist.
-- **B — a first-run "name your café" screen** for any confirmed account with no membership and no invitation. Full self-service SaaS signup. **This is the reversal.**
-- **C — a FOUNDER invitation.** Max creates an invite that says "this address starts a NEW café" rather than "joins mine"; the existing gated sign-up is unchanged, and `claim_business_invite` grows one branch. **Reuses everything 191 and 192 built, keeps sign-up invitation-gated, and still lets a café exist without the dashboard.** This is the shape that fits what is already there, and it is the recommendation if he does not want B.
-
-⚠️ **AND THE ORDERING IS NOT A MATTER OF TASTE EITHER.** If the answer is B, a stranger's invoices reach `api/parse-invoice` and Gemini's free tier the day it ships — which **the privacy gate item forbids outright** ("before the first non-Scoopy's row exists, not after"), and pdf.js 4.2.67+ becomes real rather than theoretical the same day. **B cannot ship before those two, whatever he answers.** A and C do not have that problem, because Max still chooses every café.
-
-Requirements: a café can be created and get an owner **without the Supabase dashboard**. Which of A/B/C decides who may do the creating, and that is the blocked question — the sign-up-time-step-versus-first-run-screen wording this item used to carry presupposed B and has been deleted for that reason.
+Requirements: a café can be created and get an owner **without the Supabase dashboard**, by a stranger, unattended.
 ⚠️ **Do NOT open this by widening the policies on `businesses`/`business_members`.** A plain INSERT policy on `business_members` would let any signed-in account write itself a membership row for **any** business id it can name — which is every tenant policy 181-187 built, undone by one statement. The shape that fits what is already here is a `SECURITY DEFINER` function that creates the business and the founding membership together, exactly as `claim_business_invite()` creates a membership and nothing else can.
+
+*(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  2 · `project-audit`  **[A — the counter fired]**
-
-**Queued by batch 193 because the gap reached 10, which is the trigger and the whole mechanism.**
-The newest report is `docs/audits/AUDIT-v156.md`; 193 shipped `ezplate-v166`. 192's handover predicted this exactly: *"the next batch to ship a client asset will hit it and must queue the audit above every unblocked item."* This is that.
-
-It sits above every UNBLOCKED item. The café-creation item above it is not unblocked — its `Do after:` is unmet — so nothing here reorders anything real.
-
-Requirements: run the `project-audit` agent, then **FILE THE REPORT YOURSELF** to `docs/audits/AUDIT-v166.md`. The agent is read-only and hands the report back rather than saving it, and an unfiled report leaves the counter unchanged, so the next audit is never queued and this whole mechanism silently stops. Route its findings by the tier test in this file's header — the default is `docs/MAINTENANCE.md`, and the audit does not add queue items itself.
-
-⚠️ **Three things this audit should be pointed at, because 193 touched them and they are the kind of claim that rots:**
-- `CLAUDE.md`'s row-boundary section, which now has a fourth column-list to keep in step (`supplier_code` in `ingredientToRow`/`rowToIngredient`, the migration, and `supabase/staging/01-schema.sql` — the "three places" law).
-- The twenty-incident test roster, which 193 added to and which has undercounted itself before.
-- Whether `ingredients_pkey` being `PRIMARY KEY (id)` rather than `(business_id, id)` is worth closing. 193 designed AROUND it (random ids, never content-derived) and recorded why in `supabase/migrations/20260815_supplier_code.sql`, but nothing enforces that a future batch will read that file before making an id meaningful.
-
-## next  3 · The privacy gate  **[A — launch blocker]**
+## next  2 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -97,12 +73,12 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
-## next  4 · pdf.js 4.2.67+  **[A — launch blocker]**
+## next  3 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
 
-## next  5 · Gate review before public signup  **[A — launch blocker]**
+## next  4 · Gate review before public signup  **[A — launch blocker]**
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
@@ -111,7 +87,7 @@ Do after: **the privacy gate** and **pdf.js 4.2.67+** — it is the read-through
 **So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
 ⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way. **192 made it REACHABLE**: the boot gate's sign-up form calls it on every attempt, so it is no longer a function nothing invokes — it is now the first thing an uninvited stranger's browser can ask this database, and the only rate limit on it is Supabase's per-IP one.
 
-## next  6a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -146,9 +122,9 @@ Requirements:
 
 ✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
 
-## next  6b · The restore's full-wipe step (step 3)  **[A — data integrity]**
+## next  5b · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered NINE times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, to 5a in that same batch when invitations went blocked, back to 6a when they were unblocked, to **7a in 191**, which both shipped an item above it AND inserted a new one, and back to **6a in 192** when the invitations client half shipped and its item was deleted. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered TEN times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, to 5a in that same batch when invitations went blocked, back to 6a when they were unblocked, to **7a in 191**, which both shipped an item above it AND inserted a new one, back to **6a in 192** when the invitations client half shipped and its item was deleted, and to **5a in 194** when the audit item was completed and deleted. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
 ⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
@@ -166,14 +142,14 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  7 · Floating layers and mobile dropdowns  **[B]**
+## next  6 · Floating layers and mobile dropdowns  **[B]**
 
 Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
 ⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
 Requirements: one placement implementation.
 *(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
 
-## next  8 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
 **What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
 

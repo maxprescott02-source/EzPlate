@@ -524,11 +524,18 @@ Reconciling that inventory against the sections above:
 
 ---
 
-## Settled - checked from here, no phone needed
+## Settled - the v106/v109 pair only, no phone needed
+
+⚠️ **THIS HEADING READ "Settled - checked from here, no phone needed" UNTIL 15 AUG 2026, AND IT WAS TELLING YOU TO STOP READING SEVEN SECTIONS EARLY.**
+The file runs newest-first from the top down to v99, then `Carried`, then this - and then **reverts to chronological append**, because `/batch` adds new sections at the end. The append is right; the heading it appends after was not. Everything below this section is **ACTIVE and needs a phone**: 175+176/v155-v156, F7/v146, 178/v157, 179/v158, 186, 192, 193.
+**What is behind it is not cosmetic.** 193's last entry asks whether `LAST PRICE PAID` is the price of one pack or of the whole carton - *"getting this wrong makes every cost in the app wrong by the carton size, and it will look completely plausible"* - and 186's asks about being signed out, and 192's about password managers and the keyboard, which its handover says a desktop browser cannot show. A reader obeying the old heading saw none of them. **Found by AUDIT-v166 (D1), which ranked it the highest value-per-minute item in the report.**
+**Only these two bullets are settled:**
 
 - **v109: does a price edit land a history point?** Answered.
   `ing_price_history` held 33 points across 33 products at the v109 baseline; it holds **35 across 35** as of 7 Aug. Points are landing.
 - **v106: re-export and confirm all seven groups.** Superseded by v108's `format: 2`/`3` export request above - the older stamped file is no longer the one that matters.
+
+*(If a later batch appends here and this heading is once again sitting above live work, move the heading rather than the work — the append order is load-bearing and the heading is not.)*
 
 ## 175 + 176 / v155-v156 - the shell, Products and the trend
 
