@@ -36,7 +36,8 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
 He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
 
-Do after: **the privacy gate** and **pdf.js 4.2.67+** — and this is a scheduling fact rather than a second opinion on his answer. B's whole point is that a stranger's café can exist without Max, and this file's privacy-gate item says *"before the first non-Scoopy's row exists, not after"*; a café row is such a row, and the stranger who owns it will import a PDF invoice through `pdf.js` into Gemini's free tier on day one. **Shipping signup first is the one ordering that cannot be undone**, because the data has already left. Both named items are directly above/below this one and neither is blocked on anything.
+Do after: **the privacy gate** and **pdf.js 4.2.67+** — and this is a scheduling fact rather than a second opinion on his answer. B's whole point is that a stranger's café can exist without Max, and this file's privacy-gate item says *"before the first non-Scoopy's row exists, not after"*; a café row is such a row, and the stranger who owns it will import a PDF invoice through `pdf.js` into Gemini's free tier on day one. **Shipping signup first is the one ordering that cannot be undone**, because the data has already left. Both named items are directly above/below this one.
+⚠️ **This line ended "and neither is blocked on anything" until 15 Aug 2026, when it stopped being true in the same batch that read it.** The privacy gate is now `blocked` on Max: both of its available answers are his (his billing, or a disclosure his business makes), so **this item is behind a decision and not merely behind work.** pdf.js is still unblocked and is real work. Corrected under the Tier 3 rule 194 added: a queued item's approval does not expire but its facts do.
 
 **Found by batch 191 while shipping invitations, by reading the policy list rather than by hitting it.** Measured against production, 14 Aug 2026:
 
@@ -65,7 +66,7 @@ Requirements: a café can be created and get an owner **without the Supabase das
 *(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  2 · The privacy gate  **[A — launch blocker]**
+## blocked  2 · The privacy gate  **[A — launch blocker]**
 
 `CLAUDE.md` names this **the single most important thing to reopen before EzPlate serves anyone but Scoopy's.**
 Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. That tier **may use prompts for training**.
@@ -73,10 +74,26 @@ Max accepted this for his own café — his call, made — and **that acceptance
 Requirements: a paid-tier Google project that excludes training use, or a privacy policy that discloses it.
 **Before the first non-Scoopy's row exists, not after.**
 
+Blocked on: **Max — both available answers are his, and neither is a code question.** A paid-tier Google project needs his billing details on a Google Cloud account; a privacy policy that discloses training use is a statement his business makes to its customers. Marked blocked by batch 194 rather than attempted.
+⚠️ **This is the item the whole launch is behind**, so it is worth saying what is NOT blocked: everything needed to make his answer a one-liner can be prepared without him — exactly what data each endpoint sends, what the paid tier costs at this volume, and a draft policy. **A future batch should do that preparation and then run `decide`**, rather than putting the bare question to him. Do not treat "blocked" as "nothing to do here."
+
 ## next  3 · pdf.js 4.2.67+  **[A — launch blocker]**
 
 3.11.174 carries CVE-2024-4367. Mitigated in v88 (`isEvalSupported:false`), not fixed. Theoretical while Max controls the PDFs, **real once strangers upload them.**
 Requirements: multi-tenant launch gate. Invoice parsing must still work on the real invoice set afterwards. Both client third-party scripts stay pinned to an exact version with the `sha384` recomputed in the same commit (the worker is pinned only — `new Worker()` has no SRI).
+
+⚠️ **THIS IS NOT A VERSION-STRING SWAP, AND THE ITEM READ AS IF IT WERE. Measured 15 Aug 2026 by batch 194 against the CDN, not assumed:**
+
+```
+pdfjs-dist@4.2.67/legacy/build/pdf.min.js   -> 404   (does not exist)
+pdfjs-dist@4.2.67/legacy/build/pdf.min.mjs  -> 200
+```
+
+**pdf.js 4.x dropped the UMD build. The `legacy` path still exists but ships ESM only.** `ensurePdfjs()` injects a classic `<script>` and then reads `window.pdfjsLib`, which an ES module does not create — so changing the version string alone gives a script that loads and a global that is never defined, and the failure surfaces as the invoice upload doing nothing.
+**So the real work is the load path**: a `type="module"` injection or a dynamic `import()`, capturing the module's export instead of a global, and the same question again for `GlobalWorkerOptions.workerSrc`. Both sites are in `ensurePdfjs()`.
+⚠️ **SRI interacts with this and must be checked, not assumed** — `integrity` on a module script and on a dynamically `import()`ed URL do not behave like they do on a classic script, and `CLAUDE.md` requires these scripts stay integrity-checked wherever the load mechanism allows. If the chosen mechanism cannot carry SRI, that is a finding to state plainly and record at the site, in the same shape as the worker's existing pinned-only exception. **Do not silently drop the hash.**
+**Check whether an intermediate version keeps UMD** before committing to the ESM route: the CVE fix landed in 4.2.67, but if a 4.x release in that range still ships `pdf.min.js`, the cheap upgrade may exist. Probe the CDN rather than reading release notes.
+**Testing without Max's real invoices is the other half.** The item says parsing must still work on the real set, and that set is his. Expect this to need a `docs/PHONE.md` entry, or his four Bidfood PDFs, or both — plan for it rather than discovering it at the end.
 
 ## next  4 · Gate review before public signup  **[A — launch blocker]**
 
