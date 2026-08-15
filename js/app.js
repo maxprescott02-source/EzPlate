@@ -6735,7 +6735,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v166';
+var APP_VERSION='v167';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8829,21 +8829,61 @@ function submitMenuItem(){
 
 /* ---- invoice import ---- */
 /* ---- invoice file upload: PDF (via PDF.js) or CSV ---- */
+/* 195: pdf.js 3.11.174 -> 4.10.38, which is what closes CVE-2024-4367 rather than
+   merely mitigating it (see extractPdfText). Two things about this upgrade are not
+   obvious and cost the batch its time, so they are written down here:
+
+   1. pdf.js 4.x DROPPED THE UMD BUILD. `legacy/build/pdf.min.js` 404s on every 4.x
+      release; only `pdf.min.mjs` exists. So this is not a version-string swap — a
+      classic <script> would load an ES module that never defines window.pdfjsLib,
+      and the symptom is the invoice upload silently doing nothing. Probed against
+      the CDN across 4.0-4.5, not read from release notes.
+   2. 4.10.38 and NOT the latest. GHSA-hq66-cqwq-w95j is a second arbitrary-JS-
+      execution hole affecting 5.6.83 through 6.2.107, so the 5.x line is a
+      DOWNGRADE in safety. 4.10.38 is the last 4.x and is clear of all three
+      advisories OSV lists for this package.
+
+   The load is deliberately TWO STEPS so the integrity hash survives the move to
+   ESM. A bare import() carries no SRI mechanism at all; an external module script
+   DOES honour `integrity`. So: fetch-and-verify with the script element, then
+   import() the same URL, which resolves from the document's module map without a
+   second network request. Both halves measured in a browser — a deliberately wrong
+   hash rejects, and the URL is fetched exactly once. integrity/crossOrigin must be
+   set BEFORE insertion or the check never runs.
+
+   The WORKER still cannot take SRI and is pinned only, as it was in v88 — pdf.js
+   reaches it through new Worker(), which has no integrity mechanism. 4.x wraps a
+   cross-origin worker in a blob that does `await import(url)`; that is pdf.js's own
+   code and needs nothing from us, but it is why workerSrc may stay a CDN URL. */
+var PDFJS_VER='4.10.38';
+var PDFJS_SRC='https://cdn.jsdelivr.net/npm/pdfjs-dist@'+PDFJS_VER+'/legacy/build/pdf.min.mjs';
+/* __pdfjsPromise memoises the REJECTION too, so the "check your connection and try
+   again" toast this rejection produces cannot actually be retried without a reload.
+   That predates 195 — but do NOT fix it by clearing the memo here, because a failed
+   module fetch is ALSO sticky in the document's module map and would not re-fetch
+   either. Clearing the memo alone looks like a repair and changes nothing. Filed in
+   docs/MAINTENANCE.md with both halves and the two real options. */
 var __pdfjsPromise=null;
 function ensurePdfjs(){
   if(window.pdfjsLib) return Promise.resolve();
   if(__pdfjsPromise) return __pdfjsPromise;
   __pdfjsPromise=new Promise(function(res,rej){
     var s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js';
-    /* v88: pinned version + SRI. integrity/crossOrigin must be set BEFORE the
-       element is inserted, or the check never runs. A failed hash fires onerror,
-       which the caller already turns into the "could not load the PDF reader"
-       toast. The WORKER below cannot take SRI — pdf.js loads it via new Worker(),
-       which has no integrity mechanism; it is pinned only. */
-    s.integrity='sha384-OemFRmhjDZwhIKuUld0HJozkF2YErsgDaCL41trxGQZt4/WgnopJQqQl2DvDZ07Z';
+    s.type='module';
+    s.src=PDFJS_SRC;
+    s.integrity='sha384-z/XbAtvhBXJoK+yvYimnFuTCF6/2wTCDSIFD09/HtIfwFtvDKOMdAe5Z3wOChkmW';
     s.crossOrigin='anonymous';
-    s.onload=function(){ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js'; }catch(e){} res(); };
+    s.onload=function(){
+      /* the module map already holds the verified module — this does not re-fetch.
+         import() REJECTS as well as resolving, and both arms must produce the same
+         'pdfjs-load' the caller keys its toast off, or a failure here surfaces as
+         the image-only-PDF message instead. */
+      import(PDFJS_SRC).then(function(ns){
+        window.pdfjsLib=ns;
+        try{ ns.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@'+PDFJS_VER+'/legacy/build/pdf.worker.min.mjs'; }catch(e){}
+        res();
+      }, function(){ rej(new Error('pdfjs-load')); });
+    };
     s.onerror=function(){ rej(new Error('pdfjs-load')); };
     document.head.appendChild(s);
   });
@@ -8852,11 +8892,12 @@ function ensurePdfjs(){
 async function extractPdfText(file){
   await ensurePdfjs();
   var buf=await file.arrayBuffer();
-  /* v88: isEvalSupported:false closes CVE-2024-4367 (pdf.js < 4.2.67) — a malicious
+  /* v88: isEvalSupported:false MITIGATED CVE-2024-4367 (pdf.js < 4.2.67) — a malicious
      PDF can reach arbitrary JS execution through the eval-based font path, and the
      PDFs here come from SUPPLIERS, on the origin holding the pricing data and the
-     Supabase key. Only font rendering uses eval; we extract text, so nothing we
-     need is lost. The real fix is pdf.js 4.x — its own brief (see HANDOVER-v88). */
+     Supabase key. 195 shipped the real fix, the 4.10.38 upgrade in ensurePdfjs().
+     This flag STAYS: only font rendering uses eval and we extract text, so it costs
+     nothing we need, and it is the layer that still holds if the pin ever moves. */
   var pdf=await window.pdfjsLib.getDocument({data:buf, isEvalSupported:false}).promise;
   var out='';
   for(var p=1;p<=pdf.numPages;p++){
