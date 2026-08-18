@@ -223,6 +223,20 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 ---
 
+## C — `docs/PHONE.md` needs a groom, and Max asked for it (15 Aug 2026)
+
+His words: *"i wonder if we can have claude in chrome do the phone check. id imagine the phone check needs auditing first though as some stuff probably old now."* **The instinct is right and here is the measured evidence, so the next batch to take this does not have to re-derive it.**
+
+- **756 lines, 173 bullets, spanning v82 → v167.** Nothing has ever been deleted from it, only appended.
+- **The same question is asked in FIVE places.** "Two buttons in a header, does it wrap on your phone" appears at lines 46, 199, 216, 225 and 250 (Ingredients, Products, Menu, Plates, More) — and the file itself says *"it is queued as one fix for both"* and *"answer it once for both screens"*. Max is being asked one question five times.
+- **Whole blocks are explicitly reversed but still sit there in full.** `v132-v135` says dark mode is gone; `v136` above it says the opposite and tells the reader to treat the block below as history. Both are printed at full length.
+- **It has already produced one real navigation failure**, found by AUDIT-v166 (D1): a `Settled — no phone needed` heading sat above SEVEN live sections, so a reader going top-down stopped seven sections early — including 193's carton-vs-pack question, which that file says *"makes every cost in the app wrong by the carton size."* The heading was moved; the underlying ordering (newest-first, then `Carried`, then chronological append) was not.
+- **Playwright has meanwhile grown to 38 specs, 37 of them asserting at 380px.** A good deal of the older layout material is now mechanically covered and nobody went back to strike it.
+
+**What this is NOT.** A sample read shows the authors were disciplined: most entries really are device judgements, and several name the reason precisely (*"iOS Safari is the one engine this was not driven in"*, *"an emulator will not show it honestly"*). **So the win is de-duplication and supersession, not reclassification.** Do not go in expecting to find the list is mostly bogus; expect to find it is mostly repeated.
+
+Requirements: sort every bullet into (a) dead or superseded → delete with the reason, (b) already settled by a Playwright spec → strike and name the spec, (c) a desktop browser can settle it → do it and record the answer, (d) genuinely needs an iPhone → keep. Merge the five header-wrap bullets into one. Fix the ordering so it reads in one direction. **Judge (c) strictly** — a 380px Chromium window is not an iPhone, and `CLAUDE.md` already says so.
+
 ## C — code hygiene and latent defects
 
 ### "Try again" after a PDF-reader load failure cannot work, for TWO independent reasons
