@@ -16,7 +16,7 @@ If a line here disagrees with the code, **the code is right and this file is a f
 | | |
 |---|---|
 | Outstanding work - tier A and B only, capped at 20 | `docs/QUEUE.md` |
-| Tier C - internal quality, worked on the PARALLEL track in its own worktree (its header has the procedure) | `docs/MAINTENANCE.md` |
+| Tier C - internal quality, ridden along by whichever batch already touches the file (its header has the reasoning; the parallel worktree track was retired 22 Aug 2026) | `docs/MAINTENANCE.md` |
 | Device checks | `docs/PHONE.md` |
 | **Migrations - the procedure, both projects, what staging can and cannot rehearse** | `docs/STAGING.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |

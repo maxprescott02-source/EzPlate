@@ -10,7 +10,25 @@ Split 11 Aug 2026 out of a 979-line `QUEUE.md`. Nothing below is new; every item
 
 ---
 
-## This file is now a PARALLEL track, not a leftover (Max, 13 Aug 2026)
+## How this file gets worked: C items RIDE the batch that already touches the file (Max, 22 Aug 2026)
+
+⚠️ **THE SEPARATE PARALLEL TRACK IS RETIRED. Max's call, 22 Aug 2026, reversing his own 13 Aug decision on measured evidence.**
+The track was created with a second worktree, a collision rule and a five-batch tally to judge whether it was working.
+Batches 181 to 197 ran. The git log holds exactly one maintenance commit, and it is a recording rather than a fix.
+Two handovers record the track explicitly not running, and 194 found a structural reason it can never run during an audit batch.
+**Seventeen batches, zero items. The tally has its answer**, and it was put to him with that number.
+
+**What replaces it, and it is what already happened in practice:** when a batch opens a file, it takes the C items in this file that touch that file, in the same PR.
+No second worktree, no collision rule to get wrong, and no separate track to forget.
+The collision problem the worktree existed to solve disappears rather than being managed, because there is only ever one branch.
+
+**The two consequences worth stating:**
+- **A C item in a file nothing is touching will wait, possibly a long time.** That is the honest cost and it is accepted: it was already waiting under the old scheme, with a worktree and a procedure implying otherwise.
+- **If the queue's A and B items are ever cleared, a maintenance sweep runs as its own ordinary batch.** That is the escape hatch, and it needs no special machinery.
+
+*(The blind process audit of 22 Aug 2026 recommended this; `docs/audits/BLIND-AUDIT-2026-08-22-process.md` §4.2 carries the counts. It also noted the joke that the item proposing to retire the track was itself filed on the track, which is the evidence as much as the argument.)*
+
+## The old parallel-track procedure, kept only as the record of what was tried
 
 ⚠️ **The line above read "worked only when `docs/QUEUE.md` is empty" until 13 Aug 2026, and `skills/batch` said the same.** It no longer does. Max is waiting on batches; the queue's A and B items are a dependency chain that cannot parallelise, while these are genuinely independent — which is exactly the shape that can.
 
@@ -527,7 +545,7 @@ The process audit's highest-value new check, and the only one aimed squarely at 
 A small set of assertions that every plate cost, unit cost and food-cost percentage lands inside a sane band, run against a snapshot of production, would have caught the $961 salad, the 1831% dashboard, the 30c/kg ham and 193's carton error **without a human looking.**
 ⚠️ **State its limit at the site or it will be over-trusted: a band does NOT catch `QUEUE.md` item 0.** $5.50/kg for chips is inside every plausible band; a 10% error is invisible to magnitude and needs the composition test in item 0c. These two checks are complements, not substitutes.
 
-### Retire the parallel maintenance track
+### ~~Retire the parallel maintenance track~~ — DONE 22 Aug 2026, see this file's header
 Added 13 Aug 2026 with a second worktree, a collision rule, and a five-batch tally to judge whether it was working. **Batches 181-195 have run since. The git log contains exactly one maintenance commit (`735082d`) and it is a recording, not a fix.** Two handovers record the track explicitly not running (182, 194), and 194 found a structural reason it can never run during an audit batch.
 Fifteen batches, zero items. **The five-batch tally has its answer.** Delete the track's section from `skills/batch/SKILL.md` and this file's header, and let C items ride batches already in the file — which is what actually happens.
 ⚠️ **This item is on the track it proposes to delete, which is the joke and also the evidence.** Whoever picks it up should note that `QUEUE.md` items 0c and 0d exist because Max declined to file two structural fixes here for exactly this reason (22 Aug 2026).
