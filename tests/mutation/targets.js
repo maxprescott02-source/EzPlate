@@ -28,6 +28,13 @@ const targets = [
      is where the defect lived while every part of it was individually correct and individually
      tested. Widening this to the rest of the pricing surface is QUEUE.md item 0c. */
   { fn: 'invGstAdjust', tests: ['invoice-gst.test.js'] },
+  /* Both extracted from inline code DURING this batch, and both are on this list for 195's reason:
+     a function that is not a target has never been asked the question, and neither of these existed
+     to be asked until the second review found the defects they now hold. invReResolve owns the
+     convert-ONCE condition (dropping it re-creates a silent 9%-low price that PRICE_JUMP cannot
+     see); invDerivePackQty owns the shared-tax-basis rule for deriving a pack SIZE. */
+  { fn: 'invReResolve', tests: ['invoice-gst.test.js'] },
+  { fn: 'invDerivePackQty', tests: ['invoice-gst.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
   /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
      implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields
@@ -190,6 +197,27 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 197 — invDerivePackQty. TWO allowed, and a third was NOT: `derived > 0` -> `>= 0` is a real
+     distinction (a $0.00 invoice line is a freebie or a credit, and it must derive no pack size
+     rather than a pack size of zero), so invoice-gst.test.js kills it with exactly that line.
+     ⚠️ Read 193's note below before adding to this list. Both of these were reasoned to a specific
+     reachable input and found unreachable; neither is "unlikely", which is not the bar. */
+  {
+    key: "invDerivePackQty :: if(pack==null || !(typeof entered==='number' && isFinite(entered) && entered>0)) return null; :: relational >>>= #0",
+    reason: 'entered>0 -> entered>=0 is equivalent because the NEXT guard catches everything it lets past: '
+      + 'entered===0 makes derived = pack/0 = Infinity, and `!isFinite(derived)` returns null one line later. '
+      + 'Same return value, same caller behaviour, no observable difference. Killing it would require deleting '
+      + 'the second guard as well, and a branch only reachable once another branch is removed is redundancy '
+      + 'rather than uncovered code — which is the belt-and-braces this function wants, now that it is '
+      + 'exported and callable from a test and cannot assume its caller checked anything.',
+  },
+  {
+    key: 'invDerivePackQty :: return (Math.abs(derived-Math.round(derived))<=0.02) ? Math.round(derived) : derived; :: relational <=>< #0',
+    reason: 'The two differ only when |derived - round(derived)| is EXACTLY 0.02. derived is pack/entered, both '
+      + 'read from money strings with two decimals, so hitting that boundary means landing on one representable '
+      + 'double at the end of a division. A test pinning it would assert an IEEE-754 coincidence wearing this '
+      + 'function as a costume — the same argument samePrice carries below, for the same reason.',
+  },
   /* ⚠️ TWO `setProduct ::` ALLOWANCES WERE DELETED HERE IN 193, AND ONE OF THEM WAS WRONG — worth
      recording, because a wrong allowance is the quietest failure this gate has: it turns a mutant
      the gate DID catch into one nobody looks at again, and unlike a stale one it is never reported.

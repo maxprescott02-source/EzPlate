@@ -109,6 +109,8 @@ function build() {
      field, and its own comment promises the prefill and the live recompute never disagree - so it
      is the one reachable proxy for the DOM-bound pack-teach handler that shares its formula. */
   const invPackPreviewText = extractFn(src, 'invPackPreviewText');
+  const invReResolve = extractFn(src, 'invReResolve');           // the convert-ONCE decision behind the match dropdown
+  const invDerivePackQty = extractFn(src, 'invDerivePackQty');   // applyInvoice's real pack-size fallback
   const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');
   const invGstAdjust = extractFn(src, 'invGstAdjust');
@@ -205,7 +207,9 @@ function build() {
     ${publishPlan}
     ${insightPipeline}
     ${invPackPreviewText}
-    return { setAppState, setInvState, getInvRows, invPaints, invPackPreviewText, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+    ${invReResolve}
+    ${invDerivePackQty}
+    return { setAppState, setInvState, getInvRows, invPaints, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }

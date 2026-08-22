@@ -9164,6 +9164,39 @@ function invGstAdjust(p){
   if(typeof p!=='number' || !isFinite(p)) return p;
   return p/1.1;
 }
+/* applyInvoice's fallback when the user priced a line but never said how big the pack is: divide
+   the PACK price by the UNIT price and you have the pack size. Extracted from inside applyInvoice
+   so a test can run the real arithmetic — it used to be four inline expressions, and a test that
+   re-typed them in the test file would pass with the shipped line reverted, which is this repo's
+   most-recorded failure class.
+   ⚠️ BOTH SIDES MUST SHARE A TAX BASIS. `entered` is the price field, always ex-GST; `pack` is raw
+   invoice text, as printed. Dividing across two bases yields a pack size out by 1.1 — and the
+   neat-integer snap below then ROUNDS IT CLEAN, so "10.99 in a carton" becomes 11 with nothing to
+   see. That snap is why the error hides rather than showing up as an odd fraction. */
+/* Re-resolve a review row against a DIFFERENT matched product, and convert exactly once.
+   Named and extracted so a test can execute this decision, rather than the DOM handler that used
+   to hold it inline — a test that re-typed the condition in the test file would agree with whatever
+   the code did, which is this repo's most-recorded failure class.
+   ⚠️ THE CONDITION IS THE WHOLE FUNCTION. resolveMatchedPrice has three branches; only two read the
+   raw invoice line. The third hands `row.unitPrice` straight back, and any caller re-resolving an
+   ALREADY-CONVERTED row would divide it a second time — ~9% low, compounding on every repeat, and
+   under the 12% PRICE_JUMP threshold so nothing flags it.
+   buildInvRows does NOT use this: it converts unconditionally because it feeds resolveMatchedPrice
+   the parser's raw reading, so its pass-through is raw too. That asymmetry is the reason this
+   exists. Keyed on the pass-through branch, so a fourth branch that reads raw text converts by
+   default rather than being silently missed. */
+function invReResolve(row, product, mem){
+  resolveMatchedPrice(row, product, mem);
+  if(row.priceSource!=='parser') row.unitPrice=invGstAdjust(row.unitPrice);
+  return row;
+}
+function invDerivePackQty(raw, entered){
+  var pack=invGstAdjust(packPriceOf(raw));
+  if(pack==null || !(typeof entered==='number' && isFinite(entered) && entered>0)) return null;
+  var derived=pack/entered;
+  if(!isFinite(derived) || !(derived>0)) return null;
+  return (Math.abs(derived-Math.round(derived))<=0.02) ? Math.round(derived) : derived;
+}
 /* ---- drop invoice totals / footer / summary lines ---- */
 var INV_EXCLUDE=/\b(?:sub-?totals?|totals?|gst|balance|owing|due|account|acct|invoice|abn|acn|payments?|paid|remittances?|freight|delivery|surcharges?|discounts?|rounding|amounts?|eftpos|eft|tax|bsb|statements?|credit|charges?|levy|levies)\b/i;
 /* A real product line has a quantity/unit/weight or a "N x N" pack pattern. */
@@ -10384,13 +10417,7 @@ function invSelChanged(tr){
   r.manualPick=true;                                             // ITEM 1 (v33): flags the confidence SOURCE (show this pick's coverage, or "manual") — it no longer blanks anything
   var np=byId[sel.value];
   var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
-  resolveMatchedPrice(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match
-  /* 197: THE SAME CONVERSION buildInvRows DOES, because this is the SECOND caller of
-     resolveMatchedPrice and it re-derives from the raw line exactly as the first one does. Picking
-     a different product from the match dropdown is an ordinary review action, and without this it
-     stored a GST-inclusive price on a GST-inclusive invoice — the identical defect, reached by a
-     different door. Found by the pre-push review; the first draft of this batch missed it. */
-  r.unitPrice=invGstAdjust(r.unitPrice);
+  invReResolve(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match, converting once (see the function)
   flagNeedsAttention(r);
   renderInvReview();                                              // repaint the row (and its pack-teach) fresh for the new product
 }
@@ -10459,8 +10486,9 @@ function applyInvoice(){
            and it then rounds to a neat integer within 0.02, so "10.99 in a carton" quietly becomes
            11. This was already wrong for parser-priced rows before this batch and would have become
            wrong for remembered ones because of it. */
-        var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN; var pack=invGstAdjust(packPriceOf(r.raw||r.name));
-        if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u=rUnit; } }
+        var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN;
+        var derived=invDerivePackQty(r.raw||r.name, entered);     // one tax basis on both sides; see the function
+        if(derived!=null){ q=derived; u=rUnit; }
       }
       if(q>0){
         if(r.bestId && byId[r.bestId]){                             // the product pack — written whoever the supplier is, or teach-once never survives

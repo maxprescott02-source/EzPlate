@@ -21,7 +21,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { setInvState, getInvRows, invPaints, invPackPreviewText, buildInvRows, pdfTextToRows, invGstDetect, invGstAdjust } = require('./_extract.js');
+const { setInvState, getInvRows, invPaints, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, pdfTextToRows, invGstDetect, invGstAdjust } = require('./_extract.js');
 
 const near = (a, b, m) => assert.ok(a != null && Math.abs(a - b) < 0.005, `${m}: expected ~${b}, got ${a}`);
 
@@ -141,14 +141,74 @@ test('the preview is NOT divided when the invoice is GST-exclusive', () => {
 });
 
 test('a pack size derived from the entered price divides two figures on the SAME tax basis', () => {
-  // applyInvoice falls back to `pack / entered` when no pack qty was typed. `entered` is the price
-  // field (ex-GST); `pack` is raw invoice text (as printed). Mixing the two bases yields a pack
-  // SIZE out by 1.1 — and it then rounds to a neat integer within 0.02, so the error hides.
-  // Reproduced here as the arithmetic applyInvoice performs, both sides adjusted as it now does.
+  // Runs the REAL invDerivePackQty that applyInvoice now calls. The earlier version of this test
+  // re-typed the formula in the test file, which the second review correctly called out: it would
+  // have passed with the shipped line reverted.
   setInvState({ invGst: INC });
-  const entered = invGstAdjust(55) / 10;        // what the field shows for a 10kg pack: $5.00
-  const packRaw = 55;                           // what the line prints, GST-inclusive
-  near(invGstAdjust(packRaw) / entered, 10, 'derived pack size must be 10, not 11');
-  // and the un-adjusted version is the bug, stated so the assertion above cannot be read as trivia:
-  assert.ok(Math.abs(packRaw / entered - 11) < 0.01, 'unadjusted, it derives 11 — which rounds clean');
+  const entered = 5.0;                                    // the price field, ex-GST, for a 10kg pack
+  assert.equal(invDerivePackQty(CHIPS, entered), 10, 'must derive 10, not 11');
+  // and the neat-integer snap is why the wrong answer HIDES rather than showing as an odd fraction:
+  setInvState({ invGst: EX });
+  assert.equal(invDerivePackQty(CHIPS, entered), 11, 'un-adjusted the same figures snap clean to 11');
+});
+
+test('THE DOUBLE-APPLICATION: re-resolving an already-converted row must not divide it twice', () => {
+  // The match dropdown re-resolves against a different product. resolveMatchedPrice's third branch
+  // passes row.unitPrice straight through — and by then it has ALREADY been converted once by
+  // buildInvRows. Converting again lands 9.09% low, which is UNDER the 12% PRICE_JUMP threshold,
+  // so the app's own guard stays silent. This drives the real invReResolve.
+  const row = priceFor(UNTAUGHT, INC);
+  const once = row.unitPrice;
+  near(once, 5.0, 'precondition: buildInvRows converted it exactly once');
+
+  // re-pick a product with NO taught pack and no supplier memory -> the pass-through branch
+  invReResolve(row, { pack_qty: null, pack_unit: null, base_unit: 'g' }, null);
+  assert.equal(row.priceSource, 'parser', 'fixture must exercise the PASS-THROUGH branch');
+  near(row.unitPrice, once, 'a pass-through must not be re-converted');
+
+  // and it must COMPOUND-proof: repeating the action changes nothing further
+  invReResolve(row, { pack_qty: null, pack_unit: null, base_unit: 'g' }, null);
+  near(row.unitPrice, once, 'repeated dropdown changes must not drift');
+});
+
+test('re-resolving onto a product that DOES have a taught pack still converts exactly once', () => {
+  // The other side of the same condition — proving the guard did not simply disable the conversion.
+  const row = priceFor(UNTAUGHT, INC);
+  invReResolve(row, { pack_qty: 10, pack_unit: 'kg', base_unit: 'g' }, null);
+  assert.equal(row.priceSource, 'product-pack', 'fixture must exercise the RE-DERIVING branch');
+  near(row.unitPrice, 5.0, 're-derived from raw text, converted once');
+});
+
+test('invDerivePackQty refuses every input that is not a real pack size', () => {
+  // Its guards, exercised individually. The mutation gate found all four unpinned when this
+  // function was first extracted — an extracted function inherits responsibility for its own
+  // edges, and "it was inline before" does not carry any of it across.
+  setInvState({ invGst: EX });
+  assert.equal(invDerivePackQty('no money on this line at all', 5), null, 'unparseable line → null');
+  assert.equal(invDerivePackQty(CHIPS, 0), null, 'zero price → null, never a division by zero');
+  assert.equal(invDerivePackQty(CHIPS, -5), null, 'negative price → null');
+  assert.equal(invDerivePackQty(CHIPS, NaN), null, 'NaN price → null');
+  assert.equal(invDerivePackQty(CHIPS, null), null, 'null price → null');
+  assert.equal(invDerivePackQty(CHIPS, '5'), null, 'a STRING is not a price — typeof before isFinite');
+});
+
+test('invDerivePackQty snaps to a whole pack only inside the 0.02 tolerance', () => {
+  // The snap is what makes a wrong tax basis invisible, so its boundary is worth pinning both ways.
+  setInvState({ invGst: EX });
+  // 55 / 5.5 = 10 exactly → 10
+  assert.equal(invDerivePackQty(CHIPS, 5.5), 10, 'exact → whole number');
+  // 55 / 5.4945... ≈ 10.01, inside tolerance → snaps
+  assert.equal(invDerivePackQty(CHIPS, 55 / 10.01), 10, 'within 0.02 → snaps to 10');
+  // 55 / 9.5 ≈ 5.789, well outside → must NOT snap, and must keep the fraction
+  const loose = invDerivePackQty(CHIPS, 55 / 5.79);
+  assert.ok(Math.abs(loose - 5.79) < 0.001, `outside tolerance keeps its fraction, got ${loose}`);
+});
+
+test('a zero-priced invoice line derives no pack size rather than a pack of zero', () => {
+  // A $0.00 line is real (a freebie, a credit, a promo). packPriceOf reads 0, so derived is 0 —
+  // and `derived > 0` is what turns that into null instead of a pack size of zero being written
+  // onto the product. applyInvoice's own `if(q>0)` would also reject it, but this function is
+  // extracted and callable, so it owns its own answer rather than borrowing its caller's.
+  setInvState({ invGst: EX });
+  assert.equal(invDerivePackQty('FREEBIE ITEM $0.00 $0.00', 5), null, 'zero pack price → null, not 0');
 });
