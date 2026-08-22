@@ -212,3 +212,52 @@ test('a zero-priced invoice line derives no pack size rather than a pack of zero
   setInvState({ invGst: EX });
   assert.equal(invDerivePackQty('FREEBIE ITEM $0.00 $0.00', 5), null, 'zero pack price → null, not 0');
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE AI READER'S BOUNDARY. gemApplyReadings converts every AI-read price ONCE
+   on entry, so all three downstream consumers — the corroboration check, the
+   P-vs-G merge comparison, and the appended row — see one tax basis.
+   ───────────────────────────────────────────────────────────────────────────── */
+const { extractFn, loadApp } = require('./_extractfn.js');
+const SRC = loadApp();
+
+function runGem(gstMode, derivedUnitPrice) {
+  // eslint-disable-next-line no-new-func
+  return new Function('S', `
+    "use strict";
+    var gemStatus=null, GEM_BAND=0.5, invRows=[], byId={};
+    var invGst={mode:${JSON.stringify(gstMode)}, note:''};
+    function renderInvReview(){}
+    function rankCandidates(){ return []; }
+    function packCount(){ return null; }
+    function cpbu(p){ return p&&p.cost_per_base_unit; }
+    function normalizePhrase(s){ return String(s||'').toLowerCase().trim(); }
+    function gemDiag(){}
+    ${extractFn(SRC, 'invGstAdjust')}
+    ${extractFn(SRC, 'gemCanon')}
+    ${extractFn(SRC, 'gemHist')}
+    ${extractFn(SRC, 'gemPackEq')}
+    ${extractFn(SRC, 'gemMergeLine')}
+    ${extractFn(SRC, 'gemMatchSuspect')}
+    ${extractFn(SRC, 'gemRowLocked')}
+    ${extractFn(SRC, 'gemNormKey')}
+    ${extractFn(SRC, 'gemCleanFields')}
+    ${extractFn(SRC, 'gemApplyReadings')}
+    gemApplyReadings({status:'ok', lines:[{rawText:'CHIPS 10KG 55.00 55.00',
+      description:'Chips', derivedUnitPrice:${derivedUnitPrice}, unitType:'kg', packCount:null}]});
+    return invRows;
+  `)({});
+}
+
+test('rule 5: a product the AI found and the parser missed is appended EX-GST', () => {
+  // This row becomes a NEW product at this price, so an unconverted figure here is a permanently
+  // 10%-high product created without anyone typing a number.
+  const rows = runGem('inc', 5.5);
+  assert.equal(rows.length, 1, 'the AI-only line must be appended');
+  near(rows[0].unitPrice, 5.0, 'appended at the converted price');
+});
+
+test('rule 5 on a GST-exclusive invoice appends the price unchanged', () => {
+  const rows = runGem('ex', 5.5);
+  near(rows[0].unitPrice, 5.5, 'no conversion when the invoice is exclusive');
+});

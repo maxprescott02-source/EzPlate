@@ -86,6 +86,12 @@ test('ROOT CAUSE: a match picked before the referee answers SILENCES it for that
     function cpbu(p){ return p&&p.cost_per_base_unit; }
     function normalizePhrase(s){ return String(s||'').toLowerCase().trim(); }
     function gemDiag(){}
+    /* 197: gemApplyReadings now converts every AI-read price to ex-GST at its own boundary, so this
+       sandbox needs the app's real invGstAdjust and the invGst it reads. Left at mode 'ex' here on
+       purpose — these specs are about the GATE, and a divisor firing inside them would change the
+       numbers they assert for a reason that has nothing to do with what they test. */
+    var invGst={mode:'ex', note:''};
+    ${extractFn(SRC, 'invGstAdjust')}
     ${extractFn(SRC, 'gemCanon')}
     ${extractFn(SRC, 'gemHist')}
     ${extractFn(SRC, 'gemPackEq')}

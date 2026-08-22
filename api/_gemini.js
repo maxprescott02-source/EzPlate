@@ -176,7 +176,7 @@ function buildPrompt(text, opts) {
     '    "packUnit": "kg"|"g"|"l"|"ml"|"ea"|null,',
     '    "purchasedQty": number|null, // number of packs/units purchased',
     '    "lineTotal": number|null,    // the line total in dollars',
-    '    "derivedUnitPrice": number|null, // price per single unit (ex-GST if shown)',
+    '    "derivedUnitPrice": number|null, // price per single unit, AS PRINTED on the line',
     '    "unitType": "kg"|"g"|"l"|"ml"|"ea"|null, // unit derivedUnitPrice is per',
     '    "supplier": string|null      // per-line supplier if differs',
     '  }]',
@@ -185,7 +185,15 @@ function buildPrompt(text, opts) {
     'field you cannot determine — never guess. Skip subtotal/GST/freight/total',
     'rows. derivedUnitPrice must be the price of ONE unit, not the pack or line',
     'total. cleanName should read like a product a café owner would type, with',
-    'the supplier code/SKU stripped.'
+    'the supplier code/SKU stripped.',
+    // 197: the tax basis is the CLIENT'S to decide, never the model's. This read "(ex-GST if
+    // shown)", which made the basis a per-line judgement call — so on an invoice printing both
+    // figures the app could not know which one it had, and its own GST conversion became a coin
+    // flip that lands ~9% low when it guesses wrong. The app detects the invoice's basis once
+    // (invGstDetect) and converts once (invGstAdjust); this prompt's job is to report what is on
+    // the page and nothing more. Do not reintroduce a tax instruction here.
+    'Report derivedUnitPrice exactly as printed on the line — do NOT add or',
+    'remove GST, and do not convert between tax-inclusive and tax-exclusive.'
   ];
   if (cats.length) {
     lines.push('');

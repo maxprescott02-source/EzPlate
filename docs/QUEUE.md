@@ -31,7 +31,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  0 · Invoice GST is applied to ONE of the four price paths, and the other three overwrite it  **[A — wrong data, LIVE TODAY]**
+## doing  0 · Invoice GST is applied to ONE of the four price paths, and the other three overwrite it  **[A — wrong data, LIVE TODAY]**
 
 **Found 22 Aug 2026 by an independent blind code audit** (no rulebook, no docs, no history — report and brief in `docs/audits/BLIND-AUDIT-2026-08-22-*`). **Reproduced against the shipped code, then re-verified here.**
 
@@ -50,8 +50,9 @@ Two more sites in the AI reader: `js/app.js:10294` (rule 4 adopts Gemini's `deri
 
 **Same defect, second door — fix in this item:** the catalogue CSV importer never asks about GST at all. `catImportPlan` writes `current_price_exgst:price` (`js/app.js:2255`) taking the mapped column at face value; the mapping UI asks pack-vs-carton and nothing about tax. A café's first hour, four hundred products, 10% high in one action. The invoice path treats this question as important enough to detect from the text and print a note about; the bulk path does not ask.
 
-⚠️ **BLOCKED 22 AUG 2026 — THE FIX SITE THIS ITEM NAMED IS INSIDE THE PROTECTED PARSER REGION, AND THE ITEM WAS WRONG THE HOUR IT WAS WRITTEN.**
-Blocked on: **Max — may the one-line GST fix go INSIDE the protected parser region, or must it be solved outside?**
+✅ **ANSWERED 22 Aug 2026 (Max): INSIDE the protected parser region, one line, done properly.** He was shown the outside alternative — a normaliser at `buildInvRows`'s two call sites, costing a double render and a flag-keyed correction sitting far from the code it corrects — and chose the direct fix. The slice anchors (`var INV_EXCLUDE=`, `function unitLabelFor(`) are untouched, so `tests/_extract.js` still cuts cleanly.
+**He also said NO BACKFILL for now**: fix forward, measure, report. Measured read-only on production the same day — 5 of 413 products carry a taught pack and `gst_default` is `'ex'`, so the defect only ever fired on invoices that explicitly declared GST-inclusive pricing. Nothing was touched.
+⚠️ **THE ITEM WAS WRONG THE HOUR IT WAS WRITTEN, and that is why the stop happened at all.**
 
 The region is `js/app.js:9153-9379`, between `var INV_EXCLUDE=` and `function unitLabelFor(`. **Every function named below is inside it**: `buildInvRows` (9186, and it holds the only `/1.1` in the codebase), `packPriceOf` (9228), `applySupplierMemory` (9232), `derivePackPrice` (9256), `resolveMatchedPrice` (9266). This item's own sentence — *"the conversion belongs on the resolved `chosen.unitPrice` at the end of `resolveMatchedPrice`"* — names the one function `CLAUDE.md` forbids twice over, in the trap section AND in its "never touch" list.
 **The blind auditor could not have known** — it was given no `CLAUDE.md` by design — and the item was filed off its wording without the region being checked. That is this file's own "a queued item's approval does not expire and its facts do", one hour after filing.

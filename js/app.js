@@ -10327,6 +10327,20 @@ function gemCleanFields(g, headerSupplier){
    invRows in place and does ONE full-row re-render (open new-item forms survive it, v50 fix). */
 function gemApplyReadings(payload){
   if(!payload || payload.status!=='ok' || !Array.isArray(payload.lines)){ gemStatus='unavailable'; renderInvReview(); return; }
+  /* 197: EVERY AI-read price is converted to ex-GST ONCE, HERE, before a single consumer sees it —
+     and the placement is the fix rather than a tidy-up.
+     There are THREE consumers of g.derivedUnitPrice (gemMatchSuspect's corroboration, gemMergeLine's
+     P-vs-G comparison, and rule 5's appended row) and an earlier draft of this batch converted at
+     only two of them, and at the wrong end. That left the MERGE comparing a GST-inclusive G against
+     a P and a price history that are both ex-GST — so "do these two readings agree?" was being asked
+     across two different tax bases, on every inclusive invoice.
+     Converting at the boundary means the answer is "everything downstream of this line is ex-GST",
+     which is a property a future consumer inherits instead of having to know about.
+     ⚠️ Safe to do in place: gemApplyReadings has ONE caller (the fetch handler at ~10211), which is
+     token-guarded and refuses a stale or already-applied response, so a payload is never re-applied.
+     ⚠️ This is HALF of a contract — api/_gemini.js must ask for the price AS PRINTED, or the basis
+     is decided per line by the model and this conversion is a coin flip. See the note there. */
+  payload.lines.forEach(function(g){ if(g) g.derivedUnitPrice=invGstAdjust(g.derivedUnitPrice); });
   // index Gemini lines by normalized rawText/description so a P row can find its G reading
   var gmap={};
   payload.lines.forEach(function(g,gi){
@@ -10370,10 +10384,8 @@ function gemApplyReadings(payload){
                          {derivedUnitPrice:g.derivedUnitPrice, unitType:g.unitType, packCount:g.packCount}, H, T, {band:GEM_BAND});
     gemDiag(r, dec, H);
     if(dec.action==='adopt'){                                      // ONLY when the parser had NO price (rule 4) — filling a blank, never overruling a reading
-      /* invGstAdjust: rule 4 fills a BLANK, so this row was skipped by buildInvRows' conversion
-         (it had no price to convert). dec.unitPrice comes from Gemini's derivedUnitPrice, read off
-         the same GST-inclusive invoice text as everything else, so it needs the same correction. */
-      r.unitPrice=invGstAdjust(dec.unitPrice); r.unit=dec.unit; r.needManual=false; r.unitMismatch=false;
+      // dec.unitPrice descends from g.derivedUnitPrice, already ex-GST at the boundary above.
+      r.unitPrice=dec.unitPrice; r.unit=dec.unit; r.needManual=false; r.unitMismatch=false;
       if(dec.flagged){ r.gemReview=true; r.aiSuggested=true; }     // flagged, unticked, AI-suggested chip on the price field
     } else if(dec.action==='flag'){                                // v66: rule 3 — history says the parser looks wrong. FLAG only; the parser's price is left untouched.
       r.gemPriceReview=true;
@@ -10388,9 +10400,8 @@ function gemApplyReadings(payload){
     if(already) return;                                           // don't duplicate a P row we simply couldn't key-match
     var gc=gemCanon(g.derivedUnitPrice, g.unitType);
     var cands=rankCandidates(name); var top=cands.length?cands[0].coverage:0;
-    /* invGstAdjust: rule 5 APPENDS a row that buildInvRows never saw, so it never met the one
-       conversion. gc.per is derived from Gemini's reading of the same inclusive invoice. */
-    invRows.push({ name:name, raw:g.rawText||name, unitPrice:(gc?invGstAdjust(gc.per):null), unit:(gc?gc.cat:'auto'), rawUnit:'auto',
+    // gc.per descends from g.derivedUnitPrice, already ex-GST at the boundary above.
+    invRows.push({ name:name, raw:g.rawText||name, unitPrice:(gc?gc.per:null), unit:(gc?gc.cat:'auto'), rawUnit:'auto',
       needManual:(gc==null), uncertain:false, cands:cands, bestId:null, conf:top,
       tier:(top>=0.6?'hi':(top>=0.3?'mid':'lo')), addNew:true, newItem:null, remembered:false,
       gemNew:true, aiSource:true, aiClean:gemCleanFields(g, payload.supplier) });   // v73: aiSource → chips read "AI suggested"; aiClean prefills the form's descriptive fields
