@@ -754,3 +754,23 @@ downstream reads those lines by position.
   matched/new split are the quickest tells.
 - **If a file parses worse than it used to, keep the file** and say which one. That is the whole
   evidence needed, and rolling back is a one-line version change.
+
+---
+
+## v168 (batch 197) — the invoice GST conversion. COSTS MONEY IF WRONG.
+
+⚠️ **This batch shipped WITHOUT a browser drive, and that is stated here rather than left out.** The change is compute-only — no markup, no CSS, no new controls — and it carried 17 unit tests plus three independent reviews. But the flow it touches is the one that turns a supplier PDF into the numbers you price on, and `docs/QUEUE.md`'s own item called it *wrong data, live today*. So it needs eyes on a real import once, on the device.
+
+**Why only a device can settle it:** the whole chain is a file picker, a rendered review table and an input the user can type into. None of that exists in `node --test`, and the Playwright specs do not drive an invoice import.
+
+**What to do — five minutes, on any invoice that says "GST inclusive" or similar:**
+
+1. Import it as normal and stop at the review screen.
+2. Check the note above the table says GST-inclusive prices were converted.
+3. **Pick a line whose product has a taught pack** (Avocado, Cheese Slices, Mayonnaise, Pluto Pups, Spring Rolls — those are the only five). Its price should now be the ex-GST figure, i.e. **about 9% BELOW** what the invoice line prints per unit.
+4. **Change the match dropdown on that row to a different product, then back.** The price must not move. *(This is the one that matters most — the defect found by the second review divided again on every dropdown change, 9% lower each time, and the app's own price-jump flag cannot see it.)*
+5. **Type a pack quantity into the pack box.** The "will be $x" preview and the price field must show the **same** number.
+
+**What a failure looks like:** a price about 10% HIGHER than expected (the conversion did not happen) or about 9% LOWER and dropping each time you touch the dropdown (it happened twice). Neither raises any flag, and both look entirely plausible on screen — that is the whole reason this check exists.
+
+**If it is wrong, do not apply the import.** Say so and it gets fixed before anything is stored.

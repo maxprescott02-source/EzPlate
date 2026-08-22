@@ -31,42 +31,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## doing  0 · Invoice GST is applied to ONE of the four price paths, and the other three overwrite it  **[A — wrong data, LIVE TODAY]**
-
-**Found 22 Aug 2026 by an independent blind code audit** (no rulebook, no docs, no history — report and brief in `docs/audits/BLIND-AUDIT-2026-08-22-*`). **Reproduced against the shipped code, then re-verified here.**
-
-`buildInvRows` divides by 1.1 at exactly one place, `js/app.js:9189`, and it is the ONLY `/1.1` in the codebase. Twelve lines later `resolveMatchedPrice` can replace `row.unitPrice` outright from **three** sources that all re-read the price off the raw invoice text — which is still GST-inclusive:
-
-- **product pack** — `derivePackPrice` → `packPriceOf(row.raw)`. No conversion.
-- **supplier memory** — same shape, same `packPriceOf(row.raw)`. No conversion.
-- **`applySupplierMemory`** on the no-match branch (`js/app.js:9203`) — same again.
-- the parser's own value is the one path that HAS been divided, and it is the one that loses.
-
-Two more sites in the AI reader: `js/app.js:10294` (rule 4 adopts Gemini's `derivedUnitPrice` verbatim) and `js/app.js:10309` (rule 5 appends a Gemini-only line at `gc.per`). Neither is GST-adjusted. `applyInvoice` (`js/app.js:10387-10390`) then writes whatever survives straight into `cost_per_base_unit`.
-
-**Measured:** product stored per gram, taught pack 10 kg, invoice says `Prices include GST`, line reads `CHIPS STRAIGHT CUT 10KG 55.00 55.00`. With the taught pack → **$5.50/kg**. Without it → **$5.00/kg**. Same invoice, same line. The review screen prints *"GST-inclusive prices detected — converted to ex-GST"* above the wrong one.
-
-⚠️ **The incentive runs backwards: the more packs the user teaches, the more of the catalogue moves onto the broken path.** A café that never taught a pack is correct; one that did the work the app asks for is 10% high on those lines — in every plate cost, every food-cost percentage and every suggested sell price. Nothing errors and $5.50/kg for chips is entirely plausible.
-
-**Same defect, second door — fix in this item:** the catalogue CSV importer never asks about GST at all. `catImportPlan` writes `current_price_exgst:price` (`js/app.js:2255`) taking the mapped column at face value; the mapping UI asks pack-vs-carton and nothing about tax. A café's first hour, four hundred products, 10% high in one action. The invoice path treats this question as important enough to detect from the text and print a note about; the bulk path does not ask.
-
-✅ **ANSWERED 22 Aug 2026 (Max): INSIDE the protected parser region, one line, done properly.** He was shown the outside alternative — a normaliser at `buildInvRows`'s two call sites, costing a double render and a flag-keyed correction sitting far from the code it corrects — and chose the direct fix. The slice anchors (`var INV_EXCLUDE=`, `function unitLabelFor(`) are untouched, so `tests/_extract.js` still cuts cleanly.
-**He also said NO BACKFILL for now**: fix forward, measure, report. Measured read-only on production the same day — 5 of 413 products carry a taught pack and `gst_default` is `'ex'`, so the defect only ever fired on invoices that explicitly declared GST-inclusive pricing. Nothing was touched.
-⚠️ **THE ITEM WAS WRONG THE HOUR IT WAS WRITTEN, and that is why the stop happened at all.**
-
-The region is `js/app.js:9153-9379`, between `var INV_EXCLUDE=` and `function unitLabelFor(`. **Every function named below is inside it**: `buildInvRows` (9186, and it holds the only `/1.1` in the codebase), `packPriceOf` (9228), `applySupplierMemory` (9232), `derivePackPrice` (9256), `resolveMatchedPrice` (9266). This item's own sentence — *"the conversion belongs on the resolved `chosen.unitPrice` at the end of `resolveMatchedPrice`"* — names the one function `CLAUDE.md` forbids twice over, in the trap section AND in its "never touch" list.
-**The blind auditor could not have known** — it was given no `CLAUDE.md` by design — and the item was filed off its wording without the region being checked. That is this file's own "a queued item's approval does not expire and its facts do", one hour after filing.
-
-**What is OUTSIDE and therefore already fixable:** `invGstDetect` (9142), `renderInvReview` (9833), `flagNeedsAttention` (10055), `gemApplyReadings` (10249, both AI sites), `applyInvoice` (10356), `catImportPlan` (2159, the importer half). **So the CSV importer half of this item and both Gemini sites can ship whatever Max answers.**
-
-**The two options, measured rather than guessed:**
-- **INSIDE** — move or re-apply the division so the resolved price is converted once, in `buildInvRows`. Roughly one line. The slice anchors are untouched by it (`tests/_extract.js` cuts on `var INV_EXCLUDE=` and `function unitLabelFor(`, and the harness's stated purpose is that *"the tests therefore check the REAL shipped code"*), so extraction does not break — the rule is a policy guard against churn in a fragile parser, not a mechanical tripwire.
-- **OUTSIDE** — a new normaliser called at `buildInvRows`'s two call sites (8955 and 9420, both outside), keyed on `priceSource`/`remembered`, plus a re-render because `buildInvRows` renders before it would run. It works and it is uglier: a double render, a flag-keyed correction sitting far from the code it corrects, and a fourth call site of `buildInvRows` would silently miss it. **`flagNeedsAttention` is NOT available as the hook** — it runs twice per row (9205 and 10337), so converting there double-converts on a selection change.
-
-⚠️ **ONE OBVIOUS FIX IS WRONG, stated so it is not rediscovered.** Dividing inside `packPriceOf` also hits `applyInvoice`'s qty-derivation fallback (`js/app.js:10399`, `derived=pack/entered`), where `entered` is already ex-GST — that introduces a 1.1× error in the taught PACK SIZE instead. The conversion belongs on the resolved `chosen.unitPrice` at the end of `resolveMatchedPrice`, plus the two Gemini sites, plus the importer's own question.
-
-Requirements: every path that can set a price applies the same GST basis, proved by a test that runs `buildInvRows` end to end rather than its parts — see item 0c, this is the defect that item exists to prevent. **Check Max's real invoices for whether this is live on his data before deciding the backfill question**, and if stored prices are already 10% high, ask him before touching them (rewriting stored data is his call, not a batch's).
-
 ## next  0e · The catalogue CSV importer never asks about GST  **[A — wrong data, split out of item 0 on 22 Aug 2026]**
 
 **Split from item 0 rather than dropped**, because it is the same defect through a different door and item 0's own body said to fix it there. It was separated when item 0 shipped: the invoice fix is one coherent change (*one divisor, one function, every invoice path*), and this is a different flow with its own UI and no `invGst` state at all — putting them in one PR asks the reviewer to judge two unrelated changes.
