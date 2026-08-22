@@ -31,28 +31,17 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0 · Invoice GST is applied to ONE of the four price paths, and the other three overwrite it  **[A — wrong data, LIVE TODAY]**
+## next  0e · The catalogue CSV importer never asks about GST  **[A — wrong data, split out of item 0 on 22 Aug 2026]**
 
-**Found 22 Aug 2026 by an independent blind code audit** (no rulebook, no docs, no history — report and brief in `docs/audits/BLIND-AUDIT-2026-08-22-*`). **Reproduced against the shipped code, then re-verified here.**
+**Split from item 0 rather than dropped**, because it is the same defect through a different door and item 0's own body said to fix it there. It was separated when item 0 shipped: the invoice fix is one coherent change (*one divisor, one function, every invoice path*), and this is a different flow with its own UI and no `invGst` state at all — putting them in one PR asks the reviewer to judge two unrelated changes.
 
-`buildInvRows` divides by 1.1 at exactly one place, `js/app.js:9189`, and it is the ONLY `/1.1` in the codebase. Twelve lines later `resolveMatchedPrice` can replace `row.unitPrice` outright from **three** sources that all re-read the price off the raw invoice text — which is still GST-inclusive:
+`catImportPlan` takes the mapped price column at face value: `current_price_exgst:price` (`js/app.js:2255`), via `packToUnitCost(total, unit, price)`. The mapping UI asks **one** question about the price — pack or carton — and nothing about tax. There is no detection, no fallback to the Settings `gst_default`, and no note.
 
-- **product pack** — `derivePackPrice` → `packPriceOf(row.raw)`. No conversion.
-- **supplier memory** — same shape, same `packPriceOf(row.raw)`. No conversion.
-- **`applySupplierMemory`** on the no-match branch (`js/app.js:9203`) — same again.
-- the parser's own value is the one path that HAS been divided, and it is the one that loses.
+The invoice path treats "which GST basis is this?" as important enough to read from the invoice text, fall back to a stored default, and print a note about. **The bulk path writes the same column with no question**, and it is the ONBOARDING path: a café's first hour, four hundred products, 10% high in one action, with a preview showing entirely plausible per-kg figures and nothing on any later screen revisiting it.
 
-Two more sites in the AI reader: `js/app.js:10294` (rule 4 adopts Gemini's `derivedUnitPrice` verbatim) and `js/app.js:10309` (rule 5 appends a Gemini-only line at `gc.per`). Neither is GST-adjusted. `applyInvoice` (`js/app.js:10387-10390`) then writes whatever survives straight into `cost_per_base_unit`.
+⚠️ **`js/app.js:2069-2072` already admits the ambiguity** — the comment says the supplier export *"was never downloaded"* and that what its "LAST PRICE PAID" column is the price OF is unmeasured. That is exactly why `priceCovers` is asked; tax is the same class of question and is not.
 
-**Measured:** product stored per gram, taught pack 10 kg, invoice says `Prices include GST`, line reads `CHIPS STRAIGHT CUT 10KG 55.00 55.00`. With the taught pack → **$5.50/kg**. Without it → **$5.00/kg**. Same invoice, same line. The review screen prints *"GST-inclusive prices detected — converted to ex-GST"* above the wrong one.
-
-⚠️ **The incentive runs backwards: the more packs the user teaches, the more of the catalogue moves onto the broken path.** A café that never taught a pack is correct; one that did the work the app asks for is 10% high on those lines — in every plate cost, every food-cost percentage and every suggested sell price. Nothing errors and $5.50/kg for chips is entirely plausible.
-
-**Same defect, second door — fix in this item:** the catalogue CSV importer never asks about GST at all. `catImportPlan` writes `current_price_exgst:price` (`js/app.js:2255`) taking the mapped column at face value; the mapping UI asks pack-vs-carton and nothing about tax. A café's first hour, four hundred products, 10% high in one action. The invoice path treats this question as important enough to detect from the text and print a note about; the bulk path does not ask.
-
-⚠️ **ONE OBVIOUS FIX IS WRONG, stated so it is not rediscovered.** Dividing inside `packPriceOf` also hits `applyInvoice`'s qty-derivation fallback (`js/app.js:10399`, `derived=pack/entered`), where `entered` is already ex-GST — that introduces a 1.1× error in the taught PACK SIZE instead. The conversion belongs on the resolved `chosen.unitPrice` at the end of `resolveMatchedPrice`, plus the two Gemini sites, plus the importer's own question.
-
-Requirements: every path that can set a price applies the same GST basis, proved by a test that runs `buildInvRows` end to end rather than its parts — see item 0c, this is the defect that item exists to prevent. **Check Max's real invoices for whether this is live on his data before deciding the backfill question**, and if stored prices are already 10% high, ask him before touching them (rewriting stored data is his call, not a batch's).
+Requirements: the mapping step asks the GST basis, defaulting to the Settings `gst_default` exactly as an unclear invoice does; the stored price is ex-GST whichever way it is answered; the preview shows the converted figure so what is previewed is what is stored. **Reuse `invGstAdjust`** (`js/app.js`, beside `invGstDetect`) rather than writing a second divisor — a repeated `/1.1` is precisely how three of item 0's four paths came to be missing it.
 
 ## next  0b · A pack taught in the wrong unit silently re-bases the product  **[A — wrong data]**
 
