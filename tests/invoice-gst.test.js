@@ -21,7 +21,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { setInvState, getInvRows, invPaints, buildInvRows, pdfTextToRows, invGstDetect, invGstAdjust } = require('./_extract.js');
+const { setInvState, getInvRows, invPaints, invPackPreviewText, buildInvRows, pdfTextToRows, invGstDetect, invGstAdjust } = require('./_extract.js');
 
 const near = (a, b, m) => assert.ok(a != null && Math.abs(a - b) < 0.005, `${m}: expected ~${b}, got ${a}`);
 
@@ -105,4 +105,50 @@ test('buildInvRows repaints the review after it has priced the rows', () => {
   assert.equal(invPaints(), 0, 'nothing painted before the call');
   buildInvRows(pdfTextToRows(CHIPS));
   assert.equal(invPaints(), 1, 'buildInvRows must request exactly one repaint');
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE SECOND HALF, and it exists because the first half's comment was WRONG.
+   That comment enumerated "four producers" and said a fifth would be covered too. The pre-push
+   review found two more, and a mechanical sweep for every packPriceOf call and every `.unitPrice=`
+   assignment then found a fourth problem the review had not reached. Six sites, not four - which is
+   this project's standing lesson that every enumeration comes back different from the guess.
+   ⚠️ COVERAGE STATED HONESTLY: two of the four newly-fixed sites are DOM-bound event handlers
+   (invSelChanged, and the .invPackQty/.invPackUnit recompute closure) and are NOT executed here.
+   What IS pinned below is the shared formula they are required to agree with. That is a real
+   invariant and it is not the same as driving the handlers; saying so is the point.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+test('the derive-preview promises the price that will actually be STORED', () => {
+  // invPackPreviewText's own comment: "the render prefill and the live recompute must never
+  // disagree, so both read this". Before the fix it previewed $5.50 while storage took $5.00.
+  const stored = priceFor(TAUGHT, INC).unitPrice;
+  setInvState({ PRODUCTS: TAUGHT, invGst: INC });
+  buildInvRows(pdfTextToRows(CHIPS));
+  const preview = invPackPreviewText(getInvRows()[0], 10, 'kg');
+
+  assert.match(preview, /will be \$/, 'fixture must produce a real preview string');
+  const shown = parseFloat(preview.match(/will be \$([\d.]+)/)[1]);
+  near(shown, 5.0, 'preview on a GST-inclusive invoice');
+  near(shown, stored, 'the preview and the stored price must be the same number');
+});
+
+test('the preview is NOT divided when the invoice is GST-exclusive', () => {
+  setInvState({ PRODUCTS: TAUGHT, invGst: EX });
+  buildInvRows(pdfTextToRows(CHIPS));
+  const preview = invPackPreviewText(getInvRows()[0], 10, 'kg');
+  near(parseFloat(preview.match(/will be \$([\d.]+)/)[1]), 5.5, 'exclusive invoice, undivided');
+});
+
+test('a pack size derived from the entered price divides two figures on the SAME tax basis', () => {
+  // applyInvoice falls back to `pack / entered` when no pack qty was typed. `entered` is the price
+  // field (ex-GST); `pack` is raw invoice text (as printed). Mixing the two bases yields a pack
+  // SIZE out by 1.1 — and it then rounds to a neat integer within 0.02, so the error hides.
+  // Reproduced here as the arithmetic applyInvoice performs, both sides adjusted as it now does.
+  setInvState({ invGst: INC });
+  const entered = invGstAdjust(55) / 10;        // what the field shows for a 10kg pack: $5.00
+  const packRaw = 55;                           // what the line prints, GST-inclusive
+  near(invGstAdjust(packRaw) / entered, 10, 'derived pack size must be 10, not 11');
+  // and the un-adjusted version is the bug, stated so the assertion above cannot be read as trivia:
+  assert.ok(Math.abs(packRaw / entered - 11) < 0.01, 'unadjusted, it derives 11 — which rounds clean');
 });

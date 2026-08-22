@@ -105,6 +105,11 @@ function build() {
   const invStop = extractVar(src, 'INV_STOP');       // coreTokens' stop-word set
   const inorm = extractFn(src, 'inorm');             // coreTokens' normaliser
   const coreTokens = extractFn(src, 'coreTokens');   // rankCandidates' tokeniser, just outside the slice
+  /* 197: the shared derive-preview. It is the string the review screen shows above the price
+     field, and its own comment promises the prefill and the live recompute never disagree - so it
+     is the one reachable proxy for the DOM-bound pack-teach handler that shares its formula. */
+  const invPackPreviewText = extractFn(src, 'invPackPreviewText');
+  const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');
   const invGstAdjust = extractFn(src, 'invGstAdjust');
   const invConfirmState = extractFn(src, 'invConfirmState');
@@ -163,6 +168,7 @@ function build() {
     ${prodTokenSet}
     ${inorm}
     ${coreTokens}
+    ${dispPrice}
     ${invGstDetect}
     ${invGstAdjust}
     ${parserBlock}
@@ -198,7 +204,8 @@ function build() {
     ${unlinkedDishesOn}
     ${publishPlan}
     ${insightPipeline}
-    return { setAppState, setInvState, getInvRows, invPaints, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+    ${invPackPreviewText}
+    return { setAppState, setInvState, getInvRows, invPaints, invPackPreviewText, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }

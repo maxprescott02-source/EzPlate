@@ -9229,7 +9229,12 @@ function buildInvRows(rawRows){
        which row.unitPrice is the price that will actually be STORED. Every producer above it -
        the parser, derivePackPrice, supplier memory in resolveMatchedPrice, and applySupplierMemory
        on the no-match branch - derives from the raw invoice line, so all four arrive GST-inclusive
-       and all four are corrected by this single line. A fifth producer would be too.
+       and all four are corrected by this single line.
+       ⚠️ THIS IS NOT EVERY PRODUCER IN THE APP, and an earlier draft of this comment said it was.
+       resolveMatchedPrice has a SECOND caller (invSelChanged), and the review screen can also
+       derive a price without going through either — the interactive pack-teach recompute, and the
+       shared preview it must agree with. Each of those carries its own invGstAdjust and says so.
+       The rule is the function, not this line: ANY path that turns invoice text into a price.
        ⚠️ It must stay BEFORE flagNeedsAttention: that compares this price against the product's
        stored history to raise the price-jump flag, and the stored series is ex-GST, so flagging a
        GST-inclusive figure would cry wolf on every line of every inclusive invoice.
@@ -9828,7 +9833,10 @@ function invRowState(r){                                            // ITEM 4: s
 function invPackPreviewText(r, q, u){
   if(!(q>0)) return '';
   var pack=packPriceOf(r.raw||r.name); if(pack==null) return '';
-  var up=(u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
+  /* 197: the preview states what WILL BE STORED, so it takes the same conversion the storing path
+     takes. Its own comment above is the reason this matters — prefill and live recompute must never
+     disagree, and adjusting one without the other is precisely how they would. */
+  var up=invGstAdjust((u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q);
   if(!isFinite(up)||up<0) return '';
   var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
   var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
@@ -10010,7 +10018,11 @@ function renderInvReview(){
       var q=parseFloat(pt.querySelector('.invPackQty').value); var u=pt.querySelector('.invPackUnit').value;
       if(!(q>0)) return;
       var pack=packPriceOf(r.raw||r.name); if(pack==null) return;
-      var up = (u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q;
+      /* 197: invGstAdjust, because `pack` came off the raw invoice line and is whatever the supplier
+         printed. Teaching a pack HERE is the live version of the taught-pack case this batch fixed
+         in buildInvRows, and it wrote the unadjusted figure into both r.unitPrice and the visible
+         .invPrice field. Found by the pre-push review. */
+      var up = invGstAdjust((u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q);
       var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
       if(isFinite(up)&&up>=0){
         r.unitPrice=up; r.unit=cat; r.needManual=false; r.unitMismatch=false; r.packTaught=true; r.taughtQty=q; r.taughtUnit=u;   // the unit chosen HERE is the one that gets written — full stop
@@ -10373,6 +10385,12 @@ function invSelChanged(tr){
   var np=byId[sel.value];
   var mem=(normSupplier(invSupplier)?supplierMem[memKey(invSupplier, r.raw||r.name)]:null);
   resolveMatchedPrice(r, np?{pack_qty:np.pack_qty, pack_unit:np.pack_unit, base_unit:np.base_unit}:null, mem);   // re-derive against the new match
+  /* 197: THE SAME CONVERSION buildInvRows DOES, because this is the SECOND caller of
+     resolveMatchedPrice and it re-derives from the raw line exactly as the first one does. Picking
+     a different product from the match dropdown is an ordinary review action, and without this it
+     stored a GST-inclusive price on a GST-inclusive invoice — the identical defect, reached by a
+     different door. Found by the pre-push review; the first draft of this batch missed it. */
+  r.unitPrice=invGstAdjust(r.unitPrice);
   flagNeedsAttention(r);
   renderInvReview();                                              // repaint the row (and its pack-teach) fresh for the new product
 }
@@ -10435,7 +10453,13 @@ function applyInvoice(){
       var rUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:'ea';
       var q=qEl?parseFloat(qEl.value):NaN, u=(uEl&&uEl.value)?uEl.value:rUnit;
       if(!(q>0)){                                                   // fallback: derive qty from the entered unit price
-        var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN; var pack=packPriceOf(r.raw||r.name);
+        /* 197: invGstAdjust on the PACK price, so both sides of `pack/entered` are ex-GST. `entered`
+           is the figure in the price field, which is now always ex-GST; `pack` is raw invoice text.
+           Dividing one by the other across two different tax bases yields a PACK SIZE out by 1.1 —
+           and it then rounds to a neat integer within 0.02, so "10.99 in a carton" quietly becomes
+           11. This was already wrong for parser-priced rows before this batch and would have become
+           wrong for remembered ones because of it. */
+        var pin2=tr.querySelector('.invPrice'); var entered=pin2?parseFloat(pin2.value):NaN; var pack=invGstAdjust(packPriceOf(r.raw||r.name));
         if(pack!=null && entered>0){ var derived=pack/entered; if(isFinite(derived)&&derived>0){ if(Math.abs(derived-Math.round(derived))<=0.02) derived=Math.round(derived); q=derived; u=rUnit; } }
       }
       if(q>0){
