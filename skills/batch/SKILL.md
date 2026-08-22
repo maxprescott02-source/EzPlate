@@ -10,9 +10,12 @@ Take the next unblocked item from `docs/QUEUE.md` and carry it all the way to me
 
 Continue until the queue is empty or a stop condition fires.
 
-**`docs/MAINTENANCE.md` is a PARALLEL track now, not a leftover** (Max, 13 Aug 2026). This line said *"when `docs/QUEUE.md` is empty - and only then"* until that date.
-The queue's A and B items are a dependency chain and cannot parallelise; the C items are independent, which is the shape that can. **They run in a second worktree - `/Users/max/Documents/Scoopys-Costing-maintenance` - and `docs/MAINTENANCE.md`'s header carries the procedure, the collision rule and the five-batch tally.** Read it there rather than restating it here.
-**The one rule you cannot get wrong: a maintenance item that would touch a file the current queue batch is touching is SKIPPED, and the next maintenance item taken instead.** Everything lands in `js/app.js`, so this will happen - say so in the handover when it does.
+**`docs/MAINTENANCE.md`'s C items RIDE the batch that already touches the file** (Max, 22 Aug 2026).
+⚠️ **This said "a PARALLEL track in its own worktree" until 22 Aug 2026, and Max retired that on measured evidence: seventeen batches, one maintenance commit, and that one a recording rather than a fix.**
+When you open a file, take the C items in `docs/MAINTENANCE.md` that touch that file, in the same PR.
+The collision rule and the second worktree are gone, because with one branch there is nothing to collide.
+That file's header carries the reasoning and the two accepted consequences; read it there rather than restating it here.
+**If the queue ever has nothing unblocked left, a maintenance sweep runs as its own ordinary batch.**
 
 **Why this doesn't contradict `CLAUDE.md`'s "plan first, get a yes".** The trigger is where the work came from.
 **An item in `docs/QUEUE.md` is already approved** - Max said yes when he queued it, so re-asking spends the one resource this skill exists to protect.
