@@ -16,6 +16,18 @@
  */
 
 const targets = [
+  /* 197 — THE INVOICE PRICING CHAIN, and the reason it is at the top of this list rather than
+     appended to it. Until this batch NOT ONE target computed a price, a cost, a food-cost
+     percentage or a trend point; the list was "the code this project has already been burned on",
+     which is a record of past burns and not a ranking of consequence. A blind code audit and a
+     blind process audit, run the same day with no shared context, converged on exactly that gap:
+     the process auditor predicted it from the shape of this file, and the code auditor walked into
+     it and returned a GST defect storing every taught-pack line 10% high. This file's own sentence
+     is the diagnosis — "a function that is not a target has never been asked the question."
+     invGstAdjust owns the only divisor in the app; buildInvRows is the ASSEMBLY, and the assembly
+     is where the defect lived while every part of it was individually correct and individually
+     tested. Widening this to the rest of the pricing surface is QUEUE.md item 0c. */
+  { fn: 'invGstAdjust', tests: ['invoice-gst.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
   /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
      implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields
@@ -247,6 +259,16 @@ const allowedSurvivors = [
  * When that coverage lands, move the line below up into `targets`.
  */
 const pending = [
+  /* 197: buildInvRows — ADDED AS A TARGET, MEASURED AT 14 SURVIVORS, AND HELD HERE RATHER THAN
+     ALLOWED. Its GST behaviour is now killed dead by invoice-gst.test.js (that is the defect this
+     batch shipped), but the same function also owns candidate ranking, the confidence tiers and the
+     add-new threshold — js/app.js:9215-9221 — and nothing tests those. Writing fourteen allowances
+     would have turned a measured coverage gap into fourteen sentences claiming it was fine.
+     This is the gemApplyReadings decision below, taken again for the same reason and recorded the
+     same way: promoting it now makes the gate exit 1 on main and block every push, and a gate
+     nobody can satisfy gets disabled. Closing it is a test-writing batch — QUEUE.md item 0c, which
+     owns widening this list across the whole pricing surface. */
+  { fn: 'buildInvRows', tests: ['invoice-gst.test.js'], survivors: 14, measured: '197' },
   { fn: 'gemApplyReadings', tests: ['invoice-gate.test.js'], survivors: 44, measured: '180' },
 ];
 

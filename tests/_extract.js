@@ -93,6 +93,20 @@ function build() {
   // invConfirmState decides whether the invoice Confirm All may be pressed yet; publishPlan /
   // unlinkedDishesOn decide whether publishing this plate onto this menu duplicates an unlinked row.
   // (plateIdOf is already in insightPipeline above — publishPlan resolves through it, never raw fields.)
+  /* 197: buildInvRows — THE COMPOSITION, and the reason it is here.
+     Every function in the invoice pricing chain was already extractable and individually tested,
+     and the GST defect lived in none of them: it lived in the twenty lines of buildInvRows that
+     call them in order. derivePackPrice was right, resolveMatchedPrice was right, invGstDetect was
+     right, and the stored price was 10% high. A blind audit found it; no test could have, because
+     nothing in this repo ran those twenty lines.
+     invGstDetect and invGstAdjust sit just OUTSIDE the sliced parser block (they are above the
+     `var INV_EXCLUDE=` anchor), so they are pulled in by name rather than arriving with the slice. */
+  const prodTokenSet = extractFn(src, 'prodTokenSet'); // rankCandidates' per-product token set
+  const invStop = extractVar(src, 'INV_STOP');       // coreTokens' stop-word set
+  const inorm = extractFn(src, 'inorm');             // coreTokens' normaliser
+  const coreTokens = extractFn(src, 'coreTokens');   // rankCandidates' tokeniser, just outside the slice
+  const invGstDetect = extractFn(src, 'invGstDetect');
+  const invGstAdjust = extractFn(src, 'invGstAdjust');
   const invConfirmState = extractFn(src, 'invConfirmState');
   const unlinkedDishesOn = extractFn(src, 'unlinkedDishesOn');
   const publishPlan = extractFn(src, 'publishPlan');
@@ -117,6 +131,40 @@ function build() {
       byId={}; PRODUCTS.forEach(function(p){ byId[p.id]=p; });
       kById={}; (s.kitchenIngredients||[]).forEach(function(k){ kById[k.id]=k; });
     }
+    /* 197: the invoice-review globals. invRows is what buildInvRows WRITES, so a test reads its
+       result there exactly as renderInvReview does. The two callees below are DOM-bound and are
+       deliberately stubbed rather than extracted — but note WHICH: renderInvReview only paints, so
+       a no-op is faithful; flagNeedsAttention is display-only per its own comment and sets flags a
+       price test does not read. Neither stub sits in the path under test, which is the whole
+       point — CLAUDE.md's roster is twenty-one entries of stubs that DID. */
+    var invRows=[], invGst={mode:'unknown', note:''}, invSupplier='', supplierMem={}, gstDefault='ex';
+    /* Counts REPAINTS REQUESTED BY buildInvRows, and the name says that rather than "render calls"
+       on purpose — 188's lesson is that a counter in a shared fixture gets coupled to every future
+       caller, so an unrelated new call site silently retires somebody's assertion. Nothing else in
+       this sandbox calls it, and a test reads it through invPaints() to pin that buildInvRows still
+       asks for the repaint its contract promises. */
+    var _invPaints=0;
+    function renderInvReview(){ _invPaints++; }
+    function invPaints(){ return _invPaints; }
+    function flagNeedsAttention(){}
+    function normSupplier(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+    function memKey(sup, phrase){ return normSupplier(sup)+'|'+normalizePhrase(phrase); }
+    function setInvState(s){
+      s=s||{};
+      invGst=s.invGst||{mode:'unknown', note:''};
+      invSupplier=(s.invSupplier==null?'':s.invSupplier);
+      supplierMem=s.supplierMem||{};
+      gstDefault=(s.gstDefault==null?'ex':s.gstDefault);
+      if(s.PRODUCTS){ PRODUCTS=s.PRODUCTS; byId={}; PRODUCTS.forEach(function(p){ byId[p.id]=p; }); }
+      invRows=[]; _invPaints=0;
+    }
+    function getInvRows(){ return invRows; }
+    ${invStop}
+    ${prodTokenSet}
+    ${inorm}
+    ${coreTokens}
+    ${invGstDetect}
+    ${invGstAdjust}
     ${parserBlock}
     ${pricingFn}
     ${gemCanon}
@@ -150,7 +198,7 @@ function build() {
     ${unlinkedDishesOn}
     ${publishPlan}
     ${insightPipeline}
-    return { setAppState, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+    return { setAppState, setInvState, getInvRows, invPaints, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }
