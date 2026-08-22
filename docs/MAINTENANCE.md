@@ -497,3 +497,42 @@ It is cosmetic and the end state is correct either way, which is why it is here 
 The fix is not "chunk less" - the chunking is what keeps a request a sane size and what makes a partial failure reportable.
 It is either a `pushWrite` variant that brackets a whole sequence, or a caller-held "busy" that the pill respects; the first is the tidier shape and touches every write path, so it is not a drive-by.
 Whoever does it should check the import's own button state first, which already says "Importing…" for the whole run and is the thing the user is actually looking at.
+
+---
+
+## C — from the two independent blind audits, 22 Aug 2026
+
+Two auditors, no shared context: one saw only the code (no `CLAUDE.md`, no `docs/`, no history), one saw only the process artifacts and the 149 handovers (no code). Both reports and both briefs are committed as `docs/audits/BLIND-AUDIT-2026-08-22-*`. **The A and B findings went to `docs/QUEUE.md` as items 0, 0b, 0c, 0d and 8-11.** What is below is the C tier.
+
+### `supplier_phrases.pid` never crosses the row boundary, so `syncMemoryToProduct` is dead after any reload
+`rememberSupplierPhrase` (`js/app.js:3730`) sets `pid` in memory. The table has **no such column** (`supabase/staging/01-schema.sql:163-170`) and **neither mapper carries it** — `rowToSupplierPhrase` / `supplierPhraseToRow` at `js/app.js:415-416`. So every entry loaded from the server has `pid === undefined`, and `syncMemoryToProduct` (`js/app.js:3733-3737`), which matches on `e.pid===pid`, finds nothing in any session but the one that taught the pack. Its own comment reads *"ITEM 1: keep Remembered items in step with the product's taught pack."*
+
+Concrete cost is low and that is why this is C: `resolveMatchedPrice` prefers the product's own pack over memory, so memory only prices a line when the product has no pack at all. The Settings "Remembered items" list can display a stale qty beside a product whose real pack differs.
+**What makes it worth recording: a guard that is present, documented and cannot fire, with nothing saying so.** Fix is either the column plus both mapper halves, or match on the normalised phrase instead of `pid`, or delete the guard and say why.
+
+### Four comments that disagree with the code
+Reported as findings in their own right by the code audit; three verified here, all of them the kind that sends the next reader the wrong way.
+
+- **`js/app.js:7454`** — `buildBackup`'s comment cites *"the precedent below is `format:chg.length?3:2`"*. The code four lines below is a flat `format:3` (`js/app.js:7463`). The conditional is in a **different function**, `backupToPayload` (`js/app.js:7646`), which is the wire format rather than the file format. **This error propagated into `CLAUDE.md:138`**, which says *"`buildBackup`'s own `format:chg.length?3:2`"* — it is not buildBackup's. The reasoning survives (the number does declare what the payload contains); only the citation is wrong. ⚠️ **Found by an auditor that never saw `CLAUDE.md`.**
+- **`js/app.js:3201`** — *"Supabase points arrive as ISO strings; a string is never >= a number."* Backwards. `rowToPoint` (`js/app.js:424-433`) converts `recorded_at` to epoch **milliseconds**, so server points arrive as numbers; it is the locally-logged points (`logHistory`, `logMenuPrice`) that are ISO strings. The code handles both and is correct — but anyone simplifying it on the comment's authority deletes the branch that is actually load-bearing.
+- **`js/app.js:163`** — `% 1679216` is commented *"36^4, so it always fits four chars"*. `_uidSeq.toString(36)` is not zero-padded, so it emits one to four characters. The bound is real; the fixed-width reading is not. Uniqueness is unaffected (the `-` separators carry it).
+- **`setCogs` vs the boot read** — `setCogs` (`js/app.js:2608`) rounds to integers; `bootstrapSync` (`js/app.js:1181`) accepts any `parseFloat` in `[1,99]`; `fmtTargetPct` (`js/app.js:6252`) renders one decimal. A fractional target is loadable and renderable but not settable, and the first Settings touch silently rounds it. Decide which of the three is right.
+
+### Resolve `screenshots.spec.js` rather than filtering it
+Red since batch 186, ten deploy versions. CI excludes it (`test.yml:379`) and `tests/ci-workflow.test.js` pins the exclusion, so **nothing anywhere goes red**. `AUDIT-v166` T1 already called it *"the single largest block of permanently-red tests in the repo"* and said it *"teaches every batch to skim past red"* — which is the same reflex that let `main` stay red for a whole batch in 172.
+`test.skip` with the reason in the message, per the decision already taken, or delete it. Either is better than a filter.
+
+### One magnitude check, against real data
+The process audit's highest-value new check, and the only one aimed squarely at this project's stated worst failure mode. `HANDOVER-172` already derived it and applied it only to a seed: *"a fixture can be internally consistent and still be nonsense, and the checks that would catch it are the ones about magnitude, not about shape."*
+A small set of assertions that every plate cost, unit cost and food-cost percentage lands inside a sane band, run against a snapshot of production, would have caught the $961 salad, the 1831% dashboard, the 30c/kg ham and 193's carton error **without a human looking.**
+⚠️ **State its limit at the site or it will be over-trusted: a band does NOT catch `QUEUE.md` item 0.** $5.50/kg for chips is inside every plausible band; a 10% error is invisible to magnitude and needs the composition test in item 0c. These two checks are complements, not substitutes.
+
+### Retire the parallel maintenance track
+Added 13 Aug 2026 with a second worktree, a collision rule, and a five-batch tally to judge whether it was working. **Batches 181-195 have run since. The git log contains exactly one maintenance commit (`735082d`) and it is a recording, not a fix.** Two handovers record the track explicitly not running (182, 194), and 194 found a structural reason it can never run during an audit batch.
+Fifteen batches, zero items. **The five-batch tally has its answer.** Delete the track's section from `skills/batch/SKILL.md` and this file's header, and let C items ride batches already in the file — which is what actually happens.
+⚠️ **This item is on the track it proposes to delete, which is the joke and also the evidence.** Whoever picks it up should note that `QUEUE.md` items 0c and 0d exist because Max declined to file two structural fixes here for exactly this reason (22 Aug 2026).
+
+### Change what `docs/PHONE.md` is for
+756 lines, 38 sections, and **exactly two bullets marked settled** — one of which is superseded. A carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked. `skills/batch/SKILL.md` says *"Max works through it in one session."*
+**No handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and every one came from him using the app and saying so in chat, never from working the list. The cost that is not obvious: a standing impression that device risk is managed.
+Two cheap changes. **A "Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price — 193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it was sitting *behind* a "Settled" heading telling the reader to stop. Then **cap the rest at the last three batches and delete what is older**; the handovers are write-once and hold it all.

@@ -31,6 +31,63 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
+## next  0 · Invoice GST is applied to ONE of the four price paths, and the other three overwrite it  **[A — wrong data, LIVE TODAY]**
+
+**Found 22 Aug 2026 by an independent blind code audit** (no rulebook, no docs, no history — report and brief in `docs/audits/BLIND-AUDIT-2026-08-22-*`). **Reproduced against the shipped code, then re-verified here.**
+
+`buildInvRows` divides by 1.1 at exactly one place, `js/app.js:9189`, and it is the ONLY `/1.1` in the codebase. Twelve lines later `resolveMatchedPrice` can replace `row.unitPrice` outright from **three** sources that all re-read the price off the raw invoice text — which is still GST-inclusive:
+
+- **product pack** — `derivePackPrice` → `packPriceOf(row.raw)`. No conversion.
+- **supplier memory** — same shape, same `packPriceOf(row.raw)`. No conversion.
+- **`applySupplierMemory`** on the no-match branch (`js/app.js:9203`) — same again.
+- the parser's own value is the one path that HAS been divided, and it is the one that loses.
+
+Two more sites in the AI reader: `js/app.js:10294` (rule 4 adopts Gemini's `derivedUnitPrice` verbatim) and `js/app.js:10309` (rule 5 appends a Gemini-only line at `gc.per`). Neither is GST-adjusted. `applyInvoice` (`js/app.js:10387-10390`) then writes whatever survives straight into `cost_per_base_unit`.
+
+**Measured:** product stored per gram, taught pack 10 kg, invoice says `Prices include GST`, line reads `CHIPS STRAIGHT CUT 10KG 55.00 55.00`. With the taught pack → **$5.50/kg**. Without it → **$5.00/kg**. Same invoice, same line. The review screen prints *"GST-inclusive prices detected — converted to ex-GST"* above the wrong one.
+
+⚠️ **The incentive runs backwards: the more packs the user teaches, the more of the catalogue moves onto the broken path.** A café that never taught a pack is correct; one that did the work the app asks for is 10% high on those lines — in every plate cost, every food-cost percentage and every suggested sell price. Nothing errors and $5.50/kg for chips is entirely plausible.
+
+**Same defect, second door — fix in this item:** the catalogue CSV importer never asks about GST at all. `catImportPlan` writes `current_price_exgst:price` (`js/app.js:2255`) taking the mapped column at face value; the mapping UI asks pack-vs-carton and nothing about tax. A café's first hour, four hundred products, 10% high in one action. The invoice path treats this question as important enough to detect from the text and print a note about; the bulk path does not ask.
+
+⚠️ **ONE OBVIOUS FIX IS WRONG, stated so it is not rediscovered.** Dividing inside `packPriceOf` also hits `applyInvoice`'s qty-derivation fallback (`js/app.js:10399`, `derived=pack/entered`), where `entered` is already ex-GST — that introduces a 1.1× error in the taught PACK SIZE instead. The conversion belongs on the resolved `chosen.unitPrice` at the end of `resolveMatchedPrice`, plus the two Gemini sites, plus the importer's own question.
+
+Requirements: every path that can set a price applies the same GST basis, proved by a test that runs `buildInvRows` end to end rather than its parts — see item 0c, this is the defect that item exists to prevent. **Check Max's real invoices for whether this is live on his data before deciding the backfill question**, and if stored prices are already 10% high, ask him before touching them (rewriting stored data is his call, not a batch's).
+
+## next  0b · A pack taught in the wrong unit silently re-bases the product  **[A — wrong data]**
+
+Same audit, same reproduction. `applyInvoice` writes the invoice row's unit category into the product's `base_unit` unconditionally (`js/app.js:10387-10390`), and `resolveMatchedPrice` deliberately exempts a taught pack from the unit-mismatch guard — `var taught=(chosen.source==='product-pack'||chosen.source==='memory')`, then `if(!taught && baseCat && …)` (`js/app.js:9299-9303`), commented *"a pack the user taught is the truth"*. The pack-unit `<select>` (`js/app.js:9872`) offers `ea/kg/g/l/ml` with no relation to what the product is stored in.
+
+Teach "Flour Plain" (stored per gram) as **6 ea** instead of 10 kg and the next invoice writes `base_unit:'ea'`, `cost_basis:'$/unit'`, with `unitMismatch:false` and `needManual:false` — so the row is **pre-ticked and applies with no prompt**. A 200g plate line then costs $2166.67 instead of $1.30.
+
+⚠️ **The loud version is the safe one.** The dangerous case is `ml` vs `g`: teach a `kg` pack on a product stored in `ml`, `base_unit` flips `ml → g`, and a plate line reading `250` (meaning 250 mL) is costed as 250 g. **The magnitude stays plausible and nothing on any screen can notice.**
+
+Requirements: teaching a pack may not silently change what a product is measured in. Either the guard covers taught packs too, or the control cannot offer a unit from a different category, or the change is surfaced and confirmed. **The exemption comment is a decision worth re-reading before overriding it** — it is right that a taught pack outranks a parser guess about PRICE; it does not follow that it should re-base the product.
+
+## next  0c · Point the mutation gate at the numbers  **[A — Max's override, 22 Aug 2026]**
+
+⚠️ **This is process work and this file's own header says process work does not belong here. Max put it here anyway, in writing, on 22 Aug 2026**, after the audit showed the alternative track had completed zero items in fifteen batches. **It is the second time that rule has been overridden and the first was the mutation gate itself** — same reasoning, same person, and it is not precedent for anything else.
+
+`tests/mutation/targets.js` holds **49 targets against 609 top-level functions**, and **not one of them computes a price, a cost, a food-cost percentage, a trend point or an insight.** Verified: `analyze`, `menuMarginPreview`, `costAtLines`, `fmtTargetPct`, `computeInsights`, `costFromLines`, `cpbu`, `packToUnitCost`, `buildInvRows`, `resolveMatchedPrice`, `derivePackPrice`, `packPriceOf`, `applySupplierMemory`, `invGstDetect` — **zero hits each.**
+
+The list's own stated rule is *"any function whose correctness is load-bearing and whose test file you would be uneasy to see deleted"*, and its own line is *"a function that is not a target has never been asked the question."* Item 0 is the answer to that question going unasked: `grep -rn 'invGstDetect\|buildInvRows' tests/` returns **one hit, and it is a comment.**
+
+**The structural finding underneath it, and the reason this is A rather than C:** this suite tests one pure function at a time and the defects are living in the seams. `derivePackPrice` is correct. `resolveMatchedPrice` is correct. `invGstDetect` is correct. The wrong number comes from the twenty lines that call them in order, and nothing runs those twenty lines. **A composition test is the deliverable here, not just a longer target list.**
+
+Requirements: the pricing and invoice-chain functions are targets; at least one test exercises `buildInvRows` end to end; and `gemApplyReadings` — `pending` with **44 measured survivors since batch 180, still pending at 195** — gets its coverage batch scheduled rather than deferred a sixteenth time.
+
+## next  0d · The mandatory pre-push review leaves no artifact anywhere  **[A — Max's override, 22 Aug 2026]**
+
+Same override as 0c. **Found by an independent blind PROCESS audit** run the same day against the skills, hooks, CI and 149 handovers, with `CLAUDE.md` and this file withheld.
+
+The pre-push `code-review` agent is, on the record, the most productive gate in this process — and it is **the only gate with no trace of any kind**: not on the PR, not in CI, not in git, and not in the handover template (`skills/handover/SKILL.md` lists six mandatory sections and a review is not one of them). **Six batches that shipped a client asset to production have no record of it**: 151, 153, 170, 176, 179 and 183 — and 183 also shipped a production migration. Only 176 is knowable, because its brief said to skip it. **The other five are silence, and silence is indistinguishable from compliance.** Verified here: those five contain zero mentions, while 187/190/193/195 contain two to five each.
+
+The 13 Aug rule — *"NOT SKIPPABLE BY INSTRUCTION"* — fixes the one case that was visible and does nothing about the five that were not, because it is another convention layered on the convention that failed.
+
+Requirements: the review writes its findings to a file; `.githooks/pre-push` refuses the push when the diff touches `js/`, `css/`, `index.html`, `sw.js`, `tests/`, `.github/` or `supabase/` and no review artifact exists for the current HEAD; `## Review` becomes a mandatory handover section, with *"None"* an acceptable answer exactly as the Probe section works.
+
+**Delete `.github/workflows/code-review.yml` in this same item** (Max, 22 Aug 2026, reversing his own 8 Aug demote-not-delete). 320 lines, **zero runs since the demotion** and the `deep-review` label **never once applied** — both verified against the GitHub API. It is not free: two batches (155, 159) declined one-line CI fixes because touching a workflow file triggers the mandatory review, so a workflow nobody runs is making other work more expensive. Git keeps it.
+
 ## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
@@ -180,6 +237,56 @@ Two things a reader could reasonably call wrong, both cosmetic:
 
 - **The Menu screen offers "Existing plate" at zero plates**, and at 380 it wraps onto its own row under the header and reads as an orphan. It is not broken — the modal it opens explains itself — but it is a control offered before it can do anything.
 - **The six empty states have never been read end to end as one sequence.** Each was written by the batch that built its screen, months apart; nobody has read all six together to ask whether a new café is being told the same story in the same words, or six unrelated ones. Screenshots of all nine panes at zero are cheap to retake — see the spec named above.
+
+## next  8 · The insight validator checks the digits, not what they mean  **[B]**
+
+From the blind code audit, 22 Aug 2026. `api/_insight.js` states a hard law — *"any number in the model's text that isn't one of the facts we handed it ⇒ the whole phrasing is rejected"* — and enforces exactly that sentence and nothing more. `validatePhrasing` (`api/_insight.js:40-58`) is **set membership** over `/-?\d+(?:\.\d+)?/g` with a ±0.005 tolerance. Nothing checks position, adjacency, unit or sign.
+
+Run against the real function with facts `{pts:18, plates:5}`, **all of these are ACCEPTED**:
+
+```
+"Beef, up 18% across 5 plates, is most of it."          correct
+"Beef, up $18 across 5 plates, is most of it."          % became $
+"Beef, up 5% across 18 plates, is most of it."          facts swapped
+"Beef is down 18% across 5 plates."                     direction reversed
+"Beef, up 18% across 5 plates, is fine and needs no action."   advice inverted
+```
+
+The endpoint runs at `temperature: 0.4`, the toggle **defaults ON** (`js/app.js:9041`), and `api/insight.js`'s own header tells the reader this is safe: *"every number preserved (enforced by `_insight.validateInsightResponse`)"*. Number preservation is not what is enforced.
+
+**`tests/api-insight.test.js` is the other half of this item.** Its header calls this *"the HARD LAW"*; all five of its `validatePhrasing` assertions test the same half — a number NOT in the fact set is rejected. **Nothing tests meaning.** The file's own summary sentence is false about what it checks.
+
+Requirements: validate the **sequence** of numbers rather than the set, and reject a candidate whose number-adjacent unit tokens (`%`, `$`, `pts`) differ from the template's. That still permits rewording, which is all the feature needs. The test asserts the meaning half by name.
+
+## next  9 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
+
+`js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
+
+Offline, `pushWrite` toasts *"you're offline. It has NOT been saved."* and the "Saved just now" badge correctly stays down — but `cafeDB_plateDraft` is already gone and `savedPlates` holds the new lines only in memory. Background the app, iOS discards the tab, `bootstrapSync` replaces `savedPlates` from the server, and the edit is gone with no draft to resume. **This app's stated user goes a week between uses, so the toast is long past.**
+
+The comment three lines below already reasons about exactly this hazard for the BADGE, and `authSwitchUser` (`js/app.js:6781-6789`) argues at length that the draft is *"unsaved authored work … destroying it is data loss, not tidying, and the app never does that silently anywhere else."* **This is the place it does.**
+
+Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
+
+## next  10 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
+
+`costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
+
+Second way in: `lineCost(p,qty)` is `qty*c`, and `null * c` is **0**, not null — so a line with no quantity is a real line costing nothing and even the builder's flag stays down.
+
+Reached by a restore that `backupRefCheck` flagged as a soft problem — the confirm says *"Those will cost nothing until you relink them"* — or by a plate saved before the `qty<=0` rule. The Menu row then prints a reduced cost, a suggested price derived from it, and a **green** verdict pill, with nothing indicating a line is missing. `kpiStripHtml`'s comment asserts the Ingredients tab owns this surface; for a direct `pid` line **that surface does not exist**.
+
+Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
+
+## next  11 · A price point is logged even when the write carrying it was rejected  **[B]**
+
+`setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
+
+Café phone, one bar, invoice import: the product upsert times out, the smaller history insert lands. `pushWrite` honestly toasts the product failure. Next boot, the product's price comes back correct from the server — and `ingPriceLog` also comes back from the server carrying **a point for a price that was never stored.**
+
+That phantom point is then read by `ingPriceBand` (the builder's "recent range" and the Menu cost band), `ingLastMovePct` (the Ingredients drift chip), and `ingPriceAt`/`costAtLines`, which is what the Dashboard's *"N pts higher than at June prices"* sentence is built from. All of them describe a movement that did not happen. **The change log applies exactly this discipline for interventions via `logChangeIfSaved`; the price log does not.**
+
+Requirements: the price point is written only if the write that carries it succeeded, or is reconciled on the next boot.
 
 ---
 
