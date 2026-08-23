@@ -510,6 +510,21 @@ Two auditors, no shared context: one saw only the code (no `CLAUDE.md`, no `docs
 Concrete cost is low and that is why this is C: `resolveMatchedPrice` prefers the product's own pack over memory, so memory only prices a line when the product has no pack at all. The Settings "Remembered items" list can display a stale qty beside a product whose real pack differs.
 **What makes it worth recording: a guard that is present, documented and cannot fire, with nothing saying so.** Fix is either the column plus both mapper halves, or match on the normalised phrase instead of `pid`, or delete the guard and say why.
 
+### `var catState` is declared TWICE at top level, and the duplicate guard cannot see it
+Found by batch 199's pre-push review, which was asked to look for state leaking between two unrelated flows and found two variables that ARE one variable.
+
+`js/app.js` declares `var catState` at the catalogue importer (`headers/rows/map/preset/fileName/plan/busy`) and again at the Add-to-menu category combobox (`chosen/chosenIsNew`). **Grep the name, not a line number.**
+This is `CLAUDE.md`'s "a duplicate definition is never dead until reached" trap in its `var` form, and the mechanism is worse than the function form rather than better: both declarations hoist, then **both assignments execute in source order, so the LAST one wins at boot** and the importer's object is discarded before any handler runs.
+
+**Why it is C and not higher, measured rather than assumed.** Neither direction currently loses data. `openCatImport` reassigns `catState` wholesale, so the importer repairs itself every time it opens. The combobox's read is `catState.chosen!==null && catState.chosenIsNew && …`; after the importer has wiped it, `chosenIsNew` is `undefined`, the condition is false, and control reaches the `else`, which shows *"pick Create new category from the list to confirm"* and returns without writing. **A visible re-prompt, not a silent wrong value** — which is the whole reason this is not being fixed on sight. It also needs an unusual interleaving: leaving a category selection half-made to go and open the importer.
+
+**⚠️ THE GUARD IS THE ACTUAL FINDING.** `tests/housekeeping.test.js`'s duplicate test matches `/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm` — functions only. Its title says so; `CLAUDE.md`'s prose said "any top-level name" and was corrected on 23 Aug 2026. So the guard written after `aRow` and `renderAnalysis` shipped real bugs covers one declaration keyword, and the other keyword has a live duplicate in the file today.
+
+Requirements, and **they are ONE job in this order** — widening the regex alone goes red immediately, which is the point:
+1. Rename one `catState`. The combobox's is the cheaper side (four read/write sites plus its declaration); `catCombo` or similar. **The naming-inversion rule does not apply** — this is a local, not a `data-tab`, a storage key or a table.
+2. Widen the housekeeping regex to `var`/`let`/`const` as well as `function`, and say in the failure message that hoisting makes the last one win, so the next reader gets the mechanism rather than a name.
+3. Assert the new arm can go red (add a duplicate, watch it fail, remove it) — a guard nobody has watched fail is this repo's most-recorded defect.
+
 ### Comments that disagree with the code
 Reported as findings in their own right by the code audit, all of them the kind that sends the next reader the wrong way.
 **No count in the heading on purpose** — it said "Four" and the `buildBackup` citation was fixed in 0e, which would have left the number wrong the moment the bullet went. Count the bullets.
