@@ -97,14 +97,14 @@ Editing the first was a silent no-op that shipped real bugs.
 
 Both dead copies are gone and `tests/housekeeping.test.js` now fails if any top-level name in `js/app.js` — `function`, `var`, `let` or `const` — is declared twice again.
 
-⚠️ **THAT SAID "any top-level NAME" until 23 Aug 2026 and it was true of the PROSE and not of the TEST, which covered `function` only — which is half the class, and the half that was live.** Both halves were fixed in batch 201: `tests/housekeeping.test.js` now matches `var`/`let`/`const` as well, and the `var catState` collision it could not see is gone (the Add-to-menu combobox's is `catCombo`; the catalogue importer's kept the name).
+⚠️ **THAT SAID "any top-level NAME" until 23 Aug 2026 and it was true of the PROSE and not of the TEST, which covered `function` only — which is half the class, and the half that was live.** Both halves were fixed in batch 200: `tests/housekeeping.test.js` now matches `var`/`let`/`const` as well, and the `var catState` collision it could not see is gone (the Add-to-menu combobox's is `catCombo`; the catalogue importer's kept the name).
 **The mechanism is worth keeping even though the instance is fixed, because the `var` form is worse than the `function` form rather than better:** both declarations hoist, and then **both ASSIGNMENTS run in source order, so the LAST one wins at boot** and the first object is discarded before any handler fires. Two functions at least leave one consistent answer; two `var`s build something and throw it away.
 **The transferable part is about the GUARD, not the collision: a test that pins a rule for one declaration keyword has pinned the rule for one declaration keyword.** It sat under that guard for months and was found by a pre-push review that had been asked to look for state leaking between two unrelated flows. Widening the regex and renaming one variable are ONE job, in that order, because widening alone goes red immediately — and the widened arm is now exercised against injected source, because a guard nobody has watched fail is this repo's most-recorded defect.
 **Scope, stated at the test:** the `^` anchor compares TOP-LEVEL declarations only. A nested shadow is legal JavaScript and is deliberately not flagged.
 
 ## An exemption granted for one property applies to EVERY property the same path writes
 
-(QUEUE 0b, batch 201. Found by a blind code audit; the exemption was four years of correct reasoning about the wrong scope.)
+(QUEUE 0b, batch 200. Found by a blind code audit; the exemption was four years of correct reasoning about the wrong scope.)
 
 `resolveMatchedPrice` exempts a **taught** pack — the product's own `pack_qty`/`pack_unit`, or supplier memory — from its unit-mismatch guard, and says so at its own site: *"a pack the user taught is the truth"*. That is right, and it is right about **PRICE**: a pack the user typed outranks a parser's guess at what the line means.
 It says nothing about UNIT. But `applyInvoice` wrote the row's unit straight into `base_unit` on the same line as the price, so the exemption silently covered both. Teach a product stored per gram as "6 ea" and a 200g plate line costs **$2166.67 instead of $1.30** — with `unitMismatch:false` and `needManual:false`, so the row was **pre-ticked and applied with no prompt**.
