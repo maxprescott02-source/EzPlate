@@ -31,18 +31,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0e · The catalogue CSV importer never asks about GST  **[A — wrong data, split out of item 0 on 22 Aug 2026]**
-
-**Split from item 0 rather than dropped**, because it is the same defect through a different door and item 0's own body said to fix it there. It was separated when item 0 shipped: the invoice fix is one coherent change (*one divisor, one function, every invoice path*), and this is a different flow with its own UI and no `invGst` state at all — putting them in one PR asks the reviewer to judge two unrelated changes.
-
-`catImportPlan` takes the mapped price column at face value: `current_price_exgst:price` (`js/app.js:2255`), via `packToUnitCost(total, unit, price)`. The mapping UI asks **one** question about the price — pack or carton — and nothing about tax. There is no detection, no fallback to the Settings `gst_default`, and no note.
-
-The invoice path treats "which GST basis is this?" as important enough to read from the invoice text, fall back to a stored default, and print a note about. **The bulk path writes the same column with no question**, and it is the ONBOARDING path: a café's first hour, four hundred products, 10% high in one action, with a preview showing entirely plausible per-kg figures and nothing on any later screen revisiting it.
-
-⚠️ **`js/app.js:2069-2072` already admits the ambiguity** — the comment says the supplier export *"was never downloaded"* and that what its "LAST PRICE PAID" column is the price OF is unmeasured. That is exactly why `priceCovers` is asked; tax is the same class of question and is not.
-
-Requirements: the mapping step asks the GST basis, defaulting to the Settings `gst_default` exactly as an unclear invoice does; the stored price is ex-GST whichever way it is answered; the preview shows the converted figure so what is previewed is what is stored. **Reuse `invGstAdjust`** (`js/app.js`, beside `invGstDetect`) rather than writing a second divisor — a repeated `/1.1` is precisely how three of item 0's four paths came to be missing it.
-
 ## next  0b · A pack taught in the wrong unit silently re-bases the product  **[A — wrong data]**
 
 Same audit, same reproduction. `applyInvoice` writes the invoice row's unit category into the product's `base_unit` unconditionally (`js/app.js:10387-10390`), and `resolveMatchedPrice` deliberately exempts a taught pack from the unit-mismatch guard — `var taught=(chosen.source==='product-pack'||chosen.source==='memory')`, then `if(!taught && baseCat && …)` (`js/app.js:9299-9303`), commented *"a pack the user taught is the truth"*. The pack-unit `<select>` (`js/app.js:9872`) offers `ea/kg/g/l/ml` with no relation to what the product is stored in.

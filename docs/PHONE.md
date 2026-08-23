@@ -774,3 +774,36 @@ downstream reads those lines by position.
 **What a failure looks like:** a price about 10% HIGHER than expected (the conversion did not happen) or about 9% LOWER and dropping each time you touch the dropdown (it happened twice). Neither raises any flag, and both look entirely plausible on screen — that is the whole reason this check exists.
 
 **If it is wrong, do not apply the import.** Say so and it gets fixed before anything is stored.
+
+---
+
+## v169 (batch 0e) — the catalogue importer's GST question. COSTS MONEY IF WRONG.
+
+The sibling of v168's check, through the other door. The CSV importer took the price column at face
+value and asked nothing about tax, so a GST-inclusive price list stored every cost 10% high — on the
+ONBOARDING path, where a café has no prior figures to notice it against.
+
+**This one WAS driven in a browser** (380px and desktop, both themes, and four Playwright assertions
+pin the control), so the check below is confirmation on a real file rather than a first look.
+
+**Why only a device can settle it:** the part a browser drive cannot reach is *your* file — whether
+your supplier's export is actually GST-inclusive, and whether the default the screen starts on is the
+right one for it. That is a question about the file, not about the code.
+
+**What to do — three minutes, next time you import a price list:**
+
+1. Import a CSV as normal and stop at the **mapping step**. Do not press Import yet.
+2. Scroll to **"The price is"**, under "The price is for". It starts on your Settings GST default.
+3. **Check a unit cost in the preview against a price you know.** A 10 kg carton at $65 ex-GST is
+   $6.50/kg; the same carton priced GST-inclusive is $5.91/kg.
+4. **Switch the radio and watch the table.** Every unit cost must move by about 9%, and the note
+   under the table must change between "Converted to ex-GST (÷1.10)" and "Treated as ex-GST".
+5. **Leave it on whichever is true of your file**, then import.
+
+**What a failure looks like:** the numbers not moving when you switch the radio (the answer is not
+reaching the maths), or the note disagreeing with the figures. A wrong ANSWER looks like nothing at
+all — every cost 10% out, uniformly, on a screen of plausible per-kg figures. That is why step 3
+compares against a price you already know rather than asking whether it "looks right".
+
+**If the preview and the note ever disagree, do not press Import** — that is the one combination the
+design makes impossible, so it would mean something real is broken.
