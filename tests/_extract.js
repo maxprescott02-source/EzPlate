@@ -109,6 +109,10 @@ function build() {
      field, and its own comment promises the prefill and the live recompute never disagree - so it
      is the one reachable proxy for the DOM-bound pack-teach handler that shares its formula. */
   const invPackPreviewText = extractFn(src, 'invPackPreviewText');
+  // 0b: the preview stopped saying "will be" on a row whose pack unit would re-base its product, so
+  // it now asks the SAME extracted category decision the guard and the write ask. Extracted, never
+  // stubbed — a copy of that comparison is exactly the drift the shared function exists to prevent.
+  const kingRepointGuard = extractFn(src, 'kingRepointGuard');
   const invReResolve = extractFn(src, 'invReResolve');           // the convert-ONCE decision behind the match dropdown
   const invDerivePackQty = extractFn(src, 'invDerivePackQty');   // applyInvoice's real pack-size fallback
   const dispPrice = extractFn(src, 'dispPrice');
@@ -206,6 +210,7 @@ function build() {
     ${unlinkedDishesOn}
     ${publishPlan}
     ${insightPipeline}
+    ${kingRepointGuard}
     ${invPackPreviewText}
     ${invReResolve}
     ${invDerivePackQty}

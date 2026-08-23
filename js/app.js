@@ -159,7 +159,7 @@ function uidRandom(n){                                       // n base-36 charac
   return out;
 }
 function uid(prefix){
-  _uidSeq = (_uidSeq + 1) % 1679616;                         // 36^4, so it always fits four chars
+  _uidSeq = (_uidSeq + 1) % 1679616;                         // 36^4 — so it is never MORE than four base-36 chars (toString(36) is not padded, so it is one to four)
   return String(prefix||'') + Date.now().toString(36)
        + '-' + _uidSeq.toString(36) + '-' + uidRandom(8);
 }
@@ -3240,7 +3240,14 @@ function dashRangePts(series){                                     // the points
   var src=series||priceHistory;                                    // v115: callable on a per-menu series too (the scoped chart)
   var cutoff=dashRangeCutoff();
   var pts=(cutoff!=null)?src.filter(function(p){
-    var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;   // Supabase points arrive as ISO strings; a string is never >= a number
+    /* The direction here was written BACKWARDS and the correction is the whole reason this comment is
+       long. rowToPoint converts recorded_at to epoch MILLISECONDS, so a point that came back from
+       SUPABASE is already a number; it is the LOCALLY logged points (logHistory, logMenuPrice) that
+       are ISO strings until the next boot re-reads them. Both shapes are genuinely live at once, and
+       the string branch is the load-bearing one — anyone simplifying this on the old comment's
+       authority would delete the arm that actually fires. (A string really is never >= a number,
+       which is why the coercion is needed at all; that half was right.) */
+    var tt=(typeof p.t==='string')?new Date(p.t).getTime():p.t;
     return tt>=cutoff;
   }):src.slice();
   return pts.slice(-60);
@@ -6782,7 +6789,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v169';
+var APP_VERSION='v170';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8732,7 +8739,7 @@ function openPublishModal(plateId, presetMenuId){
   document.getElementById('mi_notes').value='';
   document.getElementById('mi_cat').value=sp.category||'';
   buildMenuPickers(); var miMenu=document.getElementById('mi_menu'); if(miMenu){ var wantM=(presetMenuId&&menusList.some(function(m){return m.id===presetMenuId;}))?presetMenuId:currentMenuId; if(menusList.some(function(m){return m.id===wantM;})) miMenu.value=wantM; }
-  catState.chosen=sp.category||null; catState.chosenIsNew=false;
+  catCombo.chosen=sp.category||null; catCombo.chosenIsNew=false;
   document.getElementById('mi_catDrop').style.display='none'; document.getElementById('mi_catNew').style.display='none';
   document.getElementById('mi_err').style.display='none';
   var titleEl=document.getElementById('menuModalTitle'), saveEl=document.getElementById('menuSave');
@@ -8862,7 +8869,7 @@ function submitMenuItem(){
   var cat;
   if(typedCat===''){cat='Uncategorised';}
   else if(existCat){cat=existCat;}
-  else if(catState.chosen!==null && catState.chosenIsNew && catState.chosen.toLowerCase()===typedCat.toLowerCase()){cat=typedCat;}
+  else if(catCombo.chosen!==null && catCombo.chosenIsNew && catCombo.chosen.toLowerCase()===typedCat.toLowerCase()){cat=typedCat;}
   else{document.getElementById('mi_err').textContent='“'+typedCat+'” is a new category — pick “Create new category” from the list to confirm, or choose an existing one.';document.getElementById('mi_err').style.display='block';renderCatDrop();return;}
   var priceV=document.getElementById('mi_price').value;
   var notes=document.getElementById('mi_notes').value.trim();
@@ -9931,11 +9938,49 @@ function invDisplayConf(r){
   if(cand){ var pc=Math.round(cand.coverage*100); return {tier:tierOf(cand.coverage), label:pc+'%', has:true}; }
   return {tier:'manual', label:'manual', has:true};
 }
+/* 0b — WOULD APPLYING THIS ROW RE-BASE THE PRODUCT IT IS MATCHED TO?
+   resolveMatchedPrice exempts a TAUGHT pack (product pack or supplier memory) from its unit guard,
+   and it is right to: a pack the user taught outranks a parser guess about PRICE. It does NOT follow
+   that it may change what the product is MEASURED IN — and applyInvoice writes the row's unit
+   straight into base_unit. Teach a product stored per gram as "6 ea" and a 200g plate line costs
+   $2166.67 instead of $1.30. The dangerous one is quieter: teach a kg pack on a product stored in ml
+   and base_unit flips ml → g, so a line reading 250 (meaning 250 mL) is costed as 250 g — the
+   magnitude stays plausible and nothing on any screen can notice.
+   The guard cannot live in resolveMatchedPrice — that function is inside the protected parser
+   region — so it lives on the ROW, where invRowState, the renderer and applyInvoice all read the
+   one answer. invPriceUnit is EXTRACTED from applyInvoice's own line rather than mirrored, for the
+   reason CLAUDE.md's roster gives: a guard that recomputes the write's unit is a stub of it, and a
+   stub written from the same belief as the code agrees with the code when the code is wrong.
+   Null when nothing can conflict — an add-new row has no product to re-base, and a product with no
+   readable base_unit has no category to be moved out of. */
+function invPriceUnit(r, p){                                       // the unit applyInvoice will store this row in
+  return (r.unit==='kg'||r.unit==='l'||r.unit==='ea') ? r.unit : (p.base_unit==='g'?'kg':p.base_unit==='ml'?'l':'ea');
+}
+/* 0b: the pack unit a row may be taught in. A pack's unit decides the unit price's unit, which
+   applyInvoice stores as base_unit — so offering a category the product is not measured in is
+   offering to corrupt it, and the loud version of that mistake is the one the user cannot make.
+   `cur` is appended when data taught BEFORE this guard existed sits outside the list: the control
+   must show what is actually stored rather than quietly reading back a value nobody chose. That row
+   is flagged by invUnitRebase and refused by applyInvoice, which is where the state gets resolved.
+   No product, or no readable base_unit, and every unit is still on offer — there is nothing to
+   contradict, and the add-new form is the path with no product at all. */
+function invPackUnitOpts(baseCat, cur){
+  var opts = baseCat==='kg' ? ['kg','g'] : baseCat==='l' ? ['l','ml'] : baseCat==='ea' ? ['ea'] : ['ea','kg','g','l','ml'];
+  if(cur && opts.indexOf(cur)<0) opts=opts.concat([cur]);
+  return opts;
+}
+function invUnitRebase(r){
+  if(!r || r.addNew || !r.bestId) return null;
+  var p=byId[r.bestId]; if(!p) return null;
+  var g=kingRepointGuard(p.base_unit, unitToBaseFields(invPriceUnit(r, p)).base_unit);   // the SAME extracted category decision the repoint confirm uses
+  return g.needsConfirm ? g : null;                                // {oldCat, newCat}, or null when the unit is unchanged
+}
 function invRowState(r){                                            // ITEM 4: single source of truth — the summary and the cards must never disagree
   if(r.addNew) return 'new';
   if(r.uncertain) return 'review';
   if(!r.bestId) return 'review';                                     // no match / manually-skipped
   if(r.needManual || r.unitMismatch) return 'review';
+  if(invUnitRebase(r)) return 'review';                              // 0b: applying this row would change what the product is measured in — never a pre-tick
   if(r.needsAttention) return 'review';                              // price jump etc.
   if(r.gemReview) return 'review';                                   // v62: AI second reader adopted a value P disagreed with + no history to arbitrate (rule 4) — a human confirms. Auto-tick stays pinned to 'matched' below, so this row waits for the user's tick.
   if(r.gemMatchReview) return 'review';                              // v63 item 2: AI suspects the parser matched the WRONG product — a human ticks the right one
@@ -9954,8 +9999,18 @@ function invPackPreviewText(r, q, u){
   var up=invGstAdjust((u==='kg'||u==='g') ? pack/(q*(u==='kg'?1:0.001)) : (u==='l'||u==='ml') ? pack/(q*(u==='l'?1:0.001)) : pack/q);
   if(!isFinite(up)||up<0) return '';
   var cat=(u==='kg'||u==='g')?'kg':(u==='l'||u==='ml')?'l':'ea';
-  var old=(r.bestId&&byId[r.bestId]&&cpbu(byId[r.bestId])!=null)?dispPrice(byId[r.bestId]):null;
-  return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+(cat==='kg'?'/kg':cat==='l'?'/L':'/unit');
+  var prod=(r.bestId&&byId[r.bestId])?byId[r.bestId]:null;
+  var old=(prod&&cpbu(prod)!=null)?dispPrice(prod):null;
+  var per=cat==='kg'?'/kg':cat==='l'?'/L':'/unit';
+  /* 0b: "will be" is a PROMISE, and applyInvoice now refuses a pack in a category the product is not
+     measured in — so on that row the old wording contradicted the explanation directly beneath it.
+     The verdict is taken from the PROSPECTIVE cat rather than r.unit, because this line is what the
+     live control shows while the user is still choosing. The figure stays: seeing what their pack
+     computes to is how they recognise the unit is wrong. */
+  if(prod && kingRepointGuard(prod.base_unit, unitToBaseFields(cat).base_unit).needsConfirm){
+    return (old?('Was '+old+' → '):'')+'$'+up.toFixed(2)+per+', which won’t be applied';
+  }
+  return (old?('Was '+old+' → '):'')+'will be $'+up.toFixed(2)+per;
 }
 /* v113 — THE WAITING PANEL, AND WHY THE GATE HAD TO MOVE HERE.
    The first cut of this batch only disabled Confirm All. That is the wrong point, because the referee
@@ -10005,6 +10060,15 @@ function renderInvReview(){
     var rc=(invRowState(r)==='matched')?'':' muted-row';
     if(r.addNew) rc+=' is-new';
     var uLbl=unitLabelFor(r)||'/unit';
+    var reb=invUnitRebase(r);                                    // 0b: applying this row would re-base the product — see the function
+    /* 0b: the GUARD is unconditional — invRowState still says 'review' and applyInvoice still
+       refuses — but the row only gets to SAY "unit mismatch" when nothing more specific is already
+       being said. A row the AI suspects is matched to the wrong product has a unit conflict as a
+       SYMPTOM of that, and naming the symptom sends the user to the Products screen to change a
+       product that is stored perfectly well. `uncertain` outranks both, as it already did.
+       Found by tests/smoke.js, which paints a real review screen: a maple-syrup line matched to a
+       chips product is exactly this case, and the first draft badged it the wrong way round. */
+    var rebShow=(reb && !r.uncertain && !r.gemMatchReview);
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
     var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
@@ -10020,13 +10084,19 @@ function renderInvReview(){
       var bprod=(r.bestId&&byId[r.bestId])?byId[r.bestId]:null;
       var prodPack=(bprod && bprod.pack_qty>0 && bprod.pack_unit)?bprod:null;
       var pq=(r.taughtQty!=null&&isFinite(r.taughtQty))?r.taughtQty:(prodPack?prodPack.pack_qty:(mem?mem.qty:''));
-      var puNow=r.taughtUnit?r.taughtUnit:(prodPack?prodPack.pack_unit:(mem&&mem.unit?mem.unit:(packCount(r.raw||r.name)?'ea':(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea'))));
+      /* 0b: baseCat0 now outranks packCount, and the old order was the defect's easiest route in.
+         `packCount(raw)?'ea':…` put 'ea' in front of every "6 X 2.5KG" line — including on a product
+         stored per gram, where confirming the prefill re-based it. A carton of six 2.5kg bags is
+         15 kg on a per-kg product, not 6 units. packCount only ever mattered when baseCat0 was kg or
+         l, because both of its other outcomes were already 'ea'; that is precisely the case it got
+         wrong, so it is gone rather than reordered. */
+      var puNow=r.taughtUnit?r.taughtUnit:(prodPack?prodPack.pack_unit:(mem&&mem.unit?mem.unit:(baseCat0==='kg'?'kg':baseCat0==='l'?'l':'ea')));
       var required=(r.needManual && !r.remembered);                // unresolved -> the same control, red required mood
       teachHtml='<span class="pack-teach'+(required?' pt-required':'')+'" data-i="'+i+'">'
         +'<span class="pt-lbl sr-only">How many in one pack?</span>'
         +'<span class="pt-group">'
         +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" title="How many in one pack?" value="'+pq+'">'
-        +'<select class="invPackUnit" aria-label="pack unit">'+['ea','kg','g','l','ml'].map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
+        +'<select class="invPackUnit" aria-label="pack unit">'+invPackUnitOpts(baseCat0, puNow).map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
         +'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>'
         +'</span>';
@@ -10046,9 +10116,22 @@ function renderInvReview(){
       priceCell+='<div class="flag-review pt-explain">'+esc(msg)+'</div>';   // raw invoice line removed (was clutter); logged to console for debugging
       try{ if(window.console&&r.unitMismatch) console.debug('[inv mismatch]', r.raw||r.name); }catch(e){}
     }
+    if(rebShow){
+      /* 0b: this row's own explanation, and it is a SEPARATE block from the one above on purpose.
+         That one fires on `needManual && !remembered` — the parser-guess case. A re-base arrives on
+         rows that read as fully resolved (a taught pack sets needManual=false, remembered/packTaught
+         true), so it would have rendered no message at all and the red tint would have had no cause
+         written anywhere on the screen. The fix named is the Products screen rather than this
+         control, because if the product really is sold this way it is the PRODUCT that is stored
+         wrong, and correcting it here would move every plate that uses it without saying so. */
+      priceCell+='<div class="flag-review pt-explain">'+esc('This product is measured per '+unitCatWord(reb.oldCat)
+        +'. Applying this line would change it to per '+unitCatWord(reb.newCat)
+        +', which moves every plate that uses it. Set the pack in '+unitCatWord(reb.oldCat)
+        +', or change the product on the Products screen.')+'</div>';
+    }
     var dc=invDisplayConf(r);                                    // ITEM 1 (v35): hoisted — the DISPLAYED confidence drives the low-match cue, so the token and the % can never contradict each other
     var lowMatch=(dc.tier==='mid'||dc.tier==='lo');              // fires only when a % is shown and that % isn't high. Never on a hand-picked row ('manual') or one with no product ('none') — the user already made that call.
-    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':(r.unitMismatch?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.gemMatchReview?' <span class="flag-review">check match</span>':(r.gemPriceReview?' <span class="flag-review">check price</span>':(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')))):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > suspected wrong match (v63) > AI price-check (v66) > price jump > low match.
+    var flag=r.uncertain?' <span class="flag-review">is this a product?</span>':((r.unitMismatch||rebShow)?' <span class="flag-mismatch">unit mismatch</span>':(r.bestId?(r.gemMatchReview?' <span class="flag-review">check match</span>':(r.gemPriceReview?' <span class="flag-review">check price</span>':(r.needsAttention?' <span class="flag-review">price change \u2014 check</span>':(lowMatch?' <span class="flag-review">low match \u2014 check</span>':'')))):(r.addNew?' <span class="flag-new">new item</span>':' <span class="flag-review">no match</span>')));   // ITEM 4 (v34): the red row treatment is never the only signal. Precedence: uncertain > mismatch > suspected wrong match (v63) > AI price-check (v66) > price jump > low match.
     /* Q8 (v127) — THE TICK TRUTH TABLE (the v50/v52 "ticks lost on any re-render" bug, fixed):
          userTick set   -> the USER's tick/untick stands, whatever the state (their decision, restored —
                            not a pre-tick; an untick on a matched row survives too)
@@ -10132,6 +10215,7 @@ function renderInvReview(){
       var tr=pt.closest('tr'); if(!tr) return; var i=parseInt(pt.getAttribute('data-i'),10); var r=invRows[i]; if(!r) return;
       var q=parseFloat(pt.querySelector('.invPackQty').value); var u=pt.querySelector('.invPackUnit').value;
       if(!(q>0)) return;
+      var rebWas=!!invUnitRebase(r);                            // 0b: see the re-render below
       var pack=packPriceOf(r.raw||r.name); if(pack==null) return;
       /* 197: invGstAdjust, because `pack` came off the raw invoice line and is whatever the supplier
          printed. Teaching a pack HERE is the live version of the taught-pack case this batch fixed
@@ -10143,7 +10227,14 @@ function renderInvReview(){
         r.unitPrice=up; r.unit=cat; r.needManual=false; r.unitMismatch=false; r.packTaught=true; r.taughtQty=q; r.taughtUnit=u;   // the unit chosen HERE is the one that gets written — full stop
         var pin=tr.querySelector('.invPrice'); if(pin) pin.value=up.toFixed(2);
         var upu=tr.querySelector('.upu'); if(upu) upu.textContent=unitLabelFor(r);
-        var badge=tr.querySelector('.flag-mismatch'); if(badge) badge.style.display='none';
+        /* 0b: the re-base verdict is a function of the UNIT alone, so it can only move when the
+           select moves — never while the qty is being typed. Comparing before against after
+           therefore repaints on exactly the action that changed it, and a full row re-render is
+           what this screen's invariant asks for anyway: the explain line and the badge live in
+           markup this patch-based path cannot reach, and per-cell poking them is what left stale
+           cells behind the last three times. */
+        if(!!invUnitRebase(r)!==rebWas){ renderInvReview(); return; }
+        var badge=tr.querySelector('.flag-mismatch'); if(badge && !invUnitRebase(r)) badge.style.display='none';   // 0b: a re-base wears the same badge, and it has not been resolved
         var pvEl=tr.querySelector('.pt-preview');                  // v45 item 1: the preview line lives under .price-row now, not inside .pack-teach
         if(pvEl){ pvEl.textContent=invPackPreviewText(r, q, u); }
         delete r.userTick;                                       // Q8 (v127): teaching a pack is a self-edit — the tick resets to the state default like every other edit to this row's basis
@@ -10540,9 +10631,21 @@ function applyInvoice(){
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
   var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[];
+  var rebased=[];                                                 // 0b: rows refused because applying them would re-base their product
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
     if(!r||!appr||!appr.checked) return;
+    /* 0b — THE FLAG IS NOT A GATE, WHICH IS THIS REPO'S OWN LESSON ABOUT GATING THE LAST ACTION.
+       invRowState makes a re-basing row 'review', so it is never PRE-ticked and it carries a badge
+       and an explanation — but a user may tick any row by hand, and userTick is honoured over the
+       state on purpose. So the refusal has to be here, at the write, and it has to cover the pack
+       teach below as well as the price: a cross-category pack_unit written onto the product is the
+       same defect deferred to the NEXT import, where derivePackPrice hands it back as row.unit.
+       Refusing rather than confirming is deliberate. Re-basing a product is never what the user
+       asked for when they taught a pack, so a confirm here would only train them to click through
+       the one dialog that matters. Nothing is written and the summary says which lines. */
+    var rebRow=invUnitRebase(r);
+    if(rebRow){ rebased.push(r.name||('line '+(i+1))); return; }
     if(r.addNew){
       var s=specs[i]; if(!s) return;
       var id=uid('CX');
@@ -10561,7 +10664,7 @@ function applyInvoice(){
       var pid=r.bestId; if(!pid) return; var p=byId[pid]; if(!p) return;
       var up=r.unitPrice; var inp=tr.querySelector('.invPrice'); if(inp){ var v=parseFloat(inp.value); up=(!isNaN(v)&&v>=0)?v:null; }
       if(up==null||isNaN(up)) return;                              // never store without a real unit price
-      var priceUnit=(r.unit==='kg'||r.unit==='l'||r.unit==='ea')?r.unit:(p.base_unit==='g'?'kg':p.base_unit==='ml'?'l':'ea');
+      var priceUnit=invPriceUnit(r, p);                            // 0b: extracted, because invUnitRebase must ask about the unit this line WRITES and not a copy of it
       var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
       var oldC=cpbu(p); var newC=up/ub2.div;
       setProduct(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;   // v109: setProduct writes the price point (and flushes it) — one writer, every path
@@ -10636,8 +10739,11 @@ function applyInvoice(){
   var overAfter=dishesOverTarget();
   if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
   closeInv();                                                     // stay on whatever tab the user imported from
+  if(rebased.length){                                             // 0b: a refusal the user chose has to be said out loud, or it is the silence this item exists to remove
+    toast(rebased.length+' line'+(rebased.length===1?'':'s')+' not applied \u2014 '+(rebased.length===1?('\u201c'+rebased[0]+'\u201d is'):'they are')+' priced in a different unit from the product');
+  }
   if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter, {made:kingsMade, relinked:relinked}); }
-  else if(!guarded.length) toast('No changes to save');
+  else if(!guarded.length && !rebased.length) toast('No changes to save');
   if(guarded.length) confirmGuardedRepoints(guarded);
 }
 /* ITEM 5 (v35): one confirm covering every re-link whose unit category changed. Confirm
@@ -11418,7 +11524,14 @@ updateLastImport(); updateEditTag();
 
 
 /* ===== category combobox (Add to menu) ===== */
-var catState={chosen:null,chosenIsNew:false};
+/* RENAMED from catState, 23 Aug 2026. There were TWO top-level `var catState` in this file — the
+   catalogue importer's and this combobox's — and they were one variable. Both declarations hoist,
+   then both ASSIGNMENTS run in source order, so the importer's object was discarded at boot before
+   any handler fired. Neither direction lost data (openCatImport reassigns wholesale; this read fell
+   through to a visible re-prompt), which is why it was filed C rather than fixed on sight — but the
+   duplicate-definition guard in tests/housekeeping.test.js covered `function` only and could not see
+   it. That guard is widened in the same change; the two are one job. */
+var catCombo={chosen:null,chosenIsNew:false};
 function menuCats(){var c=[];MENU.forEach(function(m){if(c.indexOf(m.section)<0)c.push(m.section);});return c;}
 function catScore(cat,q){cat=cat.toLowerCase();q=q.toLowerCase();if(!q)return 1;if(cat===q)return 100;if(cat.indexOf(q)===0)return 80;if(cat.indexOf(q)>=0)return 60;var i=0;for(var j=0;j<cat.length&&i<q.length;j++){if(cat[j]===q[i])i++;}return i===q.length?30:-1;}
 function renderCatDrop(){
@@ -11435,14 +11548,14 @@ function renderCatDrop(){
 }
 function chooseCat(name,isNew){
   var inp=document.getElementById('mi_cat'); inp.value=name;
-  catState.chosen=name; catState.chosenIsNew=isNew;
+  catCombo.chosen=name; catCombo.chosenIsNew=isNew;
   document.getElementById('mi_catDrop').style.display='none';
   var nw=document.getElementById('mi_catNew');
   if(isNew){nw.textContent='New category will be created: \u201c'+name+'\u201d';nw.style.display='block';}else{nw.style.display='none';}
 }
 (function(){
   var inp=document.getElementById('mi_cat'); if(!inp)return;
-  inp.addEventListener('input',function(){catState.chosen=null;catState.chosenIsNew=false;var n=document.getElementById('mi_catNew');if(n)n.style.display='none';renderCatDrop();});
+  inp.addEventListener('input',function(){catCombo.chosen=null;catCombo.chosenIsNew=false;var n=document.getElementById('mi_catNew');if(n)n.style.display='none';renderCatDrop();});
   inp.addEventListener('focus',renderCatDrop);
   inp.addEventListener('blur',function(){setTimeout(function(){var d=document.getElementById('mi_catDrop');if(d)d.style.display='none';},150);});
 })();

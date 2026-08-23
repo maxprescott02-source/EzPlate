@@ -139,13 +139,17 @@ test('THE COUNTER ALONE guarantees uniqueness — pinned with the randomness hel
   }
 });
 
-test('the counter wraps at 36^4, so it always fits four base-36 characters', () => {
+test('the counter wraps at 36^4, so it never exceeds four base-36 characters', () => {
   // The modulus and the field width have to agree: a wrap at anything larger would widen the id
   // silently, and a wrap at anything smaller would shorten the deterministic run for no reason.
+  // NOT a fixed width, and the title said it was until 23 Aug 2026: toString(36) does not pad, so
+  // the segment is one to four characters. The BOUND is what this pins; uniqueness never rested on
+  // the width anyway — the `-` separators carry it, which is what makes a variable-length segment safe.
   const src = extractFn(SRC, 'uid');
   assert.ok(src.includes('% 1679616'), 'the counter must wrap at 36^4');
   assert.strictEqual((1679616).toString(36), '10000', 'sanity: 36^4 is the first 5-char value');
-  assert.strictEqual((1679615).toString(36).length, 4, 'every value below it fits in four characters');
+  assert.strictEqual((1679615).toString(36).length, 4, 'the largest value still fits in four characters');
+  assert.strictEqual((1).toString(36).length, 1, 'and a small counter emits ONE — the field is not padded');
 });
 
 test('bytes in the biased tail are REJECTED, not folded', () => {

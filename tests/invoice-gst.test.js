@@ -133,6 +133,24 @@ test('the derive-preview promises the price that will actually be STORED', () =>
   near(shown, stored, 'the preview and the stored price must be the same number');
 });
 
+test('0b: the preview stops PROMISING a price the write will refuse', () => {
+  /* "will be" is a promise, and applyInvoice now refuses a pack whose unit would re-base the
+     product — so on that row the preview contradicted the explanation printed directly beneath it.
+     The FIGURE is deliberately kept: seeing that their pack computes to $5.50 per UNIT is how a user
+     recognises they picked the wrong unit. Only the promise goes.
+     Read off the PROSPECTIVE unit, not the row's, because this line is what the live control shows
+     while the user is still choosing — the row has not been changed yet. */
+  setInvState({ PRODUCTS: TAUGHT, invGst: EX });
+  buildInvRows(pdfTextToRows(CHIPS));
+  const row = getInvRows()[0];
+  const bad = invPackPreviewText(row, 10, 'ea');            // Chips is stored per gram
+  assert.match(bad, /which won.t be applied/, 'the refusal has to be on the line making the claim');
+  assert.doesNotMatch(bad, /will be/, 'and the promise must be gone, not merely qualified');
+  assert.match(bad, /\$5\.50\/unit/, 'the computed figure stays — it is what tells the user the unit is wrong');
+  // the SAME call in the product's own category is unchanged, or this becomes a warning on every row
+  assert.match(invPackPreviewText(row, 10, 'kg'), /will be \$5\.50\/kg/);
+});
+
 test('the preview is NOT divided when the invoice is GST-exclusive', () => {
   setInvState({ PRODUCTS: TAUGHT, invGst: EX });
   buildInvRows(pdfTextToRows(CHIPS));

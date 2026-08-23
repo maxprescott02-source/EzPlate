@@ -15,6 +15,22 @@
 const { test, expect } = require('@playwright/test');
 const { gotoTab } = require('./_boot');
 
+/* SKIPPED SINCE 186 (`ezplate-v162`), and the skip is the DECISION rather than a workaround.
+   This is the one spec that does not call installBoot: it drives the real app against the café's
+   live production database, which is also why CI filters it out. 186 made sign-in mandatory and
+   removed the anon fallback from current_business_id(), so an unauthenticated load resolves to no
+   tenant and every screen this photographs is the sign-in door. There is no bug in the app — the
+   spec's premise expired.
+   It was left FAILING for ten deploy versions, and that is the part worth fixing: CI never runs it,
+   so nothing anywhere went red, and `npm run shots` reported thirteen familiar failures at the
+   bottom of an otherwise green suite. A spec that cannot pass and cannot report is worse than a
+   deleted one, because it trains every batch to skim past a block of red — which is the exact state
+   a real regression would arrive in.
+   NOT deleted, deliberately: this is the only artefact recording that the app was once screenshot
+   against a real signed-in café, and 186 added `auth` to _boot.js so the capability comes back the
+   moment there is a test account. Do NOT give the harness a real password — the repo is public. */
+test.skip(true, 'needs a signed-in session; 186 made sign-in mandatory and removed the anon fallback. Restore with a test account, never a committed password.');
+
 /* 171: 'more' joins the set. `ingredients` (Products) is a More sub-screen below 1024 now, so its
    nav button is display:none at mobile width — the `if (await btn.count())` guard below would NOT
    have caught that, because the button is still in the DOM and only its visibility changed. The

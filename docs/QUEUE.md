@@ -31,21 +31,11 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0b · A pack taught in the wrong unit silently re-bases the product  **[A — wrong data]**
-
-Same audit, same reproduction. `applyInvoice` writes the invoice row's unit category into the product's `base_unit` unconditionally (`js/app.js:10387-10390`), and `resolveMatchedPrice` deliberately exempts a taught pack from the unit-mismatch guard — `var taught=(chosen.source==='product-pack'||chosen.source==='memory')`, then `if(!taught && baseCat && …)` (`js/app.js:9299-9303`), commented *"a pack the user taught is the truth"*. The pack-unit `<select>` (`js/app.js:9872`) offers `ea/kg/g/l/ml` with no relation to what the product is stored in.
-
-Teach "Flour Plain" (stored per gram) as **6 ea** instead of 10 kg and the next invoice writes `base_unit:'ea'`, `cost_basis:'$/unit'`, with `unitMismatch:false` and `needManual:false` — so the row is **pre-ticked and applies with no prompt**. A 200g plate line then costs $2166.67 instead of $1.30.
-
-⚠️ **The loud version is the safe one.** The dangerous case is `ml` vs `g`: teach a `kg` pack on a product stored in `ml`, `base_unit` flips `ml → g`, and a plate line reading `250` (meaning 250 mL) is costed as 250 g. **The magnitude stays plausible and nothing on any screen can notice.**
-
-Requirements: teaching a pack may not silently change what a product is measured in. Either the guard covers taught packs too, or the control cannot offer a unit from a different category, or the change is surfaced and confirmed. **The exemption comment is a decision worth re-reading before overriding it** — it is right that a taught pack outranks a parser guess about PRICE; it does not follow that it should re-base the product.
-
 ## next  0c · Point the mutation gate at the numbers  **[A — Max's override, 22 Aug 2026]**
 
 ⚠️ **This is process work and this file's own header says process work does not belong here. Max put it here anyway, in writing, on 22 Aug 2026**, after the audit showed the alternative track had completed zero items in fifteen batches. **It is the second time that rule has been overridden and the first was the mutation gate itself** — same reasoning, same person, and it is not precedent for anything else.
 
-`tests/mutation/targets.js` holds **49 targets against 609 top-level functions**, and **not one of them computes a price, a cost, a food-cost percentage, a trend point or an insight.** Verified: `analyze`, `menuMarginPreview`, `costAtLines`, `fmtTargetPct`, `computeInsights`, `costFromLines`, `cpbu`, `packToUnitCost`, `buildInvRows`, `resolveMatchedPrice`, `derivePackPrice`, `packPriceOf`, `applySupplierMemory`, `invGstDetect` — **zero hits each.**
+`tests/mutation/targets.js` holds **52 targets against 609 top-level functions**, and **not one of them computes a price, a cost, a food-cost percentage, a trend point or an insight.** *(49 when this was written; batch 201 added `invPriceUnit`, `invUnitRebase` and `invPackUnitOpts` — the 0b unit guard, which decides whether a price is written at all but computes none. The claim below is unchanged and every function it names still returns zero hits.)* Verified: `analyze`, `menuMarginPreview`, `costAtLines`, `fmtTargetPct`, `computeInsights`, `costFromLines`, `cpbu`, `packToUnitCost`, `buildInvRows`, `resolveMatchedPrice`, `derivePackPrice`, `packPriceOf`, `applySupplierMemory`, `invGstDetect` — **zero hits each.**
 
 The list's own stated rule is *"any function whose correctness is load-bearing and whose test file you would be uneasy to see deleted"*, and its own line is *"a function that is not a target has never been asked the question."* Item 0 is the answer to that question going unasked: `grep -rn 'invGstDetect\|buildInvRows' tests/` returns **one hit, and it is a comment.**
 
