@@ -269,10 +269,24 @@ test('confirmApplyInvoice refuses while pending — the one choke point every ap
    mislabel a row — it auto-ticks a row nobody checked, and Confirm All writes the price.
    --------------------------------------------------------------------------- */
 
-const rowState = (function () {
+/* 0b: invRowState now asks invUnitRebase whether applying the row would change what its product is
+   measured in, so the harness has to carry the real chain and a real product to ask about. Every
+   link is EXTRACTED — a stub of unitCatCategory or of invPriceUnit would be a copy of the very
+   comparison the guard exists to make. `products` lets a test give P0108 whatever base_unit the case
+   needs; the default is a per-gram product, which is what every pre-existing case here assumed. */
+const buildRowState = (products) => {
   // eslint-disable-next-line no-new-func
-  return new Function(`"use strict"; ${extractFn(SRC, 'invRowState')} return invRowState;`)();
-})();
+  return new Function('BYID', `"use strict";
+    var byId = BYID;
+    ${extractFn(SRC, 'unitCatCategory')}
+    ${extractFn(SRC, 'unitToBaseFields')}
+    ${extractFn(SRC, 'kingRepointGuard')}
+    ${extractFn(SRC, 'invPriceUnit')}
+    ${extractFn(SRC, 'invUnitRebase')}
+    ${extractFn(SRC, 'invRowState')}
+    return invRowState;`)(products);
+};
+const rowState = buildRowState({ P0108: { id: 'P0108', base_unit: 'g' } });
 
 // A row with nothing wrong with it: high-confidence match, no flags. The baseline every case below
 // changes exactly ONE field of, so the assertion names the condition and not the fixture.

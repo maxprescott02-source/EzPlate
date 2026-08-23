@@ -165,16 +165,49 @@ test('v111: the survivors are the two `save*` names that are NOT no-ops', () => 
   assert.ok(/_ingLogPending/.test(SRC), 'and saveIngLog still has a real body to flush');
 });
 
-test('v111: hard rule 3 is retired — no top-level function in app.js is defined twice', () => {
+/* WIDENED 23 Aug 2026 to `var`/`let`/`const`, and the widening is the finding rather than the fix.
+   This guard was written after aRow and renderAnalysis each shipped as two top-level `function`s with
+   the first one dead. It has pinned exactly that keyword ever since — and `var catState` was declared
+   twice in js/app.js the whole time, found by batch 199's pre-push review and not by this test.
+   The `var` mechanism is WORSE, not better: two functions hoist and the last wins, which is at least
+   one consistent answer, but two `var`s hoist AND both assignments run in source order, so the first
+   object is built and then thrown away at boot before any handler can read it.
+   A test that pins a rule for one declaration keyword has pinned the rule for one declaration
+   keyword. Widening it and renaming one catState were ONE job, in that order — widening alone goes
+   red immediately, which is the point. */
+test('v111: hard rule 3 is retired — no top-level NAME in app.js is declared twice', () => {
   const counts = {};
-  const re = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+  // `var a=1, b=2` declares two names on one statement, so the tail is split on commas at depth 0.
+  const re = /^(?:function\s+([A-Za-z_$][\w$]*)\s*\(|(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*[=;,\n])/gm;
   let m;
-  while ((m = re.exec(SRC))) counts[m[1]] = (counts[m[1]] || 0) + 1;
+  while ((m = re.exec(SRC))) { const n = m[1] || m[2]; counts[n] = (counts[n] || 0) + 1; }
   const dupes = Object.keys(counts).filter(k => counts[k] > 1);
   assert.deepEqual(dupes, [],
-    'aRow and renderAnalysis were each defined twice with the first dead (old hard rule 3). Both dead '
-    + 'definitions are deleted; a new duplicate would silently resurrect the whole class of bug, because '
-    + 'hoisting makes the LAST definition win wherever it sits.');
+    'aRow and renderAnalysis were each defined twice with the first dead (old hard rule 3), and '
+    + '`var catState` was declared twice for months underneath a guard that could not see it. '
+    + 'Hoisting makes the LAST declaration win wherever it sits — and for `var`, both ASSIGNMENTS '
+    + 'still run in source order, so the earlier object is discarded at boot with nothing raised.');
+});
+
+test('the duplicate guard can actually go RED — for `var` as well as for `function`', () => {
+  /* This repo's most-recorded defect is a green test that cannot fail, and the paragraph above is a
+     guard that could not fail for half the declarations it claimed. So the arm is exercised against
+     injected source rather than trusted: the same regex, the same counting, a known duplicate. */
+  const count = (src) => {
+    const counts = {};
+    const re = /^(?:function\s+([A-Za-z_$][\w$]*)\s*\(|(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*[=;,\n])/gm;
+    let m;
+    while ((m = re.exec(src))) { const n = m[1] || m[2]; counts[n] = (counts[n] || 0) + 1; }
+    return Object.keys(counts).filter(k => counts[k] > 1);
+  };
+  assert.deepEqual(count('var dup={a:1};\nvar dup={b:2};\n'), ['dup'], 'a var duplicate must be caught');
+  assert.deepEqual(count('let dup=1;\nlet dup=2;\n'), ['dup'], 'let too');
+  assert.deepEqual(count('const dup=1;\nconst dup=2;\n'), ['dup'], 'and const');
+  assert.deepEqual(count('function dup(){}\nfunction dup(){}\n'), ['dup'], 'the original arm still works');
+  assert.deepEqual(count('var a=1;\nvar b=2;\nfunction c(){}\n'), [], 'and it does not fire on distinct names');
+  assert.deepEqual(count('  var indented=1;\n  var indented=2;\n'), [],
+    'SCOPE, stated honestly: the ^ anchor means only TOP-LEVEL declarations are compared. A nested '
+    + 'shadow is legal JavaScript and is not what this guard is about.');
 });
 
 /* ---- 4. the applyTidy column guard (condition, not presence) ---- */

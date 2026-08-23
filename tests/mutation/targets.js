@@ -40,6 +40,17 @@ const targets = [
      to be asked until the second review found the defects they now hold. invReResolve owns the
      convert-ONCE condition (dropping it re-creates a silent 9%-low price that PRICE_JUMP cannot
      see); invDerivePackQty owns the shared-tax-basis rule for deriving a pack SIZE. */
+  /* 0b — THE UNIT GUARD, three functions, and they are targets from the hour they were written
+     rather than after something got past them. That is 184's lesson: a function that is not a
+     target has never been asked the question, and the cheapest moment to add one is the moment it
+     acquires a test worth protecting.
+     invPriceUnit is the load-bearing one and is the smallest. It answers "which unit does this row
+     get STORED in", and applyInvoice's write and invUnitRebase's guard BOTH call it — that shared
+     call is the whole reason a taught pack can no longer re-base a product behind the guard's back.
+     Flip either arm of its ternary and the guard starts asking about a unit nobody writes. */
+  { fn: 'invPriceUnit', tests: ['inv-unit-rebase.test.js', 'inv-unit-rebase-apply.test.js'] },
+  { fn: 'invUnitRebase', tests: ['inv-unit-rebase.test.js', 'inv-unit-rebase-apply.test.js'] },
+  { fn: 'invPackUnitOpts', tests: ['inv-unit-rebase.test.js', 'inv-rowmarkup.test.js'] },
   { fn: 'invReResolve', tests: ['invoice-gst.test.js'] },
   { fn: 'invDerivePackQty', tests: ['invoice-gst.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──

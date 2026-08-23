@@ -41,12 +41,16 @@ function sliceRowBuild(src) {
 }
 
 // Build a row-HTML factory from the real source, with everything it reaches for stubbed.
-function makeRowBuilder(products) {
+function makeRowBuilder(products, opts) {
   const byId = {};
   (products || []).forEach(p => { byId[p.id] = p; });
+  // 0b: packCount is a STUB PARAMETER now, not a constant null. The prefill defect it hides —
+  // `packCount(raw)?'ea':…` putting units in front of a per-kg product — was unreachable while every
+  // row in this file pretended no line had an "N x N" pack pattern, which most real ones do.
+  const CTX = { packCount: (opts && opts.packCount) || null, packPrice: (opts && opts.packPrice) || 55 };
 
   // eslint-disable-next-line no-new-func
-  const factory = new Function('BYID', `
+  const factory = new Function('BYID', 'CTX', `
     "use strict";
     var byId = BYID;
     var invSupplier = '';
@@ -54,8 +58,22 @@ function makeRowBuilder(products) {
     function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[m]; }); }
     function dispPrice(p){ return '$' + Number(p.dispPrice).toFixed(2); }
     function unitLabelFor(){ return '/kg'; }
-    function unitCatCategory(u){ return (u==='g'||u==='kg')?'kg':((u==='ml'||u==='l')?'l':'ea'); }
-    function packCount(){ return null; }
+    function packCount(){ return CTX.packCount; }
+    function packPriceOf(){ return CTX.packPrice; }
+    function invGstAdjust(v){ return v; }
+    function cpbu(p){ return p.cost_per_base_unit; }
+    ${extractFn(SRC, 'invPackPreviewText')}
+    function unitCatWord(c){ return c==='kg'?'kg':c==='l'?'litre':'unit'; }
+    // 0b: the unit-category chain is EXTRACTED, not stubbed. unitCatCategory used to be a hand-rolled
+    // copy here, and the whole point of the new guard is that the render and the write agree about
+    // which unit a row lands in — a copy that agrees with a wrong belief is this repo's most-recorded
+    // defect. unitCatWord is three literals with no branch worth extracting.
+    ${extractFn(SRC, 'unitCatCategory')}
+    ${extractFn(SRC, 'unitToBaseFields')}
+    ${extractFn(SRC, 'kingRepointGuard')}
+    ${extractFn(SRC, 'invPriceUnit')}
+    ${extractFn(SRC, 'invUnitRebase')}
+    ${extractFn(SRC, 'invPackUnitOpts')}
     function normSupplier(){ return ''; }
     function memKey(){ return ''; }
     function invMatchOptions(){ return '<option value="skip"></option>'; }
@@ -68,7 +86,7 @@ function makeRowBuilder(products) {
       return html;
     };
   `);
-  return factory(byId);
+  return factory(byId, CTX);
 }
 
 // a linked product whose stored price renders as $12.50
@@ -210,4 +228,98 @@ test('ITEM 1: a hand-picked match is never called a low match — the user alrea
   const html = buildRow(r, 0);
   assert.ok(html.indexOf('manual') >= 0, 'confidence reads as a labelled manual token');
   assert.ok(html.indexOf('low match \u2014 check') < 0, 'and carries no low-match scolding');
+});
+
+/* ---------------------------------------------------------------------------
+ * 0b — THE PACK-UNIT CONTROL. Two defects lived in this markup, and the second was the
+ * easier route into the first: the select offered every unit, and its PREFILL preferred
+ * 'ea' whenever the line carried an "N x N" pack pattern — on a product stored per gram.
+ * Confirming a prefill nobody chose then re-based the product.
+ * ------------------------------------------------------------------------- */
+
+// a row asking to be taught a pack, on the per-gram CHIPS product
+function teachRow() {
+  return { name: 'CHIPS STRAIGHT CUT 6X2.5KG', raw: 'CHIPS STRAIGHT CUT 6X2.5KG 55.00', bestId: 'P0108',
+           unitPrice: null, unit: 'auto', conf: 0.82, tier: 'hi', cands: [{ id: 'P0108', coverage: 0.82 }],
+           needsAttention: false, addNew: false, manualPick: false, needManual: true,
+           unitMismatch: false, uncertain: false, remembered: false };
+}
+
+const packUnits = (html) => {
+  const m = /<select class="invPackUnit"[^>]*>([\s\S]*?)<\/select>/.exec(html);
+  assert.ok(m, 'the pack-unit select must be in the markup');
+  return [...m[1].matchAll(/value="([^"]+)"(\s+selected)?/g)].map(x => ({ v: x[1], sel: !!x[2] }));
+};
+
+test('0b: the pack-unit select cannot offer a category the product is not measured in', () => {
+  const html = makeRowBuilder([CHIPS])(teachRow(), 0);
+  const opts = packUnits(html).map(o => o.v);
+  assert.deepEqual(opts, ['kg', 'g'], 'CHIPS is stored per gram — units and litres would re-base it');
+});
+
+test('0b: an "N x N" line no longer prefills UNITS on a weighted product', () => {
+  /* THE REGRESSION IN ONE LINE. `packCount('6X2.5KG')` is truthy for every carton line Bidfood
+     sends, and the old prefill read it FIRST — so the control opened on "units" for a product
+     stored per gram, and the ✓ that looks like agreement re-based it. A carton of six 2.5kg bags
+     is 15 kg here, not 6 units. */
+  const html = makeRowBuilder([CHIPS], { packCount: 6 })(teachRow(), 0);
+  const sel = packUnits(html).filter(o => o.sel).map(o => o.v);
+  assert.deepEqual(sel, ['kg'], 'the product’s own category wins over the parser’s pack-count guess');
+});
+
+test('0b: a per-unit product still prefills and offers units', () => {
+  // The fix must not invert into "weights always win": a product genuinely sold by the unit keeps
+  // the control it needs, with or without a pack count on the line.
+  const EGGS = { id: 'P0108', description: 'Eggs 700g Tray', base_unit: 'ea', dispPrice: 9 };
+  const html = makeRowBuilder([EGGS], { packCount: 30 })(teachRow(), 0);
+  assert.deepEqual(packUnits(html), [{ v: 'ea', sel: true }]);
+});
+
+test('0b: a re-basing row is tinted, badged and EXPLAINED — the tint alone is not a reason', () => {
+  /* The existing explain block fires on `needManual && !remembered`, which a taught pack is not —
+     so before 0b this row rendered red with nothing on screen saying why. */
+  const r = Object.assign(teachRow(), { unit: 'ea', unitPrice: 2, needManual: false,
+                                        packTaught: true, taughtQty: 6, taughtUnit: 'ea' });
+  const html = makeRowBuilder([CHIPS])(r, 0);
+  assert.ok(/class="inv-data[^"]*st-review"/.test(html), 'a re-basing row must tint like every other review row');
+  assert.ok(html.indexOf('flag-mismatch') >= 0, 'it wears the unit-mismatch badge — one signal, not a second vocabulary');
+  assert.ok(html.indexOf('measured per kg') >= 0 && html.indexOf('to per unit') >= 0,
+    'the message must name BOTH categories, or it does not tell the user what to change');
+  assert.ok(html.indexOf('Products screen') >= 0,
+    'and where to change it — the product is what is stored wrong, not this control');
+});
+
+test('0b: a pack already STORED in another category is still shown by the control', () => {
+  // Data taught before the guard existed. The select must show what is really stored; the row is
+  // flagged and applyInvoice refuses it. A select that silently reads back a different value is a
+  // second wrong-data bug wearing the fix for the first.
+  const STALE = { id: 'P0108', description: 'Chips', base_unit: 'g', dispPrice: 12.5,
+                  pack_qty: 6, pack_unit: 'ea' };
+  const r = Object.assign(teachRow(), { fromProductPack: true, needManual: false });
+  const html = makeRowBuilder([STALE])(r, 0);
+  assert.deepEqual(packUnits(html), [{ v: 'kg', sel: false }, { v: 'g', sel: false }, { v: 'ea', sel: true }]);
+});
+
+test('0b: a suspected WRONG MATCH outranks the re-base badge — the cause, not the symptom', () => {
+  /* Caught by tests/smoke.js, which paints the real screen: a maple-syrup line matched to a chips
+     product hits both signals at once. Badging it "unit mismatch" and telling the user to change the
+     product on the Products screen sends them to fix a product that is stored perfectly well — the
+     match is what is wrong. The GUARD is untouched by this: the row is still 'review', still
+     unticked, and applyInvoice still refuses it. Only the wording defers. */
+  const r = Object.assign(teachRow(), { unit: 'l', unitPrice: 12, needManual: false,
+    packTaught: true, taughtQty: 1, taughtUnit: 'l', gemMatchReview: true, gemSuggestId: 'P0107' });
+  const html = makeRowBuilder([CHIPS])(r, 0);
+  assert.ok(html.indexOf('check match') >= 0, 'the more specific signal must be the one shown');
+  assert.ok(html.indexOf('flag-mismatch') < 0, 'and the re-base badge must stand down');
+  assert.ok(html.indexOf('Products screen') < 0, 'so must its advice — the product is not what is wrong here');
+  assert.ok(/class="inv-data[^"]*st-review"/.test(html), 'but the row is still a review row');
+});
+
+test('0b: with no more specific signal, the SAME row does badge and explain the re-base', () => {
+  // The other half of the pair, so "defers to a better signal" cannot decay into "never shows".
+  const r = Object.assign(teachRow(), { unit: 'l', unitPrice: 12, needManual: false,
+    packTaught: true, taughtQty: 1, taughtUnit: 'l' });
+  const html = makeRowBuilder([CHIPS])(r, 0);
+  assert.ok(html.indexOf('flag-mismatch') >= 0);
+  assert.ok(html.indexOf('Products screen') >= 0);
 });
