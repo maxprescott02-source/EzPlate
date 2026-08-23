@@ -1,5 +1,5 @@
 /*
- * 201-pack-unit.spec.js — QUEUE 0b, driven in a real browser at both widths and both themes.
+ * 200-pack-unit.spec.js — QUEUE 0b, driven in a real browser at both widths and both themes.
  *
  * The unit tests prove the guard's DECISION. This proves the user can act on it: that the control
  * genuinely cannot offer a re-basing unit, that the row is tinted, badged and explained rather than
