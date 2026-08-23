@@ -46,12 +46,14 @@ const DEPS = ['unitCatCategory', 'unitToBaseFields', 'kingRepointGuard', 'invPri
 
 /* Run one review row through the REAL loop. Everything the loop reaches for is stubbed at the
    boundary — DOM, writers, id mint — and nothing that makes a DECISION is stubbed. */
-function runRow({ product, row, typedPrice, typedQty, typedUnit, supplier }) {
+function runRow({ product, row, typedPrice, typedQty, typedUnit, supplier, ticked }) {
   const calls = { setProduct: [], remembered: [], synced: [] };
   const fakeTr = {
     dataset: { i: '0' },
     querySelector(sel) {
-      if (sel === '.invAppr') return { checked: true };              // the user ticked it by hand
+      // the tick is a PARAMETER, not a constant. It defaults to ticked — the case the guard exists
+      // for — but the untick case has to be RUN, not inferred from where a substring sits.
+      if (sel === '.invAppr') return { checked: ticked !== false };
       if (sel === '.invPrice') return { value: typedPrice };
       if (sel === '.pack-teach') {
         return { querySelector(s) {
@@ -137,10 +139,19 @@ test('0b BASELINE: the SAME row in the product’s own category still applies in
   assert.deepEqual(r.calls.remembered, [{ q: 10, u: 'kg' }]);
 });
 
-test('0b: an UNTICKED re-basing row is skipped by the tick check, not by the guard', () => {
-  // The two exits must stay distinguishable: `rebased` names lines the user asked for and did not
-  // get. Filling it with rows nobody ticked would toast about lines they never chose.
-  const SRC_LOOP = sliceRowLoop();
-  assert.ok(SRC_LOOP.indexOf('!appr.checked') < SRC_LOOP.indexOf('invUnitRebase'),
-    'the tick check must come first, or the toast names rows the user never ticked');
+test('0b: an UNTICKED re-basing row is skipped by the tick check, not named by the guard', () => {
+  /* The two exits must stay distinguishable: `rebased` names lines the user ASKED for and did not
+     get, and the toast reads them out. Filling it with rows nobody ticked would announce a refusal
+     of work the user never requested, on every import with one stale pack in it.
+
+     ⚠️ THIS TEST WAS AN ORDER-ONLY SUBSTRING CHECK — `indexOf('!appr.checked') < indexOf('invUnitRebase')`
+     — and the pre-push review killed it on sight as roster 167(a)/(b): it measures where two strings
+     sit in the source, not what the loop does. Moving the tick check into a helper, or a refactor
+     that merely put the literal earlier, would have left it green while the behaviour regressed.
+     It now RUNS the loop with the box unticked, which is the only version that can go red. */
+  const r = runRow({ product: FLOUR, row: flourRow(), typedPrice: '2.00',
+                     typedQty: '6', typedUnit: 'ea', ticked: false });
+  assert.deepEqual(r.rebased, [], 'a row nobody ticked is not a refusal — it was never requested');
+  assert.deepEqual(r.calls.setProduct, [], 'and of course nothing is written');
+  assert.equal(r.n, 0);
 });
