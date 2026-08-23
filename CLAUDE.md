@@ -95,7 +95,11 @@ Read the table name, not the function name.
 `aRow` and `renderAnalysis` were each defined twice at top level in one scope, and **hoisting makes the LAST definition win everywhere**, before any statement runs.
 Editing the first was a silent no-op that shipped real bugs.
 
-Both dead copies are gone and `tests/housekeeping.test.js` now fails if any top-level name in `js/app.js` is defined twice again.
+Both dead copies are gone and `tests/housekeeping.test.js` now fails if any top-level **`function`** in `js/app.js` is declared twice again.
+
+⚠️ **THAT SAID "any top-level NAME" until 23 Aug 2026, and the guard has never covered `var` — which is half the class and the half that is live right now.** The regex is `/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm`; the test's own title says "function", so only the prose overclaimed. **`var catState` is currently declared twice** (the catalogue importer's and the Add-to-menu category combobox's), and the mechanism is worse than for functions rather than better: both declarations hoist, then **both ASSIGNMENTS run in source order, so the LAST one wins at boot** and the first object is discarded before any handler fires.
+It is not currently costing data — `openCatImport` reassigns wholesale, so the importer is self-healing, and the combobox's read falls through to a visible re-prompt — which is why it is filed C in `docs/MAINTENANCE.md` rather than fixed on sight.
+**The transferable part is about the GUARD, not the collision: a test that pins a rule for one declaration keyword has pinned the rule for one declaration keyword.** Widening the regex and renaming one `catState` are ONE job, in that order, because widening it alone goes red immediately. Found by the pre-push review of batch 199, which went looking for state leaking between two unrelated flows and found two variables that are literally the same variable.
 
 ## `isFinite('')` is TRUE
 
