@@ -35,9 +35,17 @@ const A = new Function(`
   ${extractFn(SRC, 'catPackSize')}
   ${extractFn(SRC, 'packToUnitCost')}
   ${extractFn(SRC, 'normSupplier')}
+  /* 0e: THE REAL DIVISOR, sliced out of the shipped file rather than re-typed here. A test that
+     wrote its own 1.1 would agree with a broken importer, which is this repo's most-recorded
+     failure class. Note it is extracted with no invGst global in scope - that is the point: the
+     importer always passes an explicit mode, so if anyone ever makes it fall back to the global
+     instead, these tests go red with a ReferenceError rather than quietly reading someone's
+     last invoice. (No backticks in this comment: it lives inside a template literal, and one
+     ends it early with a SyntaxError pointing at an innocent line ten above.) */
+  ${extractFn(SRC, 'invGstAdjust')}
   ${extractFn(SRC, 'catImportPlan')}
   return { parseCsvTable, csvSniffDelim, catPresetFor, catGuessMap, catNum, catUnit,
-           catPackSize, catImportPlan, CAT_FIELDS, CAT_PRESETS };
+           catPackSize, catImportPlan, invGstAdjust, CAT_FIELDS, CAT_PRESETS };
 `)();
 
 /* ===========================================================================
@@ -562,4 +570,118 @@ test('a mapping pointing at a column that is not in the file is treated as unmap
     { map: Object.assign({}, MAP, { category: 'A COLUMN THAT IS NOT THERE' }) });
   assert.strictEqual(p.items.length, 1, 'it must not read column -1 and import "undefined" as a category');
   assert.strictEqual(p.items[0].patch.category, null);
+});
+
+/* ===========================================================================
+ * 5. GST — queue item 0e
+ *
+ * The importer used to take the price column at face value and write it two ways: through
+ * `packToUnitCost` into `cost_per_base_unit`, and straight into `current_price_exgst`. A
+ * GST-inclusive price list therefore stored every cost 10% high, on the ONBOARDING path, with a
+ * preview showing entirely plausible per-kg figures.
+ *
+ * ⚠️ EVERY FIXTURE BELOW IS CHOSEN SO 'inc' AND 'ex' CANNOT AGREE. $65 over 10 kg is $6.50/kg one
+ * way and $5.909…/kg the other — CLAUDE.md's 184(b): a fixture whose two candidates produce the
+ * same number is measuring a coincidence, not a decision.
+ * ======================================================================== */
+
+const EXPECT_EX = 65 / 10000;             // $65 for 10 kg, stored per gram
+const EXPECT_INC = (65 / 1.1) / 10000;    // the same row, priced GST-inclusive
+
+test('a GST-INCLUSIVE price list is converted before anything reads it', () => {
+  const p = plan(HEAD + '1001,Edgell,Chips,10KG,1,KG,65.00\n', { priceGst: 'inc' });
+  const i = p.items[0];
+  assert.strictEqual(i.patch.cost_per_base_unit, EXPECT_INC);
+  assert.ok(Math.abs(i.dispPer - 5.909090909090909) < 1e-9,
+    'the PREVIEW figure is the converted one too — what is previewed must be what is stored');
+});
+
+test('a GST-EXCLUSIVE price list is stored exactly as printed', () => {
+  const p = plan(HEAD + '1001,Edgell,Chips,10KG,1,KG,65.00\n', { priceGst: 'ex' });
+  assert.strictEqual(p.items[0].patch.cost_per_base_unit, EXPECT_EX);
+  assert.strictEqual(p.items[0].dispPer, 6.5);
+});
+
+test('current_price_exgst and cost_per_base_unit are converted on the SAME basis', () => {
+  const p = plan(HEAD + '1001,Edgell,Chips,10KG,1,KG,65.00\n', { priceGst: 'inc' });
+  const i = p.items[0];
+  assert.strictEqual(i.patch.current_price_exgst, 65 / 1.1,
+    'the column is named ex-GST; storing the printed price in it is the defect, not a rounding nit');
+  assert.strictEqual(i.patch.cost_per_base_unit, i.patch.current_price_exgst / 10000,
+    'one conversion feeds both, so the two can never disagree about the tax basis');
+});
+
+test('the price the plan reports back on the ITEM is the converted one, not the file\'s', () => {
+  const p = plan(HEAD + '1001,Edgell,Chips,10KG,1,KG,65.00\n', { priceGst: 'inc' });
+  assert.strictEqual(p.items[0].price, 65 / 1.1,
+    'anything reading item.price later — a note, a re-plan, a future column — must see one basis');
+});
+
+test('the plan REPORTS which basis it used, so the screen cannot describe a different one', () => {
+  assert.strictEqual(plan(HEAD + '1001,,Chips,10KG,1,KG,65.00\n', { priceGst: 'inc' }).priceGst, 'inc');
+  assert.strictEqual(plan(HEAD + '1001,,Chips,10KG,1,KG,65.00\n', { priceGst: 'ex' }).priceGst, 'ex');
+});
+
+test('an UNRECOGNISED priceGst is treated as ex-GST rather than throwing or converting', () => {
+  const p = plan(HEAD + '1001,Edgell,Chips,10KG,1,KG,65.00\n', { priceGst: 'INCLUSIVE' });
+  assert.strictEqual(p.items[0].patch.cost_per_base_unit, EXPECT_EX,
+    'only the exact string converts — a typo must not silently take 10% off a cafe\'s whole catalogue');
+  assert.strictEqual(p.priceGst, 'ex', 'and it says so, rather than echoing what it was handed');
+});
+
+test('an omitted priceGst is ex-GST — the caller not asking is not a licence to convert', () => {
+  const p = plan(HEAD + '1001,Edgell,Chips,10KG,1,KG,65.00\n');
+  assert.strictEqual(p.items[0].patch.cost_per_base_unit, EXPECT_EX);
+  assert.strictEqual(p.priceGst, 'ex');
+});
+
+test('CARTON mode converts ONCE — the multiplier and the divisor must not compound', () => {
+  // 6 packs of 2 kg at $132 the carton, GST-inclusive: 132/1.1 = 120 over 12 kg = $10/kg.
+  // A tolerance, not an equality: 132/1.1 is 119.99999999999999 in binary float and this is
+  // measuring the SHAPE of the arithmetic. Converting twice gives 9.09, once at the wrong end
+  // gives 60 — both are miles outside 1e-9, so nothing this test exists to catch can hide in it.
+  const p = plan(HEAD + '1001,,Chips,2KG,6,KG,132.00\n', { priceCovers: 'carton', priceGst: 'inc' });
+  assert.strictEqual(p.items[0].packQty, 12, 'the pack maths is untouched by the tax question');
+  assert.ok(Math.abs(p.items[0].dispPer - 10) < 1e-9, `got ${p.items[0].dispPer}/kg, wanted $10/kg`);
+  assert.ok(Math.abs(p.items[0].patch.cost_per_base_unit - 0.01) < 1e-12);
+});
+
+test('a BORROWED pack size costs against the converted price, not the printed one', () => {
+  // The commonest real file: code, name, price, no pack. The pack comes off the stored product.
+  const existing = [{ id: 'P1', supplier: 'Test Supplier', supplier_code: '1001',
+    description: 'Chips', pack_qty: 10, pack_unit: 'kg' }];
+  const p = plan(HEAD + '1001,,Chips,,,,65.00\n', { priceGst: 'inc', existing });
+  assert.strictEqual(p.items[0].isNew, false);
+  assert.strictEqual(p.items[0].patch.cost_per_base_unit, EXPECT_INC,
+    'the borrowed-pack branch is a THIRD route to packToUnitCost and had to be converted too');
+});
+
+test('a NEGATIVE price is still refused BY THE FILE\'S number, not by the converted one', () => {
+  const p = plan(HEAD + '1001,,Chips,10KG,1,KG,-65.00\n', { priceGst: 'inc' });
+  assert.deepStrictEqual(p.items, []);
+  assert.strictEqual(p.skipped[0].reason, 'the price is negative',
+    'the reason a row is refused must be what the file said, not what arithmetic made of it');
+});
+
+test('a ZERO price survives the conversion as zero, not as a fabricated figure', () => {
+  const p = plan(HEAD + '1001,,Chips,10KG,1,KG,0\n', { priceGst: 'inc' });
+  assert.strictEqual(p.items.length, 1);
+  assert.strictEqual(p.items[0].patch.cost_per_base_unit, 0);
+});
+
+/* --- the divisor itself, which is the SHIPPED invoice function and not a copy --- */
+
+test('invGstAdjust with an explicit mode ignores the invoice global entirely', () => {
+  // There is no `invGst` in this scope at all (see the harness note), so a fallback to it here
+  // would throw a ReferenceError rather than pass. That is the assertion.
+  assert.strictEqual(A.invGstAdjust(11, 'inc'), 10);
+  assert.strictEqual(A.invGstAdjust(11, 'ex'), 11);
+});
+
+test('invGstAdjust returns a non-number UNCHANGED — isFinite(\'\') is true', () => {
+  assert.strictEqual(A.invGstAdjust(null, 'inc'), null, 'a null price means "no price" and must stay one');
+  assert.strictEqual(A.invGstAdjust('', 'inc'), '');
+  assert.strictEqual(A.invGstAdjust(undefined, 'inc'), undefined);
+  assert.ok(Number.isNaN(A.invGstAdjust(NaN, 'inc')));
+  assert.strictEqual(A.invGstAdjust(Infinity, 'inc'), Infinity);
 });

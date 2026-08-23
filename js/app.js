@@ -2161,6 +2161,12 @@ function catImportPlan(o){
   var headers=o.headers||[], rows=o.rows||[], map=o.map||{};
   var supplier=String(o.supplier||'').trim();
   var carton=(o.priceCovers==='carton');
+  /* 0e: WHAT THE PRICE COLUMN IS THE PRICE OF, tax-wise. The screen asks, starting from the
+     Settings `gst_default`, exactly as invGstDetect's unclear branch does - because a price list
+     is no more self-describing than an invoice that never says.
+     An explicit mode, never `invGst`: see invGstAdjust's own comment for why borrowing that global
+     here would take a catalogue's tax basis from whichever invoice was last opened. */
+  var gstMode=(o.priceGst==='inc') ? 'inc' : 'ex';
   var existing=o.existing||[];
   var col={};
   Object.keys(map).forEach(function(k){ var at=headers.indexOf(map[k]); col[k]=(map[k] && at>=0)?at:-1; });
@@ -2185,6 +2191,16 @@ function catImportPlan(o){
     var price=catNum(cell(r,'price'));
     if(price==null){ skipped.push({line:line, name:name, reason:'no usable price'}); return; }
     if(price<0){ skipped.push({line:line, name:name, reason:'the price is negative'}); return; }
+    /* ⚠️ THE CONVERSION HAPPENS ONCE, HERE, AND EVERY LATER READER SEES THE CONVERTED NUMBER.
+       `price` feeds three things - packToUnitCost below, `current_price_exgst` in the patch, and
+       (through the unit cost) the figure the preview prints. Converting at each of those instead
+       would be three chances to miss one, which is exactly how the invoice paths came to have the
+       divisor on one of four. It also makes "what is previewed is what is stored" true by
+       construction rather than by two call sites agreeing.
+       Deliberately AFTER the negative check, so the reason a row is refused is what the file said
+       rather than what arithmetic made of it. Deliberately NOT rounded (CLAUDE.md): displays round,
+       stored costs stay exact. */
+    price=invGstAdjust(price, gstMode);
 
     /* THE MATCH IS RESOLVED BEFORE THE PACK MATHS, and the order is load-bearing rather than tidy:
        an UPDATE can borrow the pack the product already carries, which is the only way to price a
@@ -2279,7 +2295,10 @@ function catImportPlan(o){
     items:items, skipped:skipped, folded:folded,
     created:items.filter(function(i){ return i.isNew; }).length,
     updated:items.filter(function(i){ return !i.isNew; }).length,
-    matchedOn:(usingNames?'name':'code')
+    matchedOn:(usingNames?'name':'code'),
+    /* Reported rather than re-derived: the screen must say which basis produced the figures it is
+       showing, and reading it back off the plan means the note cannot disagree with the maths. */
+    priceGst:gstMode
   };
 }
 
@@ -2370,11 +2389,19 @@ function renderCatMap(){
     +'<div class="cat-price-covers"><span class="cat-mapf">The price is for</span>'
       +'<label class="cat-radio"><input type="radio" name="catCovers" value="pack" checked> one pack of the size above</label>'
       +'<label class="cat-radio"><input type="radio" name="catCovers" value="carton"> the whole carton (pack size × units per carton)</label></div>'
+    /* 0e: the SECOND question about the price, and it starts on the Settings default for the same
+       reason invGstDetect's unclear branch does - a price list rarely says, and the café already
+       told Settings which way its suppliers quote. Same markup grammar as the block above on
+       purpose: two questions about one column, asked the same way. */
+    +'<div class="cat-price-covers"><span class="cat-mapf">The price is</span>'
+      +'<label class="cat-radio"><input type="radio" name="catGst" value="ex"'+(gstDefault==='inc'?'':' checked')+'> excluding GST</label>'
+      +'<label class="cat-radio"><input type="radio" name="catGst" value="inc"'+(gstDefault==='inc'?' checked':'')+'> including GST</label>'
+      +'<p class="hint">Starting from your Settings default. EzPlate stores every cost excluding GST, so an inclusive price is divided by 1.10 before it is saved.</p></div>'
     +'<div id="catPreview" class="cat-preview"></div>';
   box.querySelectorAll('.cat-mapsel').forEach(function(sel){
     sel.addEventListener('change', function(){ catState.map[sel.dataset.field]=sel.value; renderCatPreview(); });
   });
-  box.querySelectorAll('input[name="catCovers"]').forEach(function(radio){
+  box.querySelectorAll('input[name="catCovers"],input[name="catGst"]').forEach(function(radio){
     radio.addEventListener('change', renderCatPreview);
   });
   renderCatPreview();
@@ -2382,6 +2409,15 @@ function renderCatMap(){
 function catCovers(){
   var el=document.querySelector('input[name="catCovers"]:checked');
   return (el && el.value==='carton') ? 'carton' : 'pack';
+}
+/* 0e. The fallback is `gstDefault`, NOT a hardcoded 'ex': if the control is somehow absent the
+   honest answer is still the one the café configured, and this must not quietly become the third
+   place in the app that assumes ex-GST. (The radio the screen renders starts on the same value, so
+   in the ordinary case the two agree by construction.) */
+function catGst(){
+  var el=document.querySelector('input[name="catGst"]:checked');
+  if(el) return (el.value==='inc') ? 'inc' : 'ex';
+  return (gstDefault==='inc') ? 'inc' : 'ex';
 }
 /* THE PREVIEW IS THE GATE. The mapping cannot be verified by reading it — the
    only thing that shows a wrong column, or a price that turns out to be per
@@ -2391,7 +2427,7 @@ function renderCatPreview(){
   var box=document.getElementById('catPreview'); if(!box) return;
   var sup=document.getElementById('cat_sup');
   var plan=catImportPlan({headers:catState.headers, rows:catState.rows, map:catState.map,
-    supplier:sup?sup.value.trim():'', priceCovers:catCovers(), existing:PRODUCTS});
+    supplier:sup?sup.value.trim():'', priceCovers:catCovers(), priceGst:catGst(), existing:PRODUCTS});
   catState.plan=plan;
   var go=document.getElementById('catGo');
   var rows=plan.items.slice(0,5).map(function(i){
@@ -2423,7 +2459,13 @@ function renderCatPreview(){
   }
   box.innerHTML=head+warn
     +(rows?('<table class="cat-pv"><thead><tr><th>Product</th><th>Pack</th><th>Unit cost</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
-      +'<p class="hint cat-pv-note">'+(plan.items.length>5?('The first 5 of '+plan.items.length+'. '):'')+'If a unit cost looks wrong, the pack size or “the price is for” is the thing to change.</p>'):'')
+      /* The note names BOTH price questions, and the GST half is read back off the plan rather than
+         off the radio, so the sentence cannot describe a basis the figures above it were not
+         computed on. It says the conversion has already happened, because it has: the unit costs in
+         this table are the numbers that will be stored. */
+      +'<p class="hint cat-pv-note">'+(plan.items.length>5?('The first 5 of '+plan.items.length+'. '):'')
+        +(plan.priceGst==='inc'?'Converted to ex-GST (÷1.10) — these are the costs that will be stored. ':'Treated as ex-GST — these are the costs that will be stored. ')
+        +'If a unit cost looks wrong, the pack size or one of the two price answers is the thing to change.</p>'):'')
     +skips;
   if(go){
     go.disabled=!plan.items.length || catState.busy;
@@ -3412,9 +3454,14 @@ function ingLastMovePct(pid){
    intervention — and if it wrote here, the "how long since you last acted" clock would reset every time
    a supplier raised a price, which is the exact event the drift counter exists to accumulate.
    Self-defeating. THE LINE IS A FUNCTION, NOT A LIST: every product-price write in the app funnels
-   through `setProduct` (v109), which is ing_price_history's sole writer. If setProduct wrote it, it is
-   drift and it belongs there. Twelve paths change a RECIPE, a LINK, a PRICE or a MENU without going
-   through setProduct, and those — all of them — write here.
+   through `setProducts` (v109, PLURAL since 193), which is ing_price_history's sole writer. If
+   setProducts wrote it, it is drift and it belongs there. Twelve paths change a RECIPE, a LINK, a
+   PRICE or a MENU without going through it, and those — all of them — write here.
+   ⚠️ GREP THE PLURAL. `setProduct` (singular) is now the N=1 WRAPPER, not the writer: it is
+   `setProducts([{id,patch}])`. A reader asking "who can write ing_price_history?" who greps
+   `setProduct(` finds six call sites, every one a single row, and MISSES the catalogue importer,
+   which calls the plural directly with up to a whole catalogue at once. This comment said the
+   singular until 0e; `CLAUDE.md`'s two copies of the same claim were corrected in 194.
 
    NOT plates.updated_at, which is the obvious candidate and fails twice: v110's restore rewrites every
    plates row, so ONE restore would erase the whole history of interventions while the trend line it
@@ -6735,7 +6782,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v168';
+var APP_VERSION='v169';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -7451,8 +7498,16 @@ function buildBackup(){
            - the reader treats both values the same. backupToPayload goes through menuToRow, which
              now passes a string through and a null through; a format-3 file's 'MENU_ORIGINAL'
              restores as 'MENU_ORIGINAL' exactly as it always did.
-           - the precedent below is `format:chg.length?3:2` — this project already treats the number
-             as WHAT THE PAYLOAD CONTAINS, not which build wrote it. Measured against production,
+           - the precedent is `format:chg.length?3:2` in `backupToPayload` — this project already
+             treats the number as WHAT THE PAYLOAD CONTAINS, not which build wrote it.
+             ⚠️ THAT CITATION SAID "the precedent below" UNTIL 0e AND IT POINTED AT NOTHING. The
+             line below is a flat `format:3`; the conditional is ~190 lines away in ANOTHER
+             function, and `backupToPayload` is the WIRE format while this is the FILE format —
+             deliberately two different things. A reader who checked the citation found the flat 3
+             and concluded the RULE was wrong, when only the pointer was. The error propagated into
+             `CLAUDE.md`, which said "buildBackup's own", and was corrected there on 22 Aug 2026.
+             Found by a blind code auditor that had never seen this file.
+             Measured against production,
              0 of 76 dishes carry a null menu_id, so a Scoopy's export is byte-identical to a
              format-3 one. Calling it 3 is a true statement about the file.
          THE CASE THIS ACCEPTS, stated so nobody has to rediscover it: a café that somehow holds an
@@ -7460,6 +7515,23 @@ function buildBackup(){
          dish's null read back as 'MENU_ORIGINAL'. Nothing can create such a dish after this batch,
          and none exist. ⚠️ Format 4 is RESERVED by the backup-history queue item, which needs it for
          three real new groups; spending it on a field value would have taken it for nothing. */
+      /* 193 CONSIDERED BUMPING THIS AND DELIBERATELY DID NOT — the same call as 184 above, for the
+         same reason, and this note is the half 193 left out. Its handover said the note was written
+         and it was not, so the audit trail claimed a comment that did not exist; that is worse than
+         no note, because it reads as a checked decision. (Filed by AUDIT-v166, landed 0e.)
+         193 added `supplier_code` to every in-memory product. By the letter that is a change to what
+         bootstrapSync puts in memory. It is not a change to the FILE's format, on all four of the
+         carve-out's conditions:
+           - no group was added, removed or renamed;
+           - no key was removed or renamed and none changed type;
+           - the column is NULLABLE WITH NO DEFAULT, which is the condition that is not
+             belt-and-braces: `restore_backup` inserts `ingredients` with `select *`, and
+             `jsonb_populate_recordset` turns a key ABSENT from an old file into an explicit NULL
+             that OVERRIDES a column default rather than falling back to it. A defaulted column
+             would therefore be a format change even though nothing about the JSON shape says so;
+           - both directions were restored on staging and checked, not reasoned about.
+         So an old file restores clean and a new file restores into an old build clean, and bumping
+         would announce a compatibility break that did not happen. Format 4 stays reserved, as above. */
       format:3,                                                       // shape of this file, not the app
       app_version:APP_VERSION
     },
@@ -9153,14 +9225,24 @@ function invGstDetect(text){
    invoice arrives however the supplier printed it, and invGstDetect decides which. Before this
    existed the division was written out once, inline, on ONE of the four paths that can set a row's
    price - so the other three stored 10% high while the review screen printed the conversion note.
-   \u26a0\ufe0f ANY NEW PATH THAT SETS A ROW'S PRICE FROM INVOICE TEXT GOES THROUGH THIS. That is the whole
+   \u26a0\ufe0f ANY NEW PATH THAT SETS A PRICE FROM A SUPPLIER DOCUMENT GOES THROUGH THIS. That is the whole
    reason it is a named function rather than a `/1.1` repeated at each site: a repeated literal is
    how three of the four paths came to be missing it, and nothing could notice.
+   0e: "invoice text" was the wording here until the CATALOGUE IMPORTER turned out to be a fifth
+   path with the same defect and no invoice anywhere in it - a supplier's price list is priced
+   however the supplier printed it, exactly like an invoice, and the divisor is the same divisor.
+   \u26a0\ufe0f THE MODE ARGUMENT IS OPTIONAL AND THAT IS LOAD-BEARING, not a convenience. Omitted, this
+   reads the module-global `invGst` exactly as it always has, so every invoice call site is
+   unchanged - including the one inside the protected parser region, which may not be edited.
+   The importer passes its own mode explicitly BECAUSE it must not touch `invGst`: that global
+   belongs to whichever invoice was last opened, and a catalogue import borrowing it would take
+   its tax basis from an unrelated PDF. Pass the mode from any path that is not an invoice.
    \u26a0\ufe0f typeof BEFORE isFinite (CLAUDE.md): isFinite('') and isFinite(null) are both true, so a blank
    would sail through and fabricate a $0.00 price. Anything that is not a real number is returned
    UNCHANGED rather than coerced - a null price means "no price", and it must stay one. */
-function invGstAdjust(p){
-  if(invGst.mode!=='inc') return p;
+function invGstAdjust(p, mode){
+  var m=(mode===undefined) ? invGst.mode : mode;
+  if(m!=='inc') return p;
   if(typeof p!=='number' || !isFinite(p)) return p;
   return p/1.1;
 }

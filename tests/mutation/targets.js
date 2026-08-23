@@ -26,8 +26,15 @@ const targets = [
      is the diagnosis — "a function that is not a target has never been asked the question."
      invGstAdjust owns the only divisor in the app; buildInvRows is the ASSEMBLY, and the assembly
      is where the defect lived while every part of it was individually correct and individually
-     tested. Widening this to the rest of the pricing surface is QUEUE.md item 0c. */
-  { fn: 'invGstAdjust', tests: ['invoice-gst.test.js'] },
+     tested. Widening this to the rest of the pricing surface is QUEUE.md item 0c.
+     0e: TWO test files now, and the second is not decoration. invGstAdjust took an optional `mode`
+     when the catalogue importer turned out to be a fifth price path, and the two arms of that
+     argument are pinned in different files — the invoice suite pins the OMITTED arm (fall back to
+     the invGst global), the catalogue suite pins the EXPLICIT arm and, because it is extracted
+     with no such global in scope, pins that the importer never reaches for it. Listing one file
+     would leave whichever arm it does not cover unasked, which is this list's own stated failure
+     mode one level down. */
+  { fn: 'invGstAdjust', tests: ['invoice-gst.test.js', 'catalogue-import.test.js'] },
   /* Both extracted from inline code DURING this batch, and both are on this list for 195's reason:
      a function that is not a target has never been asked the question, and neither of these existed
      to be asked until the second review found the defects they now hold. invReResolve owns the
