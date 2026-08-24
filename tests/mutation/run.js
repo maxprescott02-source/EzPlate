@@ -73,8 +73,16 @@ function runTests(sandbox, testDir, files, timeoutMs) {
   const r = spawnSync(process.execPath, args, opts);
   /* A TIMED-OUT CHILD IS A THIRD OUTCOME AND spawnSync REPORTS IT AS status null, WHICH IS NOT 0.
      Reading only `status === 0` would therefore call it killed and move on, which is nearly right
-     and hides the interesting half. See the note at the call site. */
-  const timedOut = (r.status === null && r.signal != null) || (r.error && r.error.code === 'ETIMEDOUT');
+     and hides the interesting half. See the note at the call site.
+     ⚠️ KEYED ON ETIMEDOUT ALONE, and the first draft also accepted `status === null && signal != null`
+     — which is EVERY signal-killed child, not just one this function killed. Measured:
+       timeout      -> status null, signal SIGKILL, error.code ETIMEDOUT
+       self-SIGKILL -> status null, signal SIGKILL, error undefined
+     so the broad form reported an OOM kill, a native abort or a CI cancellation as a hang. Both
+     still count as killed, so nothing would have gone green that should not — it would have put the
+     wrong CAUSE in the report, which is how someone spends an afternoon looking for a loop that was
+     never there. Found by the pre-push review. */
+  const timedOut = !!(r.error && r.error.code === 'ETIMEDOUT');
   return { ok: r.status === 0, timedOut: !!timedOut, out: (r.stdout || '') + (r.stderr || '') };
 }
 
@@ -150,7 +158,18 @@ function mutationRun(cfg, log) {
   // file, every mutant reads as killed, and the gate reports a perfect score while checking nothing.
   const allTests = [...new Set(plan.flatMap((p) => p.target.tests))];
   const baselineStart = Date.now();
-  const baseline = runTests(sandbox, cfg.testDir, allTests);
+  /* ⚠️ THE BASELINE NEEDS ITS OWN BOUND AND CANNOT DERIVE ONE, which is the whole reason this is a
+     separate constant rather than a tidier reuse of mutantBudgetMs. The per-mutant limit is ten
+     times how long the baseline took — so it does not exist until the baseline has already returned,
+     and a baseline that never returns is exactly the case that needs bounding.
+     The first version of this fix bounded every mutant and left this call with no `timeoutMs` at
+     all, so a genuinely hanging TEST FILE (a real bug in the test, not a mutation) still wedged the
+     gate forever — the identical failure this whole change exists to remove, on the one path that
+     runs first every single time. Caught by the pre-push review, which reproduced it.
+     BASELINE_MS is absolute because there is nothing to scale it against. Measured: the union of all
+     31 declared test files runs in 4.3s, so three minutes is forty times headroom and still finite. */
+  const BASELINE_MS = cfg.baselineMs || 180000;
+  const baseline = runTests(sandbox, cfg.testDir, allTests, BASELINE_MS);
   /* ⚠️ THE PER-MUTANT TIME LIMIT, AND WHY THE GATE NEEDED ONE BEFORE IT COULD BE POINTED AT THE
      PRICING CODE AT ALL. spawnSync had no `timeout`, and `node --test` has no default timeout of its
      own — so a mutant that turns a loop condition into a non-terminating one hung the gate FOREVER.
@@ -163,7 +182,8 @@ function mutationRun(cfg, log) {
      where the baseline is too fast to measure. Anything slower than that is not slow, it is stuck. */
   const MUTANT_MS = cfg.mutantMs || mutantBudgetMs(Date.now() - baselineStart);
   if (baseline.timedOut) {
-    say(`MUTATION BASELINE TIMED OUT after ${MUTANT_MS}ms — the declared test files hang before any mutation. Gate cannot report.`);
+    say(`MUTATION BASELINE TIMED OUT after ${BASELINE_MS}ms — one of the declared test files hangs before any mutation `
+      + `was applied, so this is a bug in a TEST rather than a finding about the code. Gate cannot report. Files: ${allTests.join(', ')}`);
     return { ran: 0, killed: 0, survivors: [], allowed: [], timedOut: [], stale: [], baselineOk: false };
   }
   if (!baseline.ok) {

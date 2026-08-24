@@ -21,7 +21,7 @@ const assert = require('node:assert');
 const path = require('path');
 const fs = require('fs');
 const { codeMask, mutantsFor, apply } = require('./mutation/mutate');
-const { mutationRun, report, mutantBudgetMs } = require('./mutation/run');
+const { mutationRun, report, mutantBudgetMs, runTests } = require('./mutation/run');
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'mutation');
 
@@ -104,6 +104,61 @@ test('the per-mutant budget is derived from the baseline, and has a floor', () =
   assert.strictEqual(mutantBudgetMs(undefined), 5000, 'an unmeasurable baseline never yields 0 or NaN');
   assert.strictEqual(mutantBudgetMs(-1), 5000, 'nor does a clock that went backwards');
   assert.ok(mutantBudgetMs(0) > 0, 'ZERO IS THE DANGEROUS VALUE — spawnSync reads it as no timeout at all');
+});
+
+test('a BASELINE that hangs is bounded too, and says it is a test bug rather than a finding', () => {
+  /* ⚠️ THE FIRST DRAFT OF THE TIMEOUT FIX BOUNDED EVERY MUTANT AND LEFT THIS PATH UNBOUNDED, so a
+     genuinely hanging test file still wedged the gate forever — the identical failure the change
+     exists to remove, on the one run that happens first every single time. Caught by the pre-push
+     review, which reproduced it against the shipped function rather than reading it.
+     The baseline cannot derive its bound the way a mutant does: the per-mutant limit is ten times
+     how long the baseline TOOK, so it does not exist until the baseline has returned. Hence an
+     absolute one, and hence this test — the branch reading `baseline.timedOut` was unreachable. */
+  const lines = [];
+  const res = mutationRun({
+    root: FIXTURES, appRel: 'app.js', testDir: '.', sandboxName: 'fixture-hang',
+    targets: [{ fn: 'priceMoved', tests: ['hang.test.js'] }], allow: [], baselineMs: 700,
+  }, (m) => lines.push(m));
+
+  assert.strictEqual(res.baselineOk, false, 'a hanging baseline is not a baseline the gate may report from');
+  assert.strictEqual(res.ran, 0, 'and NOT ONE mutant may run against it — every verdict would be noise');
+  assert.match(lines.join('\n'), /BASELINE TIMED OUT/);
+  assert.match(lines.join('\n'), /bug in a TEST rather than a finding/,
+    'the message must say which kind of problem this is, or it reads as a finding about js/app.js');
+  assert.match(lines.join('\n'), /hang\.test\.js/, 'and name the files, so it can be acted on');
+});
+
+test('a crash is NOT reported as a hang — the two look alike and mean different things', () => {
+  /* Measured against Node rather than assumed:
+       timeout      -> status null, signal SIGKILL, error.code ETIMEDOUT
+       self-SIGKILL -> status null, signal SIGKILL, error undefined
+     The first draft accepted `status === null && signal != null`, which is EVERY signal-killed
+     child — an OOM kill, a native abort, a cancelled CI job. Both paths count as killed, so nothing
+     would have gone green that should not; it would have put the wrong CAUSE in the report and sent
+     someone looking for a loop that was never there. Caught by the pre-push review. */
+  const { spawnSync } = require('node:child_process');
+  const killed = spawnSync(process.execPath, ['-e', 'process.kill(process.pid,"SIGKILL")'],
+    { timeout: 10000, killSignal: 'SIGKILL', encoding: 'utf8' });
+  assert.strictEqual(killed.status, null, 'sanity: a signal-killed child has no exit status');
+  assert.ok(killed.signal != null, 'sanity: and it does carry a signal');
+  assert.strictEqual(killed.error, undefined,
+    'THE DISCRIMINATOR: only a real timeout carries an error, so the classifier must key on that');
+
+  const timedOut = spawnSync(process.execPath, ['-e', 'while(true){}'],
+    { timeout: 300, killSignal: 'SIGKILL', encoding: 'utf8' });
+  assert.strictEqual(timedOut.error && timedOut.error.code, 'ETIMEDOUT');
+
+  /* AND THE CLASSIFIER ITSELF, not just the platform behaviour underneath it. Asserting Node's
+     semantics alone left this reversible: putting the broad `status === null && signal != null` form
+     back kept every assertion above green, because none of them ran runTests. Found by mutating it. */
+  const crashed = runTests(FIXTURES, '.', ['crash.test.js'], 10000);
+  assert.strictEqual(crashed.ok, false, 'a crashing test file has not passed');
+  assert.strictEqual(crashed.timedOut, false,
+    'and it is an ORDINARY kill — reporting it as a hang sends someone hunting a loop that is not there');
+
+  const hung = runTests(FIXTURES, '.', ['hang.test.js'], 500);
+  assert.strictEqual(hung.ok, false);
+  assert.strictEqual(hung.timedOut, true, 'while a real hang must still be recognised as one');
 });
 
 test('the gate ran real mutants against a real baseline', () => {
