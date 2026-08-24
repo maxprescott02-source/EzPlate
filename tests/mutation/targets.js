@@ -200,6 +200,23 @@ const targets = [
   { fn: 'plateToRow', tests: ['row-boundary.test.js', 'restore.test.js'] },
   { fn: 'parseBackupFile', tests: ['restore.test.js'] },
   { fn: 'backupToPayload', tests: ['restore.test.js'] },
+
+  /* ── 0c: THE PRICING SURFACE. Four here, and the number is small ON PURPOSE — these are the ones
+     that were ALREADY at zero survivors the moment they were measured. Their test files were doing
+     the work all along; nothing had ever asked them the question.
+     The rest of the surface is measured, not guessed, and it is written down in `pending` at the
+     bottom of this file with a survivor count each. That is the honest state: this batch made the
+     gate able to be pointed at the numbers and pointed it at everything, then promoted what was
+     ready. Promoting the rest is test-writing, and a target promoted before its coverage exists
+     makes the gate exit 1 on main and block every push — which gets the gate disabled, the failure
+     mode this file has been avoiding since gemApplyReadings.
+     `cpbu` and `fmtTargetPct` are deliberately NOT here and never can be: both are one-expression
+     functions that yield ZERO mutants, so a target on them would report nothing at all rather than
+     nothing wrong. Same shape as the setProducts delegate above. */
+  { fn: 'packToUnitCost', tests: ['pricing.test.js', 'price-log-paths.test.js', 'catalogue-import.test.js'] },
+  { fn: 'unitToBaseFields', tests: ['ingredient-unit.test.js', 'price-log-paths.test.js'] },
+  { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js'] },
+  { fn: 'menuMarginPreview', tests: ['menu-margin.test.js'] },
 ];
 
 /*
@@ -314,8 +331,32 @@ const pending = [
      same way: promoting it now makes the gate exit 1 on main and block every push, and a gate
      nobody can satisfy gets disabled. Closing it is a test-writing batch — QUEUE.md item 0c, which
      owns widening this list across the whole pricing surface. */
-  { fn: 'buildInvRows', tests: ['invoice-gst.test.js'], survivors: 14, measured: '197' },
+  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js'], survivors: 12, measured: '201' },
   { fn: 'gemApplyReadings', tests: ['invoice-gate.test.js'], survivors: 44, measured: '180' },
+
+  /* ── 0c, batch 201: THE REST OF THE PRICING SURFACE, MEASURED RATHER THAN ASSERTED TO BE ABSENT.
+     The queue item said "not one target computes a price", which was true and is not a plan. Every
+     candidate it named was run through the gate; these are the counts. Nothing here is a guess.
+     Why they are not targets yet: promoting a function before its coverage exists makes the gate
+     exit 1 on `main` and block every push, and a gate nobody can satisfy gets disabled — the reason
+     gemApplyReadings has sat here since 180. What changed is that the debt is now SIZED, so the
+     batches that close it can be scoped instead of discovered.
+     Read these as a work queue in cost order: `invGstDetect` is one assertion, `costAtLines` two.
+     `applySupplierMemory` is the alarming one — 24 mutants, 24 survivors, ZERO killed, on a function
+     that re-derives a unit price from a remembered pack. Its declared test file mentions it and does
+     not exercise it.
+     `cpbu` and `fmtTargetPct` were candidates and are absent on purpose: both yield ZERO mutants
+     (one-expression functions), so a target on either reports nothing at all rather than nothing
+     wrong — the setProducts-delegate trap recorded above. */
+  { fn: 'invGstDetect', tests: ['invoice-gst.test.js'], survivors: 1, measured: '201' },
+  { fn: 'costAtLines', tests: ['dash-digin.test.js'], survivors: 2, measured: '201' },
+  { fn: 'unitCatCategory', tests: ['ingredient-unit.test.js', 'king-repoint.test.js', 'product-pack.test.js'], survivors: 4, measured: '201' },
+  { fn: 'derivePackPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js'], survivors: 5, measured: '201' },
+  { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'], survivors: 5, measured: '201' },
+  { fn: 'costFromLines', tests: ['kpi-strip.test.js', 'dash-digin.test.js', 'builder-page.test.js', 'publish-guard.test.js'], survivors: 5, measured: '201' },
+  { fn: 'resolveMatchedPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js', 'invoice-gst.test.js'], survivors: 24, measured: '201' },
+  { fn: 'applySupplierMemory', tests: ['invoice-gst.test.js', 'pack-survives.test.js'], survivors: 24, measured: '201' },
+  { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'], survivors: 39, measured: '201' },
 ];
 
 module.exports = { targets, allowedSurvivors, pending };

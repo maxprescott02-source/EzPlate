@@ -79,6 +79,13 @@ jobs:
   changes:
     name: what changed
     runs-on: ubuntu-latest
+    # A HANG IS NOT A FAILURE UNLESS SOMETHING BOUNDS IT. GitHub's default is 360 minutes, and
+    # `node --test` has no default timeout of its own, so before this an infinite loop in the
+    # suite or in the mutation gate burned six hours and looked like a slow run the whole time.
+    # The gate now bounds each mutant itself; this is the outer net for everything that is not
+    # a mutant. Only the playwright job had one. (Batch 201, which found the gate hanging on a
+    # non-terminating computeInsights mutant.)
+    timeout-minutes: 10
     outputs:
       browser: ${{ steps.decide.outputs.browser }}
     steps:
@@ -136,6 +143,19 @@ jobs:
   unit:
     name: unit tests
     runs-on: ubuntu-latest
+    # A HANG IS NOT A FAILURE UNLESS SOMETHING BOUNDS IT. GitHub's default is 360 minutes, and
+    # `node --test` has no default timeout of its own, so before this an infinite loop in the
+    # suite or in the mutation gate burned six hours and looked like a slow run the whole time.
+    # The gate now bounds each mutant itself; this is the outer net for everything that is not
+    # a mutant. Only the playwright job had one. (Batch 201, which found the gate hanging on a
+    # non-terminating computeInsights mutant.)
+    #
+    # ⚠️ TWENTY HERE, NOT TEN, AND THE NUMBER IS MEASURED. This job runs `npm run mutate` in full,
+    # which takes ~5 minutes on a warm laptop and more on a shared runner — the first draft of this
+    # bound was 10 and would have started failing green builds within a batch or two. The point of
+    # the bound is to catch a HANG, which is unbounded, not to be tight: twenty minutes is still
+    # eighteen times better than the six-hour default it replaces.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -168,6 +188,13 @@ jobs:
   smoke:
     name: smoke (jsdom)
     runs-on: ubuntu-latest
+    # A HANG IS NOT A FAILURE UNLESS SOMETHING BOUNDS IT. GitHub's default is 360 minutes, and
+    # `node --test` has no default timeout of its own, so before this an infinite loop in the
+    # suite or in the mutation gate burned six hours and looked like a slow run the whole time.
+    # The gate now bounds each mutant itself; this is the outer net for everything that is not
+    # a mutant. Only the playwright job had one. (Batch 201, which found the gate hanging on a
+    # non-terminating computeInsights mutant.)
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -409,3 +409,29 @@ test('the non-hermetic screenshots spec is still excluded, and the guard still f
   assert.match(JOB, /if \[ -z "\$SPECS" \]/, 'and an empty list must be refused rather than run');
   assert.match(JOB, /exit 1/, 'refused means a non-zero exit, not a warning');
 });
+
+/* ---------------------------------------------------------------------------
+   Batch 201 — every job is BOUNDED. A hang is not a failure unless something says so.
+   --------------------------------------------------------------------------- */
+
+test('every CI job carries a timeout-minutes — a hang must not run to the six-hour default', () => {
+  /* WHY THIS EXISTS. `node --test` has no default timeout, and until this batch the mutation gate's
+     spawnSync had none either — so a mutant that turned a loop into a non-terminating one hung with
+     no output at all. Locally that is indistinguishable from a slow run; in CI it is indistinguishable
+     from a stuck runner, and GitHub's default let it burn 360 minutes before saying anything.
+     Only the playwright job was bounded. This asserts the property for EVERY job rather than the
+     three that exist today, because the failure mode is a job added later by someone who never read
+     this — which is precisely how the gap arose in the first place. */
+  const jobs = [...YML.matchAll(/^ {2}([a-z][a-z0-9_-]*):\n((?: {4}.*\n|\n)*)/gm)]
+    .map(([, name, body]) => ({ name, body }))
+    .filter((j) => /^ {4}runs-on:/m.test(j.body));
+  assert.ok(jobs.length >= 4, `expected the four jobs, found ${jobs.length}: ${jobs.map((j) => j.name).join(', ')}`);
+  const unbounded = jobs.filter((j) => !/^ {4}timeout-minutes:\s*\d+/m.test(j.body)).map((j) => j.name);
+  assert.deepStrictEqual(unbounded, [],
+    'a job with no timeout-minutes runs to GitHub’s 360-minute default, and a hang there looks exactly like a slow build');
+  // And the bound has to be a real one. Zero or absurdly large puts the default straight back.
+  for (const j of jobs) {
+    const n = Number(/^ {4}timeout-minutes:\s*(\d+)/m.exec(j.body)[1]);
+    assert.ok(n >= 5 && n <= 60, `${j.name}: timeout-minutes must be a real bound, got ${n}`);
+  }
+});

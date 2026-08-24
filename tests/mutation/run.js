@@ -64,12 +64,29 @@ function buildSandbox(root, dest) {
  * there, and with it inherited every single mutant came back status 0 — a gate reporting a perfect
  * score while checking nothing. Caught by the gate's own self-test, which is what it is for.
  */
-function runTests(sandbox, testDir, files) {
+function runTests(sandbox, testDir, files, timeoutMs) {
   const args = ['--test'].concat(files.map((f) => path.join(testDir, f)));
   const env = Object.assign({}, process.env);
   delete env.NODE_TEST_CONTEXT;
-  const r = spawnSync(process.execPath, args, { cwd: sandbox, encoding: 'utf8', env });
-  return { ok: r.status === 0, out: (r.stdout || '') + (r.stderr || '') };
+  const opts = { cwd: sandbox, encoding: 'utf8', env };
+  if (timeoutMs) { opts.timeout = timeoutMs; opts.killSignal = 'SIGKILL'; }
+  const r = spawnSync(process.execPath, args, opts);
+  /* A TIMED-OUT CHILD IS A THIRD OUTCOME AND spawnSync REPORTS IT AS status null, WHICH IS NOT 0.
+     Reading only `status === 0` would therefore call it killed and move on, which is nearly right
+     and hides the interesting half. See the note at the call site. */
+  const timedOut = (r.status === null && r.signal != null) || (r.error && r.error.code === 'ETIMEDOUT');
+  return { ok: r.status === 0, timedOut: !!timedOut, out: (r.stdout || '') + (r.stderr || '') };
+}
+
+/* HOW LONG ONE MUTANT MAY TAKE BEFORE IT IS CALLED STUCK. Extracted so it can be pinned without a
+   test having to sit through it: the self-test passes `mutantMs` explicitly to stay fast, which
+   means the derived path would otherwise be exercised by nothing and could be broken to 0 — putting
+   the hang back on every real run — with the whole suite still green. Found by mutating it.
+   Ten times the baseline, so it cannot rot as the suite grows, floored at five seconds for the case
+   where the baseline is too fast to measure. Anything slower than that is not slow, it is stuck. */
+function mutantBudgetMs(baselineMs) {
+  const n = Number(baselineMs);
+  return Math.max(5000, (isFinite(n) && n > 0 ? n : 0) * 10);
 }
 
 /** Files changed against origin/main, committed and not. Empty array if git cannot answer. */
@@ -132,17 +149,34 @@ function mutationRun(cfg, log) {
   // BASELINE. Without this the gate is vacuous in the worst way: a broken sandbox fails every test
   // file, every mutant reads as killed, and the gate reports a perfect score while checking nothing.
   const allTests = [...new Set(plan.flatMap((p) => p.target.tests))];
+  const baselineStart = Date.now();
   const baseline = runTests(sandbox, cfg.testDir, allTests);
+  /* ⚠️ THE PER-MUTANT TIME LIMIT, AND WHY THE GATE NEEDED ONE BEFORE IT COULD BE POINTED AT THE
+     PRICING CODE AT ALL. spawnSync had no `timeout`, and `node --test` has no default timeout of its
+     own — so a mutant that turns a loop condition into a non-terminating one hung the gate FOREVER.
+     Not red, not green: no output at all, indistinguishable from a slow run, and in CI
+     indistinguishable from a stuck runner. That is CLAUDE.md's 195 lesson arriving inside the tool
+     written to enforce it. Measured, not reasoned: `computeInsights` (118 mutants, 156 lines, its two
+     test files running in 0.15s clean) ran past TEN MINUTES and produced nothing.
+     The bound is derived from the baseline rather than hardcoded, so it cannot rot as the suite
+     grows: ten times what all of these files take together, floored at five seconds for the case
+     where the baseline is too fast to measure. Anything slower than that is not slow, it is stuck. */
+  const MUTANT_MS = cfg.mutantMs || mutantBudgetMs(Date.now() - baselineStart);
+  if (baseline.timedOut) {
+    say(`MUTATION BASELINE TIMED OUT after ${MUTANT_MS}ms — the declared test files hang before any mutation. Gate cannot report.`);
+    return { ran: 0, killed: 0, survivors: [], allowed: [], timedOut: [], stale: [], baselineOk: false };
+  }
   if (!baseline.ok) {
     say('MUTATION BASELINE RED — the declared test files fail before any mutation. Gate cannot report.');
     say(baseline.out.split('\n').slice(-25).join('\n'));
-    return { ran: 0, killed: 0, survivors: [], allowed: [], stale: [], baselineOk: false };
+    return { ran: 0, killed: 0, survivors: [], allowed: [], timedOut: [], stale: [], baselineOk: false };
   }
 
   const allowByKey = new Map((cfg.allow || []).map((a) => [a.key, a]));
   const seenAllowed = new Set();
   const survivors = [];
   const allowed = [];
+  const timedOut = [];
   let ran = 0, killed = 0;
   const started = Date.now();
 
@@ -160,7 +194,7 @@ function mutationRun(cfg, log) {
         throw new Error(`mutation: the sandbox copy of ${cfg.appRel} does not hold the mutant (${m.key}). `
           + 'Refusing to report a verdict from an unmutated file.');
       }
-      const r = runTests(sandbox, cfg.testDir, p.target.tests);
+      const r = runTests(sandbox, cfg.testDir, p.target.tests, MUTANT_MS);
       ran++;
       const rec = {
         key: m.key,
@@ -172,7 +206,16 @@ function mutationRun(cfg, log) {
         line: m.line,
         tests: p.target.tests,
       };
-      if (r.ok) {
+      if (r.timedOut) {
+        /* KILLED, and listed separately rather than folded in. The mutant WAS detected — the suite
+           did not pass — so calling it a survivor would send someone to write a test for a defect
+           that is already caught, which is the worst thing this tool can do. But it was detected by
+           hanging, and a test file that hangs instead of failing is its own finding: in CI that is a
+           stuck job, not a red one. Naming these keeps both facts. */
+        killed++;
+        timedOut.push(rec);
+        if (allowByKey.has(m.key)) seenAllowed.add(m.key);
+      } else if (r.ok) {
         const a = allowByKey.get(m.key);
         if (a) { seenAllowed.add(m.key); allowed.push(Object.assign({ reason: a.reason }, rec)); }
         else survivors.push(rec);
@@ -190,7 +233,7 @@ function mutationRun(cfg, log) {
     return allowed.every((x) => x.key !== a.key);           // it exists and is now killed
   });
 
-  return { ran, killed, survivors, allowed, stale, baselineOk: true, ms: Date.now() - started };
+  return { ran, killed, survivors, allowed, timedOut, stale, mutantMs: MUTANT_MS, baselineOk: true, ms: Date.now() - started };
   } finally {
     /* The run owns this directory, and it is removed on EVERY exit — the normal one, the red-baseline
        early return, and the readback-mismatch throw. The early return is the one that was leaking:
@@ -202,8 +245,15 @@ function mutationRun(cfg, log) {
 function report(res, say) {
   if (!res.baselineOk) return 1;
   if (!res.ran) { say('mutation gate: nothing in scope — no targeted function or its tests changed.'); return 0; }
+  const to = (res.timedOut || []).length;
   say(`mutation gate: ${res.ran} mutants, ${res.killed} killed, ${res.survivors.length + res.allowed.length} survived `
-    + `(${res.allowed.length} with a written allowance) in ${(res.ms / 1000).toFixed(1)}s`);
+    + `(${res.allowed.length} with a written allowance)${to ? `, ${to} killed BY TIMEOUT` : ''} in ${(res.ms / 1000).toFixed(1)}s`);
+  /* Named, never silent. These are counted as killed and they are not ordinary kills: the mutant made
+     the declared tests HANG rather than fail, which in CI is a stuck job rather than a red one.
+     Folding them into the tally would hide that those files have no timeout of their own. */
+  for (const t of (res.timedOut || [])) {
+    say(`  TIMED OUT (counted as killed)  ${t.fn}  js/app.js:${t.srcLine}   ${t.op}: ${t.from} -> ${t.to}`);
+  }
   for (const s of res.survivors) {
     say('');
     say(`  SURVIVED  ${s.fn}  js/app.js:${s.srcLine}`);
@@ -263,4 +313,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { mutationRun, report, buildSandbox, runTests };
+module.exports = { mutationRun, report, buildSandbox, runTests, mutantBudgetMs };

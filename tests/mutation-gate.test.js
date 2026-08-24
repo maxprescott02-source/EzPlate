@@ -21,7 +21,7 @@ const assert = require('node:assert');
 const path = require('path');
 const fs = require('fs');
 const { codeMask, mutantsFor, apply } = require('./mutation/mutate');
-const { mutationRun } = require('./mutation/run');
+const { mutationRun, report, mutantBudgetMs } = require('./mutation/run');
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'mutation');
 
@@ -41,8 +41,78 @@ const res = mutationRun({
   allow: [],
 }, () => {});                                    // silent: this is a test, not a report
 
+/* A SEPARATE RUN, because these mutants do not fail — they HANG, and the whole question is what the
+   gate does about that. `mutantMs` is passed explicitly so the self-test costs ~1s instead of the
+   ~10s the derived bound would spend waiting; the derived bound itself is exercised by every real
+   run of the gate. */
+const loopRes = mutationRun({
+  root: FIXTURES,
+  appRel: 'app.js',
+  testDir: '.',
+  sandboxName: 'fixture-loop',
+  targets: [{ fn: 'countDown', tests: ['loop.test.js'] }],
+  allow: [],
+  mutantMs: 500,
+}, () => {});
+
+test('a mutant that NEVER TERMINATES is caught, not waited on forever', () => {
+  /* ⚠️ THE GATE HUNG BEFORE THIS. spawnSync had no `timeout` and `node --test` has no default one,
+     so a mutant that turned a loop into a non-terminating one produced no red, no green and no
+     output at all — indistinguishable from a slow run locally and from a stuck runner in CI.
+     Measured on the real code, which is how it was found: `computeInsights` has exactly one such
+     mutant and the gate ran past TEN MINUTES on it. With the bound it finishes in 19 seconds.
+     Both of countDown's mutants hang, and that is not a contrivance — `left > 0` -> `left >= 0`
+     leaves the loop spinning at zero, and `left >= 1` -> `left > 1` leaves it stuck at one. Two
+     ordinary relational flips out of the gate's own operator set.
+
+     ⚠️ WHAT THIS TEST CANNOT DO, STATED RATHER THAN LEFT TO BE DISCOVERED. Deleting the `timeout`
+     from spawnSync does NOT turn this red: it makes the whole file HANG, because mutationRun is
+     synchronous and node:test's own `{timeout}` cannot interrupt a synchronous child wait. Measured,
+     not assumed — the mutation was run and killed at sixty seconds by an outside bound.
+     So this test proves the CLASSIFICATION (a hang is a timeout, a timeout is a kill, and it is
+     named) and it does not and cannot prove the PLUMBING. The net for the plumbing is outside the
+     suite: every CI job now carries `timeout-minutes`, which it did not before this batch — only
+     the playwright job did, so a hang in `unit` ran to GitHub's six-hour default. Three tests below
+     pin the budget itself, including the call site, which is the part that can be broken quietly. */
+  assert.strictEqual(loopRes.baselineOk, true, 'the fixture must pass clean, or this proves nothing');
+  assert.strictEqual(loopRes.ran, 2, 'countDown yields exactly two mutants and both hang');
+  assert.strictEqual(loopRes.timedOut.length, 2, 'both must be REPORTED as timeouts, by name');
+  assert.deepStrictEqual(loopRes.survivors, [],
+    'a hang is NOT a survivor — calling it one sends someone to write a test for a defect already caught');
+  assert.strictEqual(loopRes.killed, 2, 'and it is counted as killed, because the suite did not pass');
+});
+
+test('the timeout is reported separately, so it can never be read as an ordinary kill', () => {
+  // A test file that HANGS instead of failing is its own finding: in CI that is a stuck job, not a
+  // red one. Folding these into the tally would hide that those files have no timeout of their own.
+  const lines = [];
+  const code = report(loopRes, (m) => lines.push(m));
+  const text = lines.join('\n');
+  assert.strictEqual(code, 0, 'every mutant was killed, so the gate must exit 0 — a hang is not a failure to report');
+  assert.match(text, /killed BY TIMEOUT/, 'the summary line must say so');
+  assert.match(text, /TIMED OUT \(counted as killed\)\s+countDown/, 'and each one must be named');
+});
+
+test('the per-mutant budget is derived from the baseline, and has a floor', () => {
+  /* PINNED SEPARATELY BECAUSE THE RUNS ABOVE PASS `mutantMs` EXPLICITLY TO STAY FAST, so the derived
+     path they do not take was covered by nothing. Mutating `Math.max(5000, ...)` to `0` left the
+     whole suite green while putting the hang back on every real run of the gate — the exact shape
+     this repo keeps paying for: a guard whose test never reaches it. */
+  assert.strictEqual(mutantBudgetMs(0), 5000, 'a baseline too fast to measure still gets the floor');
+  assert.strictEqual(mutantBudgetMs(100), 5000, 'the floor wins while ten times the baseline is under it');
+  assert.strictEqual(mutantBudgetMs(2000), 20000, 'above the floor it scales with the suite, so it cannot rot');
+  assert.strictEqual(mutantBudgetMs(undefined), 5000, 'an unmeasurable baseline never yields 0 or NaN');
+  assert.strictEqual(mutantBudgetMs(-1), 5000, 'nor does a clock that went backwards');
+  assert.ok(mutantBudgetMs(0) > 0, 'ZERO IS THE DANGEROUS VALUE — spawnSync reads it as no timeout at all');
+});
+
 test('the gate ran real mutants against a real baseline', () => {
   assert.strictEqual(res.baselineOk, true, 'a red baseline would make every mutant read as killed');
+  /* THE CALL SITE, not just the function. This run passes no `mutantMs`, so it takes the derived
+     branch — and asserting the resolved value is what stops someone replacing that call with 0.
+     spawnSync reads 0 as NO TIMEOUT AT ALL, so that one character puts the hang back everywhere
+     while every other test in this file, which passes its bound explicitly, stays green. */
+  assert.ok(res.mutantMs >= 5000, `the derived per-mutant bound must be real, got ${res.mutantMs}`);
   assert.ok(res.ran >= 10, `the fixture should yield a double-figure mutant count, got ${res.ran}`);
 });
 
