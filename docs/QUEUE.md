@@ -31,17 +31,42 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0c · Point the mutation gate at the numbers  **[A — Max's override, 22 Aug 2026]**
+## next  0c · Close the measured mutation debt on the pricing surface  **[A — Max's override, 22 Aug 2026]**
 
 ⚠️ **This is process work and this file's own header says process work does not belong here. Max put it here anyway, in writing, on 22 Aug 2026**, after the audit showed the alternative track had completed zero items in fifteen batches. **It is the second time that rule has been overridden and the first was the mutation gate itself** — same reasoning, same person, and it is not precedent for anything else.
 
-`tests/mutation/targets.js` holds **52 targets against 609 top-level functions**, and **not one of them computes a price, a cost, a food-cost percentage, a trend point or an insight.** *(49 when this was written; batch 200 added `invPriceUnit`, `invUnitRebase` and `invPackUnitOpts` — the 0b unit guard, which decides whether a price is written at all but computes none. The claim below is unchanged and every function it names still returns zero hits.)* Verified: `analyze`, `menuMarginPreview`, `costAtLines`, `fmtTargetPct`, `computeInsights`, `costFromLines`, `cpbu`, `packToUnitCost`, `buildInvRows`, `resolveMatchedPrice`, `derivePackPrice`, `packPriceOf`, `applySupplierMemory`, `invGstDetect` — **zero hits each.**
+✅ **PART ONE SHIPPED IN BATCH 201 (`ezplate-v170`) AND THIS ITEM IS THE REMAINDER, RE-STATED FROM MEASUREMENT RATHER THAN FROM THE ORIGINAL GUESS.** What landed: the gate can now be pointed at this code at all (it could not before — see below); four pricing functions are targets at zero survivors (`packToUnitCost`, `unitToBaseFields`, `packPriceOf`, `menuMarginPreview`); `tests/inv-chain.test.js` exercises `buildInvRows` end to end in eleven cases, which was the item's stated deliverable; and every remaining candidate was RUN through the gate, so the debt below is counted rather than estimated.
 
-The list's own stated rule is *"any function whose correctness is load-bearing and whose test file you would be uneasy to see deleted"*, and its own line is *"a function that is not a target has never been asked the question."* Item 0 is the answer to that question going unasked: `grep -rn 'invGstDetect\|buildInvRows' tests/` returns **one hit, and it is a comment.**
+⚠️ **THE BLOCKER NOBODY HAD HIT, because nobody had pointed the gate here: `spawnSync` had no timeout and `node --test` has no default one, so a mutant that turns a loop into a non-terminating one hung the gate forever** — no red, no green, no output. `computeInsights` has exactly one and the gate ran past ten minutes on it. Fixed in 201 with a baseline-derived per-mutant bound; a timeout is counted as a kill and named separately. **Do not attempt any of the below on a gate without that bound.**
 
-**The structural finding underneath it, and the reason this is A rather than C:** this suite tests one pure function at a time and the defects are living in the seams. `derivePackPrice` is correct. `resolveMatchedPrice` is correct. `invGstDetect` is correct. The wrong number comes from the twenty lines that call them in order, and nothing runs those twenty lines. **A composition test is the deliverable here, not just a longer target list.**
+**THE DEBT, MEASURED 23 Aug 2026, and it lives in `tests/mutation/targets.js`'s `pending` list with a count on every line.** Work it in cost order; each promotion is "kill the survivors, move the line up".
 
-Requirements: the pricing and invoice-chain functions are targets; at least one test exercises `buildInvRows` end to end; and `gemApplyReadings` — `pending` with **44 measured survivors since batch 180, still pending at 195** — gets its coverage batch scheduled rather than deferred a sixteenth time.
+| function | survivors | note |
+|---|---|---|
+| `invGstDetect` | 1 | one assertion |
+| `costAtLines` | 2 | |
+| `unitCatCategory` | 4 | |
+| `derivePackPrice` | 5 | |
+| `analyze` | 5 | the food-cost percentage |
+| `costFromLines` | 5 | the plate cost itself |
+| `buildInvRows` | 12 | was 14; `inv-chain.test.js` took two. The rest are coverage-threshold boundaries needing exact-coverage fixtures |
+| `resolveMatchedPrice` | 24 | |
+| `applySupplierMemory` | 24 | **24 mutants, ZERO killed.** Its declared test file mentions it and never exercises it |
+| `computeInsights` | 39 | plus the one that hangs |
+
+**`cpbu` and `fmtTargetPct` are struck from the original list and can never be targets:** both are one-expression functions yielding ZERO mutants, so a target on either reports nothing at all rather than nothing wrong. Same trap as the `setProducts` delegate.
+
+Requirements: every line above reaches zero survivors and moves from `pending` into `targets`. **Split it — 165 survivors is not one PR**, and the table is in cost order so a batch can take a contiguous slice and say where it stopped.
+
+## next  0c2 · `gemApplyReadings` has 44 surviving mutants and needs its own coverage batch  **[A — scheduled, not deferred]**
+
+**This item exists because 0c's third requirement was that this be SCHEDULED rather than deferred a sixteenth time**, and a line inside another item is what let it be deferred fifteen times. It is now a thing that can reach the top of this file on its own.
+
+`gemApplyReadings` is the invoice referee's merge orchestrator — it decides which of the AI's readings are allowed to change a row a human is about to confirm. **44 of its 56 mutants survive** `tests/invoice-gate.test.js`, which pins exactly one property of it: that a row the user has already ruled on is skipped. Measured at batch 180, unchanged at 195, re-confirmed at 201.
+
+It is held out of `targets` for the reason written at its own site: promoting it before the coverage exists makes the gate exit 1 on `main` and block every push, and **a gate nobody can satisfy gets disabled**, which costs more than one missing target.
+
+Requirements: the survivors are killed or carry written allowances, and the line moves from `pending` into `targets`. Expect this to be mostly test-writing against canned Gemini payloads — `tests/inv-gemini-merge.test.js` and `tests/inv-gemini-match.test.js` already have the fixtures shape.
 
 ## next  0d · The mandatory pre-push review leaves no artifact anywhere  **[A — Max's override, 22 Aug 2026]**
 

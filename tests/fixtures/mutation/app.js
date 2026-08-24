@@ -17,4 +17,22 @@ function priceMoved(prev, next) {
   return true;
 }
 
-module.exports = { priceMoved };
+/* A LOOP WHOSE PROGRESS IS GUARDED, and it is here for one reason: to prove the gate survives a
+   mutant that never terminates. `left >= 1` is the step's own guard, and flipping it to `left > 1`
+   leaves `left` stuck at 1 while `left > 0` stays true — a loop with no exit, produced by an
+   ordinary relational flip from the gate's own operator set rather than by a special case written
+   to be caught.
+   Why this matters: `node --test` has no default timeout and the gate's spawnSync had none either,
+   so one such mutant hung the gate FOREVER — no red, no green, no output, and in CI
+   indistinguishable from a stuck runner. Measured on the real thing before this fixture existed:
+   `computeInsights` has exactly one of these (`&&` -> `||`) and ran past ten minutes. */
+function countDown(n) {
+  var left = n, steps = 0;
+  while (left > 0) {
+    if (left >= 1) left = left - 1;
+    steps = steps + 1;
+  }
+  return steps;
+}
+
+module.exports = { priceMoved, countDown };
