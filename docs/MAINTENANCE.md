@@ -216,7 +216,7 @@ Requirements: add them one or two at a time, triage every survivor in the same c
 
 ### The mutation gate's full run is minutes, not seconds, and it grows with every target
 Filed 24 Aug 2026 by batch 202, which added ten targets and watched the number move.
-**Measured on this laptop: 306s at 54 targets (batch 201, on unmodified `main`), 801s at 64 targets (batch 202).** CI is faster — the `unit` job came back at 3m15s — so this is not urgent, and the job's `timeout-minutes: 20` has headroom either way.
+**Measured on this laptop: 306s at 54 targets, 801s at 64.** The first reading was taken during batch 201 against `main` as it stood *before* that batch merged; 201 then promoted four, so `main` was at 58 between the two readings. *(The entry first said "54 targets, on unmodified `main`", which was true when measured and false by the time it was written down — caught by the pre-push review, and a small demonstration of the rot this entry is warning about.)* CI is faster — the `unit` job came back at 3m15s — so this is not urgent, and the job's `timeout-minutes: 20` has headroom either way.
 
 **Why it is worth recording rather than acting on.** `docs/QUEUE.md` item 0c still has 143 survivors across four functions, and closing them means four more targets on a list whose cost is roughly linear. The pre-push hook runs `mutate:changed` and is unaffected; it is CI's unconditional full run that carries this.
 The obvious lever is that the gate re-runs a target's whole declared test-file set for every single mutant, so a target with four declared files pays four times over. Nothing here needs it yet — write it down, watch the number in each 0c batch, and act if a CI job starts approaching its bound.

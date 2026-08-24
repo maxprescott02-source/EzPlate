@@ -103,10 +103,25 @@ test('0c: no lines at all is zero, whatever shape "no lines" arrives in', () => 
   assert.equal(costFromLines(undefined), 0);
 });
 
-test('0c: a fractional quantity is not rounded — stored costs stay exact', () => {
-  // CLAUDE.md: currency DISPLAYS round to the cent; stored costs stay exact. This function feeds the
-  // stored side, so a tidy-looking rounding here would be a money bug wearing a formatting hat.
+test('0c: a sub-cent plate cost is NOT rounded — stored costs stay exact', () => {
+  /* CLAUDE.md: currency DISPLAYS round to the cent; stored costs stay exact. This function feeds the
+     stored side, so a tidy-looking rounding here would be a money bug wearing a formatting hat.
+
+     ⚠️ THE FIRST DRAFT OF THIS TEST COULD NOT FAIL, and the fixtures are chosen the way they are
+     because of it. It asserted 12.5 x $0.08 = 1 and 33 x $0.01 = 0.33 — and BOTH are unchanged by
+     rounding to the cent, so `Math.round(c*100)/100` around the return value left it green. A test
+     named for a rule, unable to see the rule broken. Caught by the pre-push review, which injected
+     exactly that regression rather than reading the code.
+     A fixture only proves this if the exact answer has a THIRD decimal place: 2.5g of potato at
+     $0.01/g is $0.025, which cent-rounding turns into $0.03. Sub-cent line costs are ordinary here —
+     a gram of anything cheap is one — so this is the real case, not a contrived one. */
+  const exact = costFromLines([{ pid: 2, qty: 2.5 }]);
+  assert.equal(exact, 0.025, 'two and a half cents, not three');
+  assert.notEqual(exact, Math.round(exact * 100) / 100,
+    'sanity: this fixture MUST be one that cent-rounding would change, or the test proves nothing');
+
+  // Several sub-cent lines must not each be rounded on the way in either.
+  assert.equal(costFromLines([{ pid: 2, qty: 2.5 }, { pid: 2, qty: 2.5 }]), 0.05);
+  // And an ordinary whole-cent case still comes out clean rather than carrying float dust.
   assert.equal(costFromLines([{ pid: 1, qty: 12.5 }]), 1);
-  const odd = costFromLines([{ pid: 2, qty: 33 }]);
-  assert.ok(Math.abs(odd - 0.33) < 1e-12, `expected exactly 33*0.01, got ${odd}`);
 });
