@@ -392,10 +392,23 @@ Routed by AUDIT-v166 (check 3 of the three batch 193 asked for). **The recommend
 Requirements: two assertions in `tests/unique-ids.test.js`, beside the existing scope guard that already pins the INVERSE (that the semantic keys stay content-derived *because* they are tenant-scoped) — (a) every product-id mint in `js/app.js` goes through `uid(`, which today is `uid('CX')` and `uid('IMP')` and nothing else; (b) `supabase/staging/01-schema.sql`'s `ingredients` table still reads `id text primary key`, so the day someone widens it the guard is re-judged rather than silently satisfied. **Put the reason in the failure message and name the migration file**, so a red test hands the next batch the document instead of hoping they find it.
 Note this ships no client asset but does change what runs, so it takes the mandatory review and no cache bump.
 
-### The two skill directories are byte-identical copies and nothing keeps them that way
-Routed by AUDIT-v166 (S10). `skills/{batch,cache-version,decide,handover,verify}/SKILL.md` are tracked; `.claude/skills/` is **gitignored** and holds identical copies — and **the gitignored copy is the one that actually loads.** So an edit to the loaded copy is invisible to git, to CI and to the mandatory review.
-Verified identical on 15 Aug 2026, which is why this is C and not higher. It is recorded because AUDIT-v156's fix to the `batch` skill had to be applied to both copies by hand and nothing would have caught it landing in only one.
-Requirements: symlink `.claude/skills/<name>` at each tracked skill, **or** three lines in an existing test asserting the pairs match. The symlink is cheaper and cannot go stale; the test is the better failure message. Either closes it.
+### ~~The two skill directories are byte-identical copies and nothing keeps them that way~~ — **THE PREMISE WAS FALSE. Measured 24 Aug 2026, batch 203.**
+✅ **They are not copies. Every entry in `.claude/skills/` is a SYMLINK into the tracked `skills/` directory, and has been since 8 Aug 2026 — a week before this item was written.**
+```
+.claude/skills/batch         -> ../../skills/batch
+.claude/skills/cache-version -> ../../skills/cache-version
+.claude/skills/decide        -> ../../skills/decide
+.claude/skills/handover      -> ../../skills/handover
+.claude/skills/verify        -> ../../skills/verify
+```
+`stat` gives the same inode for both paths. There is ONE file, so the loaded copy IS the tracked copy, an edit to it is visible to git and to the review, and there is nothing that can drift. **The item's own stated fix — *"symlink `.claude/skills/<name>` at each tracked skill"* — was already in place when the item asked for it.**
+
+⚠️ **HOW A CORRECT OBSERVATION BECAME A WRONG ITEM, because this is the transferable part.** The audit verified the two paths were **identical** and concluded they were **copies kept in sync by hand**. Identical is exactly what the same file looks like. The check could not distinguish "two files that happen to match" from "one file seen twice", and the conclusion assumed the first.
+That is `CLAUDE.md`'s standing rule arriving again: **a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** `diff` answers "do these bytes match"; it does not answer "are these two files", and `ls -l` or `stat` was one command away.
+*(The gitignore half of the claim is true and harmless: `.gitignore:8` does list `.claude/skills/`, which is why `git check-ignore` on a path inside it reports "beyond a symbolic link" rather than a plain answer. Ignoring a directory of symlinks to tracked files ignores nothing.)*
+
+**The `.DS_Store` in `skills/` is the only real difference `diff -rq` reports between the trees, and it is noise.**
+
 Note the related-but-different item further down — three OTHER skills (`new-branch`, `investigate`, `test-flows`) live in `~/.claude/skills/` with no repo copy at all. That one is not fixed by a symlink and is the more serious of the two.
 
 ### Two importer threads 193 found, considered, and left in a write-once handover

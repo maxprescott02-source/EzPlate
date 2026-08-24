@@ -95,10 +95,19 @@ When one of his comes up:
 
 **The blocked items ARE the pending decisions list** - there is no second place to keep it, and nothing to remember between sessions.
 
-Run the `decide` skill when either is true:
+Run the `decide` skill when any of these is true:
 
-- **Three or more items are blocked on a decision.** (A migration does not count and does not block - you write and apply it. Only a DESTRUCTIVE one needs Max, and that is a stop condition, not a decision file.)
+- **A VISUAL decision is blocked. One is enough - do not wait for a second.** (Max, 23 Aug 2026, who found the hole: *"this sounds like i need to invoke decide"*.)
+- **Three or more items are blocked on a NON-visual decision.** (A migration does not count and does not block - you write and apply it. Only a DESTRUCTIVE one needs Max, and that is a stop condition, not a decision file.)
 - **The queue has nothing unblocked left**, whatever the count. One pending decision holding up everything is worth a file of one.
+
+⚠️ **WHY VISUAL GOT ITS OWN THRESHOLD, because the old rule looked fine and was not.** The three-item threshold was written when every decision was PROSE, and it is right about prose: a drip of written questions trains him to skim, and `decide` says five is already the point where a file stops being a task. **`decide` learned to RENDER later, and nothing went back and re-asked whether the batching threshold still fit.**
+
+It does not, and the failure is quiet rather than loud. **One visual decision is not surfaced anywhere** - step 1 above writes it into a `Blocked on:` line and step 2 says *don't ask him now*, correctly - so it sits in `docs/QUEUE.md` waiting for two more of its kind to turn up. **Nothing is rendered, nothing reaches chat, and the item is simply not worked on.** From outside it is indistinguishable from an item nobody has got to yet.
+
+**The two costs are not symmetric, which is the whole argument.** A prose decision is expensive for him to answer and cheap to defer. A rendered one is the opposite: he looks at three pictures and replies `1B`, and what it defers is usually a screen, which is the work this phase is made of. **Batching exists to protect his attention, and a rendered decision barely spends any.**
+
+**A decision file of one is not a failure of batching.** The bullet below it already says so for a different reason.
 
 Then tell Max the file is ready and give its path, and carry on if there is anything left to work on.
 
