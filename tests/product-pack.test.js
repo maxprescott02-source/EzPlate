@@ -45,6 +45,62 @@ test('kg pack: $65 pack / 10 kg -> $6.50/kg', () => {
   near(d.unitPrice, 6.50, 'per kg');
 });
 
+/* ---------------------------------------------------------------------------
+ * 0c: five surviving mutants lived in derivePackPrice, and every one of them was in a branch
+ * no test had ever taken. The cases above cover 'ea' and 'kg' only.
+ * ------------------------------------------------------------------------- */
+
+const OIL = 'Canola Oil 20L 1 44.00 44.00';
+
+test('0c: the VOLUME arm — litres and millilitres both resolve, and both to per-LITRE', () => {
+  /* Two mutants here and they fail differently, which is why the unit is asserted as hard as the
+     price. Breaking the `||` chain drops 'l' out of the volume arm and into the count fallback,
+     where 44/20 is STILL 2.2 — the right number wearing the wrong unit, which downstream writes
+     base_unit 'ea' onto a product sold by the litre. Breaking the `u==='l'?1:0.001` ternary keeps
+     the unit and multiplies the price by a thousand. Only asserting both catches both. */
+  const l = derivePackPrice(OIL, 20, 'l');
+  assert.equal(l.unit, 'l', 'a litre pack is a VOLUME, not a count that happens to divide the same');
+  near(l.unitPrice, 2.20, 'per litre');
+
+  const ml = derivePackPrice(OIL, 20000, 'ml');
+  assert.equal(ml.unit, 'l', 'millilitres normalise UP to litres — the app stores per-ml but prices per-L');
+  near(ml.unitPrice, 2.20, 'the same pack said two ways must cost the same');
+});
+
+test('0c: a pack size of zero is refused, and zero is the boundary the guard names', () => {
+  // `if(!(qty>0)) return null` — flipping `>` to `>=` accepts a zero pack, and 44/0 is Infinity,
+  // which then gets written onto a product as its cost per unit. Nothing downstream re-checks it.
+  assert.equal(derivePackPrice(OIL, 0, 'l'), null, 'zero is refused');
+  assert.equal(derivePackPrice(OIL, -1, 'l'), null, 'and so is negative');
+  assert.ok(derivePackPrice(OIL, 0.5, 'l'), 'but a fractional pack is legitimate — half a litre is a pack');
+});
+
+test('0c: a FREE line prices at zero rather than being thrown away', () => {
+  /* `if(!isFinite(unitPrice)||unitPrice<0) return null` — flipping `<` to `<=` discards any line
+     that costs nothing. Suppliers really do send $0.00 lines (samples, credits, freight already
+     billed), and refusing them is not neutral: resolveMatchedPrice then falls through to the parser
+     or to manual, so the row asks the user to type a price for something that is free. */
+  const free = derivePackPrice('Free Sample 1EA 1 0.00 0.00', 1, 'ea');
+  assert.ok(free, 'a zero price is a price');
+  assert.equal(free.unitPrice, 0);
+  assert.equal(free.unit, 'ea');
+});
+
+test('0c: a non-finite result is refused — the ONLY input that reaches that guard', () => {
+  /* `!isFinite(unitPrice) || unitPrice<0` with the `||` flipped to `&&` requires BOTH, so Infinity
+     sails through and becomes a product's cost per unit.
+     The input is exotic and that is the point: qty is already guaranteed > 0, so the denominator can
+     only get small enough by underflowing, which takes a denormal — and then the QUOTIENT overflows
+     to Infinity rather than the denominator being literally zero. (The first draft of this test
+     asserted the denominator was 0 and was wrong: 5e-321 * 0.001 is 5e-324, not 0. The guard still
+     fires, for the reason above rather than the reason first written down.)
+     That is exactly one shape of input, and if the guard is not tested with it the guard is tested
+     with nothing — it would read as dead code to the next person simplifying this function. */
+  assert.ok(5e-321 > 0, 'sanity: the qty guard passes this, so the isFinite guard is what must catch it');
+  assert.ok(!isFinite(44 / (5e-321 * 0.001)), 'sanity: the denominator underflows and the QUOTIENT overflows');
+  assert.equal(derivePackPrice(OIL, 5e-321, 'ml'), null, 'Infinity must never be returned as a price');
+});
+
 test('precedence: product pack > supplier memory > parser (all three distinct)', () => {
   const RAW = 'Widget 2kg CTN 1 20.00 20.00';                     // parser: 20/2kg = $10/kg
   near(parsePdfLine(RAW).unitPrice, 10, 'parser baseline');

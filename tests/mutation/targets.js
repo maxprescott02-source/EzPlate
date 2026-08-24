@@ -217,6 +217,19 @@ const targets = [
   { fn: 'unitToBaseFields', tests: ['ingredient-unit.test.js', 'price-log-paths.test.js'] },
   { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js'] },
   { fn: 'menuMarginPreview', tests: ['menu-margin.test.js'] },
+  { fn: 'invGstDetect', tests: ['invoice-gst.test.js'] },
+  { fn: 'costAtLines', tests: ['dash-digin.test.js'] },
+  { fn: 'unitCatCategory', tests: ['ingredient-unit.test.js', 'king-repoint.test.js', 'product-pack.test.js'] },
+  { fn: 'derivePackPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js'] },
+  /* 0c (batch 202): `plate-cost.test.js` ALONE, and the four files first written here are the
+     finding rather than an oversight. `kpi-strip`, `dash-digin`, `builder-page` and `publish-guard`
+     all mention costFromLines and all four REPLACE IT WITH A STUB — none of them is about plate
+     costing, so their stubs are correct where they are. A `tests:` list naming them would read as
+     coverage while the function was executed by nothing, which is this file's own stated failure
+     mode: "the day someone deletes the file named here, the guard is unpinned and nothing says so."
+     A file that never ran it cannot be unpinned; it was never pinning anything. */
+  { fn: 'costFromLines', tests: ['plate-cost.test.js'] },
+  { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'] },
 ];
 
 /*
@@ -237,6 +250,41 @@ const allowedSurvivors = [
      rather than a pack size of zero), so invoice-gst.test.js kills it with exactly that line.
      ⚠️ Read 193's note below before adding to this list. Both of these were reasoned to a specific
      reachable input and found unreachable; neither is "unlikely", which is not the bar. */
+  /* 0c (batch 202) — analyze. TWO allowed out of five survivors; the other three are killed in
+     menu-margin.test.js. Both of these were checked by ENUMERATION rather than by argument: the real
+     function was compared against each mutant across every pairing of
+     [0, -0, 1, 5, -1, -5, 0.001, 1e-9, NaN, Infinity, -Infinity, null, undefined] for both
+     arguments — 169 cases each — and neither produced a single differing result. */
+  {
+    key: "analyze :: const suggested = cost>0 ? cost/foodTarget() : 0;   // sell price at the target food cost :: relational >>>= #0",
+    reason: 'cost>0 -> cost>=0 changes only cost===0 and cost===-0, and for both the two branches compute the '
+      + 'same value: 0/foodTarget() is 0, which is what the false branch returns anyway. foodTarget() cannot '
+      + 'be 0 (cogsPct is clamped to [1,99]), so the quotient is never NaN. Zero differences across 169 '
+      + 'enumerated pairs. The ternary is worth keeping as the statement that a plate with no cost has no '
+      + 'suggested price, rather than as arithmetic that happens to agree.',
+  },
+  {
+    key: "analyze :: if(!menuPrice || menuPrice<=0 || suggested<=0) :: relational <=>< #0",
+    reason: 'menuPrice<=0 -> menuPrice<0 changes only menuPrice===0 and -0, and `!menuPrice` one clause earlier '
+      + 'already catches both — as it catches NaN. For NUMBERS the clause is fully shadowed: no number is '
+      + 'truthy and <= 0. It earns its place against a non-numeric price arriving from data (the string "0" '
+      + 'is truthy), which is belt-and-braces on the money path rather than a reachable case today. Zero '
+      + 'differences across 169 enumerated pairs. ⚠️ If menuPrice ever becomes a string anywhere, this stops '
+      + 'being an allowance and becomes a test.',
+  },
+  /* 0c (batch 202) — derivePackPrice, and it is the SAME SHAPE as the invDerivePackQty allowance
+     below, on the same kind of guard, which is why it is allowed rather than argued with. Eleven of
+     this function's twelve survivors were killed by tests in this batch; this is the twelfth. */
+  {
+    key: "derivePackPrice :: var qty=parseFloat(packQty); if(!(qty>0)) return null; :: relational >>>= #0",
+    reason: 'qty>0 -> qty>=0 is equivalent, proved by ENUMERATION rather than by argument: the only values '
+      + 'where the two disagree are 0 and -0 (NaN is false under both), and for every unit and every pack '
+      + 'price the arithmetic that follows divides by zero — pack/0 is Infinity, pack/-0 is -Infinity, 0/0 is '
+      + 'NaN — so `!isFinite(unitPrice) || unitPrice<0` returns null one line later. Same return value, same '
+      + 'caller behaviour, nothing observable to assert. The first guard is still worth keeping: it states the '
+      + 'intent where a reader looks for it and refuses before doing arithmetic, rather than relying on a '
+      + 'downstream check that exists for a different reason.',
+  },
   {
     key: "invDerivePackQty :: if(pack==null || !(typeof entered==='number' && isFinite(entered) && entered>0)) return null; :: relational >>>= #0",
     reason: 'entered>0 -> entered>=0 is equivalent because the NEXT guard catches everything it lets past: '
@@ -341,19 +389,16 @@ const pending = [
      exit 1 on `main` and block every push, and a gate nobody can satisfy gets disabled — the reason
      gemApplyReadings has sat here since 180. What changed is that the debt is now SIZED, so the
      batches that close it can be scoped instead of discovered.
-     Read these as a work queue in cost order: `invGstDetect` is one assertion, `costAtLines` two.
+     ✅ SIX CLEARED IN BATCH 202 and their lines are gone from here: `invGstDetect`, `costAtLines`,
+     `unitCatCategory`, `derivePackPrice`, `costFromLines` and `analyze` are now targets above.
+     Twenty-two survivors, nineteen killed by assertion and three allowed with enumerated proofs.
+     Read the rest as a work queue in cost order.
      `applySupplierMemory` is the alarming one — 24 mutants, 24 survivors, ZERO killed, on a function
      that re-derives a unit price from a remembered pack. Its declared test file mentions it and does
      not exercise it.
      `cpbu` and `fmtTargetPct` were candidates and are absent on purpose: both yield ZERO mutants
      (one-expression functions), so a target on either reports nothing at all rather than nothing
      wrong — the setProducts-delegate trap recorded above. */
-  { fn: 'invGstDetect', tests: ['invoice-gst.test.js'], survivors: 1, measured: '201' },
-  { fn: 'costAtLines', tests: ['dash-digin.test.js'], survivors: 2, measured: '201' },
-  { fn: 'unitCatCategory', tests: ['ingredient-unit.test.js', 'king-repoint.test.js', 'product-pack.test.js'], survivors: 4, measured: '201' },
-  { fn: 'derivePackPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js'], survivors: 5, measured: '201' },
-  { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'], survivors: 5, measured: '201' },
-  { fn: 'costFromLines', tests: ['kpi-strip.test.js', 'dash-digin.test.js', 'builder-page.test.js', 'publish-guard.test.js'], survivors: 5, measured: '201' },
   { fn: 'resolveMatchedPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js', 'invoice-gst.test.js'], survivors: 24, measured: '201' },
   { fn: 'applySupplierMemory', tests: ['invoice-gst.test.js', 'pack-survives.test.js'], survivors: 24, measured: '201' },
   { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'], survivors: 39, measured: '201' },

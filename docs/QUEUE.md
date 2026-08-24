@@ -39,16 +39,15 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ⚠️ **THE BLOCKER NOBODY HAD HIT, because nobody had pointed the gate here: `spawnSync` had no timeout and `node --test` has no default one, so a mutant that turns a loop into a non-terminating one hung the gate forever** — no red, no green, no output. `computeInsights` has exactly one and the gate ran past ten minutes on it. Fixed in 201 with a baseline-derived per-mutant bound; a timeout is counted as a kill and named separately. **Do not attempt any of the below on a gate without that bound.**
 
-**THE DEBT, MEASURED 23 Aug 2026, and it lives in `tests/mutation/targets.js`'s `pending` list with a count on every line.** Work it in cost order; each promotion is "kill the survivors, move the line up".
+✅ **BATCH 202 CLEARED THE TOP SIX** — `invGstDetect`, `costAtLines`, `unitCatCategory`, `derivePackPrice`, `costFromLines` and `analyze` are targets now. Twenty-two survivors: nineteen killed by assertion, three allowed with **enumerated** proofs of equivalence rather than arguments that they are unlikely. **143 survivors remain across four functions, and every one of them is 12 or more** — the cheap slice is finished and the next one is a different size of job.
+⚠️ **THE BIGGEST FINDING OF THE SLICE IS ABOUT THE `tests:` LISTS, NOT THE CODE.** `costFromLines` — the plate cost, the most load-bearing number in the app — declared four test files and **all four replace it with a stub**: `kpi-strip` returns `lines[0].cost`, `builder-page` returns 1, `publish-guard` returns 0, `dash-digin` looks the answer up in a table. Not one line of it had ever executed in a test. The stubs are all correct where they are (none of those files is about plate costing), so the fix was a file of its own, `tests/plate-cost.test.js`. **When taking the next slice, check that the declared files RUN the function before believing the survivor count means what it looks like** — a `tests:` list reads as coverage and is only a claim.
+
+What the six had in common is worth knowing before starting the next slice: **not one of them was a subtle case. Every survivor was a branch no test had ever taken** — the later spellings in an `||` chain (`gr`, `gram`, `lt`, `litre`, `units`, `each`), the volume arm of a function only ever tested with weights and counts, the Settings fallback on an invoice that states no tax basis, a plate line whose product was deleted, a negative menu price, and the exact 15% amber/red boundary. Two of the twelve needed the HARNESS widened rather than a new case: `dash-digin.test.js` stubbed `lineProduct` in a form that could not represent a `{kid, qty}` line at all, so every kitchen-ingredient branch in `costAtLines` was unreachable from that file.
+
+**THE REMAINING DEBT, and it lives in `tests/mutation/targets.js`'s `pending` list with a count on every line.** Work it in cost order; each promotion is "kill the survivors, move the line up".
 
 | function | survivors | note |
 |---|---|---|
-| `invGstDetect` | 1 | one assertion |
-| `costAtLines` | 2 | |
-| `unitCatCategory` | 4 | |
-| `derivePackPrice` | 5 | |
-| `analyze` | 5 | the food-cost percentage |
-| `costFromLines` | 5 | the plate cost itself |
 | `buildInvRows` | 12 | was 14; `inv-chain.test.js` took two. The rest are coverage-threshold boundaries needing exact-coverage fixtures |
 | `resolveMatchedPrice` | 24 | |
 | `applySupplierMemory` | 24 | **24 mutants, ZERO killed.** Its declared test file mentions it and never exercises it |
