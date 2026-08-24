@@ -31,6 +31,30 @@ test('unitCatCategory: g/kg -> kg, ml/l -> l, ea -> ea', () => {
   assert.equal(unitCatCategory('ml'), 'l');
 });
 
+test('unitCatCategory: EVERY spelling in each chain, not just the first two', () => {
+  /* 0c: four surviving mutants lived here, and they are the same mutant three times over. Each arm
+     is an `||` chain of four or five spellings, and the tests only ever named the first two — so
+     flipping a LATER `||` to `&&` changed nothing any assertion could see. The chain then answers
+     null for that spelling, and null is what the unit guard reads as "this product has no category",
+     which is the value that makes a re-base invisible rather than blocked.
+     The spellings are not decoration: `gr`, `gram`, `grams`, `lt` and `litre` are what real invoice
+     text and hand-typed pack units actually contain. Named one at a time so a failure says WHICH. */
+  for (const u of ['kg', 'g', 'gr', 'gram', 'grams']) {
+    assert.equal(unitCatCategory(u), 'kg', `"${u}" must be a weight`);
+  }
+  for (const u of ['l', 'ml', 'lt', 'litre']) {
+    assert.equal(unitCatCategory(u), 'l', `"${u}" must be a volume`);
+  }
+  for (const u of ['ea', 'unit', 'units', 'each']) {
+    assert.equal(unitCatCategory(u), 'ea', `"${u}" must be a count`);
+  }
+  // And the negative, which is what the guard actually branches on: an unknown unit is NOT a
+  // category, so callers fall through to "nothing to contradict" rather than guessing a category.
+  for (const u of ['', null, undefined, 'doz', 'pk', 'ctn', 'kgs']) {
+    assert.equal(unitCatCategory(u), null, `"${u}" must not be claimed as a category`);
+  }
+});
+
 /* ===== v24: the taught-pack chain rebuild (screenshot-2 bug) ===== */
 const { unitToBaseFields } = require('./_extract.js');
 

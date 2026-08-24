@@ -244,3 +244,49 @@ test('Menu column band: Plate / Cost / Suggested at N% / Price / Food cost — n
   assert.ok(/textContent='Suggested at '\+cogsPct\+'%'/.test(SRC), 'the renderer follows the live target');
   assert.ok(/textContent='Suggested at '\+pct\+'%'/.test(SRC), 'setCogs writes it the moment the target changes');
 });
+
+/* ---------------------------------------------------------------------------
+ * 0c: analyze's guard row and its amber/red boundary. Five surviving mutants lived here;
+ * three are killed below and two are equivalent, allowed in tests/mutation/targets.js with the
+ * enumeration that proves it rather than an argument that it is unlikely.
+ * ------------------------------------------------------------------------- */
+
+test('0c: a NEGATIVE menu price is "no menu price", not a 130%-under plate', () => {
+  /* The surviving mutant turned `!menuPrice || menuPrice<=0` into `!menuPrice && menuPrice<=0`, and
+     `&&` binds tighter than `||` — so the guard becomes `(!menuPrice && menuPrice<=0) || suggested<=0`
+     and a negative price sails past it. Measured: analyze(5, -5) then reports light 'red', state
+     'under' and absPct 130, instead of state 'nomenu'.
+     That is not a cosmetic difference. A red light and a percentage is the app asserting it has
+     measured this dish; 'nomenu' is it saying it cannot. A negative price is data entry gone wrong,
+     and the honest answer is the second one. */
+  const { analyze } = withCogs(30);
+  const neg = analyze(5, -5);
+  assert.equal(neg.state, 'nomenu', 'a negative price is not a price');
+  assert.equal(neg.light, 'none', 'and it must not light up as though it had been judged');
+  assert.equal(neg.absPct, null, 'nor carry a percentage');
+});
+
+test('0c: a menu price of zero reports menuPrice as NULL, not 0', () => {
+  /* `menuPrice:menuPrice||null` with the `||` flipped to `&&` returns 0 instead of null. Both are
+     falsy, which is exactly why this survived — every `if (a.menuPrice)` in the app behaves the
+     same. It is the readers that DISPLAY it that differ: null is "not priced yet" and 0 is "priced
+     at nothing", and one of those is a real menu state a café can be in. */
+  const { analyze } = withCogs(30);
+  assert.strictEqual(analyze(5, 0).menuPrice, null);
+  assert.strictEqual(analyze(5, null).menuPrice, null);
+  assert.strictEqual(analyze(5, 20).menuPrice, 20, 'and a real price is passed through untouched');
+});
+
+test('0c: EXACTLY 15% under is AMBER — the boundary is inclusive and it is a colour a human acts on', () => {
+  /* `shortfall<=0.15` flipped to `<` turns the boundary case red. Amber and red are the difference
+     between "keep an eye on this" and "reprice this", so the row is chosen to land exactly on it:
+     cost 3 at a 30% target suggests $10.00, and $8.50 is a shortfall of precisely 0.15.
+     A fixture at 14% or 16% cannot see the flip at all. */
+  const { analyze } = withCogs(30);
+  const onTheLine = analyze(3, 8.5);
+  assert.equal(onTheLine.suggested, 10, 'sanity: the fixture must actually land on the boundary');
+  assert.equal(onTheLine.absPct, 15);
+  assert.equal(onTheLine.light, 'amber', 'exactly 15% under is INSIDE the amber band');
+  assert.equal(analyze(3, 8.49).light, 'red', 'and a hair further under is red');
+  assert.equal(analyze(3, 10).light, 'green', 'while exactly at the suggested price is green');
+});

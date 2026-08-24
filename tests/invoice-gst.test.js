@@ -97,6 +97,30 @@ test('invGstDetect still routes an unclear invoice through the Settings default'
   assert.equal(invGstDetect('All prices ex GST').mode, 'ex');
 });
 
+test('0c: an invoice that says NOTHING follows the Settings default — in BOTH directions', () => {
+  /* The surviving mutant was `return (gstDefault==='inc')` flipped to `!==`, and it survived because
+     this file only ever exercised invoices that STATE their tax basis. The fallback is the whole
+     point of the line: it is what runs on an invoice whose letterhead the parser could not read,
+     which is the common case, and getting it backwards prices every line 10% wrong in whichever
+     direction the owner did not choose.
+     Both directions are asserted from one unstated text, so the test cannot pass by the default
+     being ignored: the SAME input has to give opposite answers as the setting moves. */
+  const SILENT = 'CHIPS STRAIGHT CUT 10KG  55.00  55.00';
+  assert.doesNotMatch(SILENT.toLowerCase(), /gst/, 'the fixture must genuinely say nothing about GST');
+
+  setInvState({ gstDefault: 'inc' });
+  assert.equal(invGstDetect(SILENT).mode, 'inc', 'the owner set inclusive, so an unstated invoice is inclusive');
+  setInvState({ gstDefault: 'ex' });
+  assert.equal(invGstDetect(SILENT).mode, 'ex', 'and the other way round');
+
+  // An EXPLICIT statement still outranks the default, or the setting would silently override the
+  // supplier — which is the opposite failure and just as expensive.
+  setInvState({ gstDefault: 'ex' });
+  assert.equal(invGstDetect('Prices include GST').mode, 'inc', 'the invoice wins over the default');
+  setInvState({ gstDefault: 'inc' });
+  assert.equal(invGstDetect('All prices ex GST').mode, 'ex');
+});
+
 test('buildInvRows repaints the review after it has priced the rows', () => {
   // Its contract is not only "compute" — it ends by rendering, and without that an import leaves
   // the review screen showing the PREVIOUS invoice. Pinned here because the mutation gate found

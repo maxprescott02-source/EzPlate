@@ -251,17 +251,27 @@ test('priceAtOrBefore: the price in force at a moment, null when the log does no
    least one line actually came from the price log. */
 
 function costHarness() {
+  /* 0c: lineProduct is EXTRACTED now, and kById/byId are real. It used to be a two-line stub
+     (`l.pid != null ? {id:l.pid} : null`) which could not represent a kitchen-ingredient line at
+     all — so every `l.kid` branch in costAtLines was unreachable from this file, and two mutants
+     lived there undisturbed. A stub that cannot express one of the two line shapes the app stores
+     is not a simplification, it is a hole shaped like the thing it replaced.
+     NEW plate lines are `{kid, qty}`; legacy `{pid, qty}` and `{misc,...}` lines are live data that
+     every reader still has to resolve, so all three shapes belong in this fixture. */
   // eslint-disable-next-line no-new-func
-  const factory = new Function('LOG', `
+  const factory = new Function('LOG', 'FIX', `
     "use strict";
-    var ingPriceLog=LOG, kById={};
-    function lineProduct(l){ return (l && l.pid!=null) ? {id:l.pid} : null; }
+    var ingPriceLog=LOG;
+    var byId={}; FIX.PRODUCTS.forEach(function(p){ byId[p.id]=p; });
+    var kById={ k1:{ id:'k1', name:'Barramundi fillet', pid:1 },
+                kDangling:{ id:'kDangling', name:'Points at a deleted product', pid:999 } };
+    ${extractFn(APP, 'lineProduct')}
     ${extractFn(APP, 'ptMs')}
     ${extractFn(APP, 'ingPriceAt')}
     ${extractFn(APP, 'costAtLines')}
-    return { costAtLines:costAtLines, ingPriceAt:ingPriceAt };
+    return { costAtLines:costAtLines, ingPriceAt:ingPriceAt, lineProduct:lineProduct };
   `);
-  return factory(ING_LOG);
+  return factory(ING_LOG, { PRODUCTS });
 }
 
 test('costAtLines: a MISC-only plate reconstructs but is never treated as observed history', () => {
@@ -286,6 +296,42 @@ test('costAtLines: incomplete when a line’s log does not reach back that far �
   assert.equal(r.complete, false, 'before the log starts we cannot price this plate at all');
   const mixed = h.costAtLines([{ pid: 1, qty: 100 }, { pid: 99, qty: 10 }], Date.now() - 20 * DAY);
   assert.equal(mixed.complete, false, 'one unknown line invalidates the whole reconstruction');
+});
+
+test('0c: a line naming NO product makes the reconstruction incomplete', () => {
+  /* `if(!p){ complete=false; return; }` with the literal flipped to `true`. The case above looks
+     like it covers this and does not: `{pid:99}` resolves to a product-shaped thing and then fails
+     at the price lookup, which is a DIFFERENT branch setting the same flag. This is the line that
+     has no product at all — a plate line whose product was deleted.
+     It matters because `complete` is what stops the long-standing family reading a 12-month run out
+     of a plate it cannot actually price. A stuck `true` does not lose data; it invents history. */
+  const h = costHarness();
+  assert.equal(h.lineProduct({ qty: 10 }), null, 'sanity: this line really does resolve to nothing');
+  const r = h.costAtLines([{ qty: 10 }], Date.now() - 20 * DAY);
+  assert.equal(r.complete, false, 'a line we cannot identify means we cannot price the plate');
+  assert.equal(r.priced, 0);
+  assert.equal(r.cost, 0);
+});
+
+test('0c: a kitchen-ingredient line resolves through kById, and a DANGLING one does not throw', () => {
+  /* `l.kid ? (kById[l.kid] && kById[l.kid].pid) : l.pid` with the `&&` flipped to `||`, which reads
+     the property off `undefined` and throws — turning a costable dashboard into a blank one.
+     The `&&` is a guard, not a shortcut, and nothing here could reach it while the harness had no
+     kitchen ingredients. Both directions are asserted: a healthy kid line must PRICE (or the guard
+     could be satisfied by never taking the branch), and a kid pointing at a product that no longer
+     exists must come back incomplete rather than blowing up. */
+  const h = costHarness();
+  const ok = h.costAtLines([{ kid: 'k1', qty: 100 }], Date.now() - 20 * DAY);
+  assert.equal(ok.complete, true, 'a kid line is a real line — it must price like any other');
+  assert.equal(ok.priced, 1);
+  assert.equal(Math.round(ok.cost * 100) / 100, 5, 'the same 0.05 the pid form gets, through the kid');
+
+  const dangling = h.costAtLines([{ kid: 'kDangling', qty: 100 }], Date.now() - 20 * DAY);
+  assert.equal(dangling.complete, false, 'an ingredient pointing at a deleted product cannot be priced');
+  assert.equal(dangling.priced, 0);
+
+  const missingKid = h.costAtLines([{ kid: 'kNope', qty: 100 }], Date.now() - 20 * DAY);
+  assert.equal(missingKid.complete, false, 'and neither can one whose ingredient is gone entirely');
 });
 
 /* ---------------------------------------------------------------- the named culprit
