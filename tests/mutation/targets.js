@@ -331,8 +331,11 @@ const allowedSurvivors = [
       + 'bestId values — null, undefined, empty string, 0, false, a real id, a zero-priced id, a missing '
       + 'id, and two inherited Object.prototype keys — with the real and mutated expressions run side by '
       + 'side against the real gemHist: identical results on all ten, and no throw. ⚠️ It rests on '
-      + 'gemHist\'s own null guard, which tests/inv-gemini-merge.test.js pins; if that guard is ever '
-      + 'removed this becomes a crash rather than an allowance.',
+      + 'gemHist\'s own null guard, which tests/inv-referee.test.js pins DIRECTLY, in a test that says at '
+      + 'its own site that it exists for this allowance. The first draft of this reason named '
+      + 'inv-gemini-merge.test.js instead, which imports three other functions and never mentions gemHist '
+      + '— so the tripwire it advertised did not exist. Caught by the pre-push review. If that guard is '
+      + 'ever removed this becomes a crash rather than an allowance, and now something goes red.',
   },
   {
     key: 'gemApplyReadings :: try{ if(window.console&&console.debug) console.debug(\'[inv AI] "\'+(r.name||\'\')+\'" check-match → \'+sus.suggestId+(sus.corroborated?\' (price-corroborated)\':\'\')); }catch(e){} :: logical &&>|| #0',

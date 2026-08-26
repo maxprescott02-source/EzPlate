@@ -62,6 +62,36 @@ function referee(rows, lines, opts) {
 }
 
 /* ---------------------------------------------------------------------------
+ * 0. gemHist's refusals — pinned HERE because a written mutation allowance rests on them.
+ * ------------------------------------------------------------------------- */
+
+test('0c2: gemHist refuses a missing or unpriced product rather than returning a shape', () => {
+  /* This test exists for one reason and it is worth stating, because otherwise it reads as an odd
+     place to test a helper. `tests/mutation/targets.js` allows a surviving mutant in gemApplyReadings
+     — `(r.bestId && byId[r.bestId])` becoming `||` — on the grounds that the mutant's extra call,
+     `gemHist(undefined)`, returns null by gemHist's own first line, which is the same answer the
+     false arm gives. That allowance is only as good as the guard it leans on.
+     ⚠️ ITS FIRST DRAFT NAMED A FILE THAT DOES NOT TOUCH gemHist. `tests/inv-gemini-merge.test.js`
+     imports gemMergeLine, gemCanon and gemPackEq and never mentions it; nothing anywhere called
+     gemHist directly. So the tripwire the allowance advertised did not exist, and removing the guard
+     would have turned a written allowance into a crash with nothing going red. Found by the pre-push
+     review — the same class the roster tracks, a proof citing coverage a grep shows is not there.
+     The fix is this test rather than a softer sentence, because the allowance is CORRECT; what was
+     missing was the thing that keeps it correct. */
+  assert.equal(H.gemHist(null), null, 'no product at all');
+  assert.equal(H.gemHist(undefined), null, 'and the value the allowance actually depends on');
+  assert.equal(H.gemHist({ id: 'X', base_unit: 'g' }), null, 'a product with no cost recorded');
+  assert.equal(H.gemHist({ id: 'X', base_unit: 'g', cost_per_base_unit: 0 }), null, 'or a cost of zero');
+  assert.equal(H.gemHist({ id: 'X', base_unit: 'g', cost_per_base_unit: -1 }), null, 'or a negative one');
+
+  /* And it does answer for a real product, or every assertion above is satisfied by a function that
+     refuses everything. The three base units all scale differently and all three are checked. */
+  assert.deepEqual(H.gemHist({ id: 'X', base_unit: 'g', cost_per_base_unit: 0.005 }), { cat: 'kg', per: 5 });
+  assert.deepEqual(H.gemHist({ id: 'X', base_unit: 'ml', cost_per_base_unit: 0.002 }), { cat: 'l', per: 2 });
+  assert.deepEqual(H.gemHist({ id: 'X', base_unit: 'ea', cost_per_base_unit: 0.5 }), { cat: 'ea', per: 0.5 });
+});
+
+/* ---------------------------------------------------------------------------
  * 1. THE PAYLOAD GUARD. Three ways a response is unusable, and they are OR'd.
  * ------------------------------------------------------------------------- */
 
