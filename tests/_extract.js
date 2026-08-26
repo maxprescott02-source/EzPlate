@@ -118,6 +118,12 @@ function build() {
   const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');
   const invGstAdjust = extractFn(src, 'invGstAdjust');
+  /* 0c (batch 203): the row's one skimmable signal, EXTRACTED rather than stubbed. It is pure —
+     byId and cpbu are already in this sandbox for the insight pipeline — and stubbing it made
+     buildInvRows' call to it unkillable by the mutation gate. PRICE_JUMP comes with it because the
+     threshold is the decision, and a mirrored constant would be a second copy of it. */
+  const flagNeedsAttention = extractFn(src, 'flagNeedsAttention');
+  const priceJump = extractVar(src, 'PRICE_JUMP');
   const invConfirmState = extractFn(src, 'invConfirmState');
   const unlinkedDishesOn = extractFn(src, 'unlinkedDishesOn');
   const publishPlan = extractFn(src, 'publishPlan');
@@ -143,11 +149,15 @@ function build() {
       kById={}; (s.kitchenIngredients||[]).forEach(function(k){ kById[k.id]=k; });
     }
     /* 197: the invoice-review globals. invRows is what buildInvRows WRITES, so a test reads its
-       result there exactly as renderInvReview does. The two callees below are DOM-bound and are
-       deliberately stubbed rather than extracted — but note WHICH: renderInvReview only paints, so
-       a no-op is faithful; flagNeedsAttention is display-only per its own comment and sets flags a
-       price test does not read. Neither stub sits in the path under test, which is the whole
-       point — CLAUDE.md's roster is twenty-one entries of stubs that DID. */
+       result there exactly as renderInvReview does. renderInvReview is stubbed and that stub is
+       faithful: it only paints, so a counter is the whole of its observable contract here.
+       ⚠️ flagNeedsAttention WAS STUBBED ALONGSIDE IT AND SHOULD NEVER HAVE BEEN (0c, batch 203).
+       The note here said it was "DOM-bound" and "display-only per its own comment"; the second half
+       is what its comment says and the first half is simply untrue — it touches no DOM at all. It
+       reads byId and cpbu and writes row.needsAttention, which is as pure and as extractable as
+       anything else in this sandbox. A no-op stub of a real function is CLAUDE.md's roster class in
+       its purest form: buildInvRows' call to it could be DELETED and every test stayed green,
+       because the stub and the deletion are the same program. It is extracted below by name. */
     var invRows=[], invGst={mode:'unknown', note:''}, invSupplier='', supplierMem={}, gstDefault='ex';
     /* Counts REPAINTS REQUESTED BY buildInvRows, and the name says that rather than "render calls"
        on purpose — 188's lesson is that a counter in a shared fixture gets coupled to every future
@@ -157,7 +167,8 @@ function build() {
     var _invPaints=0;
     function renderInvReview(){ _invPaints++; }
     function invPaints(){ return _invPaints; }
-    function flagNeedsAttention(){}
+    ${priceJump}
+    ${flagNeedsAttention}
     function normSupplier(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
     function memKey(sup, phrase){ return normSupplier(sup)+'|'+normalizePhrase(phrase); }
     function setInvState(s){
@@ -214,7 +225,7 @@ function build() {
     ${invPackPreviewText}
     ${invReResolve}
     ${invDerivePackQty}
-    return { setAppState, setInvState, getInvRows, invPaints, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+    return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }

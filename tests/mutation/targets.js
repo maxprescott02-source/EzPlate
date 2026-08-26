@@ -230,6 +230,17 @@ const targets = [
      A file that never ran it cannot be unpinned; it was never pinning anything. */
   { fn: 'costFromLines', tests: ['plate-cost.test.js'] },
   { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'] },
+  /* 0c (batch 203). buildInvRows was measured at 12 survivors in 201 and held in `pending`; the
+     twelve are killed in inv-chain.test.js §5, and TWO of them were reachable only after the
+     harness stopped stubbing flagNeedsAttention as a no-op. A no-op stub of a real, pure function
+     makes "delete the call" and "keep the call" the same program — see the note in tests/_extract.js. */
+  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js'] },
+  /* 0c (batch 203): `supplier-memory.test.js` ALONE, and the two files this line USED to name are
+     the finding rather than an oversight — the same shape as costFromLines above, on a second
+     function. `invoice-gst.test.js` and `pack-survives.test.js` were the declared tests while the
+     gate reported 24 mutants and ZERO kills, because neither one ever calls it. They mention it.
+     A file that never ran it was never pinning it, so removing it unpins nothing. */
+  { fn: 'applySupplierMemory', tests: ['supplier-memory.test.js'] },
 ];
 
 /*
@@ -284,6 +295,55 @@ const allowedSurvivors = [
       + 'caller behaviour, nothing observable to assert. The first guard is still worth keeping: it states the '
       + 'intent where a reader looks for it and refuses before doing arithmetic, rather than relying on a '
       + 'downstream check that exists for a different reason.',
+  },
+  /* 0c (batch 203) — buildInvRows and applySupplierMemory. THREE allowed out of thirty-six; the
+     other thirty-three are killed in inv-chain.test.js §5 and supplier-memory.test.js. Every one of
+     the three was proved by RUNNING the real and mutated forms side by side over an enumerated
+     input set, not by arguing that a difference is unlikely — the bar this list sets for itself. */
+  {
+    key: 'applySupplierMemory :: if(pack==null || !(qty>0)) return row; :: relational >>>= #0',
+    reason: 'qty>0 -> qty>=0 is equivalent, and it is the THIRD instance of the same shape in this file '
+      + '(derivePackPrice and invDerivePackQty above) for the same reason: a later guard catches '
+      + 'everything the first one now lets past. Only 0 and -0 can distinguish the two operators — for '
+      + 'every other value, including NaN, the comparisons agree by definition — and for both of those '
+      + 'the division that follows yields Infinity, -Infinity or NaN, so `!isFinite(unitPrice)` returns '
+      + 'the row two lines later. PROVED rather than argued: the real and mutated guards were run over '
+      + 'qty in [0, -0, NaN] x ten unit spellings x six pack prices (0, 0.01, 1, 21, 55, 1e308) — 180 '
+      + 'cases, zero differing results. The first guard still earns its place: it states the intent '
+      + 'where a reader looks for it, and refuses before doing arithmetic rather than after. '
+      + 'tests/supplier-memory.test.js pins the OUTCOME (a zero or nonsense pack prices nothing) and '
+      + 'says at its own site that it cannot discriminate which of the two guards produced it.',
+  },
+  {
+    key: 'buildInvRows :: if(!row.addNew && row.bestId){                                // matched line: product pack > supplier memory > parser (+ unit guard) :: logical &&>|| #0',
+    reason: 'The two operands cannot disagree, because the two lines immediately above compute them from '
+      + 'the same number: addNew=(top<0.3), and bestId=(addNew?null:cands[0].id). So addNew===true '
+      + 'implies bestId===null and addNew===false implies a real id — top>=0.3 is only possible with a '
+      + 'non-empty candidate list. That leaves exactly two reachable pairs, (true,null) and (false,id), '
+      + 'and && and || agree on both. PROVED by enumeration over the candidate lists the ranker can '
+      + 'produce (empty, and coverage 0 / 0.29 / 0.3 / 0.6 / 1): two distinct pairs, zero differences. '
+      + 'The && is worth keeping as the statement that this branch needs BOTH facts — it is one line '
+      + 'away from the code that couples them, and a reader should not have to re-derive that. '
+      + 'tests/inv-chain.test.js pins the coupling itself ("addNew and bestId move together"), which is '
+      + 'the real invariant; if that ever breaks, this allowance is wrong and that test goes red first. '
+      + '⚠️ It also rests on a product id never being FALSY — an id of \'\' or 0 would make bestId falsy '
+      + 'with addNew false, which is the one pair the operators disagree on. True everywhere here (ids are '
+      + 'uuids, or the CX/IMP-prefixed client mints) and not enforced by this function; noted because an '
+      + 'allowance is only as wide as the case it reasons about.',
+  },
+  {
+    key: 'buildInvRows :: } else if(row.needManual && mem){                            // no-match / manual line keeps v20 memory behaviour :: logical &&>|| #0',
+    reason: 'Both operands are re-checked by the callee: applySupplierMemory opens with '
+      + '`if(!row || !mem || !row.needManual) return row`, so calling it with either one falsy is a '
+      + 'no-op. The mutant therefore makes the same call in more cases and every extra call does '
+      + 'nothing. PROVED by running the REAL applySupplierMemory under both conditions across six mem '
+      + 'shapes (null, undefined, two valid packs, a zero pack, an empty object) x needManual true and '
+      + 'false x three incoming prices — 36 cases, deep-equal rows every time. '
+      + '⚠️ THIS ALLOWANCE RESTS ON ANOTHER FUNCTION, which is the failure mode 193 recorded here when '
+      + 'two setProduct allowances turned out to be reasoning about a case they had not checked. What '
+      + 'holds it up is that those two guards are now PINNED — tests/supplier-memory.test.js asserts '
+      + 'both directly ("a row that already parsed is NEVER re-priced", "no memory is a safe no-op"), '
+      + 'so removing either one goes red there before this allowance can go quietly wrong.',
   },
   {
     key: "invDerivePackQty :: if(pack==null || !(typeof entered==='number' && isFinite(entered) && entered>0)) return null; :: relational >>>= #0",
@@ -379,7 +439,6 @@ const pending = [
      same way: promoting it now makes the gate exit 1 on main and block every push, and a gate
      nobody can satisfy gets disabled. Closing it is a test-writing batch — QUEUE.md item 0c, which
      owns widening this list across the whole pricing surface. */
-  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js'], survivors: 12, measured: '201' },
   { fn: 'gemApplyReadings', tests: ['invoice-gate.test.js'], survivors: 44, measured: '180' },
 
   /* ── 0c, batch 201: THE REST OF THE PRICING SURFACE, MEASURED RATHER THAN ASSERTED TO BE ABSENT.
@@ -400,7 +459,6 @@ const pending = [
      (one-expression functions), so a target on either reports nothing at all rather than nothing
      wrong — the setProducts-delegate trap recorded above. */
   { fn: 'resolveMatchedPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js', 'invoice-gst.test.js'], survivors: 24, measured: '201' },
-  { fn: 'applySupplierMemory', tests: ['invoice-gst.test.js', 'pack-survives.test.js'], survivors: 24, measured: '201' },
   { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'], survivors: 39, measured: '201' },
 ];
 

@@ -44,18 +44,23 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 What the six had in common is worth knowing before starting the next slice: **not one of them was a subtle case. Every survivor was a branch no test had ever taken** — the later spellings in an `||` chain (`gr`, `gram`, `lt`, `litre`, `units`, `each`), the volume arm of a function only ever tested with weights and counts, the Settings fallback on an invoice that states no tax basis, a plate line whose product was deleted, a negative menu price, and the exact 15% amber/red boundary. Two of the twenty-two needed the HARNESS widened rather than a new case: `dash-digin.test.js` stubbed `lineProduct` in a form that could not represent a `{kid, qty}` line at all, so every kitchen-ingredient branch in `costAtLines` was unreachable from that file.
 
+✅ **BATCH 203 CLEARED THE INVOICE-ROW PAIR** — `buildInvRows` and `applySupplierMemory` are targets now. Thirty-six survivors: thirty-three killed by assertion, three allowed with enumerated proofs. `tests/supplier-memory.test.js` is new; `tests/inv-chain.test.js` gained a §5.
+⚠️ **IT TOOK THE PAIR RATHER THAN THE STRICT COST ORDER, and the reason is worth reusing: `buildInvRows` CALLS `applySupplierMemory`, so two of the twelve survivors on the first were about the second.** One set of fixtures killed both. `resolveMatchedPrice` is the same size as `applySupplierMemory` and is also called by `buildInvRows`, so the same argument would have picked it — the tie was broken on the ZERO in its column. **Cost order is the default, not the rule; a callee that shares fixtures with its caller is cheaper taken together.**
+⚠️ **AND 202'S WARNING ABOUT `tests:` LISTS PAID OUT IMMEDIATELY, on the very next function.** `applySupplierMemory` declared `invoice-gst.test.js` and `pack-survives.test.js` while the gate reported 24 mutants and **zero** kills, because neither file ever calls it — they mention it. That is `costFromLines` again, one batch later. **Both remaining entries were CHECKED for the same thing before this batch ended**, so the next slice does not have to: `resolveMatchedPrice` is genuinely exercised (31 of its 55 mutants already die), `computeInsights` is genuinely run by `insight-coverage.test.js` — but its second declared file, `settings-toggles.test.js`, only greps its SOURCE for an ordering, so expect that file to contribute no kills at all.
+⚠️ **One survivor of the twelve was a gap in the HARNESS, not in any test**, and it is the shape to look for in the last two: `tests/_extract.js` stubbed `flagNeedsAttention` as a no-op, calling it "DOM-bound", which it is not — it is pure, and with a no-op in its place *deleting* `buildInvRows`' call to it was indistinguishable from keeping it. It is extracted now. **A no-op stub of a real function is the roster's purest case: the stub and the deletion are the same program.**
+
 **THE REMAINING DEBT, and it lives in `tests/mutation/targets.js`'s `pending` list with a count on every line.** Work it in cost order; each promotion is "kill the survivors, move the line up".
 
 | function | survivors | note |
 |---|---|---|
-| `buildInvRows` | 12 | was 14; `inv-chain.test.js` took two. The rest are coverage-threshold boundaries needing exact-coverage fixtures |
-| `resolveMatchedPrice` | 24 | |
-| `applySupplierMemory` | 24 | **24 mutants, ZERO killed.** Its declared test file mentions it and never exercises it |
-| `computeInsights` | 39 | plus the one that hangs |
+| `resolveMatchedPrice` | 24 | declared files DO exercise it — 31 of 55 mutants already die. `CLAUDE.md` forbids editing it; mutating a copy in the sandbox is not editing it |
+| `computeInsights` | 39 | plus the one that hangs. Only `insight-coverage.test.js` runs it; `settings-toggles.test.js` greps its source |
 
 **`cpbu` and `fmtTargetPct` are struck from the original list and can never be targets:** both are one-expression functions yielding ZERO mutants, so a target on either reports nothing at all rather than nothing wrong. Same trap as the `setProducts` delegate.
 
-Requirements: every line above reaches zero survivors and moves from `pending` into `targets`. **Split it — 165 survivors is not one PR**, and the table is in cost order so a batch can take a contiguous slice and say where it stopped.
+**Gate runtime, measured 26 Aug 2026 on Max's laptop and written down because two earlier figures have gone stale in this file's own history:** a full `npm run mutate` is **112s on `main` (492 mutants)** and **114s with this batch's two targets added (538)**. 201 recorded 306s and 202's handover said thirteen minutes; neither reproduces. **Do not spend a batch optimising the gate on the strength of a number you did not take yourself** — re-time it, and CI's bound is twenty minutes either way.
+
+Requirements: every line above reaches zero survivors and moves from `pending` into `targets`. **Split it — 63 survivors is still more than one comfortable PR**, and the table is in cost order so a batch can take a contiguous slice and say where it stopped.
 
 ## next  0c2 · `gemApplyReadings` has 44 surviving mutants and needs its own coverage batch  **[A — scheduled, not deferred]**
 
