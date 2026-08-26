@@ -325,7 +325,11 @@ const allowedSurvivors = [
       + 'The && is worth keeping as the statement that this branch needs BOTH facts — it is one line '
       + 'away from the code that couples them, and a reader should not have to re-derive that. '
       + 'tests/inv-chain.test.js pins the coupling itself ("addNew and bestId move together"), which is '
-      + 'the real invariant; if that ever breaks, this allowance is wrong and that test goes red first.',
+      + 'the real invariant; if that ever breaks, this allowance is wrong and that test goes red first. '
+      + '⚠️ It also rests on a product id never being FALSY — an id of \'\' or 0 would make bestId falsy '
+      + 'with addNew false, which is the one pair the operators disagree on. True everywhere here (ids are '
+      + 'uuids, or the CX/IMP-prefixed client mints) and not enforced by this function; noted because an '
+      + 'allowance is only as wide as the case it reasons about.',
   },
   {
     key: 'buildInvRows :: } else if(row.needManual && mem){                            // no-match / manual line keeps v20 memory behaviour :: logical &&>|| #0',

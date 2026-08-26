@@ -25,9 +25,17 @@ const H = require('./_extract.js');
 const EX = { mode: 'ex', note: '' };
 const INC = { mode: 'inc', note: '' };
 
-/* A small, REAL-shaped catalogue. The three base units are all represented on purpose: the unit
-   guard is a comparison between the row's unit and the product's, so a fixture where they all agree
-   cannot tell you which side the code read (roster 184(b)). */
+/* A small, REAL-shaped catalogue. TWO base units are represented on purpose — `g` and `ea`: the
+   unit guard is a comparison between the row's unit and the product's, so a fixture where they all
+   agree cannot tell you which side the code read (roster 184(b)).
+   ⚠️ This said "the three base units are all represented" until 26 Aug 2026 and there was no `ml`
+   product in the file, which is roster 183(a) in miniature — a comment claiming coverage the
+   fixture does not have, in a file about tests that claim coverage they do not have. Caught by the
+   pre-push review. It is CORRECTED rather than satisfied by adding a litre product, deliberately:
+   rankCandidates scores an invoice line against every product in PRODUCTS, so a new entry can
+   re-rank the tuned confidence fixtures below (0.3 and 0.6 are landed on EXACTLY), and buying a
+   third unit here would risk the two boundaries this file exists to pin. The `ml` side of the unit
+   guard is pinned in tests/ingredient-unit.test.js and tests/inv-unit-rebase.test.js. */
 const CATALOGUE = [
   { id: 'P1', description: 'Chips Straight Cut 10Mm', brand: 'Safries', base_unit: 'g',  cost_per_base_unit: 0.0050 },
   { id: 'P2', description: 'Tomato Diced Italian Tinned Peeled', brand: 'Ardmona', base_unit: 'g', cost_per_base_unit: 0.0030 },
