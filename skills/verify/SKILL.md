@@ -148,5 +148,6 @@ Only the phone tells you whether it feels right.
 Suite green · `node -c` clean · `npm run mutate` green if you wrote or changed a test · **`npm run smoke` — not "if anything renders", ALWAYS, because it is outside `npm test` and has caught two batches that were green everywhere else** · Playwright if anything moved on screen · the `code-review` agent against the branch diff.
 
 Open the PR when the diff is **final**.
-**No review fires on its own** - the workflow is on demand since 8 Aug 2026, by manual run or the `deep-review` label.
+**No review fires on its own, and there is no longer a workflow that could** - `.github/workflows/code-review.yml` was deleted in batch 207 (Max, 22 Aug 2026), after zero runs since its 8 Aug demotion.
 So the `code-review` agent above is the review this branch gets, and waiting after opening the PR waits for nothing.
+**Save its report to `docs/reviews/REVIEW-<batch>-<short-name>.md` with a `Reviewed-commit: <sha>` line** - the pre-push hook and the `unit` CI job both refuse a diff that changes what runs without one.

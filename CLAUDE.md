@@ -728,22 +728,15 @@ On the day it was decided that agent caught a four-word change that would have s
   A rule that skipped "config and prose" would have shipped it.
   ⚠️ **IT IS NOT SKIPPABLE BY INSTRUCTION** (Max, 13 Aug 2026). **176 shipped to production with no second reader because its brief said to skip it** - in a codebase whose most common defect class is a test that cannot fail, that is the wrong trade, and a brief is the one input that has been wrong repeatedly.
   **If a brief, a plan or an item says to skip the review, run it anyway and record the conflict in the handover.** The only exception is the pure-prose line above: a docs-only change that ships no client asset.
-- **`.github/workflows/code-review.yml` - ON DEMAND only.** It no longer fires on every PR: run it manually, or apply the **`deep-review`** label to a PR.
-  **Don't paste the brief into the PR body** - that removes the only thing making it independent.
-  **Why it was demoted (8 Aug 2026), recorded because this is the kind of thing that gets re-litigated:** across its whole life it ran 11 times, **5 were silent skips that did no work**, and the runs that did work found **ZERO bugs** - its 3 findings were two missing tests and a doc gap.
-  It authenticates by OAuth against **Max's personal Claude subscription**, so it competes with his own coding sessions: roughly **$20 of capacity and ~15 minutes of waiting per batch.**
-
-**⚠️ WHEN THE WORKFLOW DOES RUN, A GREEN CHECK HAS BEEN WRONG - and so has an ABSENT one.** Three ways, all indistinguishable from approval in the checks list:
-
-1. **A skipped review used to report SUCCESS.** The action refuses to run when `code-review.yml` on the PR differs from the copy on `main` - otherwise a PR could rewrite its own reviewer.
-   It used to **exit GREEN** on that refusal, posting nothing and saying why only in the job log.
-   **Now caught automatically: a refusal FAILS the job.** A red X on a PR that touches the workflow file is that, not a finding.
-2. **A review that ran and threw its findings away.** It completed cleanly, twice, and posted nothing, because nothing was configured to publish.
-   `gh run rerun --debug` does NOT recover it.
-   The fix is `track_progress: true` and `show_full_output: true`.
-   **If a run goes quiet, check those two inputs are still on the workflow BEFORE paying for a re-run.**
-3. **No run at all.** A GitHub Actions outage during v115 meant nothing fired - no red, no comment, no job.
-   **An ABSENT check looks exactly like a passing one.** Confirm the run EXISTS before reading its silence as anything.
+  ⚠️ **AND IT NOW LEAVES A FILE BEHIND, WHICH IS THE HALF THAT WAS MISSING** (27 Aug 2026, QUEUE item 0d). Save its report to **`docs/reviews/REVIEW-<batch>-<short-name>.md`** with a `Reviewed-commit: <sha>` line, and `.githooks/pre-push` refuses a push whose diff changes what runs when no such file names a commit on the branch.
+  **Why it needed a mechanism rather than another rule: this was the most productive gate in the process and the ONLY one leaving no trace of any kind** - not on the PR, not in CI, not in git, and not in the handover template. Six batches that shipped a client asset to production have no record of one, and only 176 is knowable, because its brief said to skip it. **The other five are silence, and silence is indistinguishable from compliance.** The "NOT SKIPPABLE BY INSTRUCTION" line above fixed the one visible case and could do nothing about the five that were not, because it is another convention layered on the convention that failed.
+  **Two halves, doing different jobs.** The artifact is a gate against FORGETTING - it cannot tell whether a review happened, only whether a file says one did, and `--no-verify` skips it. The handover's now-mandatory **`## Review`** section is the half that records a judgement, and the half a human reads. `docs/reviews/README.md` states the limit; `tests/review/check.js` is the rule and `tests/review-gate.test.js` pins it.
+  **`Reviewed-commit:` names an ANCESTOR, not the tip.** Requiring the exact HEAD is unsatisfiable - the review's own findings get fixed, each fix is a commit - and a gate nobody can satisfy gets disabled, which is this repo's most-recorded gate failure.
+- ⚠️ **`.github/workflows/code-review.yml` IS DELETED** (Max, 22 Aug 2026, reversing his own 8 Aug demote-not-delete; shipped 27 Aug 2026). **There is no second reviewer and no PR check of any kind - the pre-push agent is the whole mechanism, permanently.**
+  **Why, measured rather than argued:** 320 lines, **zero runs since the 8 Aug demotion** and the `deep-review` label **never once applied**, both verified against the GitHub API. It was not free either: two batches declined one-line CI fixes because touching a workflow file triggers the mandatory review, so a workflow nobody ran was making other work more expensive.
+  Before that it ran 11 times across its whole life, **5 were silent skips that did no work**, and the runs that did work found **ZERO bugs** - its 3 findings were two missing tests and a doc gap. It authenticated by OAuth against Max's personal Claude subscription, so it competed with his own coding sessions at roughly $20 and ~15 minutes per batch.
+  **Git keeps the file. Do not re-propose it, and do not propose CodeRabbit or GitHub Pro either** - both were declined on 8 Aug 2026 with costs and a recommendation in front of him.
+  ⚠️ **The three ways its green check was untrustworthy are deleted with it and are NOT re-derivable lessons about the pre-push agent** - they were about a GitHub Action publishing to a PR (a refusal that exited green, a run that threw its findings away, and an outage where an absent check looked exactly like a passing one). `docs/audits/AUDIT-v115.md` and `AUDIT-v125.md` hold the detail if a future PR-based reviewer is ever proposed. **The transferable half survives one level up and applies to the artifact gate too: an absent check looks exactly like a passing one.**
 
 **⚠️ NEVER DISMISS A FINDING BECAUSE ITS STATED CAUSE IS WRONG.** A finding whose *mechanism* is wrong may still point at a real bug.
 That has happened twice and both were worth acting on.

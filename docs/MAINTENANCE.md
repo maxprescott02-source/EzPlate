@@ -262,7 +262,11 @@ Nothing is broken — GitHub runs them on 24 regardless — so this is a bump of
 Requirements: bump the three actions to whatever major currently targets Node 24, in one commit, and confirm the annotation is gone on the next run.
 Out of scope: the `node-version: '22'` the jobs request, which is a different thing and is not deprecated.
 
-### Re-pin `claude-code-action` to a release tag — BLOCKED on upstream
+### ~~Re-pin `claude-code-action` to a release tag~~ — **MOOT, batch 207: the workflow is DELETED**
+The only thing that pinned that action was `.github/workflows/code-review.yml`, which QUEUE item 0d deleted (Max, 22 Aug 2026, reversing his own 8 Aug demote-not-delete). There is no third-party action anywhere in this repo now, so there is nothing to re-pin and nothing to watch upstream for.
+**The entry is struck rather than deleted** because the reasoning below is the record of why an unreleased commit pin was the right call at the time, and because it is the thing to re-read if a PR-based reviewer is ever proposed again — which `CLAUDE.md` says it should not be.
+
+**The original entry:**
 `.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` — **main's head on 8 Aug 2026, not a release.**
 Forced, not a preference: at v1.0.187 `validateTrackProgressEvent` THROWS on the `labeled` action, so the label trigger could not work at all with `track_progress: true`. Dropping `track_progress` was the alternative and it is worse — that is the "runs, finds things, publishes nothing" failure this repo has already paid for twice.
 A commit pin is immutable, so this is safe rather than floating — but it is **unreleased third-party code**, and an unreleased pin nobody revisits is how a temporary decision becomes permanent.

@@ -38,6 +38,11 @@ Every section appears, in this order, every time.
 ## What changed
 One line per item: what the user can now do, or what stopped being wrong.
 
+## Review
+The pre-push `code-review` agent: which model, what it found, what you did about each finding.
+The artifact under `docs/reviews/` is the evidence; this is the summary a reader gets without opening it.
+"None" is a complete answer when it found nothing. **"Skipped" is an answer too, and it must say why** - a docs-only diff, or `--no-verify`.
+
 ## Into CLAUDE.md
 Rules proposed, and whether Max said yes. "Nothing."
 
@@ -54,6 +59,19 @@ One line each, plus what a failure would look like. "None."
 ## Surprises
 Anything that did not match what the code or the brief led you to expect. "None."
 ```
+
+## The Review section is mandatory, and so is the artifact behind it
+
+**Added 27 Aug 2026, QUEUE item 0d.** The pre-push `code-review` agent is the most productive gate in this process and it was the only one leaving no trace anywhere - not on the PR, not in CI, not in git, and not in this template.
+**Six batches that shipped a client asset to production have no record of one**, and only one of those is knowable, because its brief said to skip it.
+**The other five are silence, and silence is indistinguishable from compliance.**
+
+So there are now two halves and they do different jobs:
+
+- **The artifact.** Save the agent's report to `docs/reviews/REVIEW-<batch>-<short-name>.md` with a `Reviewed-commit: <sha>` line naming the commit it read. `.githooks/pre-push` refuses a push whose diff changes what runs when no such file names a commit on the branch. That is a gate against FORGETTING and nothing more - it cannot tell whether a review happened, only whether a file says one did.
+- **This section.** The half a human reads, and the half that records a JUDGEMENT: what was found and what you decided about it. `docs/reviews/` holds the reasoning; the handover holds the outcome.
+
+**Both are satisfied by "None" when there was nothing to find.** What is not acceptable is leaving the section out - an omitted section reads identically to a forgotten one, which is the whole defect.
 
 ## The Probe section is mandatory
 
@@ -80,8 +98,7 @@ The point of the section is that it was ASKED.
 ## After writing it
 
 - Copy it to `~/Downloads/` - Max reads handovers from there.
-- A handover-only PR is free, and so is every other PR: since 8 Aug 2026 **no PR is reviewed automatically at all**.
-  `paths-ignore` is gone - the workflow runs only on a manual run or the `deep-review` label.
+- A handover-only PR is free, and so is every other PR: since 8 Aug 2026 **no PR is reviewed automatically at all**, and since 27 Aug 2026 there is no PR-review workflow left to run either - `.github/workflows/code-review.yml` was deleted in batch 207.
   That is why moving something to the outstanding list costs nothing.
-- **The corollary is the part to remember:** a batch touching `js/app.js` is no longer "still reviewed in full" either.
-  Nothing reviews it unless the pre-push `code-review` agent did, or someone applies the label.
+- **The corollary is the part to remember:** a batch touching `js/app.js` is not "still reviewed in full" by anything.
+  **The pre-push `code-review` agent is the whole mechanism**, and its artifact under `docs/reviews/` is now the only proof it ran.

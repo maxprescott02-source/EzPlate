@@ -45,13 +45,17 @@ If you are running `/batch`, you are in the first case.
    Two real defects in v113 and three in v115 were invisible to a green suite and visible immediately here.
 7. **Pre-push `code-review` agent - MANDATORY** whenever the diff changes **what runs**: app code, tests, CI workflows, the harness.
    Skip it only for **pure prose** - handovers, queue entries, briefs.
+   **SAVE ITS REPORT to `docs/reviews/REVIEW-<batch>-<short-name>.md`, with a `Reviewed-commit: <sha>` line naming the commit it read.**
+   `.githooks/pre-push` refuses the push without one, and `tests/review/check.js` is the rule - read its header before arguing with it.
+   ⚠️ **The artifact is written by YOU, not by the agent**, because the agent's definition lives outside this repo (`~/.claude/agents/code-review.md`) and a fresh clone would not carry an instruction put there. Paste its findings verbatim; do not summarise them into agreement with yourself.
+   **"No findings" is a complete report** and still needs the file - that is the entire point, since a review that found nothing and a review that never ran are otherwise the same silence.
    It is the review this batch gets; the workflow no longer runs on its own.
    **Run it on a DIFFERENT model from the one you are running as**, and **don't show it the brief** - both are what make it independent.
    Fix every finding or record why not.
    ⚠️ **NOT SKIPPABLE BY INSTRUCTION** (Max, 13 Aug 2026). **176 shipped to production with no second reader because its brief said to skip it.** If a brief, an item or a plan says to skip it, **run it anyway and record the conflict in the handover** - a brief is the input this repo has found wrong most often, and the pre-push agent is the only reader the code gets.
-8. **Open the PR.** There is **no automatic workflow review to wait for** - it is on demand now, by manual run or the `deep-review` label.
-   If you do request one, **read it before merging**: a finding on `main` cannot be fixed in the PR that carried it, which once cost six extra PRs.
-   And confirm the run exists - an absent check and a passing one look the same.
+8. **Open the PR.** There is **no workflow review at all** - `.github/workflows/code-review.yml` was deleted in batch 207 (Max, 22 Aug 2026), and the pre-push agent is the whole mechanism, permanently.
+   **So nothing arrives after you open the PR.** Everything a reviewer was ever going to say has already been said at step 7, and the finding-before-merge rule that cost six extra PRs is satisfied by fixing it there.
+   CI still runs - suite, smoke, the full mutation gate, Playwright - and **an absent check looks exactly like a passing one**, so confirm the runs exist before reading their silence as anything.
 9. **Merge** if the suite is green, step 7 is done, and no stop condition applies.
 10. **Hand over.** Use the `handover` skill.
     **DELETE the finished item from `docs/QUEUE.md`** - git and the handover hold the record, and a done section is how that file reached 979 lines.

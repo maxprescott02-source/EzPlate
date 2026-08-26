@@ -43,8 +43,9 @@ jobs:
   # is unchanged and must stay — it was never really about money.
   #
   # WHY (as written when it was built). This repo is PRIVATE, so Actions minutes are billed, and `tests` is the only
-  # workflow that consumes any (code-review.yml is workflow_dispatch + the deep-review
-  # label and does not fire on its own). The browser job is ~8.7 minutes and runs TWICE
+  # workflow that consumes any (code-review.yml was workflow_dispatch + the deep-review
+  # label and did not fire on its own; it was DELETED in batch 207, so `tests` is now the
+  # only workflow in the repo at all). The browser job is ~8.7 minutes and runs TWICE
   # per merged PR - once on `pull_request`, once on the `push` to main. Measured on the
   # 12 Aug 2026 run list: the `docs: record Max's four decisions` PR, a diff of pure
   # prose, spent ~20 minutes of that budget including a superseded run. It could not
@@ -157,7 +158,12 @@ jobs:
     # eighteen times better than the six-hour default it replaces.
     timeout-minutes: 20
     steps:
+      # fetch-depth: 0 because the review gate diffs this branch against origin/main and has to have
+      # the branch point IN the clone. It refuses rather than guessing when it cannot find one, so a
+      # shallow checkout here would fail every build rather than passing a broken one.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -173,6 +179,17 @@ jobs:
       # under the runner's temp directory and never touches the checkout.
       - name: Mutation gate
         run: npm run mutate
+      # The review-artifact gate, here for the SAME reason as the mutation gate above and added in
+      # the same batch that built it (207) - because the pre-push review left the reviewer to
+      # remember, and this batch's whole subject is that remembering is not a mechanism.
+      # ⚠️ The first draft of 207 shipped this check in `.githooks/pre-push` ONLY, which reproduces
+      # the exact failure it was written to fix one layer up: a fresh clone has no `core.hooksPath`,
+      # so it runs no gate at all and looks exactly like a clone that passed one. Caught by the
+      # pre-push review, reading the comment five lines above this one back at it.
+      # `fetch-depth: 0` is required and is set on this job's checkout: the gate diffs against
+      # origin/main and REFUSES when it cannot find the branch point, so a shallow clone fails it.
+      - name: Review artifact
+        run: node tests/review/check.js
 
   # ---------------------------------------------------------------------------
   # `node -c` proves app.js PARSES. This proves it RUNS: the script reaches the end
