@@ -241,8 +241,9 @@ const targets = [
      gate reported 24 mutants and ZERO kills, because neither one ever calls it. They mention it.
      A file that never ran it was never pinning it, so removing it unpins nothing. */
   { fn: 'applySupplierMemory', tests: ['supplier-memory.test.js'] },
-  /* 0c (batch 204). Measured at 24 survivors in 201 and held in `pending`; twenty are killed in
-     matched-price.test.js and four are allowed below. Unlike applySupplierMemory above, the four
+  /* 0c (batch 204). Measured at 24 survivors in 201 and held in `pending`; twenty-one are killed in
+     matched-price.test.js and three are allowed below. The gate's own numbers, which are the ones
+     that cannot drift: 55 mutants, 31 killed before this batch and 52 after. Unlike applySupplierMemory above, the four
      files already named here DO exercise it — 31 of its 55 mutants died against them before this
      batch — so the new file is ADDED rather than replacing them. What it reaches that they do not
      is the part no other subject leads through: the memory arm's unit spellings, the fall-through
@@ -303,7 +304,7 @@ const allowedSurvivors = [
       + 'intent where a reader looks for it and refuses before doing arithmetic, rather than relying on a '
       + 'downstream check that exists for a different reason.',
   },
-  /* 0c (batch 204) — resolveMatchedPrice. THREE allowed out of twenty-three; the other twenty are
+  /* 0c (batch 204) — resolveMatchedPrice. THREE allowed out of twenty-four; the other twenty-one are
      killed in matched-price.test.js. All three are the SAME `>` -> `>=` shape on a positive-quantity
      guard that this file now carries five times over (derivePackPrice, invDerivePackQty,
      applySupplierMemory and the two below), and the reason is the same every time: a later guard
