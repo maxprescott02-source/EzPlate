@@ -43,8 +43,9 @@ jobs:
   # is unchanged and must stay — it was never really about money.
   #
   # WHY (as written when it was built). This repo is PRIVATE, so Actions minutes are billed, and `tests` is the only
-  # workflow that consumes any (code-review.yml is workflow_dispatch + the deep-review
-  # label and does not fire on its own). The browser job is ~8.7 minutes and runs TWICE
+  # workflow that consumes any (code-review.yml was workflow_dispatch + the deep-review
+  # label and did not fire on its own; it was DELETED in batch 207, so `tests` is now the
+  # only workflow in the repo at all). The browser job is ~8.7 minutes and runs TWICE
   # per merged PR - once on `pull_request`, once on the `push` to main. Measured on the
   # 12 Aug 2026 run list: the `docs: record Max's four decisions` PR, a diff of pure
   # prose, spent ~20 minutes of that budget including a superseded run. It could not

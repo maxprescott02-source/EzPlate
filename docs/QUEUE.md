@@ -31,18 +31,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0d · The mandatory pre-push review leaves no artifact anywhere  **[A — Max's override, 22 Aug 2026]**
-
-Same override as 0c. **Found by an independent blind PROCESS audit** run the same day against the skills, hooks, CI and 149 handovers, with `CLAUDE.md` and this file withheld.
-
-The pre-push `code-review` agent is, on the record, the most productive gate in this process — and it is **the only gate with no trace of any kind**: not on the PR, not in CI, not in git, and not in the handover template (`skills/handover/SKILL.md` lists six mandatory sections and a review is not one of them). **Six batches that shipped a client asset to production have no record of it**: 151, 153, 170, 176, 179 and 183 — and 183 also shipped a production migration. Only 176 is knowable, because its brief said to skip it. **The other five are silence, and silence is indistinguishable from compliance.** Verified here: those five contain zero mentions, while 187/190/193/195 contain two to five each.
-
-The 13 Aug rule — *"NOT SKIPPABLE BY INSTRUCTION"* — fixes the one case that was visible and does nothing about the five that were not, because it is another convention layered on the convention that failed.
-
-Requirements: the review writes its findings to a file; `.githooks/pre-push` refuses the push when the diff touches `js/`, `css/`, `index.html`, `sw.js`, `tests/`, `.github/` or `supabase/` and no review artifact exists for the current HEAD; `## Review` becomes a mandatory handover section, with *"None"* an acceptable answer exactly as the Probe section works.
-
-**Delete `.github/workflows/code-review.yml` in this same item** (Max, 22 Aug 2026, reversing his own 8 Aug demote-not-delete). 320 lines, **zero runs since the demotion** and the `deep-review` label **never once applied** — both verified against the GitHub API. It is not free: two batches (155, 159) declined one-line CI fixes because touching a workflow file triggers the mandatory review, so a workflow nobody runs is making other work more expensive. Git keeps it.
-
 ## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
