@@ -241,6 +241,14 @@ const targets = [
      gate reported 24 mutants and ZERO kills, because neither one ever calls it. They mention it.
      A file that never ran it was never pinning it, so removing it unpins nothing. */
   { fn: 'applySupplierMemory', tests: ['supplier-memory.test.js'] },
+  /* 0c (batch 204). Measured at 24 survivors in 201 and held in `pending`; twenty-one are killed in
+     matched-price.test.js and three are allowed below. The gate's own numbers, which are the ones
+     that cannot drift: 55 mutants, 31 killed before this batch and 52 after. Unlike applySupplierMemory above, the four
+     files already named here DO exercise it — 31 of its 55 mutants died against them before this
+     batch — so the new file is ADDED rather than replacing them. What it reaches that they do not
+     is the part no other subject leads through: the memory arm's unit spellings, the fall-through
+     to manual, and the four provenance fields written at the end. */
+  { fn: 'resolveMatchedPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js', 'invoice-gst.test.js', 'matched-price.test.js'] },
 ];
 
 /*
@@ -295,6 +303,44 @@ const allowedSurvivors = [
       + 'caller behaviour, nothing observable to assert. The first guard is still worth keeping: it states the '
       + 'intent where a reader looks for it and refuses before doing arithmetic, rather than relying on a '
       + 'downstream check that exists for a different reason.',
+  },
+  /* 0c (batch 204) — resolveMatchedPrice. THREE allowed out of twenty-four; the other twenty-one are
+     killed in matched-price.test.js. All three are the SAME `>` -> `>=` shape on a positive-quantity
+     guard that this file now carries five times over (derivePackPrice, invDerivePackQty,
+     applySupplierMemory and the two below), and the reason is the same every time: a later guard
+     catches everything the first one lets past. That is worth naming as a pattern rather than
+     re-arguing — the app is written defensively on the money path, and defence in depth is exactly
+     what produces equivalent mutants on the outer layer. Each was still proved by ENUMERATION over
+     the inputs where the two operators actually disagree, because the pattern is not the proof. */
+  {
+    key: "resolveMatchedPrice :: if(product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins :: relational >>>= #0",
+    reason: 'pack_qty>0 -> pack_qty>=0 admits the values that coerce to zero — 0, -0, "", "0", null, false, '
+      + 'an empty array — and derivePackPrice refuses every one of them on its own first line '
+      + '(`var qty=parseFloat(packQty); if(!(qty>0)) return null`), so `if(d)` is false and no source is '
+      + 'chosen either way. PROVED rather than argued: the ten coercing values x nine pack_unit '
+      + 'spellings were filtered to the 90 pairs where the two operators genuinely disagree, and the '
+      + 'resolved row was deep-compared against the same row resolved with no product at all — '
+      + 'identical on all 90. The `>` still earns its place: it states the precondition where a reader '
+      + 'looks for it, one line above the arithmetic, rather than in a callee.',
+  },
+  {
+    key: 'resolveMatchedPrice :: if(!chosen && mem && parseFloat(mem.qty)>0){                    // 2) then supplier memory for this phrase :: relational >>>= #0',
+    reason: 'parseFloat yields a number or NaN, and NaN is false under both operators, so the two differ '
+      + 'only where mem.qty parses to 0 or -0. For those the mutant enters the memory block and the '
+      + 'INNER `q>0` two lines down — the same expression again — turns it straight back, leaving '
+      + 'chosen null. PROVED by enumeration: eight zero-parsing qty spellings x seven unit spellings x '
+      + 'three raw lines (priced, unpriced, $0.00), filtered to the 168 that disagree, each compared '
+      + 'against the same row resolved with no memory — identical every time.',
+  },
+  {
+    key: 'resolveMatchedPrice :: if(pack!=null && q>0){ :: relational >>>= #0',
+    reason: 'q IS parseFloat(mem.qty), and the guard two lines above has already required that exact '
+      + 'expression to be > 0 — so the only inputs on which `q>0` and `q>=0` differ are inputs this '
+      + 'block cannot be entered with. The mutant is unreachable rather than merely harmless, which is '
+      + 'a stronger claim than the two above and a weaker piece of code: the inner test is fully '
+      + 'redundant with the outer one. ⚠️ It is REDUNDANCY, not dead weight — the two guards are ten '
+      + 'lines apart and either could be edited alone — but if the outer one is ever loosened, this '
+      + 'allowance stops being true and the mutant must be re-judged rather than carried forward.',
   },
   /* 0c (batch 203) — buildInvRows and applySupplierMemory. THREE allowed out of thirty-six; the
      other thirty-three are killed in inv-chain.test.js §5 and supplier-memory.test.js. Every one of
@@ -458,7 +504,6 @@ const pending = [
      `cpbu` and `fmtTargetPct` were candidates and are absent on purpose: both yield ZERO mutants
      (one-expression functions), so a target on either reports nothing at all rather than nothing
      wrong — the setProducts-delegate trap recorded above. */
-  { fn: 'resolveMatchedPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js', 'invoice-gst.test.js'], survivors: 24, measured: '201' },
   { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'], survivors: 39, measured: '201' },
 ];
 
