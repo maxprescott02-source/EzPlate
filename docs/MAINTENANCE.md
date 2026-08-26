@@ -146,6 +146,17 @@ Requirements: one owner for the bottom stack. v141 established the three-way spl
 
 ## C — tests and CI
 
+### The pre-push hook still needs a manual one-time install per clone
+(Found 27 Aug 2026 by batch 207's own pre-push review, which caught the review-artifact gate shipping with no CI backstop for exactly this reason.)
+
+`.githooks/pre-push` runs only if someone has typed `git config core.hooksPath .githooks` in that clone, and nothing does it for them. **A fresh clone or a new machine therefore runs no local gate at all and looks exactly like a clone that passed one** — which is the failure both gates in that hook exist to prevent, one level up from the code they check.
+
+**It is C rather than higher because CI holds the properties that matter**: the `unit` job runs the full mutation gate and the review-artifact gate unconditionally, so a missed local hook costs a slower feedback loop rather than an unreviewed merge. That is deliberate design (`CLAUDE.md`: *"the hook is the fast local copy; CI is the one that actually holds"*), not an accident — the entry is here because the local half is still silently absent by default.
+
+Requirements: a `prepare` script in `package.json` running `git config core.hooksPath .githooks` is one line and closes it — npm runs `prepare` after a plain `npm install`.
+⚠️ **Weigh it against the standing no-new-machinery rule before doing it.** A lifecycle script runs on every install, it fails in a tarball checkout with no `.git`, and it must not break `npm ci` in CI. If it is added, guard it (`git rev-parse --git-dir >/dev/null 2>&1 || exit 0`) and confirm CI is still green, since CI installs on every job.
+⚠️ Do NOT "fix" it by removing the CI gates on the grounds that the hook now always runs. The hook is bypassable with `--no-verify` and CI is not.
+
 ### ~~`tests/visual/screenshots.spec.js` cannot pass and cannot report it~~ — **EXECUTED, batch 200 (`ezplate-v170`)**
 ✅ `test.skip` at file level with the cause in the message, exactly as decided below. A full `npx playwright test tests/visual` now reports **14 skipped, 339 passed** instead of thirteen red at the bottom of a green suite.
 **`tests/ci-workflow.test.js` needed NO change and the requirement below was wrong about that** — its assertion counts FILES in `tests/visual/` and compares them to the workflow comment, and a skipped file is still a file that CI still filters. What did move is the comment's number, from 39/38 to 40/39, because this batch added a spec. Left written out because a reader checking the requirement against the diff would otherwise think it was skipped.
