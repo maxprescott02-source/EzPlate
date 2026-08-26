@@ -31,25 +31,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0c2 · `gemApplyReadings` has 44 surviving mutants and needs its own coverage batch  **[A — scheduled, not deferred]**
-
-**This item exists because item 0c's third requirement was that this be SCHEDULED rather than deferred a sixteenth time**, and a line inside another item is what let it be deferred fifteen times. It is now a thing that can reach the top of this file on its own.
-✅ **0c ITSELF IS FINISHED AND DELETED — batches 201 to 205 closed all 165 of its survivors, and this is the last of the mutation debt.** `tests/mutation/targets.js`'s `pending` list is down to this one line.
-
-**What those five batches learned that this one should not rediscover.** Each is a measured finding, not advice:
-
-- **Check that the declared test files RUN the function before believing the survivor count.** `costFromLines` declared four files and all four stubbed it; `applySupplierMemory` declared two that never called it, and measured 24 mutants with ZERO kills. ✅ **Already checked for THIS item, twice:** `tests/invoice-gate.test.js` extracts and calls `gemApplyReadings` for real (there is a second, unrelated stub of the name elsewhere in the same file — do not mistake it for the call), so the 44 are genuine coverage gaps rather than a `tests:` list defect.
-- **Look for a no-op STUB IN THE HARNESS, not just a missing test.** One of `buildInvRows`' survivors was unkillable because `tests/_extract.js` stubbed `flagNeedsAttention` as a no-op while calling it "DOM-bound", which it was not. A no-op stub of a real function makes "delete the call" and "keep the call" the same program. This item's function is the invoice referee, which the harness already stubs several collaborators of — read what is stubbed before writing a test that cannot fail.
-- **Expect a cluster of `>` -> `>=` survivors on positive-quantity guards, and expect most of them to be genuinely equivalent.** Nine of the twenty allowances in the file are that one shape. The money path is written defensively and defence in depth is what produces equivalent mutants on the outer layer. **Prove each by enumeration over the values where the operators actually differ — never by the pattern**, and say which later guard makes it redundant, so a batch that loosens THAT guard knows the allowance has expired.
-- **A test that re-implements the code's arithmetic in a different order is a stub of it.** 205 lost two drafts of one boundary fixture to this: the first asserted a rounded figure and could not see the boundary at all, the second computed the raw value with a two-term expression while the builder sums a list first, and the float that survives is not the same. Mirror the code's order of operations, line for line.
-- **The gate's absolute runtime is a property of the machine, not of this repo.** Four batches wrote down four figures between 112s and thirteen minutes, all real, all irreproducible a day later. Time it twice yourself in the same hour if you need to know, and measure the MARGINAL cost of the target you are adding rather than the total.
-
-`gemApplyReadings` is the invoice referee's merge orchestrator — it decides which of the AI's readings are allowed to change a row a human is about to confirm. **44 of its 56 mutants survive** `tests/invoice-gate.test.js`, which pins exactly one property of it: that a row the user has already ruled on is skipped. Measured at batch 180, unchanged at 195, re-confirmed at 201.
-
-It is held out of `targets` for the reason written at its own site: promoting it before the coverage exists makes the gate exit 1 on `main` and block every push, and **a gate nobody can satisfy gets disabled**, which costs more than one missing target.
-
-Requirements: the survivors are killed or carry written allowances, and the line moves from `pending` into `targets`. Expect this to be mostly test-writing against canned Gemini payloads — `tests/inv-gemini-merge.test.js` and `tests/inv-gemini-match.test.js` already have the fixtures shape.
-
 ## next  0d · The mandatory pre-push review leaves no artifact anywhere  **[A — Max's override, 22 Aug 2026]**
 
 Same override as 0c. **Found by an independent blind PROCESS audit** run the same day against the skills, hooks, CI and 149 handovers, with `CLAUDE.md` and this file withheld.
