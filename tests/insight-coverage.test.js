@@ -572,6 +572,18 @@ test('PIPELINE: computeInsights survives malformed state instead of taking the D
  * unchanged. A test that merely asserts the good fixture still works cannot see a guard at all.
  * ============================================================================================== */
 
+/* Compare ONE fact between two runs, refusing to compare a key that is not there.
+   ⚠️ `assert.equal(a.facts.x, b.facts.x)` where neither object carries `x` is `undefined === undefined`
+   and passes forever, and the TWO-SIDED form is what hides it — the same assertion written against a
+   literal fails immediately and obviously. It bit three times while this section was being written
+   (`facts.ptsPer10`, which is the builder's internal name for what insConcentration publishes as
+   `pts`; and `facts.name` and `facts.count` on an anomaly, whose facts are only `{top, mult}`), and
+   all three were found by the mutation gate or the pre-push review rather than by reading. */
+const sameFact = (a, b, key, why) => {
+  assert.ok(a.facts && key in a.facts, `facts.${key} does not exist, so comparing it proves nothing`);
+  assert.equal(a.facts[key], b.facts[key], why);
+};
+
 /* --- the reconstruction passes: which dishes are in scope at all --- */
 
 test('BUILDER: a dish with no sell price is not averaged into the cost base at infinity', () => {
@@ -658,20 +670,6 @@ test('BUILDER: an unpriced plate counts towards neither the reach nor its conseq
   assert.equal(c.facts.plates, 3, 'and so does the reach');
 });
 
-test('BUILDER: a plate published twice is counted ONCE, at the first price found', () => {
-  /* `priceByPlate` resolves one sell price per plate id, and the guard `priceByPlate[id]==null` is
-     what makes it the FIRST rather than the last. The figure is about a plate's cost exposure, so
-     counting it twice would weight it by how often it was published.
-     The second dish is priced differently on purpose: if the last price won instead, the points
-     figure would move even though the reach did not. */
-  const s = CONCENTRATION();
-  s.MENU.push(dish('MI9', 'Salad One Again', 'PL1', 20));
-
-  const c = fires(run(s), 'concentration');
-  assert.equal(c.facts.total, 4, 'four plates, not five');
-  assert.equal(c.facts.plates, 3);
-});
-
 test('BUILDER: a plate with no priced products at all is not part of the population', () => {
   /* `any` is set only by a line that resolves to a real product, and a plate of pure misc lines sets
      nothing. It is a legitimate plate — a bought-in dessert costed as a single figure — and it has
@@ -698,7 +696,13 @@ test('BUILDER: only products actually USED on a plate can be the price anomaly',
   s.PRODUCTS.push(prod('P_UNUSED', { cost_per_base_unit: 99 }));
 
   const c = fires(run(s), 'anomaly');
-  assert.notEqual(c.facts.name, 'P_UNUSED', 'a product on no plate cannot be the outlier');
+  /* Asserted on the TEXT: the anomaly's facts are `{top, mult}` and carry no name.
+     ⚠️ And on the POSITIVE, not the negative — `not.toBe`-shaped assertions are roster entry 190:
+     "not the wrong value" is a guess about every wrong value there could be, while "is the right
+     value" is a fact about this app. The intruder is priced at $99/g, so if it were admitted it
+     would win outright and both assertions below would fail. */
+  assert.match(c.text, /^Saffron at \$55\.00\/kg/, 'the outlier is the dearest USED product');
+  assert.equal(c.facts.top, 55, 'a product on no plate cannot displace it');
 });
 
 test('BUILDER: both routes to a product — a kitchen ingredient and a bare pid — mark it used', () => {
@@ -715,8 +719,13 @@ test('BUILDER: both routes to a product — a kitchen ingredient and a bare pid 
     p.lines = p.lines.map((l) => (l.kid ? { pid: (t.kitchenIngredients.find((k) => k.id === l.kid) || {}).pid, qty: l.qty } : l));
   });
   const viaPid = fires(run(t), 'anomaly');
-  assert.equal(viaPid.facts.name, viaKid.facts.name, 'both line shapes reach the same product');
-  assert.equal(viaPid.facts.count, viaKid.facts.count, 'and the same group size');
+  /* The anomaly's facts are `{top, mult}` — the NAME lives only in the text, and the group size is
+     not published at all. Asserting facts.name/facts.count here compared undefined with undefined
+     and could not fail; found by the pre-push review. `mult` is the figure that moves if the group
+     loses a member, so it is the one worth comparing. */
+  assert.match(viaPid.text, /Saffron/, 'both line shapes reach the same product');
+  sameFact(viaPid, viaKid, 'top', 'and price it the same');
+  sameFact(viaPid, viaKid, 'mult', 'and against the same runner-up, so the group is the same size');
 });
 
 /* --- the window walk: which reference moment families 1 and 2 speak from --- */
@@ -955,20 +964,25 @@ test('BUILDER: an unpriced publication of a plate does not hide its real price',
   assert.equal(c.facts.plates, 3);
 });
 
-test('BUILDER: the FIRST price found for a plate is the one used, not the last', () => {
-  /* `priceByPlate[id]==null` is what makes it the first. The consequence figure divides by that
-     price, so which publication wins changes the points figure even though the reach is untouched —
-     which is why this asserts the points and the earlier test asserted the counts. */
+test('BUILDER: a plate published twice is counted ONCE, at the FIRST price found', () => {
+  /* `priceByPlate[id]==null` is what makes it the first. The figure is about a plate's cost
+     exposure, so counting it twice would weight it by how often it was published — and which
+     publication wins changes the consequence figure, because it is the divisor.
+     ⚠️ ALL THREE FIGURES ARE ASSERTED HERE, in one test, and that is a correction rather than
+     thoroughness. This was two tests: one claiming "counted once, at the first price found" while
+     asserting only `total` and `plates`, and one asserting `pts`. The first could not check its own
+     title — `total` and `plates` are counted by walking `savedPlates`, so a duplicate MENU row
+     cannot move them whichever price wins, and inverting the guard to last-wins left it green.
+     Found by the pre-push review. A test whose title names a property its assertions cannot see is
+     worse than no test, because the title is what the next reader trusts. */
   const s = CONCENTRATION();
   const first = fires(run(s), 'concentration');
   s.MENU.push(dish('MI9', 'Salad One Again', 'PL1', 100));
   const c = fires(run(s), 'concentration');
-  /* ⚠️ `facts.pts`, NOT `ptsPer10`. The builder's internal name is ptsPer10 and insConcentration
-     publishes it as `pts`; an earlier draft asserted the internal name, so both sides of the
-     comparison were `undefined` and the assertion could not fail. Found by the mutation gate, which
-     is exactly the vacuous-assertion class CLAUDE.md's roster exists for. */
-  assert.equal(typeof c.facts.pts, 'number', 'the figure must exist, or the comparison below is vacuous');
-  assert.equal(c.facts.pts, first.facts.pts, 'a second publication at a different price changes nothing');
+
+  assert.equal(c.facts.total, 4, 'four plates, not five');
+  assert.equal(c.facts.plates, 3, 'and the same reach');
+  sameFact(c, first, 'pts', 'and the same consequence — the SECOND price at $100 must not become the divisor');
 });
 
 test('BUILDER: a line pointing at a deleted kitchen ingredient is skipped, not fatal', () => {
