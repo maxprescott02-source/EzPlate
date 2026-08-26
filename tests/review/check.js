@@ -24,7 +24,6 @@
  *   node tests/review/check.js            decide for the current branch, exit 1 to refuse the push
  *   node tests/review/check.js --explain  print the decision and always exit 0
  */
-const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -53,11 +52,19 @@ const GUARDED = [
   { prefix: 'api/', why: 'the serverless endpoints' },
 ];
 
-/** Which guarded areas a file list touches. Empty means a review is not required. */
+/**
+ * Which guarded areas a file list touches. Empty means a review is not required.
+ *
+ * An entry ending in `/` is a directory and matches by prefix; anything else is a single FILE and
+ * must match exactly. The first draft prefix-matched both, so `sw.js.map` or `index.html.bak` would
+ * have counted as the service worker — harmless today because no such file exists, and precisely
+ * the kind of over-firing that teaches people to reach for --no-verify.
+ */
 function guardedHits(files) {
   const hits = [];
   for (const g of GUARDED) {
-    if (files.some((f) => f === g.prefix || f.startsWith(g.prefix))) hits.push(g);
+    const isDir = g.prefix.endsWith('/');
+    if (files.some((f) => (isDir ? f.startsWith(g.prefix) : f === g.prefix))) hits.push(g);
   }
   return hits;
 }
@@ -70,8 +77,18 @@ function guardedHits(files) {
  * takes, and it must not read as compliance.
  */
 function reviewedCommit(text) {
-  const m = /^Reviewed-commit:\s*([0-9a-f]{7,40})\s*$/mi.exec(text || '');
-  return m ? m[1] : null;
+  /* Lines inside a fenced code block are ILLUSTRATIONS of the format, not claims — docs/reviews's
+     own README shows the header, and a future artifact quoting the format in a fence would otherwise
+     be read as naming a commit. Stripping fences first is cheap and removes the whole question. */
+  const lines = String(text == null ? '' : text).split('\n');
+  let fenced = false;
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+    if (fenced) continue;
+    const m = /^Reviewed-commit:\s*([0-9a-f]{7,40})\s*$/i.exec(line);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 /**
@@ -81,6 +98,11 @@ function reviewedCommit(text) {
  * Returns {ok, reason, hits, artifact}.
  */
 function decide(facts) {
+  if (facts.noBase) {
+    return { ok: false, hits: [], artifact: null,
+      reason: 'cannot find this branch\'s point of divergence from origin/main, so the diff to review '
+        + 'is unknown — run `git fetch origin main` and try again' };
+  }
   const files = facts.files || [];
   const hits = guardedHits(files);
   if (!hits.length) {
@@ -108,23 +130,46 @@ function decide(facts) {
 
 /** Everything impure: what git says changed, which artifacts exist, and this branch's commits. */
 function gather(root) {
-  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   let base;
-  try { base = git(['merge-base', 'HEAD', 'origin/main']); }
-  catch (e) { base = git(['rev-parse', 'HEAD~1']); }        // no origin/main (a fresh clone, a detached CI checkout)
-  const files = git(['diff', '--name-only', `${base}..HEAD`]).split('\n').filter(Boolean);
+  /* ⚠️ NO BRANCH POINT MEANS REFUSE, NOT GUESS, and the first draft of this got it backwards.
+     It fell back to HEAD~1, which diffs only the most recent COMMIT rather than the branch — so a
+     branch that changed js/app.js in commit two and docs in commit three reported "nothing that
+     runs was changed" and sailed through. Fail-open, in a gate whose whole subject is that an
+     absent check looks exactly like a passing one. Caught by the pre-push review.
+     CLAUDE.md's rule is that a fail-open default is a decision about CONSEQUENCE: here refusing is
+     recoverable in one command (`git fetch origin main`) and says so, while guessing wrong ships an
+     unreviewed change to production. So this returns no base at all and `decide` refuses. */
+  try { base = git(['merge-base', 'HEAD', 'origin/main']); } catch (e) { base = null; }
+  if (!base) return { files: [], ancestors: [], artifacts: [], noBase: true };
+  /* ⚠️ --no-renames IS LOAD-BEARING, and it is load-bearing here for exactly the reason
+     `.github/workflows/test.yml` says it is in the `changes` job. Git detects renames by DEFAULT and
+     then reports only the NEW path, so `git mv js/app.js docs/archived.js` would show a docs file
+     and nothing else — app code deleted from its live location, with the gate reporting that nothing
+     that runs was changed. `tests/ci-workflow.test.js` already pins this property for that job;
+     this file reintroduced the bug one directory over. Caught by the pre-push review. */
+  const files = git(['diff', '--no-renames', '--name-only', `${base}..HEAD`]).split('\n').filter(Boolean);
   const ancestors = git(['rev-list', `${base}..HEAD`]).split('\n').filter(Boolean)
     .concat(git(['rev-parse', 'HEAD']));
-  const dir = path.join(root, REVIEW_DIR);
-  /* README.md is the directory's own explanation, not an attempted artifact. Without this exclusion
-     a repo with no reviews yet reports "an artifact exists but names no commit", which sends the
-     reader to look for a file they are supposed to be creating. */
-  const artifacts = fs.existsSync(dir)
-    ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && f.toLowerCase() !== 'readme.md').map((f) => {
-      const full = reviewedCommit(fs.readFileSync(path.join(dir, f), 'utf8'));
-      return { file: `${REVIEW_DIR}/${f}`, commit: full ? expand(git, full) : null };
-    })
-    : [];
+  /* ⚠️ ARTIFACTS ARE READ FROM THE COMMITTED TREE, NOT FROM DISK, and that is the difference between
+     this gate and one that lies. A file written but not committed satisfies a filesystem read and is
+     absent from CI, so the local hook would pass and the `unit` job would fail — which is precisely
+     the "green everywhere locally, red on push" failure this hook's own header says it was extended
+     in 192 to stop, after it happened twice on the same assertion.
+     README.md is the directory's own explanation rather than an attempted artifact; excluding it is
+     what makes an empty directory report "no artifact exists" (create one) instead of "an artifact
+     exists but names no commit" (go hunting for a file that is meant to be missing). */
+  let listed = [];
+  try { listed = git(['ls-tree', '-r', '--name-only', 'HEAD', `${REVIEW_DIR}/`]).split('\n').filter(Boolean); }
+  catch (e) { listed = []; }
+  const artifacts = listed
+    .filter((f) => f.endsWith('.md') && path.basename(f).toLowerCase() !== 'readme.md')
+    .map((f) => {
+      let body = '';
+      try { body = git(['show', `HEAD:${f}`]); } catch (e) { body = ''; }
+      const full = reviewedCommit(body);
+      return { file: f, commit: full ? expand(git, full) : null };
+    });
   return { files, ancestors, artifacts };
 }
 

@@ -98,8 +98,7 @@ The point of the section is that it was ASKED.
 ## After writing it
 
 - Copy it to `~/Downloads/` - Max reads handovers from there.
-- A handover-only PR is free, and so is every other PR: since 8 Aug 2026 **no PR is reviewed automatically at all**.
-  `paths-ignore` is gone - the workflow runs only on a manual run or the `deep-review` label.
+- A handover-only PR is free, and so is every other PR: since 8 Aug 2026 **no PR is reviewed automatically at all**, and since 27 Aug 2026 there is no PR-review workflow left to run either - `.github/workflows/code-review.yml` was deleted in batch 207.
   That is why moving something to the outstanding list costs nothing.
-- **The corollary is the part to remember:** a batch touching `js/app.js` is no longer "still reviewed in full" either.
-  Nothing reviews it unless the pre-push `code-review` agent did, or someone applies the label.
+- **The corollary is the part to remember:** a batch touching `js/app.js` is not "still reviewed in full" by anything.
+  **The pre-push `code-review` agent is the whole mechanism**, and its artifact under `docs/reviews/` is now the only proof it ran.

@@ -141,6 +141,70 @@ test('0d: the directory’s own README is not mistaken for an attempted artifact
   assert.ok(facts.artifacts.every((a) => !/readme\.md$/i.test(a.file)), 'the README is not scanned as an artifact');
 });
 
+test('0d: artifacts are read from the COMMITTED tree, not from the working directory', () => {
+  /* A file written but not committed satisfies a filesystem read and is absent from CI, so the local
+     hook would pass and the `unit` job would fail — the "green everywhere locally, red on push"
+     failure this hook's own header says it was extended in 192 to stop, after it happened twice on
+     the same assertion. Reading through git is what makes the two agree.
+     Asserted by writing an uncommitted file into docs/reviews/ and checking `gather` does not see
+     it, then removing it. The file name is deliberately one no batch would use. */
+  const fs = require('fs');
+  const path = require('path');
+  const repo = path.join(__dirname, '..');
+  const stray = path.join(repo, 'docs', 'reviews', 'REVIEW-000-uncommitted-probe.md');
+  const { gather } = require('./review/check.js');
+  fs.writeFileSync(stray, '# probe\n\nReviewed-commit: ' + 'f'.repeat(40) + '\n');
+  try {
+    const facts = gather(repo);
+    assert.ok(facts.artifacts.every((a) => a.file.indexOf('uncommitted-probe') < 0),
+      'an uncommitted artifact must not satisfy the local gate, or local and CI disagree');
+  } finally {
+    fs.unlinkSync(stray);
+  }
+});
+
+test('0d: with no branch point findable, the gate REFUSES rather than guessing', () => {
+  /* ⚠️ THE FIRST DRAFT FAILED OPEN HERE AND IT WAS THE WORST BUG IN THIS BATCH. It fell back to
+     diffing HEAD~1..HEAD, which is one COMMIT rather than the branch — so a branch that touched
+     js/app.js in its second commit and docs in its third reported "nothing that runs was changed"
+     and went straight through. A gate whose subject is that an absent check looks like a passing
+     one, failing open. Caught by the pre-push review, which reproduced it in a scratch repo.
+     CLAUDE.md's rule is that a fail-open default is a decision about CONSEQUENCE, not about
+     epistemics: refusing here costs one `git fetch` and says so, and guessing wrong ships an
+     unreviewed change to production. */
+  const r = decide({ noBase: true });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /git fetch origin main/, 'and the refusal says how to fix it');
+});
+
+test('0d: a guarded FILE is matched exactly, not by prefix', () => {
+  /* Directory entries end in `/` and match by prefix; file entries must match whole. Prefix-matching
+     a file name means `sw.js.map` or `index.html.bak` counts as the service worker — harmless today
+     because neither exists, and exactly the over-firing that teaches people to reach for
+     --no-verify. Both directions are asserted, because a fixture that only checks the false case
+     would pass against a function that matches nothing at all. */
+  assert.equal(decide({ files: ['sw.js.map', 'index.html.bak'], ancestors: onBranch, artifacts: [] }).ok, true);
+  assert.equal(decide({ files: ['sw.js'], ancestors: onBranch, artifacts: [] }).ok, false);
+  assert.equal(decide({ files: ['index.html'], ancestors: onBranch, artifacts: [] }).ok, false);
+});
+
+test('0d: the diff is read with --no-renames, so moving a guarded file out is still seen', () => {
+  /* ⚠️ Git detects renames by DEFAULT and then reports only the NEW path, so `git mv js/app.js
+     docs/archived.js` shows a docs file and nothing else — app code deleted from its live location,
+     with the gate reporting nothing that runs was changed. `tests/ci-workflow.test.js` already pins
+     this exact property for test.yml's `changes` job, whose comment calls the flag LOAD-BEARING, and
+     the first draft of this file reintroduced the bug one directory over. Caught by the pre-push
+     review.
+     This asserts the flag is passed, which is a source-level check and weak on its own (roster
+     183a) — so it is narrowed to the git invocation rather than a mention, and the sibling test in
+     ci-workflow.test.js is what proves the underlying git behaviour it defends against. */
+  const fs = require('fs');
+  const src = fs.readFileSync(require('path').join(__dirname, 'review', 'check.js'), 'utf8');
+  const call = src.split('\n').find((l) => /git\(\['diff'/.test(l));
+  assert.ok(call, 'the diff call must exist to be checked');
+  assert.match(call, /'--no-renames'/, 'a rename must not hide the path it came from');
+});
+
 /* ---------------------------------------------------------------------------
  * 3. THE HEADER PARSER.
  * ------------------------------------------------------------------------- */
@@ -175,7 +239,26 @@ test('0d: .githooks/pre-push runs the review gate', () => {
   const fs = require('fs');
   const hook = fs.readFileSync(require('path').join(__dirname, '..', '.githooks', 'pre-push'), 'utf8');
   const commands = hook.split('\n').filter((l) => !l.trim().startsWith('#'));
-  assert.ok(commands.some((l) => /node\s+tests\/review\/check\.js/.test(l)),
-    'the hook must RUN tests/review/check.js, not merely mention it');
+  const invocations = commands.filter((l) => /node\s+tests\/review\/check\.js/.test(l));
+  assert.equal(invocations.length, 1, 'the hook must RUN tests/review/check.js exactly once, not merely mention it');
+  /* ⚠️ AND IT MUST NOT PASS `--explain`, which is the mutation this test could not see in its first
+     draft. `--explain` makes the checker exit 0 whatever it decided — it exists so a reader can ask
+     the gate what it thinks without being refused — so a hook invoking it that way keeps every
+     surface signal (the command is there, `set -e` is there) while enforcing nothing at all.
+     Caught by the pre-push review, which mutated the hook and watched all fourteen tests stay green.
+     This is the roster's own class arriving inside the batch that builds a gate against it. */
+  assert.ok(!/--explain/.test(invocations[0]), 'and must NOT pass --explain, which always exits 0');
   assert.ok(/set -e/.test(hook), 'and must still exit on a failing step, or the gate reports and proceeds');
+});
+
+test('0d: --explain really does always exit 0, or the assertion above is about nothing', () => {
+  /* The test above forbids a flag on the strength of what that flag does. If `--explain` ever stops
+     forcing a zero exit, the prohibition becomes cargo cult — so its behaviour is pinned here, in
+     the same file, rather than left as a claim in a comment. */
+  const { execFileSync } = require('child_process');
+  const path = require('path');
+  const repo = path.join(__dirname, '..');
+  const out = execFileSync(process.execPath, ['tests/review/check.js', '--explain'],
+    { cwd: repo, encoding: 'utf8' });                       // execFileSync THROWS on a non-zero exit
+  assert.ok(out.indexOf('review gate') >= 0, 'it still reports');
 });
