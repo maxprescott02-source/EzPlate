@@ -249,6 +249,14 @@ const targets = [
      is the part no other subject leads through: the memory arm's unit spellings, the fall-through
      to manual, and the four provenance fields written at the end. */
   { fn: 'resolveMatchedPrice', tests: ['product-pack.test.js', 'pack-survives.test.js', 'ingredient-unit.test.js', 'invoice-gst.test.js', 'matched-price.test.js'] },
+  /* 0c (batch 205) — THE LAST ONE IN THE ITEM, and the only impure builder on this list. Measured at
+     39 survivors plus the mutant that HANGS; 34 killed in insight-coverage.test.js's BUILDER
+     section, four allowed below, and the hang is counted as a kill by the gate's own rule.
+     Its two declared files are kept and both are honest, but they are not equal: `insight-coverage`
+     runs it, and `settings-toggles` greps its SOURCE for an ordering (the AI-suggestions gate must
+     come BEFORE the call). The second contributes no kills and was never going to — it pins a
+     property of the call site, not of the function. */
+  { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'] },
 ];
 
 /*
@@ -303,6 +311,53 @@ const allowedSurvivors = [
       + 'caller behaviour, nothing observable to assert. The first guard is still worth keeping: it states the '
       + 'intent where a reader looks for it and refuses before doing arithmetic, rather than relying on a '
       + 'downstream check that exists for a different reason.',
+  },
+  /* 0c (batch 205) — computeInsights. FOUR allowed out of thirty-nine, and all four are the same
+     `>` -> `>=` shape this file now carries nine times over. Three of them are UNREACHABLE rather
+     than merely harmless: the values on which the two operators differ are excluded by a guard
+     further up, so no input can reach the line and tell them apart. That is a stronger claim than
+     equivalence and a weaker piece of code — each is redundant with something else — and it is why
+     each one names the guard it is redundant WITH, so a batch that loosens that guard knows the
+     allowance has expired. */
+  {
+    key: 'computeInsights :: for(var w=0; w<INSIGHT_WINDOWS.length && !movement; w++){ :: relational <><= #0',
+    reason: 'One extra pass reads INSIGHT_WINDOWS[4], which is undefined, so `now - undefined*86400000` is NaN '
+      + 'and every price lookup at that moment returns null — costAtLines reports complete:false, `ok` stays '
+      + 'empty, `ok.length<2` continues, and the loop ends. The pass can only happen at all when no window '
+      + 'produced movement, which is the case where there is nothing to overwrite. PROVED by RUNNING it: the '
+      + 'mutated loop bound was applied to a scratch copy of js/app.js and both versions were driven over 24 '
+      + 'states (six history depths x four price moves, chosen so most produce no movement at all) — '
+      + 'byte-identical insight lists on all 24. The `<` is correct and conventional; there is simply no '
+      + 'input that can tell them apart.',
+  },
+  {
+    key: 'computeInsights :: if(!c.complete || !(c.priced>0) || !(c.cost>0)) break;   // no LOGGED cost behind it → no run to report :: relational >>>= #1',
+    reason: 'c.cost>0 -> c.cost>=0 differs only at 0 and -0, and the VERY NEXT LINE breaks on both: '
+      + '`!(c.cost/d.price > tf)` is `!(0 > tf)`, and tf is foodTarget(), which is cogsPct/100 with cogsPct '
+      + 'clamped to [1,99] and so is always greater than zero. The walk therefore stops at the same month k '
+      + 'either way and the run length is identical. Enumerated over cost in [0,-0] x five plate prices '
+      + 'spanning 0.01 to 1e6: zero differences. The guard still earns its place — it says "no LOGGED cost '
+      + 'behind it" where a reader looks for that, rather than leaving it to a target comparison that exists '
+      + 'for a different reason.',
+  },
+  {
+    key: 'computeInsights :: if(!(price>0)) return; :: relational >>>= #0',
+    reason: 'UNREACHABLE rather than equivalent. `price` is priceByPlate[sp.id], which is either undefined '
+      + '(no publication of this plate was ever recorded) or a value that already passed `!m.price>0` in the '
+      + 'MENU pass twenty lines above. The two operators differ only on values that coerce to zero — 0, -0, '
+      + '"", null, false — and every one of those is excluded upstream; undefined fails both. Enumerated over '
+      + 'the six values that can actually arrive: zero differences. ⚠️ This allowance expires if the MENU '
+      + 'pass ever admits a non-positive price, which is what its own `>` is there to prevent — '
+      + 'insight-coverage.test.js pins that guard directly.',
+  },
+  {
+    key: 'computeInsights :: if(!(next.v>0)) return; :: relational >>>= #0',
+    reason: 'UNREACHABLE for the same shape of reason. A row only enters a unit group through '
+      + '`if(v==null || !(v>0)) return`, so every v in g.rows is strictly positive and next.v cannot be zero '
+      + 'or negative. The two operators differ only at 0 and -0. ⚠️ It is redundant with that push guard '
+      + 'rather than dead — the two are thirty lines apart and either could be edited alone — so if the push '
+      + 'guard is ever loosened this must be re-judged. insight-coverage.test.js pins the push guard with a '
+      + 'zero-priced product that must not pad a group to quorum.',
   },
   /* 0c (batch 204) — resolveMatchedPrice. THREE allowed out of twenty-four; the other twenty-one are
      killed in matched-price.test.js. All three are the SAME `>` -> `>=` shape on a positive-quantity
@@ -504,7 +559,6 @@ const pending = [
      `cpbu` and `fmtTargetPct` were candidates and are absent on purpose: both yield ZERO mutants
      (one-expression functions), so a target on either reports nothing at all rather than nothing
      wrong — the setProducts-delegate trap recorded above. */
-  { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'], survivors: 39, measured: '201' },
 ];
 
 module.exports = { targets, allowedSurvivors, pending };
