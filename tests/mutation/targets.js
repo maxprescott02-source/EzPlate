@@ -257,6 +257,13 @@ const targets = [
      come BEFORE the call). The second contributes no kills and was never going to — it pins a
      property of the call site, not of the function. */
   { fn: 'computeInsights', tests: ['insight-coverage.test.js', 'settings-toggles.test.js'] },
+  /* 0c2 (batch 206) — THE LAST LINE OF THE PENDING LIST, held out of targets since batch 180.
+     Measured at 45 survivors here (the item said 44, from 180; it drifted by one). 52 killed in the
+     new inv-referee.test.js, two allowed below.
+     `invoice-gate.test.js` is KEPT and is not the file doing the work: it pins one property — a row
+     the user has ruled on is skipped whole — through its own hand-built sandbox, and that sandbox
+     stubs rankCandidates and packCount, which is correct there and is why 45 of 56 survived it. */
+  { fn: 'gemApplyReadings', tests: ['invoice-gate.test.js', 'inv-referee.test.js'] },
 ];
 
 /*
@@ -311,6 +318,33 @@ const allowedSurvivors = [
       + 'caller behaviour, nothing observable to assert. The first guard is still worth keeping: it states the '
       + 'intent where a reader looks for it and refuses before doing arithmetic, rather than relying on a '
       + 'downstream check that exists for a different reason.',
+  },
+  /* 0c2 (batch 206) — gemApplyReadings. TWO allowed out of forty-five, and neither is the
+     `>` -> `>=` shape the rest of this list is full of. Both are a guard whose two operands cannot
+     disagree, for two different reasons. */
+  {
+    key: 'gemApplyReadings :: var H=(r.bestId && byId[r.bestId])?gemHist(byId[r.bestId]):null; :: logical &&>|| #0',
+    reason: 'The two differ only when exactly one operand is truthy, and in every such case the TRUE arm '
+      + 'computes the same answer the false arm returns: a bestId naming a product that is not in byId '
+      + 'makes the mutant call gemHist(undefined), and gemHist opens with `if(!prod) return null`. A falsy '
+      + 'bestId makes byId[bestId] undefined, so both arms are false. PROVED by enumeration over ten '
+      + 'bestId values — null, undefined, empty string, 0, false, a real id, a zero-priced id, a missing '
+      + 'id, and two inherited Object.prototype keys — with the real and mutated expressions run side by '
+      + 'side against the real gemHist: identical results on all ten, and no throw. ⚠️ It rests on '
+      + 'gemHist\'s own null guard, which tests/inv-gemini-merge.test.js pins; if that guard is ever '
+      + 'removed this becomes a crash rather than an allowance.',
+  },
+  {
+    key: 'gemApplyReadings :: try{ if(window.console&&console.debug) console.debug(\'[inv AI] "\'+(r.name||\'\')+\'" check-match → \'+sus.suggestId+(sus.corroborated?\' (price-corroborated)\':\'\')); }catch(e){} :: logical &&>|| #0',
+    reason: 'The two operands are the SAME OBJECT read two ways: `console` in a browser IS `window.console`, '
+      + 'so `window.console && console.debug` and `window.console || console.debug` are true together and '
+      + 'false together. There is no environment this code runs in where one is present and the other is '
+      + 'not — and if there were, the whole statement is inside its own try/catch, so the mutant would '
+      + 'throw into the catch and produce the same nothing. The guard is worth keeping as the statement '
+      + 'that this is diagnostics and must never break the merge. Enumerated over both reachable shapes '
+      + '(console present, console absent): the two operators agree on both. '
+      + 'The `||` on the same line is a DIFFERENT mutant and is killed — inv-referee.test.js asserts the '
+      + 'diagnostic names the row, which is what that operand decides.',
   },
   /* 0c (batch 205) — computeInsights. FOUR allowed out of thirty-nine, and all four are the same
      `>` -> `>=` shape this file now carries nine times over. Three of them are UNREACHABLE rather
@@ -518,47 +552,32 @@ const allowedSurvivors = [
 ];
 
 /*
- * NOT YET A TARGET, and measured rather than guessed — 180's first run.
+ * NOT YET A TARGET — and as of batch 206 this list is EMPTY, for the first time since it was created
+ * in 180. Every function that has ever been held here is now in `targets` above at zero unallowed
+ * survivors: `buildInvRows`, `resolveMatchedPrice`, `applySupplierMemory`, `computeInsights` and
+ * `gemApplyReadings`, plus the six batch 202 cleared.
  *
- * `gemApplyReadings` is the invoice referee's merge orchestrator and belongs on the list by every
- * argument in this file. It is held back because the gate measured **44 surviving mutants against
- * `invoice-gate.test.js`**, which pins exactly one property of it (a row the user has already ruled
- * on is skipped) and nothing else. Closing that is a test-writing batch, not a line in this file,
- * and adding the target now would mean the gate exits 1 on `main` and blocks every push — a gate
- * nobody can satisfy gets disabled, which is worse than one target short.
+ * ⚠️ AN EMPTY LIST IS NOT THE SAME CLAIM AS FULL COVERAGE, and the difference is worth stating
+ * plainly because an empty array invites the wrong reading. It means every function ANYONE HAS
+ * POINTED THE GATE AT is now pinned. It says nothing about the functions nobody has asked about —
+ * and 184's lesson is exactly that: a function that is not a target has never been asked the
+ * question, and adding one is two lines.
  *
- * It is written down in `docs/MAINTENANCE.md` so this is a debt with an address, not a footnote.
- * When that coverage lands, move the line below up into `targets`.
+ * WHAT THIS LIST IS FOR, and why it is kept rather than deleted. A function measured with survivors
+ * cannot simply be added to `targets`: the gate would exit 1 on `main` and block every push, and a
+ * gate nobody can satisfy gets disabled, which costs more than one missing target. So it is measured,
+ * written down HERE with a count and the batch that measured it, and promoted when the coverage
+ * lands. That is the whole mechanism, it worked five times, and the next function to need it should
+ * use it rather than inventing something.
+ *
+ * The shape of an entry, kept as the example:
+ *   { fn: 'someFunction', tests: ['its-declared-file.test.js'], survivors: 44, measured: '180' }
+ *
+ * ⚠️ Two kinds of function can NEVER be listed here or promoted, and both were learned by trying:
+ * a one-expression function yields ZERO mutants, so a target on it reports nothing at all rather
+ * than nothing wrong (`cpbu`, `fmtTargetPct`, and the setProducts delegate recorded above); and a
+ * delegate that forwards to another function is measured through the function it forwards to.
  */
-const pending = [
-  /* 197: buildInvRows — ADDED AS A TARGET, MEASURED AT 14 SURVIVORS, AND HELD HERE RATHER THAN
-     ALLOWED. Its GST behaviour is now killed dead by invoice-gst.test.js (that is the defect this
-     batch shipped), but the same function also owns candidate ranking, the confidence tiers and the
-     add-new threshold — js/app.js:9215-9221 — and nothing tests those. Writing fourteen allowances
-     would have turned a measured coverage gap into fourteen sentences claiming it was fine.
-     This is the gemApplyReadings decision below, taken again for the same reason and recorded the
-     same way: promoting it now makes the gate exit 1 on main and block every push, and a gate
-     nobody can satisfy gets disabled. Closing it is a test-writing batch — QUEUE.md item 0c, which
-     owns widening this list across the whole pricing surface. */
-  { fn: 'gemApplyReadings', tests: ['invoice-gate.test.js'], survivors: 44, measured: '180' },
-
-  /* ── 0c, batch 201: THE REST OF THE PRICING SURFACE, MEASURED RATHER THAN ASSERTED TO BE ABSENT.
-     The queue item said "not one target computes a price", which was true and is not a plan. Every
-     candidate it named was run through the gate; these are the counts. Nothing here is a guess.
-     Why they are not targets yet: promoting a function before its coverage exists makes the gate
-     exit 1 on `main` and block every push, and a gate nobody can satisfy gets disabled — the reason
-     gemApplyReadings has sat here since 180. What changed is that the debt is now SIZED, so the
-     batches that close it can be scoped instead of discovered.
-     ✅ SIX CLEARED IN BATCH 202 and their lines are gone from here: `invGstDetect`, `costAtLines`,
-     `unitCatCategory`, `derivePackPrice`, `costFromLines` and `analyze` are now targets above.
-     Twenty-two survivors, nineteen killed by assertion and three allowed with enumerated proofs.
-     Read the rest as a work queue in cost order.
-     `applySupplierMemory` is the alarming one — 24 mutants, 24 survivors, ZERO killed, on a function
-     that re-derives a unit price from a remembered pack. Its declared test file mentions it and does
-     not exercise it.
-     `cpbu` and `fmtTargetPct` were candidates and are absent on purpose: both yield ZERO mutants
-     (one-expression functions), so a target on either reports nothing at all rather than nothing
-     wrong — the setProducts-delegate trap recorded above. */
-];
+const pending = [];
 
 module.exports = { targets, allowedSurvivors, pending };

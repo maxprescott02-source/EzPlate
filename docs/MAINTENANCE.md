@@ -194,7 +194,9 @@ Requirements: stop the harness registering a service worker at all. `tests/visua
 ### ~~Mutation testing (Stryker)~~ — **SHIPPED as the pre-push gate, batch 180**
 Do not re-add it. It was C for four audits on the argument that the batches catch their own vacuous tests; Max promoted it himself on 13 Aug 2026, rescoped from a report into a gate, and it shipped the same day as `tests/mutation/` + `.githooks/pre-push`. **Not Stryker** — it rewrites source from its own AST, which breaks every anchor `tests/_extractfn.js` slices by, so the whole suite would go red on mutant #1 and report 100% killed. `tests/mutation/mutate.js` has that reasoning at the top.
 
-### ~~Bring `gemApplyReadings` under the mutation gate~~ — **PROMOTED to `docs/QUEUE.md` item 0c2, batch 201**
+### ~~Bring `gemApplyReadings` under the mutation gate~~ — **PROMOTED to `docs/QUEUE.md` item 0c2 in batch 201, and SHIPPED in batch 206**
+✅ It is a target at zero unallowed survivors. 45 mutants survived on re-measure (this entry's 44 was 180's figure and drifted by one); 52 killed in the new `tests/inv-referee.test.js`, two allowed with written proofs. **`tests/mutation/targets.js`'s `pending` list is now EMPTY** — the first time since it was created in 180 — and that file's own header says what an empty list does and does not claim.
+**The cause was the one this entry half-named:** its declared file reaches the function through a hand-built sandbox that stubs `rankCandidates` and `packCount`, which is correct for a file about the confirm gate and is why 45 of 56 mutants survived it. The new file uses the shared harness and the real ones.
 It sat here for fifteen batches and completed nothing, which is the argument rather than a complaint: a line inside another item's requirements is exactly what let it be deferred, and 0c's third requirement was that it be SCHEDULED rather than deferred a sixteenth time. It is now an item that can reach the top of the queue on its own. Count re-confirmed at 201: still 44.
 
 **The original entry, kept for the detail the queue item does not repeat:**

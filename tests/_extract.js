@@ -118,6 +118,21 @@ function build() {
   const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');
   const invGstAdjust = extractFn(src, 'invGstAdjust');
+  /* 0c2 (batch 206): THE INVOICE REFEREE'S MERGE ORCHESTRATOR and its four helpers.
+     It was tested until now through a hand-built `new Function` sandbox inside
+     tests/invoice-gate.test.js, which stubs `rankCandidates` to a fixed answer and `packCount` to
+     null — correct for that file, which is about the GATE, and useless for pinning the referee: two
+     of its decisions are made BY those functions. Here it gets the real ones, and the real byId and
+     PRODUCTS with them.
+     `gemDiag` is EXTRACTED rather than stubbed, and the difference is the whole reason it is named:
+     it is wrapped in its own try/catch and reads `window.console`, so a no-op stub of it and a
+     DELETED call to it are the same program — CLAUDE.md's roster, the flagNeedsAttention case
+     again. The sandbox gives it a real window with a capturing console instead. */
+  const gemRowLocked = extractFn(src, 'gemRowLocked');
+  const gemNormKey = extractFn(src, 'gemNormKey');
+  const gemHist = extractFn(src, 'gemHist');
+  const gemDiag = extractFn(src, 'gemDiag');
+  const gemApplyReadings = extractFn(src, 'gemApplyReadings');
   /* 0c (batch 203): the row's one skimmable signal, EXTRACTED rather than stubbed. It is pure —
      byId and cpbu are already in this sandbox for the insight pipeline — and stubbing it made
      buildInvRows' call to it unkillable by the mutation gate. PRICE_JUMP comes with it because the
@@ -159,6 +174,22 @@ function build() {
        its purest form: buildInvRows' call to it could be DELETED and every test stayed green,
        because the stub and the deletion are the same program. It is extracted below by name. */
     var invRows=[], invGst={mode:'unknown', note:''}, invSupplier='', supplierMem={}, gstDefault='ex';
+    /* 0c2: the referee's own globals. gemStatus is what gemApplyReadings writes its verdict to, and
+       the fake window exists ONLY so gemDiag's console.debug has somewhere to go — the real function
+       swallows a missing window in its own try/catch, which would make its call site unkillable by
+       any test. Captured rather than discarded so a test can assert the diagnostic fired. */
+    var gemStatus=null, _gemDebug=[];
+    var window={ console:{ debug:function(){ _gemDebug.push(Array.prototype.join.call(arguments,' ')); } } };
+    var console=window.console;
+    function setRefereeState(st){
+      st=st||{};
+      invRows=st.invRows||[];
+      gemStatus=(st.gemStatus===undefined?null:st.gemStatus);
+      invGst=st.invGst||{mode:'ex', note:''};
+      _gemDebug=[]; _invPaints=0;
+      if(st.PRODUCTS){ PRODUCTS=st.PRODUCTS; byId={}; PRODUCTS.forEach(function(p){ byId[p.id]=p; }); }
+    }
+    function gemState(){ return {status:gemStatus, rows:invRows, debug:_gemDebug.slice(), paints:_invPaints}; }
     /* Counts REPAINTS REQUESTED BY buildInvRows, and the name says that rather than "render calls"
        on purpose — 188's lesson is that a counter in a shared fixture gets coupled to every future
        caller, so an unrelated new call site silently retires somebody's assertion. Nothing else in
@@ -225,7 +256,13 @@ function build() {
     ${invPackPreviewText}
     ${invReResolve}
     ${invDerivePackQty}
-    return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+    ${gemRowLocked}
+    ${gemNormKey}
+    ${gemHist}
+    ${gemDiag}
+    ${gemApplyReadings}
+    return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention,
+      setRefereeState, gemState, gemApplyReadings, gemRowLocked, gemNormKey, gemHist, rankCandidates, packCount, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }
