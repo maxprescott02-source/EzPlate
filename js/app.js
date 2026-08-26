@@ -6767,7 +6767,7 @@ restoreLastTab();                                          // safe now: all modu
 // Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
 // of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
 markNonProductionEnv();                                    // 172: no-op on production; the element is not created at all
-wireAccount(); wireGateSignIn(); wireGateSignUp(); wireTeam(); authInit();   // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach. 192: sign-up behind an invitation, and the Team card that sends them.
+wireAccount(); wireGateSignIn(); wireGateSignUp(); wireTeam(); wirePrivacyNotice(); authInit();   // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach. 192: sign-up behind an invitation, and the Team card that sends them. 207/item 2: the privacy notice, wired BEFORE authInit because the gate screen it opens over can be up before boot finishes.
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -6789,7 +6789,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v170';
+var APP_VERSION='v171';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -7281,6 +7281,23 @@ function wireGateSignUp(){
     var btn=document.getElementById('bgUpBtn'), done=document.getElementById('bgDone');
     var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
     if(done){ done.hidden=true; done.textContent=''; }
+    /* QUEUE item 2 — THE PRIVACY GATE, and it is FIRST in this handler on purpose.
+       `authSignUpGated` below runs the invitation lookup and then `signUp`, and `signUp` is the
+       first committing action on this screen: it creates the account and spends one of the
+       project's rate-limited confirmation sends. CLAUDE.md's rule is that gating the LAST
+       committing action is not a gate; the same reasoning puts this above everything, including the
+       blank-field check, because the acceptance is the only one of the three that is about consent
+       rather than about a typo.
+       ⚠️ It is a CLIENT-SIDE courtesy in exactly the way the invitation gate one comment up is, and
+       for the same reason: Supabase sign-ups are open at the API level whatever this client ships.
+       What it buys is that nobody reaches an account through THIS app without having been shown
+       what leaves it — which is what the item asks for — and not that consent is enforced. */
+    var acc=document.getElementById('bgUpAccept');
+    if(acc && !acc.checked){
+      gateErr('Please read and accept the privacy notice first — it says what is sent to Google.');
+      acc.focus();
+      return;
+    }
     /* NO unfinished-plate question here, unlike the sign-in beside it, and the difference is real
        rather than an omission. `authGuardUnfinished` exists because signing in PURGES this device;
        creating an account does not — email confirmation is on, so `signUp` returns no session,
@@ -7303,6 +7320,24 @@ function wireGateSignUp(){
       }
     });
   });
+}
+
+/* QUEUE item 2. ONE opener for every link that shows the notice, wired by CLASS rather than by id,
+   so a fifth placement is a class in the markup and not a sixth line here. The two ids that are NOT
+   in the class are the gate's own links: they live outside `#appMain` and are wired beside the rest
+   of the gate, but they call the same function, so there is one definition of what "open the notice"
+   means. */
+function openPrivacyNotice(ev){ if(ev && ev.preventDefault) ev.preventDefault(); show('privacyModal'); }
+
+function wirePrivacyNotice(){
+  var links=document.querySelectorAll('.privacy-open, #bgPrivacyLink, #bgUpPrivacyLink');
+  Array.prototype.forEach.call(links, function(a){ a.addEventListener('click', openPrivacyNotice); });
+  var close=document.getElementById('privacyClose'); if(close) close.addEventListener('click', function(){ hide('privacyModal'); });
+  var done=document.getElementById('privacyDone'); if(done) done.addEventListener('click', function(){ hide('privacyModal'); });
+  /* Click the scrim to close, exactly as every other modal on this screen does — `ev.target===ov`
+     so a click that lands inside the dialog does not dismiss it mid-read. */
+  var ov=document.getElementById('privacyModal');
+  if(ov) ov.addEventListener('click', function(ev){ if(ev.target===ov) hide('privacyModal'); });
 }
 
 function wireAccount(){

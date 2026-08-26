@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=170">
+<link rel="stylesheet" href="css/style.css?v=171">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -228,10 +228,27 @@
     <form class="acct-form" id="bgSignUpForm" hidden autocomplete="on">
       <input class="acct-in" id="bgUpEmail" type="email" name="email" placeholder="you@example.com" aria-label="Email you were invited at" autocomplete="username" required>
       <input class="acct-in" id="bgUpPass" type="password" name="new-password" placeholder="Choose a password" aria-label="Choose a password" autocomplete="new-password" required>
+      <!-- QUEUE item 2, the privacy gate. The acceptance sits HERE, on the sign-up form, because the
+           gate's own rule is "before the first non-Scoopy's row exists, not after" and the same logic
+           applies inside the app: an account is the first row, and `authSignUp` is the first
+           committing action on this screen. A policy shown after the account exists is a notice, not
+           a disclosure.
+           ⚠️ It is NOT `required` on the input, and that is deliberate rather than an oversight. A
+           native validation bubble on a checkbox is easy to miss on a phone and says nothing about
+           WHY; the handler refuses and writes a sentence into the same error line every other
+           failure on this screen uses. -->
+      <label class="acct-accept" for="bgUpAccept">
+        <input type="checkbox" id="bgUpAccept">
+        <span>I have read and accept the <a href="#" id="bgUpPrivacyLink">privacy notice</a>, including that invoice text is sent to Google.</span>
+      </label>
       <button class="btn primary" id="bgUpBtn" type="submit">Create account</button>
     </form>
     <p class="bg-alt" id="bgAltUp" hidden><a href="#" id="bgToSignIn">Already have an account? Sign in</a></p>
     <p class="acct-err" id="bgErr" hidden role="alert"></p>
+    <!-- Readable WITHOUT an account, from either side of the gate: a policy you can only reach by
+         signing in is not a policy a prospective user can consider. The modal is z-index 80 and this
+         screen is 60, so it opens over the top. -->
+    <p class="bg-privacy"><a href="#" id="bgPrivacyLink">Privacy notice</a></p>
     <!-- 192: the confirmation email is the whole remaining step, and `signUp` succeeds silently —
          without this the screen looks identical to a failure. `role="status"` rather than "alert":
          it is the good outcome, and an alert interrupts a screen reader mid-sentence for it. -->
@@ -705,6 +722,7 @@
         <span class="invz-t">Drop a PDF or CSV invoice here</span>
         <span class="invz-s">or click to browse. We read the line items and match them to your products. Nothing changes without your review.</span>
       </button>
+      <p class="inv-privacy">The text of an invoice you import is sent to Google to be double-checked, on a free tier that may use it for training. <a href="#" class="privacy-open" id="invzPrivacyLink">What is sent</a></p>
       <div class="invz-recent">
         <h3>Recent imports</h3>
         <p class="invz-none">EzPlate doesn&rsquo;t keep a list of past imports yet &mdash; only the date of the most recent one. Every price an import changed is on that product&rsquo;s own history.</p>
@@ -800,7 +818,10 @@
             <div class="stg-row">
               <div class="stg-text">
                 <label class="stg-lbl" for="setAiSuggestChk">AI suggestions</label>
-                <p class="stg-help">Shows margin insights on the Dashboard. Off = no AI calls.</p>
+                <!-- QUEUE item 2's fourth bullet: "check what the Dashboard insight toggle currently
+                     says". It said "Off = no AI calls", which is true about CALLS and silent about
+                     WHERE they go — the one fact the notice exists to surface. -->
+                <p class="stg-help">Shows margin insights on the Dashboard. Plate names and figures are sent to Google to be phrased. Off = nothing is sent and nothing is computed. <a href="#" class="privacy-open" id="stgPrivacyLink">Privacy notice</a></p>
               </div>
               <label class="switch stg-ctl"><input type="checkbox" id="setAiSuggestChk"><span class="switch-track" aria-hidden="true"></span></label>
             </div>
@@ -1230,6 +1251,13 @@
           <span class="invz-t">Drop a PDF or CSV here</span>
           <span class="invz-s">or click to browse. Nothing changes without your review.</span>
         </button>
+        <!-- QUEUE item 2. The restatement, at the moment the data actually leaves. The item is
+             explicit about why this is not redundant with the sign-up acceptance: "someone who
+             accepted a policy three weeks ago has not meaningfully consented to today's upload".
+             ⚠️ It sits AFTER the dropzone rather than inside it because the dropzone is a <button>,
+             and a link inside a button is a nested interactive control — unreachable by keyboard in
+             the order it appears and ambiguous to a screen reader. -->
+        <p class="inv-privacy">The text of this invoice is sent to Google to be double-checked, on a free tier that may use it for training. <a href="#" class="privacy-open" id="invPrivacyLink">What is sent</a></p>
         <!-- v67 item 4: the raw-text paste box + its CSV hint stay COLLAPSED behind a quiet link.
              Most users upload a PDF and never touch it; the power path stays one tap away. -->
         <div class="inv-choose-foot">
@@ -1498,6 +1526,61 @@
 </div>
 
 <!-- v59 item 6b: Tidy-lists action modal — ONE blast-radius confirm for rename / merge / clear -->
+<!-- ============================================================================================
+     QUEUE item 2 — THE PRIVACY NOTICE. Max answered option B on 15 Aug 2026: disclose it, rather
+     than move to Gemini's paid tier (which is item 2b, deferred, not declined).
+
+     ⚠️ THE UNUSUAL SPECIFIC IS THE WHOLE POINT. The item says so in as many words: "we may share
+     data with service providers" is exactly the phrasing that hides the material fact, and vague
+     wording does not discharge this. So the copy below names Google, names the free tier, and says
+     plainly that submissions may be used to improve Google's products and that human reviewers may
+     read them. Those are Google's own published terms for that tier, not a worst case.
+
+     ⚠️ IT IS DELIBERATELY SHORT AND IN THE SECOND PERSON. A privacy notice nobody finishes reading
+     is the same failure as one nobody is shown. What a café owner needs to decide is: what leaves,
+     where it goes, what happens to it there, and what they can turn off.
+
+     ⚠️ WHEN ITEM 2b SHIPS, THIS TEXT CHANGES AND THE SCREENS DO NOT. On the paid tier Google
+     "doesn't use your prompts or responses to improve our products", so the second section stops
+     saying "may be used for training" and starts saying the opposite. The acceptance flow, the link
+     placements and the restatement at import all stay exactly as they are.
+     ============================================================================================ -->
+<div class="modal-overlay" id="privacyModal" aria-hidden="true">
+  <div class="modal modal-wide privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+    <div class="mhead"><h3 id="privacyTitle">Privacy notice</h3><button class="x" id="privacyClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody prose" tabindex="0">
+      <p class="pv-lede">EzPlate sends some of your data to Google to be read by an AI. This is what goes, and what happens to it.</p>
+
+      <h4>What leaves this app</h4>
+      <p>Two things, and nothing else:</p>
+      <ul>
+        <li><strong>Invoice text.</strong> When you import a supplier invoice, the text of that invoice is sent to Google so a second reader can check the line items the app read. That includes your supplier&rsquo;s name, the products and the prices on it.</li>
+        <li><strong>Plate names and costing figures.</strong> When the Dashboard writes an insight, the plate names and the numbers behind them are sent to Google to be phrased into a sentence.</li>
+      </ul>
+      <p>Your login, your password and your customers&rsquo; details are never sent anywhere but the database that runs the app.</p>
+
+      <h4>What Google does with it</h4>
+      <p>EzPlate uses Google&rsquo;s <strong>free tier</strong> of the Gemini API. Under Google&rsquo;s terms for that tier:</p>
+      <ul>
+        <li><strong>Google may use what is sent to improve its products</strong> &mdash; which includes training its models.</li>
+        <li><strong>Human reviewers at Google may read it.</strong></li>
+      </ul>
+      <p>That is unusual and it is why this notice exists rather than a line in a longer document. If your supplier pricing is commercially sensitive to you, this is the thing to weigh.</p>
+
+      <h4>What you can turn off</h4>
+      <ul>
+        <li><strong>Dashboard insights.</strong> Settings &rsaquo; AI suggestions. Off means no plate names and no figures are sent, and nothing is computed.</li>
+        <li><strong>The invoice second reader.</strong> It only runs when you import an invoice. Not importing sends nothing.</li>
+      </ul>
+
+      <h4>Who runs this</h4>
+      <p>EzPlate is run by Scoopy&rsquo;s Family Cafe. There is no analytics and no tracking of any kind in this app, and nothing is sold or shared with anyone else.</p>
+
+      <p class="pv-changed">If this changes &mdash; and it is intended to, by moving to a paid tier Google may not train on &mdash; this notice changes with it and you will be asked to read it again.</p>
+    </div>
+    <div class="mfoot"><button class="btn primary" id="privacyDone" type="button">Close</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="tidyModal" aria-hidden="true">
   <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="tidyModalTitle">
     <div class="mhead"><h3 id="tidyModalTitle">Tidy</h3><button class="x" id="tidyModalClose" type="button" aria-label="Close">&times;</button></div>
@@ -1613,7 +1696,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=170"></script>
+<script src="js/app.js?v=171"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

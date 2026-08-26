@@ -67,7 +67,7 @@ Requirements: a café can be created and get an owner **without the Supabase das
 *(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  2 · The privacy gate — ship the DISCLOSURE  **[A — launch blocker]**
+## blocked  2 · The privacy gate — ship the DISCLOSURE  **[A — launch blocker]**
 
 ✅ **ANSWERED 15 Aug 2026 (Max): option B — disclose it.** His words: *"for now do b and we can sort this later post launch."*
 He was shown both options with measured costs and a recommendation of A (paid tier, ~5–20c per café per month), and chose B. **It is a decision; do not re-put the A/B question.** Full reasoning, the measured figures and Google's exact terms: `docs/decisions/2026-08-15-privacy-gate.md`.
@@ -85,6 +85,17 @@ Requirements: **a privacy policy that discloses this, shown before the data move
 
 **The WORDING is Max's to approve before it publishes** — a privacy policy is a statement his business makes. Drafting it does not need him and must not wait on him; only the sign-off does.
 Out of scope: switching to the paid tier. That is the item below.
+
+✅ **BUILT AND DRIVEN IN A BROWSER, BATCH 208 — everything except the sign-off. PR #218, branch `feature/privacy-disclosure`, `ezplate-v171`.**
+All four requirements are met and none of them is waiting on anything but the words:
+- the notice names Google, the free tier, training and human review, in a modal readable from the signed-out gate (`#privacyModal`, z-80, over the gate's z-60);
+- the sign-up form carries an acceptance that REFUSES before `signUp` runs, which is the first committing action on that screen;
+- both invoice dropzones restate it at the moment the data leaves;
+- the Settings toggle now names the destination instead of only saying "no AI calls".
+`tests/privacy-disclosure.test.js` pins the claims rather than the sentences, so the copy can be improved without going red and cannot be hollowed out. `tests/visual/item2-privacy.spec.js` drives all three surfaces at 380px and desktop in both themes, and proves the refusal actually fires.
+
+Blocked on: **Max to approve the WORDING of the privacy notice.** It is his business's statement about what it does with a customer's data, which is the one class of decision this file's own rules keep with him. Read it in the PR, or open the app and tap "Privacy notice" on the sign-in screen. Approve as drafted, or say what to change — **and the moment it is approved this merges as it stands; nothing else in the item is outstanding.**
+⚠️ **DO NOT MERGE THIS WITHOUT THAT ANSWER**, and do not re-draft it into vaguer language to avoid asking: the item's whole point is that the unusual specific — Google, by name, training, human review — is what makes it a disclosure rather than a notice.
 
 ## next  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
