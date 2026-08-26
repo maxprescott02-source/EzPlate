@@ -264,6 +264,12 @@ const targets = [
      the user has ruled on is skipped whole — through its own hand-built sandbox, and that sandbox
      stubs rankCandidates and packCount, which is correct there and is why 45 of 56 survived it. */
   { fn: 'gemApplyReadings', tests: ['invoice-gate.test.js', 'inv-referee.test.js'] },
+  /* item 2 (batch 208): the privacy gate's decision. It exists as a function AT ALL because the
+     three lines it replaced were inline in a DOM handler, invisible to this gate, and pinned by an
+     order-only test that stayed green against an inverted guard — roster 167(a), caught by the
+     pre-push review. A guard that decides whether a stranger is shown what leaves their café before
+     it leaves belongs on this list. */
+  { fn: 'privacyAcceptNeeded', tests: ['privacy-disclosure.test.js'] },
 ];
 
 /*

@@ -7269,6 +7269,22 @@ function gateMode(signup){
    at a work one, and the server cannot tell them apart. */
 var SIGNUP_MSG='Been invited to a café? Create your account with the email address the owner invited.';
 
+/* QUEUE item 2 — THE PRIVACY GATE'S DECISION, extracted so it can be tested and mutated.
+   ⚠️ IT WAS THREE LINES INLINE IN THE HANDLER AND THE TEST FOR IT COULD NOT FAIL. The unit test
+   asserted only that `bgUpAccept` was read BEFORE `authSubmit` and that a `return` sat between them
+   — an order-and-existence check, which is roster entry 167(a) exactly: "an order-only assertion
+   stayed green against an INVERTED guard". Flipping `!acc.checked` to `acc.checked`, so sign-up is
+   blocked when the box IS ticked and allowed when it is not, left all twelve tests green. Caught by
+   the pre-push review. The remedy is this repo's standing one: extract the real decision and have
+   the handler and the test call the same function, rather than testing around it.
+
+   ⚠️ AND IT REFUSES WHEN THE CHECKBOX IS MISSING, which the inline version did not. `acc && !acc.checked`
+   is false for a null element, so a markup rename would have shipped an ungated sign-up silently.
+   CLAUDE.md's rule is that a fail-open default is a decision about CONSEQUENCE: a missing checkbox
+   blocks sign-up loudly and is fixed by restoring one element, while the other direction sends a
+   stranger's invoice text to Google having never been shown what leaves. */
+function privacyAcceptNeeded(acc){ return !(acc && acc.checked === true); }
+
 function wireGateSignUp(){
   var link=document.getElementById('bgToSignUp'), back=document.getElementById('bgToSignIn');
   if(link) link.addEventListener('click', function(ev){ ev.preventDefault(); gateMode(true); });
@@ -7293,9 +7309,9 @@ function wireGateSignUp(){
        What it buys is that nobody reaches an account through THIS app without having been shown
        what leaves it — which is what the item asks for — and not that consent is enforced. */
     var acc=document.getElementById('bgUpAccept');
-    if(acc && !acc.checked){
+    if(privacyAcceptNeeded(acc)){
       gateErr('Please read and accept the privacy notice first — it says what is sent to Google.');
-      acc.focus();
+      if(acc) acc.focus();
       return;
     }
     /* NO unfinished-plate question here, unlike the sign-in beside it, and the difference is real

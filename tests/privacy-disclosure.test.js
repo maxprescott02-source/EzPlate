@@ -24,6 +24,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const H = require('./_extract.js');
 
 const ROOT = path.join(__dirname, '..');
 const HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -91,17 +92,43 @@ test('item 2: the sign-up form carries an acceptance the notice is linked from',
   assert.match(form, /Google/, 'and the label names Google, so the checkbox is not a blind tick');
 });
 
-test('item 2: sign-up REFUSES without the acceptance, before anything commits', () => {
-  /* The gate has to run before `authSignUpGated`, which creates the account and spends one of the
-     project's rate-limited confirmation emails. CLAUDE.md: gating the last committing action is not
-     a gate. This asserts the ORDER in the handler's source, which is a source-level check and weak
-     on its own (roster 183a) — so it also asserts the refusal exists and returns, and the browser
-     drive in the handover is what proves it fires. */
+test('item 2: the gate RUNS the real decision — ticked passes, everything else refuses', () => {
+  /* ⚠️ THIS TEST REPLACED AN ORDER-ONLY ONE THAT COULD NOT FAIL, and the story is roster entry
+     167(a) arriving again. The first version asserted that `bgUpAccept` was read BEFORE
+     `authSubmit` and that a `return` sat between them — both true of an INVERTED guard, so flipping
+     `!acc.checked` to `acc.checked` (blocking sign-up when the box IS ticked) left all twelve tests
+     green. Caught by the pre-push review, which ran the mutation rather than reading the test.
+     The remedy is the standing one: the decision is extracted as `privacyAcceptNeeded` and this
+     calls the REAL function rather than describing where it sits. */
+  assert.equal(H.privacyAcceptNeeded({ checked: true }), false, 'a ticked box is the only thing that passes');
+  assert.equal(H.privacyAcceptNeeded({ checked: false }), true, 'an unticked one refuses');
+
+  /* And it REFUSES when the checkbox is missing, rather than falling open. The inline version was
+     `acc && !acc.checked`, which is false for a null element — so a markup rename would have
+     shipped an ungated sign-up in silence. A missing checkbox blocks sign-up loudly and is fixed by
+     restoring one element; the other direction sends a stranger's invoice text to Google having
+     never shown them what leaves. */
+  for (const missing of [null, undefined, false, 0, '']) {
+    assert.equal(H.privacyAcceptNeeded(missing), true, `a ${JSON.stringify(missing)} element must refuse, not fall open`);
+  }
+  /* A truthy non-checkbox is the other half of the same worry: `checked` must be read strictly, so
+     an element that simply has no such property cannot pass by being truthy. */
+  assert.equal(H.privacyAcceptNeeded({}), true, 'an element with no checked property refuses');
+  assert.equal(H.privacyAcceptNeeded({ checked: 'yes' }), true, 'and a truthy non-boolean does not count as ticked');
+});
+
+test('item 2: the gate is called BEFORE anything commits', () => {
+  /* The order still matters and is still worth pinning — `authSubmit` reaches `signUp`, which
+     creates the account and spends one of the project's rate-limited confirmation emails, and
+     CLAUDE.md's rule is that gating the last committing action is not a gate.
+     This is a source-level check and weak ON ITS OWN (roster 183a), which is exactly why it is now
+     one of three: the test above proves the decision is right, this proves it runs first, and
+     tests/visual/item2-privacy.spec.js proves the refusal actually reaches the screen. */
   const start = APP.indexOf('function wireGateSignUp');
   const fn = APP.slice(start, APP.indexOf('\nfunction ', start + 10));
-  const gate = fn.indexOf('bgUpAccept');
+  const gate = fn.indexOf('privacyAcceptNeeded(');
   const commit = fn.indexOf('authSubmit(');
-  assert.ok(gate > 0, 'the handler reads the acceptance');
+  assert.ok(gate > 0, 'the handler calls the extracted decision');
   assert.ok(commit > 0, 'and calls authSubmit');
   assert.ok(gate < commit, 'the acceptance is checked BEFORE the account is created');
   assert.match(fn.slice(gate, commit), /return;/, 'and refuses rather than warning and continuing');

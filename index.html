@@ -1576,7 +1576,15 @@
       <h4>Who runs this</h4>
       <p>EzPlate is run by Scoopy&rsquo;s Family Cafe. There is no analytics and no tracking of any kind in this app, and nothing is sold or shared with anyone else.</p>
 
-      <p class="pv-changed">If this changes &mdash; and it is intended to, by moving to a paid tier Google may not train on &mdash; this notice changes with it and you will be asked to read it again.</p>
+      <!-- ⚠️ THIS SENTENCE PROMISED "you will be asked to read it again" AND NOTHING IMPLEMENTED
+           THAT. There is no acceptance record anywhere: the tick at sign-up gates the form and is
+           never written to the database, so there is nothing to compare a new version against and
+           no way to re-prompt anyone. Caught by the pre-push review, which went looking for the
+           mechanism behind the promise and found none.
+           It now says what is true. Building the record is written up in docs/MAINTENANCE.md, and
+           when it exists this sentence can promise the re-prompt again. A commitment in a consent
+           notice with nothing behind it is the one kind of copy this whole item exists to avoid. -->
+      <p class="pv-changed">This notice changes if what we send changes &mdash; and it is intended to, by moving to a paid tier Google may not train on. The current version is always the one on this screen.</p>
     </div>
     <div class="mfoot"><button class="btn primary" id="privacyDone" type="button">Close</button></div>
   </div>

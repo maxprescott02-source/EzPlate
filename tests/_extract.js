@@ -133,6 +133,10 @@ function build() {
   const gemHist = extractFn(src, 'gemHist');
   const gemDiag = extractFn(src, 'gemDiag');
   const gemApplyReadings = extractFn(src, 'gemApplyReadings');
+  /* item 2 (batch 208): the privacy gate's decision, extracted for the reason the roster gives —
+     the three lines it replaced were pinned by an order-only test that stayed green against an
+     inverted guard. */
+  const privacyAcceptNeeded = extractFn(src, 'privacyAcceptNeeded');
   /* 0c (batch 203): the row's one skimmable signal, EXTRACTED rather than stubbed. It is pure —
      byId and cpbu are already in this sandbox for the insight pipeline — and stubbing it made
      buildInvRows' call to it unkillable by the mutation gate. PRICE_JUMP comes with it because the
@@ -261,8 +265,9 @@ function build() {
     ${gemHist}
     ${gemDiag}
     ${gemApplyReadings}
+    ${privacyAcceptNeeded}
     return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention,
-      setRefereeState, gemState, gemApplyReadings, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }
