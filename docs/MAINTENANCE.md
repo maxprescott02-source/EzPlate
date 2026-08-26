@@ -285,6 +285,20 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### A $0.00 invoice line means two different things to two functions on the same import
+(Found 26 Aug 2026 by batch 203, writing coverage for `applySupplierMemory`. **Neither behaviour is wrong on its own; they disagree, and nothing anywhere says which is intended.**)
+
+An invoice line whose price column reads `0.00` — a sample, a freebie, a credit — reaches two functions in the same import, and they take opposite views:
+
+- **`invDerivePackQty`** treats it as a freebie or a credit and deliberately derives **no pack size** from it. That is written down, with the reasoning, as the reason one of its mutants is NOT allowed in `tests/mutation/targets.js`: *"a $0.00 invoice line is a freebie or a credit, and it must derive no pack size rather than a pack size of zero."*
+- **`applySupplierMemory`** stores the zero. Its guard is `unitPrice<0`, not `<=0`, so a remembered pack over a $0.00 line yields `unitPrice: 0`, `needManual: false` and `remembered: true` — a row that looks fully resolved and, if confirmed, writes a cost of zero onto the product.
+
+**Why it is C rather than B:** the row is on the no-match branch, so it never auto-ticks and the user confirms it by hand; and a $0.00 cost really is the honest answer for a line that cost nothing. **Why it is worth writing down anyway:** a zero cost reads as a free ingredient everywhere downstream — every plate using it gets cheaper, the food-cost KPI moves, and nothing on any screen says a price came from a $0.00 line. That is the quiet-wrong-number shape this repo keeps finding.
+
+The behaviour is now **pinned as behaviour** in `tests/supplier-memory.test.js` (*"a $0.00 line IS priced, at zero — the guard refuses NEGATIVE, not free"*), with the disagreement written at the test's own site so the test cannot be read as an endorsement. **The pin is deliberate and is not the answer**: it exists so the `<` / `<=` boundary cannot be changed by accident, and it must be rewritten by whoever settles the question rather than treated as a constraint.
+Requirements: decide what a $0.00 line means, once, and make both functions say it. If the answer is "a free line is a real price of zero", `invDerivePackQty`'s allowance reasoning is the thing that is wrong and should be corrected. If it is "a $0.00 line is not price information", `applySupplierMemory` needs `unitPrice<=0` and the test above needs inverting.
+⚠️ **Do not change one of them alone.** Two functions agreeing on the wrong answer is recoverable; two functions disagreeing about the same line is what this entry is.
+
 ### "Try again" after a PDF-reader load failure cannot work, for TWO independent reasons
 (Found 15 Aug 2026 by batch 195 while rewriting `ensurePdfjs()` for the 4.10.38 upgrade. **Pre-existing, not introduced — but 195 added the second reason, so it is written down rather than half-fixed.**)
 
