@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EzPlate decision — the empty-state voice (28 Aug 2026)</title>
+<style>
+:root{
+  --ui:'Geist',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:'Geist Mono',ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --fs-xs:12px;--fs-sm:13px;--fs-base:15px;--fs-lg:18px;
+  --sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;
+  --radius-card:12px;--radius-ctl:10px;--radius-pill:999px;
+}
+html[data-theme="dark"]{
+  --surface:#232528;--surface-2:#1E1F22;--border:#34363B;--border-2:#3F4247;
+  --text:#E4E3E1;--text-2:#ABA9A5;--muted2:#908D89;
+  --accent:#E98B4C;--accent-soft:#3A312A;--on-accent:#1E1F22;
+  --shadow-pop:rgba(0,0,0,.38);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-2);color:var(--text);font-family:var(--ui);
+     font-size:var(--fs-base);line-height:1.55;padding:var(--sp-5) var(--sp-4) 64px}
+h1{font-size:var(--fs-lg);margin:0 0 var(--sp-2)}
+.lede{color:var(--text-2);font-size:var(--fs-sm);margin:0 0 var(--sp-5);max-width:62ch}
+.lede b{color:var(--text)}
+h2{font-size:var(--fs-base);margin:var(--sp-6) 0 var(--sp-2);letter-spacing:.01em}
+.tradeoff{color:var(--muted2);font-size:var(--fs-sm);margin:var(--sp-2) 0 0;max-width:62ch}
+.rule{color:var(--text-2);font-size:var(--fs-sm);margin:0 0 var(--sp-3);max-width:62ch}
+.rule b{color:var(--accent)}
+
+/* the six phones, side by side, each a real 380-wide slice at a realistic height */
+.row{display:flex;gap:var(--sp-3);margin:var(--sp-3) 0 0}
+.phone{flex:0 0 auto}
+table.titles{max-width:520px;margin:var(--sp-3) 0 0}
+table.titles td{border-bottom:1px solid var(--border);padding:5px 10px}
+table.titles td.sn{color:var(--muted2);font-size:var(--fs-xs);width:38%}
+table.titles td.chg{color:var(--accent);font-weight:600}
+.screenname{font-size:var(--fs-xs);color:var(--muted2);font-family:var(--mono);
+            margin:0 0 6px;text-transform:uppercase;letter-spacing:.05em}
+/* 380px content scaled to 190 so six fit on a phone; the PROPORTIONS are the app's */
+.viewport{width:266px;height:420px;background:var(--surface);border:1px solid var(--border);
+          border-radius:var(--radius-card);overflow:hidden;position:relative;
+          box-shadow:0 4px 14px var(--shadow-pop)}
+.scale{width:380px;height:600px;transform:scale(.7);transform-origin:0 0}
+.hdr{padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+.hdr h3{margin:0;font-size:20px;color:var(--text)}
+/* the app's own .empty-state, verbatim proportions */
+.empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;
+             gap:12px;max-width:420px;margin:0 auto;padding:48px 24px}
+.es-icon{width:64px;height:64px;color:var(--muted2);opacity:.65}
+.empty-state h4{margin:0;font-size:17px;color:var(--text);font-weight:600}
+.empty-state p{margin:0;font-size:13px;color:var(--muted2);line-height:1.5}
+.es-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.btn{font-family:var(--ui);font-size:15px;font-weight:600;padding:10px 16px;
+     border-radius:var(--radius-ctl);border:1px solid var(--border-2);
+     background:var(--surface);color:var(--text)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+mark{background:var(--accent-soft);color:var(--accent);padding:0 3px;border-radius:4px}
+table{border-collapse:collapse;width:100%;max-width:640px;font-size:var(--fs-sm);margin:var(--sp-3) 0}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border)}
+th{color:var(--muted2);font-weight:600;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em}
+td.g{color:var(--muted2);font-family:var(--mono);font-size:var(--fs-xs)}
+.ask{margin-top:var(--sp-6);padding:var(--sp-4);background:var(--surface);
+     border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius-ctl);max-width:62ch}
+.ask p{margin:0 0 var(--sp-2)}
+.ask p:last-child{margin:0}
+code{font-family:var(--mono);font-size:.92em;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<h1>The six empty states speak in two voices</h1>
+<p class="lede">A new caf&eacute; walking Products &rarr; Ingredients &rarr; Plates &rarr; Menu meets
+<b>report, invite, invite, report</b>. The bodies and the buttons are all fine and consistent
+&mdash; it is only the <b>titles</b> that disagree. Batch 214 read all six together, which is what
+the queue item asked for and what nobody had done.</p>
+
+<table>
+  <tr><th>Screen</th><th>Title today</th><th>Grammar</th></tr>
+  <tr><td>Products</td><td>&ldquo;No products yet.&rdquo;</td><td class="g">status</td></tr>
+  <tr><td>Ingredients</td><td>&ldquo;Name your first ingredient&rdquo;</td><td class="g">invitation</td></tr>
+  <tr><td>Plates</td><td>&ldquo;Cost your first plate&rdquo;</td><td class="g">invitation</td></tr>
+  <tr><td>Menu &mdash; no menus</td><td>&ldquo;No menus yet.&rdquo;</td><td class="g">status</td></tr>
+  <tr><td>Menu &mdash; empty menu</td><td>&ldquo;Nothing on this menu yet.&rdquo;</td><td class="g">status</td></tr>
+  <tr><td>Dashboard &mdash; Dig in</td><td>&ldquo;Nothing to rank yet.&rdquo;</td><td class="g">status</td></tr>
+</table>
+
+<p class="lede"><b>The split is not random, which is why this is a choice and not a bug.</b>
+Five of the six fit a rule: a screen where <i>you</i> make the thing, with one obvious action,
+invites; a screen showing something derived from other screens reports. The one that breaks it is
+<b>&ldquo;No menus yet.&rdquo;</b> &mdash; one action, and it still reports.</p>
+
+<h2>A &mdash; change one line</h2><p class="rule">Rule: <b>one obvious action &rarr; invite; everything else &rarr; report.</b> Products keeps reporting because it offers two actions and has no single verb.</p><table class="titles"><tr><td class="sn">Products</td><td>&ldquo;No products yet.&rdquo;</td></tr><tr><td class="sn">Ingredients</td><td>&ldquo;Name your first ingredient&rdquo;</td></tr><tr><td class="sn">Plates</td><td>&ldquo;Cost your first plate&rdquo;</td></tr><tr><td class="sn">Menu &mdash; none</td><td class="chg">&ldquo;Create your first menu&rdquo;</td></tr><tr><td class="sn">Menu &mdash; empty</td><td>&ldquo;Nothing on this menu yet.&rdquo;</td></tr><tr><td class="sn">Dig in</td><td>&ldquo;Nothing to rank yet.&rdquo;</td></tr></table><div class="row"><div class="phone"><p class="screenname">Menu</p><div class="viewport"><div class="scale"><div class="hdr"><h3>Menu</h3></div><div class="empty-state"><div class="es-icon">&#9673;</div><h4><mark>Create your first menu</mark></h4><p>A menu is a set of plates with sell prices. Create one, then publish plates onto it.</p><div class="es-actions"><button class="btn primary">New menu</button></div></div></div></div></div></div><p class="tradeoff"><b>Smallest change &mdash; one title.</b> But Products still reports while the two screens either side of it invite, so the walk is not quite one voice.</p><h2>B &mdash; every screen you create on invites <i>(recommended)</i></h2><p class="rule">Rule: <b>you make it here &rarr; invite; it comes from elsewhere &rarr; report.</b> Two tiers, and the tier a new screen belongs to is obvious.</p><table class="titles"><tr><td class="sn">Products</td><td class="chg">&ldquo;Add your first products&rdquo;</td></tr><tr><td class="sn">Ingredients</td><td>&ldquo;Name your first ingredient&rdquo;</td></tr><tr><td class="sn">Plates</td><td>&ldquo;Cost your first plate&rdquo;</td></tr><tr><td class="sn">Menu &mdash; none</td><td class="chg">&ldquo;Create your first menu&rdquo;</td></tr><tr><td class="sn">Menu &mdash; empty</td><td>&ldquo;Nothing on this menu yet.&rdquo;</td></tr><tr><td class="sn">Dig in</td><td>&ldquo;Nothing to rank yet.&rdquo;</td></tr></table><div class="row"><div class="phone"><p class="screenname">Products</p><div class="viewport"><div class="scale"><div class="hdr"><h3>Products</h3></div><div class="empty-state"><div class="es-icon">&#9673;</div><h4><mark>Add your first products</mark></h4><p>Import your supplier&rsquo;s product list to fill your catalogue in one go, or add products one at a time.</p><div class="es-actions"><button class="btn primary">Import catalogue</button><button class="btn">New product</button></div></div></div></div></div></div><p class="tradeoff"><b>The whole first run reads as one guided sequence.</b> The two that still report &mdash; an empty menu, and Dig in &mdash; are exactly the two where the next move is on a different screen, so reporting is honest there. Cost: Products has two buttons, so a single verb is a slight stretch.</p><h2>C &mdash; everything reports</h2><p class="rule">Rule: <b>titles state what is there; bodies and buttons say what to do.</b></p><table class="titles"><tr><td class="sn">Products</td><td>&ldquo;No products yet.&rdquo;</td></tr><tr><td class="sn">Ingredients</td><td class="chg">&ldquo;No ingredients yet.&rdquo;</td></tr><tr><td class="sn">Plates</td><td class="chg">&ldquo;No plates yet.&rdquo;</td></tr><tr><td class="sn">Menu &mdash; none</td><td>&ldquo;No menus yet.&rdquo;</td></tr><tr><td class="sn">Menu &mdash; empty</td><td>&ldquo;Nothing on this menu yet.&rdquo;</td></tr><tr><td class="sn">Dig in</td><td>&ldquo;Nothing to rank yet.&rdquo;</td></tr></table><div class="row"><div class="phone"><p class="screenname">Plates</p><div class="viewport"><div class="scale"><div class="hdr"><h3>Plates</h3></div><div class="empty-state"><div class="es-icon">&#9673;</div><h4><mark>No plates yet.</mark></h4><p>Add the ingredients a plate uses and EzPlate works out what it costs you.</p><div class="es-actions"><button class="btn primary">New plate</button></div></div></div></div></div></div><p class="tradeoff"><b>The most consistent and the shortest.</b> Cost: it removes the two warmest lines in the app, on the two screens a new caf&eacute; is most likely to be lost on.</p><div class="ask">
+  <p><b>Reply in chat with a letter.</b> &ldquo;None of these&rdquo; and your own wording is a
+  perfectly good answer too.</p>
+  <p>Whichever wins, the rule behind it gets written at <code>emptyStateHtml</code>, so the next
+  screen someone adds does not have to guess.</p>
+</div>
+
+</body>
+</html>
