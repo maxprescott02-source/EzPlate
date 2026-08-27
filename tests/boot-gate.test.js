@@ -44,7 +44,17 @@ function makeGate(present, opts) {
     ? { bootGate: mkNode('bootGate'), bootGateMsg: mkNode('bootGateMsg'), bootGateRetry: mkNode('bootGateRetry'),
         bootGateOut: mkNode('bootGateOut'), bgSignForm: mkNode('bgSignForm'), bgErr: mkNode('bgErr'),
         bootGateBrand: mkNode('bootGateBrand'),
-        bgEmail: Object.assign(mkNode('bgEmail'), { focuses: 0, focus() { this.focuses++; } }) }
+        bgEmail: Object.assign(mkNode('bgEmail'), { focuses: 0, focus() { this.focuses++; } }),
+        /* ⚠️ 209 ADDED THESE THREE AND THEIR ABSENCE WAS A REAL HOLE, not a gap in coverage. Until
+           this batch the stub had no `bgCafeForm`, `bgCafeNote` or `bgCafeName`, so `cf` and `cn`
+           were null in every test in this file and the whole café branch was exercised for "does
+           not throw" and nothing else — the vacuous-guard shape the comment above warns about,
+           reached by adding elements to the markup and not to the stub. The pre-push review found a
+           live defect in that branch and no test here could have gone red for it.
+           `bgCafeName` carries a focus() counter for `bgEmail`'s reason: the transition has to be
+           OBSERVED, not merely survived. */
+        bgCafeForm: mkNode('bgCafeForm'), bgCafeNote: mkNode('bgCafeNote'),
+        bgCafeName: Object.assign(mkNode('bgCafeName'), { focuses: 0, focus() { this.focuses++; } }) }
     : {};
   // `omit` models the real mixed-version case: a cached index.html without the newer elements.
   (opts && opts.omit || []).forEach((id) => { delete nodes[id]; });
@@ -76,6 +86,7 @@ function makeGate(present, opts) {
   return { gate: nodes.bootGate, msg: nodes.bootGateMsg, retry: nodes.bootGateRetry,
            out: nodes.bootGateOut, form: nodes.bgSignForm, err: nodes.bgErr, email: nodes.bgEmail,
            brand: nodes.bootGateBrand,
+           cafeForm: nodes.bgCafeForm, cafeNote: nodes.bgCafeNote, cafeName: nodes.bgCafeName,
            run: api.bootGate, gateErr: api.gateErr, SIGNIN_MSG: api.SIGNIN_MSG, calls };
 }
 
@@ -197,6 +208,72 @@ test('the non-member state shows the gate and its message', () => {
   assert.strictEqual(g.gate.hidden, false, 'an empty app with no explanation is the failure being fixed');
   assert.ok(g.gate.classList.contains('is-error'), 'the spinner must stop — nothing is still loading');
   assert.match(g.msg.textContent, /c@example.com/);
+});
+
+test('209: the non-member state offers the café form and its warning', () => {
+  /* The screen 185 built could only say "ask the owner"; there was nothing else it could honestly
+     say, because a café could not be created from inside the app at all. This is that sentence
+     becoming an action. */
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('nomember', 'no café');
+  assert.strictEqual(g.cafeForm.hidden, false, 'the form is what makes this screen not a dead end');
+  assert.strictEqual(g.cafeNote.hidden, false, 'and the one-café-per-account warning comes with it');
+  assert.strictEqual(g.out.hidden, false, 'with sign out still there as the other way out');
+});
+
+test('209: a RE-SYNC does not steal the caret or wipe a standing error', () => {
+  /* ⚠️ THIS IS THE PRE-PUSH REVIEW'S FINDING, PINNED AT THE LEVEL IT LIVES, and the defect it
+     caught is worth stating because the code read correctly. The first cut asked
+     `if(cf && cf.hidden)` as its "first time through" test — five lines BELOW the same branch's
+     `hideForms()` call, which had just set `cf.hidden=true`. So the guard was true on EVERY
+     invocation: every `online` blip and every pull-to-refresh cleared the error explaining why the
+     last attempt was refused and yanked focus back into the field, mid-word.
+     It is invisible by reading because the identical-looking guard three states up IS correct —
+     the 'signin' branch does not call `hideForms` first, so its flag still means what it says.
+     ⚠️ AND NOTHING COULD HAVE CAUGHT IT: this file's DOM stub had no café elements at all, so the
+     branch ran with `cf === null` in every test; and the Playwright case titled "a re-sync does NOT
+     empty a half-typed café name" asserted only that the field still held its VALUE, which
+     `.focus()` does not touch — green whichever way the guard went. Roster 205's shape exactly: a
+     title naming a property the assertions cannot see. */
+  const g = makeGate(true);
+  g.run('loading');
+  g.run('nomember', 'no café');
+  assert.strictEqual(g.cafeName.focuses, 1, 'the transition gives the field the caret, once');
+
+  // the user is refused, so a message is standing on screen
+  g.gateErr('That name is too long — 60 characters at most.');
+  assert.strictEqual(g.err.hidden, false);
+
+  // …and the browser comes back online, so bootstrapSync re-runs and lands here again
+  g.run('nomember', 'no café');
+  assert.strictEqual(g.cafeForm.hidden, false, 'the form is still up');
+  assert.strictEqual(g.cafeName.focuses, 1,
+    'and the caret was NOT taken a second time — a re-focus on a timer interrupts a word');
+  assert.strictEqual(g.err.hidden, false,
+    'the refusal must outlive the blip that followed it, or the user is told nothing');
+  assert.match(g.err.textContent, /too long/);
+});
+
+test('209: leaving the non-member state and coming back DOES focus again', () => {
+  /* The other half, and the reason the guard is a TRANSITION test rather than a one-way latch:
+     arriving at this screen with no caret in its only field is worse than the interruption the test
+     above forbids. A latch would have passed that test and failed this one, which is why both are
+     here — "never focus twice" and "focus on arrival" are different rules and only one of them is
+     satisfied by doing nothing.
+     ⚠️ THE PATH MATTERS AND THE FIRST DRAFT OF THIS TEST GOT IT WRONG. It went nomember → loading →
+     nomember and asserted a second focus, on the assumption that 'loading' repaints. It does not:
+     185's latch makes an automatic 'loading' return early while `_bootNoMember` is set, precisely so
+     an `online` blip cannot swap this screen for a spinner — so `hideForms` never runs and nothing
+     has left. The real re-entry is through the ERROR gate, which does hide the forms: a boot that
+     fails, Try again, and a re-sync that this time answers "no café". */
+  const g = makeGate(true);
+  g.run('nomember', 'no café');
+  assert.strictEqual(g.cafeName.focuses, 1);
+  g.run('error', 'Couldn’t load your data');
+  assert.strictEqual(g.cafeForm.hidden, true, 'the error screen must not leave a café form on it');
+  g.run('nomember', 'no café');
+  assert.strictEqual(g.cafeName.focuses, 2, 'a genuine re-entry is a transition and gets the caret');
 });
 
 test('Try again is HIDDEN for a non-member, and Sign out is offered instead', () => {

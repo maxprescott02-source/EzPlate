@@ -598,6 +598,19 @@ function bootGate(state, msg){
   var su=document.getElementById('bgSignUpForm'), dn=document.getElementById('bgDone');
   var ai=document.getElementById('bgAltIn'), au=document.getElementById('bgAltUp');
   var cf=document.getElementById('bgCafeForm'), cn=document.getElementById('bgCafeNote');
+  /* ⚠️ 209 — READ HERE, BEFORE `hideForms` CAN RUN, AND THE FIRST CUT DID NOT. It asked
+     `if(cf && cf.hidden)` inside the 'nomember' branch, five lines BELOW that branch's own
+     `hideForms()` call — which had already set `cf.hidden=true`. The guard was therefore true on
+     every invocation rather than only on the transition, so every re-sync that reached that state
+     cleared a standing error message and stole the caret back to the field. It read exactly like
+     the correct guard three states up, and the difference is invisible: the 'signin' branch does
+     NOT call `hideForms` before testing `f.hidden`, so ITS flag still means what it says.
+     Found by the pre-push review, which extracted the real function and drove
+     loading → nomember → nomember rather than reading it.
+     ⚠️ THE TRANSFERABLE PART: a "have I already painted this?" test must read state the paint has
+     not touched yet. Reusing the flag the paint SETS makes the test a statement about this call
+     instead of about the last one — and it is silent, because the first call still behaves. */
+  var cfWasUp=!!(cf && !cf.hidden);
   var hideForms=function(){
     if(f) f.hidden=true; if(su) su.hidden=true;
     if(ai) ai.hidden=true; if(au) au.hidden=true;
@@ -692,16 +705,19 @@ function bootGate(state, msg){
        ⚠️ SHOWN, NEVER RESET — the same rule the sign-in form carries three states up, and it bites
        harder here because the field holds something a person typed rather than something a password
        manager can put back. `bootGate('nomember')` runs again on every re-sync that reaches it (an
-       `online` blip, a pull-to-refresh), and clearing the value or re-focusing would empty or
-       interrupt a half-typed café name. The error line is cleared only on the transition for the
-       same reason: a message explaining a refusal must outlive the blip that follows it. */
-    if(cf && cf.hidden){
-      cf.hidden=false;
+       `online` blip, a pull-to-refresh), and re-focusing would interrupt a half-typed café name.
+       The error line is cleared only on the transition for the same reason: a message explaining a
+       refusal must outlive the blip that follows it.
+       The form itself is UNHIDDEN unconditionally — `hideForms()` just hid it — and only the two
+       things that disturb a person mid-sentence are conditional. `cfWasUp` is read at the top of
+       this function rather than here; see the note there for what that cost the first time. */
+    if(cf) cf.hidden=false;
+    if(cn) cn.hidden=false;
+    if(!cfWasUp){
       gateErr('');
       var ci=document.getElementById('bgCafeName');
       if(ci && typeof ci.focus==='function'){ try{ ci.focus(); }catch(e){} }
     }
-    if(cn) cn.hidden=false;
     if(o){ o.hidden=false; o.onclick=async function(){
       if(o.disabled) return;
       o.disabled=true;

@@ -196,18 +196,44 @@ test('the café form appears on NO other state of this gate', async ({ page }) =
   await expect(page.locator('#bgCafeForm')).toBeHidden();
 });
 
-test('a re-sync does NOT empty a half-typed café name', async ({ page }) => {
+test('a re-sync does NOT steal the caret or wipe a standing refusal', async ({ page }) => {
   /* ⚠️ SHOWN, NEVER RESET — the rule the sign-in form three states up already carries, and it bites
      harder here: a password manager can put a password back, and nothing can put back the name
      somebody was halfway through typing. `bootGate('nomember')` runs again on every re-sync that
      reaches it, and an `online` blip on café wifi is an ordinary event rather than an exotic one.
      `rpcFailsAfter` makes the re-sync's tenant lookup fail, which is the shape that repaints this
-     screen rather than leaving it — 185's own recorded scenario. */
+     screen rather than leaving it — 185's own recorded scenario.
+
+     ⚠️ THIS TEST WAS TITLED "does NOT empty a half-typed café name" AND ASSERTED ONLY `toHaveValue`,
+     WHICH COULD NOT FAIL. The pre-push review found a live defect in exactly the guard this names —
+     the "first time through" test read a flag `hideForms()` had already set, so every re-sync
+     cleared the error and re-focused the field — and this case stayed green throughout, because
+     `.focus()` does not touch `.value` and nothing here looked at `#bgErr`. Roster 205's shape: a
+     title naming a property the assertions cannot see, which is worse than no test because the
+     title is what the next reader trusts.
+     So it now asserts the three things the guard actually decides: the value survives, the CARET is
+     not taken back, and a refusal already on screen outlives the blip. */
   await bootNonMember(page, PHONE, { rpcFailsAfter: 1 });
+
+  /* A refusal the user is looking at. The client-side one is used rather than a server error
+     because it needs no second fixture and lands in the same `#bgErr` line either way. */
+  await page.locator('#bgCafeName').fill('   ');
+  await page.locator('#bgCafeBtn').click();
+  await expect(page.locator('#bgErr')).toBeVisible();
+
   await page.locator('#bgCafeName').fill('Half typed na');
+  /* Focus is asserted through document.activeElement rather than Playwright's :focus matcher so the
+     "was it taken BACK" question is answered by the same read before and after. */
+  await page.locator('#bgCafeName').blur();
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).not.toBe('bgCafeName');
+
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForTimeout(700);
 
   await expect(page.locator('#bootGate')).toBeVisible();
   await expect(page.locator('#bgCafeName')).toHaveValue('Half typed na');
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.id))
+    .not.toBe('bgCafeName');
+  await expect(page.locator('#bgErr')).toBeVisible();
+  await expect(page.locator('#bgErr')).toContainText('Enter a name');
 });
