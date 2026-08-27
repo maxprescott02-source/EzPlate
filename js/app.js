@@ -1416,7 +1416,7 @@ function renderDrop(){
     dropEl.setAttribute('role','group');
     dropEl.innerHTML=builderNoMatchHtml(q, plate.length>0);
     var go=dropEl.querySelector('.nomatch-go'); if(go) go.onclick=saveAndAddIngredients;
-    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl); return;
+    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl,{portal:true}); return;
   }
   dropEl.setAttribute('role','listbox');
   dropEl.innerHTML=curList.map((it,i)=>{
@@ -1434,7 +1434,7 @@ function renderDrop(){
      The engine's `position:fixed` escapes every clipping ancestor and caps maxHeight to the room
      that actually exists, which is why `.cat-drop` was moved onto it in v59.
      anchorDrop must run AFTER `.open` — a display:none element measures zero. */
-  dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl);
+  dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl,{portal:true});
 }
 /* v83 item 7 — the builder's no-match state is an informative DEAD END, never a creation path.
    Creating an ingredient from here was deliberately removed in v59 and STAYS removed: the fuzzy matcher
@@ -6860,7 +6860,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v173';
+var APP_VERSION='v174';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8362,7 +8362,7 @@ function renderPlateSuggest(query){
      rect found nothing.
      Placed AFTER display:block for the same reason as `#drop`. */
   box.style.display='block';
-  anchorDrop(box, document.getElementById('plateName'));
+  anchorDrop(box, document.getElementById('plateName'), {portal:true});
 }
 function loadMenuItemBlank(id){                              // v55: cost an uncosted dish -> open its (created+linked) plate
   var m=menuById[id]; if(!m) return;
@@ -9899,6 +9899,10 @@ function anchorDrop(drop, anchorEl, opts){
   if(!inp && drop.previousElementSibling && drop.previousElementSibling.tagName==='INPUT') inp=drop.previousElementSibling;
   if(!inp) return;
   var r=inp.getBoundingClientRect();
+  /* 213: reparent BEFORE measuring. fixedContainingBlock walks the layer's ANCESTORS, so asking it
+     where the layer sits today would answer about the box the layer is leaving. Portaled to body,
+     the walk finds nothing and returns the viewport, which is the whole point. */
+  if(opts.portal) portalDrop(drop);
   var cb=fixedContainingBlock(drop);
   drop.style.position='fixed';
   if(opts.matchWidth===false){
@@ -9919,7 +9923,39 @@ function anchorDrop(drop, anchorEl, opts){
   else { drop.style.top='auto'; drop.style.bottom=(cb.bottom-r.top+4)+'px'; }
   drop.style.maxHeight=p.maxHeight+'px';                                  // .cat-drop's overflow:auto scrolls a long list inside this
 }
-function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); }
+/* 213 ROOT CAUSE — `position:fixed` ESCAPES CLIPPING BUT NOT STACKING CONFINEMENT, and 212's engine
+   only fixed the first half. A z-index orders siblings WITHIN a stacking context and never across the
+   boundary of an ancestor that established one, so both builder layers were pinned at their
+   ancestor's level and lost to opaque chrome with a LOWER z-index than their own:
+     `#drop`          inside `.bld-docket`, a stacking context via `filter:drop-shadow` (z-index auto)
+     `#plateSuggest`  inside `.bld-head{position:relative;z-index:2}`
+   Measured at 380x640 with an `elementFromPoint` scan: `.bld-bar` (fixed, z-index:25, holding SAVE
+   PLATE) painted over 8 of 25 points of `#drop` and 4 of 25 of `#plateSuggest`. Visible-looking rows
+   that do not respond to a tap, with nothing on screen saying so.
+   ⚠️ THE OBVIOUS FIX IS THE WRONG ONE AND IT WAS MEASURED, NOT REASONED. This item originally
+   prescribed subtracting the fixed furniture from `dropBox`'s soft bound. Built and measured, that is
+   worse: at 380x640 the list flips upward to clear `.bld-bar` and lands under `.bld-head` instead
+   (12 of 20 points covered), and at 380x420 `dropPlace`'s documented fallback to the hard bound puts
+   it straight back under everything (20 of 25). Trading one stacking context for another is not a fix.
+   The layer has to LEAVE the confinement, so on open it is reparented to `<body>` — the root stacking
+   context, where its own z-index finally means something — and put back on close.
+   ⚠️ Only the two BUILDER layers portal. `.cat-drop` lives inside a modal whose overlay already
+   out-stacks the phone chrome, and `.dash-menus-pop` is rebuilt by every `renderDashboard` — a
+   portaled copy of an element its own renderer does not own would be orphaned at body level on the
+   next render. Neither was ever measured as covered. */
+function portalDrop(drop){
+  if(!drop || drop.__portalHome) return;
+  var parent=drop.parentElement; if(!parent || parent===document.body) return;
+  drop.__portalHome={parent:parent, next:drop.nextSibling};
+  document.body.appendChild(drop);
+}
+function unportalDrop(drop){
+  var home=drop&&drop.__portalHome; if(!home) return;
+  drop.__portalHome=null;
+  if(home.parent&&home.parent.isConnected) home.parent.insertBefore(drop, home.next&&home.next.isConnected?home.next:null);
+  else if(drop.parentElement===document.body) drop.remove();   // its home is gone: do not strand it on body
+}
+function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); unportalDrop(drop); }
 /* 212: every MANAGED layer re-anchors, not just `.cat-drop`. Each entry names how to find the layer
    and how to find its anchor, because the engine no longer derives one for layers that are not
    comboboxes. A layer absent from the DOM or hidden is skipped; `.drop` is class-driven rather than
@@ -9927,9 +9963,9 @@ function resetDrop(drop){ if(!drop) return; ['position','left','width','right','
 function reanchorOpenLayers(){
   document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); });
   var q=document.getElementById('q'), dd=document.getElementById('drop');
-  if(q && dd && dd.classList.contains('open')) anchorDrop(dd, q);
+  if(q && dd && dd.classList.contains('open')) anchorDrop(dd, q, {portal:true});
   var sg=document.getElementById('plateSuggest'), nm=document.getElementById('plateName');
-  if(sg && nm && sg.style.display==='block') anchorDrop(sg, nm);
+  if(sg && nm && sg.style.display==='block') anchorDrop(sg, nm, {portal:true});
   var pop=document.querySelector('.dash-menus-pop'), sb=document.getElementById('dashScopeBtn');
   if(pop && sb) anchorDrop(pop, sb, {matchWidth:false, align:'right'});
 }
