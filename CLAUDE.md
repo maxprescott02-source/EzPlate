@@ -730,8 +730,17 @@ Max has no human reviewer, so this is the only second reader the code gets.
 
 ⚠️ **THE REPOSITORY WENT PUBLIC ON 13 AUG 2026 (Max's call, taken twice), AND THAT REVERSED THIS PARAGRAPH.**
 It read: *"Nothing can actually BLOCK a merge. Branch protection and rulesets need GitHub Pro on a private repo - the API returns 403 - so 'mandatory' below is a convention you keep, not a mechanism that stops you."*
-**Branch protection is FREE on a public repository.** The API now answers `404 Branch not protected` - "none is configured" - where it used to answer `403`. So the mechanism this file has always said was unavailable is now available and simply **not yet turned on**.
-Until someone turns it on, the sentence above still describes reality: **"mandatory" is a convention you keep.** Do not read the unlock as the gate.
+**Branch protection is FREE on a public repository**, and it is now **TURNED ON**.
+⚠️ **This paragraph said "available and simply not yet turned on" until 28 Aug 2026, and told you to keep reading "mandatory" as a convention. That is now wrong**, found by batch 212 when a docs-only handover PR was refused with *"the base branch policy prohibits the merge"* and the API answered with a live policy instead of the `404 Branch not protected` recorded here.
+
+**What is actually enforced, because "protected" is not one thing and the gap is the useful part:**
+
+- **Two required checks: `unit tests` and `smoke (jsdom)`.** A PR cannot merge until both pass, and that is a real mechanism rather than a convention.
+- ⚠️ **`browser specs (Playwright)` is NOT required, and neither is anything else.** So a PR that reddens Playwright still merges.
+- ⚠️ **AND THE MUTATION GATE IS INSIDE `unit tests`, WHICH IS THE ONE PIECE OF GOOD NEWS HERE** - it is not a separate job, so requiring `unit tests` does require the full `npm run mutate`. The gate section below says CI "is the one that actually holds" against a forgotten local hook, and that claim survives this correction. Check it if that job is ever split.
+- ⚠️ **`enforce_admins` is FALSE**, so an admin merge bypasses every check above. The gate is real for the ordinary path and is not a wall.
+
+**So the honest reading: the merge is now gated on the suite and the mutation gate, and on nothing else.** The `code-review` agent, its artifact and the browser specs are still conventions you keep - the artifact gate lives in `.githooks/pre-push`, which `--no-verify` skips and which a fresh clone does not install at all.
 The reason it went public was GitHub blocking Actions on a billing cap; **Actions are unlimited and free on a public repo, measured at `billable_ms: 0` for an 8-minute run.**
 
 **DECIDED, 8 Aug 2026 (Max): no second reader beyond the pre-push agent. CodeRabbit is NO and GitHub Pro is NO - do not re-propose either.**
