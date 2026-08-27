@@ -1,6 +1,10 @@
 # REVIEW-210 — gate review before public signup
 
-Reviewed-commit: 925e144
+Reviewed-commit: 4e3d0cd
+
+⚠️ **THE REVIEW RAN AGAINST `925e144`, WHICH NO LONGER EXISTS: this branch was rebased onto `main` on 28 Aug 2026 to pick up the test-harness process-leak fix (PR #221), and the rebase rewrote every SHA on it.** `4e3d0cd` is the rebased equivalent of the commit the agent actually read.
+The SHA is updated rather than the review re-run because **the reviewed content is byte-identical across the rebase, and that was checked rather than assumed** — every file in the reviewed diff (`api/_auth.js`, `api/insight.js`, `api/parse-invoice.js`, `js/app.js`, `tests/api-auth.test.js`, `tests/invoice-gate.test.js`, `tests/settings-toggles.test.js`, `tests/smoke.js`, `tests/mutation/targets.js`) hashes the same at `925e144` and at `4e3d0cd`. The rebase touched only `docs/MAINTENANCE.md`, which is not code and was not part of what was reviewed.
+**Recorded rather than silently corrected, because a `Reviewed-commit:` line that has been edited is exactly the thing this artifact exists to make checkable.** If a rebase ever DOES change reviewed content, the answer is to re-run the review, not to move the pointer.
 **Agent:** `code-review`, run on **Sonnet** against a batch running on **Opus 5**, on the branch diff, without the queue item.
 **Outcome:** three findings. **Two fixed in this branch, one recorded as a reasoned non-defect** (the agent explicitly declined to raise it as one).
 
