@@ -168,6 +168,13 @@ function makeReader(opts) {
     function gemApplyReadings(p){ S.applied.push(p); gemStatus='checked'; renderInvReview(); }
     function prodCategories(){ return []; }
     function fetch(){ S.fetches++; return new Promise(function(res,rej){ settleFetch=res; rejectFetch=rej; }); }
+    /* 210: the request now goes out behind apiAuthHeaders(), which attaches the caller's bearer
+       token. The REAL function is pulled in rather than stubbed, with SUPA null — this harness pins
+       the REFEREE'S CLOCK, and a null client makes apiAuthHeaders resolve on a microtask without
+       registering a timer, so the fake clock keeps measuring only what this file is about. The
+       credential itself is pinned in api-auth.test.js, against the same real function. */
+    var SUPA=null;
+    ${extractFn(SRC, 'apiAuthHeaders')}
     ${extractFn(SRC, 'gemSettle')}
     ${extractFn(SRC, 'gemFireSecondReader')}
     return {
@@ -191,6 +198,11 @@ const flush = () => new Promise(r => global.setTimeout(r, 0));
 test('a response that arrives normally is merged', async () => {
   const { S, r } = makeReader({});
   r.fire();
+  /* 210: the fetch is now one microtask behind the call, because the bearer token is looked up
+     first. That is a real change to when the request leaves, so the test says so rather than
+     hiding it — asserting the count before the flush would pin the OLD behaviour. */
+  assert.equal(S.fetches, 0, 'nothing goes out until the credential has been resolved');
+  await flush();
   assert.equal(S.fetches, 1);
   r.tick(1500);                                   // past GEM_MIN_VISIBLE, well short of the timeout
   r.respond({ status: 'ok', lines: [] });
@@ -207,6 +219,7 @@ test('when nothing ever settles, the gate releases rather than trapping the user
   // client aborts at 20s — so it fires only when neither terminated.
   const { r } = makeReader({ noAbortController: true });
   r.fire();
+  await flush();                                  // 210: let the credential resolve so the fetch is genuinely in flight
   r.tick(19000);
   assert.equal(r.status(), 'checking', 'it must not give up before the real budgets have elapsed');
   r.tick(2000);

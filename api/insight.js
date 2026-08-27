@@ -19,6 +19,7 @@
 
 var G = require('./_gemini.js');
 var I = require('./_insight.js');
+var A = require('./_auth.js');
 
 var GEMINI_TIMEOUT_MS = 12000;   // phrasing is small; keep it snappy. Client waits ~20s.
 
@@ -104,6 +105,11 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 405, { status: 'unavailable', reason: 'use-post' });
     }
     if (req.method !== 'POST') return sendJson(res, 405, { status: 'unavailable', reason: 'method' });
+
+    // Same caller gate as api/parse-invoice, and for the same reason — this endpoint spends the same
+    // key. Before the body read, so an unauthenticated caller buffers nothing.
+    var who = await A.verifyCaller(req);
+    if (!who.ok) return sendJson(res, 401, { status: 'unavailable', reason: 'auth' });
 
     var body = await readBody(req);
     var insights = body && Array.isArray(body.insights) ? body.insights : null;

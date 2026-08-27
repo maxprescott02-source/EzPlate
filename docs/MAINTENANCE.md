@@ -649,3 +649,26 @@ Fifteen batches, zero items. **The five-batch tally has its answer.** Delete the
 756 lines, 38 sections, and **exactly two bullets marked settled** — one of which is superseded. A carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked. `skills/batch/SKILL.md` says *"Max works through it in one session."*
 **No handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and every one came from him using the app and saying so in chat, never from working the list. The cost that is not obvious: a standing impression that device risk is managed.
 Two cheap changes. **A "Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price — 193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it was sitting *behind* a "Settled" heading telling the reader to stop. Then **cap the rest at the last three batches and delete what is older**; the handovers are write-once and hold it all.
+
+---
+
+## C — from the gate review before public signup, batch 210 (27 Aug 2026)
+
+Filed here rather than in `docs/QUEUE.md` per the tier test: none of the three would stop, embarrass or hurt a paying customer at launch **as things stand today**. The first one says at its own site what would change that.
+`docs/GATE-REVIEW.md` is the sign-off these three fell out of; read it there rather than re-deriving them.
+
+### Per-account rate limiting on the AI endpoints
+Batch 210 closed the **anonymous** half of this: `api/_auth.js` requires a live, confirmed session on `api/parse-invoice` and `api/insight`, which before it were POSTable by anyone on the internet spending Max's Gemini key.
+**A signed-in caller is still unbounded.** Requiring an account raises the cost of abuse from nothing to "confirm an email address"; it caps nobody.
+⚠️ **This is C only while the tier is free, and it becomes a launch blocker the day the paid tier lands** — that is the day abuse stops costing quota and starts costing money, and `docs/QUEUE.md`'s paid-tier item says so at its own site. **The cheap half needs no code at all: set the Google Cloud SPEND CAP in the same sitting as enabling billing.**
+The reason it was not built in 210: a per-account counter must survive between serverless invocations, so it needs a table, so it needs a migration, so it needs staging — **and staging is paused**. Half-building it against production was the wrong trade.
+
+### Prove on staging that `restore_backup` is inert for `anon`
+`anon` retains `EXECUTE` on `restore_backup`, `claim_business_invite` and `business_team`. The gate review argues all three are inert from the schema — for `anon`, `current_business_id()` is NULL, `business_id = NULL` is NULL so the `delete … where true` matches nothing, and `ingredients.business_id` is `NOT NULL` defaulting to `current_business_id()` so an insert fails before RLS is consulted.
+⚠️ **That is REASONED, not run, and the reasoning is exactly the kind this repo keeps finding wrong.** It was not tested because the only place to call it is production and being wrong costs Scoopy's real data — a stop condition, not a shortcut.
+So: **call it as `anon` over PostgREST on staging, with rows present, and assert the counts are unchanged.** Then either record the proof or revoke the grants. Blocked on staging being resumed, like everything else that needs a rehearsal.
+
+### Drop `invite_pending` once no cached client calls it
+It is `SECURITY DEFINER`, granted to `anon`, and answers whether any café has a pending invitation for an address — the only unauthenticated endpoint this app has ever deliberately shipped. The gate review accepts it, on the grounds that its surface is narrow and shrinking.
+**The café-creation branch removes its last caller**: sign-up stops being invitation-gated, so once that ships nothing in the shipped client invokes it. It is deliberately not dropped in the same change — an old client still cached on a phone calls it and refuses sign-up on an unreadable answer, so **the drop must FOLLOW the client, never lead it.**
+Take this once the café-creation client has been live long enough that no cached client plausibly remains.

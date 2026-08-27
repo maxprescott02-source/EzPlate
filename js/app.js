@@ -769,6 +769,37 @@ function sessionUser(res){
   return (res && !res.error && res.data && res.data.session && res.data.session.user) || null;
 }
 
+/* The credential for our own two `api/` endpoints, which spend Max's Gemini key.
+   Until batch 210 both were POSTable by anyone on the internet; `api/_auth.js` now requires a live,
+   confirmed session and refuses without one. This is the client half: the bearer token that makes
+   Max's own calls legitimate.
+
+   ⚠️ THE TOKEN IS FETCHED PER CALL AND DELIBERATELY NOT CACHED. An access token expires in an hour
+   and supabase-js rotates it; a cached copy would go stale and every AI call would then quietly get
+   a 401, which presents as the second reader "just not working any more" rather than as an error.
+   `getSession()` returns the cached session and refreshes it when it has to, so asking each time is
+   both correct and nearly free.
+
+   ⚠️ IT ALWAYS SETTLES, AND THAT IS THE POINT OF THE RACE. `getSession` can hang — it is a network
+   call in disguise — and CLAUDE.md's roster records that a promise which never settles is a third
+   outcome nothing in this codebase treats as a failure. The insight caller frees its in-flight key
+   in a `.catch` that a hang never reaches, so a hang there would wedge phrasing for that scope until
+   the scope changed. Bounding it HERE keeps that risk inside one function instead of inside two
+   call sites' control flow: on timeout we return the headers without a token, the server answers
+   401, and both callers take the ordinary "unavailable" path they already have. */
+function apiAuthHeaders(){
+  var base={'Content-Type':'application/json'};
+  if(!SUPA || !SUPA.auth || typeof SUPA.auth.getSession!=='function') return Promise.resolve(base);
+  var ask=Promise.resolve().then(function(){ return SUPA.auth.getSession(); })
+    .then(function(r){
+      var tok=r && !r.error && r.data && r.data.session && r.data.session.access_token;
+      if(tok) base.Authorization='Bearer '+tok;
+      return base;
+    });
+  var bound=new Promise(function(resolve){ setTimeout(function(){ resolve(base); },5000); });
+  return Promise.race([ask, bound]).catch(function(){ return base; });
+}
+
 /* One line, because the form underneath it is the content. It says what signing in BUYS rather
    than that access is denied: the visitor is overwhelmingly Max on a device that has not been
    signed in yet, not an intruder being turned away. */
@@ -6199,7 +6230,7 @@ function gemPhraseInsights(insights, scopeKey){
   var release=function(){ if(gemInsightPhrased && gemInsightPhrased.key===key && gemInsightPhrased.inflight) gemInsightPhrased=null; };
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
   var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
-  fetch('/api/insight',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({insights:insights.map(function(x){return {facts:x.facts, text:x.text};})}),signal:ctrl?ctrl.signal:undefined})
+  apiAuthHeaders().then(function(hdrs){ return fetch('/api/insight',{method:'POST',headers:hdrs,body:JSON.stringify({insights:insights.map(function(x){return {facts:x.facts, text:x.text};})}),signal:ctrl?ctrl.signal:undefined}); })
     .then(function(res){ return res.ok?res.json():null; })
     .then(function(payload){
       clearTimeout(timer);
@@ -6789,7 +6820,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v171';
+var APP_VERSION='v172';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10438,7 +10469,7 @@ function gemFireSecondReader(text){
   };
   try{
     if(typeof fetch!=='function'){ clearTimeout(timer); clearTimeout(guard); gemSettle(token, function(){ gemStatus='unavailable'; renderInvReview(); }); return; }
-    fetch('/api/parse-invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text, categories:prodCategories()}),signal:ctrl?ctrl.signal:undefined})   // v73: send existing categories so the model reuses one rather than inventing a near-duplicate
+    apiAuthHeaders().then(function(hdrs){ return fetch('/api/parse-invoice',{method:'POST',headers:hdrs,body:JSON.stringify({text:text, categories:prodCategories()}),signal:ctrl?ctrl.signal:undefined}); })   // v73: send existing categories so the model reuses one rather than inventing a near-duplicate
       .then(function(res){ return res.ok?res.json():null; })
       .then(function(payload){ done(payload); })
       .catch(function(){ done(null); });                          // network error / abort / offline

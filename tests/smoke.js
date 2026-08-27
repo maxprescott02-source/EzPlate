@@ -634,6 +634,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   // late-discard: fire, then a newer parse bumps the token; the old response must not mutate the rows
   window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  /* 210: the request now leaves one microtask behind the call — apiAuthHeaders() resolves the
+     caller's bearer token first, because api/parse-invoice refuses an uncredentialled POST. Every
+     fire in this section therefore needs a tick before `pending` has anything in it. */
+  await tick();
   ok('fire posts to /api/parse-invoice', pending.length === 1 && /\/api\/parse-invoice/.test(pending[0].url));
   window.gemToken++;   // a newer parse/openInv invalidates the in-flight request
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
@@ -645,6 +649,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   pending = [];
   window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  await tick();
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
     { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
@@ -654,6 +659,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   pending = [];
   window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  await tick();
   pending[0].reject(new Error('network down'));
   await tick(); await tick();
   ok('a failed request degrades to "AI check unavailable" (no error modal)', /AI check unavailable/.test(invSumText()));
@@ -667,6 +673,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   window.gemStatus = 'checking'; window.gemCheckStart = Date.now();   // exactly as parseInvoice stamps it
   window.renderInvReview();                                            // paint the "checking" note first
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  await tick();
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
     { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
@@ -734,10 +741,15 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v90: the Gemini credit is present but HIDDEN while the template shows (honest attribution)',
     !!creditOf() && creditOf().hidden === true);
   ok('v90: the template numbers show verbatim', di && /1\.2 pts higher/.test(di.textContent) && /18%/.test(di.textContent));
+  /* 210: like the invoice reader, the phrasing POST now leaves one microtask behind the render —
+     apiAuthHeaders() resolves the caller's bearer token first, because api/insight refuses an
+     uncredentialled POST. */
+  await tick();
   ok('v90: a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   // v90 quota guard: the Dashboard re-renders on every scope change and every drill-down open, and each
   // of those used to fire a SECOND identical POST while the first was still in flight.
   window.renderDashboard();
+  await tick();                      // 210: flushed, or "no duplicate" would pass merely by being deferred
   ok('v90: a re-render while the call is still IN FLIGHT does not fire a duplicate (quota guard)',
     pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));
@@ -754,6 +766,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   // v69 cache: a re-render within the period must not hit Gemini again (the quota is limited)
   const fetchesBefore = pending.filter((p) => /\/api\/insight/.test(p.url)).length;
   window.renderDashboard();
+  await tick();                      // 210: same reason — prove no call went out, not that none has yet
   const dj = $('dashInsBody');
   ok('v90: a re-render within the period reuses the cache — no second Gemini call',
     pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);

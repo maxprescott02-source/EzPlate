@@ -272,24 +272,40 @@ function gemGateHarness(enabled) {
     function renderInvReview(){ CALLS.renderInvReview++; }
     function gemSettle(){}
     function fetch(){ CALLS.fetch++; return { then:function(){ return this; }, catch:function(){ return this; } }; }
+    /* 210: the real apiAuthHeaders, with no Supabase client — it resolves on a microtask and the
+       request follows. The gate this file is about is the TOGGLE, and the toggle still decides
+       before any of that happens, which is why the OFF case below needs no flush and the ON one
+       does. */
+    var SUPA=null;
+    ${extractFn(APP, 'apiAuthHeaders')}
     ${extractFn(APP, 'gemFireSecondReader')}
     return { fire:gemFireSecondReader, status:function(){ return gemStatus; } };
   `);
   return { api: factory(calls, enabled), calls };
 }
 
-test('v81 GATE: AI invoice check OFF => gemFireSecondReader makes NO fetch and clears the note', () => {
+test('v81 GATE: AI invoice check OFF => gemFireSecondReader makes NO fetch and clears the note', { timeout: 4000 }, async () => {
   const { api, calls } = gemGateHarness(false);
   api.fire('some invoice text');
+  /* 210: flushed before asserting. Without this the assertion would pass merely because the request
+     is now DEFERRED, which is true of the ON case too — it would stop being able to tell the two
+     apart, and telling them apart is its entire job. */
+  await new Promise(r => setTimeout(r, 0));
   assert.equal(calls.fetch, 0, 'no API call at all when the toggle is off');
   assert.equal(api.status(), null, 'the "checking" note is cleared, not left hanging');
   assert.equal(calls.renderInvReview, 1, 're-rendered so the note disappears');
 });
 
-test('v81 GATE: AI invoice check ON => gemFireSecondReader still fires the request (unchanged behaviour)', () => {
+test('v81 GATE: AI invoice check ON => gemFireSecondReader still fires the request', { timeout: 4000 }, async () => {
   const { api, calls } = gemGateHarness(true);
   api.fire('some invoice text');
-  assert.equal(calls.fetch, 1, 'the second reader fires exactly as before when on');
+  /* 210 dropped "(unchanged behaviour)" from this title, because the timing IS changed: the request
+     now leaves one microtask later, behind the credential lookup. What is unchanged is the thing
+     this test is for — ON still fires and OFF still does not. A title asserting a property the
+     assertions cannot see is worse than no test (roster 205). */
+  assert.equal(calls.fetch, 0, 'not before the credential is resolved');
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(calls.fetch, 1, 'the second reader fires when the toggle is on');
 });
 
 /* ---------- source pins: the wiring the harness can't reach ---------- */
