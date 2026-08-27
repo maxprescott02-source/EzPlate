@@ -9,6 +9,9 @@
 #   4. review artifact   — a diff that changes WHAT RUNS must be accompanied by a committed review
 #                          under docs/reviews/. See WHY (4) below.
 #
+#   0. preflight         — clears orphaned `node --test` workers left by a previous run, before
+#                          anything heavy starts. See WHY (0) below.
+#
 # WHY (2) IS HERE, ADDED IN 192. It was not, and CI runs it as a separate job — so a batch could
 # have `npm test` green, the mutation gate green and Playwright green locally, and still go red on
 # push. That happened twice: 174 and 192, both times on the SAME assertion, which is stated in three
@@ -40,6 +43,18 @@
 # happened, only whether a file says one did. The handover's mandatory `## Review` section is the
 # half a human reads.
 #
+# WHY (0) EXISTS, ADDED 28 AUG 2026. `node --test` runs each file in a child process, and the
+# mutation gate kills a hung mutant with SIGKILL — which cannot be caught, so the parent died
+# without tearing its workers down and they were reparented to launchd, still spinning at full CPU.
+# tests/mutation-gate.test.js runs two DELIBERATELY non-terminating mutants, and it is part of
+# `npm test`, so every single run of the suite leaked four of them. An 8GB machine reached ~40
+# orphans and 18.66GB of swap before it ran out of application memory.
+# The leak itself is fixed at source (tests/mutation/run.js now kills the process GROUP), so this
+# step should never find anything. It is here because what made that leak expensive was not its
+# size but that NOTHING WAS WATCHING: four hours and four runs accumulated silently.
+# It reaps rather than refusing, because this is the fast local gate and a push that stops to tell
+# you about someone else's dead processes is one you learn to skip.
+#
 # INSTALL (once per clone — hooks are not carried by git):
 #   git config core.hooksPath .githooks
 #
@@ -48,14 +63,17 @@
 
 set -e
 
-echo "pre-push 1/4: npm test"
+echo "pre-push 0/5: orphaned test workers from a previous run"
+node tests/preflight-processes.js --reap
+
+echo "pre-push 1/5: npm test"
 npm test --silent
 
-echo "pre-push 2/4: npm run smoke (jsdom — not covered by npm test)"
+echo "pre-push 2/5: npm run smoke (jsdom — not covered by npm test)"
 npm run smoke --silent
 
-echo "pre-push 3/4: mutation gate (changed scope)"
+echo "pre-push 3/5: mutation gate (changed scope)"
 node tests/mutation/run.js --changed
 
-echo "pre-push 4/4: review artifact"
+echo "pre-push 4/5: review artifact"
 node tests/review/check.js

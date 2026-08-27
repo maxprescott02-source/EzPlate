@@ -70,7 +70,46 @@ function runTests(sandbox, testDir, files, timeoutMs) {
   delete env.NODE_TEST_CONTEXT;
   const opts = { cwd: sandbox, encoding: 'utf8', env };
   if (timeoutMs) { opts.timeout = timeoutMs; opts.killSignal = 'SIGKILL'; }
+  /*
+   * ⚠️ `detached` AND THE NEGATIVE PID ARE ONE MECHANISM, AND WITHOUT THEM THIS FUNCTION LEAKS A
+   * PERMANENTLY SPINNING PROCESS EVERY TIME IT TIMES OUT.
+   *
+   * `node --test` runs each test FILE in a child process of its own. The `killSignal` above is
+   * SIGKILL, which cannot be caught — so when the timeout fires, the `node --test` parent dies
+   * without ever tearing its workers down, and they are reparented to launchd and keep running.
+   * Measured, not reasoned: parent killed, child alive with PPID 1, still executing its test.
+   *
+   * It is not a rare path. `tests/mutation-gate.test.js` runs two DELIBERATELY non-terminating
+   * mutants to prove a hang is classified as a kill, and that file is part of `npm test` — so
+   * before this, every single run of the suite left four node processes spinning at full CPU
+   * forever. They page out to ~10MB resident against multi-GB of swap, which is what makes them
+   * invisible in a process list and lethal over an afternoon: 8GB machine, ~40 orphans, 18.66GB
+   * of swap, out of application memory. Introduced by batch 201's fix for the gate HANGING, which
+   * is worth stating plainly — the bound was right and it swapped one unbounded resource for
+   * another.
+   *
+   * `detached:true` makes the child a process-group leader; `process.kill(-pid)` then signals the
+   * whole group, workers included. spawnSync's own timeout only ever signals the single pid, which
+   * is why this second kill is here rather than being left to it. It runs unconditionally: the
+   * group is already gone on the ordinary path, so the EPERM/ESRCH is expected and swallowed.
+   *
+   * ⚠️ `--test-isolation=none` also fixes the leak and was REJECTED on evidence: it removes the
+   * child processes entirely, and it turns this gate's own self-test RED, so it changes semantics
+   * the gate depends on. Do not reach for it as the tidier option.
+   */
+  opts.detached = true;
   const r = spawnSync(process.execPath, args, opts);
+  const timedOut = !!(r.error && r.error.code === 'ETIMEDOUT');
+  /* ⚠️ SCOPED TO THE TIMEOUT PATH, AND THE FIRST VERSION WAS NOT — caught by the pre-push review.
+     A pgid is free for the OS to reuse the moment its last member exits, which on the ordinary path
+     is the instant spawnSync returns; nothing here can check that the group still belongs to the
+     child we spawned. So an unconditional kill is a signal aimed at a recycled group id, hundreds of
+     times per run, on a box this same script is churning pids on — and a WRONG kill that succeeds
+     raises nothing, so it would be indistinguishable from the no-op it was assumed to be.
+     Measured before narrowing it: across 37 mutants the unconditional call succeeded ZERO times and
+     threw "already gone" 37 times. It buys nothing off the timeout path, where the SIGKILLed parent
+     really can leave workers behind, so that is the only place it now runs. */
+  if (timedOut && r.pid) { try { process.kill(-r.pid, 'SIGKILL'); } catch (e) { /* already reaped */ } }
   /* A TIMED-OUT CHILD IS A THIRD OUTCOME AND spawnSync REPORTS IT AS status null, WHICH IS NOT 0.
      Reading only `status === 0` would therefore call it killed and move on, which is nearly right
      and hides the interesting half. See the note at the call site.
@@ -82,8 +121,7 @@ function runTests(sandbox, testDir, files, timeoutMs) {
      still count as killed, so nothing would have gone green that should not — it would have put the
      wrong CAUSE in the report, which is how someone spends an afternoon looking for a loop that was
      never there. Found by the pre-push review. */
-  const timedOut = !!(r.error && r.error.code === 'ETIMEDOUT');
-  return { ok: r.status === 0, timedOut: !!timedOut, out: (r.stdout || '') + (r.stderr || '') };
+  return { ok: r.status === 0, timedOut: timedOut, out: (r.stdout || '') + (r.stderr || '') };
 }
 
 /* HOW LONG ONE MUTANT MAY TAKE BEFORE IT IS CALLED STUCK. Extracted so it can be pinned without a
