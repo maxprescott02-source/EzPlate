@@ -84,6 +84,8 @@ Both endpoints accepted a POST from anywhere with **no auth, no rate limit, and 
 
 **It fails closed**: a missing token, a rejected token, or a verification call that itself failed all refuse. That default is a decision about consequence, per `CLAUDE.md` — refusing a legitimate caller costs the AI second-reader, which the app already renders as "unavailable" and which changes no data; admitting an illegitimate one costs quota now and money on the paid tier.
 
+⚠️ **Adding a step to that path made three timeouts into one budget, and the pre-push review caught them not adding up.** The client aborted at 20s while the server could legitimately spend 3s verifying plus 15s on Gemini, on top of the caller's own token lookup — so a reading the server genuinely produced could be discarded a moment before it arrived, presenting as the ordinary "unavailable". Every number was right on its own. The budget is now **3s token + 3s verification + 15s Gemini, inside a 22s client abort**, written out at `api/_auth.js`'s header and asserted in `tests/api-auth.test.js` against all four shipped constants. **If you change one of the four, the test is where you find out about the other three.**
+
 **Two publishable values are hard-coded in `api/_auth.js`** — the project URL and the anon key, both already world-readable in `index.html`. The alternative was new Vercel env vars, which would either fail open when absent (a gate that is decoration) or take the live invoice reader down the moment this deployed. `tests/api-auth.test.js` asserts they still match `index.html`, because two definitions of one thing is the defect this repo keeps finding.
 
 ### What this batch did NOT fix — the named residual
