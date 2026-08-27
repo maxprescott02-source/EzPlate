@@ -20,7 +20,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { invConfirmState } = require('./_extract');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -168,6 +168,15 @@ function makeReader(opts) {
     function gemApplyReadings(p){ S.applied.push(p); gemStatus='checked'; renderInvReview(); }
     function prodCategories(){ return []; }
     function fetch(){ S.fetches++; return new Promise(function(res,rej){ settleFetch=res; rejectFetch=rej; }); }
+    /* 210: the request now goes out behind apiAuthHeaders(), which attaches the caller's bearer
+       token. The REAL function is pulled in rather than stubbed, with SUPA null — this harness pins
+       the REFEREE'S CLOCK, and a null client makes apiAuthHeaders resolve on a microtask without
+       registering a timer, so the fake clock keeps measuring only what this file is about. The
+       credential itself is pinned in api-auth.test.js, against the same real function. */
+    var SUPA=null;
+    ${extractVar(SRC, 'AUTH_HDR_TIMEOUT_MS')}
+    ${extractVar(SRC, 'AI_CALL_BUDGET_MS')}
+    ${extractFn(SRC, 'apiAuthHeaders')}
     ${extractFn(SRC, 'gemSettle')}
     ${extractFn(SRC, 'gemFireSecondReader')}
     return {
@@ -191,6 +200,11 @@ const flush = () => new Promise(r => global.setTimeout(r, 0));
 test('a response that arrives normally is merged', async () => {
   const { S, r } = makeReader({});
   r.fire();
+  /* 210: the fetch is now one microtask behind the call, because the bearer token is looked up
+     first. That is a real change to when the request leaves, so the test says so rather than
+     hiding it — asserting the count before the flush would pin the OLD behaviour. */
+  assert.equal(S.fetches, 0, 'nothing goes out until the credential has been resolved');
+  await flush();
   assert.equal(S.fetches, 1);
   r.tick(1500);                                   // past GEM_MIN_VISIBLE, well short of the timeout
   r.respond({ status: 'ok', lines: [] });
@@ -203,11 +217,18 @@ test('a response that arrives normally is merged', async () => {
 test('when nothing ever settles, the gate releases rather than trapping the user', async () => {
   // The trap this guards is real: gemFireSecondReader only aborts where AbortController exists, so a
   // hung socket used to leave gemStatus 'checking' forever. Harmless before the gate; a permanent lock
-  // after it. 20s sits outside both budgets in play — api/parse-invoice.js caps Gemini at 15s and the
-  // client aborts at 20s — so it fires only when neither terminated.
+  // after it. It sits outside every budget in play — 3s for the token, 3s to verify it, 15s of Gemini
+  // — so it fires only when none of them terminated.
   const { r } = makeReader({ noAbortController: true });
   r.fire();
-  r.tick(19000);
+  await flush();                                  // 210: let the credential resolve so the fetch is genuinely in flight
+  /* 210 raised the watchdog from 20s to 22s, because the operation grew a step: the caller now
+     resolves a bearer token (bounded at 3s) before the request leaves, and the server verifies it
+     (3s) before spending its 15s on Gemini. The ticks are DERIVED from the shipped constant rather
+     than retyped, so the next change to the budget cannot leave this test asserting the old one. */
+  const BUDGET = Number(extractVar(SRC, 'AI_CALL_BUDGET_MS').match(/=\s*(\d+)/)[1]);
+  assert.equal(BUDGET, 22000, 'the budget this test derives its ticks from has moved — read the arithmetic in api/_auth.js');
+  r.tick(BUDGET - 1000);
   assert.equal(r.status(), 'checking', 'it must not give up before the real budgets have elapsed');
   r.tick(2000);
   assert.equal(r.status(), 'unavailable');
@@ -218,7 +239,11 @@ test('when nothing ever settles, the gate releases rather than trapping the user
 test('a late response AFTER the timeout is discarded — no surprise reversal once the user can act', async () => {
   const { S, r } = makeReader({ noAbortController: true });
   r.fire();
-  r.tick(21000);
+  await flush();                                  // 210: the request leaves after the credential resolves
+  /* 210: derived, not retyped. This tick used to be a bare 21000, which was past the old 20s
+     watchdog and is INSIDE the 22s one — so raising the budget left the test asserting a timeout
+     that had not happened, and it went red. Reading the constant is what stops that recurring. */
+  r.tick(Number(extractVar(SRC, 'AI_CALL_BUDGET_MS').match(/=\s*(\d+)/)[1]) + 1000);
   assert.equal(r.status(), 'unavailable');
   r.respond({ status: 'ok', lines: [{ rawText: 'x', derivedUnitPrice: 9, unitType: 'kg' }] });
   await flush(); await flush();

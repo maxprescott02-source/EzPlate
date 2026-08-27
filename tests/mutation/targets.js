@@ -34,6 +34,11 @@ const targets = [
      with no such global in scope, pins that the importer never reaches for it. Listing one file
      would leave whichever arm it does not cover unasked, which is this list's own stated failure
      mode one level down. */
+  /* 210 — the credential on our own api/ endpoints. It is here for 184's reason rather than because
+     anything is suspected: this function decides whether Max's Gemini key is spendable by strangers,
+     and a function that is not a target has never been asked the question. Its `if(tok)` and its 5s
+     bound are both load-bearing, and both were confirmed red by hand before it was listed. */
+  { fn: 'apiAuthHeaders', tests: ['api-auth.test.js'] },
   { fn: 'invGstAdjust', tests: ['invoice-gst.test.js', 'catalogue-import.test.js'] },
   /* Both extracted from inline code DURING this batch, and both are on this list for 195's reason:
      a function that is not a target has never been asked the question, and neither of these existed

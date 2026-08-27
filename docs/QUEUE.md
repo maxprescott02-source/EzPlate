@@ -31,7 +31,12 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+
+Blocked on: **Max resuming the STAGING Supabase project.** Its subdomain does not resolve and every query times out (re-checked 27 Aug 2026, batch 210), so `docs/STAGING.md` steps 2–7 cannot run and the migration is unrehearsed.
+⚠️ **THE WORK IS BUILT AND REVIEWED — do not do it again.** Batch 209 shipped it on branch `feature/cafe-creation` as **PR #219**, which is deliberately open and must not be merged: merging is a production deploy, and the client half calls `create_business()`, which does not exist on production (confirmed absent from `pg_proc`, 27 Aug 2026). **Migration first, then merge.**
+⚠️ **THAT PR CLAIMS `ezplate-v172`, WHICH BATCH 210 HAS SINCE TAKEN.** Re-bump it to the next free version at merge time — all six spots, per the `cache-version` skill. A stale bump ships fresh code against a cached asset, which is the one failure that skill exists to prevent.
+
 
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
 He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
@@ -66,7 +71,11 @@ Requirements: a café can be created and get an owner **without the Supabase das
 *(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
+## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
+
+Blocked on: **Max at the Google Cloud billing console** — his card, and the assistant may not enter payment details. This was always stated in the item's body; batch 210 moved it into the status, because an item whose own text says it will be blocked "the day it is taken" was being walked past by the loop as if it were workable.
+⚠️ **Set the project SPEND CAP in the same sitting.** `docs/GATE-REVIEW.md` gate 5 makes this the day the AI endpoints' rate-limit residual stops being tolerable: today abuse costs quota, and on the paid tier it costs money.
+
 
 **DEFERRED, not declined (Max, 15 Aug 2026):** *"we can sort this later post launch."*
 On the paid tier Google *"doesn't use your prompts... or responses to improve our products."* Recorded here rather than dropped, because a deferred decision that leaves no trace is indistinguishable from one nobody thought of.
@@ -78,16 +87,10 @@ No code change and no new key — enabling billing on the existing Google Cloud 
 When it ships, the policy stops saying *"Google may train on this"* and starts saying *"we pay for a tier that contractually cannot"*. The screens all stay — the acceptance, the link placements and the restatement at import are unchanged by the tier.
 ⚠️ **This line said "the screens and the acceptance RECORD all stay" until 27 Aug 2026, and there is no acceptance record.** Batch 208 shipped the notice and the tick that gates sign-up; the tick is never written anywhere, so nothing knows who accepted which version. Caught by that batch's pre-push review, which went looking for the mechanism behind the notice's own promise to re-ask people and found none. Building it is filed in `docs/MAINTENANCE.md`; **this item does not depend on it** and must not wait for it.
 
-## next  4 · Gate review before public signup  **[A — launch blocker]**
+## blocked  5a · The backup does not carry three of the five history series  **[A — data integrity]**
 
-Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
-Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
-⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
-**So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
-✅ **The pdf.js gate is SETTLED and this review only has to confirm it: 195 shipped 4.10.38**, which closes CVE-2024-4367 outright rather than mitigating it, keeps `isEvalSupported:false` as a second layer, and keeps the SRI hash across the move to an ESM load. `tests/third-party-pins.test.js` now pins both scripts' version-and-hash pair and encodes both known advisory windows, so a future "bump to latest" into GHSA-hq66-cqwq-w95j (5.6.83 ≤ v < 6.2.108) fails the suite. **Read that test rather than re-deriving the version question.**
-⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way. **192 made it REACHABLE**: the boot gate's sign-up form calls it on every attempt, so it is no longer a function nothing invokes — it is now the first thing an uninvited stranger's browser can ask this database, and the only rate limit on it is Supabase's per-IP one.
+Blocked on: **Max resuming the STAGING Supabase project** — the same outage that blocks item 1, re-checked 27 Aug 2026. This item's own requirements end "Rehearse on staging first per `docs/STAGING.md`, then production", and the change it needs is a replacement `restore_backup`: the disaster-recovery path, on real data, which is the last function in this project to apply unrehearsed. The client half is not split out and shipped alone on purpose — a client emitting format 4 against a server that cannot restore its new groups is exactly the intermediate state `CLAUDE.md` says to order away.
 
-## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
