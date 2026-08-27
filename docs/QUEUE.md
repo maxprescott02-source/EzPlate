@@ -31,7 +31,13 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+
+Blocked on: **the STAGING Supabase project is paused and only Max can restore it** (a dashboard click). Measured 27 Aug 2026: `pboidoxjghntalovzrke.supabase.co` does not resolve in DNS, every MCP query times out, and `get_advisors` returns zero lints where production returns thirteen. That is the signature of a paused free-tier project; it was last touched on 15 Aug, twelve days earlier.
+⚠️ **THE WORK IS DONE AND IS SITTING ON A BRANCH.** `feature/cafe-creation` (batch 209, ships `ezplate-v172`) carries the migration, the client, 20 new unit tests, 10 Playwright cases and a completed pre-push review whose one critical finding is fixed. What is NOT done is `docs/STAGING.md` steps 2-7: re-mirror, seed, apply to staging, verify AS THE CLIENT over PostgREST, apply to production, fingerprint-diff. **The client half must not merge before the migration is on production**, because merging is a production deploy and it would put a "Create my café" button in front of a real person with no function behind it.
+**So this is blocked on an OUTSIDE THING, not on a decision, and nothing about the item itself is in question.** When staging is back: restore it, run the seven steps, then merge the branch. Do not re-plan the item; read `docs/handovers/HANDOVER-209-cafe-creation.md` and the migration header.
+⚠️ **Do NOT "unblock" this by applying to production unrehearsed.** The rehearsal is the safeguard that REPLACED "Max hand-runs the query" when he reversed that rule on 8 Aug 2026 on the strength of staging existing. Skipping it silently is the trade that reversal was not.
+
 
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
 He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
