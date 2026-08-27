@@ -82,6 +82,15 @@ const targets = [
      never been asked the question". */
   { fn: 'ensurePdfjs', tests: ['third-party-pins.test.js'] },
 
+  /* 212: the containing block a `position:fixed` layer resolves against. Listed for 184's reason —
+     a function that is not a target has never been asked the question — and because its failure mode
+     is the quietest one this app has: a dropdown that renders perfectly, in the wrong place, on a
+     screen nobody changed. Both directions are load-bearing and both are cheap to get wrong. If the
+     walk stops too EAGERLY (any `will-change`, any `contain`) layers anchor to arbitrary ancestors;
+     if it stops too LATE the builder's ingredient list drops 198px below its own field, which is the
+     measured defect this was written for. */
+  { fn: 'fixedContainingBlock', tests: ['layer-anchor.test.js'] },
+
   // ── The invoice referee. A late Gemini answer must not be merged over a ruling the user made. ──
   { fn: 'invConfirmState', tests: ['invoice-gate.test.js'] },
   { fn: 'invRowState', tests: ['invoice-gate.test.js', 'inv-rowmarkup.test.js'] },

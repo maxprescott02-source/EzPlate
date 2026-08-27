@@ -87,9 +87,20 @@ function makeDropHarness() {
     function builderNoMatchHtml(){ return '<div class="opt opt-msg"></div>'; }
     function saveAndAddIngredients(){}
     function kitchenSearchMatches(q){ return q ? [{__kid:true,id:'K1',name:'Chips',pid:'P1'}] : []; }
+    /* 212: the placement engine is STUBBED here, and the stub is not a placeholder — it records the
+       one thing this harness can honestly see about it. anchorDrop measures a live rect, which a fake
+       DOM cannot supply, so its GEOMETRY is pinned where geometry is real: tests/layer-anchor.test.js
+       for the containing-block walk and tests/visual/212-layers.spec.js in a browser.
+       What IS visible here is the ORDER, and the order is load-bearing: a display:none element
+       measures zero, so placing before the layer opens gives a maxHeight of nothing. So the stub
+       records whether the open class was already set when it was called, and the test asserts it. */
+    var placed=[], reset=0;
+    function anchorDrop(el, anchor){ placed.push({ openAtCall: el.classList.contains('open'), anchor: anchor }); }
+    function resetDrop(){ reset++; }
     ${extractFn(SRC, 'renderDrop')}
     ${extractFn(SRC, 'closeDrop')}
-    return { renderDrop:renderDrop, closeDrop:closeDrop, dropEl:dropEl, qEl:qEl };
+    return { renderDrop:renderDrop, closeDrop:closeDrop, dropEl:dropEl, qEl:qEl,
+             placed:placed, resetCount:function(){return reset;} };
   `);
   return factory();
 }
@@ -115,4 +126,38 @@ test('v61 item 7: closeDrop toggles the class only and never leaves a sticky inl
 
 test('v61 item 7: the × clear handler no longer sets an inline display:none (root cause locked out of source)', () => {
   assert.ok(!/dropEl\.style\.display\s*=\s*'none'/.test(SRC), 'the qClear handler must close via closeDrop(), never an inline display:none');
+});
+
+/* ---------------------------------------------------------------------------
+ * 212: the builder's ingredient list is placed by the shared engine now. Its geometry is pinned
+ * where geometry is real (tests/layer-anchor.test.js, tests/visual/212-layers.spec.js); what belongs
+ * HERE is the sequencing, because this is the file that owns renderDrop's open/close contract.
+ * ------------------------------------------------------------------------- */
+test('212: the dropdown is PLACED after it is opened, never before', () => {
+  const h = makeDropHarness();
+  h.qEl.value = 'chips'; h.renderDrop();
+  assert.strictEqual(h.placed.length, 1, 'a results render places the layer exactly once');
+  // A display:none element measures zero, so placing first yields a maxHeight of nothing — the
+  // dropdown would open one row tall. Inverting the two lines in renderDrop turns this red.
+  assert.strictEqual(h.placed[0].openAtCall, true, 'the layer was already open when it was measured');
+  assert.strictEqual(h.placed[0].anchor, h.qEl, 'and it was anchored to the search field, not derived');
+});
+
+test('212: the NO-MATCH render places the layer too — both open paths, not just the common one', () => {
+  // The two open paths in renderDrop return separately, and 184(a) is this repo's record of a test
+  // that took the common settle path and left the other unpinned. Both are asserted.
+  const h = makeDropHarness();
+  h.qEl.value = ''; h.renderDrop();          // no query -> the no-match branch
+  assert.ok(h.dropEl.classList.contains('open'), 'the no-match message opens the layer');
+  assert.strictEqual(h.placed.length, 1, 'and that branch places it as well');
+  assert.strictEqual(h.placed[0].openAtCall, true, 'after opening, on this path too');
+});
+
+test('212: closing clears the inline geometry, so the next open starts from the stylesheet', () => {
+  const h = makeDropHarness();
+  h.qEl.value = 'chips'; h.renderDrop();
+  const before = h.resetCount();
+  h.closeDrop();
+  assert.strictEqual(h.resetCount(), before + 1, 'closeDrop resets the engine-written geometry');
+  assert.ok(!h.dropEl.classList.contains('open'), 'and still closes by class, as v61 item 7 requires');
 });

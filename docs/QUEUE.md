@@ -145,30 +145,27 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  6 · Floating layers and mobile dropdowns  **[B]**
+## next  6 · A dropdown's middle band is unclickable behind the builder's summary bar  **[B]**
 
-Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
-✅ **COUNTED, 27 Aug 2026 (batch 209, read-only — no branch, no code).** The item said "five independent placement implementations", and the v119 review called that unverified and guessed "about four, or six loosely". **Both were wrong, and the NUMBER was never the finding — the COMPOSITION is.** Five things open over content. **Exactly ONE of them computes anything.**
+Found by batch 212's pre-push review, and **measured before being believed** — the review named the wrong element and the wrong direction, and the mechanism it described was exactly right.
 
-| Layer | How it is placed | Flips when there is no room? | Clamped to the viewport? | Re-anchors on scroll? |
-|---|---|---|---|---|
-| `.cat-drop` (category combobox) | **the engine** — `anchorDrop` → `dropPlace` + `dropBox`, overrides to `position:fixed` | ✅ yes | ✅ yes, and caps `maxHeight` | ✅ yes, `resize` + capturing `scroll` |
-| `.drop` (ingredient/product search) | CSS only, `position:absolute` under `.search-wrap` | ❌ never | ❌ never | ❌ never |
-| `.tipbox` (suggested-price tooltip) | CSS only, `position:absolute`, right-anchored | ❌ | ❌ | ❌ |
-| `.dash-menus-pop` (Dashboard scope popover) | CSS only, `position:absolute`, right-anchored | ❌ | only `max-width:calc(100vw - 32px)` | ❌ |
-| `.tp-tip` (trend-chart tooltip) | JS, but its **own** clamp and its own `.below` flip, in the CHART's coordinate space rather than the viewport's | ✅ its own | ✅ its own | n/a |
+**What happens:** on the builder at 380×640, `.bld-bar` — the fixed summary/save bar, `position:fixed`, `z-index:25`, occupying **426–526** — paints OVER the ingredient dropdown and the plate-name suggestion list. Those rows are visible-looking but **not tappable**, and nothing on screen says so.
 
-**So the work is not "unify five engines". It is "there is one engine and four things that never asked it"** — three with no JS at all, plus a fifth that solved the same two problems again, separately, for a chart. That is a different and much smaller job than the item implied, and it changes what "one placement implementation" means: adopting `anchorDrop` at four call sites, not writing a sixth.
+**Why `z-index:30` on the layer does not win**, which is the part that makes this non-obvious: **`position:fixed` escapes CLIPPING but not STACKING CONFINEMENT.** `#drop` sits inside `.bld-docket`, which carries `filter:drop-shadow` and is therefore a stacking context (`z-index:auto`); `#plateSuggest` sits inside `.bld-head{position:relative;z-index:2}`. A z-index only orders siblings WITHIN a context, so both layers are pinned at their ancestor's level and a z:25 bar beats them.
 
-**The three complaints, traced to mechanisms — MEASURED where marked, INFERRED where marked, and the inferred ones need a browser before anyone builds:**
-- **"cannot be scrolled" → MEASURED, and it is a CLIPPING bug, not a scrolling one.** `.drop` carries `overflow:auto` and `max-height:min(330px,45vh)`, so it *should* scroll. It is `position:absolute` inside `.search-wrap`, so any clipping ancestor cuts it — `css/style.css` records **"measured at 1280 on the shipped v149 build as a 96px list with 37px visible"**, and `tests/visual/v150-builder-order.spec.js` measures the painted height against every clipping ancestor. A clipped list never overflows its own box, so `overflow:auto` has nothing to scroll and the rest is simply unreachable. **Moving `.drop` onto the engine fixes this by construction** — the engine's `position:fixed` escapes every clipping ancestor, which is exactly why `.cat-drop` was moved onto it in v59.
-- **"cover the search bar" → INFERRED.** The engine flips a dropdown ABOVE its input when there is more room there (`dropPlace`), and on a 380px phone with the keyboard up there usually is. Whatever sits above the input is then covered — on the search screens, the search bar. If that is the one Max means, it is the ENGINE misbehaving rather than a layer that lacks it, and the fix is a different decision (prefer below and shrink, rather than flip). **Reproduce before choosing.**
-- **"the bounce animation is annoying" → MEASURED, and it is one keyframe on one layer.** `@keyframes dropIn{from{opacity:0;transform:translateY(-4px)}}` on `.drop.open` only. `.dash-menus-pop` uses `fadeIn` and the rest have none. Deleting the `transform` half leaves the fade.
+**Measured**, `elementFromPoint` down the middle of each layer every 12px, at 380×640:
 
-⚠️ **REPRODUCE THE "COVERS THE SEARCH BAR" CASE ON A 380px VIEWPORT BEFORE PLANNING.** It is the only one of the three whose mechanism is still a guess, and it is the one whose fix points in the opposite direction from the others: the other two are solved by giving a layer the engine, and this one may be solved by changing what the engine decides. Getting that backwards means doing the work twice. **Answer it here; do not route it onward.**
+| | `#drop` covered | `#plateSuggest` covered |
+|---|---|---|
+| main (v172) | 9 of 24 points | 8 of 32 points |
+| after 212 | 8 of 25 points | 4 of 25 points |
 
-Requirements: one placement implementation — meaning the four unmanaged layers adopt `anchorDrop`, and `.tp-tip`'s private clamp is either folded in or given a written reason to stay separate.
-*(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
+⚠️ **IT PRE-DATES 212 AND 212 MADE IT BETTER, so this is not a regression to revert** — the engine clamps lists that used to run unbounded. It is recorded now because 212 is what measured it.
+
+**Requirements:** a dropdown does not render underneath the app's fixed furniture.
+**The fix is `dropBox`, not a z-index**, and that is the decision this item exists to take: `dropBox` already subtracts the modal and the form panel, and its own site states the principle — *"a dropdown may float over its OWN fields, but not over the controls that FOLLOW the form"*. `.bld-bar` holds **Save plate**, so it is exactly "the controls that follow". Subtracting it is one more bound in a function built for bounds.
+⚠️ **Cost it before building: at 380×640 that removes ~160px of below-room, so the list will flip ABOVE the field in the common phone case.** That may be right and it is a visible change to the screen Max works on — decide it here against a measurement, and **answer it here, do not route it onward.**
+⚠️ **A geometry assertion cannot see this.** `tests/visual/212-layers.spec.js` asserts `getBoundingClientRect()` and passes throughout, because paint order is invisible to a rect. The test for this is `document.elementFromPoint` at points inside the layer, asserting the hit is a descendant of the layer — the scan above is the reproduction, reuse it.
 
 ## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
