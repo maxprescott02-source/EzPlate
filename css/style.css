@@ -470,9 +470,15 @@ input[type=checkbox]{
    replace while open: `vh` is the LAYOUT viewport, which does not shrink when a phone keyboard
    opens, so at 380x420 the list ran 35px below the visible area and the rest was unreachable —
    "cannot be scrolled" in queue item 6. The engine caps to the room that actually exists.
-   z-index still matters: the engine sets position:fixed, not a top layer. */
+   ⚠️ 213: THE z-index IS 79 AND THAT NUMBER IS LOAD-BEARING. While open this layer is reparented to
+   <body>, so it finally sits in the root stacking context and its z-index is compared against the
+   app's fixed chrome instead of being trapped under it. It must beat `.bld-bar` (25), `.bottomnav`
+   (75) and `#installBanner` (78) — the opaque furniture measured covering it — and must stay UNDER
+   `.modal-overlay` (80), because a dropdown belongs to the screen and a modal covers the screen.
+   79 is the only value that does both. `#bootGate` also sits at 79; it is full-screen and the
+   builder is unreachable behind it, so the tie never renders. */
 .drop{
-  position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;
+  position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:79;
   background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-ctl);
   max-height:min(330px,45vh);overflow:auto;display:none;box-shadow:var(--shadow-lg);
 }
@@ -501,9 +507,14 @@ input[type=checkbox]{
    to the same box and scrolls, so the corners still hold.
    z-index is new and is required: the layer is `position:fixed` while open and now paints over the
    docket, which would otherwise win on source order. */
+/* 213: `margin-top:var(--sp-2)` is DELETED. It was written for this layer's in-flow life and
+   survived 212 as a margin on a fixed element, so the rendered box sat 8px BELOW where the engine
+   placed it — the engine computed a 251px list ending exactly on the viewport floor and it painted
+   4px past it. anchorDrop already applies its own 4px gap, so the margin was a second, invisible
+   offset that nothing accounted for. Measured at 380x420. */
 .suggest-drop{
-  margin-top:var(--sp-2);background:var(--surface);border:1px solid var(--border2);
-  border-radius:var(--radius-ctl);overflow:auto;box-shadow:var(--shadow);z-index:30;
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius-ctl);overflow:auto;box-shadow:var(--shadow);z-index:79;
 }
 .suggest-drop .sug-opt{
   display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
