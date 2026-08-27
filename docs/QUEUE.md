@@ -145,7 +145,29 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  6 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+## next  6 · A dropdown's middle band is unclickable behind the builder's summary bar  **[B]**
+
+Found by batch 212's pre-push review, and **measured before being believed** — the review named the wrong element and the wrong direction, and the mechanism it described was exactly right.
+
+**What happens:** on the builder at 380×640, `.bld-bar` — the fixed summary/save bar, `position:fixed`, `z-index:25`, occupying **426–526** — paints OVER the ingredient dropdown and the plate-name suggestion list. Those rows are visible-looking but **not tappable**, and nothing on screen says so.
+
+**Why `z-index:30` on the layer does not win**, which is the part that makes this non-obvious: **`position:fixed` escapes CLIPPING but not STACKING CONFINEMENT.** `#drop` sits inside `.bld-docket`, which carries `filter:drop-shadow` and is therefore a stacking context (`z-index:auto`); `#plateSuggest` sits inside `.bld-head{position:relative;z-index:2}`. A z-index only orders siblings WITHIN a context, so both layers are pinned at their ancestor's level and a z:25 bar beats them.
+
+**Measured**, `elementFromPoint` down the middle of each layer every 12px, at 380×640:
+
+| | `#drop` covered | `#plateSuggest` covered |
+|---|---|---|
+| main (v172) | 9 of 24 points | 8 of 32 points |
+| after 212 | 8 of 25 points | 4 of 25 points |
+
+⚠️ **IT PRE-DATES 212 AND 212 MADE IT BETTER, so this is not a regression to revert** — the engine clamps lists that used to run unbounded. It is recorded now because 212 is what measured it.
+
+**Requirements:** a dropdown does not render underneath the app's fixed furniture.
+**The fix is `dropBox`, not a z-index**, and that is the decision this item exists to take: `dropBox` already subtracts the modal and the form panel, and its own site states the principle — *"a dropdown may float over its OWN fields, but not over the controls that FOLLOW the form"*. `.bld-bar` holds **Save plate**, so it is exactly "the controls that follow". Subtracting it is one more bound in a function built for bounds.
+⚠️ **Cost it before building: at 380×640 that removes ~160px of below-room, so the list will flip ABOVE the field in the common phone case.** That may be right and it is a visible change to the screen Max works on — decide it here against a measurement, and **answer it here, do not route it onward.**
+⚠️ **A geometry assertion cannot see this.** `tests/visual/212-layers.spec.js` asserts `getBoundingClientRect()` and passes throughout, because paint order is invisible to a rect. The test for this is `document.elementFromPoint` at points inside the layer, asserting the hit is a descendant of the layer — the scan above is the reproduction, reuse it.
+
+## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
 **What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
 
@@ -156,7 +178,7 @@ Two things a reader could reasonably call wrong, both cosmetic:
 - **The Menu screen offers "Existing plate" at zero plates**, and at 380 it wraps onto its own row under the header and reads as an orphan. It is not broken — the modal it opens explains itself — but it is a control offered before it can do anything.
 - **The six empty states have never been read end to end as one sequence.** Each was written by the batch that built its screen, months apart; nobody has read all six together to ask whether a new café is being told the same story in the same words, or six unrelated ones. Screenshots of all nine panes at zero are cheap to retake — see the spec named above.
 
-## next  7 · The insight validator checks the digits, not what they mean  **[B]**
+## next  8 · The insight validator checks the digits, not what they mean  **[B]**
 
 From the blind code audit, 22 Aug 2026. `api/_insight.js` states a hard law — *"any number in the model's text that isn't one of the facts we handed it ⇒ the whole phrasing is rejected"* — and enforces exactly that sentence and nothing more. `validatePhrasing` (`api/_insight.js:40-58`) is **set membership** over `/-?\d+(?:\.\d+)?/g` with a ±0.005 tolerance. Nothing checks position, adjacency, unit or sign.
 
@@ -176,7 +198,7 @@ The endpoint runs at `temperature: 0.4`, the toggle **defaults ON** (`js/app.js:
 
 Requirements: validate the **sequence** of numbers rather than the set, and reject a candidate whose number-adjacent unit tokens (`%`, `$`, `pts`) differ from the template's. That still permits rewording, which is all the feature needs. The test asserts the meaning half by name.
 
-## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
+## next  9 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 
 `js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
 
@@ -186,7 +208,7 @@ The comment three lines below already reasons about exactly this hazard for the 
 
 Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
 
-## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
+## next  10 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
 
 `costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
 
@@ -196,7 +218,7 @@ Reached by a restore that `backupRefCheck` flagged as a soft problem — the con
 
 Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
 
-## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
+## next  11 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
 

@@ -597,9 +597,18 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
    positioned child THAT NEVER EXISTED — `.suggest-drop` declared no `position` at all, so it was
    `static`, the offsets were inert, and the layer sat in the flow pushing the whole docket down
    (measured: the ingredient search bar moved 389px at 380px wide). The engine now places it, so the
-   offsets below are the closed-state fallback in the same way `.drop`'s are.
-   `position:relative` is KEPT and is not vestigial: it is what stops the offsets applying against
-   some further ancestor if the engine is ever absent. */
+   offsets below are the closed-state fallback.
+   ⚠️ AND THAT IS A WEAKER FALLBACK THAN `.drop`'S, WHICH IS WHY IT IS SPELLED OUT RATHER THAN
+   CALLED EQUIVALENT. `.drop`'s base rule carries `position:absolute`, so it degrades to a real
+   positioned layer if the engine never runs. This one has NO `position` of its own, so shown
+   without anchorDrop it would be `static` again and reproduce the in-flow shove described above.
+   Nothing can reach that state today — `#plateSuggest` ships `style="display:none"` and every path
+   that sets `display:'block'` calls anchorDrop in the same statement — so this is a note about what
+   the fallback is worth, not a live defect. **If you ever show this layer from a new call site, the
+   anchorDrop call is not optional.** (Caught by the batch's own pre-push review, which read the
+   first draft of this comment as claiming a symmetry the CSS does not have.)
+   `position:relative` on the wrap is KEPT and is not vestigial: it is what stops the offsets
+   applying against some further ancestor. */
 .bld-namewrap{position:relative;display:block;min-width:0}
 .bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}
 /* ⚠️ `:not([hidden])` IS LOAD-BEARING. renderBuilderCost hides this element on every unpublished
