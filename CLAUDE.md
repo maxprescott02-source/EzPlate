@@ -466,6 +466,29 @@ An author rule beats the UA's `[hidden]{display:none}` because **author origin w
 ⚠️ **AND IF YOU GO AND COUNT THEM, READ THE HITS - DO NOT TRUST THE COUNT.** `grep -n ':not(\[hidden\])' css/style.css` returned **24** at v166 against **13** actual rules; narrowing it to lines with a brace still returns 14, because one comment contains the literal `[hidden]{display:none}` while explaining the mechanism. **This is roster entry 183(a) in miniature - a grep over a source file searches PROSE as well as CODE, and here the prose is this very idiom being described.** The first draft of this paragraph told you to grep for the live set and was caught by the pre-push review saying so; it is left written out because the trap bit inside the sentence warning about it.
 **So: any `display` rule on an element the JS hides with `hidden` needs the guard** - by default, not on recall. That sentence is the whole rule and it never needed a number.
 
+## `position:fixed` IS NOT VIEWPORT-RELATIVE, and this app's standard escape hatch assumes it is
+
+(Batch 212, 28 Aug 2026, queue item 6. Measured, not reasoned.)
+
+**A fixed element's containing block is the nearest ancestor carrying `transform`, `perspective`, `filter`, `backdrop-filter`, a layout/paint `contain`, or a `will-change` naming one of those — and only the VIEWPORT when there is no such ancestor.**
+
+That matters here because "anchor it `position:fixed` to the input's viewport rect so it ESCAPES the scroll container" is the **app-wide idiom for floating layers**, written into `anchorDrop` since v59, and it writes coordinates straight from `getBoundingClientRect()`. The idiom is correct exactly while no ancestor establishes a containing block — a precondition nothing states and nothing checks.
+
+`anchorDrop`'s own comment justified it: *"the modal's only transform is the open animation, long finished by interaction time, so fixed is viewport-relative."* **True of modals, which is all it had ever been asked to place.** Batch 177 then gave `.bld-docket` a `filter:drop-shadow` for an unrelated and correct reason — the tear-off edge is a zigzag, so a `box-shadow` would cast a straight rectangle under the teeth — and the builder's ingredient search sits inside it. Measured at 380px: a `position:fixed;left:0;top:0` probe inside `.bld-add .search-wrap` lands at **(12, 198)**, so handing that dropdown to the engine unchanged renders it **198px below its own field**.
+
+⚠️ **THE REAL SHAPE IS NOT ABOUT CSS. A batch added a property for its own reason and silently changed the COORDINATE SPACE a mechanism in another file depends on.** Nothing connects the two: `.bld-docket`'s shadow and `anchorDrop`'s arithmetic are in different files, written months apart, and both are individually right. This is the same family as "an exemption is scoped to the CLAIM that justified it" — a claim about modals quietly became a claim about everything the function places.
+**And the near-miss is the instructive part:** `tests/visual/v150-builder-order.spec.js` already had a comment saying the docket's filter *"creates a containing block but does NOT clip"*. The fact was recorded, correctly, and filed under the wrong consequence — the reader was thinking about clipping, so a note about containing blocks read as reassurance.
+
+**The remedy is `fixedContainingBlock`, which ASKS instead of assuming**, and every coordinate `anchorDrop` writes is offset by it. **The tell to recognise: `position:fixed` set from JS together with numbers out of `getBoundingClientRect()`.** Before trusting that pair, ask what is between the element and the root — and if the answer is "nothing today", note that adding a shadow, a transform or a `contain` anywhere above it is enough to break it silently.
+
+## Offsets on a `position:static` box are INERT, and everything around them can still read as deliberate
+
+(Batch 212, same item. A third mechanism with the same symptom as the two sections below: a rule that looks right in the file and does nothing on screen.)
+
+`.suggest-drop` — the builder's plate-name suggestion list — declared **no `position` at all**, so it was `static`. `.bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}` wrote offsets that a static box ignores, and `.bld-namewrap{position:relative}` had been added as a containing block **for a child that never became absolute**. Three separate things all shaped like a floating layer, and not one of them made it float: it sat in the flow, and opening it pushed the ingredient search bar **389px down the page** — off the screen entirely on a phone with the keyboard up. That is what Max reported as *"dropdowns cover the search bar"*, and it is **displacement, not overlap**, which is why looking for an overlapping rect found nothing and the queue item's own guessed mechanism was wrong.
+
+**The transferable rule: `position:relative` on a parent and offsets on a child are EVIDENCE OF INTENT, never evidence of effect.** They are valid CSS on a static box and cost nothing to write, so a layer can carry the full costume of being positioned without being positioned. **When a layer misbehaves, read its computed `position` FIRST** — before its offsets, its `z-index` or its specificity, all of which are downstream of a value that may not be what the file implies.
+
 ## A CSS syntax error is SILENT, and it discards every rule after it
 
 (Max's yes, 12 Aug 2026, after it cost batch 176 a full diagnose cycle.)

@@ -1416,7 +1416,7 @@ function renderDrop(){
     dropEl.setAttribute('role','group');
     dropEl.innerHTML=builderNoMatchHtml(q, plate.length>0);
     var go=dropEl.querySelector('.nomatch-go'); if(go) go.onclick=saveAndAddIngredients;
-    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); return;
+    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl); return;
   }
   dropEl.setAttribute('role','listbox');
   dropEl.innerHTML=curList.map((it,i)=>{
@@ -1425,7 +1425,16 @@ function renderDrop(){
        <span class="nm">${hl(it.name,q)} <span class="ca">${p?'\u2192 '+esc(p.description):'\u2192 (product missing)'}</span></span>
        <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
   }).join('');
-  dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true');
+  /* 212: the builder's ingredient list is placed by the ENGINE now, not by `.drop`'s CSS.
+     Two complaints of queue item 6 were this one layer. `.drop` was `position:absolute` inside
+     `.search-wrap`, so (a) any clipping ancestor cut it — the v149 defect this file's docket comment
+     still warns about — and (b) its `max-height:min(330px,45vh)` is measured against the LAYOUT
+     viewport, which does not shrink when a phone keyboard opens. Measured at 380x420 on the shipped
+     build: the list ran 35px BELOW the viewport, so the part you would scroll to was off-screen.
+     The engine's `position:fixed` escapes every clipping ancestor and caps maxHeight to the room
+     that actually exists, which is why `.cat-drop` was moved onto it in v59.
+     anchorDrop must run AFTER `.open` — a display:none element measures zero. */
+  dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl);
 }
 /* v83 item 7 — the builder's no-match state is an informative DEAD END, never a creation path.
    Creating an ingredient from here was deliberately removed in v59 and STAYS removed: the fuzzy matcher
@@ -1453,7 +1462,7 @@ function saveAndAddIngredients(){
   if(!saveCurrentPlate(false)) return;
   closeDrop(); closeBuilder(); showTab('pantry');
 }
-function closeDrop(){dropEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');hiIdx=-1;}
+function closeDrop(){dropEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');hiIdx=-1;resetDrop(dropEl);}   // 212: clear the inline geometry, as every engine-placed layer does on close
 qEl.addEventListener('input',renderDrop);
 qEl.addEventListener('focus',renderDrop);
 qEl.addEventListener('keydown',e=>{
@@ -6711,10 +6720,30 @@ function renderDashboard(){
   if(scopeRoot){
     scopeRoot.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); refocusScopeBtn(); }; });
     var dsb=scopeRoot.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); refocusScopeBtn(); };
+    /* 212: the scope popover joins the one placement engine. It was `position:absolute` with a
+       `right:0` and a `max-width:calc(100vw - 32px)` — a clamp on WIDTH only, so it never flipped
+       when it had no room below and never re-anchored when the page scrolled underneath it.
+       matchWidth:false because this is a 280px popover hung off a button, not a field's dropdown;
+       align:'right' preserves the right-edge anchoring the stylesheet had.
+       Placed HERE rather than in the html builder because setDashMenusOpen re-renders the whole
+       dashboard, so the element this measures is created fresh on every open. */
+    var pop=scopeRoot.querySelector('.dash-menus-pop');
+    if(pop && dsb) anchorDrop(pop, dsb, {matchWidth:false, align:'right'});
   }
   // §5's first-run CTA. openBuilderNew is the same function every "New plate" in the app runs, so
   // there is one label for one intent (§7) and no second creation path to keep in step.
   var pathCta=root.querySelector('#dashPathCta'); if(pathCta) pathCta.onclick=function(){ openBuilderNew(); };
+  /* 212 — WHY `.tp-tip` DOES NOT USE anchorDrop, which queue item 6 asked to be either folded in or
+     justified in writing. It is justified, and the difference is what it anchors TO.
+     Every other layer the engine places is anchored to a CONTROL and lives in the viewport's
+     coordinate space: the engine's whole job is to keep a list beside its field and inside the
+     screen. `.tp-tip` is anchored to a DATA POINT — a curve-riding dot at an x the user is scrubbing
+     — and is positioned in the CHART's coordinate space, scaled through TREND_GEO from viewBox units
+     (`px=vx*sx, py=vy*sy` below). Its `.below` flip is about the PLOT's top edge, not the viewport's,
+     because a tooltip that escaped the plot to stay on screen would point at nothing.
+     Folding it in would mean giving the engine a second mode, with one caller, whose reference box is
+     an SVG viewBox — which is a second engine wearing the first one's name. It stays separate on
+     purpose, and this comment is the record of that decision rather than an omission. */
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
@@ -6831,7 +6860,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v172';
+var APP_VERSION='v173';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8307,7 +8336,7 @@ function rankLoadMatches(query){
 function renderPlateSuggest(query){
   var box=document.getElementById('plateSuggest'); if(!box) return;
   var matches=rankLoadMatches(query);
-  if(!matches.length){ box.style.display='none'; box.innerHTML=''; return; }   // no match -> treated as a new plate name
+  if(!matches.length){ box.style.display='none'; box.innerHTML=''; resetDrop(box); return; }   // no match -> treated as a new plate name
   box.innerHTML=matches.map(function(r){
     var it=r.item;
     if(r.kind==='plate'){
@@ -8321,7 +8350,19 @@ function renderPlateSuggest(query){
   box.querySelectorAll('.sug-opt').forEach(function(o){
     o.addEventListener('mousedown',function(e){ e.preventDefault(); var id=o.getAttribute('data-id'); if(o.getAttribute('data-kind')==='menu') requestLoadMenuItem(id); else requestLoadPlate(id); });
   });
+  /* 212 ROOT CAUSE — THIS LAYER NEVER FLOATED. `.suggest-drop` declared no `position` at all, so it
+     was `static`: an in-flow block. `.bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}`
+     wrote offsets that do nothing on a static box, and `.bld-namewrap{position:relative}` was added as
+     a containing block for a child that never became absolute — so the markup, the offsets and the
+     positioning context all read as a floating layer and none of it was one.
+     MEASURED 28 Aug 2026 at 380px: eight suggestions are 381px of new flow inserted into the header,
+     which pushed the ingredient search bar from top 213 to top 602 — 389px down the page, off the
+     screen entirely on a phone with the keyboard up. That is queue item 6's "dropdowns cover the
+     search bar", and it is displacement rather than overlap, which is why looking for an overlapping
+     rect found nothing.
+     Placed AFTER display:block for the same reason as `#drop`. */
   box.style.display='block';
+  anchorDrop(box, document.getElementById('plateName'));
 }
 function loadMenuItemBlank(id){                              // v55: cost an uncosted dish -> open its (created+linked) plate
   var m=menuById[id]; if(!m) return;
@@ -8334,7 +8375,7 @@ function requestLoadMenuItem(id){
   if(isBuilderDirty()){ askConfirm('Load menu item','Load '+m.name+'? Unsaved changes will be lost.','Load',function(){ loadMenuItemBlank(id); }); }
   else loadMenuItemBlank(id);
 }
-function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b){ b.style.display='none'; b.innerHTML=''; resetDrop(b); } }
 function currentLinesSig(){ return plate.map(lineSig).join('|'); }
 function isBuilderDirty(){
   var name=(document.getElementById('plateName').value||'').trim();
@@ -9811,21 +9852,88 @@ function dropBox(inp, soft){
   }
   return box;
 }
-function anchorDrop(drop){
+/* 212 ROOT CAUSE — `position:fixed` IS NOT ALWAYS VIEWPORT-RELATIVE, and anchorDrop assumed it was.
+   A fixed element's containing block is the nearest ancestor carrying `transform`, `perspective`,
+   `filter`, `backdrop-filter`, a `contain` that establishes layout/paint, or a `will-change` naming
+   one of those — and only the VIEWPORT when there is no such ancestor.
+   The comment at anchorDrop said "the modal's only transform is the open animation, long finished by
+   interaction time, so fixed is viewport-relative". That was true OF MODALS, which is all this engine
+   had ever been asked to place. 177 gave `.bld-docket` a `filter:drop-shadow` (required — the tear-off
+   edge is a zigzag, so a box-shadow would cast a straight rectangle under the teeth), and the builder's
+   ingredient search sits inside it.
+   MEASURED 28 Aug 2026, 380px, real boot: a `position:fixed;left:0;top:0` probe inside
+   `.bld-add .search-wrap` lands at (12, 198), not (0, 0). Writing viewport coordinates into a fixed
+   element there puts the list 198px BELOW its own input.
+   So the engine asks where its coordinates will actually be resolved, instead of assuming.
+   Returns the containing block in VIEWPORT coordinates: {x, y, bottom}. The offsets are the PADDING
+   box (what a fixed child resolves against), which is the border box inset by the border widths. */
+var CB_WILLCHANGE=/transform|perspective|filter/;
+var CB_CONTAIN=/\b(paint|layout|strict|content)\b/;
+function fixedContainingBlock(el){
+  var n=el&&el.parentElement;
+  while(n && n!==document.documentElement){
+    var cs=getComputedStyle(n);
+    if(cs.transform!=='none' || cs.perspective!=='none' || cs.filter!=='none' ||
+       (cs.backdropFilter&&cs.backdropFilter!=='none') ||
+       (cs.willChange&&cs.willChange!=='auto'&&CB_WILLCHANGE.test(cs.willChange)) ||
+       (cs.contain&&cs.contain!=='none'&&CB_CONTAIN.test(cs.contain))){
+      var r=n.getBoundingClientRect();
+      var bl=parseFloat(cs.borderLeftWidth)||0, bt=parseFloat(cs.borderTopWidth)||0, bb=parseFloat(cs.borderBottomWidth)||0;
+      return {x:r.left+bl, y:r.top+bt, bottom:r.bottom-bb};
+    }
+    n=n.parentElement;
+  }
+  return {x:0, y:0, bottom:window.innerHeight};
+}
+/* 212: the anchor is passed in rather than derived, so a layer that is not a combobox can use the
+   engine too. The `.cat-wrap` derivation stays as the fallback, which is what leaves the eleven
+   `.cat-drop` call sites unchanged.
+   opts.matchWidth (default true) copies the anchor's width — right for a field's dropdown, wrong for
+   `.dash-menus-pop`, which is a fixed-width popover hung off the right edge of a button.
+   opts.align 'right' pins the layer's right edge to the anchor's, for that same popover. */
+function anchorDrop(drop, anchorEl, opts){
   if(!drop) return;
-  var wrap=drop.closest('.cat-wrap'); var inp=wrap?wrap.querySelector('input'):null;
+  opts=opts||{};
+  var inp=anchorEl||null;
+  if(!inp){ var wrap=drop.closest('.cat-wrap'); inp=wrap?wrap.querySelector('input'):null; }
   if(!inp && drop.previousElementSibling && drop.previousElementSibling.tagName==='INPUT') inp=drop.previousElementSibling;
   if(!inp) return;
   var r=inp.getBoundingClientRect();
-  drop.style.position='fixed'; drop.style.left=r.left+'px'; drop.style.width=r.width+'px'; drop.style.right='auto';
+  var cb=fixedContainingBlock(drop);
+  drop.style.position='fixed';
+  if(opts.matchWidth===false){
+    drop.style.width=''; 
+    // right-align to the anchor: measure the layer's own width AFTER the width reset, so a
+    // stylesheet width (280px) or a max-width clamp is what we align, not a stale inline one.
+    var w=drop.getBoundingClientRect().width;
+    var left=(opts.align==='right')?(r.right-w):r.left;
+    left=Math.max(8, Math.min(left, window.innerWidth-w-8));            // never off either edge
+    drop.style.left=(left-cb.x)+'px';
+  } else {
+    drop.style.width=r.width+'px';
+    drop.style.left=(r.left-cb.x)+'px';
+  }
+  drop.style.right='auto';
   var p=dropPlace(r, dropBox(inp,true), dropBox(inp,false));
-  if(p.below){ drop.style.top=(r.bottom+4)+'px'; drop.style.bottom='auto'; }
-  else { drop.style.top='auto'; drop.style.bottom=(window.innerHeight-r.top+4)+'px'; }
+  if(p.below){ drop.style.top=(r.bottom+4-cb.y)+'px'; drop.style.bottom='auto'; }
+  else { drop.style.top='auto'; drop.style.bottom=(cb.bottom-r.top+4)+'px'; }
   drop.style.maxHeight=p.maxHeight+'px';                                  // .cat-drop's overflow:auto scrolls a long list inside this
 }
 function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); }
-(function(){ var reflow=function(){ document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); }); };
-  window.addEventListener('resize',reflow); window.addEventListener('scroll',reflow,true); })();   // scroll capture=true catches the modal body scroll
+/* 212: every MANAGED layer re-anchors, not just `.cat-drop`. Each entry names how to find the layer
+   and how to find its anchor, because the engine no longer derives one for layers that are not
+   comboboxes. A layer absent from the DOM or hidden is skipped; `.drop` is class-driven rather than
+   display-driven (v61 item 7), so it is asked about its class. */
+function reanchorOpenLayers(){
+  document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); });
+  var q=document.getElementById('q'), dd=document.getElementById('drop');
+  if(q && dd && dd.classList.contains('open')) anchorDrop(dd, q);
+  var sg=document.getElementById('plateSuggest'), nm=document.getElementById('plateName');
+  if(sg && nm && sg.style.display==='block') anchorDrop(sg, nm);
+  var pop=document.querySelector('.dash-menus-pop'), sb=document.getElementById('dashScopeBtn');
+  if(pop && sb) anchorDrop(pop, sb, {matchWidth:false, align:'right'});
+}
+(function(){ window.addEventListener('resize',reanchorOpenLayers); window.addEventListener('scroll',reanchorOpenLayers,true); })();   // scroll capture=true catches the modal body scroll
 function makeInlineCombo(inpId, dropId, listFn){
   var inp=document.getElementById(inpId), drop=document.getElementById(dropId); if(!inp||!drop) return;
   var state={value:inp.value.trim(), isNew:false, confirmed:!!inp.value.trim()}; niCombos[inpId]=state;

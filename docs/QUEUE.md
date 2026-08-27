@@ -145,32 +145,7 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  6 · Floating layers and mobile dropdowns  **[B]**
-
-Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
-✅ **COUNTED, 27 Aug 2026 (batch 209, read-only — no branch, no code).** The item said "five independent placement implementations", and the v119 review called that unverified and guessed "about four, or six loosely". **Both were wrong, and the NUMBER was never the finding — the COMPOSITION is.** Five things open over content. **Exactly ONE of them computes anything.**
-
-| Layer | How it is placed | Flips when there is no room? | Clamped to the viewport? | Re-anchors on scroll? |
-|---|---|---|---|---|
-| `.cat-drop` (category combobox) | **the engine** — `anchorDrop` → `dropPlace` + `dropBox`, overrides to `position:fixed` | ✅ yes | ✅ yes, and caps `maxHeight` | ✅ yes, `resize` + capturing `scroll` |
-| `.drop` (ingredient/product search) | CSS only, `position:absolute` under `.search-wrap` | ❌ never | ❌ never | ❌ never |
-| `.tipbox` (suggested-price tooltip) | CSS only, `position:absolute`, right-anchored | ❌ | ❌ | ❌ |
-| `.dash-menus-pop` (Dashboard scope popover) | CSS only, `position:absolute`, right-anchored | ❌ | only `max-width:calc(100vw - 32px)` | ❌ |
-| `.tp-tip` (trend-chart tooltip) | JS, but its **own** clamp and its own `.below` flip, in the CHART's coordinate space rather than the viewport's | ✅ its own | ✅ its own | n/a |
-
-**So the work is not "unify five engines". It is "there is one engine and four things that never asked it"** — three with no JS at all, plus a fifth that solved the same two problems again, separately, for a chart. That is a different and much smaller job than the item implied, and it changes what "one placement implementation" means: adopting `anchorDrop` at four call sites, not writing a sixth.
-
-**The three complaints, traced to mechanisms — MEASURED where marked, INFERRED where marked, and the inferred ones need a browser before anyone builds:**
-- **"cannot be scrolled" → MEASURED, and it is a CLIPPING bug, not a scrolling one.** `.drop` carries `overflow:auto` and `max-height:min(330px,45vh)`, so it *should* scroll. It is `position:absolute` inside `.search-wrap`, so any clipping ancestor cuts it — `css/style.css` records **"measured at 1280 on the shipped v149 build as a 96px list with 37px visible"**, and `tests/visual/v150-builder-order.spec.js` measures the painted height against every clipping ancestor. A clipped list never overflows its own box, so `overflow:auto` has nothing to scroll and the rest is simply unreachable. **Moving `.drop` onto the engine fixes this by construction** — the engine's `position:fixed` escapes every clipping ancestor, which is exactly why `.cat-drop` was moved onto it in v59.
-- **"cover the search bar" → INFERRED.** The engine flips a dropdown ABOVE its input when there is more room there (`dropPlace`), and on a 380px phone with the keyboard up there usually is. Whatever sits above the input is then covered — on the search screens, the search bar. If that is the one Max means, it is the ENGINE misbehaving rather than a layer that lacks it, and the fix is a different decision (prefer below and shrink, rather than flip). **Reproduce before choosing.**
-- **"the bounce animation is annoying" → MEASURED, and it is one keyframe on one layer.** `@keyframes dropIn{from{opacity:0;transform:translateY(-4px)}}` on `.drop.open` only. `.dash-menus-pop` uses `fadeIn` and the rest have none. Deleting the `transform` half leaves the fade.
-
-⚠️ **REPRODUCE THE "COVERS THE SEARCH BAR" CASE ON A 380px VIEWPORT BEFORE PLANNING.** It is the only one of the three whose mechanism is still a guess, and it is the one whose fix points in the opposite direction from the others: the other two are solved by giving a layer the engine, and this one may be solved by changing what the engine decides. Getting that backwards means doing the work twice. **Answer it here; do not route it onward.**
-
-Requirements: one placement implementation — meaning the four unmanaged layers adopt `anchorDrop`, and `.tp-tip`'s private clamp is either folded in or given a written reason to stay separate.
-*(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
-
-## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+## next  6 · Onboarding — the empty-state decisions 190 did not take  **[B]**
 
 **What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
 
@@ -181,7 +156,7 @@ Two things a reader could reasonably call wrong, both cosmetic:
 - **The Menu screen offers "Existing plate" at zero plates**, and at 380 it wraps onto its own row under the header and reads as an orphan. It is not broken — the modal it opens explains itself — but it is a control offered before it can do anything.
 - **The six empty states have never been read end to end as one sequence.** Each was written by the batch that built its screen, months apart; nobody has read all six together to ask whether a new café is being told the same story in the same words, or six unrelated ones. Screenshots of all nine panes at zero are cheap to retake — see the spec named above.
 
-## next  8 · The insight validator checks the digits, not what they mean  **[B]**
+## next  7 · The insight validator checks the digits, not what they mean  **[B]**
 
 From the blind code audit, 22 Aug 2026. `api/_insight.js` states a hard law — *"any number in the model's text that isn't one of the facts we handed it ⇒ the whole phrasing is rejected"* — and enforces exactly that sentence and nothing more. `validatePhrasing` (`api/_insight.js:40-58`) is **set membership** over `/-?\d+(?:\.\d+)?/g` with a ±0.005 tolerance. Nothing checks position, adjacency, unit or sign.
 
@@ -201,7 +176,7 @@ The endpoint runs at `temperature: 0.4`, the toggle **defaults ON** (`js/app.js:
 
 Requirements: validate the **sequence** of numbers rather than the set, and reject a candidate whose number-adjacent unit tokens (`%`, `$`, `pts`) differ from the template's. That still permits rewording, which is all the feature needs. The test asserts the meaning half by name.
 
-## next  9 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
+## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 
 `js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
 
@@ -211,7 +186,7 @@ The comment three lines below already reasons about exactly this hazard for the 
 
 Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
 
-## next  10 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
+## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
 
 `costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
 
@@ -221,7 +196,7 @@ Reached by a restore that `backupRefCheck` flagged as a soft problem — the con
 
 Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
 
-## next  11 · A price point is logged even when the write carrying it was rejected  **[B]**
+## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
 

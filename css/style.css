@@ -463,13 +463,24 @@ input[type=checkbox]{
    7. SEARCH + DROPDOWNS
    ---------------------------------------------------------------------- */
 .search-wrap{position:relative}
+/* 212: GEOMETRY IS THE ENGINE'S, PAINT IS THE STYLESHEET'S. anchorDrop writes position/left/width/
+   top/bottom/max-height inline on open and resetDrop clears them on close, so the offsets and the
+   max-height here are the CLOSED-state defaults and the fallback if the engine is ever absent.
+   `max-height:min(330px,45vh)` is kept for that reason and is exactly what the engine exists to
+   replace while open: `vh` is the LAYOUT viewport, which does not shrink when a phone keyboard
+   opens, so at 380x420 the list ran 35px below the visible area and the rest was unreachable —
+   "cannot be scrolled" in queue item 6. The engine caps to the room that actually exists.
+   z-index still matters: the engine sets position:fixed, not a top layer. */
 .drop{
   position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;
   background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-ctl);
   max-height:min(330px,45vh);overflow:auto;display:none;box-shadow:var(--shadow-lg);
 }
 .drop.open{display:block;animation:dropIn var(--t-med) var(--ease)}
-@keyframes dropIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* 212: the `transform:translateY(-4px)` half is DELETED — queue item 6, Max: "the bounce animation is
+   annoying". The fade stays; a layer appearing with no transition at all reads as a repaint glitch.
+   It was on `.drop.open` only, so this is the one keyframe that carried the complaint. */
+@keyframes dropIn{from{opacity:0}to{opacity:1}}
 .opt{
   display:flex;align-items:baseline;gap:var(--sp-2);padding:12px 14px;min-height:44px;
   cursor:pointer;border-bottom:1px solid var(--border);
@@ -484,9 +495,15 @@ input[type=checkbox]{
 .db-tools .newbtn{margin-top:0;flex:1 1 auto}
 .newbtn{margin-top:var(--sp-3)}
 
+/* 212: `overflow:auto`, NOT `hidden`. The engine caps this layer's height to the room available, so
+   a hidden overflow would clip the surplus with no way to reach it — the exact failure the item calls
+   "cannot be scrolled". `hidden` was there to keep the rows inside the rounded corners; `auto` clips
+   to the same box and scrolls, so the corners still hold.
+   z-index is new and is required: the layer is `position:fixed` while open and now paints over the
+   docket, which would otherwise win on source order. */
 .suggest-drop{
   margin-top:var(--sp-2);background:var(--surface);border:1px solid var(--border2);
-  border-radius:var(--radius-ctl);overflow:hidden;box-shadow:var(--shadow);
+  border-radius:var(--radius-ctl);overflow:auto;box-shadow:var(--shadow);z-index:30;
 }
 .suggest-drop .sug-opt{
   display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);
@@ -576,6 +593,13 @@ input.bld-nameinput{
 input.bld-nameinput::placeholder{color:var(--muted2);font-weight:500;opacity:1}
 input.bld-nameinput:hover{background:var(--hover-2)}
 input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);border-radius:6px;box-shadow:none}
+/* 212: `.bld-namewrap{position:relative}` and the offsets below were written for an absolutely
+   positioned child THAT NEVER EXISTED — `.suggest-drop` declared no `position` at all, so it was
+   `static`, the offsets were inert, and the layer sat in the flow pushing the whole docket down
+   (measured: the ingredient search bar moved 389px at 380px wide). The engine now places it, so the
+   offsets below are the closed-state fallback in the same way `.drop`'s are.
+   `position:relative` is KEPT and is not vestigial: it is what stops the offsets applying against
+   some further ancestor if the engine is ever absent. */
 .bld-namewrap{position:relative;display:block;min-width:0}
 .bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}
 /* ⚠️ `:not([hidden])` IS LOAD-BEARING. renderBuilderCost hides this element on every unpublished

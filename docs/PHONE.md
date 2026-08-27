@@ -837,3 +837,32 @@ compares against a price you already know rather than asking whether it "looks r
 
 **If the preview and the note ever disagree, do not press Import** — that is the one combination the
 design makes impossible, so it would mean something real is broken.
+
+---
+
+## Does the ingredient dropdown clear the on-screen keyboard? (batch 212)
+
+**Only a device can settle this, because no desktop browser has a software keyboard.**
+
+Batch 212 put every floating layer on one placement engine, which caps a dropdown's height to the
+room that actually exists rather than to `45vh`. It measures **`window.innerHeight`**.
+
+⚠️ **On iOS, `window.innerHeight` does NOT shrink when the keyboard opens** — neither does `vh`. Only
+`visualViewport.height` does. So the engine is a strict improvement over the old CSS (it clamps to the
+viewport, flips when there is more room above, and escapes every clipping ancestor) and it may STILL
+draw a list that runs under the keyboard.
+
+Simulating a 420px-tall viewport on the desk proves the clamp works; it cannot prove the number the
+clamp is reading is the one the user can see.
+
+**What to do:** open the builder on the phone, tap the ingredient search, type two letters that match
+many products (e.g. "ch"), and look at the bottom of the list.
+
+**A failure looks like:** the last row or two of the list sitting behind the keyboard with no way to
+scroll to them — the list scrolls internally, so the surplus would simply never come into view.
+**A pass looks like:** the whole list sits between the field and the top of the keyboard, and its last
+row is reachable.
+
+If it fails, the fix is one line — read `visualViewport.height` in preference to `window.innerHeight`
+in `dropBox` — but it is deliberately NOT written blind, because `visualViewport` also reports the
+page being pinch-zoomed, and guessing which of the two a phone is doing is how this gets worse.

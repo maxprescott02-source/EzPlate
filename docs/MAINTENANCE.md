@@ -672,3 +672,29 @@ So: **call it as `anon` over PostgREST on staging, with rows present, and assert
 It is `SECURITY DEFINER`, granted to `anon`, and answers whether any café has a pending invitation for an address — the only unauthenticated endpoint this app has ever deliberately shipped. The gate review accepts it, on the grounds that its surface is narrow and shrinking.
 **The café-creation branch removes its last caller**: sign-up stops being invitation-gated, so once that ships nothing in the shipped client invokes it. It is deliberately not dropped in the same change — an old client still cached on a phone calls it and refuses sign-up on an unreadable answer, so **the drop must FOLLOW the client, never lead it.**
 Take this once the café-creation client has been live long enough that no cached client plausibly remains.
+
+---
+
+## `.tipbox` and `.tip` are dead — CSS, a wired handler, and a document-wide click listener
+
+Found by batch 212 while counting the app's floating layers for `docs/QUEUE.md` item 6, which listed
+`.tipbox` as one of five live layers with the note *"suggested-price tooltip, CSS only"*. It is not a
+layer at all: **nothing in `index.html` or `js/app.js` emits `class="tipbox"` or `class="tip"`.**
+
+Three things to remove together, and the second and third are why this is worth an entry rather than a
+silent deletion:
+
+- `css/style.css` §13 — `.tip`, `.tipbox`, `.tipbox::after`, `.tip:hover .tipbox`, `.num .tipbox`.
+- `js/app.js` — a `document.querySelectorAll('.tip').forEach(...)` that wires click handlers to a
+  selector matching nothing, **plus a `document.addEventListener('click', ...)` that runs on every
+  click anywhere in the app** to close a class no element carries.
+- `docs/handovers/HANDOVER-144-tokens-dark.md` records `.tipbox` being converted to `--inverse` in the
+  dark-theme pass — a batch spent styling a rule that renders nowhere, which is the cost of leaving it.
+
+⚠️ **Verify the emitter before deleting, not the selector.** `.tip` is greppable in `js/app.js` as a
+LIVE selector (the handler above), so a reader checking "is this used?" finds a hit and stops. The
+question that settles it is what puts the class ON an element, and the answer is nothing.
+
+It rides whichever batch next opens `css/style.css` §13 or that handler block. Related: the
+dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.ing-empty`,
+`.an-empty`, `.plate-noresult`, `.king-tag`) — same class, and this is a seventh.
