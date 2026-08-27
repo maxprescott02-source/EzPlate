@@ -180,3 +180,56 @@ test('picking an option still adds the line once the layer is portaled', async (
   expect(after.open, 'and the dropdown closed').toBe(false);
   expect(after.parent, 'and the layer went home').toContain('search-wrap');
 });
+
+/* ⚠️ THE COST OF PORTALING, AND THE REGRESSION IT CAUSED — found by this batch's pre-push review.
+ * `showTab` leaves the builder by setting `#builderPage.hidden`, which hides everything INSIDE the
+ * page. A portaled layer is a sibling of the page, not a descendant, so `hidden` stops reaching it.
+ * `#plateSuggest`'s only close trigger is a 150ms `setTimeout` on the name field's blur, so tapping
+ * a nav tab with suggestions open left the list painted over the tab you had just opened until the
+ * timer fired. Measured before the fix: display:block, 300px tall, owning its own pixels over the
+ * Dashboard, with the builder already hidden.
+ * It never showed before 213 because a hidden ancestor hid it too — the delay was invisible, and the
+ * blur timer looked like a close when it never was one.
+ * ASSERTED WITH NO WAIT, deliberately: the bug self-heals in 150ms, so any `waitForTimeout` between
+ * the click and the assertion turns this into a test that cannot fail.
+ */
+for (const layer of [
+  { name: 'the plate-name suggestions', id: 'plateSuggest', open: async (page) => {
+    await page.locator('#plateName').click();
+    await page.locator('#plateName').fill('');
+    await page.locator('#plateName').type('Fish', { delay: 12 });
+  } },
+  { name: 'the ingredient dropdown', id: 'drop', open: async (page) => {
+    await page.locator('#q').click();
+    await page.locator('#q').type('chip', { delay: 12 });
+  } },
+]) {
+  test(`${layer.name} does not survive onto the next tab`, async ({ page }) => {
+    await openTheBuilder(page, 380, 780);
+    await layer.open(page);
+    await page.waitForTimeout(400);
+
+    const open = await page.evaluate((id) => {
+      const e = document.getElementById(id);
+      return { onScreen: e.getBoundingClientRect().height > 0, parentIsBody: e.parentElement === document.body };
+    }, layer.id);
+    expect(open.onScreen, 'the layer is open before we leave, or this proves nothing').toBe(true);
+    expect(open.parentIsBody, 'and portaled, which is the condition that made this possible').toBe(true);
+
+    // NO WAIT after this click — the defect lasts 150ms and heals itself.
+    await page.locator('.navbtn[data-tab="dashboard"]').click({ noWaitAfter: true });
+    const now = await page.evaluate((id) => {
+      const e = document.getElementById(id);
+      const r = e.getBoundingClientRect();
+      return {
+        builderHidden: document.getElementById('builderPage').hidden,
+        onScreen: r.height > 0 && getComputedStyle(e).display !== 'none',
+        parentIsBody: e.parentElement === document.body,
+      };
+    }, layer.id);
+
+    expect(now.builderHidden, 'the builder really was left').toBe(true);
+    expect(now.onScreen, 'and the layer is not still painted over the tab you opened').toBe(false);
+    expect(now.parentIsBody, 'and it is not stranded on body').toBe(false);
+  });
+}

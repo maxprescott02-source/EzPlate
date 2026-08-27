@@ -3173,6 +3173,20 @@ function showTab(t){
      in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
      pressing × did while it was a modal. */
   var _bp=document.getElementById('builderPage'); if(_bp) _bp.hidden=true;
+  /* 213 — HIDING THE PAGE NO LONGER HIDES ITS OPEN LAYERS, and this line is the whole of why.
+     Both builder dropdowns are reparented to <body> while open, so they are SIBLINGS of
+     `#builderPage` rather than descendants and `hidden` above does not reach them.
+     `#plateSuggest` is the one that broke: its only close trigger is a 150ms `setTimeout` on the
+     name field's blur, so tapping a nav tab with suggestions open left the list painted over the
+     tab you had just opened until the timer fired. Measured: `display:block`, 300px tall, owning
+     its own pixels over the Dashboard, with the builder already hidden.
+     It never showed before this because an in-flow descendant of a hidden ancestor is hidden too,
+     so the delay was invisible and the blur timer looked like a close. It was never a close.
+     `#drop` was not affected — the document click listener closes it synchronously in the same
+     dispatch as the nav click — and it is closed here anyway rather than left to that coincidence,
+     which is the review's second finding. */
+  if(_bp && typeof closeDrop==='function') closeDrop();
+  if(_bp && typeof hidePlateSuggest==='function') hidePlateSuggest();
   /* F4 (v140) tombstone: the `#prodFab` show/hide line lived here. The floating add is deleted —
      v3 §6.1 puts the primary action in the screen header on both platforms, so a second control for
      the same intent was §7's forbidden duplicate. Nothing replaces the line. */
@@ -8553,6 +8567,12 @@ function openBuilder(){ armDraftSaves();                              // v84: th
 function closeBuilder(){
   var pg=builderPageEl(); if(pg) pg.hidden=true;
   if(typeof hidePlateSuggest==='function') hidePlateSuggest();
+  /* 213, the review's second finding: this closed ONE of the two layers and got away with the other
+     because every call site happens to sit inside a click whose target is outside `.search-wrap`,
+     so the document listener closed `#drop` in the same dispatch. That is a coincidence, not a
+     contract, and since 213 the cost of it failing is a layer stranded on <body> at z-index 79
+     rather than a dropdown that merely looks open. Close both, here, explicitly. */
+  if(typeof closeDrop==='function') closeDrop();
   showTab('builder');                                                 // back to the Plates library, the page this one is a child of
   /* Hand focus back, on the same terms closeOverlay uses: only if the opener still exists, and
      only if nothing else has claimed focus in the meantime. A row that was re-rendered by the
