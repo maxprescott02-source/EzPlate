@@ -75,7 +75,7 @@ const EMPTY_OK = ['app_settings'];
 async function installBoot(page, opts = {}) {
   const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
   await page.addInitScript(
-    ([ingredientRows, emptyOk, noClient, nonMemberOpt, rpcFailsAfter, signedOut, role, invited, claimLoops]) => {
+    ([ingredientRows, emptyOk, noClient, nonMemberOpt, rpcFailsAfter, signedOut, role, invited, claimLoops, createFails]) => {
       if (noClient) return;
       /* 192: `nonMember` and `claimed` are LET rather than const, because the claim RPC below
          changes them — a successful claim really does turn a non-member into a member, and the
@@ -222,7 +222,7 @@ async function installBoot(page, opts = {}) {
              them would ever touch the real one. (186 serves `auth` for that same reason now — the
              note that used to sit here saying it was deliberately absent is above, with why it
              flipped.) */
-          rpc: (name) => {
+          rpc: function (name, args) {
             /* 186: signed out answers null too, and only signing in changes it — which is what
                makes the sign-in round trip drivable rather than merely paintable. */
             const noTenant = nonMember || (signedOut && !fakeSession());
@@ -265,6 +265,37 @@ async function installBoot(page, opts = {}) {
               claimed = true; nonMember = false;
               return Promise.resolve({ data: '00000000-0000-0000-0000-000000000001', error: null });
             }
+            /* 209 — CREATE MY CAFÉ, and it is the claim's mirror image in every respect: ABOVE the
+               counter for the reason all four of its siblings are, and with REAL behaviour rather
+               than a canned answer because the whole point of this path is what happens next.
+               Flipping `nonMember` off is the fixture standing in for the two rows the real
+               function writes — `businesses` and the founding `business_members` — so the re-sync
+               the handler performs finds a café instead of the same empty one, which is the only
+               way the journey can be driven end to end.
+               `opts.createFails` carries a MESSAGE rather than a boolean, because the refusals this
+               function can return are written to be read by the person in front of the form
+               ("confirm your email address first") and the app is supposed to show the server's own
+               words. A boolean would only ever prove that SOME error appeared. */
+            if (name === 'create_business') {
+              /* ⚠️ ITS OWN COUNTER AND ITS OWN RECORD, NOT `__rpcCalls`. That counter means "how
+                 many times was the TENANT asked" and nothing else — 188 had to move it below the
+                 role branch after adding one unrelated call to the same Promise.all silently
+                 retired v161's re-sync assertion, which CLAUDE.md calls the worst kind of defect
+                 this repo has had. A spec asking "was the server asked to create a café, and with
+                 WHAT" needs a number that means that, so it gets one.
+                 `__createdWith` records the ARGUMENT because the client is supposed to normalise a
+                 name before sending it, and the only way to prove what was sent is to keep it. */
+              window.__createCalls = (window.__createCalls || 0) + 1;
+              window.__createdWith = args || null;
+              if (createFails) return Promise.resolve({ data: null, error: { message: createFails } });
+              nonMember = false;
+              return Promise.resolve({ data: '00000000-0000-0000-0000-000000000001', error: null });
+            }
+            /* ⚠️ 209 LEFT THIS BRANCH IN PLACE WITH NO CALLER IN THE APP. The sign-up form stopped
+               calling `invite_pending` when self-service sign-up shipped, and the server function
+               is deliberately not dropped in that batch (an old cached client still calls it — see
+               the migration's header). Removing the branch would make the shim disagree with the
+               database about what exists, which is the one thing a fixture must never do. */
             if (name === 'invite_pending') return Promise.resolve({ data: !!invited, error: null });
             if (name === 'business_team') {
               /* Owner-only on the server, and the shim says so rather than always answering: a spec
@@ -332,7 +363,7 @@ async function installBoot(page, opts = {}) {
       };
     },
     [rows, EMPTY_OK, !!opts.noClient, !!opts.nonMember, opts.rpcFailsAfter || 0, !!opts.signedOut,
-      opts.role || 'owner', !!opts.invited, !!opts.claimLoops],
+      opts.role || 'owner', !!opts.invited, !!opts.claimLoops, opts.createFails || ''],
   );
   await page.route(/^(?!http:\/\/localhost:5173)/, (r) => r.abort());
 }

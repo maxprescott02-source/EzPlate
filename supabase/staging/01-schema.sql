@@ -854,6 +854,78 @@ $fn$;
 revoke all on function public.business_team() from public;
 grant execute on function public.business_team() to authenticated, service_role;
 
+-- ---------------------------------------------------------------------------
+-- 209 — CREATE A CAFÉ. The one function that can bring a `businesses` row and
+-- its founding `business_members` row into existence together; both tables
+-- carry SELECT policies and nothing else, so RLS default-denies every direct
+-- client write and this is the only door. `20260827_cafe_creation.sql` argues
+-- every refusal in its header.
+--
+-- ⚠️ THE BODY BELOW IS BYTE-IDENTICAL TO THAT MIGRATION'S, comments and all,
+-- and `tests/cafe-create.test.js` fails if it stops being. `functions_fp` — the
+-- only drift detector this project has — hashes `pg_get_functiondef`, which
+-- returns the stored source INCLUDING comments, so one hand-edited line here
+-- turns it permanently red for a reason that is not drift. Copy the whole
+-- block; never edit a line of it.
+-- ---------------------------------------------------------------------------
+create or replace function public.create_business(p_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  uid uuid := auth.uid();
+  nm  text;
+  bid uuid;
+  rl  text;
+begin
+  if uid is null then
+    raise exception 'sign in before creating a cafe';
+  end if;
+
+  nm := btrim(regexp_replace(coalesce(p_name, ''), '[[:space:]]+', ' ', 'g'));
+  if nm = '' then
+    raise exception 'enter a name for your cafe';
+  end if;
+  if length(nm) > 60 then
+    raise exception 'that name is too long - 60 characters at most';
+  end if;
+
+  if not exists (select 1 from auth.users u
+                  where u.id = uid and u.email_confirmed_at is not null) then
+    raise exception 'confirm your email address first, then come back';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('ezplate:create_business:' || uid::text, 0));
+
+  select m.business_id into bid
+    from public.business_members m
+   where m.user_id = uid
+   order by m.created_at, m.business_id
+   limit 1;
+  if bid is not null then
+    return bid;
+  end if;
+
+  insert into public.businesses (name) values (nm) returning id into bid;
+  insert into public.business_members (business_id, user_id) values (bid, uid);
+
+  select m.role into rl
+    from public.business_members m
+   where m.business_id = bid and m.user_id = uid;
+  if rl is distinct from 'owner' then
+    raise exception 'the founder of % came out as % rather than owner - refusing to leave a cafe nobody can administer', bid, coalesce(rl, 'nothing');
+  end if;
+
+  return bid;
+end;
+$fn$;
+
+revoke all on function public.create_business(text) from public;
+grant execute on function public.create_business(text) to authenticated, service_role;
+
 
 -- ---------------------------------------------------------------------------
 -- 5. GRANTS

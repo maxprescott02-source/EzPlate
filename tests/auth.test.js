@@ -236,149 +236,115 @@ test('185: the tenant gate reads the SERVER, and refuses only on an unambiguous 
     'a signed-in account with no café is TOLD; an empty app with no message is the defect');
 });
 
-test('a sign-up exists, and it CANNOT be reached without a pending invitation', async () => {
-  /* ⚠️ THIS ASSERTION USED TO BE `!/signUp\s*\(/` — no sign-up call may ship at all — with the
-     stated reason "while an account cannot join a café". 191 built the join, so that reason is
-     spent, and the queue item was explicit that the line be REWRITTEN TO PIN THE CONDITION rather
-     than deleted. The condition is what was ever worth having and it survives 191 intact:
-     SELF-SERVICE sign-up is still NO (Max, 14 Aug 2026). Shape B is a refinement of that call, not
-     a reversal — under B the sign-up cannot be reached unless an owner created an invite for that
-     exact address first.
-     So this is BEHAVIOURAL, not a grep. A grep for "invite_pending appears above signUp" would pass
-     against a version that called the gate and ignored its answer, which is the whole
-     assertion-that-cannot-fail roster in CLAUDE.md. The REAL `authSignUpGated` runs below; only the
-     two network boundaries it calls are fixtures, and each returns the shape the real one is
-     defined to resolve with.
-     ⚠️ Supabase sign-ups remain open at the API LEVEL regardless — that is the gate-review item's,
-     and this assertion does not and cannot cover it. What makes that survivable is 186 and 182, not
-     this function: an uninvited account joins no café and sees 185's screen. */
-  function gateHarness(pendingResult) {
-    const S = { pendingCalls: [], signUpCalls: [] };
-    // eslint-disable-next-line no-new-func
-    const fn = new Function('S', 'P', `
-      "use strict";
-      var authInvitePending = async function(e){ S.pendingCalls.push(e); return P; };
-      var authSignUp = async function(e,p){ S.signUpCalls.push([e,p]); return {data:{user:{id:'u1'}}}; };
-      ${extractFn(SRC, 'authSignUpGated')}
-      return authSignUpGated;
-    `)(S, pendingResult);
-    return { S, run: (e, p) => fn(e, p) };
-  }
+test('209: sign-up is SELF-SERVICE — no invitation gate anywhere on the path', async () => {
+  /* ⚠️ THIS ASSERTION HAS NOW BEEN REWRITTEN TWICE AND THE HISTORY IS THE POINT, because a reader
+     who finds only the current version will read it as the rule having been weakened twice.
+       * until 192 it was `!/signUp\s*\(/` — no sign-up call may ship AT ALL, "while an account
+         cannot join a café". 191 built the join and spent that reason.
+       * 192 replaced it with an invitation gate: `invite_pending` had to answer TRUE before
+         `signUp` could run, because "a self-service sign-up form is still NO (Max, 14 Aug 2026)".
+       * ⚠️ MAX REVERSED THAT ON THE SAME DAY, in writing, choosing shape B — a stranger creates an
+         account and names their own café, unattended (`docs/decisions/2026-08-14-cafe-creation.md`
+         q1). He was told it reversed his morning's call and chose it anyway, so it is a decision
+         and may not be re-litigated. 209 is that reversal arriving in the code.
+     What is left worth pinning is NOT "is sign-up allowed" — it is, and a test asserting so would
+     be pinning the absence of code. It is the two properties that keep the open door survivable:
+     there is exactly ONE door, and the thing behind it consults nothing that could be turned back
+     into a gate by accident.
+     ⚠️ The privacy acceptance is NOT in this file and that is deliberate — it is the one thing that
+     still runs before `signUp`, and `tests/privacy-disclosure.test.js` runs the real decision.
+     Splitting it there rather than restating it here keeps one definition of that rule. */
 
-  /* 1. NO INVITATION. The refusal is the point, and `signUp` must never have been reached — an
-     account created here is an unrecoverable row in auth.users and a burnt confirmation send. */
-  const no = gateHarness({ data: false });
-  const rNo = await no.run('stranger@example.com', 'pw123456');
-  assert.deepEqual(no.S.signUpCalls, [], 'an uninvited address must not reach signUp');
-  assert.ok(rNo.error, 'and is refused');
-  assert.match(rNo.error.message, /invitation/i, 'in words that say what is missing');
+  /* 1. BEHAVIOURAL, and it is the half a grep cannot do. The REAL `authSignUp` runs against a fake
+     client whose `rpc` THROWS if anything touches it — so an invitation lookup reintroduced inside
+     this function fails loudly rather than passing a source check. An address nobody has ever
+     invited reaches `auth.signUp` and comes back clean. */
+  const S = { signUps: [], rpcs: 0 };
+  // eslint-disable-next-line no-new-func
+  const signUp = new Function('S', `
+    "use strict";
+    var SUPA = {
+      auth: { signUp: function(a){ S.signUps.push(a); return Promise.resolve({ data: { user: { id: 'u1' } }, error: null }); } },
+      rpc: function(){ S.rpcs++; throw new Error('fixture: nothing on the sign-up path may ask the server a question first'); }
+    };
+    ${extractFn(SRC, 'errText')}
+    ${extractFn(SRC, 'authSignUp')}
+    return authSignUp;
+  `)(S);
+  const r = await signUp('stranger@example.com', 'pw123456');
+  assert.ok(!r.error && r.data, 'an uninvited address signs up: ' + JSON.stringify(r.error || {}));
+  assert.deepEqual(S.signUps, [{ email: 'stranger@example.com', password: 'pw123456' }],
+    'with the address and password it was given, unchanged');
+  assert.equal(S.rpcs, 0, 'and nothing on this path asks the server anything first');
 
-  /* 2. THE GATE ITSELF FAILING refuses too, which is the OPPOSITE of this client's usual fail-open
-     and is deliberate. CLAUDE.md: a fail-open default is a decision about CONSEQUENCE. Guessing
-     "probably invited" creates the account; guessing the other way costs "try again in a moment". */
-  const err = gateHarness({ error: { message: 'network' } });
-  const rErr = await err.run('someone@example.com', 'pw123456');
-  assert.deepEqual(err.S.signUpCalls, [], 'an unreadable gate must not create an account');
-  assert.ok(rErr.error, 'and says so');
-
-  /* 3. AND AN INVITED ADDRESS GETS THROUGH — or the gate is just a wall and nobody can ever join. */
-  const yes = gateHarness({ data: true });
-  const rYes = await yes.run('invited@example.com', 'pw123456');
-  assert.deepEqual(yes.S.pendingCalls, ['invited@example.com'], 'the gate is asked about the address being signed up');
-  assert.deepEqual(yes.S.signUpCalls, [['invited@example.com', 'pw123456']], 'and only then is the account created');
-  assert.ok(!rYes.error && rYes.data, 'which succeeds');
-
-  /* The ORDER, which the four cases above already prove, stated once more where a reader of the
-     shipped code will look: the gate cannot be moved below `signUp` without cases 1-3 going red,
-     because by then the account exists whatever the gate answers. */
-  assert.ok(!/id="acctSignUp"/.test(HTML),
-    'and there is still no sign-up on the Account screen — it sits behind a screen 186 made unreachable');
-  assert.ok(/signInWithPassword/.test(SRC), 'sign-in itself must be real');
-  assert.ok(/auth\.signOut/.test(SRC), 'and so must sign-out');
-  /* The ONE call site. A second `authSignUp(` anywhere would be a path around the gate, which is
-     exactly the shape this test exists to forbid — and a grep is the right tool for "there is no
-     other door", where it is the wrong tool for "this door is locked". */
-  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
-  /* ⚠️ THE LOOKBEHIND IS LOAD-BEARING: without it the DECLARATION matches too and the count is
-     always one higher than the number of call sites, so the assertion would be measuring "does this
-     function exist" while reading as "is there exactly one door". Caught by it going red at 2. */
-  assert.equal((code.match(/(?<!function\s)\bauthSignUp\s*\(/g) || []).length, 1,
-    'authSignUp is called from authSignUpGated and nowhere else');
-  assert.equal((code.match(/auth\.signUp\s*\(/g) || []).length, 1,
-    'and the raw supabase signUp is called only from authSignUp');
-});
-
-test('192: only a real TRUE is an invitation — the narrowing at the wire boundary', async () => {
-  /* ⚠️ THIS IS SPLIT OUT OF THE TEST ABOVE ON PURPOSE, and the reason is worth writing down because
-     the first cut got it wrong. That test stubs `authInvitePending`, so it exercises the ORDER and
-     cannot see the narrowing at all — a case asserting "the string 'true' is not a yes" passed a
-     value straight past the code that decides it and failed for the right reason on the wrong
-     function. CLAUDE.md's whole roster is tests that measure something other than what they name.
-     So the narrowing is tested where it lives: at the boundary that reads the wire.
-     What it buys: `invite_pending` returns a boolean today, but PostgREST shape changes and an
-     older deployed function returning a row object would both arrive TRUTHY, and truthy would
-     open a sign-up for an address nobody invited. `=== true` is the only reading that cannot. */
-  function pendingHarness(rpcResult) {
-    const S = { calls: [] };
-    // eslint-disable-next-line no-new-func
-    const fn = new Function('S', 'R', `
-      "use strict";
-      var SUPA = { rpc: function(name, args){ S.calls.push([name, args]); return Promise.resolve(R); } };
-      ${extractFn(SRC, 'errText')}
-      ${extractFn(SRC, 'authInvitePending')}
-      return authInvitePending;
-    `)(S, rpcResult);
-    return { S, run: (e) => fn(e) };
-  }
-
-  const yes = pendingHarness({ data: true, error: null });
-  assert.deepEqual((await yes.run('a@b.co')).data, true, 'a real yes is a yes');
-  assert.deepEqual(yes.S.calls, [['invite_pending', { p_email: 'a@b.co' }]],
-    'and the server is asked by name, with the address as its one argument');
-
-  for (const odd of ['true', 1, {}, [], 'yes']) {
-    const h = pendingHarness({ data: odd, error: null });
-    assert.strictEqual((await h.run('a@b.co')).data, false,
-      `${JSON.stringify(odd)} is not an invitation`);
-  }
-  const no = pendingHarness({ data: false, error: null });
-  assert.strictEqual((await no.run('a@b.co')).data, false, 'and false is plainly not one');
-
-  /* An error is an ERROR, never a false — the two mean different things to authSignUpGated, which
-     refuses on both but only says "no invitation" for one. Telling somebody they were not invited
-     when the truth is that the lookup timed out sends them back to the café owner for nothing. */
-  const err = pendingHarness({ data: null, error: { message: 'timeout' } });
-  const rErr = await err.run('a@b.co');
-  assert.ok(rErr.error && !('data' in rErr), 'an unreadable answer is an error, not a no');
-
-  /* ⚠️ NO CLIENT AT ALL must RETURN an error, never throw — and this assertion exists because the
-     mutation gate found it. Flipping the guard's `||` to `&&` made a null SUPA evaluate
-     `!SUPA.rpc` and raise a TypeError BEFORE the try block, which `authSubmit` does not catch: the
-     button would stay disabled forever on a device with no configuration, on the one screen a new
-     staff member ever sees. The guard has to short-circuit, and this is what says so. */
+  /* 2. NO CLIENT AT ALL must RETURN an error, never throw. Inherited from the deleted
+     `authInvitePending` test, where the mutation gate found it: flipping the guard's `||` to `&&`
+     made a null SUPA raise a TypeError BEFORE the try block, which `authSubmit` does not catch — so
+     the button stayed disabled forever on a misconfigured device, on the one screen a new user
+     ever sees. The guard has to short-circuit, and this is what says so. */
   // eslint-disable-next-line no-new-func
   const noClient = new Function(`
     "use strict";
     var SUPA = null;
     ${extractFn(SRC, 'errText')}
-    ${extractFn(SRC, 'authInvitePending')}
-    return authInvitePending;
+    ${extractFn(SRC, 'authSignUp')}
+    return authSignUp;
   `)();
-  const rNone = await noClient('a@b.co');
-  assert.ok(rNone.error, 'no client is an error');
+  const rNone = await noClient('a@b.co', 'pw123456');
+  assert.ok(rNone.error, 'no client is an error, not a crash');
   assert.match(rNone.error.message, /connection/i, 'and it says so in words');
-  /* And a client that exists but predates the RPC — the Playwright shim's shape, and an older
-     deployment's. Same requirement, different half of the same guard. */
+  /* And a client that exists but has no `signUp` — an older supabase-js, and the shape the guard's
+     third clause is for. Same requirement, different half of the same expression. */
   // eslint-disable-next-line no-new-func
-  const noRpc = new Function(`
+  const noFn = new Function(`
     "use strict";
-    var SUPA = {};
+    var SUPA = { auth: {} };
     ${extractFn(SRC, 'errText')}
-    ${extractFn(SRC, 'authInvitePending')}
-    return authInvitePending;
+    ${extractFn(SRC, 'authSignUp')}
+    return authSignUp;
   `)();
-  assert.ok((await noRpc('a@b.co')).error, 'a client with no rpc is an error too, not a crash');
+  assert.ok((await noFn('a@b.co', 'pw123456')).error, 'a client with no signUp is an error too');
+
+  /* 3. ONE DOOR. A grep is the right tool for "there is no other way in" and the wrong tool for
+     "this way in is locked" — which is why case 1 above is behavioural and this is not. */
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  /* ⚠️ THE LOOKBEHIND IS LOAD-BEARING: without it the DECLARATION matches too and the count is
+     always one higher than the number of references, so the assertion would be measuring "does this
+     function exist" while reading as "is there exactly one door". Caught by it going red at 2.
+     ⚠️ AND `\\s*\\(` CAME OFF IT IN 209, WHICH IS NOT A LOOSENING. 192 called `authSignUp(…)` from
+     inside `authSignUpGated`, so a call-shaped pattern found every reference there was. 209 deleted
+     that wrapper and the one remaining reference is `authSubmit(…, authSignUp)` — a function PASSED,
+     never called by name — so the old pattern matched ZERO and the count read 0-instead-of-1 rather
+     than going quietly vacuous. Matching the identifier counts a reference however it is used,
+     which is what "exactly one door" always meant. */
+  assert.equal((code.match(/(?<!function\s)\bauthSignUp\b/g) || []).length, 1,
+    'authSignUp is reached from exactly one place — the gate\'s sign-up handler');
+  assert.equal((code.match(/auth\.signUp\s*\(/g) || []).length, 1,
+    'and the raw supabase signUp is called only from authSignUp');
+  /* The one call site is the HANDLER, passing the real function to `authSubmit` rather than a
+     wrapper — stated positively, because roster entry 190 is that "not the wrong value" is a guess
+     about every wrong value there could be while "is the right value" is a fact about this app.
+     A gate reintroduced as `authSubmit(…, authSignUpGated)` turns this red by name. */
+  assert.match(code, /authSubmit\(email, pass, btn, gateErr, authSignUp\)/,
+    'the sign-up handler hands authSubmit the real authSignUp, not a gated wrapper');
+
+  assert.ok(!/id="acctSignUp"/.test(HTML),
+    'and there is still no sign-up on the Account screen — it sits behind a screen 186 made unreachable');
+  assert.ok(/signInWithPassword/.test(SRC), 'sign-in itself must be real');
+  assert.ok(/auth\.signOut/.test(SRC), 'and so must sign-out');
 });
+
+/* ⚠️ A TEST WAS DELETED HERE, NOT MOVED, AND THIS NOTE IS WHY.
+   `192: only a real TRUE is an invitation — the narrowing at the wire boundary` ran the real
+   `authInvitePending` against a dozen truthy shapes, and 209 deleted that function: with sign-up
+   self-service there is nothing left for it to gate, so it and its RPC wrapper both went.
+   ⚠️ THE SERVER FUNCTION `invite_pending(text)` IS STILL DEPLOYED and is still callable by `anon`.
+   It is deliberately not dropped in the same batch — an old client still cached on a phone calls it
+   and REFUSES sign-up on an unreadable answer, so a drop has to FOLLOW the client that stopped
+   calling it, never lead it (186's ordering law). `tests/invites.test.js` still pins its SQL, and
+   the queue's "Gate review before public signup" item owns the decision to drop it.
+   The one assertion in it that was about something else — that a missing client RETURNS an error
+   rather than throwing, which the mutation gate found — is kept, in case 2 of the test above. */
 
 /* ── 186: authSubmit, the ONE sign-in sequence both forms wear ────────────────────────────────
    These used to be substring greps of wireAccount's body. They are behavioural now, for two

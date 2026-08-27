@@ -193,7 +193,7 @@ test('loading arms the 4s patient-message timer; ok clears it', () => {
 test('the non-member state shows the gate and its message', () => {
   const g = makeGate(true);
   g.run('loading');
-  g.run('nomember', 'You’re signed in as c@example.com, but that account isn’t linked to a café yet.');
+  g.run('nomember', 'You’re signed in as c@example.com, but that account isn’t part of a café yet.');
   assert.strictEqual(g.gate.hidden, false, 'an empty app with no explanation is the failure being fixed');
   assert.ok(g.gate.classList.contains('is-error'), 'the spinner must stop — nothing is still loading');
   assert.match(g.msg.textContent, /c@example.com/);

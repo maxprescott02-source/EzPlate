@@ -592,12 +592,16 @@ function bootGate(state, msg){
   var f=document.getElementById('bgSignForm'), bd=document.getElementById('bootGateBrand');
   /* 192 — the gate now carries TWO forms, and every branch below that hid one must hide both or a
      stale sign-up sits over an error screen. `hideForms` is that, in one place, so the next state
-     added here cannot forget the second one the way this batch nearly did. */
+     added here cannot forget the second one the way this batch nearly did.
+     209 — THREE forms, and the mechanism did its job: adding the café one meant adding two lines
+     here and nothing else, and no state below had to be revisited to keep it hidden. */
   var su=document.getElementById('bgSignUpForm'), dn=document.getElementById('bgDone');
   var ai=document.getElementById('bgAltIn'), au=document.getElementById('bgAltUp');
+  var cf=document.getElementById('bgCafeForm'), cn=document.getElementById('bgCafeNote');
   var hideForms=function(){
     if(f) f.hidden=true; if(su) su.hidden=true;
     if(ai) ai.hidden=true; if(au) au.hidden=true;
+    if(cf) cf.hidden=true; if(cn) cn.hidden=true;
     if(dn){ dn.hidden=true; dn.textContent=''; }
   };
   if(state==='loading'){
@@ -680,8 +684,24 @@ function bootGate(state, msg){
     g.hidden=false; g.classList.add('is-error'); g.classList.remove('is-signin');
     g.classList.add('is-nomember');                         // 186: cover the chrome — see the CSS
     _bootRetrying=false; _bootNoMember=true;
-    if(m) m.textContent=msg||'This account isn’t linked to a café yet.';
-    if(r) r.hidden=true; hideForms(); if(bd) bd.hidden=true; gateErr('');
+    if(m) m.textContent=msg||'This account isn’t part of a café yet.';
+    if(r) r.hidden=true; hideForms(); if(bd) bd.hidden=true;
+    /* 209 — THE ONE ACTION THAT CAN CHANGE THIS OUTCOME, which is what 185's comment above wished
+       for and could not have: until this batch there was no way to make a café from inside the app,
+       so the only button was "be somebody else". Now there is one, and it goes above Sign out.
+       ⚠️ SHOWN, NEVER RESET — the same rule the sign-in form carries three states up, and it bites
+       harder here because the field holds something a person typed rather than something a password
+       manager can put back. `bootGate('nomember')` runs again on every re-sync that reaches it (an
+       `online` blip, a pull-to-refresh), and clearing the value or re-focusing would empty or
+       interrupt a half-typed café name. The error line is cleared only on the transition for the
+       same reason: a message explaining a refusal must outlive the blip that follows it. */
+    if(cf && cf.hidden){
+      cf.hidden=false;
+      gateErr('');
+      var ci=document.getElementById('bgCafeName');
+      if(ci && typeof ci.focus==='function'){ try{ ci.focus(); }catch(e){} }
+    }
+    if(cn) cn.hidden=false;
     if(o){ o.hidden=false; o.onclick=async function(){
       if(o.disabled) return;
       o.disabled=true;
@@ -776,11 +796,17 @@ var SIGNIN_MSG='Sign in to see your café’s products, plates and menus.';
 
 /* The wording carries three things, because all three are wrong guesses someone would otherwise
    make: WHICH account they are in (Max has more than one, and the email is the whole diagnosis),
-   that nothing has been destroyed, and what to do about it. */
+   that nothing has been destroyed, and what to do about it.
+   ⚠️ 209 CHANGED THE THIRD ONE, and it is the only part of this screen the batch had to reword.
+   It said "Ask the café owner to add this account, or sign out" — which was the honest answer while
+   a café could only be made by hand in the Supabase dashboard, and is now advice to wait for
+   somebody who may not exist. The person reading this has usually just signed up. It points at the
+   form instead; the invited case is answered by the warning under that form, where it is read by
+   the people it is about rather than by everyone. */
 function nonMemberMessage(email){
   return (email ? 'You’re signed in as ' + email + ', but that account' : 'You’re signed in, but this account')
-    + ' isn’t linked to a café yet, so there’s nothing to show. No data has been lost.'
-    + ' Ask the café owner to add this account, or sign out.';
+    + ' isn’t part of a café yet. No data has been lost.'
+    + ' Name your café below to set one up.';
 }
 
 /* ---- 192: THE CLAIM — the one moment an invitation becomes a membership ---------------------
@@ -827,6 +853,46 @@ function claimState(res){
    again, and it is per-attempt rather than per-page — a later `online` event gets a fresh try, which
    is what lets somebody sitting on 185's screen be invited and picked up without reloading. */
 var _claiming=false;
+
+/* ---- 209: NAMING YOUR OWN CAFÉ — the decisions, extracted so they can be tested and mutated ----
+   Until this batch a café could only be created BY HAND in the Supabase dashboard: `businesses` and
+   `business_members` carry SELECT policies and no others, so RLS default-denies every client write.
+   `20260827_cafe_creation.sql` adds the one `security definer` function that can make the two rows
+   together; read its header before changing anything here, it argues every refusal.
+
+   THE SERVER IS THE AUTHORITY ON THE NAME AND THIS IS THE COURTESY, which is the opposite way round
+   from the guards CLAUDE.md's `invUnitRebase` rule is about. There the guard and the write could be
+   made to call one function; across a wire they cannot, so the two WILL be two definitions — and
+   the mitigation is that the number lives in ONE place on each side and `tests/cafe-create.test.js`
+   reads the migration's `length(nm) > 60` and asserts CAFE_NAME_MAX equals it. A drift then fails
+   by name rather than by a stranger being told 60 and refused at 60.
+   What the client half buys is that a blank field costs no round trip, and that what is CHECKED is
+   what is SENT: `cafeNameClean` is called once, its output is validated and that same output is
+   what goes to the server. */
+var CAFE_NAME_MAX=60;
+/* Collapse every run of whitespace to one space, then trim — the same normalisation the migration
+   performs, so "   " is a blank rather than a three-character name and a name pasted with a
+   trailing newline is not silently a different string from the one typed. */
+function cafeNameClean(name){ return String(name==null?'':name).replace(/\s+/g,' ').trim(); }
+/* Returns the message to show, or '' for "no problem" — a string rather than a boolean so the one
+   caller cannot invent its own wording for a rule stated here. */
+function cafeNameProblem(name){
+  var nm=cafeNameClean(name);
+  if(!nm) return 'Enter a name for your café.';
+  if(nm.length>CAFE_NAME_MAX) return 'That name is too long — '+CAFE_NAME_MAX+' characters at most.';
+  return '';
+}
+/* THE SAME THREE-ANSWER DISCIPLINE AS `claimState`, WITH ONE FEWER ANSWER, and the missing one is
+   the point rather than an omission. `create_business` either returns the uuid of the café the
+   caller now belongs to, or it RAISES — there is no "nothing to create", because asking for one is
+   what the button means. So anything that is not a uuid string is 'unknown': an absent body, a
+   project whose migration has not been applied, a shape change. It is never read as success.
+   ⚠️ `res.data ? 'made' : 'unknown'` would be wrong for `claimState`'s recorded reason — a truthy
+   non-string would trigger the boot — and it is written the long way here for the same reason. */
+function createBusinessState(res){
+  if(!res || res.error) return 'unknown';                  // an error is not an answer
+  return (typeof res.data==='string' && res.data) ? 'made' : 'unknown';
+}
 
 /* ---- 188: WHICH ROLE, AND WHY "COULD NOT TELL" MEANS OWNER --------------------------------
    187 taught the database owner vs staff and ENFORCES four refusals — delete a plate, delete a
@@ -6767,7 +6833,7 @@ restoreLastTab();                                          // safe now: all modu
 // Resume the callback was null and the dialog closed doing nothing. The call now runs at the very END
 // of this file, after every initialiser. Anything that calls askConfirm at load time must do the same.
 markNonProductionEnv();                                    // 172: no-op on production; the element is not created at all
-wireAccount(); wireGateSignIn(); wireGateSignUp(); wireTeam(); wirePrivacyNotice(); authInit();   // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach. 192: sign-up behind an invitation, and the Team card that sends them. 207/item 2: the privacy notice, wired BEFORE authInit because the gate screen it opens over can be up before boot finishes.
+wireAccount(); wireGateSignIn(); wireGateSignUp(); wireGateCreateCafe(); wireTeam(); wirePrivacyNotice(); authInit();   // 174: sign-in on the Account screen. 186: and on the boot gate, which is the only one a signed-out browser can reach. 192: sign-up behind an invitation, and the Team card that sends them; 209 took the invitation gate off that sign-up and added the café-naming form beside it. 207/item 2: the privacy notice, wired BEFORE authInit because the gate screen it opens over can be up before boot finishes.
 bootstrapSync().then(rerenderCurrentTab, rerenderCurrentTab); // once shared data lands, repaint whatever tab is showing (fixes blank dashboard on refresh)
 window.addEventListener('online',  function(){ bootstrapSync(); });
 window.addEventListener('offline', function(){ setSync('offline'); });
@@ -6789,7 +6855,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v171';
+var APP_VERSION='v172';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -6897,29 +6963,34 @@ async function authSignIn(email, password){
   }catch(e){ return {error:{message:errText(e)}}; }
 }
 
-/* ---- 192: SIGN-UP, WHICH ONLY EXISTS BEHIND AN INVITATION ------------------------------------
-   `tests/auth.test.js` forbade the string `signUp(` outright until this batch, with the stated
-   reason "no signUp call may ship while an account cannot join a café". That reason is now spent —
-   191 built the join — and the assertion has been rewritten to pin the CONDITION rather than
-   deleted, because the condition is what was ever worth having: a sign-up that is not gated by an
-   invitation is a self-service sign-up, which is still NO (Max, 14 Aug 2026).
+/* ---- 192, REOPENED BY 209: SIGN-UP, WHICH NO LONGER NEEDS AN INVITATION --------------------
+   192 shipped this form gated by `invite_pending`: an address nobody had invited was refused before
+   `signUp` ran, and the comment here said in terms that "a sign-up that is not gated by an
+   invitation is a self-service sign-up, which is still NO (Max, 14 Aug 2026)."
+   ⚠️ THAT WAS REVERSED BY MAX ON THE SAME DAY, in writing, and the reversal is the whole of queue
+   item 1: shape B — a stranger creates an account and names their own café, unattended
+   (`docs/decisions/2026-08-14-cafe-creation.md` q1). He was told it reversed his own call of that
+   morning and chose it anyway, so it is a decision and may not be re-litigated. The gate is gone
+   because it is now the one thing standing between this app and its own launch story: an uninvited
+   address is not a mistake, it is the customer.
 
-   ⚠️ THE GATE IS A COURTESY, NOT THE ENFORCEMENT, and reading it as enforcement is the mistake this
-   comment exists to stop. Supabase sign-ups are open at the API level whatever this client ships,
-   so anyone can create an account with curl. What makes that survivable is 186 and 182, not this
-   function: an account nobody invited joins no café, `current_business_id()` answers null, and every
-   read comes back empty behind 185's screen. The gate buys two real things and no more — an
-   uninvited address is told plainly rather than being left to wonder why the app is empty after
-   confirming an email, and it does not burn one of the project's rate-limited confirmation sends. */
-async function authInvitePending(email){
-  if(!SUPA || !SUPA.rpc) return {error:{message:'No connection to the server.'}};
-  try{
-    var r=await SUPA.rpc('invite_pending', {p_email:email});
-    if(r && r.error) return {error:r.error};
-    return {data:r && r.data===true};                      // strict: only TRUE is an invitation
-  }catch(e){ return {error:{message:errText(e)}}; }
-}
+   WHAT WAS LOST WITH IT, honestly, because both halves were real. An uninvited stranger used to be
+   told plainly rather than left to wonder; now they are told nothing here and instead reach 209's
+   "name your café" screen after confirming, which answers the same question with an action rather
+   than a refusal. And a sign-up now costs one of the project's rate-limited confirmation sends
+   whoever asks for it — which is a rate-limit question, not a correctness one, and it is written
+   into the queue's "Gate review before public signup" item alongside the Gemini endpoints.
 
+   ⚠️ `invite_pending(email)` NOW HAS NO CALLER. It was this function's whole reason to exist and it
+   is the only deliberately unauthenticated endpoint this app has ever shipped. It is NOT dropped in
+   this batch, and the order is the reason: an old client still cached on a phone calls it and
+   REFUSES sign-up on an unreadable answer, so a drop has to FOLLOW the client that stopped calling
+   it, never lead it (186's law). It is written into the gate-review item, which already owns that
+   endpoint's disclosure and rate-limit questions.
+
+   WHAT STILL MAKES AN UNINVITED ACCOUNT SURVIVABLE is unchanged and is 186 and 182 rather than
+   anything here: an account that joins no café answers NULL from `current_business_id()` and every
+   read comes back empty. What 209 adds is that it can now DO something about that. */
 async function authSignUp(email, password){
   if(!SUPA || !SUPA.auth || !SUPA.auth.signUp) return {error:{message:'No connection to the server.'}};
   try{
@@ -6929,19 +7000,17 @@ async function authSignUp(email, password){
   }catch(e){ return {error:{message:errText(e)}}; }
 }
 
-/* The two in ORDER, as one call, so `authSubmit` can wear it exactly as it wears `authSignIn`.
-   ⚠️ THE ORDER IS THE WHOLE FUNCTION. Asking afterwards would mean the account already exists and
-   the email has already gone out, which is both things the gate buys, spent. A gate that runs
-   second is not a gate — CLAUDE.md's rule about the FIRST committing action, one screen over.
-   An unreadable answer REFUSES here, which is the opposite of the client's usual fail-open and is
-   right for the same reason the server's policies refuse on NULL: this branch creates an account,
-   and the cost of guessing wrong is an unrecoverable row in `auth.users` plus a wasted send,
-   against a cost of "try again in a moment" for guessing the other way. */
-async function authSignUpGated(email, password){
-  var g=await authInvitePending(email);
-  if(g.error) return {error:g.error};
-  if(!g.data) return {error:{message:'We couldn’t find an invitation for that email. Ask the café owner to invite this exact address, then come back.'}};
-  return authSignUp(email, password);
+/* 209 — the RPC, worn exactly as `authSignIn` and `authSignUp` are: it returns `{data}` or
+   `{error}` and never throws, so every caller resolves it the same way. `SUPA.rpc` is checked for
+   presence rather than assumed, because the Playwright shim's fake client has no `rpc` at all and a
+   TypeError here would be an unexplained dead button rather than a message. */
+async function authCreateBusiness(name){
+  if(!SUPA || !SUPA.rpc) return {error:{message:'No connection to the server.'}};
+  try{
+    var r=await SUPA.rpc('create_business', {p_name:name});
+    if(r && r.error) return {error:r.error};
+    return {data:r && r.data};
+  }catch(e){ return {error:{message:errText(e)}}; }
 }
 
 async function authSignOut(){
@@ -7263,11 +7332,13 @@ function gateMode(signup){
   if(focus && typeof focus.focus==='function'){ try{ focus.focus(); }catch(e){} }
 }
 
-/* Says what an invitation IS, because the person reading it was invited by a human who probably
-   said "I've added you" and nothing else. It names the address as the thing that must match — the
-   single most common way this flow fails is signing up with a personal address after being invited
-   at a work one, and the server cannot tell them apart. */
-var SIGNUP_MSG='Been invited to a café? Create your account with the email address the owner invited.';
+/* 209 — ONE sentence covering the two people who reach this form, because after this batch they
+   are no longer the same person. A stranger setting up their own café is now the majority case and
+   the copy has to invite them rather than ask them for an invitation code they do not have. The
+   invited half is kept and put second, and it still names the ADDRESS as the thing that must match:
+   the single most common way that flow fails is signing up with a personal address after being
+   invited at a work one, and the server cannot tell them apart. */
+var SIGNUP_MSG='Create your account. If a café has invited you, use the address they invited and you’ll join it automatically.';
 
 /* QUEUE item 2 — THE PRIVACY GATE'S DECISION, extracted so it can be tested and mutated.
    ⚠️ IT WAS THREE LINES INLINE IN THE HANDLER AND THE TEST FOR IT COULD NOT FAIL. The unit test
@@ -7298,9 +7369,10 @@ function wireGateSignUp(){
     var email=(em&&em.value||'').trim(), pass=(pw&&pw.value)||'';
     if(done){ done.hidden=true; done.textContent=''; }
     /* QUEUE item 2 — THE PRIVACY GATE, and it is FIRST in this handler on purpose.
-       `authSignUpGated` below runs the invitation lookup and then `signUp`, and `signUp` is the
-       first committing action on this screen: it creates the account and spends one of the
-       project's rate-limited confirmation sends. CLAUDE.md's rule is that gating the LAST
+       `authSignUp` below IS the first committing action on this screen: it creates the account and
+       spends one of the project's rate-limited confirmation sends. (209 deleted the invitation
+       lookup that used to run ahead of it; the acceptance is now first in this handler with nothing
+       in between, which makes the rule easier to hold rather than harder.) CLAUDE.md's rule is that gating the LAST
        committing action is not a gate; the same reasoning puts this above everything, including the
        blank-field check, because the acceptance is the only one of the three that is about consent
        rather than about a typo.
@@ -7322,7 +7394,7 @@ function wireGateSignUp(){
        ⚠️ If confirmation is ever turned off in the dashboard, sign-up starts returning a session
        and that reasoning expires with it — the purge would then run unasked. The guard belongs
        here on the day that changes. */
-    authSubmit(email, pass, btn, gateErr, authSignUpGated).then(function(ok){
+    authSubmit(email, pass, btn, gateErr, authSignUp).then(function(ok){
       if(!ok) return;
       if(pw) pw.value='';
       /* The confirmation email is the entire remaining step and nothing on screen would otherwise
@@ -7335,6 +7407,60 @@ function wireGateSignUp(){
         done.textContent='Account created. Check '+email+' for a confirmation link, then come back and sign in.';
       }
     });
+  });
+}
+
+/* ---- 209: THE GATE'S THIRD FORM — naming your own café ---------------------------------------
+   The last step of shape B, and the only one that needed a new server function. Read
+   `supabase/migrations/20260827_cafe_creation.sql`'s header first: it argues why this is a
+   `security definer` function rather than an INSERT policy, and why a second call returns the same
+   café instead of making another.
+
+   WHY THERE IS NO UNFINISHED-PLATE QUESTION, unlike the sign-in beside it. `authGuardUnfinished`
+   exists because signing in PURGES this device. Creating a café destroys nothing: no session
+   changes, `onAuthStateChange` never fires, and the draft — which cannot exist anyway on an account
+   that has never had a café to build a plate in — is untouched.
+
+   WHY IT RE-RUNS `bootstrapSync` RATHER THAN PATCHING `businessId` IN PLACE. Same reason the claim
+   path gives one screen over: that function IS the definition of what a booted app holds, and every
+   read this boot performed was made as a member of nothing. It also means the LATCH is cleared by
+   the mechanism that owns it — `_bootNoMember` falls only to a definite uuid from the tenant lookup
+   inside that run — rather than by this handler asserting an outcome it merely hopes for. If the
+   tenant lookup then fails, the latch holds, this screen stays up, and nothing has been lost.
+   ⚠️ SO THE BUTTON IS RE-ENABLED IN A `finally`, and it is not ceremony. Without it, a nested boot
+   that lands back on this screen — an `unknown` tenant answer, one flaky request — would leave a
+   disabled button under a form the user can still type in, which is the shape of a dead control.
+   The `finally` also covers a throw inside the nested run, for the reason `_claiming` has one. */
+function wireGateCreateCafe(){
+  var f=document.getElementById('bgCafeForm'); if(!f) return;
+  f.addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    var inp=document.getElementById('bgCafeName'), btn=document.getElementById('bgCafeBtn');
+    /* CLEANED ONCE, THEN CHECKED AND SENT — so what was validated is what the server receives.
+       Checking `inp.value` and sending `inp.value` would be two reads of a field the user can still
+       be editing, and the check would be about a string that is no longer the one going out. */
+    var nm=cafeNameClean(inp && inp.value);
+    var bad=cafeNameProblem(nm);
+    if(bad){
+      gateErr(bad);
+      if(inp && typeof inp.focus==='function'){ try{ inp.focus(); }catch(e){} }
+      return;
+    }
+    gateErr('');
+    var label=btn ? btn.textContent : '';
+    if(btn){ btn.disabled=true; btn.textContent='Setting up…'; }
+    var res=await authCreateBusiness(nm);
+    if(createBusinessState(res)!=='made'){
+      if(btn){ btn.disabled=false; btn.textContent=label; }
+      /* The server's OWN words where there are any — its refusals are written to be read by the
+         person in front of this form ("confirm your email address first, then come back"), and
+         CLAUDE.md's writes rule is that the real message reaches the user. The fallback covers the
+         answer that is not an error and not a uuid: an unapplied migration, a shape change. */
+      gateErr((res && res.error) ? errText(res.error) : 'Couldn’t set up your café. Try again in a moment.');
+      return;
+    }
+    try{ await bootstrapSync(); }
+    finally{ if(btn){ btn.disabled=false; btn.textContent=label; } }
   });
 }
 

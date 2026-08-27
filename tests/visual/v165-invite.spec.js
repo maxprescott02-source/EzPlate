@@ -88,13 +88,18 @@ test('THE LATCH: a claim that keeps saying "joined" while the tenant keeps sayin
   /* And it settles on the honest screen rather than a spinner: the claim said joined, the server
      still shows no café, so what the person is told is 185's message — which is true. */
   await expect(page.locator('#bootGate')).toBeVisible();
-  await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+  await expect(page.locator('#bootGateMsg')).toContainText('isn’t part of a café');
 });
 
-test('a NON-member with no invitation still gets 185s screen, unchanged', async ({ page }) => {
-  /* The regression half. This batch adds a call on the path 185 owns, and the overwhelmingly
-     common outcome of that call is "there was nothing to claim" — which must change nothing at
-     all, including the wording. */
+test('a NON-member with no invitation gets 185s screen — now carrying 209s form', async ({ page }) => {
+  /* The regression half. 192 added a call on the path 185 owns, and the overwhelmingly common
+     outcome of that call is "there was nothing to claim" — which must change nothing about the
+     claim itself.
+     ⚠️ 209 CHANGED WHAT THAT SCREEN OFFERS, and this test was rewritten rather than left to fail
+     on the wording. The person it paints for used to be told "ask the café owner to add this
+     account", which was honest while a café could only be made by hand in the Supabase dashboard
+     and is now advice to wait for somebody who may not exist. The sign-in and sign-up forms stay
+     hidden — this account IS signed in — and the café form is what is offered instead. */
   await page.setViewportSize(PHONE);
   await installBoot(page, { nonMember: true });
   await page.goto('http://localhost:5173/');
@@ -102,10 +107,12 @@ test('a NON-member with no invitation still gets 185s screen, unchanged', async 
   await page.waitForTimeout(400);
   const gate = page.locator('#bootGate');
   await expect(gate).toBeVisible();
-  await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+  await expect(page.locator('#bootGateMsg')).toContainText('isn’t part of a café');
   await expect(page.locator('#bootGateOut')).toBeVisible();
   await expect(page.locator('#bgSignForm')).toBeHidden();
   await expect(page.locator('#bgSignUpForm')).toBeHidden();
+  await expect(page.locator('#bgCafeForm')).toBeVisible();
+  await expect(page.locator('#bgCafeNote')).toBeVisible();
 });
 
 /* ------------------------------------------------------------------------------------------
@@ -170,11 +177,14 @@ test('an INVITED address signs up and is told about the confirmation email', asy
   await expect(page.locator('#bgErr')).toBeHidden();
 });
 
-test('an UNINVITED address is refused BEFORE an account is created', async ({ page }) => {
-  /* The gate. It is a courtesy rather than the enforcement — Supabase sign-ups are open at the API
-     level whatever this client ships, and what makes that survivable is 186 and 182 — but the two
-     things it buys are real: an uninvited person is told plainly instead of confirming an email
-     and finding an empty app, and no confirmation send is burnt. */
+test('209: an UNINVITED address signs up — sign-up is self-service now', async ({ page }) => {
+  /* ⚠️ THIS TEST USED TO ASSERT THE OPPOSITE and the reversal is a decision, not a regression.
+     192 refused an uninvited address before `signUp` ran, on the strength of "a self-service
+     sign-up form is still NO (Max, 14 Aug 2026)". He reversed that the same day, in writing,
+     choosing shape B — a stranger creates an account and names their own café, unattended
+     (`docs/decisions/2026-08-14-cafe-creation.md` q1). An uninvited address is the CUSTOMER now.
+     The fixture is deliberately the same one the old test used — `signedOut` with no `invited` —
+     so what changed is the expectation and not the setup. */
   await page.setViewportSize(PHONE);
   await installBoot(page, { signedOut: true });          // no `invited`
   await page.goto('http://localhost:5173/');
@@ -184,17 +194,18 @@ test('an UNINVITED address is refused BEFORE an account is created', async ({ pa
   await page.locator('#bgToSignUp').click();
   await page.locator('#bgUpEmail').fill('stranger@example.com');
   await page.locator('#bgUpPass').fill('a-real-password');
-  await page.locator('#bgUpAccept').check();   // item 2: see the note above — the gate is part of this flow now
+  await page.locator('#bgUpAccept').check();   // item 2: the privacy acceptance is the one thing that still runs first
   await page.locator('#bgUpBtn').click();
   await page.waitForTimeout(300);
 
-  const err = page.locator('#bgErr');
-  await expect(err).toBeVisible();
-  await expect(err).toContainText('invitation');
-  await expect(page.locator('#bgDone')).toBeHidden();
-  await expect(page.locator('#bgSignUpForm')).toBeVisible();   // still there, so the address can be corrected
-  /* The button must come back, or one wrong address ends the session. */
-  await expect(page.locator('#bgUpBtn')).toBeEnabled();
+  /* The same "check your email" outcome an invited address gets, because there is no longer any
+     difference between them at this step. */
+  await expect(page.locator('#bgErr')).toBeHidden();
+  await expect(page.locator('#bgSignUpForm')).toBeHidden();
+  const done = page.locator('#bgDone');
+  await expect(done).toBeVisible();
+  await expect(done).toContainText('stranger@example.com');
+  await expect(done).toContainText('confirmation');
 });
 
 /* ------------------------------------------------------------------------------------------

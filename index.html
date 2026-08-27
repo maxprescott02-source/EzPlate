@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=171">
+<link rel="stylesheet" href="css/style.css?v=172">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -188,12 +188,6 @@
     <p class="bg-brand" id="bootGateBrand" hidden>EzPlate</p>
     <p class="bg-msg" id="bootGateMsg">Loading your data…</p>
     <button type="button" class="btn" id="bootGateRetry" hidden>Try again</button>
-    <!-- 185: shown ONLY in the 'nomember' state — a signed-in account with no café. Try again is
-         hidden in that state instead: it would ask the same question and get the same answer, and
-         being someone else is the only thing that changes the outcome. `.btn` carries no `display`
-         rule of its own (checked, not assumed), so the UA's `[hidden]` is not overridden and this
-         needs no `:not([hidden])` guard. -->
-    <button type="button" class="btn" id="bootGateOut" hidden>Sign out</button>
     <!-- 186: shown ONLY in the 'signin' state — nobody is signed in, and after this batch a
          signed-out browser can see nothing at all, so the Account screen's copy of this form sits
          behind a screen that cannot be reached. Same classes as that one, so there is one form
@@ -219,14 +213,14 @@
          into this overlay runs `hideForms()` first, which is a claim about the ORDER of two other
          functions rather than about this element, and the discipline everywhere else on this screen
          is that a toggled element starts in its hidden state and JS decides when it does not. -->
-    <p class="bg-alt" id="bgAltIn" hidden><a href="#" id="bgToSignUp">Been invited? Create your account</a></p>
+    <p class="bg-alt" id="bgAltIn" hidden><a href="#" id="bgToSignUp">New here? Create your account</a></p>
     <!-- 192: the sign-up form. SEPARATE from the sign-in one rather than a mode of it, because
          `autocomplete` is the difference that matters: `current-password` asks a password manager to
          offer a saved password and `new-password` asks it to generate one, and managers do not
          re-read that attribute if it is swapped at runtime. The person reading this is creating
          their first password, on a phone. -->
     <form class="acct-form" id="bgSignUpForm" hidden autocomplete="on">
-      <input class="acct-in" id="bgUpEmail" type="email" name="email" placeholder="you@example.com" aria-label="Email you were invited at" autocomplete="username" required>
+      <input class="acct-in" id="bgUpEmail" type="email" name="email" placeholder="you@example.com" aria-label="Email" autocomplete="username" required>
       <input class="acct-in" id="bgUpPass" type="password" name="new-password" placeholder="Choose a password" aria-label="Choose a password" autocomplete="new-password" required>
       <!-- QUEUE item 2, the privacy gate. The acceptance sits HERE, on the sign-up form, because the
            gate's own rule is "before the first non-Scoopy's row exists, not after" and the same logic
@@ -244,6 +238,43 @@
       <button class="btn primary" id="bgUpBtn" type="submit">Create account</button>
     </form>
     <p class="bg-alt" id="bgAltUp" hidden><a href="#" id="bgToSignIn">Already have an account? Sign in</a></p>
+    <!-- 209 — NAME YOUR CAFÉ. Shown ONLY in the 'nomember' state: a confirmed account that the
+         tenant gate has just found belongs to no café, and whose invitation (if any) has already
+         been claimed automatically several lines earlier. Until this batch that screen could only
+         say "ask the owner to add you" — the one thing a stranger who has just signed up cannot
+         do, because until this batch a café could only be created BY HAND in the Supabase
+         dashboard. This form is the whole of shape B's second step.
+         ⚠️ It is `.acct-form`, so it inherits `#bootGate .acct-form[hidden]{display:none}` — the
+         guard that is load-bearing for its two siblings is load-bearing for this one too. Checked,
+         not assumed: without it an author `display:flex` beats the UA's `[hidden]` on ORIGIN.
+         `autocomplete="organization"` because that is what this field IS, and the person filling it
+         in has typed their café's name into a dozen other forms this month. -->
+    <form class="acct-form" id="bgCafeForm" hidden autocomplete="on">
+      <input class="acct-in" id="bgCafeName" type="text" name="organization" placeholder="Your café’s name" aria-label="Your café’s name" autocomplete="organization" maxlength="60" required>
+      <button class="btn primary" id="bgCafeBtn" type="submit">Create my café</button>
+    </form>
+    <!-- ⚠️ THE WARNING IS NOT DECORATION AND IT NAMES A TRAP THE SERVER CANNOT UNDO. 187 made
+         membership one café per person and enforces it with a unique constraint, so somebody who
+         creates a café here can never afterwards accept an invitation to somebody else's — there is
+         no "leave a café" anywhere in this app. The common arrival at this screen is a stranger who
+         has just signed up and SHOULD create one; the rarer one is a person whose invitation has
+         not been sent yet, for whom one tap is unrecoverable. So the form stays primary and the
+         warning sits under it, rather than hiding the form behind a disclosure that taxes the
+         common case.
+         No `display` rule in css/style.css, so the UA's `[hidden]` is not overridden and this needs
+         no `:not([hidden])` guard — the same check the two <p> siblings above record. -->
+    <p class="bg-note" id="bgCafeNote" hidden>An account can belong to one café only. If someone has invited you, don’t create one — ask them to invite this exact address, then reload.</p>
+    <!-- 185: shown ONLY in the 'nomember' state — a signed-in account with no café. Try again is
+         hidden in that state instead: it would ask the same question and get the same answer, and
+         being someone else is the only thing that changes the outcome. `.btn` carries no `display`
+         rule of its own (checked, not assumed), so the UA's `[hidden]` is not overridden and this
+         needs no `:not([hidden])` guard.
+         ⚠️ 209 MOVED IT DOWN HERE, below the café form, and the position is the whole reason: it
+         used to sit directly under the message, which was right while it was the ONLY button on
+         this screen. It is now the escape hatch beside a primary action, and leaving it above would
+         have put a secondary control between a sentence saying "name your café below" and the field
+         it points at. §7's one-primary-CTA rule read in the other direction. -->
+    <button type="button" class="btn" id="bootGateOut" hidden>Sign out</button>
     <p class="acct-err" id="bgErr" hidden role="alert"></p>
     <!-- Readable WITHOUT an account, from either side of the gate: a policy you can only reach by
          signing in is not a policy a prospective user can consider. The modal is z-index 80 and this
@@ -1704,7 +1735,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=171"></script>
+<script src="js/app.js?v=172"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
