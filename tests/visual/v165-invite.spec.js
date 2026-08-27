@@ -149,6 +149,13 @@ test('an INVITED address signs up and is told about the confirmation email', asy
   await page.locator('#bgToSignUp').click();
   await page.locator('#bgUpEmail').fill('new@example.com');
   await page.locator('#bgUpPass').fill('a-real-password');
+  /* item 2 (batch 208): the privacy acceptance is part of this flow now — the sign-up gate refuses
+     before `signUp` runs, which is the first committing action on this screen. Ticking it here is
+     not weakening the test: it is the step a real user takes, and tests/visual/item2-privacy.spec.js
+     is what pins that the refusal fires when they do not.
+     ⚠️ This spec went red in CI and green on the laptop, because that batch ran only its OWN new
+     spec locally. The hook is the fast local copy; CI is the one that actually holds. */
+  await page.locator('#bgUpAccept').check();
   await page.locator('#bgUpBtn').click();
   await page.waitForTimeout(300);
 
@@ -177,6 +184,7 @@ test('an UNINVITED address is refused BEFORE an account is created', async ({ pa
   await page.locator('#bgToSignUp').click();
   await page.locator('#bgUpEmail').fill('stranger@example.com');
   await page.locator('#bgUpPass').fill('a-real-password');
+  await page.locator('#bgUpAccept').check();   // item 2: see the note above — the gate is part of this flow now
   await page.locator('#bgUpBtn').click();
   await page.waitForTimeout(300);
 

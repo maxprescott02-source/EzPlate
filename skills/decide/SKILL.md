@@ -78,6 +78,26 @@ is a convenience on the generating side and nothing here depends on it.
 **If an option cannot be rendered, say so at that option** rather than quietly
 describing it and letting it lose to the two that were drawn.
 
+⚠️ **A ONE-OPTION APPROVAL IS NOT A CHOICE, AND MUST NOT BE DRAWN LIKE ONE.**
+(27 Aug 2026, the privacy notice.) Some decisions have a single candidate —
+approve this wording, or say what to change. That one was rendered as two frames
+side by side, dark and light, because both themes were worth seeing.
+**He replied "i approve the light one".** There was no light-versus-dark choice;
+it is the same words twice.
+
+The mistake is this file's own grammar being worn by something that is not an
+option set: side by side, same size, captioned, is exactly how A and B are
+presented three paragraphs up — so two renders of one thing read as two things
+to pick between. He answered the question the layout asked.
+
+**So: draw a single-option approval ONCE, at the primary size** — 380 and dark —
+**and if a second theme is worth showing, say in its caption that it is the same
+words in the other theme.** Better still, ask it in words the layout cannot
+contradict: "approve, or tell me what to change", never "which one".
+**And when an answer does not map onto the question, say so before acting on
+it.** It cost one sentence here, and the alternative was publishing a privacy
+notice on a misunderstanding.
+
 Non-visual decisions keep prose: question, why it matters now, two to four
 options with what each costs, your recommendation marked as such, and what would
 change it.

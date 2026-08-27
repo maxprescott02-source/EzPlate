@@ -598,6 +598,10 @@ Vercel zero-config Node serverless functions - the invoice AI second-reader and 
 **BEFORE any multi-tenant customer's data flows through those endpoints or any future one that ships user data to a third-party model, revisit:** a paid-tier project that excludes training use, or a privacy-policy disclosure.
 This is the single most important thing to reopen before EzPlate is used by anyone else.
 
+✅ **THE DISCLOSURE SHIPPED ON 27 AUG 2026 as `ezplate-v171`, and Max approved the wording that day.** The notice names Google, the free Gemini tier, that submissions may be used to improve Google's products including training, and that human reviewers may read them. It is accepted at sign-up before an account exists, readable from the signed-out gate, restated at both invoice dropzones, and linked from the Settings toggle.
+**So the gate below is DISCHARGED for the free tier as it stands** — a stranger is now told what leaves before it leaves. It is not deleted, because the paragraph is a standing precondition on a CLASS of work: **any future endpoint that ships user data to a third-party model reopens it**, and the notice has to grow to cover that endpoint before it ships.
+⚠️ **What is NOT built is an acceptance RECORD.** The tick gates the form and is never persisted, so nothing knows who accepted which version. That is filed in `docs/MAINTENANCE.md` and it becomes B the moment the paid-tier item ships, because that reverses the notice in the user's favour and there is no way to re-ask anyone who accepted the old wording.
+
 ⚠️ **AND ON 14 AUG 2026 MAX SET A DATE ON IT WITHOUT NAMING ONE, which is why this paragraph now has teeth it did not have yesterday.**
 
 **He chose SELF-SERVICE SIGNUP** - a stranger creates an account and names their own café, unattended - **reversing his own "a self-service sign-up form is still NO" call of the same day.** He was told in writing that it was a reversal, and told that it makes this gate urgent, and chose it anyway. So it is a decision, not an oversight, and it may not be re-litigated. (`docs/decisions/2026-08-14-cafe-creation.md`, question 1, answer B.)

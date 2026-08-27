@@ -1,0 +1,187 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Decision — the privacy notice wording (27 Aug 2026)</title>
+<!--
+  QUEUE item 2 is BUILT. Everything in it works and is driven in a browser at 380px and desktop in
+  both themes. The only thing outstanding is the WORDING, which is Max's — the item says so at its
+  own site, because a privacy notice is a statement his business makes about a customer's data.
+
+  ONE decision. `skills/batch` batches non-visual questions at three; a rendered one goes out at one,
+  because looking at a picture and replying barely spends any attention.
+
+  FLAT ON PURPOSE. `skills/decide`: the interactive version goes in chat, which is the channel that
+  was measured to work on his phone; this file is the durable record the `Blocked on:` line points
+  at, and it must read on its own with nothing that has to work.
+
+  Rendered at 380 x 780 — a phone shape, not a content-height square. Dark first, because that is
+  where he uses the app. Real tokens copied from css/style.css, real copy from index.html.
+-->
+<style>
+  :root{
+    --ui:'Geist',system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;
+    --fs-sm:13px;--fs-base:15px;--fs-lg:18px;
+    --radius-card:12px;
+  }
+  .dark{
+    --surface:#232528;--surface-2:#1E1F22;--border:#34363B;
+    --text:#E4E3E1;--text-2:#ABA9A5;--accent:#E98B4C;--scrim:rgba(12,12,13,.58);
+  }
+  .light{
+    --surface:#FFFFFF;--surface-2:#FAF7F1;--border:#EAE3D8;
+    --text:#2A211B;--text-2:#6B5D50;--accent:#B84E0C;--scrim:rgba(42,33,27,.32);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:#15171a;color:#E4E3E1;font-family:var(--ui);line-height:1.5}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#ABA9A5;font-size:14px;margin:0 0 24px;max-width:62ch}
+  .ask{background:#1E1F22;border:1px solid #34363B;border-radius:12px;padding:16px;margin:0 0 28px;max-width:62ch}
+  .ask b{color:#E98B4C}
+  .row{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:0 0 auto}
+  .cap{font-size:13px;color:#ABA9A5;margin:0 0 8px}
+  /* the phone frame: a real aspect, so what is above the fold is what is above the fold */
+  .phone{
+    width:380px;height:780px;overflow:hidden;position:relative;
+    border-radius:18px;border:1px solid #34363B;background:var(--surface-2);
+    color:var(--text);font-size:var(--fs-base);
+  }
+  .phone .scrim{position:absolute;inset:0;background:var(--scrim)}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;top:92px;
+    background:var(--surface);border-radius:var(--radius-card) var(--radius-card) 0 0;
+    display:flex;flex-direction:column;
+  }
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:var(--sp-4);border-bottom:1px solid var(--border)}
+  .mhead h3{margin:0;font-size:var(--fs-lg)}
+  .x{width:34px;height:34px;border:1px solid var(--border);border-radius:9px;background:none;color:var(--text)}
+  .mbody{padding:var(--sp-4);overflow:auto;line-height:1.6}
+  .mbody .lede{margin:0 0 var(--sp-4);font-weight:600}
+  .mbody h4{margin:var(--sp-4) 0 var(--sp-1);font-size:var(--fs-base);font-weight:650}
+  .mbody p{margin:0 0 var(--sp-2)}
+  .mbody ul{margin:0 0 var(--sp-2);padding-left:1.15em}
+  .mbody li{margin:0 0 var(--sp-1)}
+  .changed{margin-top:var(--sp-4);padding-top:var(--sp-3);border-top:1px solid var(--border);color:var(--text-2);font-size:var(--fs-sm)}
+  .mfoot{padding:var(--sp-4);border-top:1px solid var(--border);text-align:right}
+  .btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 20px;font:inherit;font-weight:600}
+  .light .btn{color:#fff}
+  .note{max-width:62ch;color:#ABA9A5;font-size:13px;margin:28px 0 0;border-top:1px solid #34363B;padding-top:16px}
+  .note b{color:#E4E3E1}
+</style>
+
+<h1>The privacy notice — approve the wording</h1>
+<p class="sub">QUEUE item 2 is built: the notice, the acceptance at sign-up, the restatement at both
+invoice dropzones, and the Settings copy. It is driven in a browser at 380px and desktop, both
+themes. <b>The words are the only thing left.</b></p>
+
+<div class="ask">
+  <p style="margin:0 0 8px"><b>The question:</b> is this what you want your café to say to a customer
+  about what happens to their invoice data?</p>
+  <p style="margin:0">Reply <b>approve</b>, or tell me what to change. The moment it is approved this
+  merges as it stands — nothing else in the item is outstanding.</p>
+</div>
+
+<div class="row">
+  <div class="col">
+    <p class="cap">380 × 780 · dark — where you use it</p>
+    <div class="phone dark">
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="mhead"><h3>Privacy notice</h3><button class="x">×</button></div>
+        <div class="mbody">
+          <p class="lede">EzPlate sends some of your data to Google to be read by an AI. This is what
+            goes, and what happens to it.</p>
+          <h4>What leaves this app</h4>
+          <p>Two things, and nothing else:</p>
+          <ul>
+            <li><strong>Invoice text.</strong> When you import a supplier invoice, the text of that
+              invoice is sent to Google so a second reader can check the line items the app read.
+              That includes your supplier’s name, the products and the prices on it.</li>
+            <li><strong>Plate names and costing figures.</strong> When the Dashboard writes an
+              insight, the plate names and the numbers behind them are sent to Google to be phrased
+              into a sentence.</li>
+          </ul>
+          <p>Your login, your password and your customers’ details are never sent anywhere but the
+            database that runs the app.</p>
+          <h4>What Google does with it</h4>
+          <p>EzPlate uses Google’s <strong>free tier</strong> of the Gemini API. Under Google’s terms
+            for that tier:</p>
+          <ul>
+            <li><strong>Google may use what is sent to improve its products</strong> — which includes
+              training its models.</li>
+            <li><strong>Human reviewers at Google may read it.</strong></li>
+          </ul>
+          <p>That is unusual and it is why this notice exists rather than a line in a longer
+            document. If your supplier pricing is commercially sensitive to you, this is the thing to
+            weigh.</p>
+          <h4>What you can turn off</h4>
+          <ul>
+            <li><strong>Dashboard insights.</strong> Settings › AI suggestions. Off means no plate
+              names and no figures are sent, and nothing is computed.</li>
+            <li><strong>The invoice second reader.</strong> It only runs when you import an invoice.
+              Not importing sends nothing.</li>
+          </ul>
+          <h4>Who runs this</h4>
+          <p>EzPlate is run by Scoopy’s Family Cafe. There is no analytics and no tracking of any
+            kind in this app, and nothing is sold or shared with anyone else.</p>
+          <p class="changed">This notice changes if what we send changes — and it is intended to, by
+            moving to a paid tier Google may not train on. The current version is always the one on
+            this screen.</p>
+        </div>
+        <div class="mfoot"><button class="btn">Close</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="cap">380 × 780 · light</p>
+    <div class="phone light">
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="mhead"><h3>Privacy notice</h3><button class="x">×</button></div>
+        <div class="mbody">
+          <p class="lede">EzPlate sends some of your data to Google to be read by an AI. This is what
+            goes, and what happens to it.</p>
+          <h4>What leaves this app</h4>
+          <p>Two things, and nothing else:</p>
+          <ul>
+            <li><strong>Invoice text.</strong> When you import a supplier invoice, the text of that
+              invoice is sent to Google so a second reader can check the line items the app read.
+              That includes your supplier’s name, the products and the prices on it.</li>
+            <li><strong>Plate names and costing figures.</strong> When the Dashboard writes an
+              insight, the plate names and the numbers behind them are sent to Google to be phrased
+              into a sentence.</li>
+          </ul>
+          <p>Your login, your password and your customers’ details are never sent anywhere but the
+            database that runs the app.</p>
+          <h4>What Google does with it</h4>
+          <p>EzPlate uses Google’s <strong>free tier</strong> of the Gemini API. Under Google’s terms
+            for that tier:</p>
+          <ul>
+            <li><strong>Google may use what is sent to improve its products</strong> — which includes
+              training its models.</li>
+            <li><strong>Human reviewers at Google may read it.</strong></li>
+          </ul>
+          <p>That is unusual and it is why this notice exists rather than a line in a longer
+            document. If your supplier pricing is commercially sensitive to you, this is the thing to
+            weigh.</p>
+        </div>
+        <div class="mfoot"><button class="btn">Close</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note"><b>Why it is worded this specifically.</b> The item's own rule is that vague wording
+does not discharge a disclosure — <i>“we may share data with service providers”</i> is exactly the
+phrasing that hides the material fact. Naming Google, naming the free tier, and saying plainly that
+submissions may be used for training and that humans may read them is what makes this a disclosure
+rather than a notice. Those are Google's published terms for that tier, not a worst case.
+<br><br>
+<b>What changes when item 2b ships.</b> On the paid tier Google <i>“doesn't use your prompts or
+responses to improve our products”</i>. The second section then says the opposite and the screens do
+not move — the acceptance, the link placements and the restatement at import all stay.
+<br><br>
+<b>If you want it shorter</b>, say which section to cut and I will cut it — but the two bullets under
+“What Google does with it” are the ones that make it worth showing at all.</p>

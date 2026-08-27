@@ -303,6 +303,19 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### Nothing records that a user accepted the privacy notice
+(Found 27 Aug 2026 by batch 208's pre-push review, which read the notice's own promise and went looking for the mechanism behind it.)
+
+The sign-up tick gates the form and is never written anywhere. There is no `app_settings` key, no column and no version string, so **nothing knows who accepted which version of the notice** — and the notice's first draft promised *"you will be asked to read it again"* when it changes, which nothing could have honoured. That sentence now says only what is true; this entry is the other half.
+
+**It is C rather than higher because the disclosure itself is complete without it.** The item's four requirements are about the notice being SHOWN before the data moves, and it is — at sign-up, at both import dropzones and on the Settings control. A record is about proving consent after the fact, which is a different question and one nobody has asked yet.
+
+⚠️ **It becomes B the moment item 2b ships**, and that is the thing to notice here rather than the record itself. On the paid tier the notice's second section reverses, which is a material change in the user's favour — but a café that accepted the old wording has been told something that is no longer true, and with no record there is no way to identify them or re-ask. **Whoever takes 2b should read this entry first.**
+
+Requirements: a `privacy_accepted` setting written through `dbSetSetting` carrying the version and an ISO date, set on the first successful boot after sign-up; a version constant beside the notice; and a re-prompt when the stored version is older than the current one. Then the notice can promise the re-prompt again.
+⚠️ **`app_settings` is a JSON blob keyed by setting, so this needs no migration** — but read `CLAUDE.md`'s backup-format carve-out before adding a key, because what `bootstrapSync` puts in memory is the backup format.
+⚠️ Do not record it at sign-up time. The account does not exist yet, there is no session, and there is nothing to attach it to.
+
 ### A $0.00 invoice line means two different things to two functions on the same import
 (Found 26 Aug 2026 by batch 203, writing coverage for `applySupplierMemory`. **Neither behaviour is wrong on its own; they disagree, and nothing anywhere says which is intended.**)
 
