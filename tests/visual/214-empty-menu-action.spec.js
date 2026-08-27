@@ -20,6 +20,11 @@
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
+/* ⚠️ Misc lines are `{misc, label, cost}` — the shape `savePlate` actually writes. The first draft
+   of these fixtures used a `name` key, which `costFromLines` does not read, so the seed happened to
+   work while describing data the app never produces. A fixture that does not match the real shape
+   is a test measuring a coincidence (CLAUDE.md, roster entry 184(b)). Caught by the pre-push
+   review. */
 const NO_PLATES = () => {
   localStorage.clear();
   localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'M1', name: 'Winter Menu' }]));
@@ -32,7 +37,7 @@ const WITH_A_PLATE = () => {
   localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'M1', name: 'Winter Menu' }]));
   localStorage.setItem('cafeDB_cogsPct', '40');
   localStorage.setItem('cafeDB_plates', JSON.stringify([
-    { id: 'PL1', name: 'Fish & Chips', category: 'Mains', lines: [{ misc: true, name: 'x', cost: 6.5 }] },
+    { id: 'PL1', name: 'Fish & Chips', category: 'Mains', lines: [{ misc: true, label: 'Chips', cost: 6.5 }] },
   ]));
   localStorage.setItem('cafeDB_menu', JSON.stringify([]));
 };
@@ -41,7 +46,7 @@ const NO_MENUS = () => {
   localStorage.setItem('cafeDB_menus', JSON.stringify([]));
   localStorage.setItem('cafeDB_cogsPct', '40');
   localStorage.setItem('cafeDB_plates', JSON.stringify([
-    { id: 'PL1', name: 'Fish & Chips', category: 'Mains', lines: [{ misc: true, name: 'x', cost: 6.5 }] },
+    { id: 'PL1', name: 'Fish & Chips', category: 'Mains', lines: [{ misc: true, label: 'Chips', cost: 6.5 }] },
   ]));
   localStorage.setItem('cafeDB_menu', JSON.stringify([]));
 };

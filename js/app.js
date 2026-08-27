@@ -11326,6 +11326,15 @@ function eligibleDishes(){                                         // costed pla
    same answer read twice.
    Zero MENUS hides it too: the screen is showing "No menus yet." with its own New-menu action, and
    an add-to-menu control beside it names a menu that does not exist. */
+/* ⚠️ `menusList.length` is a PROXY for what `submitAddDish` actually gates on, which is
+   `currentMenuId`, and the two agree only because `buildMenuSelector` corrects a stale
+   `currentMenuId` to `fallbackMenuId()` immediately BEFORE it calls this — in the same function,
+   in that order. Every path that mutates `menusList` repaints through there today, so the proxy
+   holds. If you ever reach this from a path that changes `menusList` WITHOUT running
+   `buildMenuSelector` first, the button can reappear while the modal still refuses, which is the
+   exact dead control this exists to remove. Keep the two together, or read `currentMenuId` here.
+   (Raised by the pre-push review as a fragility rather than a live bug; I could not construct a
+   reachable flow either, and the comment is the cheap half of never needing to.) */
 function updateMenuAddDishBtn(){
   var b=document.getElementById('menuAddDishBtn'); if(!b) return;
   b.hidden=!(menusList.length && eligibleDishes().length);
