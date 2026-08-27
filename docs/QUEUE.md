@@ -36,7 +36,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
 He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
 
-Do after: **the privacy gate** — and this is a scheduling fact rather than a second opinion on his answer. B's whole point is that a stranger's café can exist without Max, and this file's privacy-gate item says *"before the first non-Scoopy's row exists, not after"*; a café row is such a row, and the stranger who owns it will send invoice text into Gemini's free tier on day one. **Shipping signup first is the one ordering that cannot be undone**, because the data has already left.
 ⚠️ **This line named TWO items until 15 Aug 2026 and now names one: pdf.js 4.2.67+ SHIPPED in batch 195** (`ezplate-v167`, 4.10.38), so its half is deleted per this file's own rule that a satisfied dependency is removed rather than left standing.
 ⚠️ **And the remaining half stopped being a DECISION later the same day.** Max answered the privacy gate — option B, disclose it — so that item is `next` rather than `blocked` and is ordinary work again. **This item is therefore behind WORK, not behind Max.** Nothing here is waiting on a person; the disclosure simply has to ship first, because B's whole point is that a stranger is told before their invoice text reaches Google, and a stranger cannot be told if signup exists before the telling does.
 
@@ -67,36 +66,6 @@ Requirements: a café can be created and get an owner **without the Supabase das
 *(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## blocked  2 · The privacy gate — ship the DISCLOSURE  **[A — launch blocker]**
-
-✅ **ANSWERED 15 Aug 2026 (Max): option B — disclose it.** His words: *"for now do b and we can sort this later post launch."*
-He was shown both options with measured costs and a recommendation of A (paid tier, ~5–20c per café per month), and chose B. **It is a decision; do not re-put the A/B question.** Full reasoning, the measured figures and Google's exact terms: `docs/decisions/2026-08-15-privacy-gate.md`.
-*(`Blocked on: Max` DELETED 15 Aug 2026 — answered. This item is now ordinary work.)*
-
-Invoice text goes to Gemini's free tier via `api/parse-invoice`; plate names and costing numbers go to the same tier via `api/insight`. Google's terms for that tier: it **uses submissions to improve its products**, and **human reviewers may read them**.
-Requirements: **a privacy policy that discloses this, shown before the data moves.**
-
-⚠️ **A POLICY NOBODY READS BEFORE THE DATA MOVES IS NOT A DISCLOSURE**, and this is the half that is easy to ship wrong. The gate's own wording is *"before the first non-Scoopy's row exists, not after"*; the same logic applies inside the app.
-
-- Written policy naming **Google specifically**, saying the free tier may use the data for training and that humans may review it. **Vague wording does not discharge this** — "we may share data with service providers" is exactly the phrasing that hides the material fact. The unusual specific is the whole point.
-- Shown and accepted **at signup**, before an account exists.
-- Restated **at the invoice import screen**, because that is the moment data actually leaves. Someone who accepted a policy three weeks ago has not meaningfully consented to today's upload.
-- Check what the Dashboard insight toggle currently says; it is already user-controllable, so it may be the cheapest of the four.
-
-**The WORDING is Max's to approve before it publishes** — a privacy policy is a statement his business makes. Drafting it does not need him and must not wait on him; only the sign-off does.
-Out of scope: switching to the paid tier. That is the item below.
-
-✅ **BUILT AND DRIVEN IN A BROWSER, BATCH 208 — everything except the sign-off. PR #218, branch `feature/privacy-disclosure`, `ezplate-v171`.**
-All four requirements are met and none of them is waiting on anything but the words:
-- the notice names Google, the free tier, training and human review, in a modal readable from the signed-out gate (`#privacyModal`, z-80, over the gate's z-60);
-- the sign-up form carries an acceptance that REFUSES before `signUp` runs, which is the first committing action on that screen;
-- both invoice dropzones restate it at the moment the data leaves;
-- the Settings toggle now names the destination instead of only saying "no AI calls".
-`tests/privacy-disclosure.test.js` pins the claims rather than the sentences, so the copy can be improved without going red and cannot be hollowed out. `tests/visual/item2-privacy.spec.js` drives all three surfaces at 380px and desktop in both themes, and proves the refusal actually fires.
-
-Blocked on: **Max to approve the WORDING of the privacy notice.** It is his business's statement about what it does with a customer's data, which is the one class of decision this file's own rules keep with him. Read it in the PR, or open the app and tap "Privacy notice" on the sign-in screen. Approve as drafted, or say what to change — **and the moment it is approved this merges as it stands; nothing else in the item is outstanding.**
-⚠️ **DO NOT MERGE THIS WITHOUT THAT ANSWER**, and do not re-draft it into vaguer language to avoid asking: the item's whole point is that the unusual specific — Google, by name, training, human review — is what makes it a disclosure rather than a notice.
-
 ## next  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
 **DEFERRED, not declined (Max, 15 Aug 2026):** *"we can sort this later post launch."*
@@ -105,7 +74,6 @@ On the paid tier Google *"doesn't use your prompts... or responses to improve ou
 Measured 15 Aug 2026 against the real prompt (443 tokens of instructions) at $0.25/M input and $1.50/M output: **~0.4c per invoice, ~0.02c per insight, roughly 5–20c per café per month.** 100 cafés is about $20/month.
 No code change and no new key — enabling billing on the existing Google Cloud project upgrades the key automatically. Google requires a **$10 minimum prepaid credit**, then pure pay-per-use.
 
-Do after: **The privacy gate — ship the DISCLOSURE** — B is what makes launch legitimate; this is the upgrade that later makes the disclosure milder. Shipping this first would moot B, which is fine, but it is not the order Max chose.
 ⚠️ **This needs Max at the billing console** (his card, and the assistant may not enter payment details), so it will be `blocked` the day it is taken. **Set a project SPEND CAP in the same sitting** — on a paid key an abused endpoint costs real money, which is the one genuine downside of A and the reason the rate-limit work in the gate-review item matters more once this lands.
 When it ships, the policy stops saying *"Google may train on this"* and starts saying *"we pay for a tier that contractually cannot"*. The screens all stay — the acceptance, the link placements and the restatement at import are unchanged by the tier.
 ⚠️ **This line said "the screens and the acceptance RECORD all stay" until 27 Aug 2026, and there is no acceptance record.** Batch 208 shipped the notice and the tick that gates sign-up; the tick is never written anywhere, so nothing knows who accepted which version. Caught by that batch's pre-push review, which went looking for the mechanism behind the notice's own promise to re-ask people and found none. Building it is filed in `docs/MAINTENANCE.md`; **this item does not depend on it** and must not wait for it.
@@ -114,7 +82,6 @@ When it ships, the policy stops saying *"Google may train on this"* and starts s
 
 Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
 Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
-Do after: **the privacy gate** — it is the read-through of the gates, not a substitute for them. *(`business_id` PART 2 struck from this line 13 Aug 2026 — shipped in batch 182. **`pdf.js 4.2.67+` struck 15 Aug 2026 — shipped in batch 195 as 4.10.38.** The pdf.js version is still one of the things this review READS; what is gone is the wait for it.)*
 ⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
 **So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
 ✅ **The pdf.js gate is SETTLED and this review only has to confirm it: 195 shipped 4.10.38**, which closes CVE-2024-4367 outright rather than mitigating it, keeps `isEvalSupported:false` as a second layer, and keeps the SRI hash across the move to an ESM load. `tests/third-party-pins.test.js` now pins both scripts' version-and-hash pair and encodes both known advisory windows, so a future "bump to latest" into GHSA-hq66-cqwq-w95j (5.6.83 ≤ v < 6.2.108) fails the suite. **Read that test rather than re-deriving the version question.**

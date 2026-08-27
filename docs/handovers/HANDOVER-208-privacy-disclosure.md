@@ -2,7 +2,8 @@
 
 **Branch:** `feature/privacy-disclosure` · **Scope:** `docs/QUEUE.md` item 2, the privacy gate.
 **Ships `ezplate-v171`** - the six cache spots are bumped.
-⚠️ **NOT MERGED. PR #218 is open and waiting on Max's sign-off on the WORDING**, which is the one thing in the item that was ever his.
+✅ **Max approved the wording on 27 Aug 2026**, which was the one thing in the item that was ever his. Recorded in `CLAUDE.md`'s privacy-gate section with that date.
+⚠️ **He replied "i approve the light one", and there was no light-versus-dark CHOICE to make** - the decision file rendered the same notice twice, in the app's two themes, because a wording has no variants. It was put to him plainly before merging rather than read as a preference, and he was told what the reply was being taken to mean. **The lesson is about the decision FILE, not about him: rendering one option twice reads as two options.** `skills/decide` says to draw every option side by side and label them A, B, C - two renders of one thing sitting side by side wear that grammar without being it. **A single-option approval should be drawn ONCE, at the primary size, and say in the caption that the second frame is the same words.**
 
 ## What changed
 A privacy notice that names Google, the free Gemini tier, that submissions may be used to improve Google's products including training, and that human reviewers may read them.
@@ -22,8 +23,11 @@ Nothing.
 All three findings are instances of shapes already on the roster - an order-only assertion, a fail-open guard, a claim with no mechanism behind it. The roster's header says to add a bullet when the SHAPE is new, and none of these is.
 
 ## New docs/QUEUE.md items
-None. Item 2 is marked `blocked` rather than deleted, with the question in `Blocked on:` and a note that everything else in it is finished.
+None.
 Item 2b is corrected: it said "the screens and the acceptance RECORD all stay" and there is no acceptance record.
+
+## New docs/QUEUE.md deletions
+Item 2 is DELETED, finished. **Three `Do after: the privacy gate` lines went with it** - on items 1 (café creation), 2b (the paid tier) and 4 (the gate review) - per this file's own rule that a satisfied dependency is removed rather than left standing. One answer unblocked four items.
 
 ## New docs/PHONE.md items
 None.
@@ -50,6 +54,12 @@ It is worth noticing what kind of defect that is: not wrong code, but a commitme
 **The browser found a layout defect that reading the CSS could not.**
 The acceptance label wraps to two lines on a phone, and `#bootGate` centres its text, so the second line sat centred under a checkbox pinned left.
 Every rule involved was individually correct.
+
+**CI caught a regression the laptop did not, because I ran only my OWN spec.**
+The privacy gate refuses sign-up until the box is ticked, and `tests/visual/v165-invite.spec.js` drives that exact flow twice - it fills the form and submits without ticking anything, which was correct until this batch changed the flow underneath it.
+Both cases went red in CI and green locally, because I ran `item2-privacy.spec.js` alone and never the suite.
+**The hook is the fast local copy; CI is the one that actually holds** - `CLAUDE.md` says so about the mutation gate and it is just as true here. The fix is one line per spec: tick the box, because that is the step a real user now takes.
+⚠️ **The general shape is worth more than the fix: a new GATE is a change to every flow that passes through it, and the specs that drive those flows do not mention the gate anywhere.** Grepping for the thing you added finds nothing; you have to grep for the SCREEN.
 
 **`npx` is unusable on this machine and the repo already knew.**
 The npm cache has root-owned files, so `npm run serve` fails - and `playwright.config.js` says at its own site that it serves with `python3 -m http.server` for exactly that reason.
