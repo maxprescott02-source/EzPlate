@@ -99,7 +99,17 @@ function runTests(sandbox, testDir, files, timeoutMs) {
    */
   opts.detached = true;
   const r = spawnSync(process.execPath, args, opts);
-  if (r.pid) { try { process.kill(-r.pid, 'SIGKILL'); } catch (e) { /* already reaped */ } }
+  const timedOut = !!(r.error && r.error.code === 'ETIMEDOUT');
+  /* ⚠️ SCOPED TO THE TIMEOUT PATH, AND THE FIRST VERSION WAS NOT — caught by the pre-push review.
+     A pgid is free for the OS to reuse the moment its last member exits, which on the ordinary path
+     is the instant spawnSync returns; nothing here can check that the group still belongs to the
+     child we spawned. So an unconditional kill is a signal aimed at a recycled group id, hundreds of
+     times per run, on a box this same script is churning pids on — and a WRONG kill that succeeds
+     raises nothing, so it would be indistinguishable from the no-op it was assumed to be.
+     Measured before narrowing it: across 37 mutants the unconditional call succeeded ZERO times and
+     threw "already gone" 37 times. It buys nothing off the timeout path, where the SIGKILLed parent
+     really can leave workers behind, so that is the only place it now runs. */
+  if (timedOut && r.pid) { try { process.kill(-r.pid, 'SIGKILL'); } catch (e) { /* already reaped */ } }
   /* A TIMED-OUT CHILD IS A THIRD OUTCOME AND spawnSync REPORTS IT AS status null, WHICH IS NOT 0.
      Reading only `status === 0` would therefore call it killed and move on, which is nearly right
      and hides the interesting half. See the note at the call site.
@@ -111,8 +121,7 @@ function runTests(sandbox, testDir, files, timeoutMs) {
      still count as killed, so nothing would have gone green that should not — it would have put the
      wrong CAUSE in the report, which is how someone spends an afternoon looking for a loop that was
      never there. Found by the pre-push review. */
-  const timedOut = !!(r.error && r.error.code === 'ETIMEDOUT');
-  return { ok: r.status === 0, timedOut: !!timedOut, out: (r.stdout || '') + (r.stderr || '') };
+  return { ok: r.status === 0, timedOut: timedOut, out: (r.stdout || '') + (r.stderr || '') };
 }
 
 /* HOW LONG ONE MUTANT MAY TAKE BEFORE IT IS CALLED STUCK. Extracted so it can be pinned without a

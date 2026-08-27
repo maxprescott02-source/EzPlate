@@ -31,8 +31,12 @@
 
 const { execFileSync } = require('child_process');
 
-/* The worker signature, kept as one constant so the test and the script cannot disagree about it. */
-const WORKER_FLAG = '--test-concurrency';
+/* The worker signature, kept as one constant so the test and the script cannot disagree about it.
+   ⚠️ It ends in `=` on purpose. A bare `--test-concurrency` substring would also match a process that
+   merely MENTIONS the flag in its argv — a shell loop, a grep, an editor opening this very file — and
+   the node worker always spells it `--test-concurrency=<n>`. Narrowed after the pre-push review
+   pointed out the unbounded match. */
+const WORKER_FLAG = '--test-concurrency=';
 
 /** Every orphaned node test worker, as {pid, etime, command}. Never throws. */
 function findOrphans(psOutput) {
@@ -67,10 +71,13 @@ function reap(orphans) {
   return killed;
 }
 
-function main(argv) {
+/* `injected` exists so the exit-code branching below can be tested without a real process table.
+   The review found reap() and main() had no coverage at all: the part that decides whether a push
+   proceeds or blocks was the untested part. */
+function main(argv, injected) {
   const reapMode = argv.includes('--reap');
   const warnOnly = argv.includes('--warn');
-  const orphans = findOrphans();
+  const orphans = injected || findOrphans();
 
   if (!orphans.length) return 0;
 

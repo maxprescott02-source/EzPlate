@@ -26,6 +26,14 @@ const PS = [
   ' 7467  5145    03:34:58 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper',
   ' 4210     1    11:02:11 /usr/local/bin/node /usr/local/bin/some-dev-server --port 3000',
   ' 5000     1    01:00:00 /usr/bin/python3 -m http.server 5173',
+  /* ⚠️ THE NEXT TWO LINES EXIST BECAUSE THE PRE-PUSH REVIEW FOUND TWO GUARDS THAT NO FIXTURE COULD
+     EXERCISE. Every original line was excluded by the ppid check or the flag check, so deleting the
+     node-executable regex, or the flag check, changed nothing and all eight tests stayed green —
+     a whole guard pinned by an assertion incapable of failing, in a file whose header calls the
+     signature "narrow on purpose". Each line below is excluded by exactly ONE guard. */
+  ' 6001     1    00:05:00 /bin/sh -c while true; do echo --test-concurrency=0; done',   // orphaned, carries the flag, NOT node
+  '36013     1    00:21:08 /usr/local/bin/node tests/mutation/run.js',                    // orphaned node PARENT, no worker flags
+  ' 7100     1    00:02:00 /usr/local/bin/node scripts/lint.js --forbid --test-concurrency-unset',  // node, orphaned, MENTIONS the flag
 ].join('\n');
 
 test('it finds exactly the orphaned node test workers', () => {
@@ -40,8 +48,28 @@ test('a live worker whose parent is still alive is NOT an orphan', () => {
   assert.ok(!P.findOrphans(PS).some((o) => o.pid === 39604));
 });
 
-test('the node --test PARENT is not matched — it carries no worker flags', () => {
-  assert.ok(!P.findOrphans(PS).some((o) => o.pid === 36026));
+/* ⚠️ Retitled and re-fixtured. This asserted pid 36026, whose ppid is 36015 — so the ppid guard alone
+   already explained the result and the stated reason ("carries no worker flags") was not what the
+   test measured. pid 36013 is the honest case and a real one: `nohup npm run mutate` leaves exactly
+   this, an ORPHANED node --test parent with no worker flags, which must not be reaped. */
+test('an orphaned node --test PARENT is not matched — only its workers carry the flag', () => {
+  const pids = P.findOrphans(PS).map((o) => o.pid);
+  assert.ok(!pids.includes(36013), 'the parent has no worker flags and must survive');
+  assert.ok(!pids.includes(36026), 'and a LIVE parent is excluded by its ppid as well');
+});
+
+test('a process that only MENTIONS the flag is not matched — the match is token-bounded', () => {
+  /* pid 7100 is node, orphaned, and contains the string `--test-concurrency` — but not
+     `--test-concurrency=`, which is how the real worker always spells it. Loosen WORKER_FLAG back to
+     a bare substring and this becomes a reap target. Without this line that loosening was caught
+     only by the literal-equality test, i.e. by noticing the edit rather than by its effect. */
+  assert.ok(!P.findOrphans(PS).some((o) => o.pid === 7100));
+});
+
+test('a non-node process is not matched even when its argv carries the flag', () => {
+  /* The only line the node-executable guard is load-bearing for. Delete that guard and pid 6001
+     becomes a reap target: a shell loop, SIGKILLed on somebody else's `git push`. */
+  assert.ok(!P.findOrphans(PS).some((o) => o.pid === 6001));
 });
 
 test('Claude Code, a plain node dev server and python are never matched', () => {
@@ -75,7 +103,55 @@ test('it reports the elapsed time, which is what tells you it is stale', () => {
 });
 
 test('the signature the script matches is the one this test claims', () => {
-  /* Roster 183(a): a test and the code it pins must not carry two copies of the same literal. */
-  assert.equal(P.WORKER_FLAG, '--test-concurrency');
+  /* Roster 183(a): a test and the code it pins must not carry two copies of the same literal.
+     ⚠️ The trailing `=` is load-bearing and this assertion is what caught it being added: a bare
+     `--test-concurrency` also matches a process that merely MENTIONS the flag, which pid 6001 in the
+     fixture above now is. */
+  assert.equal(P.WORKER_FLAG, '--test-concurrency=');
   assert.ok(PS.includes(P.WORKER_FLAG), 'the fixture must actually contain the signature');
+});
+
+
+/* ---------------- reap() and main(), which the review found had no coverage at all ---------------- */
+
+const { spawn } = require('child_process');
+
+test('reap actually kills the process it is given', { timeout: 8000 }, async () => {
+  /* A real child, not a stub: `reap` calls process.kill for effect, and a stub would only prove that
+     a function named kill was called. It is `sleep`, so nothing of ours dies if this test is wrong. */
+  const child = spawn('sleep', ['30'], { stdio: 'ignore' });
+  const exited = new Promise((res) => child.on('exit', (code, signal) => res(signal)));
+  const killed = P.reap([{ pid: child.pid }]);
+  assert.equal(killed, 1, 'it must report what it actually killed');
+  assert.equal(await exited, 'SIGKILL');
+});
+
+test('reap counts only what it really killed, and survives a pid that is already gone', () => {
+  assert.equal(P.reap([{ pid: 2147483646 }]), 0, 'a dead pid must not be counted as a kill');
+  assert.equal(P.reap([]), 0);
+});
+
+/* main reports to stderr by design. Silenced around the calls only — the EXIT CODE is what these
+   assert, and swallowing the text does not touch it. */
+function quiet(fn) {
+  const real = console.error;
+  console.error = () => {};
+  try { return fn(); } finally { console.error = real; }
+}
+
+test('main exits 0 and says nothing when there are no orphans', () => {
+  assert.equal(quiet(() => P.main([], [])), 0);
+  assert.equal(quiet(() => P.main(['--reap'], [])), 0);
+});
+
+test('main BLOCKS by default when orphans are present', () => {
+  /* This is the exit code the pre-push hook and both mutate scripts read. An inverted branch here
+     turns the whole preflight into a no-op that still prints reassuring output. */
+  assert.equal(quiet(() => P.main([], [{ pid: 1, etime: '01:00', command: 'node --test-concurrency=0' }])), 1);
+});
+
+test('--warn reports without blocking, and --reap clears and continues', () => {
+  const fake = [{ pid: 2147483646, etime: '01:00', command: 'node --test-concurrency=0' }];
+  assert.equal(quiet(() => P.main(['--warn'], fake)), 0, '--warn must never fail a run');
+  assert.equal(quiet(() => P.main(['--reap'], fake)), 0, '--reap continues after clearing');
 });
