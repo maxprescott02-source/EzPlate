@@ -18,7 +18,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const A = require('../api/_auth.js');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const req = (headers) => ({ headers: headers || {} });
 
@@ -117,6 +117,37 @@ test('verifyCaller FAILS CLOSED when the verification call itself throws', async
   assert.deepEqual(r, { ok: false, reason: 'verify-failed' });
 });
 
+/* Finding 1 of the pre-push review, as two tests: the first draft bounded nothing here, so a
+   Supabase that HUNG rather than errored would have held the serverless function open.
+
+   ⚠️ IT IS TWO TESTS BECAUSE THE FIRST VERSION WAS ONE AND COULD NOT FAIL. It asserted only the
+   OUTCOME — `verify-failed` — from a fake fetch that read `opts.signal.addEventListener`. Delete the
+   signal and that read throws, the throw is caught by the same try/catch, and the result is
+   `verify-failed` again: green, for the opposite reason. Roster 205's shape exactly, in a test
+   written to close a review finding. The mechanism now has an assertion of its own. */
+test('verifyCaller hands an abort signal to the verification call', async () => {
+  const seen = {};
+  await A.verifyCaller(req({ authorization: 'Bearer tok' }), fetchOk(seen));
+  assert.ok(seen.opts.signal, 'the verification fetch must be abortable, or nothing can bound it');
+  assert.equal(typeof seen.opts.signal.addEventListener, 'function');
+  assert.equal(seen.opts.signal.aborted, false, 'and not already aborted before it is even sent');
+});
+
+test('verifyCaller settles when the verification call hangs, rather than waiting forever',
+  { timeout: 4000 }, async () => {
+  let signal = null;
+  /* Honours the signal exactly as a real fetch does. With no signal to honour it never settles at
+     all, which is the defect itself — and the explicit {timeout} is what turns that into a red
+     rather than a hung suite. */
+  const hangs = (url, opts) => new Promise((_res, rej) => {
+    signal = opts && opts.signal;
+    if (signal) signal.addEventListener('abort', () => rej(new Error('aborted')));
+  });
+  const r = await A.verifyCaller(req({ authorization: 'Bearer x' }), hangs);
+  assert.deepEqual(r, { ok: false, reason: 'verify-failed' });
+  assert.equal(signal && signal.aborted, true, 'the bound must have fired, not merely elapsed');
+});
+
 test('verifyCaller refuses when there is no fetch to verify with', async () => {
   const saved = global.fetch;
   delete global.fetch;
@@ -191,7 +222,9 @@ test('the api fallback project config still matches the one index.html ships', (
    both ASSERTED and fired instantly — the alternative is a test that really waits five seconds, and
    a slow test is one somebody eventually deletes. */
 function buildApiAuthHeaders(supa, onDelay) {
-  const src = extractFn(loadApp(), 'apiAuthHeaders');
+  const app = loadApp();
+  // the REAL bound, cut from the shipped file — a literal here could drift from it silently
+  const src = extractVar(app, 'AUTH_HDR_TIMEOUT_MS') + '\n' + extractFn(app, 'apiAuthHeaders');
   const realSetTimeout = setTimeout;
   const fakeSetTimeout = (fn, ms) => { if (onDelay) onDelay(ms); return realSetTimeout(fn, 0); };
   // eslint-disable-next-line no-eval
@@ -219,8 +252,25 @@ test('apiAuthHeaders survives a getSession that errors or throws', async () => {
   assert.equal(threw.Authorization, undefined);
 });
 
+/* ⚠️ All three clauses of the guard are exercised, and the third and fourth cases below exist
+   because the mutation gate found them missing: flipping the second `||` to `&&` survived, and it
+   survived because every test here handed the function either a null client or a complete one.
+   The shapes in between are REAL rather than defensive — CLAUDE.md records that `getSession` "can be
+   absent entirely (the Playwright shim)", and `authInit` guards the same three ways for the same
+   reason. Under the mutant, a client with no `auth` reads `typeof SUPA.auth.getSession` and throws
+   synchronously out of a function every AI call awaits. */
 test('apiAuthHeaders copes with no Supabase client at all', async () => {
   const h = await buildApiAuthHeaders(null)();
+  assert.deepEqual(h, { 'Content-Type': 'application/json' });
+});
+
+test('apiAuthHeaders copes with a client that has no auth namespace', async () => {
+  const h = await buildApiAuthHeaders({})();
+  assert.deepEqual(h, { 'Content-Type': 'application/json' });
+});
+
+test('apiAuthHeaders copes with an auth namespace that has no getSession', async () => {
+  const h = await buildApiAuthHeaders({ auth: {} })();
   assert.deepEqual(h, { 'Content-Type': 'application/json' });
 });
 
@@ -233,8 +283,30 @@ test('apiAuthHeaders always settles, on a bounded wait', { timeout: 5000 }, asyn
   let delay = null;
   const hangs = { auth: { getSession: () => new Promise(() => {}) } };
   const h = await buildApiAuthHeaders(hangs, (ms) => { if (delay === null) delay = ms; })();
-  assert.equal(delay, 5000, 'the bound must stay a real wait, not shrink to nothing');
+  assert.equal(delay, 3000, 'the bound must stay a real wait, not shrink to nothing');
   assert.deepEqual(h, { 'Content-Type': 'application/json' });
+});
+
+/* ⚠️ THE BUDGET, ASSERTED. Three ceilings have to fit inside a fourth, and until batch 210 they did
+   not: the client aborted at 20s while the server could legitimately spend 3+3+15. The failure that
+   causes is invisible in the worst way — a reading the server DID produce is thrown away by the
+   caller a moment before it lands, and the user sees the ordinary "unavailable". Nothing in either
+   file could notice, because each number is correct on its own. So the arithmetic is pinned here,
+   reading every constant from the shipped source rather than restating any of them. */
+test('the AI call budget contains the server-side work it has to wait for', () => {
+  const app = loadApp();
+  const num = (src, name) => Number((extractVar(src, name).match(/=\s*(\d+)/) || [])[1]);
+  const clientBudget = num(app, 'AI_CALL_BUDGET_MS');
+  const tokenBound = num(app, 'AUTH_HDR_TIMEOUT_MS');
+  const gemini = Number((fs.readFileSync(path.join(__dirname, '..', 'api', 'parse-invoice.js'), 'utf8')
+    .match(/var GEMINI_TIMEOUT_MS\s*=\s*(\d+)/) || [])[1]);
+  for (const [n, v] of [['AI_CALL_BUDGET_MS', clientBudget], ['AUTH_HDR_TIMEOUT_MS', tokenBound],
+                        ['GEMINI_TIMEOUT_MS', gemini], ['VERIFY_TIMEOUT_MS', A.VERIFY_TIMEOUT_MS]]) {
+    assert.ok(Number.isFinite(v) && v > 0, n + ' could not be read as a positive number: ' + v);
+  }
+  assert.ok(tokenBound + A.VERIFY_TIMEOUT_MS + gemini <= clientBudget,
+    'the worst-case server path (' + (tokenBound + A.VERIFY_TIMEOUT_MS + gemini) + 'ms) must fit inside '
+    + 'the client abort (' + clientBudget + 'ms), or the caller discards answers the server produced');
 });
 
 /* ---------------- the wiring, and what this assertion is worth ---------------- */

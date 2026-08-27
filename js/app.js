@@ -787,6 +787,17 @@ function sessionUser(res){
    the scope changed. Bounding it HERE keeps that risk inside one function instead of inside two
    call sites' control flow: on timeout we return the headers without a token, the server answers
    401, and both callers take the ordinary "unavailable" path they already have. */
+/* ⚠️ 22s, and it was 20s until batch 210 — raised because the operation genuinely grew a step, not
+   to paper over slowness. The client budget has to CONTAIN the server's: 3s resolving the caller's
+   token + 3s verifying it server-side + 15s of Gemini = 21s, and at the old 20s a request that the
+   server would have answered could be aborted a second before it arrived. Found by the pre-push
+   review, which read the two budgets against each other rather than each on its own.
+   Both AI callers use it, so they cannot drift apart. */
+var AI_CALL_BUDGET_MS=22000;
+var AUTH_HDR_TIMEOUT_MS=3000;   /* Part of a budget that has to add up: 3s here + 3s server-side
+   verification + 15s Gemini = 21s, inside the 22s the two callers abort at. Raising it eats the
+   margin the request itself needs, and a caller aborting a request the server would have answered
+   turns a working reading into "unavailable" for nothing. `api/_auth.js` writes the arithmetic out. */
 function apiAuthHeaders(){
   var base={'Content-Type':'application/json'};
   if(!SUPA || !SUPA.auth || typeof SUPA.auth.getSession!=='function') return Promise.resolve(base);
@@ -796,7 +807,7 @@ function apiAuthHeaders(){
       if(tok) base.Authorization='Bearer '+tok;
       return base;
     });
-  var bound=new Promise(function(resolve){ setTimeout(function(){ resolve(base); },5000); });
+  var bound=new Promise(function(resolve){ setTimeout(function(){ resolve(base); },AUTH_HDR_TIMEOUT_MS); });
   return Promise.race([ask, bound]).catch(function(){ return base; });
 }
 
@@ -6229,7 +6240,7 @@ function gemPhraseInsights(insights, scopeKey){
   gemInsightPhrased={key:key, lines:null, refined:false, inflight:true};
   var release=function(){ if(gemInsightPhrased && gemInsightPhrased.key===key && gemInsightPhrased.inflight) gemInsightPhrased=null; };
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
+  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },AI_CALL_BUDGET_MS);
   apiAuthHeaders().then(function(hdrs){ return fetch('/api/insight',{method:'POST',headers:hdrs,body:JSON.stringify({insights:insights.map(function(x){return {facts:x.facts, text:x.text};})}),signal:ctrl?ctrl.signal:undefined}); })
     .then(function(res){ return res.ok?res.json():null; })
     .then(function(payload){
@@ -10445,7 +10456,7 @@ function gemFireSecondReader(text){
   if(!aiInvoiceCheck){ gemStatus=null; if(typeof renderInvReview==='function') renderInvReview(); return; }   // v81: AI invoice check OFF — no API call at all; the deterministic parser stands and no "checking" note shows
   var token=(++gemToken);                                          // this request's identity; a newer parse/openInv invalidates it
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);   // client-side ~20s; late = discarded
+  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },AI_CALL_BUDGET_MS);   // late = discarded
   /* v113: the gate needs a floor of its own. The abort above only happens where AbortController exists,
      so a hung socket (or an environment without it) leaves gemStatus 'checking' FOREVER — harmless before
      the confirm gate, a permanent lock after it. Budgets this sits outside: api/parse-invoice.js caps
@@ -10458,7 +10469,7 @@ function gemFireSecondReader(text){
                              // arrives after the gate has already released would still be merged — and "a late
                              // response after a timeout is discarded" is the rule the whole referee rests on.
     renderInvReview();
-  },20000);
+  },AI_CALL_BUDGET_MS);
   var done=function(payload){
     clearTimeout(timer); clearTimeout(guard);
     if(token!==gemToken || gemApplied) return;                    // late/stale response loses — human ruling & fresh parses win

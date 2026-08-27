@@ -16,7 +16,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const ROOT = path.join(__dirname, '..');
 const APP = loadApp();
@@ -277,6 +277,8 @@ function gemGateHarness(enabled) {
        before any of that happens, which is why the OFF case below needs no flush and the ON one
        does. */
     var SUPA=null;
+    ${extractVar(APP, 'AUTH_HDR_TIMEOUT_MS')}
+    ${extractVar(APP, 'AI_CALL_BUDGET_MS')}
     ${extractFn(APP, 'apiAuthHeaders')}
     ${extractFn(APP, 'gemFireSecondReader')}
     return { fire:gemFireSecondReader, status:function(){ return gemStatus; } };

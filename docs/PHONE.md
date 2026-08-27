@@ -11,6 +11,36 @@ Production state below is measured, not assumed.
 
 ---
 
+## 210 / v172 - the AI second reader now needs a signed-in session, and only a real device can prove it still works
+
+⚠️ **THIS IS THE ONE THAT COSTS MONEY IF IT IS WRONG, and it is first on purpose.**
+Batch 210 closed a hole where anyone on the internet could POST to `api/parse-invoice` and spend the
+Gemini key. Both AI endpoints now refuse a caller without a live, confirmed session.
+**The gate fails CLOSED**, so if the credential does not reach the server for any reason, the AI check
+silently reports "unavailable" and the deterministic parser stands alone.
+
+**Why only a device can settle it.** Every automated check in this repo stubs either Supabase or the
+`api/` route. Nothing in `npm test`, the smoke run or Playwright has ever made a real signed-in
+request to a deployed serverless function. The batch's own browser drive could NOT be run either -
+the automation could not inject into the page - so **the end-to-end path has never once been
+executed as a whole.**
+
+**What to check, signed in, on production after this deploys:**
+
+- **Import an invoice with the AI invoice check ON.** It should behave exactly as it did before:
+  the "Double-checking" panel, then a normal review with an "AI checked" note.
+- **A failure looks like:** the note reads **"AI check unavailable"** every single time, on every
+  invoice, however good the signal. That is the gate refusing Max's own session, and it means the
+  bearer token is not arriving or is not being accepted.
+- **Also check the Dashboard insights.** The Gemini credit line under the insight panel should still
+  appear. If the phrasing never refines and the credit never shows, that is the same failure on the
+  other endpoint.
+
+**If it fails, it is not urgent and it is not data loss** - the parser and the deterministic insight
+templates are unaffected, and no price is wrong. It is a feature quietly switched off.
+
+---
+
 ## 171 / v151 - the bottom bar changed, and there is a More tab now
 
 **This is the batch you will notice first, because it moves things you tap every day.** Open the app

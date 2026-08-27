@@ -20,7 +20,27 @@
  * HOW IT VERIFIES. One `GET /auth/v1/user` against Supabase with the caller's bearer token. That is
  * deliberately a network call rather than local signature maths: it proves the session is LIVE, so a
  * revoked or expired token cannot spend the key, and it needs no JWT secret to be introduced to this
- * repo. It costs ~100ms against a Gemini budget of 12–15s.
+ * repo. It costs ~100ms in the ordinary case.
+ *
+ * ⚠️ IT IS BOUNDED, AND THE FIRST DRAFT WAS NOT — caught by the pre-push review. Every other outbound
+ * fetch in `api/` wraps itself in an AbortController for a stated reason: a hung upstream is not an
+ * error, it is a third outcome, and nothing in this toolchain calls it a failure. This one had a
+ * `try/catch` and no timeout, so a Supabase that was reachable-but-hanging would have held the
+ * function open for as long as Vercel allowed, on the one path whose whole contract is that failure
+ * is ordinary. An abort lands on `verify-failed`, which is the same fail-closed branch as a throw.
+ *
+ * THE BUDGET, written out because three numbers now have to fit inside a fourth:
+ *
+ *     client token lookup   3s   (apiAuthHeaders' race bound, js/app.js)
+ *   + this verification     3s   (VERIFY_TIMEOUT_MS, below)
+ *   + Gemini                15s  (GEMINI_TIMEOUT_MS, api/parse-invoice.js; 12s for insight)
+ *   ------------------------------
+ *   = 21s worst case, inside the client's 22s abort.
+ *
+ * Those bounds are ceilings on a degraded path, not expected times; the ordinary case is a cached
+ * token and a ~100ms verification. But they have to ADD UP, because the client aborting a request
+ * the server would have answered turns a working reading into "unavailable" for no reason. If you
+ * change any one of the four, change it here too.
  *
  * ⚠️ IT FAILS CLOSED, ON PURPOSE, AND THAT IS A DECISION ABOUT CONSEQUENCE RATHER THAN EPISTEMICS —
  * CLAUDE.md's rule, applied here. If the token is missing, rejected, or unreadable because the
@@ -46,6 +66,8 @@
  * `index.html`'s production entry. Two definitions of the same thing is the defect; a test that
  * fails when they diverge is the answer.
  */
+var VERIFY_TIMEOUT_MS = 3000;    // see THE BUDGET in the header; this is a ceiling, not an expected time
+
 var FALLBACK_URL = 'https://izrnptxhdylllodvglla.supabase.co';
 var FALLBACK_KEY = 'sb_publishable_0Wm1rq48d7-7suBoXl4Dtw_EHpEFRZF';
 
@@ -109,14 +131,23 @@ async function verifyCaller(req, fetchImpl) {
   var doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
   if (!doFetch) return { ok: false, reason: 'no-fetch' };
 
+  /* The abort is the bound on a HANG, which a try/catch cannot see. Where AbortController is absent
+     the fetch simply runs unbounded, exactly as it did before — no worse, and there is nothing else
+     to do about it without inventing a second timer that cannot cancel the request anyway. */
+  var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, VERIFY_TIMEOUT_MS) : null;
+
   var resp;
   try {
     resp = await doFetch(projectUrl() + '/auth/v1/user', {
       method: 'GET',
-      headers: { apikey: projectKey(), Authorization: 'Bearer ' + token }
+      headers: { apikey: projectKey(), Authorization: 'Bearer ' + token },
+      signal: ctrl ? ctrl.signal : undefined
     });
   } catch (e) {
-    return { ok: false, reason: 'verify-failed' };      // fails CLOSED — see the header
+    return { ok: false, reason: 'verify-failed' };      // throw OR abort — both fail CLOSED, see the header
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 
   if (!resp || !resp.ok) return { ok: false, reason: 'bad-token' };
@@ -130,6 +161,7 @@ async function verifyCaller(req, fetchImpl) {
 
 module.exports = {
   bearerToken: bearerToken,
+  VERIFY_TIMEOUT_MS: VERIFY_TIMEOUT_MS,
   userIsUsable: userIsUsable,
   verifyCaller: verifyCaller,
   projectUrl: projectUrl,
