@@ -154,3 +154,111 @@ distinction at all.
 Nested section names: `Mains` is a substring of `Mains & Grills`, so matching each name independently
 counted the short one twice and the comparison only came out right because the spurious entry
 appeared on BOTH sides. An accident, not a property. Longest-match-first with no overlapping claims.
+
+---
+
+# Round 3 — run after the smoke suite came back red
+
+Reviewed-commit: ab4df05
+Model: Sonnet (the batch ran as Opus; the review is forced onto a different model, and was not shown the brief).
+
+## Why there was a third round at all
+
+`npm run smoke` failed two assertions on this branch. A clean worktree at `origin/main` was green, so
+the branch introduced it — the batch had run `npm test` and the mutation gate, neither of which
+includes smoke. **The hook would have caught it; `npm test` alone did not.**
+
+The cause was not a stale fixture. `validatePhrasing` now requires the figures in template ORDER,
+while `buildInsightPrompt`, in the same file, still said *"FRONT-LOAD the fact"* — which on an
+aggregate-first template asks for exactly the reordering the validator throws away. Measured on
+hand-written faithful rewordings: **4 of 10 rejected, every one a clause reorder**, and a rejection is
+invisible because the template is the fallback.
+
+**A binding-to-names-or-units scheme was considered and rejected.** `insDrift` renders "lifts it from
+25% to 40%" — two bare percentages, no name between them, no unit word, same symbol — so ORDER is the
+only signal separating it from "from 40% to 25%". Relaxing the order rule would have accepted a plate
+that got worse being reported as improving. The rule is right; the prompt was wrong.
+
+## Findings — verbatim
+
+**1. Major (confidence: high on the fact, medium on the consequence) — the prompt still contains the
+contradiction the commit claims to have resolved.**
+`api/_insight.js:301` — the original `'- FRONT-LOAD the fact and cut the wind-up. Aim for 12–20
+words...'` line is **untouched** by this diff. The new instruction at `api/_insight.js:317-319`
+(`'KEEP THE FIGURES IN THE ORDER GIVEN... Front-load by leading with the SUBJECT, never by moving a
+number past another.'`) is a separate, later bullet that never references or amends line 301. The
+commit message asserts *"front-loading is kept as an instruction to lead with the SUBJECT rather than
+by moving a number"* as if the original bullet were redefined — but `git show` confirms it wasn't
+edited at all. A model reading the prompt top-to-bottom sees two different "front-load" instructions
+with no cross-reference: one that (on its most natural reading, "front-load the fact") invites putting
+a number first, and one later that forbids exactly that when it would reorder figures. Compounding
+this, the unmodified `'Vary your sentence shapes — do not open every line the same way (never start
+them all with "X is N pts over")'` (line 303) explicitly discourages the one restructuring pattern
+(number-first) guaranteed to preserve order on aggregate-first templates like `insCostBase`. So the
+fix adds a rule saying "don't move numbers" without ever reconciling it against two pre-existing,
+unedited rules that push the model toward exactly the reordering it forbids. Whether this reduces the
+model's real-world rejection rate from 40% to some lower-but-nonzero number can't be settled
+statically — but the textual contradiction the commit says it fixed is still there verbatim.
+
+**2. Minor, but a clear instance of this project's worst-recorded failure class — a wrong comment
+describing test coverage that does not exist.**
+`tests/smoke.js:756-763` — the comment says *"The reordered form is asserted below as a REJECT, so the
+strictness is pinned rather than merely accommodated: if someone relaxes the check back to set
+membership, that assertion goes red instead of this one silently starting to pass again."* Grepped the
+whole file (and the diff): **no such assertion exists in `tests/smoke.js`.** The old reordered fixture
+string is nowhere in this file, mocked or asserted against. The actual pin against relaxing
+`skeletonIsSubsequence` lives in `tests/insight-real-templates.test.js` (verified by hand: reverting
+the ordering guard turns `'REAL insDrift: swapping the from/to percentages is caught by ORDER ALONE'`
+red) — a different file the comment never names. Worse, it's not just imprecise: the current smoke.js
+fixture (`tests/smoke.js:767`) doesn't reorder any figures, so **relaxing the validator back to
+set-membership would not change this test's outcome at all** — smoke.js provides zero protection
+against the exact regression this comment claims it pins. That's precisely the "test that cannot fail"
+shape CLAUDE.md's roster is built around, except here it's a comment falsely claiming a guard is
+present rather than a guard that silently can't fail.
+
+**3. Nit.** `tests/smoke.js:707` (deterministic template, unmodified) says `"...than at April
+prices..."`; the new candidate fixture at `tests/smoke.js:767` says `"...than March..."`. Not a
+functional bug (month text isn't validated), but it's an internally inconsistent fixture — reads like
+it was adapted from a different insight's `sinceLabel` example without checking against the template
+it's actually being validated against in this test.
+
+## What the reviewer checked and found correct
+
+- The two new `insDrift` tests genuinely execute the real function (guards `d.up>=0.20` and
+  `d.toPct-d.fromPct>=2` both satisfied, so `[0]` is never `undefined`), and it confirmed by mutation
+  that the swap test goes red when `skeletonIsSubsequence` is disabled — not vacuous. The `’`
+  matches the character `insDrift` emits.
+- The `tests/smoke.js` fixture passes the CLIENT validator when checked against the smoke file's own
+  stubbed template (not the real `insCostBase` output, which differs), and all three assertions that
+  read it match the new text.
+- The new prompt-pin test is tautological in the literal sense but matches the established pattern in
+  that file and would fail if the instruction were deleted — not a new defect.
+
+## Decisions
+
+**1 — FIXED.** The reviewer is right and the commit message overstated what the diff did. Both
+pre-existing bullets are now amended at their own sites: `FRONT-LOAD` says to lead with the SUBJECT
+(the plate, section, product or supplier) and not by moving a figure forward, and the vary-your-shapes
+rule now asks for variety in wording rather than in figure order. A new test,
+*"the FRONT-LOAD and vary-your-shapes rules do not contradict the ordering rule"*, pins the
+reconciliation at the two sites that carried it — mutation-checked by deleting only the front-load
+amendment, reproducing the reviewer's exact finding as a red test.
+
+**2 — FIXED.** Confirmed by grep before acting: the string appears in this repo only inside my own
+comment. The comment now says plainly that smoke.js does NOT pin the ordering rule and could not
+notice it being relaxed, names `tests/insight-real-templates.test.js` as the real pin, and states what
+the smoke assertion actually proves (that a valid phrasing reaches the live DOM node and reveals the
+credit). Writing a comment that claims a guard which does not exist is the failure this file's own
+roster is built around, and it went in during the round fixing that same class.
+
+**3 — FIXED.** The fixture now reads "than at April prices", matching the template it is validated
+against.
+
+## The residual, filed rather than half-built
+
+The 4-of-10 measurement is from sentences written by hand, not sampled from Gemini. It shows the check
+forbids a natural class of rewording; it is **not** a production reject rate. `docs/MAINTENANCE.md`
+records that, records that a rejected line is not free (the POST has already sent the café's costing
+data to Google and spent the quota — only the words are discarded, which qualifies the neighbouring
+entry's claim that rejection "costs nothing"), and says what would settle it: instrument the endpoint
+and count. A high reject rate would be an argument for a better prompt, never for relaxing the check.

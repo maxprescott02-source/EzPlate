@@ -132,6 +132,28 @@ test('buildInsightPrompt tells the model to keep the figures in the ORDER given'
   assert.match(p, /leading with the SUBJECT/i);
 });
 
+/* ⚠️ 215 (third review round) — AND THE TWO PRE-EXISTING BULLETS MUST AGREE WITH IT.
+   The first fix added the ordering rule as a NEW bullet and left "FRONT-LOAD the fact" and "Vary your
+   sentence shapes" untouched, so the prompt still contradicted itself and the commit claiming
+   otherwise was wrong. Caught by the pre-push review, which read the diff rather than the claim.
+   A prompt is not a list of independent rules — the model reads all of them — so a constraint added
+   at the bottom does not amend an invitation at the top. These assertions pin the reconciliation at
+   the two sites that carried it, because that is where a later editor will undo it. */
+test('the FRONT-LOAD and vary-your-shapes rules do not contradict the ordering rule', () => {
+  const p = I.buildInsightPrompt([insight()]);
+  /* The prompt is assembled from an array of lines and these rules WRAP, so a bullet's own text can
+     straddle two entries. Collapse all whitespace before matching rather than filtering line by
+     line — the first draft of this test filtered lines, missed the continuation, and failed on a
+     prompt that was actually correct. */
+  const flat = p.replace(/\s+/g, ' ');
+  assert.match(flat, /Front-load by naming the SUBJECT first/i,
+    'the front-load bullet must say WHAT to put first, or it reads as "lead with the figure"');
+  assert.match(flat, /not by moving a figure to the front/i,
+    'and must exclude the reading the ordering rule forbids');
+  assert.match(flat, /vary the wording around the figures rather than their order/i,
+    'asking for varied shapes without excluding figure order asks for rejected output');
+});
+
 /* ============================================================================================
  * 215 — THE MEANING HALF. Every assertion above this line tests the SET: a figure the model was
  * not given is rejected. These test what the set cannot see, and each one is a sentence that

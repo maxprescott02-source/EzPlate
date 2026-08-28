@@ -760,11 +760,18 @@ const tick = () => new Promise(r => setTimeout(r, 0));
      only thing that can tell insDrift's "from 25% to 40%" from "from 40% to 25%" — two bare
      percentages, no name and no unit word between them — so it is load-bearing, not fussiness.
      The fixture therefore rewords WITHOUT moving a number past another, which is what the prompt
-     now asks the model for. The reordered form is asserted below as a REJECT, so the strictness is
-     pinned rather than merely accommodated: if someone relaxes the check back to set membership,
-     that assertion goes red instead of this one silently starting to pass again. */
+     now asks the model for.
+     ⚠ AND THIS FILE DOES NOT PIN THAT — said plainly because the first draft of this comment
+     claimed it did ("the reordered form is asserted below as a REJECT"), and no such assertion was
+     ever written here. Nothing in smoke.js would notice the ordering rule being relaxed back to set
+     membership: this fixture does not reorder, so it passes either way. A comment claiming a guard
+     that is not present is worse than no comment, and is the exact shape CLAUDE.md's roster records.
+     The real pin is `tests/insight-real-templates.test.js` — "REAL insDrift: swapping the from/to
+     percentages is caught by ORDER ALONE", which was mutation-checked and does go red. What THIS
+     assertion proves is narrower and still worth having: that a valid phrasing reaches the live DOM
+     node and reveals the credit. */
   if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
-    { text: 'Your average food cost is 1.2 pts higher than March — Beef, up 18% on 5 plates, drives it.' },
+    { text: 'Your average food cost is 1.2 pts higher than at April prices — Beef, up 18% on 5 plates, drives it.' },
     { text: '3 plates sit within half a point of your 30% target.' } ] }) });
   await tick(); await tick();
   // re-query: the quota-guard re-render above replaced the panel, and applyPhrasedInsights resolves

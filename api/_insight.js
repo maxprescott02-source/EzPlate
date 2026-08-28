@@ -298,10 +298,18 @@ function buildInsightPrompt(insights) {
     // headed "What needs attention".
     '- KEEP THE FRAMING YOU ARE GIVEN. A line stating a good or neutral position must stay that way:',
     '  never add "only", "just", "merely", and never turn a standing into a shortfall or a warning.',
+    // 215 (third review round): this bullet used to end at "cut the wind-up", and adding the ordering
+    // rule further down WITHOUT amending it left the prompt arguing with itself — "front-load the fact"
+    // reads as an invitation to lead with the figure, which on an aggregate-first template is exactly
+    // the reordering the validator rejects. Naming the subject here is the whole fix; the rule below
+    // states the constraint, and this one now points at the form that satisfies it.
     '- FRONT-LOAD the fact and cut the wind-up. Aim for 12–20 words; hard limit ~24. No filler like',
     '  "so that is worth a look to see if a small tweak would…". Every clause must carry information.',
+    '  Front-load by naming the SUBJECT first (the plate, section, product or supplier) — not by moving',
+    '  a figure to the front, which the ordering rule below forbids.',
+    // …and the variety asked for here is variety of PHRASING, not of figure order — same reason.
     'Vary your sentence shapes — do not open every line the same way (never start them all with "X is N pts',
-    'over"). You are GIVEN the numbers — you MUST keep every number (dollar amounts, percentages, point',
+    'over"), but vary the wording around the figures rather than their order. You are GIVEN the numbers — you MUST keep every number (dollar amounts, percentages, point',
     'counts, product names) EXACTLY as written and MUST NOT introduce, change, round, or remove any number.',
     /* 215 — AND IN THE SAME ORDER, because the validator enforces exactly that and this prompt was
        arguing with it. validatePhrasing compares the candidate's figures against the template's as an
