@@ -6230,21 +6230,53 @@ function insightSig(insights){ return insights.map(function(x){ return x.text; }
 var GEM_UP_WORDS=/\b(up|rose|rises|rising|risen|higher|climb|climbs|climbed|climbing|increase|increased|increases|increasing|more|above|over)\b/i;
 var GEM_DOWN_WORDS=/\b(down|fell|falls|fallen|falling|lower|drop|drops|dropped|dropping|decrease|decreased|decreases|decreasing|less|fewer|below|under)\b/i;
 function gemNumberSkeleton(t){
-  var out=[], re=/(\$?)\s*(-?\d+(?:\.\d+)?)\s*(%?)/g, m;
-  while((m=re.exec(String(t==null?'':t)))) out.push({v:parseFloat(m[2]), u:m[3]?'%':(m[1]?'$':'')});
+  var src=String(t==null?'':t), out=[], re=/(\$?)\s*(-?\d+(?:\.\d+)?)\s*(%?)/g, m;
+  while((m=re.exec(src))) out.push({v:parseFloat(m[2]), u:m[3]?'%':(m[1]?'$':''), at:m.index, end:re.lastIndex});
+  for(var i=0;i+1<out.length;i++){
+    if(out[i].u || !out[i+1].u) continue;
+    if(/^\s*(?:[-–—]|to|and)\s*$/i.test(src.slice(out[i].end, out[i+1].at))) out[i].u=out[i+1].u;
+  }
+  return out.map(function(e){ return {v:e.v, u:e.u}; });
+}
+function gemFactNames(facts){
+  var out=[]; for(var k in facts){ if(typeof facts[k]==='string' && facts[k].trim()) out.push(facts[k].trim()); }
   return out;
 }
-function gemSkeletonIsSubsequence(cand,tpl){
+function gemNameSequence(t, names){
+  var low=String(t==null?'':t).toLowerCase(), hits=[];
+  (names||[]).forEach(function(n){
+    var ln=String(n).toLowerCase(), i=0, at;
+    if(!ln) return;
+    while((at=low.indexOf(ln,i))>=0){ hits.push({pos:at, name:ln}); i=at+ln.length; }
+  });
+  hits.sort(function(a,b){ return a.pos-b.pos; });
+  return hits.map(function(h){ return h.name; });
+}
+function gemNamesAreSubsequence(cand,tpl){
   var i=0;
   for(var j=0;j<cand.length;j++){
-    while(i<tpl.length && !(tpl[i].u===cand[j].u && Math.abs(tpl[i].v-cand[j].v)<0.005)) i++;
+    while(i<tpl.length && tpl[i]!==cand[j]) i++;
     if(i>=tpl.length) return false;
     i++;
   }
   return true;
 }
+var GEM_NUM_EPS=0.005;                                   // 215: one epsilon, named once — mirrors NUM_EPS in api/_insight.js
+function gemSameNumber(a,b){ return Math.abs(a-b)<GEM_NUM_EPS; }
+function gemSkeletonIsSubsequence(cand,tpl){
+  var i=0;
+  for(var j=0;j<cand.length;j++){
+    while(i<tpl.length && !(tpl[i].u===cand[j].u && gemSameNumber(tpl[i].v,cand[j].v))) i++;
+    if(i>=tpl.length) return false;
+    i++;
+  }
+  return true;
+}
+var GEM_NEGATORS=/\b(no|not|nothing|none|never|nobody|without|n't)\b/i;
 function gemPolarityOf(t){
-  var s=String(t==null?'':t), u=GEM_UP_WORDS.test(s), d=GEM_DOWN_WORDS.test(s);
+  var s=String(t==null?'':t);
+  if(GEM_NEGATORS.test(s)) return null;
+  var u=GEM_UP_WORDS.test(s), d=GEM_DOWN_WORDS.test(s);
   return (u&&!d)?'up':((d&&!u)?'down':null);
 }
 function gemPhrasingOk(text, facts, template){
@@ -6255,11 +6287,13 @@ function gemPhrasingOk(text, facts, template){
   var re=/-?\d+(?:\.\d+)?/g, m;
   while((m=re.exec(t))){
     var v=parseFloat(m[0]), ok=false;
-    for(var j=0;j<allowed.length;j++){ if(Math.abs(v-allowed[j])<0.005){ ok=true; break; } }
+    for(var j=0;j<allowed.length;j++){ if(gemSameNumber(v,allowed[j])){ ok=true; break; } }
     if(!ok) return false;
   }
   if(template!=null && String(template).trim()){
     if(!gemSkeletonIsSubsequence(gemNumberSkeleton(t), gemNumberSkeleton(template))) return false;
+    var nm=gemFactNames(facts);
+    if(!gemNamesAreSubsequence(gemNameSequence(t,nm), gemNameSequence(template,nm))) return false;
     var pt=gemPolarityOf(template), pc=gemPolarityOf(t);
     if(pt && pc && pt!==pc) return false;
   }

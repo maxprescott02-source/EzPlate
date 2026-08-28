@@ -703,7 +703,8 @@ dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.
 
 ## The insight validator cannot see an inverted RECOMMENDATION
 
-Left open deliberately by batch 215, which fixed the other three cases the blind audit found.
+Left open deliberately by batch 215.
+⚠️ **An earlier draft of this entry said 215 "fixed the other three cases the blind audit found", and the pre-push review was right that it overstated.** 215 fixed the audit's three *as the audit demonstrated them*, and the review then found a FOURTH shape of the same swap class — two entity NAMES with one figure each, where swapping the names preserves order and symbols perfectly. That is fixed too (the names are sequenced), so the standing gap is the one below and only the one below.
 
 `validatePhrasing` now compares a candidate against the deterministic template's figures in **order**
 and **symbol** (`%` vs `$`), and rejects a reversed **direction**. What it cannot see is advice:

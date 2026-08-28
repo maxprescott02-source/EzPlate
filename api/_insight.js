@@ -63,11 +63,64 @@ function wordCount(t) { var m = String(t).trim().match(/\S+/g); return m ? m.len
    sentences, and the cost of a false reject is the feature silently never working. `%` and `$` are
    symbols, unambiguous, and the pair the audit actually caught. */
 function numberSkeleton(t) {
+  var src = String(t == null ? '' : t);
   var out = [], re = /(\$?)\s*(-?\d+(?:\.\d+)?)\s*(%?)/g, m;
-  while ((m = re.exec(String(t == null ? '' : t)))) {
-    out.push({ v: parseFloat(m[2]), u: m[3] ? '%' : (m[1] ? '$' : '') });
+  while ((m = re.exec(src))) {
+    out.push({ v: parseFloat(m[2]), u: m[3] ? '%' : (m[1] ? '$' : ''), at: m.index, end: re.lastIndex });
+  }
+  /* ⚠️ A RANGE SHARES ITS SYMBOL, and not knowing that was a FALSE REJECT on a shipping template.
+     `insVolatility` prints "swings 24–38%", so the bare regex reads 24 as symbol-less and 38 as a
+     percentage. A model asked for warmer phrasing very naturally writes "between 24% and 38%" —
+     which is the SAME claim — and the symbol comparison then failed on the first figure and threw
+     the sentence away. A false reject is invisible: the deterministic template appears and the
+     feature looks like it is working.
+     So a trailing symbol propagates BACKWARD across a range joiner, normalising both sides to the
+     same skeleton. Only across a joiner: "5 plates cost $12" must not give 5 a dollar sign. */
+  for (var i = 0; i + 1 < out.length; i++) {
+    if (out[i].u || !out[i + 1].u) continue;
+    var between = src.slice(out[i].end, out[i + 1].at);
+    if (/^\s*(?:[-–—]|to|and)\s*$/i.test(between)) out[i].u = out[i + 1].u;
+  }
+  return out.map(function (e) { return { v: e.v, u: e.u }; });
+}
+/* The string values in an insight's facts — the entity NAMES a figure belongs to. */
+function factNames(facts) {
+  var out = [];
+  if (facts && typeof facts === 'object') {
+    for (var k in facts) {
+      if (Object.prototype.hasOwnProperty.call(facts, k) && typeof facts[k] === 'string' && facts[k].trim()) {
+        out.push(facts[k].trim());
+      }
+    }
   }
   return out;
+}
+/* ⚠️ THE SKELETON CANNOT SEE WHICH NAME A NUMBER BELONGS TO, and that was a FALSE ACCEPT of an
+   inverted business claim. `insCategory` says "Your Salads plates average 20% food cost, Mains sits
+   at 35%." — two names, one figure each — and swapping the names preserves the order and the symbols
+   perfectly. The café owner is then told the wrong section is the expensive one, in the warm voice
+   that is supposed to mean the number was verified. `insComplexity` has the same shape.
+   So the NAMES are sequenced too, by the same subsequence rule as the figures. A rewording may drop
+   a name; it may not reorder them. Swapping both names AND both figures is already rejected by the
+   figures. */
+function nameSequence(t, names) {
+  var low = String(t == null ? '' : t).toLowerCase(), hits = [];
+  (names || []).forEach(function (n) {
+    var ln = String(n).toLowerCase(), i = 0, at;
+    if (!ln) return;
+    while ((at = low.indexOf(ln, i)) >= 0) { hits.push({ pos: at, name: ln }); i = at + ln.length; }
+  });
+  hits.sort(function (a, b) { return a.pos - b.pos; });
+  return hits.map(function (h) { return h.name; });
+}
+function namesAreSubsequence(cand, tpl) {
+  var i = 0;
+  for (var j = 0; j < cand.length; j++) {
+    while (i < tpl.length && tpl[i] !== cand[j]) i++;
+    if (i >= tpl.length) return false;
+    i++;
+  }
+  return true;
 }
 /* ⚠️ A SUBSEQUENCE, NOT AN EQUALITY, AND THE DIFFERENCE IS A CONTRACT THIS FILE ALREADY STATED.
    validatePhrasing's own docblock says: "It does NOT require every allowed number to reappear: a
@@ -79,10 +132,16 @@ function numberSkeleton(t) {
    the same symbol. Dropping one is allowed; reordering, re-signing or inventing one is not.
    Measured against the audit's cases, this still rejects both — "$18" matches no template entry
    because the symbol differs, and "5% … 18" cannot be ordered against "18% … 5". */
+/* 215 — ONE epsilon, named once. It was written out three times (the fact-set loop, the skeleton
+   walk, and the client's copies of both), which is three places for a tolerance to drift and three
+   mutants to argue about separately. NUM_EPS is a HALF-CENT: the app displays money to the cent, so
+   two figures closer than that are the same figure written differently. */
+var NUM_EPS = 0.005;
+function sameNumber(a, b) { return Math.abs(a - b) < NUM_EPS; }
 function skeletonIsSubsequence(cand, tpl) {
   var i = 0;
   for (var j = 0; j < cand.length; j++) {
-    while (i < tpl.length && !(tpl[i].u === cand[j].u && Math.abs(tpl[i].v - cand[j].v) < 0.005)) i++;
+    while (i < tpl.length && !(tpl[i].u === cand[j].u && sameNumber(tpl[i].v, cand[j].v))) i++;
     if (i >= tpl.length) return false;
     i++;
   }
@@ -97,8 +156,18 @@ function skeletonIsSubsequence(cand, tpl) {
    shape CLAUDE.md records for the boot gate. */
 var UP_WORDS = /\b(up|rose|rises|rising|risen|higher|climb|climbs|climbed|climbing|increase|increased|increases|increasing|more|above|over)\b/i;
 var DOWN_WORDS = /\b(down|fell|falls|fallen|falling|lower|drop|drops|dropped|dropping|decrease|decreased|decreases|decreasing|less|fewer|below|under)\b/i;
+/* ⚠️ A NEGATED DIRECTION WORD IS NOT A DIRECTION, and missing that was the second FALSE REJECT.
+   `healthyLine` ships the variant "nothing sits OVER your 30% target", where "over" is an UP word
+   inside a sentence that means the opposite. A faithful rewording saying the plates run "under
+   target" then read as a reversal and was thrown away — on roughly one in four renders of the
+   all-healthy line, silently, because the fallback is the template.
+   Negation makes the whole sentence ambiguous rather than inverted: working out WHAT is negated is
+   the denylist problem this file already refuses elsewhere. Ambiguous means abstain, which leaves
+   the figures doing the work. */
+var NEGATORS = /\b(no|not|nothing|none|never|nobody|without|n't)\b/i;
 function polarityOf(t) {
   var s = String(t == null ? '' : t);
+  if (NEGATORS.test(s)) return null;
   var u = UP_WORDS.test(s), d = DOWN_WORDS.test(s);
   return (u && !d) ? 'up' : ((d && !u) ? 'down' : null);
 }
@@ -109,7 +178,7 @@ function polarityOf(t) {
    guess about every wrong value there could be). The mitigations are the prompt, the one-sentence
    and word caps, and that a rejected line costs nothing because the deterministic template is always
    the fallback. It is filed in docs/MAINTENANCE.md rather than half-built here. */
-function validatePhrasing(text, allowedVals, template) {
+function validatePhrasing(text, allowedVals, template, names) {
   var t = (text == null ? '' : String(text)).trim();
   if (!t || t.length > 240 || wordCount(t) > PHRASE_WORD_CAP) return null;
   // v74 (brief §phrasing): ONE sentence. A terminator (.!?) FOLLOWED by whitespace + more text means a second
@@ -120,7 +189,7 @@ function validatePhrasing(text, allowedVals, template) {
   while ((m = re.exec(t))) {
     var v = parseFloat(m[0]), ok = false;
     for (var j = 0; j < allowedVals.length; j++) {
-      if (Math.abs(v - allowedVals[j]) < 0.005) { ok = true; break; }
+      if (sameNumber(v, allowedVals[j])) { ok = true; break; }
     }
     if (!ok) return null;   // a number the app never computed → reject the whole line
   }
@@ -130,6 +199,7 @@ function validatePhrasing(text, allowedVals, template) {
      entry points rather than by grepping for the call. */
   if (template != null && String(template).trim()) {
     if (!skeletonIsSubsequence(numberSkeleton(t), numberSkeleton(template))) return null;
+    if (!namesAreSubsequence(nameSequence(t, names), nameSequence(template, names))) return null;
     var pt = polarityOf(template), pc = polarityOf(t);
     if (pt && pc && pt !== pc) return null;
   }
@@ -157,7 +227,7 @@ function validateInsightResponse(raw, insights) {
     var ins = insights[i] || {};
     var tpl = ins.text != null ? String(ins.text) : '';
     var cand = obj.lines[i] && obj.lines[i].text;
-    var good = validatePhrasing(cand, factNumbers(ins.facts), tpl);   // 215: the template is the meaning to compare against
+    var good = validatePhrasing(cand, factNumbers(ins.facts), tpl, factNames(ins.facts));   // 215: the template is the meaning to compare against
     out.push({ text: good != null ? good : tpl });   // fall back to the template per line
   }
   return { status: 'ok', lines: out };
@@ -228,5 +298,8 @@ module.exports = {
   buildInsightPrompt: buildInsightPrompt,
   insightSchema: insightSchema,
   numberSkeleton: numberSkeleton,     // 215: exported for the client-parity test, not for the handler
-  polarityOf: polarityOf
+  polarityOf: polarityOf,
+  factNames: factNames,
+  nameSequence: nameSequence,
+  sameNumber: sameNumber
 };
