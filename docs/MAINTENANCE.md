@@ -296,7 +296,10 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 His words: *"i wonder if we can have claude in chrome do the phone check. id imagine the phone check needs auditing first though as some stuff probably old now."* **The instinct is right and here is the measured evidence, so the next batch to take this does not have to re-derive it.**
 
-- **756 lines, 173 bullets, spanning v82 → v167.** Nothing has ever been deleted from it, only appended.
+- **868 lines, 42 sections, spanning v82 → v215.** Nothing has ever been deleted from it, only appended. *(Recorded as "756 lines, 173 bullets" until 28 Aug 2026; a second copy of this same entry said "756 lines, 38 sections" — the count drifted 15% while sitting in two places, which is AUDIT-v176's C4.)*
+- **Exactly two bullets are marked settled, one of them superseded**, over a carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked — while `skills/batch/SKILL.md` says *"Max works through it in one session."*
+- ⚠️ **NO handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and **every one came from him using the app and saying so in chat, never from working the list.** The cost that is not obvious: a standing impression that device risk is managed.
+- **The two cheap changes, from the merged copy.** A **"Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price (193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it sat *behind* a "Settled" heading telling the reader to stop). Then **cap the rest at the last three batches and delete what is older** — the handovers are write-once and hold it all.
 - **The same question is asked in FIVE places.** "Two buttons in a header, does it wrap on your phone" appears at lines 46, 199, 216, 225 and 250 (Ingredients, Products, Menu, Plates, More) — and the file itself says *"it is queued as one fix for both"* and *"answer it once for both screens"*. Max is being asked one question five times.
 - **Whole blocks are explicitly reversed but still sit there in full.** `v132-v135` says dark mode is gone; `v136` above it says the opposite and tells the reader to treat the block below as history. Both are printed at full length.
 - **It has already produced one real navigation failure**, found by AUDIT-v166 (D1): a `Settled — no phone needed` heading sat above SEVEN live sections, so a reader going top-down stopped seven sections early — including 193's carton-vs-pack question, which that file says *"makes every cost in the app wrong by the carton size."* The heading was moved; the underlying ordering (newest-first, then `Carried`, then chronological append) was not.
@@ -560,7 +563,7 @@ Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `
 ### The Playwright suite has never been audited for specs that pass against a broken app
 (Recorded 12 Aug 2026, batch 178. Declined as work in that batch because it is C by construction and the batch was already large.)
 This project has hit the vacuous-test failure **seven** times, and CLAUDE.md's own test for it is "would this test FAIL if I broke the thing it names?" - answered by breaking the thing and watching it go red.
-Nothing has ever asked that question of the 289 browser specs as a set. Two of the seven were found by accident, one batch apart, both green and both mine.
+Nothing has ever asked that question of the 399 browser tests (44 files; said "289 browser specs" until AUDIT-v176 re-counted on 28 Aug 2026, so any cost estimate below is priced off the smaller number) as a set. Two of the seven were found by accident, one batch apart, both green and both mine.
 The method is mechanical rather than clever: mutate one load-bearing thing per spec's stated subject and confirm the spec that names it goes red. A spec that survives every mutation of its own subject is the finding.
 It is also the honest answer to "is the suite carrying dead weight" - 3.8 min locally and 8.7 in CI is worth spending only on specs that can fail.
 
@@ -631,9 +634,10 @@ Reported as findings in their own right by the code audit, all of them the kind 
 - ✅ **DONE, batch 200**, and the TEST TITLE said it too — `tests/unique-ids.test.js` was titled *"so it always fits four base-36 characters"*, so the wrong claim was pinned as well as written. Both now say the BOUND rather than a width, and the test adds a one-character case so the un-padded half cannot be assumed again. **`js/app.js:163`** — `% 1679216` was commented *"36^4, so it always fits four chars"*. `_uidSeq.toString(36)` is not zero-padded, so it emits one to four characters. The bound is real; the fixed-width reading is not. Uniqueness is unaffected (the `-` separators carry it).
 - **`setCogs` vs the boot read** — `setCogs` (`js/app.js:2608`) rounds to integers; `bootstrapSync` (`js/app.js:1181`) accepts any `parseFloat` in `[1,99]`; `fmtTargetPct` (`js/app.js:6252`) renders one decimal. A fractional target is loadable and renderable but not settable, and the first Settings touch silently rounds it. Decide which of the three is right.
 
-### Resolve `screenshots.spec.js` rather than filtering it
-Red since batch 186, ten deploy versions. CI excludes it (`test.yml:379`) and `tests/ci-workflow.test.js` pins the exclusion, so **nothing anywhere goes red**. `AUDIT-v166` T1 already called it *"the single largest block of permanently-red tests in the repo"* and said it *"teaches every batch to skim past red"* — which is the same reflex that let `main` stay red for a whole batch in 172.
-`test.skip` with the reason in the message, per the decision already taken, or delete it. Either is better than a filter.
+### ~~Resolve `screenshots.spec.js` rather than filtering it~~ ✅ DONE (batch 200), struck 28 Aug 2026
+`tests/visual/screenshots.spec.js:32` carries `test.skip(true, 'needs a signed-in session; 186 made sign-in mandatory and removed the anon fallback. Restore with a test account, never a committed password.')` — which is exactly what this entry asked for, and it has been there since batch 200.
+⚠️ **This is the THIRD copy of one item, and the duplication is the finding worth keeping** (AUDIT-v176). Batches 188 and 190 filed it independently, AUDIT-v166's C3 merged those two, and the 22 Aug blind audit then filed this third copy — which batch 200 never saw when it executed the merged one, so the work was done and the record still said open.
+**The root cause is structural, not careless:** nothing checks a new C item against the existing ones, this file is long, and the duplicates were filed by different processes that could not see each other. **Before adding a C item, grep this file for its subject.**
 
 ### One magnitude check, against real data
 The process audit's highest-value new check, and the only one aimed squarely at this project's stated worst failure mode. `HANDOVER-172` already derived it and applied it only to a seed: *"a fixture can be internally consistent and still be nonsense, and the checks that would catch it are the ones about magnitude, not about shape."*
@@ -645,10 +649,9 @@ Added 13 Aug 2026 with a second worktree, a collision rule, and a five-batch tal
 Fifteen batches, zero items. **The five-batch tally has its answer.** Delete the track's section from `skills/batch/SKILL.md` and this file's header, and let C items ride batches already in the file — which is what actually happens.
 ⚠️ **This item is on the track it proposes to delete, which is the joke and also the evidence.** Whoever picks it up should note that `QUEUE.md` items 0c and 0d exist because Max declined to file two structural fixes here for exactly this reason (22 Aug 2026).
 
-### Change what `docs/PHONE.md` is for
-756 lines, 38 sections, and **exactly two bullets marked settled** — one of which is superseded. A carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked. `skills/batch/SKILL.md` says *"Max works through it in one session."*
-**No handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and every one came from him using the app and saying so in chat, never from working the list. The cost that is not obvious: a standing impression that device risk is managed.
-Two cheap changes. **A "Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price — 193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it was sitting *behind* a "Settled" heading telling the reader to stop. Then **cap the rest at the last three batches and delete what is older**; the handovers are write-once and hold it all.
+### ~~Change what `docs/PHONE.md` is for~~ — MERGED UPWARD 28 Aug 2026 (AUDIT-v176)
+**This was a second, independently-written copy of *"`docs/PHONE.md` needs a groom"* above**, ~350 lines apart, neither citing the other, both quoting "756 lines". Its distinct content is folded into that entry; only the pointer remains here so a reader arriving at this line is not left thinking something was dropped.
+⚠️ **Two audits running have now found this file recording one problem twice** — the other pair is the `screenshots.spec.js` entry above. **Grep this file for the subject before adding a C item.**
 
 ---
 
@@ -763,3 +766,48 @@ ON, which is why this is recorded rather than shrugged at.
 **`tests/insight-parity.test.js` pins the gap as it stands** — it asserts both copies currently ACCEPT
 the inverted-advice sentence, so the day someone closes it that test goes red and makes them come here
 and update this entry rather than the gap silently changing status.
+
+
+---
+
+## C — from AUDIT-v176 (28 Aug 2026)
+
+Filed here per the tier test: none of these would stop, embarrass or hurt a paying customer at launch. The first is the exception in spirit and is flagged for Max rather than queued, because it turns on a decision he owns.
+
+### ⚠️ The protected parser region has NO automated guard, and was edited once without one
+
+**FOR MAX — this is a rule of his and the audit is reporting, not deciding.**
+`CLAUDE.md` says *"Never edit anything inside it. If a fix seems to require it, stop and tell Max — solve outside the region."* **Batch 197 edited inside it** (commit `f259c5c`, PR #198): one line removed, 25 added. Verified twice by hand at AUDIT-v176.
+
+**The change was good and is not in question** — it fixed taught-pack and supplier-memory lines being stored **10% high** because the GST divisor ran on the parser's candidate price rather than the resolved one. Measured then: $5.50/kg stored where $5.00 was right. **The four never-touch functions were NOT modified** and are byte-identical to their v166 state, so the narrower rule held.
+
+**What is missing is the mechanism.** The only region check anywhere is `tests/extractfn.test.js:121`, which asserts the **anchors still slice** — not that the contents are unchanged. Every audit since v125 has compared the hash by hand, and v176 is the first time it moved. **The strongest invariant in `CLAUDE.md` is the only one with no test behind it**, and a silent crossing is indistinguishable from compliance — which is this repo's most-recorded shape, one level up from the code.
+
+Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main` at `ezplate-v176`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+
+### Two handover threads reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`
+
+Recorded because the failure is the routing, not the items: both exist only in write-once handovers, where nothing will ever action them.
+
+- **`HANDOVER-175`** — the supplier FILTER survives over a field that is **95% empty**, so it filters on data that is almost never there.
+- **`HANDOVER-197`** — the pack-to-unit-price arithmetic is written out **four times** (`derivePackPrice`, `applySupplierMemory`, the pack-teach recompute, `invPackPreviewText`), and that handover calls extracting it *"the real root cause fix"*. It was deliberately left unfiled because the author had not measured whether the four are genuinely identical. ⚠️ **Worth the measurement specifically because four copies of one formula is exactly why the GST divisor went missing from three of them** — the defect above. Two of the four are inside the protected region, so acting on it needs Max.
+
+### Two live files carry an incident count `CLAUDE.md` itself disowns
+
+`CLAUDE.md`'s stub roster explicitly records that the "ten across 165-176" figure was wrong. `.githooks/pre-push` (WHY (3)) still says *"ten instances across batches 165-176"*, and `tests/semantic-keys.test.js:21` cites *"CLAUDE.md's fourteen-incident rule"* against a roster now at 22. Neither is load-bearing; both send a reader to a number the authoritative file has disowned. **Not fixed at AUDIT-v176 because both are in files whose diff changes what runs**, which would have pulled a docs-only PR into the mandatory-review path for two comments. Ride the next batch that opens either file.
+
+### `.githooks/pre-push`'s header says "Four checks" and runs five
+
+`CLAUDE.md` is right and the hook is not, which is the inverse of the usual direction and is why it is worth a line. Same file as the entry above; take them together.
+
+### Three handover gaps have accumulated and none reached the README's gap table
+
+`docs/handovers/README.md` lists `v41`, `v65`, `v66` and `batch 189`. **Batches 196, 198 and 209 are also missing.** 196 and 198 were docs-only; 209's is deliberately unwritten and sits on the open `feature/cafe-creation` branch, which says so at its own site. The README's own argument is that *"an unrecorded gap is indistinguishable from a mislaid file"* — so the fix is three lines in the gap table, not three reconstructed handovers, which that file forbids.
+
+### `cafeCost_env` is a stamp, and Tier 2 still says there is no third category
+
+`HANDOVER-172` asked for *"one clause so the next audit does not rediscover it as a violation"*. It was not written, and AUDIT-v176 rediscovered it — the fourth audit in a row to do so for one of these. `js/app.js:43` is `var ENV_STAMP_KEY='cafeCost_env'`; `CLAUDE.md`'s Tier 2 names the constant in its grep list but never resolves the classification.
+
+### `HANDOVER-178`'s proposed rule was never applied
+
+*"A primary action must not live inside a node that re-renders."* Earned by a real defect: Save lived inside `#bFootSum`, which was replaced between touchstart and touchend, so the click was dropped. It was parked on Max's yes **the day before that requirement was reversed**, and the reversal's own justification was that a parked rule sat unapplied while the thing it warned about cost a diagnose cycle. ⚠️ **The reversal does not reach edits proposed BEFORE it** — that is the gap, and `HANDOVER-172`'s proposal is in the same state.
