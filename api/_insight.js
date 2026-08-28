@@ -103,12 +103,28 @@ function factNames(facts) {
    So the NAMES are sequenced too, by the same subsequence rule as the figures. A rewording may drop
    a name; it may not reorder them. Swapping both names AND both figures is already rejected by the
    figures. */
+/* ⚠️ LONGEST NAME FIRST, AND NO OVERLAPS, because a café's section names nest: "Mains" is a
+   substring of "Mains & Grills". Matching each name independently counts the short one twice — once
+   standing alone and once inside the long one — and the spurious entry then has to appear on both
+   sides of the comparison for the answer to come out right. It does today, which is exactly the kind
+   of accident that stops being true when someone rewords a template.
+   Claiming the longest match first and refusing any occurrence that overlaps a claimed span makes
+   the sequence say what it means: which entity is mentioned, in what order.
+   `indexOf`, never a regex — a section named "Fish (Battered)" is a legal name and an illegal
+   pattern, and building a regex out of user data would throw on it. */
 function nameSequence(t, names) {
-  var low = String(t == null ? '' : t).toLowerCase(), hits = [];
-  (names || []).forEach(function (n) {
-    var ln = String(n).toLowerCase(), i = 0, at;
-    if (!ln) return;
-    while ((at = low.indexOf(ln, i)) >= 0) { hits.push({ pos: at, name: ln }); i = at + ln.length; }
+  var low = String(t == null ? '' : t).toLowerCase();
+  var sorted = (names || []).map(String).filter(function (n) { return n.trim(); })
+    .sort(function (a, b) { return b.length - a.length; });
+  var taken = [], hits = [];
+  sorted.forEach(function (n) {
+    var ln = n.toLowerCase(), i = 0, at;
+    while ((at = low.indexOf(ln, i)) >= 0) {
+      var end = at + ln.length;
+      var clash = taken.some(function (r) { return at < r.e && end > r.s; });
+      if (!clash) { taken.push({ s: at, e: end }); hits.push({ pos: at, name: ln }); }
+      i = end;
+    }
   });
   hits.sort(function (a, b) { return a.pos - b.pos; });
   return hits.map(function (h) { return h.name; });

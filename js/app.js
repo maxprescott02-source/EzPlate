@@ -6243,11 +6243,18 @@ function gemFactNames(facts){
   return out;
 }
 function gemNameSequence(t, names){
-  var low=String(t==null?'':t).toLowerCase(), hits=[];
-  (names||[]).forEach(function(n){
-    var ln=String(n).toLowerCase(), i=0, at;
-    if(!ln) return;
-    while((at=low.indexOf(ln,i))>=0){ hits.push({pos:at, name:ln}); i=at+ln.length; }
+  var low=String(t==null?'':t).toLowerCase();
+  var sorted=(names||[]).map(String).filter(function(n){ return n.trim(); })
+    .sort(function(a,b){ return b.length-a.length; });
+  var taken=[], hits=[];
+  sorted.forEach(function(n){
+    var ln=n.toLowerCase(), i=0, at;
+    while((at=low.indexOf(ln,i))>=0){
+      var end=at+ln.length;
+      var clash=taken.some(function(r){ return at<r.e && end>r.s; });
+      if(!clash){ taken.push({s:at,e:end}); hits.push({pos:at, name:ln}); }
+      i=end;
+    }
   });
   hits.sort(function(a,b){ return a.pos-b.pos; });
   return hits.map(function(h){ return h.name; });

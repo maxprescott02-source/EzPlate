@@ -248,3 +248,39 @@ test('GATE: a leading $ is not overwritten by a trailing % across a joiner', () 
   assert.deepStrictEqual(server.numberSkeleton('$24–38%'), [{ v: 24, u: '$' }, { v: 38, u: '%' }]);
   assert.deepStrictEqual(client.gemNumberSkeleton('$24–38%'), server.numberSkeleton('$24–38%'));
 });
+
+test('nested section names are counted once, at their longest match', () => {
+  /* A café's sections nest: "Mains" is a substring of "Mains & Grills". Matching each name
+     independently counted the short one twice — standing alone, and again inside the long one — and
+     the comparison only came out right because the spurious entry appeared on BOTH sides. That is an
+     accident, not a property, and it stops holding the moment a template is reworded.
+     Longest-first with no overlapping claims makes the sequence mean what it says. */
+  const names = ['Mains', 'Mains & Grills'];
+  const tpl = 'Your Mains plates average 20% food cost, Mains & Grills sits at 35%.';
+  assert.deepStrictEqual(server.nameSequence(tpl, names), ['mains', 'mains & grills']);
+  assert.deepStrictEqual(client.gemNameSequence(tpl, names), server.nameSequence(tpl, names));
+
+  const facts = { loName: 'Mains', loPct: 20, hiName: 'Mains & Grills', hiPct: 35 };
+  const legit = 'Your Mains plates run 20% while Mains & Grills sits at 35%.';
+  const swapped = 'Your Mains & Grills plates run 20% while Mains sits at 35%.';
+  assert.ok(server.validatePhrasing(legit, [20, 35], tpl, names), 'a faithful rewording survives');
+  assert.strictEqual(client.gemPhrasingOk(legit, facts, tpl), true);
+  assert.strictEqual(server.validatePhrasing(swapped, [20, 35], tpl, names), null, 'the swap is still caught');
+  assert.strictEqual(client.gemPhrasingOk(swapped, facts, tpl), false);
+});
+
+test('a name that is not a valid regex is matched literally, not compiled', () => {
+  // "Fish (Battered)" is a legal section name and an illegal pattern. indexOf, never RegExp.
+  const names = ['Fish (Battered)'];
+  assert.deepStrictEqual(server.nameSequence('Fish (Battered) is 20%', names), ['fish (battered)']);
+  assert.deepStrictEqual(client.gemNameSequence('Fish (Battered) is 20%', names), ['fish (battered)']);
+  // and a curly apostrophe, which the app's own copy uses throughout
+  assert.deepStrictEqual(server.nameSequence('Scoopy’s Special is 20%', ['Scoopy’s Special']), ['scoopy’s special']);
+});
+
+test('blank and whitespace-only names never enter the sequence', () => {
+  assert.deepStrictEqual(server.factNames({ a: '', b: '   ', c: 'Real' }), ['Real']);
+  assert.deepStrictEqual(client.gemFactNames({ a: '', b: '   ', c: 'Real' }), ['Real']);
+  assert.deepStrictEqual(server.nameSequence('anything at all', ['', '   ']), []);
+  assert.deepStrictEqual(client.gemNameSequence('anything at all', ['', '   ']), []);
+});
