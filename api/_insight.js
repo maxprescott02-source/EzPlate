@@ -6,9 +6,13 @@
  * (api/insight.js) and the Node tests require() the same logic with no live API.
  *
  * HARD LAW (brief §3): the app computes every number deterministically; the model may
- * ONLY rephrase the sentence. It is FORBIDDEN to produce a figure. validatePhrasing is
- * the enforcement: any number in the model's text that isn't one of the facts we handed
- * it => the whole phrasing is rejected and the caller keeps the deterministic template.
+ * ONLY rephrase the sentence. It is FORBIDDEN to produce a figure.
+ * ⚠️ 215 — THAT SENTENCE USED TO END "any number in the model's text that isn't one of the
+ * facts we handed it => the whole phrasing is rejected", AND THE CODE ENFORCED EXACTLY IT.
+ * Membership of a set is not meaning: swapping two facts, turning a % into a $, or reversing
+ * the direction all preserve the set perfectly. validatePhrasing now compares the candidate
+ * against the deterministic TEMPLATE — order, symbol and direction — and the gap it still
+ * has is written out at the function rather than left implied.
  */
 'use strict';
 
@@ -37,7 +41,75 @@ function factNumbers(facts) {
 // to see if a small tweak…") is rejected and the caller keeps the deterministic template.
 var PHRASE_WORD_CAP = 24;
 function wordCount(t) { var m = String(t).trim().match(/\S+/g); return m ? m.length : 0; }
-function validatePhrasing(text, allowedVals) {
+/* 215 — THE SET WAS NOT THE LAW. This file's own header says "any number in the model's text that
+   isn't one of the facts we handed it ⇒ the whole phrasing is rejected", and that sentence was
+   enforced exactly and nothing more: membership of a SET, with no notion of order, unit or sign.
+   Measured against the real function with facts {pts:18, plates:5}, every one of these passed:
+       "Beef, up 18% across 5 plates, is most of it."        (correct)
+       "Beef, up $18 across 5 plates, is most of it."        (% became $)
+       "Beef, up 5% across 18 plates, is most of it."        (the two facts swapped)
+       "Beef is down 18% across 5 plates."                   (direction reversed)
+       "Beef, up 18% across 5 plates, is fine and needs no action."   (advice inverted)
+   Every number was "preserved" in all five. Four of them are false about the café's money.
+
+   The fix compares the candidate against the TEMPLATE — the deterministic sentence the app already
+   computed — rather than against a bag of values, because the template is the meaning and the bag
+   never was.
+
+   numberSkeleton reduces a sentence to the ordered list of its figures and the SYMBOL bound to each:
+   `%`, `$`, or neither. Order catches the swap; the symbol catches a percentage becoming an amount.
+   ⚠️ IT DELIBERATELY IGNORES TRAILING WORD UNITS ("plates", "pts"). Those are prose, and a warmer
+   rewording may legitimately singularise or synonymise them — validating them would reject good
+   sentences, and the cost of a false reject is the feature silently never working. `%` and `$` are
+   symbols, unambiguous, and the pair the audit actually caught. */
+function numberSkeleton(t) {
+  var out = [], re = /(\$?)\s*(-?\d+(?:\.\d+)?)\s*(%?)/g, m;
+  while ((m = re.exec(String(t == null ? '' : t)))) {
+    out.push({ v: parseFloat(m[2]), u: m[3] ? '%' : (m[1] ? '$' : '') });
+  }
+  return out;
+}
+/* ⚠️ A SUBSEQUENCE, NOT AN EQUALITY, AND THE DIFFERENCE IS A CONTRACT THIS FILE ALREADY STATED.
+   validatePhrasing's own docblock says: "It does NOT require every allowed number to reappear: a
+   warmer sentence may omit one, but it may never invent one." Comparing the two skeletons for
+   EQUALITY silently repeals that — "Beef is up 18%" drops a true fact and says nothing false, and
+   equality rejects it. The first draft of 215 did exactly that, and it would have been a regression
+   dressed as a fix, invisible because the feature's failure mode is falling back to the template.
+   So: every figure the candidate DOES carry must appear in the template, in the same order, with
+   the same symbol. Dropping one is allowed; reordering, re-signing or inventing one is not.
+   Measured against the audit's cases, this still rejects both — "$18" matches no template entry
+   because the symbol differs, and "5% … 18" cannot be ordered against "18% … 5". */
+function skeletonIsSubsequence(cand, tpl) {
+  var i = 0;
+  for (var j = 0; j < cand.length; j++) {
+    while (i < tpl.length && !(tpl[i].u === cand[j].u && Math.abs(tpl[i].v - cand[j].v) < 0.005)) i++;
+    if (i >= tpl.length) return false;
+    i++;
+  }
+  return true;
+}
+/* Direction. The skeleton cannot see "up" becoming "down" — same figures, same symbols, opposite
+   claim — so polarity is compared separately.
+   ⚠️ IT IS DELIBERATELY THREE-VALUED AND ONLY ACTS ON A DEFINITE DISAGREEMENT. A sentence carrying
+   both senses ("up 18% but still under target") is genuinely ambiguous, and guessing at it would
+   reject a sentence this app's own templates produce. Ambiguous on EITHER side means the check
+   abstains and the skeleton stands alone — the same "only a definite answer may change the verdict"
+   shape CLAUDE.md records for the boot gate. */
+var UP_WORDS = /\b(up|rose|rises|rising|risen|higher|climb|climbs|climbed|climbing|increase|increased|increases|increasing|more|above|over)\b/i;
+var DOWN_WORDS = /\b(down|fell|falls|fallen|falling|lower|drop|drops|dropped|dropping|decrease|decreased|decreases|decreasing|less|fewer|below|under)\b/i;
+function polarityOf(t) {
+  var s = String(t == null ? '' : t);
+  var u = UP_WORDS.test(s), d = DOWN_WORDS.test(s);
+  return (u && !d) ? 'up' : ((d && !u) ? 'down' : null);
+}
+/* ⚠️ WHAT THIS STILL DOES NOT CATCH, stated here rather than discovered later: an inverted
+   RECOMMENDATION. "…is fine and needs no action" carries the same figures, the same symbols and no
+   direction word, so nothing above sees it. Catching it needs a denylist of advice phrasings, which
+   is the weakest form of assertion this repo records (roster entry 190: "not the wrong value" is a
+   guess about every wrong value there could be). The mitigations are the prompt, the one-sentence
+   and word caps, and that a rejected line costs nothing because the deterministic template is always
+   the fallback. It is filed in docs/MAINTENANCE.md rather than half-built here. */
+function validatePhrasing(text, allowedVals, template) {
   var t = (text == null ? '' : String(text)).trim();
   if (!t || t.length > 240 || wordCount(t) > PHRASE_WORD_CAP) return null;
   // v74 (brief §phrasing): ONE sentence. A terminator (.!?) FOLLOWED by whitespace + more text means a second
@@ -51,6 +123,15 @@ function validatePhrasing(text, allowedVals) {
       if (Math.abs(v - allowedVals[j]) < 0.005) { ok = true; break; }
     }
     if (!ok) return null;   // a number the app never computed → reject the whole line
+  }
+  /* The meaning half. Absent a template there is nothing to compare against and the set check above
+     stands alone — today's behaviour, kept so this function has no way to throw on a caller that
+     predates the argument. Both real callers pass it, and the tests prove that through the public
+     entry points rather than by grepping for the call. */
+  if (template != null && String(template).trim()) {
+    if (!skeletonIsSubsequence(numberSkeleton(t), numberSkeleton(template))) return null;
+    var pt = polarityOf(template), pc = polarityOf(t);
+    if (pt && pc && pt !== pc) return null;
   }
   return t;
 }
@@ -76,7 +157,7 @@ function validateInsightResponse(raw, insights) {
     var ins = insights[i] || {};
     var tpl = ins.text != null ? String(ins.text) : '';
     var cand = obj.lines[i] && obj.lines[i].text;
-    var good = validatePhrasing(cand, factNumbers(ins.facts));
+    var good = validatePhrasing(cand, factNumbers(ins.facts), tpl);   // 215: the template is the meaning to compare against
     out.push({ text: good != null ? good : tpl });   // fall back to the template per line
   }
   return { status: 'ok', lines: out };
@@ -145,5 +226,7 @@ module.exports = {
   validatePhrasing: validatePhrasing,
   validateInsightResponse: validateInsightResponse,
   buildInsightPrompt: buildInsightPrompt,
-  insightSchema: insightSchema
+  insightSchema: insightSchema,
+  numberSkeleton: numberSkeleton,     // 215: exported for the client-parity test, not for the handler
+  polarityOf: polarityOf
 };

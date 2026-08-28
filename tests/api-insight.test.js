@@ -5,6 +5,15 @@
  * the HARD LAW: the model may rephrase but may NEVER produce a figure. validatePhrasing /
  * validateInsightResponse are the enforcement — any number not handed to the model gets the
  * line rejected and the deterministic template kept.
+ *
+ * ⚠️ 215 — THAT PARAGRAPH DESCRIBED THIS FILE ACCURATELY AND DESCRIBED THE FEATURE FALSELY, and
+ * the queue item was as much about this file as about the validator. Every one of the five
+ * validatePhrasing assertions here tested the SAME half — that a number NOT in the fact set is
+ * rejected — while the summary above implied the numbers were protected. They were not: a
+ * sentence could swap two facts, turn a percentage into a dollar amount or reverse the direction,
+ * keep the set intact, and pass.
+ * The MEANING half is now asserted below, by name, and the parity with the client's second copy
+ * of this logic lives in tests/insight-parity.test.js.
  */
 'use strict';
 const { test } = require('node:test');
@@ -102,4 +111,70 @@ test('buildInsightPrompt forbids re-framing a neutral or good line as a problem'
   const p = I.buildInsightPrompt([insight()]);
   assert.match(p, /KEEP THE FRAMING YOU ARE GIVEN/i);
   assert.match(p, /never add "only"/i);
+});
+
+/* ============================================================================================
+ * 215 — THE MEANING HALF. Every assertion above this line tests the SET: a figure the model was
+ * not given is rejected. These test what the set cannot see, and each one is a sentence that
+ * PASSED the shipped validator with every number "preserved".
+ *
+ * The template is the second argument's whole point: it is the deterministic sentence the app
+ * already computed, so it IS the meaning. Comparing against a bag of values never was.
+ * ========================================================================================= */
+const MEANING_TPL = 'Beef, up 18% across 5 plates, is most of it.';
+const MEANING_ALLOWED = [18, 5];
+
+test('215: a percentage may not become a dollar amount', () => {
+  // shipped behaviour: ACCEPTED. $18 and 18% "preserve" the same number and mean different things.
+  assert.equal(I.validatePhrasing('Beef, up $18 across 5 plates, is most of it.', MEANING_ALLOWED, MEANING_TPL), null);
+});
+
+test('215: the two facts may not swap places', () => {
+  // shipped behaviour: ACCEPTED. Same set, both figures reattached to the wrong noun.
+  assert.equal(I.validatePhrasing('Beef, up 5% across 18 plates, is most of it.', MEANING_ALLOWED, MEANING_TPL), null);
+});
+
+test('215: the direction may not be reversed', () => {
+  // shipped behaviour: ACCEPTED. Identical figures and symbols; the opposite claim about the money.
+  assert.equal(I.validatePhrasing('Beef is down 18% across 5 plates.', MEANING_ALLOWED, MEANING_TPL), null);
+});
+
+/* The other side of each, because a validator that rejects everything passes all three above and
+   destroys the feature — the failure mode would be invisible, since a rejected line silently falls
+   back to the template it was meant to warm up. */
+test('215: a genuine rewording still passes', () => {
+  assert.equal(
+    I.validatePhrasing('Beef is up 18% across 5 plates and leads the rise.', MEANING_ALLOWED, MEANING_TPL),
+    'Beef is up 18% across 5 plates and leads the rise.');
+});
+
+test('215: a synonym for the direction still passes', () => {
+  assert.ok(I.validatePhrasing('Beef rose 18% across 5 plates, leading the rise.', MEANING_ALLOWED, MEANING_TPL));
+});
+
+test('215: omitting a fact is still allowed, as this file\'s docblock promises', () => {
+  // The check is a SUBSEQUENCE, not an equality, precisely to keep this. An equality would have
+  // repealed a documented freedom while looking like a tightening.
+  assert.ok(I.validatePhrasing('Beef is up 18% and leads the rise.', MEANING_ALLOWED, MEANING_TPL));
+});
+
+test('215: a sentence carrying BOTH directions does not trip the polarity check', () => {
+  // "up … under" is ambiguous, and this app's own templates produce it. Guessing would reject
+  // good sentences, so the check abstains unless both sides are definite and disagree.
+  assert.ok(I.validatePhrasing('Beef, up 18% across 5 plates, is still under target.', MEANING_ALLOWED, MEANING_TPL));
+});
+
+test('215: validateInsightResponse threads the template, not just the fact set', () => {
+  // The end-to-end proof that the template actually reaches the validator. Asserted through the
+  // public entry point rather than by grepping the call site for an argument (roster entry 167).
+  const insights = [{ facts: { pts: 18, plates: 5 }, text: MEANING_TPL }];
+  const swapped = { lines: [{ text: 'Beef, up 5% across 18 plates, is most of it.' }] };
+  const out = I.validateInsightResponse(swapped, insights);
+  assert.equal(out.lines[0].text, MEANING_TPL, 'the swapped line is rejected and the template kept');
+});
+
+test('215: with no template the set check still stands alone', () => {
+  // The pre-215 contract, kept so the function cannot throw on a caller that predates the argument.
+  assert.ok(I.validatePhrasing('Beef, up 5% across 18 plates, is most of it.', MEANING_ALLOWED));
+  assert.equal(I.validatePhrasing('Beef costs $99.', MEANING_ALLOWED), null);
 });

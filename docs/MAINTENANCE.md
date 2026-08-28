@@ -698,3 +698,33 @@ question that settles it is what puts the class ON an element, and the answer is
 It rides whichever batch next opens `css/style.css` §13 or that handler block. Related: the
 dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.ing-empty`,
 `.an-empty`, `.plate-noresult`, `.king-tag`) — same class, and this is a seventh.
+
+---
+
+## The insight validator cannot see an inverted RECOMMENDATION
+
+Left open deliberately by batch 215, which fixed the other three cases the blind audit found.
+
+`validatePhrasing` now compares a candidate against the deterministic template's figures in **order**
+and **symbol** (`%` vs `$`), and rejects a reversed **direction**. What it cannot see is advice:
+
+```
+template   "Beef, up 18% across 5 plates, is most of it."
+accepted   "Beef, up 18% across 5 plates, is fine and needs no action."
+```
+
+Same figures, same symbols, no direction word — every check passes, and the sentence tells Max to do
+nothing about the thing the dashboard raised.
+
+⚠️ **It is NOT built because the only cheap implementation is a denylist of advice phrasings, which is
+the weakest assertion shape this repo records** (`CLAUDE.md` roster entry 190: *"not the wrong value"
+is a guess about every wrong value there could be). A real fix would have to compare intent, which is
+the thing the app deliberately refuses to let a model decide.
+
+**What holds the line meanwhile:** the prompt, the one-sentence and 24-word caps, and that a rejected
+line costs nothing because the deterministic template is always the fallback. The toggle also defaults
+ON, which is why this is recorded rather than shrugged at.
+
+**`tests/insight-parity.test.js` pins the gap as it stands** — it asserts both copies currently ACCEPT
+the inverted-advice sentence, so the day someone closes it that test goes red and makes them come here
+and update this entry rather than the gap silently changing status.

@@ -6217,8 +6217,37 @@ function computeInsights(scope, seed){
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
    (defence-in-depth — the server validates too). Rejecting extra numbers is what stops the AI
-   from ever presenting a figure the app didn't compute. */
-function gemPhrasingOk(text, facts){
+   from ever presenting a figure the app didn't compute.
+   ⚠️ 215 — THIS IS THE SECOND COPY OF `api/_insight.js`'s validator AND IT ALWAYS WILL BE. There is
+   no build step, so a browser script cannot `require()` the server module; the duplication is a
+   constraint of this project rather than an oversight, and CLAUDE.md's remedy for an unavoidable
+   copy is the one applied here: `tests/insight-parity.test.js` runs one table of cases through BOTH
+   and fails if they ever disagree. **If you change either function, change both and run that test.**
+   The three checks below mirror `numberSkeleton`, `skeletonsAgree` and `polarityOf`; the reasoning
+   for each — why word units are ignored, why polarity abstains when either side is ambiguous — is
+   written out once at the server copy and is not repeated here, because two copies of a rationale
+   rot independently. */
+var GEM_UP_WORDS=/\b(up|rose|rises|rising|risen|higher|climb|climbs|climbed|climbing|increase|increased|increases|increasing|more|above|over)\b/i;
+var GEM_DOWN_WORDS=/\b(down|fell|falls|fallen|falling|lower|drop|drops|dropped|dropping|decrease|decreased|decreases|decreasing|less|fewer|below|under)\b/i;
+function gemNumberSkeleton(t){
+  var out=[], re=/(\$?)\s*(-?\d+(?:\.\d+)?)\s*(%?)/g, m;
+  while((m=re.exec(String(t==null?'':t)))) out.push({v:parseFloat(m[2]), u:m[3]?'%':(m[1]?'$':'')});
+  return out;
+}
+function gemSkeletonIsSubsequence(cand,tpl){
+  var i=0;
+  for(var j=0;j<cand.length;j++){
+    while(i<tpl.length && !(tpl[i].u===cand[j].u && Math.abs(tpl[i].v-cand[j].v)<0.005)) i++;
+    if(i>=tpl.length) return false;
+    i++;
+  }
+  return true;
+}
+function gemPolarityOf(t){
+  var s=String(t==null?'':t), u=GEM_UP_WORDS.test(s), d=GEM_DOWN_WORDS.test(s);
+  return (u&&!d)?'up':((d&&!u)?'down':null);
+}
+function gemPhrasingOk(text, facts, template){
   var t=(text==null?'':String(text)).trim(); if(!t || t.length>240) return false;
   var words=t.match(/\S+/g); if(words && words.length>24) return false;   // v74: same ~24-word scannability cap as the server (_insight.js)
   if(/[.!?]\s+\S/.test(t)) return false;                                  // v74: one sentence only (mirrors _insight.js)
@@ -6228,6 +6257,11 @@ function gemPhrasingOk(text, facts){
     var v=parseFloat(m[0]), ok=false;
     for(var j=0;j<allowed.length;j++){ if(Math.abs(v-allowed[j])<0.005){ ok=true; break; } }
     if(!ok) return false;
+  }
+  if(template!=null && String(template).trim()){
+    if(!gemSkeletonIsSubsequence(gemNumberSkeleton(t), gemNumberSkeleton(template))) return false;
+    var pt=gemPolarityOf(template), pc=gemPolarityOf(t);
+    if(pt && pc && pt!==pc) return false;
   }
   return true;
 }
@@ -6272,7 +6306,7 @@ function gemPhraseInsights(insights, scopeKey){
       var refined=false;                                             // v68: true only if ≥1 shown line is actually Gemini's phrasing (drives the honest credit)
       var lines=insights.map(function(ins,ix){                       // per line: accept the phrasing only if it passes the number check, else keep the template
         var cand=payload.lines[ix] && payload.lines[ix].text;
-        if(cand && gemPhrasingOk(cand, ins.facts)){ refined=true; return String(cand).trim(); }
+        if(cand && gemPhrasingOk(cand, ins.facts, ins.text)){ refined=true; return String(cand).trim(); }   // 215: ins.text is the template — the meaning to compare against
         return ins.text;
       });
       gemInsightPhrased={key:key, lines:lines, refined:refined};
@@ -6874,7 +6908,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v175';
+var APP_VERSION='v176';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

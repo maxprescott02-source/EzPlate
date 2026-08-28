@@ -172,27 +172,7 @@ So the walk through the app reads **report, invite, invite, report** — and the
 **Requirements:** the six titles are one voice, or the rule that makes them differ is written down where the next person adding a screen will read it.
 **Out of scope:** the bodies and the CTA labels, which were read and are consistent. The four object nouns are fixed by `tests/terminology.test.js` and none of the options may invent a fifth.
 
-## next  7 · The insight validator checks the digits, not what they mean  **[B]**
-
-From the blind code audit, 22 Aug 2026. `api/_insight.js` states a hard law — *"any number in the model's text that isn't one of the facts we handed it ⇒ the whole phrasing is rejected"* — and enforces exactly that sentence and nothing more. `validatePhrasing` (`api/_insight.js:40-58`) is **set membership** over `/-?\d+(?:\.\d+)?/g` with a ±0.005 tolerance. Nothing checks position, adjacency, unit or sign.
-
-Run against the real function with facts `{pts:18, plates:5}`, **all of these are ACCEPTED**:
-
-```
-"Beef, up 18% across 5 plates, is most of it."          correct
-"Beef, up $18 across 5 plates, is most of it."          % became $
-"Beef, up 5% across 18 plates, is most of it."          facts swapped
-"Beef is down 18% across 5 plates."                     direction reversed
-"Beef, up 18% across 5 plates, is fine and needs no action."   advice inverted
-```
-
-The endpoint runs at `temperature: 0.4`, the toggle **defaults ON** (`js/app.js:9041`), and `api/insight.js`'s own header tells the reader this is safe: *"every number preserved (enforced by `_insight.validateInsightResponse`)"*. Number preservation is not what is enforced.
-
-**`tests/api-insight.test.js` is the other half of this item.** Its header calls this *"the HARD LAW"*; all five of its `validatePhrasing` assertions test the same half — a number NOT in the fact set is rejected. **Nothing tests meaning.** The file's own summary sentence is false about what it checks.
-
-Requirements: validate the **sequence** of numbers rather than the set, and reject a candidate whose number-adjacent unit tokens (`%`, `$`, `pts`) differ from the template's. That still permits rewording, which is all the feature needs. The test asserts the meaning half by name.
-
-## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
+## next  7 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 
 `js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
 
@@ -202,7 +182,7 @@ The comment three lines below already reasons about exactly this hazard for the 
 
 Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
 
-## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
+## next  8 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
 
 `costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
 
@@ -212,7 +192,7 @@ Reached by a restore that `backupRefCheck` flagged as a soft problem — the con
 
 Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
 
-## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
+## next  9 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
 
