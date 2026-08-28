@@ -172,7 +172,29 @@ So the walk through the app reads **report, invite, invite, report** — and the
 **Requirements:** the six titles are one voice, or the rule that makes them differ is written down where the next person adding a screen will read it.
 **Out of scope:** the bodies and the CTA labels, which were read and are consistent. The four object nouns are fixed by `tests/terminology.test.js` and none of the options may invent a fifth.
 
-## next  7 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
+## next  7 · Three insight families do not put their subject in `facts`  **[B]**
+
+Found by batch 215's second pre-push review, running the REAL insight builders rather than the batch's own fixtures.
+
+215 made the phrasing validator compare a model's rewording against the deterministic template — figures in order, `%` vs `$`, direction, and the ORDER OF THE ENTITY NAMES. The name check reads `factNames(ins.facts)`, i.e. the string values in an insight's facts.
+
+**Three families name their subject only in the rendered `text` and put no name in `facts`, so for them the name check has nothing to sequence:**
+
+| Family | `facts` | what the text names |
+|---|---|---|
+| `insCostBase` | `{pts, ingPct, plates}` | the culprit **ingredient** ("Beef") |
+| `insConcentration` | `{plates, total, rise, pts}` | the **supplier** |
+| `insPriceAnomaly` | `{top, mult}` | the **product** and its unit |
+
+⚠️ **`insCostBase` is the family the original blind audit used as its example**, so the motivating case is the one still uncovered. Measured: replacing "Beef" with "Chicken" throughout, keeping every figure and symbol identical, is ACCEPTED by both copies of the validator.
+
+**What it costs a real person:** the cost rise is blamed on the wrong ingredient, the supplier exposure on the wrong supplier, the price anomaly on the wrong product — in the warmer voice that is supposed to mean the number was checked.
+
+**Requirements:** each of the three carries its subject in `facts`, so the existing name check covers it. One key per family and nothing else changes — `factNumbers` filters to `typeof === 'number'`, so a string fact cannot disturb the number law, and the name is already in the prompt via the template text.
+⚠️ **It is a change to the insight ENGINE, not the validator, which is why 215 did not do it**: `computeInsights` is a mutation target with a large existing suite, and `tests/insight-coverage.test.js` already reasons about which families have a `facts.name` (see its note about an anomaly "whose facts are only `{top, mult}`"). Read that file before adding keys.
+✅ **`tests/insight-real-templates.test.js` already pins the gap as it stands** — its `KNOWN GAP` test asserts the swap is currently accepted, so this item going in turns that test RED by design. Invert it and delete the gap note; do not weaken it.
+
+## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 
 `js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
 
@@ -182,7 +204,7 @@ The comment three lines below already reasons about exactly this hazard for the 
 
 Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
 
-## next  8 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
+## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
 
 `costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
 
@@ -192,7 +214,7 @@ Reached by a restore that `backupRefCheck` flagged as a soft problem — the con
 
 Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
 
-## next  9 · A price point is logged even when the write carrying it was rejected  **[B]**
+## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
 

@@ -31,7 +31,9 @@ const client = new Function(`
   "use strict";
   ${extractVar(src, 'GEM_UP_WORDS')}
   ${extractVar(src, 'GEM_DOWN_WORDS')}
-  ${extractVar(src, 'GEM_NEGATORS')}
+  ${extractVar(src, 'GEM_NEG_NEAR')}
+  ${extractVar(src, 'GEM_UP_G')}
+  ${extractVar(src, 'GEM_DOWN_G')}
   ${extractVar(src, 'GEM_NUM_EPS')}
   ${extractFn(src, 'gemSameNumber')}
   ${extractFn(src, 'gemNumberSkeleton')}
@@ -39,6 +41,7 @@ const client = new Function(`
   ${extractFn(src, 'gemFactNames')}
   ${extractFn(src, 'gemNameSequence')}
   ${extractFn(src, 'gemNamesAreSubsequence')}
+  ${extractFn(src, 'gemHasUnnegated')}
   ${extractFn(src, 'gemPolarityOf')}
   ${extractFn(src, 'gemPhrasingOk')}
   return { gemPhrasingOk, gemNumberSkeleton, gemPolarityOf, gemFactNames, gemNameSequence, gemSameNumber };
@@ -283,4 +286,28 @@ test('blank and whitespace-only names never enter the sequence', () => {
   assert.deepStrictEqual(client.gemFactNames({ a: '', b: '   ', c: 'Real' }), ['Real']);
   assert.deepStrictEqual(server.nameSequence('anything at all', ['', '   ']), []);
   assert.deepStrictEqual(client.gemNameSequence('anything at all', ['', '   ']), []);
+});
+
+test('negation is PROXIMATE, so a distant "not" does not disable the direction check', () => {
+  /* insLongStanding ships "…over target … — 4 months, not a one-off.", where "not" negates
+     "a one-off" and has nothing to do with "over target". A sentence-wide negation test returned
+     null for every render of that family, so the direction guard could never fire for it — a
+     chronic problem plate could be reported as fine. Found by the second pre-push review, running
+     the REAL template rather than the fixture. */
+  const distant = 'Kebab has been over target through every cost change since March — 4 months, not a one-off.';
+  const adjacent = 'A healthy read — nothing sits over your 30% target across 12 costed plates.';
+  for (const [fn, label] of [[server.polarityOf, 'server'], [client.gemPolarityOf, 'client']]) {
+    assert.strictEqual(fn(distant), 'up', `${label}: a far-away negator does not suppress the direction`);
+    assert.strictEqual(fn(adjacent), null, `${label}: a negator just before it does`);
+  }
+});
+
+test('a contraction counts as a negator, which \\bn\'t\\b could never do', () => {
+  // There is no word boundary inside "isn't", so the original alternative could not match any real
+  // contraction — it silently narrowed the safety net the polarity check depends on.
+  for (const fn of [server.polarityOf, client.gemPolarityOf]) {
+    assert.strictEqual(fn("Kebab isn't over target"), null, 'straight apostrophe');
+    assert.strictEqual(fn('Kebab isn\u2019t over target'), null, 'and the curly one the app copy uses');
+    assert.strictEqual(fn('Kebab is over target'), 'up', 'while the un-negated form still reads as up');
+  }
 });

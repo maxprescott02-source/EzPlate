@@ -6279,11 +6279,18 @@ function gemSkeletonIsSubsequence(cand,tpl){
   }
   return true;
 }
-var GEM_NEGATORS=/\b(no|not|nothing|none|never|nobody|without|n't)\b/i;
+var GEM_NEG_NEAR=/(?:\b(?:no|not|nothing|none|never|nobody|without)\b|n['\u2019]t\b)[^.!?]{0,14}$/i;
+var GEM_UP_G=new RegExp(GEM_UP_WORDS.source,'gi');
+var GEM_DOWN_G=new RegExp(GEM_DOWN_WORDS.source,'gi');
+function gemHasUnnegated(s,re){
+  re.lastIndex=0;
+  var m;
+  while((m=re.exec(s))){ if(!GEM_NEG_NEAR.test(s.slice(Math.max(0,m.index-28), m.index))) return true; }
+  return false;
+}
 function gemPolarityOf(t){
   var s=String(t==null?'':t);
-  if(GEM_NEGATORS.test(s)) return null;
-  var u=GEM_UP_WORDS.test(s), d=GEM_DOWN_WORDS.test(s);
+  var u=gemHasUnnegated(s,GEM_UP_G), d=gemHasUnnegated(s,GEM_DOWN_G);
   return (u&&!d)?'up':((d&&!u)?'down':null);
 }
 function gemPhrasingOk(text, facts, template){

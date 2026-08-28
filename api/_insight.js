@@ -180,11 +180,35 @@ var DOWN_WORDS = /\b(down|fell|falls|fallen|falling|lower|drop|drops|dropped|dro
    Negation makes the whole sentence ambiguous rather than inverted: working out WHAT is negated is
    the denylist problem this file already refuses elsewhere. Ambiguous means abstain, which leaves
    the figures doing the work. */
-var NEGATORS = /\b(no|not|nothing|none|never|nobody|without|n't)\b/i;
+/* ⚠️ NEGATION IS PROXIMATE, NOT SENTENCE-WIDE, and the first draft got this wrong in a way that
+   disabled the check entirely for a whole insight family. Asking "does this sentence contain a
+   negator anywhere" abstains far too often: `insLongStanding` ships
+       "Kebab has been over target through every cost change since March — 4 months, not a one-off."
+   where "not" negates "a one-off" and has nothing to do with "over target". Sentence-wide negation
+   made `polarityOf` return null for EVERY render of that family, so a rewording could flip "over
+   target" to "under target" — a chronic problem plate reported as fine — and the guard could never
+   fire. Found by the second pre-push review, which ran the REAL template rather than the fixture.
+   So a direction word counts unless a negator sits just before it. The window is small and
+   character-based rather than clause-aware, which is the honest limit of doing this without a
+   parser: it catches "nothing sits over", "isn't over", "no longer above", and it does not pretend
+   to resolve which clause a distant "not" belongs to.
+   ⚠️ `n['’]t` carries NO leading \b — there is no word boundary inside "isn't", so `\bn't\b` can
+   never match any contraction. That was finding 3 of the same review, and it silently narrowed the
+   safety net this whole check depends on. Both apostrophes, because the app's copy uses the curly one. */
+var NEG_NEAR = /(?:\b(?:no|not|nothing|none|never|nobody|without)\b|n['\u2019]t\b)[^.!?]{0,14}$/i;
+var UP_WORDS_G = new RegExp(UP_WORDS.source, 'gi');
+var DOWN_WORDS_G = new RegExp(DOWN_WORDS.source, 'gi');
+function hasUnnegated(s, re) {
+  re.lastIndex = 0;
+  var m;
+  while ((m = re.exec(s))) {
+    if (!NEG_NEAR.test(s.slice(Math.max(0, m.index - 28), m.index))) return true;
+  }
+  return false;
+}
 function polarityOf(t) {
   var s = String(t == null ? '' : t);
-  if (NEGATORS.test(s)) return null;
-  var u = UP_WORDS.test(s), d = DOWN_WORDS.test(s);
+  var u = hasUnnegated(s, UP_WORDS_G), d = hasUnnegated(s, DOWN_WORDS_G);
   return (u && !d) ? 'up' : ((d && !u) ? 'down' : null);
 }
 /* ⚠️ WHAT THIS STILL DOES NOT CATCH, stated here rather than discovered later: an inverted
