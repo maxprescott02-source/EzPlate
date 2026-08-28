@@ -6874,7 +6874,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v174';
+var APP_VERSION='v175';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -11101,6 +11101,10 @@ function aRow(name,a,m){
     '<span class="mnu-verdict">'+vbadge(a)+'</span></button>';
 }
 function renderAnalysis(){
+  /* 214: the Menu screen's own renderer re-asks it. rebuildMenu covers a MENU changing; this covers
+     a PLATE changing, which happens on another screen entirely — save a first plate on Plates, come
+     back here, and the control has to have appeared without anything having told this screen so. */
+  if(typeof updateMenuAddDishBtn==='function') updateMenuAddDishBtn();
   var tb=document.getElementById('aBody'); if(!tb) return;
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested at '+cogsPct+'%';
   /* F5: the mock's §3.2 header sub-line is the current menu's name, and its footnote states the
@@ -11211,6 +11215,7 @@ function buildMenuSelector(){
     if(currentMenuId) sel.value=currentMenuId;
   }
   updateMenuDelBtn();
+  updateMenuAddDishBtn();   // 214: menus changed, so "is there a menu to add to" may have changed
   buildMenuPills();
   buildMenuPickers();
 }
@@ -11308,6 +11313,31 @@ function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) 
 var adSelectedPlateId=null;
 function eligibleDishes(){                                         // costed plates, most useful first
   return savedPlates.filter(function(sp){ return sp && sp.lines && sp.lines.length && costFromLines(sp.lines)>0; });
+}
+/* 214 — "Existing plate" was offered before it could do anything. At zero costed plates the button
+   sat in the Menu header (and, below 768, wrapped onto its own row under it, reading as an orphan)
+   and opened a modal whose entire content was "No costed plates found. Build and save a plate
+   first." A control that can only ever explain why it is useless is one the screen should not be
+   offering; §4's own definition of done says a first-run state carries no dead control.
+   ⚠️ IT ASKS `eligibleDishes()`, THE PICKER'S OWN FUNCTION, and that is the load-bearing part rather
+   than a tidiness one. A second definition of "is there anything to add" would be a stub of this one
+   and would agree with it right up until the day it did not — the shape CLAUDE.md records twenty-two
+   times. The button's visibility and the modal's emptiness now cannot disagree, because they are the
+   same answer read twice.
+   Zero MENUS hides it too: the screen is showing "No menus yet." with its own New-menu action, and
+   an add-to-menu control beside it names a menu that does not exist. */
+/* ⚠️ `menusList.length` is a PROXY for what `submitAddDish` actually gates on, which is
+   `currentMenuId`, and the two agree only because `buildMenuSelector` corrects a stale
+   `currentMenuId` to `fallbackMenuId()` immediately BEFORE it calls this — in the same function,
+   in that order. Every path that mutates `menusList` repaints through there today, so the proxy
+   holds. If you ever reach this from a path that changes `menusList` WITHOUT running
+   `buildMenuSelector` first, the button can reappear while the modal still refuses, which is the
+   exact dead control this exists to remove. Keep the two together, or read `currentMenuId` here.
+   (Raised by the pre-push review as a fragility rather than a live bug; I could not construct a
+   reachable flow either, and the comment is the cheap half of never needing to.) */
+function updateMenuAddDishBtn(){
+  var b=document.getElementById('menuAddDishBtn'); if(!b) return;
+  b.hidden=!(menusList.length && eligibleDishes().length);
 }
 function renderDishPicker(filter){
   var box=document.getElementById('ad_list'); if(!box) return;
