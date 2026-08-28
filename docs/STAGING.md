@@ -1,5 +1,13 @@
 # Staging
 
+> ⚠️ **THE STAGING PROJECT IS DOWN AS OF 27 AUG 2026, AND EVERY PROCEDURE BELOW IS CURRENTLY UNRUNNABLE.**
+> `pboidoxjghntalovzrke.supabase.co` does not resolve — **NXDOMAIN**, re-measured 28 Aug 2026 — and every query times out. Production resolves normally and is unaffected.
+> **Steps 2 through 7 cannot run.** A migration written today reaches production **unrehearsed**, which is the exact state batch 172 built this file to end.
+> **Unblocking it needs Max**: the project is paused in his Supabase account and only he can resume it. `docs/QUEUE.md` items 1 and 5a are both blocked on precisely this.
+>
+> ⚠️ **This warning is here because its absence was a live hazard, not a tidiness matter** (AUDIT-v176, 28 Aug 2026). `docs/QUEUE.md` recorded the outage in two places and this file recorded it in none — while `CLAUDE.md`'s Migrations section says *"STAGING IS NOW REAL. `docs/STAGING.md` is the procedure; follow it rather than this bullet."* So the one file a batch is sent to as authoritative was the one file that read as though the rehearsal worked, and the batch would have found out when a query hung.
+> **Delete this block when the project is resumed — and check the DNS resolves before you do**, rather than on the strength of someone saying it is back.
+
 The second Supabase project, and the procedure that makes "rehearse before production" real.
 
 Built in batch 172 (11 Aug 2026). Before it, `.mcp.json` had carried a staging project since v121 and the MCP server answered — but the schema was **empty**, so there was nothing to rehearse against and every migration since v89 reached production unrehearsed. `CLAUDE.md` said so out loud at *Migrations — Claude applies them*. That warning is now spent; this file replaces it.
