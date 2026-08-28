@@ -31,6 +31,15 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
+## next  0 · Run `project-audit` at `ezplate-v176`
+
+**Queued by the `/batch` loop's step 10, not by a person.** The newest file in `docs/audits/` is `AUDIT-v166.md` and `sw.js` now reads `ezplate-v176`: a gap of **10**, which is the trigger. It sits above every unblocked item by that rule.
+
+**Requirements:** run the `project-audit` agent, then **YOU file its report** to `docs/audits/AUDIT-v176.md` at the version it audited.
+⚠️ **The agent is read-only and hands the report back rather than saving it, so an unfiled report leaves the counter unchanged and the next audit is never queued.** Filing it IS the work; running it is not enough.
+
+**Out of scope:** fixing what it finds. The audit reports; each finding is then routed by the tier test in this file's header, and the default is `docs/MAINTENANCE.md`. Nothing about the process itself becomes a queue item.
+
 ## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
 Blocked on: **Max resuming the STAGING Supabase project.** Its subdomain does not resolve and every query times out (re-checked 27 Aug 2026, batch 210), so `docs/STAGING.md` steps 2–7 cannot run and the migration is unrehearsed.
