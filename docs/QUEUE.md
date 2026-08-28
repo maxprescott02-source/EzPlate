@@ -172,25 +172,27 @@ So the walk through the app reads **report, invite, invite, report** — and the
 **Requirements:** the six titles are one voice, or the rule that makes them differ is written down where the next person adding a screen will read it.
 **Out of scope:** the bodies and the CTA labels, which were read and are consistent. The four object nouns are fixed by `tests/terminology.test.js` and none of the options may invent a fifth.
 
-## next  7 · The insight validator checks the digits, not what they mean  **[B]**
+## next  7 · Three insight families do not put their subject in `facts`  **[B]**
 
-From the blind code audit, 22 Aug 2026. `api/_insight.js` states a hard law — *"any number in the model's text that isn't one of the facts we handed it ⇒ the whole phrasing is rejected"* — and enforces exactly that sentence and nothing more. `validatePhrasing` (`api/_insight.js:40-58`) is **set membership** over `/-?\d+(?:\.\d+)?/g` with a ±0.005 tolerance. Nothing checks position, adjacency, unit or sign.
+Found by batch 215's second pre-push review, running the REAL insight builders rather than the batch's own fixtures.
 
-Run against the real function with facts `{pts:18, plates:5}`, **all of these are ACCEPTED**:
+215 made the phrasing validator compare a model's rewording against the deterministic template — figures in order, `%` vs `$`, direction, and the ORDER OF THE ENTITY NAMES. The name check reads `factNames(ins.facts)`, i.e. the string values in an insight's facts.
 
-```
-"Beef, up 18% across 5 plates, is most of it."          correct
-"Beef, up $18 across 5 plates, is most of it."          % became $
-"Beef, up 5% across 18 plates, is most of it."          facts swapped
-"Beef is down 18% across 5 plates."                     direction reversed
-"Beef, up 18% across 5 plates, is fine and needs no action."   advice inverted
-```
+**Three families name their subject only in the rendered `text` and put no name in `facts`, so for them the name check has nothing to sequence:**
 
-The endpoint runs at `temperature: 0.4`, the toggle **defaults ON** (`js/app.js:9041`), and `api/insight.js`'s own header tells the reader this is safe: *"every number preserved (enforced by `_insight.validateInsightResponse`)"*. Number preservation is not what is enforced.
+| Family | `facts` | what the text names |
+|---|---|---|
+| `insCostBase` | `{pts, ingPct, plates}` | the culprit **ingredient** ("Beef") |
+| `insConcentration` | `{plates, total, rise, pts}` | the **supplier** |
+| `insPriceAnomaly` | `{top, mult}` | the **product** and its unit |
 
-**`tests/api-insight.test.js` is the other half of this item.** Its header calls this *"the HARD LAW"*; all five of its `validatePhrasing` assertions test the same half — a number NOT in the fact set is rejected. **Nothing tests meaning.** The file's own summary sentence is false about what it checks.
+⚠️ **`insCostBase` is the family the original blind audit used as its example**, so the motivating case is the one still uncovered. Measured: replacing "Beef" with "Chicken" throughout, keeping every figure and symbol identical, is ACCEPTED by both copies of the validator.
 
-Requirements: validate the **sequence** of numbers rather than the set, and reject a candidate whose number-adjacent unit tokens (`%`, `$`, `pts`) differ from the template's. That still permits rewording, which is all the feature needs. The test asserts the meaning half by name.
+**What it costs a real person:** the cost rise is blamed on the wrong ingredient, the supplier exposure on the wrong supplier, the price anomaly on the wrong product — in the warmer voice that is supposed to mean the number was checked.
+
+**Requirements:** each of the three carries its subject in `facts`, so the existing name check covers it. One key per family and nothing else changes — `factNumbers` filters to `typeof === 'number'`, so a string fact cannot disturb the number law, and the name is already in the prompt via the template text.
+⚠️ **It is a change to the insight ENGINE, not the validator, which is why 215 did not do it**: `computeInsights` is a mutation target with a large existing suite, and `tests/insight-coverage.test.js` already reasons about which families have a `facts.name` (see its note about an anomaly "whose facts are only `{top, mult}`"). Read that file before adding keys.
+✅ **`tests/insight-real-templates.test.js` already pins the gap as it stands** — its `KNOWN GAP` test asserts the swap is currently accepted, so this item going in turns that test RED by design. Invert it and delete the gap note; do not weaken it.
 
 ## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 

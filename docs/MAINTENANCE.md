@@ -698,3 +698,68 @@ question that settles it is what puts the class ON an element, and the answer is
 It rides whichever batch next opens `css/style.css` §13 or that handler block. Related: the
 dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.ing-empty`,
 `.an-empty`, `.plate-noresult`, `.king-tag`) — same class, and this is a seventh.
+
+---
+
+## A REJECTED phrasing is not free, and the entry below says it is
+
+Batch 215, third review round. Recorded because it qualifies a sentence sitting a few lines down —
+*"a rejected line costs nothing because the deterministic template is always the fallback"* — which is
+true about CORRECTNESS and false about everything else.
+
+By the time the validator rejects a line, the POST has already happened: the café's plate names and
+costing figures have gone to Google's free Gemini tier, the quota is spent, and `docs/` carries a
+privacy disclosure covering exactly that transfer. What the rejection saves is only the wrong words.
+**So the false-reject rate is a real cost with no visible symptom** — the panel renders correct
+templates and looks like it is working, which is the same shape as every silent failure this repo
+records.
+
+**Measured while fixing the prompt (batch 215):** against hand-written faithful rewordings of the real
+templates, **4 of 10 were rejected, every one a clause reorder.** That was caused by the prompt telling
+the model to *"FRONT-LOAD the fact"* while the validator required the figures in template order — the
+two halves of one feature disagreeing. The prompt now asks for what the validator allows, and
+`tests/api-insight.test.js` pins the instruction.
+
+⚠️ **What is NOT known, and the honest limit of that number: those ten sentences were written by hand,
+not sampled from Gemini.** They show the check forbids a natural class of rewording; they are not a
+production reject rate, and nothing here measures one.
+
+**What would settle it** is instrumenting the real endpoint — count validated vs rejected phrasings
+over a period of Max's actual use and read the ratio. That is a small change to `api/insight.js` plus
+somewhere to put the counter, and it is C rather than B because the failure it would expose degrades to
+correct output. **Do it before anyone argues from a guess about how often this fires**, in either
+direction: the ordering rule is load-bearing (see the `insDrift` tests in
+`tests/insight-real-templates.test.js`, where order is the ONLY signal separating "from 25% to 40%"
+from "from 40% to 25%"), so a high reject rate is an argument for a better PROMPT, never for relaxing
+the check.
+
+---
+
+## The insight validator cannot see an inverted RECOMMENDATION
+
+Left open deliberately by batch 215.
+⚠️ **An earlier draft of this entry said 215 "fixed the other three cases the blind audit found", and the pre-push review was right that it overstated.** 215 fixed the audit's three *as the audit demonstrated them*, and the review then found a FOURTH shape of the same swap class — two entity NAMES with one figure each, where swapping the names preserves order and symbols perfectly. That is fixed too (the names are sequenced), so the standing gap is the one below and only the one below.
+
+`validatePhrasing` now compares a candidate against the deterministic template's figures in **order**
+and **symbol** (`%` vs `$`), and rejects a reversed **direction**. What it cannot see is advice:
+
+```
+template   "Beef, up 18% across 5 plates, is most of it."
+accepted   "Beef, up 18% across 5 plates, is fine and needs no action."
+```
+
+Same figures, same symbols, no direction word — every check passes, and the sentence tells Max to do
+nothing about the thing the dashboard raised.
+
+⚠️ **It is NOT built because the only cheap implementation is a denylist of advice phrasings, which is
+the weakest assertion shape this repo records** (`CLAUDE.md` roster entry 190: *"not the wrong value"
+is a guess about every wrong value there could be). A real fix would have to compare intent, which is
+the thing the app deliberately refuses to let a model decide.
+
+**What holds the line meanwhile:** the prompt, the one-sentence and 24-word caps, and that a rejected
+line costs nothing because the deterministic template is always the fallback. The toggle also defaults
+ON, which is why this is recorded rather than shrugged at.
+
+**`tests/insight-parity.test.js` pins the gap as it stands** — it asserts both copies currently ACCEPT
+the inverted-advice sentence, so the day someone closes it that test goes red and makes them come here
+and update this entry rather than the gap silently changing status.
