@@ -701,6 +701,40 @@ dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.
 
 ---
 
+## A REJECTED phrasing is not free, and the entry below says it is
+
+Batch 215, third review round. Recorded because it qualifies a sentence sitting a few lines down —
+*"a rejected line costs nothing because the deterministic template is always the fallback"* — which is
+true about CORRECTNESS and false about everything else.
+
+By the time the validator rejects a line, the POST has already happened: the café's plate names and
+costing figures have gone to Google's free Gemini tier, the quota is spent, and `docs/` carries a
+privacy disclosure covering exactly that transfer. What the rejection saves is only the wrong words.
+**So the false-reject rate is a real cost with no visible symptom** — the panel renders correct
+templates and looks like it is working, which is the same shape as every silent failure this repo
+records.
+
+**Measured while fixing the prompt (batch 215):** against hand-written faithful rewordings of the real
+templates, **4 of 10 were rejected, every one a clause reorder.** That was caused by the prompt telling
+the model to *"FRONT-LOAD the fact"* while the validator required the figures in template order — the
+two halves of one feature disagreeing. The prompt now asks for what the validator allows, and
+`tests/api-insight.test.js` pins the instruction.
+
+⚠️ **What is NOT known, and the honest limit of that number: those ten sentences were written by hand,
+not sampled from Gemini.** They show the check forbids a natural class of rewording; they are not a
+production reject rate, and nothing here measures one.
+
+**What would settle it** is instrumenting the real endpoint — count validated vs rejected phrasings
+over a period of Max's actual use and read the ratio. That is a small change to `api/insight.js` plus
+somewhere to put the counter, and it is C rather than B because the failure it would expose degrades to
+correct output. **Do it before anyone argues from a guess about how often this fires**, in either
+direction: the ordering rule is load-bearing (see the `insDrift` tests in
+`tests/insight-real-templates.test.js`, where order is the ONLY signal separating "from 25% to 40%"
+from "from 40% to 25%"), so a high reject rate is an argument for a better PROMPT, never for relaxing
+the check.
+
+---
+
 ## The insight validator cannot see an inverted RECOMMENDATION
 
 Left open deliberately by batch 215.
