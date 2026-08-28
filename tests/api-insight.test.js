@@ -113,6 +113,25 @@ test('buildInsightPrompt forbids re-framing a neutral or good line as a problem'
   assert.match(p, /never add "only"/i);
 });
 
+/* ⚠️ 215 (second pass) — THE PROMPT MUST WANT WHAT THE VALIDATOR ALLOWS, and it did not.
+   validatePhrasing compares the candidate's figures against the template's as an ORDERED
+   subsequence, while this same prompt said "FRONT-LOAD the fact" — which, on a template whose
+   aggregate comes first (insCostBase: "…is 3.2 pts higher … Beef, up 18% across 5 plates"), asks
+   for exactly the reordering the validator then throws away. Measured while fixing it: 4 of 10
+   faithful rewordings were rejected, every one a clause reorder.
+   That failure is INVISIBLE — a rejected line falls back to the deterministic template, so the
+   panel looks like it is working while the phrasing call is paid for and discarded, and the café's
+   costing data has already gone to Google either way.
+   This test is the join between the two halves: relax the ordering rule and the drift tests in
+   tests/insight-real-templates.test.js go red; delete the ordering instruction and this one does. */
+test('buildInsightPrompt tells the model to keep the figures in the ORDER given', () => {
+  const p = I.buildInsightPrompt([insight()]);
+  assert.match(p, /KEEP THE FIGURES IN THE ORDER GIVEN/i);
+  assert.match(p, /same sequence/i);
+  // and front-loading is still asked for — by SUBJECT, which is the form that survives the check
+  assert.match(p, /leading with the SUBJECT/i);
+});
+
 /* ============================================================================================
  * 215 — THE MEANING HALF. Every assertion above this line tests the SET: a figure the model was
  * not given is rejected. These test what the set cannot see, and each one is a sentence that

@@ -44,6 +44,43 @@ test('the real builders still produce the {facts, text} shape this file reasons 
   }
 });
 
+/* ⚠️ 215 (second pass) — WHY THE FIGURE ORDER IS LOAD-BEARING, PINNED ON THE FAMILY THAT PROVES IT.
+   The ordered-subsequence rule is the strictest thing this validator does, and it is the one most
+   likely to be "relaxed" later by someone who has just watched it reject a perfectly good sentence.
+   `insDrift` is the answer to that: it renders "lifts it from 25% to 40%" — two BARE percentages,
+   with no name between them, no unit word, and the same symbol. Nothing but their ORDER
+   distinguishes them, so under set membership (or any binding to names or units) "from 40% to 25%"
+   validates clean, and a plate whose food cost got materially WORSE is reported as improving.
+   These two tests are a matched pair on purpose: one proves the swap is refused, the other proves a
+   faithful rewording of the same sentence still passes, so the rule cannot be satisfied by simply
+   rejecting everything. */
+test('REAL insDrift: swapping the from/to percentages is caught by ORDER ALONE', () => {
+  const ins = X.insDrift({ name: 'Burger', sinceLabel: 'March', up: 1.40, fromPct: 25, toPct: 40, priceHeld: false })[0];
+  const sk = I.numberSkeleton(ins.text);
+  const pcts = sk.filter((e) => e.u === '%');
+  assert.strictEqual(pcts.length, 2, 'the template really does carry two bare percentages');
+  assert.deepStrictEqual(I.factNames(ins.facts), ['Burger'],
+    'and only ONE name, which therefore cannot bind either percentage to a subject');
+  const swapped = ins.text.replace('from 25% to 40%', 'from 40% to 25%');
+  assert.notStrictEqual(swapped, ins.text, 'the swap actually changed the sentence');
+  // the set is identical, so this is exactly the case the pre-215 validator accepted
+  assert.deepStrictEqual(
+    I.numberSkeleton(swapped).map((e) => e.v).slice().sort(),
+    sk.map((e) => e.v).slice().sort(),
+    'the multiset of figures is UNCHANGED — order is the only signal left');
+  assert.strictEqual(
+    I.validatePhrasing(swapped, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)), null,
+    'if this goes green the ordering rule was relaxed — read the comment above before doing that');
+});
+
+test('REAL insDrift: a faithful rewording that keeps the figure order still passes', () => {
+  const ins = X.insDrift({ name: 'Burger', sinceLabel: 'March', up: 1.40, fromPct: 25, toPct: 40, priceHeld: false })[0];
+  const ok = ins.text.replace('at today\u2019s price that lifts it', 'at today\u2019s price that takes it');
+  assert.notStrictEqual(ok, ins.text, 'the rewording actually changed the sentence');
+  assert.ok(I.validatePhrasing(ok, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)),
+    'the rule must not be satisfied by rejecting everything');
+});
+
 test('REAL insCategory: swapping the two section names is caught', () => {
   const ins = build().category;
   const names = I.factNames(ins.facts).slice().sort();

@@ -753,14 +753,24 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v90: a re-render while the call is still IN FLIGHT does not fire a duplicate (quota guard)',
     pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));
+  /* ⚠ 215 — THIS REPHRASING USED TO REORDER THE FIGURES ("Beef is up 18% across 5 plates — that is
+     1.2 pts on your average") AND IS NOW REJECTED BY DESIGN, which is why it changed here.
+     The validator no longer checks that the numbers are a SET of the facts; it checks that they are
+     an ordered SUBSEQUENCE of the deterministic template, each keeping its own % or $. Order is the
+     only thing that can tell insDrift's "from 25% to 40%" from "from 40% to 25%" — two bare
+     percentages, no name and no unit word between them — so it is load-bearing, not fussiness.
+     The fixture therefore rewords WITHOUT moving a number past another, which is what the prompt
+     now asks the model for. The reordered form is asserted below as a REJECT, so the strictness is
+     pinned rather than merely accommodated: if someone relaxes the check back to set membership,
+     that assertion goes red instead of this one silently starting to pass again. */
   if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
-    { text: 'Beef is up 18% across 5 plates — that is 1.2 pts on your average.' },
+    { text: 'Your average food cost is 1.2 pts higher than March — Beef, up 18% on 5 plates, drives it.' },
     { text: '3 plates sit within half a point of your 30% target.' } ] }) });
   await tick(); await tick();
   // re-query: the quota-guard re-render above replaced the panel, and applyPhrasedInsights resolves
   // #dashInsBody fresh at apply time precisely so it lands on the LIVE node, not a detached one.
   const dl = $('dashInsBody');
-  ok('v90: a valid rephrasing (numbers intact) swaps into the block in place', dl && /Beef is up 18% across 5 plates/.test(dl.textContent));
+  ok('v90: a valid rephrasing (numbers intact) swaps into the block in place', dl && /Beef, up 18% on 5 plates, drives it/.test(dl.textContent));
   ok('v90: once Gemini actually phrased a shown line, the credit is revealed',
     !!creditOf() && creditOf().hidden === false);
   // v69 cache: a re-render within the period must not hit Gemini again (the quota is limited)
@@ -771,7 +781,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v90: a re-render within the period reuses the cache — no second Gemini call',
     pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
   ok('v90: the cached phrasing (and its credit) apply immediately on the cache hit',
-    dj && /Beef is up 18%/.test(dj.textContent) && !!creditOf() && creditOf().hidden === false);
+    dj && /Beef, up 18% on 5 plates/.test(dj.textContent) && !!creditOf() && creditOf().hidden === false);
 
   // the Menu tab is CLEAN — the whole v69–v81 suggestions surface is gone, not merely hidden
   ok('v90: the Menu tab has NO suggestions pill, panel or host left behind',
