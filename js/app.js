@@ -8819,7 +8819,17 @@ function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b
 function currentLinesSig(){ return plate.map(lineSig).join('|'); }
 function isBuilderDirty(){
   var name=(document.getElementById('plateName').value||'').trim();
-  var pcEl=document.getElementById('plateCat'), cat=(pcEl?pcEl.value:'')||'';
+  /* ⚠️ 221 — THE CATEGORY IS TRIMMED HERE BECAUSE IT IS TRIMMED WHEN IT IS SAVED. `#plateCat` is a
+     free-text input, `builderCategoryValue()` does `.trim()`, and saveCurrentPlate stores that; this
+     comparison read the raw field, so a category typed or pasted with a trailing space was UNEQUAL to
+     the value that had just been written from it and the builder stayed dirty forever. `name` two
+     lines up was already trimmed for exactly this reason; the category was missed.
+     It was only ever draft churn until 221, because saveCurrentPlate cleared the draft unconditionally.
+     Now this function decides whether that clear happens, so the same mismatch became a permanent
+     "You were building X. Resume it, or discard?" about a plate that saved perfectly.
+     Nothing is lost by trimming: a whitespace-only change to this field CANNOT be persisted, since
+     the save trims it too, so there is no work for the guard to protect. */
+  var pcEl=document.getElementById('plateCat'), cat=((pcEl?pcEl.value:'')||'').trim();
   if(plate.length===0 && !name) return false;
   if(loadedPlateId){
     var sp=savedPlates.find(function(s){return s.id===loadedPlateId;});

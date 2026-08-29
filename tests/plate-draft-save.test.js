@@ -54,16 +54,22 @@ function harness() {
     function costFromLines(){ return {cost:0, miss:0}; }
     function computeAvgFoodCost(){ return 0; }
     function menusOfPlate(){ return []; }
-    function builderCategoryValue(){ return ''; }
+
     function updateEditTag(){} function renderAnalysis(){} function renderPlatesTab(){}
     function syncBuilderPlateActions(){} function renderBuilderCost(){} function logHistory(){}
     function logChangeIfSaved(){}
 
     /* EXTRACTED, never hand-rolled: isBuilderDirty is now HALF of what decides the draft's fate, and
-       a stub of it would agree with a broken version. draftHasContent / readPlateDraft /
+       a stub of it would agree with a broken version.
+       No backticks anywhere in this comment - it sits inside a template literal.
+       ⚠️ builderCategoryValue is in this list because a STUB OF IT HID A REAL DEFECT FOR A WHOLE RUN.
+       It returned '' regardless, so the category never round-tripped and the trim mismatch below could
+       not appear. The save's writer and the dirt check's reader must be the REAL pair or the comparison
+       between them is not being tested at all. draftHasContent / readPlateDraft /
        unfinishedPlateWaiting come along because the guard is what a leaked draft actually costs. */
     ${['clearPlateDraft', 'readPlateDraft', 'draftHasContent', 'lineSig', 'currentLinesSig',
-       'isBuilderDirty', 'unfinishedPlateWaiting', 'saveCurrentPlate'].map((n) => extractFn(SRC, n)).join('\n')}
+       'builderCategoryValue', 'isBuilderDirty', 'unfinishedPlateWaiting',
+       'saveCurrentPlate'].map((n) => extractFn(SRC, n)).join('\n')}
 
     return {
       save:function(asNew){ return saveCurrentPlate(!!asNew); },
@@ -76,6 +82,7 @@ function harness() {
          bootstrapSync's own pass. renderPlate() calls scheduleDraftSave() on its first line, which
          bumps this counter, and NOTHING about this plate has changed. */
       unrelatedRepaint:function(){ _builderEdits++; },
+      setCat:function(c){ _cat=c; },
       unfinishedPrompts:function(){ return unfinishedPlateWaiting(); },
       dirty:function(){ return isBuilderDirty(); },
       /* the debounced writer, armed the way scheduleDraftSave arms it, so the RACE is testable:
@@ -198,4 +205,22 @@ test('REVIEW 2b: once a FAILED write settles, the draft is offered again', { tim
   assert.notStrictEqual(h.api.draft(), null, 'the write failed, so the draft is the only copy');
   assert.strictEqual(h.api.unfinishedPrompts(), true,
     'and it must be offered again the moment the answer is in — a leaked pending count would hide it forever');
+});
+
+test('221: a category typed with stray spaces does not leave the builder dirty forever', { timeout: 5000 }, async () => {
+  /* Found by 221 while checking the review's finding-1 lesson against its OWN fix: does the guard I
+     adopted actually hold for the use I put it to? It did not.
+     `#plateCat` is a free-text input; `builderCategoryValue()` trims and saveCurrentPlate stores the
+     trimmed value, while isBuilderDirty compared the RAW field. So " Mains " !== "Mains", the builder
+     read as dirty immediately after its own successful save, and the draft was never cleared — a
+     permanent "resume or discard?" about a plate that saved perfectly. `name` was already trimmed
+     here; the category was not. */
+  const { api } = harness();
+  api.addLine(); api.setCat('  Mains  '); api.seedDraft();
+  api.save(false);
+  await settle();
+  assert.strictEqual(api.dirty(), false,
+    'the saved category IS this category — the difference is whitespace the save already removed');
+  assert.strictEqual(api.draft(), null, 'so the draft is cleared, exactly as with an unpadded category');
+  assert.strictEqual(api.unfinishedPrompts(), false, 'and nothing offers to resume a saved plate');
 });
