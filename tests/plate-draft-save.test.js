@@ -68,7 +68,7 @@ function harness() {
        between them is not being tested at all. draftHasContent / readPlateDraft /
        unfinishedPlateWaiting come along because the guard is what a leaked draft actually costs. */
     ${['clearPlateDraft', 'readPlateDraft', 'draftHasContent', 'lineSig', 'currentLinesSig',
-       'builderCategoryValue', 'isBuilderDirty', 'unfinishedPlateWaiting',
+       'builderCategoryValue', 'isBuilderDirty', 'unfinishedPlateWaiting', 'savePlateDraft',
        'saveCurrentPlate'].map((n) => extractFn(SRC, n)).join('\n')}
 
     return {
@@ -89,6 +89,10 @@ function harness() {
          a draft save pending from before the push must not outlive the clear. */
       armPendingDraftSave:function(){ _draftT=setTimeout(function(){ S.draftWrites++;
         store[DRAFTKEY]=JSON.stringify({name:_name, lines:[{kid:'K1',qty:2}]}); }, 0); },
+      /* what "+ New plate" / tapping another plate card does to the builder, followed by the debounced
+         draft save that every such repaint schedules (renderPlate calls scheduleDraftSave on its first
+         line). The REAL savePlateDraft runs, which is the point: it owns the one shared slot. */
+      leaveForANewPlate:function(){ plate=[]; loadedPlateId=null; _name=''; _cat=''; savePlateDraft(); },
     };
   `);
   return { S, api: factory(S) };
@@ -223,4 +227,38 @@ test('221: a category typed with stray spaces does not leave the builder dirty f
     'the saved category IS this category — the difference is whitespace the save already removed');
   assert.strictEqual(api.draft(), null, 'so the draft is cleared, exactly as with an unpadded category');
   assert.strictEqual(api.unfinishedPrompts(), false, 'and nothing offers to resume a saved plate');
+});
+
+test('REVIEW 2 (second pass): navigating away mid-save does not let the debounced writer bin the pending draft', { timeout: 5000 }, async () => {
+  /* ⚠️ THE ONE THAT WOULD HAVE SHIPPED GREEN, and it is the batch's own defect reached by another door.
+     `savePlateDraft` owns ONE shared slot and removed it whenever the CURRENT builder was not dirty —
+     without asking whose draft it was. Tap Save, then tap another plate card or "+ New plate" before
+     the answer: the new builder is clean, the repaint's debounced save fires, the slot is deleted, the
+     original write then fails, and the edit is gone with nothing to resume. Exactly what 221 exists to
+     prevent. Reproduced by the second pre-push review against the real functions.
+     None of the tests above could see it: they all call saveCurrentPlate and then read the draft in
+     place, never leaving the builder while the push is still in flight. */
+  const h = harness(); h.S.fail = true;
+  h.api.addLine(); h.api.seedDraft();
+  h.api.save(false);
+  h.api.leaveForANewPlate();
+  assert.notStrictEqual(h.api.draft(), null,
+    'the pending save owns that slot until its write is answered');
+  await settle();
+  assert.notStrictEqual(h.api.draft(), null,
+    'the write failed, so this draft is the only copy of the edit — it must still be here');
+  assert.strictEqual(h.api.unfinishedPrompts(), true, 'and it is offered again now the answer is in');
+});
+
+test('REVIEW 2 (second pass), the counterweight: with NO push pending, a stale draft is still binned', { timeout: 5000 }, async () => {
+  /* v118's job for savePlateDraft is to leave nothing behind after a look-only visit, and the guard
+     above must not quietly repeal it — "never remove" would satisfy the test above and break this one.
+     Here the write SUCCEEDS, so nothing is pending by the time the builder is left. */
+  const { api } = harness();
+  api.addLine(); api.seedDraft();
+  api.save(false);
+  await settle();
+  api.seedDraft();                                   // a stale slot, with no save in flight to own it
+  api.leaveForANewPlate();
+  assert.strictEqual(api.draft(), null, 'no pending write owns it, so the stale draft goes');
 });

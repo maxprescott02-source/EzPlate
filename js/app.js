@@ -2859,7 +2859,24 @@ function savePlateDraft(){
        "You were building X. Resume it, or discard?" about a plate nobody had touched.
        isBuilderDirty() is the question actually being asked: does what is on screen differ from what
        is saved. A look-only visit is not dirty, so it now leaves nothing behind. */
-    if(!isBuilderDirty() || !draftHasContent(d)){ localStorage.removeItem(DRAFTKEY); return; }   // nothing changed, or nothing worth resuming ⇒ no stale draft
+    /* ⚠️ 221 — THE REMOVAL IS NOT UNCONDITIONAL ANY MORE, BECAUSE THERE IS ONE SLOT AND IT MAY NOT BE
+       THIS BUILDER'S. Since 221 the draft is kept alive across a plate write so a REJECTED save still
+       has a recovery copy. Navigate away during that window — tap another plate card, "+ New plate",
+       a menu item — and the new builder is not dirty, so this line ran and deleted the pending save's
+       only local copy; the write then failed and there was nothing to resume. That is the exact defect
+       221 exists to fix, reached through the debounced writer instead of through the save itself.
+       Reproduced by the second pre-push review against the real functions, not reasoned about.
+       Note the doors are not all guarded: requestLoadPlate and requestLoadMenuItem gate on
+       isBuilderDirty() alone, which is false right after a save, so they never even ask.
+       ⚠️ THE HONEST LIMIT, because one slot cannot hold two plates: if the user navigates away AND
+       starts authoring a NEW plate while the old push is still in flight, the new work is dirty and is
+       written here, over the pending copy. That is a real conflict between two pieces of unsaved work
+       rather than an oversight, and the newer one winning is the defensible half of it. Fixing it
+       properly means a draft LIBRARY keyed by plate, which is a feature, not a guard. */
+    if(!isBuilderDirty() || !draftHasContent(d)){
+      if(!_platePushPending) localStorage.removeItem(DRAFTKEY);                 // nothing changed, or nothing worth resuming ⇒ no stale draft
+      return;
+    }
     localStorage.setItem(DRAFTKEY, JSON.stringify(d));
   }catch(e){}
 }
@@ -3043,6 +3060,12 @@ function saveCurrentPlate(asNew){
        whether there is anything worth keeping. The badge keeps the counter: it is claiming something
        about the PUSH, which is what that counter was built for. */
     if(!isBuilderDirty()) clearPlateDraft();
+    /* ⚠️ ACCEPTED, NOT FIXED: bootstrapSync can race this. It reassigns `savedPlates` wholesale from a
+       fresh SELECT with NEW objects, so if that read returns before this push is visible server-side,
+       the check above compares the builder against a stale `sp`, reads dirty, and keeps a draft for a
+       plate that did save. The direction is the safe one — a spurious "resume or discard?" rather than
+       lost work — and the next clean repaint removes it, so it is recorded here rather than defended
+       against with more machinery. Raised by the second pre-push review, which did not reproduce it. */
   }
   if(_write && typeof _write.then==='function'){
     _write.then(function(r){ _plateLanded(!r || !r.error); }, function(){ _plateLanded(false); });
