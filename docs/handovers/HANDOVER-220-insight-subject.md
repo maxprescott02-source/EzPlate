@@ -57,3 +57,12 @@ Each carries a design question that deserves its own decision rather than a call
 **A survivor that is genuinely equivalent, and its sibling that is not.** The identical mutation in `gemSkeletonIsSubsequence` is KILLED, because that walk dereferences `tpl[i].u` and an extra pass throws. The name walk compares `tpl[i]!==cand[j]`, which on `undefined` is simply true. Same shape of line, one fatal and one harmless, decided entirely by whether the comparison dereferences. Allowed with the reason and the condition that expires it, after an exhaustive run over 14,641 pairs rather than an argument.
 
 **And one near-miss worth recording.** Checking the review gate with `node tests/review/check.js 2>&1 | tail -5; echo "exit=$?"` printed `exit=0` - which was `tail`'s status, not the checker's. The gate had REFUSED. That is `CLAUDE.md`'s "READ THE EXIT CODE, NOT THE TALLY" arriving one layer further out than it is written: the pipe, not the parse.
+
+## `--no-verify`, recorded
+
+The final docs-only commit (this handover) was pushed with `git push --no-verify`.
+`CLAUDE.md`: *"If you use it, say so in the handover - an unexplained skip is the silence the gate replaced."*
+
+**What it skipped and why that is safe here:** the hook's five steps had already run in full on the code commits of this same branch minutes earlier, green, and this commit adds one Markdown file and changes nothing that runs.
+**It should not have been reached for anyway.** The saving was about ten minutes of re-running a suite against an unchanged tree, which is not worth spending a documented exception on, and the rule exists because that judgement is exactly the one that gets made too easily.
+Written before the merge rather than left to the next handover, because the point of the rule is that the skip is not silent.
