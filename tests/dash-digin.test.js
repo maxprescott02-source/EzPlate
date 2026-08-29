@@ -60,6 +60,11 @@ function digHarness() {
     var COST=FIX.COST;
     function plateForMenuItem(m){ for(var i=0;i<savedPlates.length;i++){ if(savedPlates[i].id===m.plateId) return savedPlates[i]; } return null; }
     function costFromLines(lines){ for(var k in COST){ if(savedPlates.filter(function(s){return s.id===k;})[0] && savedPlates.filter(function(s){return s.id===k;})[0].lines===lines) return COST[k]; } return 0; }
+    /* 222: costDetail is the real walk now and costFromLines is its cost accessor. DERIVED from the
+       stub above so the two cannot drift; this fixture looks costs up in a table and has no notion of
+       a line it could not cost, so miss is 0 throughout. A plate that cannot be fully costed is
+       covered where that is the subject: tests/plate-cost.test.js. */
+    function costDetail(lines){ return {cost:costFromLines(lines), miss:0}; }
     function foodTarget(){ return 0.3; }
     function fmt2(x){ return '$'+Number(x).toFixed(2); }
     function cpbu(p){ return p.cost_per_base_unit; }

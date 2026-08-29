@@ -185,13 +185,23 @@ test('222: a real quantity still costs, including a numeric string — the guard
   assert.deepEqual(costDetail([{ pid: 1, qty: 0.5 }]), { cost: 0.04, miss: 0 }, 'half a gram at $0.08/g');
 });
 
-test('222: a MISC line never counts as missing — it carries its own cost and needs no product', () => {
-  /* Misc lines are handled before the product lookup, so they can neither be missed nor made
-     uncostable by the quantity rule (they have no quantity at all). Asserting it because the
-     quantity guard sits one branch away from them. */
+test('222: a misc line with NO cost entered is missing, but an explicit ZERO is not', () => {
+  /* ⚠️ THE FIRST DRAFT OF THIS TEST ASSERTED THE OPPOSITE and defended it — "a junk misc cost is not a
+     MISSING line, it is a line worth nothing, which is what it says". The pre-push review was right
+     that this is the isFinite('') trap one branch over from the quantity fix in the same function:
+     `Number('')` is 0 and so is `Number(null)`, so a cost that was never entered added a real $0.00
+     with `miss` at zero, and garbage was skipped just as silently.
+     ZERO stays costed on purpose — `addMiscCost` seeds a new line at 0, so it is a value someone chose
+     in a way a blank never is. That asymmetry is the whole content of this test. */
   assert.deepEqual(costDetail([{ misc: true, label: 'Box', cost: 2.5 }]), { cost: 2.5, miss: 0 });
-  assert.deepEqual(costDetail([{ misc: true, label: 'Bad', cost: 'free' }]), { cost: 0, miss: 0 },
-    'a junk misc cost still is not a MISSING line — it is a line worth nothing, which is what it says');
+  assert.deepEqual(costDetail([{ misc: true, label: 'Box', cost: 0 }]), { cost: 0, miss: 0 },
+    'an explicit zero is a real, chosen cost — the builder seeds new misc lines at exactly this');
+  assert.deepEqual(costDetail([{ misc: true, label: 'Box', cost: '3.25' }]), { cost: 3.25, miss: 0 },
+    'a numeric string still costs — restored data carries them, pinned since 0c');
+  [undefined, null, '', 'free'].forEach((v) => {
+    assert.deepEqual(costDetail([{ misc: true, label: 'Bad', cost: v }]), { cost: 0, miss: 1 },
+      'never entered, or not a number, is MISSING rather than free: ' + JSON.stringify(v));
+  });
 });
 
 /* ============================================================================================

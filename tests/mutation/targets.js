@@ -453,6 +453,26 @@ const allowedSurvivors = [
       + 'method call), because that is exactly what makes the sibling mutant fatal rather than harmless. '
       + 'The `<` is correct and conventional; there is simply no input that can tell them apart.',
   },
+  /* 222 — computeInsights' null-line guard became UNREACHABLE, and it is allowed rather than deleted.
+     This is the "a fallback that cannot fire reads as a safety net and is not one" shape this repo
+     records, arriving from the opposite direction: the guard was live and a change elsewhere retired
+     it. Keeping it is still right — it costs nothing, and the reasoning below is about the CALLER. */
+  {
+    key: 'computeInsights :: if(!l || l.misc) return; :: logical ||>&& #0',
+    reason: 'UNREACHABLE, not equivalent — and it became so in the batch that wrote this allowance. The '
+      + 'loop it guards only runs for plates that passed `!sp || !(cost>0)` a few lines above, where '
+      + '`cost` is now `costDetail(sp.lines).miss ? 0 : cost`. A null line ALWAYS increments miss '
+      + '(costDetail does `lineProduct(l)` and takes the `if(!p){miss++}` branch), so a plate carrying '
+      + 'one can no longer reach this loop at all, and the mutant `!l && l.misc` — which throws a '
+      + 'TypeError on null and empties the whole insight block through the try/catch — has no input '
+      + 'that reaches it. Before 222 it was killed by insight-coverage.test.js pushing a null line onto '
+      + 'a plate and asserting the family still fired; that test now asserts the plate is EXCLUDED, '
+      + 'which is the corrected behaviour and is why the mutant survives. '
+      + '⚠️ THE ALLOWANCE EXPIRES IF THAT EXCLUSION IS EVER RELAXED — if a partially-costed plate is '
+      + 'admitted to computeInsights again, null lines reach this line and the guard is load-bearing. '
+      + 'The SUPPLIER pass a few lines below walks savedPlates directly, is NOT narrowed by the '
+      + 'exclusion, and its own null guard is still exercised by the same test.',
+  },
   /* 0c (batch 205) — computeInsights. FOUR allowed out of thirty-nine, and all four are the same
      `>` -> `>=` shape this file now carries nine times over. Three of them are UNREACHABLE rather
      than merely harmless: the values on which the two operators differ are excluded by a guard

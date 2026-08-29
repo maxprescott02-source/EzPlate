@@ -3117,7 +3117,21 @@ function saveFromBuilder(){ saveCurrentPlate(false); }
 function costDetail(lines){
   let c=0,miss=0;
   (lines||[]).forEach(l=>{
-    if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; }
+    /* ⚠️ THE MISC BRANCH HAS THE SAME TRAP THE QUANTITY ONE DID, one branch over, and it read
+       `var mc=Number(l.cost); if(!isNaN(mc)) c+=mc;`. `Number('')` is 0 and so is `Number(null)`, so a
+       misc line whose cost was never entered added a real $0.00 and `miss` stayed at zero — the exact
+       isFinite('') rule CLAUDE.md says has already bitten this codebase twice. Junk ('free') was
+       skipped silently, which is the same lie by a different route.
+       An empty or absent cost is NOT ENTERED and counts as missing; garbage counts as missing. ZERO is
+       left alone deliberately — `addMiscCost` seeds a new line at 0 and it is a legitimate value for a
+       misc line in a way it never is for an ingredient quantity. A numeric STRING still costs, because
+       restored data carries them and tests/plate-cost.test.js has pinned that since 0c.
+       Found by the pre-push review, which was right that the first draft's test defended this. */
+    if(l&&l.misc){
+      var mc=(l.cost===''||l.cost==null)?NaN:Number(l.cost);
+      if(isNaN(mc)) miss++; else c+=mc;
+      return;
+    }
     const p=lineProduct(l); if(!p){miss++;return;}
     const lc=lineCost(p,l.qty); if(lc==null)miss++; else c+=lc;
   });
@@ -5678,7 +5692,8 @@ function digData(kind, scope){
       if(!(m.price>0)) return;
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp) return;
-      var c=costFromLines(sp.lines); if(!(c>0)) return;
+      var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;   // 222: no % and no light off a partial total
+      var c=d.cost;
       rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%', light:analyze(c, m.price).light});
     });
     rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
@@ -5691,7 +5706,8 @@ function digData(kind, scope){
     MENU.forEach(function(m){
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp || seen[sp.id]) return;
-      var c=costFromLines(sp.lines); if(!(c>0)) return;
+      var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;   // 222: an understated plate cost is not a plate cost
+      var c=d.cost;
       seen[sp.id]=1;
       rows.push({name:sp.name||m.name||'Plate', val:c, disp:fmt2(c), light:(m.price>0?analyze(c, m.price).light:null)});
     });
@@ -6298,7 +6314,8 @@ function computeInsights(scope, seed){
       if(!m || !(m.price>0)) return;
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m);
-      var cost=sp?costFromLines(sp.lines):0;
+      var _cd=sp?costDetail(sp.lines):{cost:0,miss:0};
+      var cost=_cd.miss?0:_cd.cost;                                  // 222: a partial total is no cost at all here
       if(!sp || !(cost>0)) return;                                   // a priced dish with no plate / no cost has no margin read
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
@@ -6932,11 +6949,17 @@ function kpiStripHtml(scope, cmp){
   MENU.forEach(function(m){
     if(!isAll && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);
-    var c=sp?costFromLines(sp.lines):0;
-    // "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
-    // label ("not costed") sent the review hunting phantom ingredient gaps on price-less dishes.
-    // A PARTIAL cost still counts as costed — costFromLines returns the partial sum and the
-    // broken-link states on the Ingredients tab are the surface that owns that problem.
+    var d0=sp?costDetail(sp.lines):{cost:0,miss:0};
+    /* "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
+       label ("not costed") sent the review hunting phantom ingredient gaps on price-less dishes.
+       ⚠️ 222 REVERSES THE NEXT CLAUSE, which read: "A PARTIAL cost still counts as costed —
+       costFromLines returns the partial sum and the broken-link states on the Ingredients tab are the
+       surface that owns that problem." The first half was true and the second was not: a plate line
+       that points at a product DIRECTLY (`{pid, qty}`, live legacy data) has no kitchen ingredient, so
+       the Ingredients tab has no row for it and THAT SURFACE DOES NOT EXIST. The dish counted as
+       costed, over/under was judged on an understated total, and nothing anywhere said a line was
+       missing. A partially-costed dish is unready, which is what it is. */
+    var c=d0.miss?0:d0.cost;
     if(m.price>0 && c>0){ costed++; if(c/m.price*100 > cogsPct+0.05) over++; }
     else unready++;
   });
@@ -9436,7 +9459,10 @@ function marginLightWord(light){ return light==='green'?'Healthy margin':light==
 function renderMenuMarginPreview(){
   var box=document.getElementById('mi_preview'); if(!box) return;
   var sp=savedPlates.find(function(s){return s.id===pubPlateId;});
-  var cost=sp?costFromLines(sp.lines):0;
+  /* 222: a plate with a line it cannot cost previews NOTHING rather than a suggested price and a
+     verdict built from an understated total — this dialog is where a sell price gets set. */
+  var _cd=sp?costDetail(sp.lines):{cost:0,miss:0};
+  var cost=_cd.miss?0:_cd.cost;
   if(!(cost>0)){ box.className='margin-preview'; box.textContent=''; return; }   // uncosted plate → nothing to preview yet
   var priceV=parseFloat((document.getElementById('mi_price')||{}).value);
   var mp=menuMarginPreview(cost, priceV);
@@ -11820,7 +11846,8 @@ function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) 
 /* ---- reuse an existing costed dish on another menu (shares the source plate) ---- */
 var adSelectedPlateId=null;
 function eligibleDishes(){                                         // costed plates, most useful first
-  return savedPlates.filter(function(sp){ return sp && sp.lines && sp.lines.length && costFromLines(sp.lines)>0; });
+  // 222: "costed" here is the same question the Plates library and the Menu row now ask
+  return savedPlates.filter(function(sp){ return plateFullyCosted(sp) && costFromLines(sp.lines)>0; });
 }
 /* 214 — "Existing plate" was offered before it could do anything. At zero costed plates the button
    sat in the Menu header (and, below 768, wrapped onto its own row under it, reading as an orphan)

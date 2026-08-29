@@ -631,16 +631,40 @@ test('BUILDER: a malformed line does not take the whole Dashboard down', () => {
      the page: it silently empties the insight block, which is the failure this file exists to catch.
      A null line is not hypothetical — it is what a half-written plate draft or a restore from an
      older format can leave behind. Asserted on both loops that walk lines: the per-dish scan here,
-     and the supplier pass below. */
+     and the supplier pass below.
+
+     ⚠️ 222 CHANGED WHAT "SURVIVES" MEANS HERE, and the assertion is rewritten rather than relaxed.
+     This used to push a null line onto PL1 and assert costbase still fired with `pts:3` — which was
+     only true because the plate was included at its PARTIAL cost, missing an ingredient. That is the
+     defect item 9 fixed: an understated total makes a plate look cheaper, and every % built on it
+     reads healthier than the kitchen is. A plate carrying a line the app cannot cost is now excluded
+     from the walk entirely.
+     So the ROBUSTNESS claim this test exists for is unchanged and still asserted — no throw, the
+     block does not empty, and the OTHER plates are still read — while the specific figure moved,
+     because the population deliberately did. */
   const s = MOVEMENT();
-  s.savedPlates[0].lines.push(null);
-  const c = fires(run(s), 'costbase');
-  assert.equal(c.facts.pts, 3, 'the good lines are still read');
+  /* a THIRD plate, so excluding the broken one still leaves a population that can report — otherwise
+     this would be asserting the family's minimum inputs rather than its robustness to a null line. */
+  s.savedPlates.push(plate('PL3', 'Sandwich', [line('K_BEEF', 200)]));
+  s.MENU.push(dish('MI3', 'Sandwich', 'PL3', 10));
+  const clean = fires(run(s), 'costbase');
+  assert.equal(clean.facts.plates, 3, 'precondition: all three plates are read while they are intact');
+
+  s.savedPlates[0].lines.push(null);                                 // PL1 (Toastie) can no longer be costed
+  const out = run(s);
+  assert.ok(Array.isArray(out), 'no throw: the builder returned a list rather than falling into its catch');
+  const c = fires(out, 'costbase');
+  assert.equal(c.facts.plates, 2, 'the other two are still read; PL1 is excluded, not counted understated');
 
   const g = CONCENTRATION();
   g.savedPlates[0].lines.push(null);
   const sup = fires(run(g), 'concentration');
-  assert.equal(sup.facts.plates, 3, 'and the supplier pass survives it too');
+  /* ⚠️ STILL 3, and that is not an oversight in the exclusion above. The supplier pass walks
+     savedPlates for REACH — how many plates a supplier appears on — which is a fact about the product
+     list rather than a costed figure, so a plate carrying one uncostable line still legitimately
+     counts. 222's exclusion applies where a COST or a percentage is computed; this number is neither.
+     Measured, not assumed: the first draft of this line guessed 2 and was wrong. */
+  assert.equal(sup.facts.plates, 3, 'the supplier pass survives it too, and is not narrowed by it');
 });
 
 /* --- family 5: the run of consecutive over-target months --- */
