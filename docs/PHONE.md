@@ -866,3 +866,16 @@ row is reachable.
 If it fails, the fix is one line — read `visualViewport.height` in preference to `window.innerHeight`
 in `dropBox` — but it is deliberately NOT written blind, because `visualViewport` also reports the
 page being pinch-zoomed, and guessing which of the two a phone is doing is how this gets worse.
+
+## Plate save with no signal, then background the app (batch 221, `ezplate-v181`)
+
+**Do this:** open the builder, edit a plate (add or re-portion a line), turn the network OFF, tap Save.
+The toast must say it has NOT been saved and the "Saved just now" badge must stay down.
+Then background the app, leave it long enough for iOS to discard the tab, and reopen.
+
+**Pass:** the next builder entry offers *"You were building X. Resume it, or discard?"* and Resume brings the edit back.
+**Fail:** no offer, and the plate has reverted to its pre-edit state. That is the defect 221 fixed, and it would mean the fix does not survive a real tab discard.
+
+**Only a device settles it.** The failure mode is iOS discarding the tab and `bootstrapSync` replacing `savedPlates` from the server, which no harness in this repo reproduces - the unit tests prove the draft is retained in storage, not that it survives the operating system.
+
+**Then do the same with the network ON**, where the correct result is the OPPOSITE: no offer at all, because the plate really did save. Getting a "resume or discard?" prompt about a plate that saved cleanly is the other half of what 221 changed, and two of its four defects were exactly that.
