@@ -436,18 +436,22 @@ test('the mirror is re-runnable — every new object is idempotent', () => {
 
 /* ── 5. THE BOUNDARY — invitations are not café CONTENT ───────────────────────────────────────── */
 
-test('restore_backup writes exactly the eight tables it always did — invites are not one', () => {
+test('restore_backup writes exactly the ten tables it is meant to — invites are not one', () => {
   /* An invitation is membership state, the same class as `business_members` and `businesses`,
      neither of which is in a backup either. Restoring last week's file must not revoke an
      invitation sent yesterday nor resurrect one that was revoked.
      ⚠️ Asserted as an EQUALITY on the set of tables the function writes, not as "business_invites
      does not appear". 190's lesson: a denylist assertion is a guess about every wrong value there
-     could be, and this one would also pass if the whole function were deleted. */
+     could be, and this one would also pass if the whole function were deleted.
+     ⚠️ EIGHT UNTIL BATCH 219, which added `price_history` and `menu_price_history` — the two series
+     the backup carried in neither direction. The list is UPDATED rather than loosened: the whole
+     value of an equality here is that a new table has to be typed out deliberately by whoever added
+     it, which is exactly the moment to ask whether membership state has crept in. */
   const body = fnBlock(MIR, 'restore_backup');
   assert.ok(body, 'the mirror must carry restore_backup');
   const touched = new Set([...body.matchAll(/(?:delete from|insert into)\s+(\w+)/g)].map((m) => m[1]));
   assert.deepEqual([...touched].sort(), [
     'app_settings', 'ing_price_history', 'ingredients', 'menu_change_log',
-    'menu_items', 'menus', 'plates', 'supplier_phrases',
+    'menu_items', 'menu_price_history', 'menus', 'plates', 'price_history', 'supplier_phrases',
   ], 'restore_backup writes a different set of tables than it did — is that deliberate?');
 });

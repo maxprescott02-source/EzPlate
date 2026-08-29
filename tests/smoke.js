@@ -246,7 +246,11 @@ window.document.createElement = function (t) {
 window.exportBackup();
 ok('clicking Export produces a dated .json download', /^ezplate-backup-\d{4}-\d{2}-\d{2}\.json$/.test(exported || ''), exported);
 const backup = window.buildBackup();
-ok('backup has all seven groups', ['products','kitchen_ingredients','plates','menu_items','ing_price_log','supplier_mem','settings'].every(k => k in backup));
+/* 219: SEVEN became ELEVEN — price_history, menu_history and menu_price_log joined, and change_log
+   was already here and had never been added to this list, so the title said seven while the app
+   emitted eight. The list is the assertion; the number in the title is what makes a reader check. */
+ok('backup has all eleven groups', ['products','kitchen_ingredients','plates','menu_items','ing_price_log',
+  'price_history','menu_history','menu_price_log','change_log','supplier_mem','settings'].every(k => k in backup));
 // v106: present-but-empty is the failure this batch exists to prevent, so assert POPULATED, not just present
 /* v108: this pin INVERTED, and the inversion is the point. It used to assert the log survived a cold
    boot from localStorage, because ing_price_log was the one dataset with NO server table — the export
@@ -267,8 +271,18 @@ ok('cold boot: supplier_mem is EMPTY — it is server data now, not a local stor
    compares equal to a null hash, which would read as a matching build. */
 /* v114: the stamp moved 2 -> 3, because the file gained the change-log group and hard rule 9's general
    law makes that a format change. Format 2 stays RESTORABLE (parseBackupFile accepts both) — Max's
-   newest real backup is one — but it is no longer what this app WRITES. */
-ok('stamp declares format 3 and names the build', !!(backup.stamp && backup.stamp.format === 3 && backup.stamp.app_version === swVer), JSON.stringify(backup.stamp));
+   newest real backup is one — but it is no longer what this app WRITES.
+   219: 3 -> 4, three more groups, same law and this time it is not even a judgement call — the
+   carve-out's first condition is "no group is added". 2 and 3 both stay restorable. */
+ok('stamp declares format 4 and names the build', !!(backup.stamp && backup.stamp.format === 4 && backup.stamp.app_version === swVer), JSON.stringify(backup.stamp));
+/* 219: a cold boot has no history either, and asserting EMPTY rather than PRESENT is the v108
+   inversion above applied to the three new groups — all five series are server data, so an export
+   taken before the sync lands must say it holds none rather than hand back a stale local copy. */
+ok('cold boot: the three new history series are present and EMPTY, not absent',
+   Array.isArray(backup.price_history) && backup.price_history.length === 0
+   && !!backup.menu_history && Object.keys(backup.menu_history).length === 0
+   && !!backup.menu_price_log && Object.keys(backup.menu_price_log).length === 0,
+   JSON.stringify([backup.price_history, backup.menu_history, backup.menu_price_log]));
 ok('cold boot: change_log is EMPTY — it is server data, and a boot that has not synced has none',
    Array.isArray(backup.change_log) && backup.change_log.length === 0, JSON.stringify(backup.change_log));
 ok('the retired fingerprint fields are absent, not null',

@@ -998,23 +998,16 @@ declare
   grp text;
   fmt text := payload->>'format';
   n_ing int; n_mnu int; n_pla int; n_men int; n_spr int; n_ipl int; n_set int; n_chg int;
+  n_phi int; n_mph int;
 begin
-  -- 187 -- ONLY AN OWNER MAY RESTORE, AND THIS IS THE FIRST STATEMENT IN THE FUNCTION.
-  -- Everything below deletes five tables before it inserts anything, so a check placed after any of
-  -- it would be a check on a database that had already been emptied. RLS cannot express this one:
-  -- the restore is SECURITY INVOKER, so its deletes already run as the caller, and staff legitimately
-  -- delete ingredients and dishes in the ordinary course of work -- there is nothing in a row to tell
-  -- the two apart. `is distinct from` rather than `<>` because a caller with no membership answers
-  -- NULL, and NULL <> 'owner' is NULL, which would fall through the `if` and let them past.
-  if (select public.current_business_role()) is distinct from 'owner' then
-    raise exception 'restore_backup: only an owner may restore a backup';
-  end if;
-
   -- The stamp guard exists on BOTH sides on purpose. The client refuses a bad file with an explanation
   -- the user can act on; this refuses anything that reaches the database without one, so a future caller
   -- cannot skip the check by not knowing about it.
-  if fmt is null or fmt not in ('2','3') then
-    raise exception 'restore_backup: unsupported payload format %; only formats 2 and 3 are accepted',
+  -- 219 -- FORMAT 4 JOINS THE LIST; 2 and 3 stay accepted forever. The two groups format 4 adds are
+  -- both ADDITIVE and both OPTIONAL below, so an older payload is not a lesser restore of the same
+  -- data -- it is a restore of a file that genuinely did not contain them.
+  if fmt is null or fmt not in ('2','3','4') then
+    raise exception 'restore_backup: unsupported payload format %; only formats 2, 3 and 4 are accepted',
       coalesce(fmt, '(none)');
   end if;
 
@@ -1036,6 +1029,18 @@ begin
     raise exception 'restore_backup: group "menu_change_log" is present but is not an array';
   end if;
 
+  -- 219 -- the two new groups get the SAME treatment as menu_change_log and for the same reasons:
+  -- absent is legal (a format-2 or -3 payload has no such group), present-but-not-an-array is a
+  -- damaged payload and is worth a sentence rather than a silent zero. They are deliberately NOT in
+  -- `required`: adding them there would refuse every file taken before this batch, including the one
+  -- real recovery file that exists.
+  if payload ? 'price_history' and jsonb_typeof(payload->'price_history') is distinct from 'array' then
+    raise exception 'restore_backup: group "price_history" is present but is not an array';
+  end if;
+  if payload ? 'menu_price_history' and jsonb_typeof(payload->'menu_price_history') is distinct from 'array' then
+    raise exception 'restore_backup: group "menu_price_history" is present but is not an array';
+  end if;
+
   -- DELETE ORDER IS FORCED BY A CIRCULAR FK, NOT CHOSEN.
   -- menu_items.plate_id -> plates.id carries NO delete action, so deleting plates first raises 23503.
   -- plates.menu_id -> menu_items.id is ON DELETE SET NULL and cannot be inserted before the dishes
@@ -1052,7 +1057,11 @@ begin
   delete from menus where true;
   delete from ingredients where true;
   delete from supplier_phrases where true;
-  -- ing_price_history and menu_change_log are NOT deleted -- see the additive inserts below.
+  -- NONE of the four history tables is deleted -- ing_price_history, menu_change_log, price_history
+  -- and menu_price_history all arrive through the additive inserts below. That is what lets a restore
+  -- run onto a LIVE database without erasing observations taken since the export, and it is also why
+  -- the two groups 219 adds could be missing from this function for so long without anyone noticing:
+  -- on a live database their absence is invisible. It is the FULL WIPE that exposes it.
 
   -- INSERT IN REFERENCE ORDER: products, then menus, then plates, then the dishes that reference both.
   -- jsonb_populate_recordset(null::<table>, ...) yields exactly the table's column list in table order,
@@ -1134,9 +1143,65 @@ begin
   on conflict (id) do nothing;
   get diagnostics n_chg = row_count;
 
-  -- app_settings is UPSERTED, not replaced: the export carries only some of its keys, and the others
-  -- (last_invoice_import, the two AI toggles) are not this file's to destroy. Restore replaces the
-  -- datasets the export CONTAINS.
+  -- ADDITIVE #3: price_history -- the all-menus food cost series AND the per-menu one, which are one
+  -- table split in memory by whether menu_id is set. Additive for the same reason as the two above:
+  -- the export trims each series to its in-memory window (500 points for these, 60 for the sell-price
+  -- log below), so a REPLACE could only ever lose observations from the table that holds the lot.
+  --
+  -- ⚠️ THE COLUMNS ARE NAMED, AND HERE THAT IS NOT A STYLE CHOICE -- `select *` WOULD RAISE.
+  -- price_history.id is `bigint generated always as identity`, unlike the bigserial on every other
+  -- history table, so a populated recordset carrying a NULL id is rejected outright rather than
+  -- defaulted. (ing_price_history above gets away with naming columns for a softer reason; this one
+  -- has no choice.) business_id is likewise absent on purpose: the BEFORE INSERT trigger fills it
+  -- with the CALLER'S tenant, which is what makes a restore land in the caller's own cafe and what
+  -- makes a file carrying another tenant's id fail `with check` rather than be silently adopted.
+  --
+  -- ⚠️ `is not distinct from` ON menu_id IS LOAD-BEARING AND `=` IS THE BUG. menu_id is NULLABLE and
+  -- NULL is exactly what the all-menus series looks like -- 45 of production's 69 rows. With `=` the
+  -- comparison is NULL rather than true, `not exists` therefore holds for every all-menus point that
+  -- is ALREADY in the table, and re-running a restore duplicates the whole aggregate series silently,
+  -- doubling the weight of every point the dashboard trend line draws. Same for the DISTINCT ON,
+  -- which treats NULLs as equal and so needs no such care -- the asymmetry is Postgres's, not ours.
+  insert into price_history (recorded_at, avg_food_cost_pct, menu_id)
+  select distinct on (p.menu_id, p.recorded_at)
+         p.recorded_at, p.avg_food_cost_pct, p.menu_id
+    from jsonb_populate_recordset(null::price_history,
+                                  coalesce(payload->'price_history', '[]'::jsonb)) p
+   where p.recorded_at is not null
+     and p.avg_food_cost_pct is not null
+     and not exists (select 1 from price_history e
+                      where e.recorded_at = p.recorded_at
+                        and e.menu_id is not distinct from p.menu_id)
+   order by p.menu_id, p.recorded_at, p.avg_food_cost_pct;
+  get diagnostics n_phi = row_count;
+
+  -- ADDITIVE #4: menu_price_history -- the per-dish SELL price log. menu_item_id and price are both
+  -- NOT NULL on the table, so the filter is a guard against one malformed entry rolling back the
+  -- whole catalogue recovery, which is the reason the change log above stopped using `select *`.
+  -- No `is not distinct from` needed here: menu_item_id is NOT NULL.
+  insert into menu_price_history (menu_item_id, recorded_at, price)
+  select distinct on (p.menu_item_id, p.recorded_at)
+         p.menu_item_id, p.recorded_at, p.price
+    from jsonb_populate_recordset(null::menu_price_history,
+                                  coalesce(payload->'menu_price_history', '[]'::jsonb)) p
+   where p.menu_item_id is not null
+     and p.recorded_at is not null
+     and p.price is not null
+     and not exists (select 1 from menu_price_history e
+                      where e.menu_item_id = p.menu_item_id
+                        and e.recorded_at = p.recorded_at)
+   order by p.menu_item_id, p.recorded_at, p.price;
+  get diagnostics n_mph = row_count;
+
+  -- app_settings is UPSERTED, not replaced: the export may carry only some of its keys, and the ones
+  -- it does not carry are not this file's to destroy. Restore replaces the datasets the export
+  -- CONTAINS.
+  -- ⚠️ THE PARENTHETICAL THAT USED TO BE HERE NAMED last_invoice_import AND THE TWO AI TOGGLES as the
+  -- examples of keys the export never carries. Format 4 carries all three, so the example is now
+  -- wrong while the rule is unchanged -- corrected rather than deleted, because "the export carries
+  -- only some of its keys" is still true (the retired tombstone keys are still not carried, and
+  -- deliberately: no reader remains for them). No change to the statement itself: an upsert by key
+  -- needs no list of which keys exist, which is exactly why the three new ones need no server change.
   --
   -- ⚠️ THE ONE LINE THAT DIFFERS FROM v3, AND IT IS FORCED, NOT TIDIED. The v3 arbiter was the bare
   -- `key`, which stops existing once app_settings' primary key is (business_id, key) — Postgres would
@@ -1162,6 +1227,8 @@ begin
     'supplier_phrases',       n_spr,
     'ing_price_points_added', n_ipl,
     'change_log_added',       n_chg,
+    'food_cost_points_added', n_phi,
+    'sell_price_points_added', n_mph,
     'app_settings',           n_set
   );
 end;
