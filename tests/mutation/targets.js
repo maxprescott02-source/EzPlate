@@ -105,6 +105,11 @@ const targets = [
   { fn: 'gemSkeletonIsSubsequence', tests: ['insight-parity.test.js'] },
   { fn: 'gemPolarityOf', tests: ['insight-parity.test.js'] },
   { fn: 'gemSameNumber', tests: ['insight-parity.test.js'] },
+  /* 220 — the NAME half, which had no target at all while the FIGURE half (gemSkeletonIsSubsequence)
+     had one. That asymmetry is how the substituted-subject hole survived: nothing had ever asked the
+     name walk a question. Both are listed now, not just the new one. */
+  { fn: 'gemNamesAreSubsequence', tests: ['insight-parity.test.js'] },
+  { fn: 'gemNamesAllPresent', tests: ['insight-parity.test.js'] },
 
   // ── The invoice referee. A late Gemini answer must not be merged over a ruling the user made. ──
   { fn: 'invConfirmState', tests: ['invoice-gate.test.js'] },
@@ -422,6 +427,24 @@ const allowedSurvivors = [
       + '(console present, console absent): the two operators agree on both. '
       + 'The `||` on the same line is a DIFFERENT mutant and is killed — inv-referee.test.js asserts the '
       + 'diagnostic names the row, which is what that operand decides.',
+  },
+  /* 220 — gemNamesAreSubsequence, listed as a target for the first time. ONE allowed, and it is worth
+     contrasting with its SIBLING: the identical mutation in gemSkeletonIsSubsequence is KILLED, because
+     that walk dereferences `tpl[i].u` and an extra pass throws a TypeError. The name walk compares
+     `tpl[i]!==cand[j]` instead, which on `undefined` is simply true — the same shape of line, one
+     killed and one equivalent, decided entirely by whether the comparison dereferences. */
+  {
+    key: 'gemNamesAreSubsequence :: while(i<tpl.length && tpl[i]!==cand[j]) i++; :: relational <><= #0',
+    reason: 'EQUIVALENT, and provably so. The extra pass can only occur at i === tpl.length, where tpl[i] is '
+      + 'undefined; cand[j] is always a non-empty lowercased string (nameSequence filters blanks and returns '
+      + 'match text), so `tpl[i]!==cand[j]` is unconditionally true, i advances to tpl.length+1, both bounds '
+      + 'then fail, and the very next line `if(i>=tpl.length) return false` is true for tpl.length and for '
+      + 'tpl.length+1 alike. The two versions therefore return the same value on every input and neither can '
+      + 'throw. PROVED by RUNNING both: exhaustively over all 14,641 (candidate, template) pairs of sequences '
+      + 'up to length 4 drawn from three distinct names — zero differences. '
+      + '⚠️ This allowance expires if the comparison ever DEREFERENCES cand[j] or tpl[i] (`.name`, `.u`, a '
+      + 'method call), because that is exactly what makes the sibling mutant fatal rather than harmless. '
+      + 'The `<` is correct and conventional; there is simply no input that can tell them apart.',
   },
   /* 0c (batch 205) — computeInsights. FOUR allowed out of thirty-nine, and all four are the same
      `>` -> `>=` shape this file now carries nine times over. Three of them are UNREACHABLE rather

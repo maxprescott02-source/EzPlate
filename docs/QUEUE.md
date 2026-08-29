@@ -71,27 +71,24 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  7 · Three insight families do not put their subject in `facts`  **[B]**
+## next  7 · Two more insight families name a subject that is not in `facts`  **[B]**
 
-Found by batch 215's second pre-push review, running the REAL insight builders rather than the batch's own fixtures.
+Found by batch 220 while closing the previous item 7, which named THREE families. It named three because the pre-push review that found them demonstrated three; the enumeration was never checked. **There are five, and the other two are the same defect with the same cost.** (`CLAUDE.md` Tier 3: *"If a brief's list looks complete, check it anyway."*)
 
-215 made the phrasing validator compare a model's rewording against the deterministic template — figures in order, `%` vs `$`, direction, and the ORDER OF THE ENTITY NAMES. The name check reads `factNames(ins.facts)`, i.e. the string values in an insight's facts.
-
-**Three families name their subject only in the rendered `text` and put no name in `facts`, so for them the name check has nothing to sequence:**
-
-| Family | `facts` | what the text names |
+| Family | `facts` | what the text names and nothing defends |
 |---|---|---|
-| `insCostBase` | `{pts, ingPct, plates}` | the culprit **ingredient** ("Beef") |
-| `insConcentration` | `{plates, total, rise, pts}` | the **supplier** |
-| `insPriceAnomaly` | `{top, mult}` | the **product** and its unit |
+| `insVolatility` | `{name, loPct, hiPct}` | the **volatile INGREDIENT** — "swings 24–38% with **cream** prices". The PLATE is published; the ingredient driving it is not. |
+| `insNearCluster` | `{count, targetPct, others}` | up to **two PLATE names** — "Barra & Chips, Cheeseburger and 1 other sit within…". No name at all is published. |
 
-⚠️ **`insCostBase` is the family the original blind audit used as its example**, so the motivating case is the one still uncovered. Measured: replacing "Beef" with "Chicken" throughout, keeping every figure and symbol identical, is ACCEPTED by both copies of the validator.
+**Measured 29 Aug 2026, against the real builders and the shipped validator:** rewriting "cream" to "beef", and "Barra & Chips, Cheeseburger" to two other plates, are both still **ACCEPTED** — every figure, symbol and direction identical. The owner is pointed at the wrong ingredient, or told to go and look at two plates that are not the ones near target.
 
-**What it costs a real person:** the cost rise is blamed on the wrong ingredient, the supplier exposure on the wrong supplier, the price anomaly on the wrong product — in the warmer voice that is supposed to mean the number was checked.
+**What is already built and is why this is small:** 220 shipped `namesAllPresent` / `gemNamesAllPresent`, so a subject published in `facts` is now *required* to survive a rephrasing. These two families simply do not publish one. The mechanism is done; this is the data.
 
-**Requirements:** each of the three carries its subject in `facts`, so the existing name check covers it. One key per family and nothing else changes — `factNumbers` filters to `typeof === 'number'`, so a string fact cannot disturb the number law, and the name is already in the prompt via the template text.
-⚠️ **It is a change to the insight ENGINE, not the validator, which is why 215 did not do it**: `computeInsights` is a mutation target with a large existing suite, and `tests/insight-coverage.test.js` already reasons about which families have a `facts.name` (see its note about an anomaly "whose facts are only `{top, mult}`"). Read that file before adding keys.
-✅ **`tests/insight-real-templates.test.js` already pins the gap as it stands** — its `KNOWN GAP` test asserts the swap is currently accepted, so this item going in turns that test RED by design. Invert it and delete the gap note; do not weaken it.
+**Requirements:** each names its subject in `facts`, and `tests/insight-real-templates.test.js`'s `SUBJECTS` table grows two rows (it is already a loop — a row is a family). One string key per subject and nothing else changes.
+⚠️ **Neither is a one-liner, and that is why 220 did not just do them** — each carries a real design question, and answering it is the work:
+- `insVolatility` falls back to the literal `'ingredient'` when `volatileIng` is absent. **Publishing that fallback as a name would require the word "ingredient" to survive every rewording**, which is a normal English word in a sentence about ingredients. Publish the key only when a real ingredient is known.
+- `insNearCluster` names **0, 1 or 2** plates depending on the data, and `lead` falls back to a bare count. So the key count is conditional — the `others` remainder is the precedent for a conditionally-present fact.
+⚠️ **Do NOT publish the UNIT anywhere while doing this.** 220 deliberately left `insPriceAnomaly`'s unit out of `facts`: every string in facts is matched against the text as a name, and `"ea"` sits inside `"dearest"` in that very template, so short unit strings generate spurious matches and reject good rewordings. The comment at that site says so.
 
 ## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 

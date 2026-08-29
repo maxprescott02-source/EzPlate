@@ -41,6 +41,7 @@ const client = new Function(`
   ${extractFn(src, 'gemFactNames')}
   ${extractFn(src, 'gemNameSequence')}
   ${extractFn(src, 'gemNamesAreSubsequence')}
+  ${extractFn(src, 'gemNamesAllPresent')}
   ${extractFn(src, 'gemHasUnnegated')}
   ${extractFn(src, 'gemPolarityOf')}
   ${extractFn(src, 'gemPhrasingOk')}
@@ -48,7 +49,14 @@ const client = new Function(`
 `)();
 
 const TEMPLATE = 'Beef, up 18% across 5 plates, is most of it.';
-const FACTS = { pts: 18, plates: 5 };
+/* ⚠️ `name` IS IN THIS FIXTURE BECAUSE IT IS IN THE REAL ONE. Until batch 220 insCostBase put no name
+   in `facts`, so this table ran every row with an EMPTY name list and could not exercise the name
+   rules in either copy at all — the fixture agreed with the code about a thing neither of them did.
+   (`tests/insight-real-templates.test.js`'s header names that hazard; this is the same file it warns
+   about.) The runner below now derives the server's names from these facts rather than passing `[]`,
+   so both copies are asked the same question. */
+const FACTS = { name: 'Beef', pts: 18, plates: 5 };
+const NAMES = ['Beef'];
 const ALLOWED = [18, 5];
 
 /* Every row is (name, candidate, shouldPass). The four marked FALSE are the audit's own examples,
@@ -74,6 +82,15 @@ const TABLE = [
      check passes it, and the only thing standing between "5 plates" and "up 5%" is this comparison. */
   ['the plate count rendered as a percentage', 'Beef is up 5%.', false],
   ['a trailing figure with the wrong symbol', 'Beef, up 18% across 5%.', false],
+  /* ⚠️ 220 — THE SUBSTITUTED SUBJECT, WHICH ORDER ALONE CANNOT SEE. The candidate names no fact name
+     at all, so its name sequence is EMPTY — and an empty sequence is a subsequence of every sequence,
+     which is why the ordered check accepted this and why putting the name in `facts` did not on its
+     own fix it. Every figure, symbol and direction word here is identical to the template; the only
+     thing that changed is which ingredient the owner is told to go and look at. */
+  ['the SUBJECT swapped for another ingredient', 'Chicken, up 18% across 5 plates, is most of it.', false],
+  ['the subject dropped entirely', 'Up 18% across 5 plates, that is most of it.', false],
+  // the counterweight — presence must not be satisfiable by rejecting every rewording
+  ['a rewording that keeps the subject', 'Beef leads it, up 18% across 5 plates.', true],
 ];
 
 /* ============================================================================================
@@ -125,13 +142,13 @@ test('REVIEW 3b: a symbol does NOT spread across a non-range', () => {
 });
 
 test('REVIEW: the direction reversal is STILL rejected — negation did not blanket-disable polarity', () => {
-  assert.strictEqual(server.validatePhrasing('Beef is down 18% across 5 plates.', ALLOWED, TEMPLATE, []), null);
+  assert.strictEqual(server.validatePhrasing('Beef is down 18% across 5 plates.', ALLOWED, TEMPLATE, NAMES), null);
   assert.strictEqual(client.gemPhrasingOk('Beef is down 18% across 5 plates.', FACTS, TEMPLATE), false);
 });
 
 for (const [name, candidate, shouldPass] of TABLE) {
   test(`server and client agree: ${name}`, () => {
-    const s = server.validatePhrasing(candidate, ALLOWED, TEMPLATE, []);
+    const s = server.validatePhrasing(candidate, ALLOWED, TEMPLATE, NAMES);
     const c = client.gemPhrasingOk(candidate, FACTS, TEMPLATE);
     // the parity claim, which is the point of the file
     assert.strictEqual(s !== null, c,
@@ -162,7 +179,7 @@ for (const s of ['up 18%', 'down 18%', 'up but under target', 'neither word here
    gap quietly changing status with no record. */
 test('KNOWN GAP: an inverted recommendation is accepted by both, and that is recorded not fixed', () => {
   const bad = 'Beef, up 18% across 5 plates, is fine and needs no action.';
-  const s = server.validatePhrasing(bad, ALLOWED, TEMPLATE);
+  const s = server.validatePhrasing(bad, ALLOWED, TEMPLATE, NAMES);
   const c = client.gemPhrasingOk(bad, FACTS, TEMPLATE);
   assert.strictEqual(s !== null, true, 'if this went red the gap was closed — update docs/MAINTENANCE.md and this test');
   assert.strictEqual(c, true, 'if this went red the gap was closed — update docs/MAINTENANCE.md and this test');

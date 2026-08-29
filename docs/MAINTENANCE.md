@@ -744,6 +744,17 @@ direction: the ordering rule is load-bearing (see the `insDrift` tests in
 from "from 40% to 25%"), so a high reject rate is an argument for a better PROMPT, never for relaxing
 the check.
 
+⚠️ **BATCH 220 ADDED A SECOND RULE THAT CAN REJECT, AND IT IS RECORDED HERE SO THE NEXT MEASUREMENT IS
+NOT COMPARED AGAINST A PRE-220 GUESS.** `namesAllPresent` requires every name the template uses to
+survive into the candidate — so a rewording that DROPS the subject ("Up 18% across 5 plates drove it")
+is now refused where it was accepted. **The prompt already demanded exactly this** (*"MUST keep every
+number (… product names) EXACTLY as written"*), so this is the two halves agreeing rather than a new
+constraint on the model, and the 4-of-10 figure above was measured before it existed. If the rate is
+ever instrumented, note that five of the eight families publish ONE name and are newly covered.
+The direction is the safe one — a reject falls back to the deterministic template, which names the
+right subject — but it is still a reject, and the entry above is the argument for measuring rather
+than guessing which way it moved.
+
 ---
 
 ## The insight validator cannot see an inverted RECOMMENDATION
