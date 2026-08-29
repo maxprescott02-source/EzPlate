@@ -811,3 +811,15 @@ Recorded because the failure is the routing, not the items: both exist only in w
 ### `HANDOVER-178`'s proposed rule was never applied
 
 *"A primary action must not live inside a node that re-renders."* Earned by a real defect: Save lived inside `#bFootSum`, which was replaced between touchstart and touchend, so the click was dropped. It was parked on Max's yes **the day before that requirement was reversed**, and the reversal's own justification was that a parked rule sat unapplied while the thing it warned about cost a diagnose cycle. ⚠️ **The reversal does not reach edits proposed BEFORE it** — that is the gap, and `HANDOVER-172`'s proposal is in the same state.
+
+### `renderManageMenusZero` still reports, and the rule now written down says it should invite
+
+Batch 217, filed at the moment the rule was written rather than after someone rediscovers the inconsistency.
+
+Max chose option A of `docs/decisions/2026-08-28.html` — change one title, write the rule down — and the rule is now at `emptyStateHtml`'s own site: **one obvious action → invite; anything else → report.**
+
+`renderManageMenusZero` (`js/app.js`, the manage-menus modal opened from a plate) shows **"No menus yet."** over **one** action, "Add to a new menu". By the rule as written it should invite. It was left alone because the decision enumerated six tab-level empty states and this is a seventh surface, so changing it would have gone past what was approved — and user-visible copy is Max's.
+
+⚠️ **The reason this is filed rather than shrugged at: a café creating its first plate can reach this modal BEFORE it ever opens the Menu tab**, so the two surfaces are not merely inconsistent in the abstract — one user, one session, two voices for the same underlying state (no menus, one way out). That is the exact complaint the queue item was about, one surface over.
+
+**It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.
