@@ -49,48 +49,11 @@ No code change and no new key — enabling billing on the existing Google Cloud 
 When it ships, the policy stops saying *"Google may train on this"* and starts saying *"we pay for a tier that contractually cannot"*. The screens all stay — the acceptance, the link placements and the restatement at import are unchanged by the tier.
 ⚠️ **This line said "the screens and the acceptance RECORD all stay" until 27 Aug 2026, and there is no acceptance record.** Batch 208 shipped the notice and the tick that gates sign-up; the tick is never written anywhere, so nothing knows who accepted which version. Caught by that batch's pre-push review, which went looking for the mechanism behind the notice's own promise to re-ask people and found none. Building it is filed in `docs/MAINTENANCE.md`; **this item does not depend on it** and must not wait for it.
 
-## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  5 · The restore's full-wipe step (step 3)  **[A — data integrity]**
 
-✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project**, the same event that unblocked item 1.
-✅ **Staging is ready — no rebuild needed**, re-measured after the restore completed (14 tables, 9 functions, four intact accounts). ⚠️ **This item is about HISTORY SERIES, so the drift matters more here than elsewhere:** `ing_price_history` has 2862 rows and `menu_change_log` 134, but menus came back as 1 and dishes as 2 against the seed's 12 and 429. **Reload seed `03`/`04` before rehearsing a backup/restore round trip**, or the round trip will prove less than it appears to. This item's own requirements end "Rehearse on staging first per `docs/STAGING.md`, then production", and the change it needs is a replacement `restore_backup`: the disaster-recovery path, on real data, which is the last function in this project to apply unrehearsed. The client half is not split out and shipped alone on purpose — a client emitting format 4 against a server that cannot restore its new groups is exactly the intermediate state `CLAUDE.md` says to order away.
-
-
-⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
-
-**The gap, measured against production, not inferred:**
-
-| Table | Rows | Span | In the backup file? | Deleted by `restore_backup`? |
-|---|---|---|---|---|
-| `price_history` | **69** | 6 Jul – 10 Aug 2026 | ❌ no | no |
-| `menu_price_history` | **79** | 30 Jul – 4 Aug 2026 | ❌ no | no |
-
-`buildBackup` emits eight groups and **neither table is one of them.** `restore_backup` deletes only `menu_items`, `plates`, `menus`, `ingredients`, `supplier_phrases` — so a restore onto a LIVE database is fine, because these two survive untouched. **A full wipe is where it bites:** they are deleted and nothing puts them back.
-
-**What that costs in the app:** `price_history` feeds `priceHistory` (the Dashboard trend line) and `menuHistory` (per-menu food cost); `menu_price_history` feeds `menuPriceLog` (per-dish sell price). So restoring from a backup after a total loss returns a working app with **a flat trend chart and no price history, and raises no error** — the quiet-wrong-number failure this repo keeps finding.
-
-**Three LIVE `app_settings` keys are also missing:** `ai_invoice_check`, `ai_suggestions`, `last_invoice_import`. Three more (`deleted_menu_ids`, `deleted_prod_ids`, `suggest_fab_hidden`) are **retired keys no reader remains for** — verified by grep, and they are deliberately NOT worth carrying. Do not "fix" those three.
-
-**The shapes, measured live so the next batch does not have to:**
-- `priceHistory` = `array[45]` of `{t,v}`, the all-menus series, `menu_id` null.
-- `menuHistory` = `object{2}` keyed by menu id → `[{t,v}]`.
-- `menuPriceLog` = `object{79}` keyed by **`menu_item_id`** → `[{t,v}]`.
-- **45 + 24 = 69 and 79 = 79**, so memory covers the server exactly and nothing is truncated at export time.
-
-Requirements:
-- `buildBackup` carries all three series plus the three live settings; **`stamp.format` 3 → 4**, because hard rule 9 makes any change to what `bootstrapSync` puts in memory a format change.
-- `parseBackupFile` accepts 2, 3 and 4. The new groups are **type-checked when present and never required** — a format-2 or -3 file legitimately lacks them, exactly as it lacks `change_log`.
-- `backupToPayload` translates them with **`pointToRow` only** (`avg_food_cost_pct` + `menu_id`; `price` + `menu_item_id`), naming no column of its own. That is how hard rule 8 is obeyed structurally rather than by care.
-- A new `restore_backup` migration inserts both **additively with dedup**, mirroring `ing_price_history` — never deleting them, so restoring an old file cannot erase newer points.
-  ⚠️ **Start from v4, not from `20260806_restore_backup_v3.sql`.** Batch 183 replaced the function inside `20260813_semantic_keys.sql`; its `app_settings` upsert resolves against `(business_id, key)` and reverting to the v3 body would raise **42P10 on the next restore**. The two files differ in exactly that one clause.
-- ⚠️ **The wire `format` declares what the PAYLOAD CONTAINS, not which build sent it.** Send 4 only when there is something new to carry, exactly as the existing `chg.length?3:2` does, or every restore breaks between the client shipping and the migration being applied.
-- Rehearse on staging first per `docs/STAGING.md`, then production.
-- ⚠️ **Both tables now carry `business_id` (batch 181), so your new inserts must not reintroduce it as NULL.** The existing `select *` inserts get away with it only because a `BEFORE INSERT` trigger fills the column — a column DEFAULT alone does NOT survive `jsonb_populate_recordset`, which turns an absent JSON key into an explicit NULL. Your two new inserts should name their columns anyway, as the `ing_price_history` one already does, and **`pointToRow` must keep naming no column of its own** so the server stays the only thing that decides the tenant. Decide it here against `20260813_business_id_part1.sql`'s header; **answer it here, do not route it onward.**
-
-✅ **A verified format-3 export is already on disk: `~/Downloads/ezplate-backup-2026-08-12.json`** — 412 products, 79 plates, 76/76 dishes linked, taken and checked 12 Aug 2026. It is the recovery file for the wipe, and it is also the format-3 fixture for proving 4 stays backward compatible.
-
-## next  5b · The restore's full-wipe step (step 3)  **[A — data integrity]**
-
-Do after: **`The backup does not carry three of the five history series`** — the item directly above, whatever number it currently wears. (It has now been renumbered ELEVEN times: 10a → 11a when the mutation-testing gate took slot 1, back to 10a in 180 when that gate shipped and its slot freed, to 9a in 181, to 8a in 182 when the policy swap shipped, to 7a in 184 when `MENU_ORIGINAL` did, to 6a in 188 when the roles client half did, to 5a in that same batch when invitations went blocked, back to 6a when they were unblocked, to **7a in 191**, which both shipped an item above it AND inserted a new one, back to **6a in 192** when the invitations client half shipped and its item was deleted, to **5a in 194** when the audit item was completed and deleted, and to **4a in 195** when pdf.js shipped and its item was deleted. **Name it, never the number** — this line is the standing evidence for why, and every batch that ships an item above it adds one to that count. 184 also renumbered it WRONG on the first attempt, leaving `8a` sitting above a `7`, because a regex that renumbers `## next  N` silently skips `Na` — so the lettered pair is not merely awkward to cite, it is awkward to MOVE.) — the whole point of the wipe is to prove the backup restores everything, and today it demonstrably does not. Running it first would either lose 148 rows of real history or prove less than the item claims.
+✅ **`Do after:` DELETED 29 Aug 2026 — SATISFIED.** It named *"The backup does not carry three of the five history series"*, which shipped as batch 219 / `ezplate-v179`, so the reason this item was held is gone: the backup carries all five now, and `restore_backup` v5 puts the two new ones back additively. Deleting the line is the mechanism rather than tidying — a satisfied dependency left in place is how the dropdowns item spent two years waiting on a conversion that had already landed.
+⚠️ **The warning that line carried is worth keeping and is NOT about this item's schedule: NAME the item you depend on, never its number.** That `Do after:` had been renumbered eleven times, and once renumbered WRONG, because a regex that renumbers `## next  N` silently skips `Na`. This item is now plain `5` for the same reason the lettered pair existed — 5a is gone.
+⚠️ **AND ONE FACT ON THIS ITEM HAS MOVED, per `CLAUDE.md`'s rule that a queued item's approval does not expire and its FACTS do.** It says the wipe would have lost "148 rows of real history". Measured 29 Aug 2026 on production: `price_history` is **284** rows and `menu_price_history` **143**, so the exposure was 427 and is now zero — those two tables are in the backup and the restore. **Re-measure before starting; do not carry 148 forward.**
 
 ✅ **THE GO WAS GIVEN, 12 Aug 2026** — `docs/decisions/2026-08-12.md` §2, Max's words: *"yes you can do it no one currently using the software."*
 ⚠️ **THE GO STANDS, BUT THE STEP DID NOT RUN, and the reason is the backup-history item above, not a change of mind.** It was given on a premise the preparation then falsified: the decision file told him *"if it fails, the export we just took is the way back"*, and that is untrue for 148 rows of history the backup does not carry. He was told, and chose to fix the backup first. **Do the backup-history item above, then come back here and ask again on the day** — the window ("no one currently using the software") is a condition of the day, not a standing permission.
