@@ -264,6 +264,26 @@ after:   42501  "permission denied for function …"        HTTP 401   ← the G
 
 **The transferable rule is this file's oldest one arriving in SQL: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** `tests/cafe-create.test.js` asserted that the word `anon` was ABSENT from the grant statement and that a `revoke … from public` was PRESENT. Both true; both about the file's text; neither about whether `anon` holds EXECUTE. That is roster entry 190 — a denylist assertion is weaker than an equality one — reaching a language where the privilege can arrive from outside the file entirely. **Assert the revoke BY NAME.**
 
+## `create or replace function` REPLACES THE WHOLE BODY, so copying one forward from the wrong ancestor DELETES guards by omission
+
+(Batch 219, 29 Aug 2026, `restore_backup` v5. Shipped to staging AND production before the pre-push review caught it.)
+
+There is no `alter function … body` in Postgres, so every change to a function in this repo restates the entire thing. **That makes "which copy did you start from" a correctness question, not a housekeeping one** — anything another batch added in between is deleted the moment you paste, **with no diff anywhere that shows a deletion**, because the new file simply never contained it.
+
+219 copied `restore_backup` forward from `20260813_semantic_keys.sql` and lost batch **187's owner-only guard**, added by `20260814_roles_part1.sql` the following day. The shipped function let any signed-in **staff** account wipe and replace the whole catalogue. It applied green, every existing test stayed green, and the client's own comment still said the server would refuse a non-owner.
+
+**Why the wrong ancestor was chosen is the part worth generalising: the QUEUE ITEM named it.** It said *"Start from v4, not from `20260806_restore_backup_v3.sql`"* — correct when written, falsified about 36 hours later, and no mechanism can notice. That is Tier 3's *"a queued item's approval does not expire and its FACTS do"* arriving somewhere it costs a security guard rather than a wasted hour.
+
+**The rule: find the newest definition by listing the DIRECTORY, never by trusting an item, a comment, a header or your memory.**
+
+```
+grep -l 'create or replace function public.<name>' supabase/migrations/*.sql | sort | tail -1
+```
+
+⚠️ **AND THE TEST THAT SHOULD HAVE CAUGHT IT COULD NOT, FOR A REASON THAT GENERALISES FURTHER THAN SQL: A MIGRATION FILE IS A HISTORICAL RECORD, SO A TEST PINNED TO ONE BY NAME PINS WHAT WAS TRUE ON THE DAY IT RAN.** `tests/roles.test.js` asserted the guard by reading `20260814_roles_part1.sql` at a hardcoded path. That file still contains the guard and always will — so the assertion was green while the deployed function had none. **Pin the behaviour to whichever migration LAST defines the thing**, the way `tests/semantic-keys.test.js` already did. Two files in this repo had learned that and the third, holding the only security-critical assertion of the three, had not.
+
+**The rehearsal missed it too, and the shape is the same one the `anon` record kept finding:** staging exercised `anon` and the OWNER, never a signed-in **staff** member — so the one role the guard exists for was the one role never tried. **When a function's guard names a role, the rehearsal has to sign in AS that role**, and it has to send the payload shape that reaches the destructive statements: a refusal proved with a payload that fails at the first insert has not tested the deletes.
+
 ## A PRIMARY KEY's column list is a contract with every `ON CONFLICT` that names it — and with the client that names none
 
 (Batch 183, 13 Aug 2026, widening `app_settings` to `(business_id, key)` and `supplier_phrases` to `(business_id, id)`.)

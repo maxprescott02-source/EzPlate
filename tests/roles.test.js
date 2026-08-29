@@ -26,6 +26,32 @@ const MIGRATION = fs.readFileSync(
 const MIRROR = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'staging', '01-schema.sql'), 'utf8');
 
+/* ⚠️ 219 — THE RESTORE GUARD IS NO LONGER READ OUT OF THE FILE ABOVE, AND THIS IS THE FINDING THAT
+   MADE THAT NECESSARY RATHER THAN TIDY.
+   `20260814_roles_part1.sql` is a historical record: it says what batch 187 did on the day it ran,
+   and it will contain the owner guard forever whatever the database holds. Batch 219 then replaced
+   `restore_backup` again, built its body from `20260813_semantic_keys.sql` (the migration the queue
+   item named) rather than from 187 (the migration that actually came last) — and **dropped the owner
+   guard entirely**. Every assertion below stayed GREEN, because they were reading a superseded file.
+   The function that shipped let any staff member wipe and replace the whole catalogue.
+   Caught by the pre-push review, not by this suite.
+   **A pin against a NAMED migration is a pin against a name.** The two restore tests now read
+   whichever migration LAST defines the function, so the next batch to replace it gets the check for
+   free — the same fix `tests/restore.test.js` and `tests/semantic-keys.test.js` already carry, which
+   is exactly why the gap here is worth a paragraph: two files had learned this lesson and the third,
+   holding the only security-critical assertion of the three, had not. */
+const MIGRATIONS_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
+const RESTORE_SIG = 'create or replace function public.restore_backup(payload jsonb)';
+function newestRestoreMigration() {
+  // Filenames are datestamped, so a plain sort is oldest-first.
+  const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql'))
+    .sort().filter((f) => fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8').includes(RESTORE_SIG));
+  assert.ok(files.length >= 2, 'the function has been replaced more than once; that history is the point');
+  return files[files.length - 1];
+}
+const NEWEST_RESTORE = newestRestoreMigration();
+const RESTORE_MIGRATION = fs.readFileSync(path.join(MIGRATIONS_DIR, NEWEST_RESTORE), 'utf8');
+
 /* Both files state their reasoning in comments, and the reasoning names the very things these
    assertions look for — "as restrictive", "food_cost_target", "owner". CLAUDE.md 183(a): an
    assertion that greps a file is searching PROSE as well as code, and the prose is written by the
@@ -33,6 +59,7 @@ const MIRROR = fs.readFileSync(
 const code = (sql) => sql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
 const MIG = code(MIGRATION);
 const MIR = code(MIRROR);
+const RESTORE = code(RESTORE_MIGRATION);   // 219: the newest definition, not 187's record of one
 
 const RESTRICTED = [
   { policy: 'plates owner-only delete', table: 'plates', cmd: 'delete' },
@@ -190,8 +217,12 @@ test('the role column is constrained to the two roles that were decided', () => 
 
 test('the restore refuses a non-owner BEFORE it deletes anything', () => {
   /* Everything in that function deletes five tables before inserting, so a guard anywhere below the
-     first statement is a guard on an already-emptied database. */
-  const body = MIG.slice(MIG.indexOf('as $fn$', MIG.indexOf('function public.restore_backup')));
+     first statement is a guard on an already-emptied database.
+     219: read from the NEWEST definition — see the note at RESTORE_MIGRATION. Measured on staging
+     the day the guard was put back: a signed-in `staff` account was refused P0001 on BOTH a populated
+     payload AND an empty-groups one (the shape that would otherwise reach the deletes), while the
+     owner's restore still returned 200. */
+  const body = RESTORE.slice(RESTORE.indexOf('as $fn$', RESTORE.indexOf('function public.restore_backup')));
   const guard = body.indexOf('only an owner may restore a backup');
   const firstDelete = body.indexOf('delete from');
   const formatCheck = body.indexOf('unsupported payload format');
@@ -200,11 +231,28 @@ test('the restore refuses a non-owner BEFORE it deletes anything', () => {
   assert.ok(guard < formatCheck, 'and be the first thing the function does');
 });
 
+test('219: the restore tests read the NEWEST definition, and the MIRROR carries the guard too', () => {
+  /* The guard on the guard, and each half failed independently in batch 219's first draft.
+     - NEWEST: if this file ever again names a superseded migration, the two tests around it go quiet
+       rather than red. Quiet is what let a staff account wipe a catalogue.
+     - MIRROR: `supabase/staging/01-schema.sql` is what a rebuilt staging is restored from, so a
+       mirror without the guard would rehearse a permission model production does not have — and
+       every rehearsal after that would agree with the wrong answer. */
+  const defs = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql'))
+    .sort().filter((f) => fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8').includes(RESTORE_SIG));
+  assert.strictEqual(NEWEST_RESTORE, defs[defs.length - 1],
+    'the restore role tests must read the newest migration that defines restore_backup');
+  const mirrorBody = MIR.slice(MIR.indexOf('as $fn$', MIR.indexOf('function public.restore_backup')));
+  const mGuard = mirrorBody.indexOf('only an owner may restore a backup');
+  assert.ok(mGuard > -1, 'the mirror must carry the owner guard');
+  assert.ok(mGuard < mirrorBody.indexOf('delete from'), 'and it must precede every delete there too');
+});
+
 test('the restore guard treats NULL as not-an-owner', () => {
   /* `<> 'owner'` against a NULL role yields NULL, the `if` does not fire, and a caller with no
      membership at all would fall straight through into the deletes. `is distinct from` is the
      difference between a guard and a decoration. */
-  const body = MIG.slice(MIG.indexOf('as $fn$', MIG.indexOf('function public.restore_backup')));
+  const body = RESTORE.slice(RESTORE.indexOf('as $fn$', RESTORE.indexOf('function public.restore_backup')));
   const line = body.slice(body.indexOf('if (select public.current_business_role())'), body.indexOf('only an owner may restore'));
   assert.match(line, /is distinct from 'owner'/, 'got: ' + line);
   assert.ok(!/<>\s*'owner'/.test(line), "`<> 'owner'` lets a NULL role through");

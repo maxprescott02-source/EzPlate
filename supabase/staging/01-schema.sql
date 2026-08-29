@@ -1000,6 +1000,22 @@ declare
   n_ing int; n_mnu int; n_pla int; n_men int; n_spr int; n_ipl int; n_set int; n_chg int;
   n_phi int; n_mph int;
 begin
+  -- 187 -- ONLY AN OWNER MAY RESTORE, AND THIS IS THE FIRST STATEMENT IN THE FUNCTION.
+  -- Everything below deletes five tables before it inserts anything, so a check placed after any of
+  -- it would be a check on a database that had already been emptied. RLS cannot express this one:
+  -- the restore is SECURITY INVOKER, so its deletes already run as the caller, and staff legitimately
+  -- delete ingredients and dishes in the ordinary course of work -- there is nothing in a row to tell
+  -- the two apart. `is distinct from` rather than `<>` because a caller with no membership answers
+  -- NULL, and NULL <> 'owner' is NULL, which would fall through the `if` and let them past.
+  --
+  -- 219 -- THIS BLOCK WAS DROPPED BY THE FIRST DRAFT OF v5 AND PUT BACK BY THE PRE-PUSH REVIEW.
+  -- v5 was built from 20260813_semantic_keys.sql (v4) because the queue item said to start there,
+  -- and 187 had replaced the function the DAY AFTER that file. Copying a function body forward means
+  -- finding the newest definition, not the one an item names -- see this file's header.
+  if (select public.current_business_role()) is distinct from 'owner' then
+    raise exception 'restore_backup: only an owner may restore a backup';
+  end if;
+
   -- The stamp guard exists on BOTH sides on purpose. The client refuses a bad file with an explanation
   -- the user can act on; this refuses anything that reaches the database without one, so a future caller
   -- cannot skip the check by not knowing about it.

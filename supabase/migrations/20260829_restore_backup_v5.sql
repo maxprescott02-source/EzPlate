@@ -1,12 +1,46 @@
 -- 219 -- restore_backup, v5: the two history tables the backup never carried.
 --
--- QUEUE item 5a. REPLACES the function created by 20260813_semantic_keys.sql section 2 (v4), which
--- replaced 20260806_restore_backup_v3.sql (v3), which replaced 20260803_restore_backup_fn.sql (v1).
+-- QUEUE item 5a. REPLACES the function last defined by 20260814_roles_part1.sql (batch 187), which
+-- replaced 20260813_semantic_keys.sql section 2 (batch 183), which replaced
+-- 20260806_restore_backup_v3.sql, which replaced 20260803_restore_backup_fn.sql.
 -- Everything v3's header says about the format guard, the required-group guard, the delete ORDER,
 -- the load-bearing `where true`, and why `select *` was wrong for the change log is UNCHANGED and
--- still load-bearing -- READ THAT FILE rather than assuming this one restates it. v4's one-line
--- change (the app_settings conflict target, forced by batch 183's composite primary key) is carried
--- through verbatim; reverting it would raise 42P10 on the next restore.
+-- still load-bearing -- READ THAT FILE rather than assuming this one restates it. 183's one-line
+-- change (the app_settings conflict target, forced by its composite primary key) is carried through
+-- verbatim; reverting it would raise 42P10 on the next restore. 187's owner-only guard is likewise
+-- carried through verbatim and is the FIRST statement in the body.
+--
+-- ⚠️⚠️ THE FIRST DRAFT OF THIS FILE DROPPED 187'S OWNER GUARD, AND THE MECHANISM IS THE WHOLE REASON
+-- THE PARAGRAPH ABOVE NOW LISTS FOUR ANCESTORS INSTEAD OF SAYING "the previous one".
+-- It was built by copying the body out of `20260813_semantic_keys.sql` -- because the QUEUE ITEM
+-- said, in as many words, "Start from v4, not from 20260806_restore_backup_v3.sql". That advice was
+-- written on 12 Aug 2026 and was correct for about 36 hours: batch 187 replaced the function again
+-- on 14 Aug, adding the check that stops a STAFF account wiping and replacing a whole catalogue.
+-- The item never learned. Copying 183's body forward silently reverted 187.
+--
+-- It shipped to staging AND to production before the pre-push review caught it. Both were repaired
+-- in the same session, both verified below, and no data was lost -- but for the length of that
+-- window any signed-in staff member could have called `restore_backup` and replaced everything.
+--
+-- ⚠️ THREE THINGS ALLOWED IT, and only the third is about a person:
+--   1. `tests/roles.test.js` pins the guard by reading `20260814_roles_part1.sql` BY HARDCODED PATH.
+--      A migration file is a HISTORICAL RECORD -- it will contain that guard forever, whatever the
+--      database holds -- so the assertion stayed green while the shipped function had no guard at
+--      all. Fixed in this batch: those tests now read whichever migration LAST defines the function.
+--      `tests/restore.test.js` and `tests/semantic-keys.test.js` already worked that way, which is
+--      the sharp part: two files had learned the lesson and the third, holding the only
+--      security-critical assertion of the three, had not.
+--   2. The staging rehearsal exercised `anon` and the OWNER, and never a signed-in STAFF member --
+--      so it could not have noticed. It does now, and the measurement is recorded below.
+--   3. The queue item's factual claim was trusted over the directory. `CLAUDE.md` already says a
+--      queued item's approval does not expire and its FACTS do; this is that rule costing something.
+--
+-- **THE TRANSFERABLE RULE, and it is now in CLAUDE.md: to copy a function body forward, find the
+-- NEWEST migration that defines it -- by listing the directory -- never the one an item, a comment
+-- or your memory names.** `create or replace` replaces the WHOLE body, so every guard some other
+-- batch added in between is deleted by omission, in silence, with no diff anywhere that shows a
+-- deletion. The one command that answers it:
+--   grep -l 'create or replace function public.<name>' supabase/migrations/*.sql | sort | tail -1
 --
 -- WHAT WAS WRONG, measured against production rather than inferred:
 --
@@ -120,6 +154,27 @@
 --   ⚠️ THE CLIENT HAS NOT SHIPPED YET AT THE TIME THIS WAS APPLIED, and that is the intended order --
 --   see the deploy-order note above. Production accepts format 4 from the moment this ran; nothing
 --   sends it until ezplate-v179 is merged, and the old client's format 2/3 payloads are unaffected.
+--
+-- RE-APPLIED TO BOTH PROJECTS, 29 Aug 2026, same session -- the owner-guard repair described at the
+-- top of this header. Staging was re-created from this file's text; production was repaired by
+-- inserting the guard block into its deployed body inside a `do $$ … $$` that REFUSES if the marker
+-- it expects is absent and returns early if the guard is already there, so it cannot half-apply.
+--   Both projects then returned the SAME `md5(pg_get_functiondef(...))` -- 022197552f422b9837d151e2b7da5df5
+--   -- which is what proves production matches this file, since staging's copy came from it verbatim.
+--   Both also answer `guard_before_first_delete` = true, checked by string position rather than by
+--   eye: a guard placed after any delete is a guard on an already-emptied database.
+--
+--   VERIFIED AS THE CLIENT, and this is the check the first rehearsal did not have:
+--     staff  (d@example.com, staff of ...0001), populated payload    -> 400 P0001 "only an owner may
+--                                                                       restore a backup"
+--     staff  (same), EMPTY-GROUPS payload                            -> 400 P0001, same message
+--     owner  (a@example.com), the same populated payload             -> 200, and 0 additive points,
+--                                                                       so the dedup still holds
+--   The EMPTY-GROUPS case is the one worth keeping: it is the shape that reaches the five deletes
+--   without raising on an insert, so a refusal test that only ever sends a payload which fails at
+--   `ingredients` has not tested the deletes at all. Same lesson the anon record above learned, one
+--   role along -- and if the first rehearsal had sent it as staff, this whole episode would have
+--   been a red result instead of a review finding.
 
 create or replace function public.restore_backup(payload jsonb)
 returns jsonb
@@ -136,6 +191,22 @@ declare
   n_ing int; n_mnu int; n_pla int; n_men int; n_spr int; n_ipl int; n_set int; n_chg int;
   n_phi int; n_mph int;
 begin
+  -- 187 -- ONLY AN OWNER MAY RESTORE, AND THIS IS THE FIRST STATEMENT IN THE FUNCTION.
+  -- Everything below deletes five tables before it inserts anything, so a check placed after any of
+  -- it would be a check on a database that had already been emptied. RLS cannot express this one:
+  -- the restore is SECURITY INVOKER, so its deletes already run as the caller, and staff legitimately
+  -- delete ingredients and dishes in the ordinary course of work -- there is nothing in a row to tell
+  -- the two apart. `is distinct from` rather than `<>` because a caller with no membership answers
+  -- NULL, and NULL <> 'owner' is NULL, which would fall through the `if` and let them past.
+  --
+  -- 219 -- THIS BLOCK WAS DROPPED BY THE FIRST DRAFT OF v5 AND PUT BACK BY THE PRE-PUSH REVIEW.
+  -- v5 was built from 20260813_semantic_keys.sql (v4) because the queue item said to start there,
+  -- and 187 had replaced the function the DAY AFTER that file. Copying a function body forward means
+  -- finding the newest definition, not the one an item names -- see this file's header.
+  if (select public.current_business_role()) is distinct from 'owner' then
+    raise exception 'restore_backup: only an owner may restore a backup';
+  end if;
+
   -- The stamp guard exists on BOTH sides on purpose. The client refuses a bad file with an explanation
   -- the user can act on; this refuses anything that reaches the database without one, so a future caller
   -- cannot skip the check by not knowing about it.
