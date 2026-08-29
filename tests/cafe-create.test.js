@@ -27,6 +27,7 @@ const path = require('path');
 const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
+const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const MIGRATION = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'migrations', '20260827_cafe_creation.sql'), 'utf8');
 const MIRROR = fs.readFileSync(
@@ -119,6 +120,19 @@ test('the client and the server agree on the maximum — read from both, not res
   assert.ok(m, 'the migration must bound the name length in its body');
   assert.equal(api.CAFE_NAME_MAX, Number(m[1]),
     `the client allows ${api.CAFE_NAME_MAX} and the server allows ${m[1]} — one of them is lying to somebody`);
+
+  /* ⚠️ AND THERE IS A THIRD DEFINITION, WHICH THIS TEST DID NOT SEE UNTIL BATCH 218. The field
+     carries `maxlength="60"` in index.html, and that is the one a real person actually meets: it
+     caps what can be TYPED OR PASTED, silently, with no message anywhere. So raising the other two
+     to 80 would leave a stranger physically unable to enter the 61st character of a name the server
+     would have accepted, and every assertion above would still be green.
+     This is CLAUDE.md's DEFAULT-and-trigger law in the markup: two entry points to one rule must
+     compute the same number, and the file that is hardest to notice is the one nobody greps. */
+  const ml = /id="bgCafeName"[^>]*\bmaxlength="(\d+)"/.exec(HTML);
+  assert.ok(ml, 'the café name field must bound its own length in the markup');
+  assert.equal(Number(ml[1]), Number(m[1]),
+    `the markup caps typing at ${ml[1]} while the server allows ${m[1]} — the shorter one wins ` +
+    `silently, and it is the only one the user can feel`);
 });
 
 /* ── 2. THE ANSWER ────────────────────────────────────────────────────────────────────────────── */
