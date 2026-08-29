@@ -6438,7 +6438,6 @@ function gemPhrasingOk(text, facts, template){
     var cn=gemNameSequence(t,nm), tn=gemNameSequence(template,nm);
     if(!gemNamesAreSubsequence(cn,tn)) return false;
     if(!gemNamesAllPresent(cn,tn)) return false;                          // a SUBSTITUTED name reads as a dropped one
-
     var pt=gemPolarityOf(template), pc=gemPolarityOf(t);
     if(pt && pc && pt!==pc) return false;
   }
