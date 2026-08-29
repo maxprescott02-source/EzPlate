@@ -5771,8 +5771,18 @@ function insCostBase(mv){
   if(!mv || !(Math.abs(mv.pts)>=0.3) || !mv.name || !mv.sinceLabel) return [];
   if(!(Math.abs(mv.ingPct)>=3) || !(mv.plates>=1)) return [];
   var up=mv.pts>0, p=pts1(Math.abs(mv.pts)), ip=Math.round(Math.abs(mv.ingPct)), n=mv.plates;
+  /* ⚠️ `name` IS IN FACTS BECAUSE THE PHRASING VALIDATOR SEQUENCES THE STRING VALUES IN `facts`, and a
+     subject that lives only in `text` therefore has nothing to sequence. Measured before this key
+     existed: replacing "Beef" with "Chicken" throughout, every figure and symbol identical, was
+     ACCEPTED by both copies of the validator — the cost rise blamed on the wrong ingredient, in the
+     warmer voice that is supposed to mean the number was checked. `factNumbers` filters to
+     `typeof === 'number'`, so a string fact cannot disturb the money law. The same key is on
+     insConcentration (the supplier) and insPriceAnomaly (the product) for the same reason.
+     ⚠️ ONE key, the SUBJECT, and nothing else — every string in facts is matched against the text as
+     a name, so publishing a short incidental string (a unit like "ea") would hit inside ordinary
+     words ("dearest") and reject good rewordings. */
   return [{kind:'costbase', dims:['time','aggregation','breadth'], score:insightScore('costbase', 0.5+Math.abs(mv.pts)/4),
-    facts:{pts:p, ingPct:ip, plates:n},
+    facts:{name:mv.name, pts:p, ingPct:ip, plates:n},
     text:'Your average food cost is '+p+' pts '+(up?'higher':'lower')+' than at '+mv.sinceLabel+' prices — '
       +mv.name+', '+(mv.ingPct>0?'up':'down')+' '+ip+'% across '+n+' plate'+(n===1?'':'s')+', is most of it.'}];
 }
@@ -5901,7 +5911,8 @@ function insConcentration(sup){
   var pts=pts1(sup.ptsPer10||0); if(!(pts>=CONC_MIN_PTS)) return []; // reach without consequence is the bare count Max rejected
   return [{kind:'concentration', dims:['breadth','aggregation','comparison'], scope:'global',
     score:insightScore('concentration', 0.5+pts/2),
-    facts:{plates:sup.plates, total:sup.total, rise:10, pts:pts},
+    // `name` in facts so the validator can sequence the SUPPLIER — see insCostBase's note
+    facts:{name:sup.name, plates:sup.plates, total:sup.total, rise:10, pts:pts},
     text:sup.name+' is in '+sup.plates+' of your '+sup.total+' costed plates — a 10% rise there would add '
       +pts+' pts to their average food cost.'}];
 }
@@ -5936,7 +5947,9 @@ function insPriceAnomaly(an){
     // nothing and instances vanish between the two. (CodeRabbit, v92; pinned by the minimum-input
     // test in insights.test.js.)
     score:insightScore('anomaly', 0.6+(mult-ANOM_MIN_RATIO)/10),
-    facts:{top:Math.round(an.top*100)/100, mult:mult},
+    // `name` in facts so the validator can sequence the PRODUCT — see insCostBase's note. The UNIT is
+    // deliberately NOT published: "ea"/"g" would match inside ordinary words and reject good phrasings.
+    facts:{name:an.name, top:Math.round(an.top*100)/100, mult:mult},
     text:an.name+' at $'+an.top.toFixed(2)+'/'+an.unit+' is '+mult+'x your next dearest ingredient — worth checking that’s right.'}];
 }
 
@@ -6376,6 +6389,13 @@ function gemNamesAreSubsequence(cand,tpl){
   }
   return true;
 }
+/* Mirrors namesAllPresent in api/_insight.js, which carries the reasoning: the ordered check lets a
+   rewording DROP a name, and a SUBSTITUTED name reads to it as a dropped one, so a one-name line could
+   blame a different ingredient with every figure intact. Presence is a separate requirement. */
+function gemNamesAllPresent(cand,tpl){
+  for(var i=0;i<tpl.length;i++){ if(cand.indexOf(tpl[i])<0) return false; }
+  return true;
+}
 var GEM_NUM_EPS=0.005;                                   // 215: one epsilon, named once — mirrors NUM_EPS in api/_insight.js
 function gemSameNumber(a,b){ return Math.abs(a-b)<GEM_NUM_EPS; }
 function gemSkeletonIsSubsequence(cand,tpl){
@@ -6415,7 +6435,10 @@ function gemPhrasingOk(text, facts, template){
   if(template!=null && String(template).trim()){
     if(!gemSkeletonIsSubsequence(gemNumberSkeleton(t), gemNumberSkeleton(template))) return false;
     var nm=gemFactNames(facts);
-    if(!gemNamesAreSubsequence(gemNameSequence(t,nm), gemNameSequence(template,nm))) return false;
+    var cn=gemNameSequence(t,nm), tn=gemNameSequence(template,nm);
+    if(!gemNamesAreSubsequence(cn,tn)) return false;
+    if(!gemNamesAllPresent(cn,tn)) return false;                          // a SUBSTITUTED name reads as a dropped one
+
     var pt=gemPolarityOf(template), pc=gemPolarityOf(t);
     if(pt && pc && pt!==pc) return false;
   }
@@ -7064,7 +7087,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v179';
+var APP_VERSION='v180';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

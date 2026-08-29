@@ -199,6 +199,34 @@ test('215: omitting a fact is still allowed, as this file\'s docblock promises',
   assert.ok(I.validatePhrasing('Beef is up 18% and leads the rise.', MEANING_ALLOWED, MEANING_TPL));
 });
 
+/* ⚠️ 220 — THE SUBJECT, AND WHY IT IS A SEPARATE RULE FROM ORDER RATHER THAN A STRONGER ORDER RULE.
+   `namesAreSubsequence` lets a rewording DROP a name (deliberately - see the omit-a-fact test above,
+   which is the same freedom for figures). SUBSTITUTING a name reads to it as dropping one: the
+   candidate below names nothing in the fact list, so its name sequence is EMPTY, and an empty sequence
+   is a subsequence of everything. Order therefore accepted it, every figure and symbol identical,
+   and the owner was told the wrong ingredient drove the rise. `namesAllPresent` is the second half.
+   The three-argument form is deliberately UNCHANGED and still exercised by the tests above: with no
+   names supplied there is nothing to require, so an old caller cannot start failing. */
+test('220: the SUBJECT may not be substituted, even though a name may still be dropped', () => {
+  const NAMES = ['Beef'];
+  assert.equal(
+    I.validatePhrasing('Chicken, up 18% across 5 plates, is most of it.', MEANING_ALLOWED, MEANING_TPL, NAMES), null,
+    'same figures, same symbols, same direction - only the ingredient blamed has changed');
+  assert.ok(
+    I.validatePhrasing('Beef is up 18% and leads the rise.', MEANING_ALLOWED, MEANING_TPL, NAMES),
+    'and dropping a FIGURE is still allowed, so this did not quietly repeal the rule above');
+  assert.ok(
+    I.validatePhrasing('Beef, up 18% across 5 plates, drives it.', MEANING_ALLOWED, MEANING_TPL, NAMES),
+    'a faithful rewording that keeps the subject still passes');
+});
+
+test('220: with NO names supplied the rule is vacuous, not a blanket refusal', () => {
+  // The failure this guards is a presence check that requires names the caller never published:
+  // every family without a subject (insComplexity, healthyLine) would then have every rewording
+  // rejected, and a rejected line is INVISIBLE because the template is the fallback.
+  assert.ok(I.validatePhrasing('Chicken, up 18% across 5 plates, is most of it.', MEANING_ALLOWED, MEANING_TPL, []));
+});
+
 test('215: a sentence carrying BOTH directions does not trip the polarity check', () => {
   // "up … under" is ambiguous, and this app's own templates produce it. Guessing would reject
   // good sentences, so the check abstains unless both sides are definite and disagree.

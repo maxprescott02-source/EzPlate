@@ -138,6 +138,25 @@ function namesAreSubsequence(cand, tpl) {
   }
   return true;
 }
+/* ⚠️ ORDER IS NOT ENOUGH WHEN A LINE HAS ONE NAME, AND PUTTING THE NAME IN `facts` DOES NOT ON ITS
+   OWN CLOSE THAT — measured, not reasoned. `namesAreSubsequence` deliberately lets a rewording DROP a
+   name, and SUBSTITUTING one reads to it as exactly that: the candidate sequence for "Chicken, up 18%
+   across 5 plates" against the name "Beef" is EMPTY, and an empty sequence is a subsequence of
+   everything. So the ordered check returned true, every figure and symbol matched, the direction was
+   unchanged, and the owner was told a different ingredient drove the cost rise.
+   It stayed invisible because the two-name families hid it: swapping BOTH names in insCategory
+   reorders the sequence and is caught, so the rule looked like it worked. It never covered a family
+   naming ONE subject — which is five of the eight.
+   PRESENCE IS THEREFORE A SEPARATE REQUIREMENT FROM ORDER, not a stronger version of it: every name
+   the template actually uses must still be somewhere in the candidate. The prompt has always demanded
+   this ("MUST keep every number (… product names) EXACTLY as written"); until now nothing enforced it,
+   which is the two halves of one feature disagreeing that this file already records once.
+   It reads the TEMPLATE'S sequence, never the raw fact list, so a name a template does not use cannot
+   make every rewording fail. */
+function namesAllPresent(cand, tpl) {
+  for (var i = 0; i < tpl.length; i++) if (cand.indexOf(tpl[i]) < 0) return false;
+  return true;
+}
 /* ⚠️ A SUBSEQUENCE, NOT AN EQUALITY, AND THE DIFFERENCE IS A CONTRACT THIS FILE ALREADY STATED.
    validatePhrasing's own docblock says: "It does NOT require every allowed number to reappear: a
    warmer sentence may omit one, but it may never invent one." Comparing the two skeletons for
@@ -239,7 +258,9 @@ function validatePhrasing(text, allowedVals, template, names) {
      entry points rather than by grepping for the call. */
   if (template != null && String(template).trim()) {
     if (!skeletonIsSubsequence(numberSkeleton(t), numberSkeleton(template))) return null;
-    if (!namesAreSubsequence(nameSequence(t, names), nameSequence(template, names))) return null;
+    var candNames = nameSequence(t, names), tplNames = nameSequence(template, names);
+    if (!namesAreSubsequence(candNames, tplNames)) return null;
+    if (!namesAllPresent(candNames, tplNames)) return null;      // a SUBSTITUTED name reads as a dropped one
     var pt = polarityOf(template), pc = polarityOf(t);
     if (pt && pc && pt !== pc) return null;
   }
@@ -363,5 +384,6 @@ module.exports = {
   polarityOf: polarityOf,
   factNames: factNames,
   nameSequence: nameSequence,
+  namesAllPresent: namesAllPresent,
   sameNumber: sameNumber
 };

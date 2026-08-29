@@ -577,8 +577,12 @@ test('PIPELINE: computeInsights survives malformed state instead of taking the D
    and passes forever, and the TWO-SIDED form is what hides it — the same assertion written against a
    literal fails immediately and obviously. It bit three times while this section was being written
    (`facts.ptsPer10`, which is the builder's internal name for what insConcentration publishes as
-   `pts`; and `facts.name` and `facts.count` on an anomaly, whose facts are only `{top, mult}`), and
-   all three were found by the mutation gate or the pre-push review rather than by reading. */
+   `pts`; and `facts.name` and `facts.count` on an anomaly, whose facts were then only `{top, mult}`),
+   and all three were found by the mutation gate or the pre-push review rather than by reading.
+   ⚠️ TWO OF THOSE THREE KEYS NOW EXIST - 220 gave the anomaly a `facts.name`, so an assertion about it
+   is no longer vacuous. `facts.count` and `facts.ptsPer10` still do not exist and still would be. That
+   is the argument for this helper rather than against it: which keys a builder publishes CHANGES, and
+   a guard that asks the object instead of trusting a comment is the only form that survives it. */
 const sameFact = (a, b, key, why) => {
   assert.ok(a.facts && key in a.facts, `facts.${key} does not exist, so comparing it proves nothing`);
   assert.equal(a.facts[key], b.facts[key], why);
@@ -696,12 +700,15 @@ test('BUILDER: only products actually USED on a plate can be the price anomaly',
   s.PRODUCTS.push(prod('P_UNUSED', { cost_per_base_unit: 99 }));
 
   const c = fires(run(s), 'anomaly');
-  /* Asserted on the TEXT: the anomaly's facts are `{top, mult}` and carry no name.
-     ⚠️ And on the POSITIVE, not the negative — `not.toBe`-shaped assertions are roster entry 190:
+  /* ⚠️ On the POSITIVE, not the negative — `not.toBe`-shaped assertions are roster entry 190:
      "not the wrong value" is a guess about every wrong value there could be, while "is the right
      value" is a fact about this app. The intruder is priced at $99/g, so if it were admitted it
-     would win outright and both assertions below would fail. */
+     would win outright and every assertion below would fail.
+     Since 220 the subject is in FACTS as well as the text, so this asserts the published fact rather
+     than only the rendered sentence — the text is what a person reads, the fact is what the phrasing
+     validator defends. */
   assert.match(c.text, /^Saffron at \$55\.00\/kg/, 'the outlier is the dearest USED product');
+  assert.equal(c.facts.name, 'Saffron', 'and it is PUBLISHED, not just rendered');
   assert.equal(c.facts.top, 55, 'a product on no plate cannot displace it');
 });
 
@@ -719,11 +726,12 @@ test('BUILDER: both routes to a product — a kitchen ingredient and a bare pid 
     p.lines = p.lines.map((l) => (l.kid ? { pid: (t.kitchenIngredients.find((k) => k.id === l.kid) || {}).pid, qty: l.qty } : l));
   });
   const viaPid = fires(run(t), 'anomaly');
-  /* The anomaly's facts are `{top, mult}` — the NAME lives only in the text, and the group size is
-     not published at all. Asserting facts.name/facts.count here compared undefined with undefined
-     and could not fail; found by the pre-push review. `mult` is the figure that moves if the group
-     loses a member, so it is the one worth comparing. */
+  /* ⚠️ `facts.count` STILL DOES NOT EXIST — the group size is not published, so comparing it here
+     would be `undefined === undefined` and could not fail; found by the pre-push review, and `sameFact`
+     is what now refuses it. `mult` is the figure that moves if the group loses a member, so it is the
+     one worth comparing. `facts.name` DOES exist since 220, so that comparison is real. */
   assert.match(viaPid.text, /Saffron/, 'both line shapes reach the same product');
+  sameFact(viaPid, viaKid, 'name', 'both line shapes reach the same product in FACTS too');
   sameFact(viaPid, viaKid, 'top', 'and price it the same');
   sameFact(viaPid, viaKid, 'mult', 'and against the same runner-up, so the group is the same size');
 });

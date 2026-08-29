@@ -87,7 +87,12 @@ test('F1: the average moved, the culprit is named, and its reach is stated (time
   assert.ok(ruleA(c));
   assert.match(c.text, /1\.2 pts higher/);
   assert.match(c.text, /Beef, up 18% across 5 plates/);
-  assert.deepEqual(c.facts, { pts: 1.2, ingPct: 18, plates: 5 });
+  /* `name` is in facts, not only in the text. The phrasing validator sequences the STRING values in
+     facts, so a subject that lives only in the text has nothing to sequence and a rewording may blame
+     a different ingredient with every figure intact — measured and accepted before this key existed.
+     The whole object is compared rather than the one key: a deepEqual is what makes a DROPPED key red,
+     and dropping it is the regression this pins. */
+  assert.deepEqual(c.facts, { name: 'Beef', pts: 1.2, ingPct: 18, plates: 5 });
   assert.ok(numbersInFactsOnly(c));
   assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
@@ -277,6 +282,8 @@ test('F7: reach is emitted ONLY with its consequence — breadth × aggregate ×
   assert.match(c.text, /is in 11 of your 14 costed plates/);
   assert.match(c.text, /10% rise there would add 1\.4 pts to their average food cost/);
   assert.doesNotMatch(c.text, /spend/i, 'Rule C: concentration is breadth-based, never spend-based');
+  // the SUPPLIER is the subject, and it is in facts so the validator can sequence it (see F1)
+  assert.deepEqual(c.facts, { name: 'Barker\u2019s', plates: 11, total: 14, rise: 10, pts: 1.4 });
   assert.ok(numbersInFactsOnly(c));
   assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });
@@ -318,6 +325,10 @@ test('F8: names ONE product and asks the owner to check it, rather than claiming
   assert.match(c.text, /Saffron at \$55\.20\/kg is 4\.2x your next dearest ingredient/);
   assert.match(c.text, /worth checking/);
   assert.doesNotMatch(c.text, /swap|switch|instead|cheaper option|use the/i);
+  /* the PRODUCT is the subject and is in facts (see F1). The UNIT deliberately is NOT: every string in
+     facts is matched against the text as a name, and "kg"/"ea"/"g" hit inside ordinary words —
+     "ea" is inside "dearest" in this very template — which would reject faithful rewordings. */
+  assert.deepEqual(c.facts, { name: 'Saffron', top: 55.2, mult: 4.2 });
   assert.ok(numbersInFactsOnly(c));
   assert.doesNotMatch(c.text, VOLUME_CLAIMS);
 });

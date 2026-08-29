@@ -9,15 +9,22 @@
  *
  * WARNING - THAT IS THE FIXTURE PROBLEM ONE LEVEL UP. tests/insight-parity.test.js and the meaning
  * half of tests/api-insight.test.js both use a hand-written "Beef, up 18% across 5 plates" sentence
- * paired with hand-written facts. It LOOKS like insCostBase's output and it is not: the real
- * function puts no name in `facts` at all. Every assertion about name-swapping was therefore true of
- * a fixture nobody ships. CLAUDE.md's roster records this shape repeatedly - a fixture written from
+ * paired with hand-written facts. It LOOKED like insCostBase's output and it was not: the real
+ * function put no name in `facts` at all, so every assertion about name-swapping was true of a
+ * fixture nobody shipped. CLAUDE.md's roster records this shape repeatedly - a fixture written from
  * the same belief as the code agrees with it.
+ * ⚠️ BATCH 220 CLOSED THE DIVERGENCE FROM THE OTHER END: the three families now publish their subject,
+ * and the parity fixture carries a `name` because the real one does. The warning stands as a rule -
+ * a hand-written facts/text pair is a guess about a builder until a test calls the builder - but the
+ * specific claim it was making about insCostBase is no longer true, and is left written out because
+ * this file exists to record what was measured rather than to stay quotable.
  *
  * So this file builds each family with the REAL builder, takes the REAL {facts, text} it produces,
  * and asks the validator what it protects. Where a family is NOT protected, that is asserted as the
  * current truth with a pointer, so the gap is visible in the suite rather than discoverable only by
- * a reviewer who happens to look.
+ * a reviewer who happens to look. ⚠️ No such assertion is live right now - the one this file shipped
+ * with (insCostBase's subject unprotected) was closed by 220 and inverted below. Keep the practice:
+ * an asserted gap is what makes a fix turn something RED rather than quietly changing status.
  */
 'use strict';
 const { test } = require('node:test');
@@ -32,6 +39,9 @@ function build() {
   out.category = X.insCategory(
     [{ cost: 2, menuPrice: 10, section: 'Salads' }, { cost: 2, menuPrice: 10, section: 'Salads' },
      { cost: 3.5, menuPrice: 10, section: 'Mains' }, { cost: 3.5, menuPrice: 10, section: 'Mains' }], 0.3)[0];
+  out.concentration = X.insConcentration(
+    { name: 'Fresh Co', plates: 11, total: 14, suppliers: 3, coverage: 0.8, ptsPer10: 1.4 })[0];
+  out.anomaly = X.insPriceAnomaly({ name: 'Saffron', unit: 'kg', top: 55.2, next: 13.1, count: 9 })[0];
   return out;
 }
 
@@ -106,23 +116,75 @@ test('REAL insLongStanding: a faithful rewording of it still passes', () => {
   assert.ok(I.validatePhrasing(ok, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)));
 });
 
-/* KNOWN GAP, ASSERTED AS IT STANDS. insCostBase names the culprit ingredient in its TEXT and puts no
-   name in its FACTS, so the name-sequencing defence has nothing to sequence and a rewording may
-   blame a different ingredient with every figure intact. Two more families are the same shape
-   (insConcentration names a supplier, insPriceAnomaly a product).
-   It is NOT fixed here because the fix belongs in the insight ENGINE - adding the name to each
-   family's facts - which is a different surface from the validator, is a mutation target, and is
-   covered by a large existing suite. It is docs/QUEUE.md's "three insight families do not put their
-   subject in facts".
-   This test asserts the CURRENT truth so the gap is visible in the suite. When the queue item ships,
-   this goes red and makes whoever fixes it come here and invert it. */
-test('KNOWN GAP: insCostBase names its culprit only in the text, so a name swap is NOT caught', () => {
-  const ins = build().costbase;
-  assert.deepStrictEqual(I.factNames(ins.facts), [], 'no name in facts - this is the gap, not an oversight here');
-  assert.match(ins.text, /Beef/, 'while the text names the ingredient');
-  const swapped = ins.text.split('Beef').join('Chicken');
-  assert.notStrictEqual(swapped, ins.text);
-  assert.notStrictEqual(
-    I.validatePhrasing(swapped, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)), null,
-    'if this went RED the queue item shipped - invert this test and delete the gap note');
+/* ============================================================================================
+ * THE SUBJECT. Batch 220, closing docs/QUEUE.md item 7 - and the item was WRONG about how, which is
+ * the part worth reading before changing anything here.
+ *
+ * The item said: put each family's subject in `facts` "so the existing name check covers it". It does
+ * not. `namesAreSubsequence` deliberately lets a rewording DROP a name, and SUBSTITUTING one reads to
+ * it as exactly that - the candidate's name sequence for "Chicken, up 18% across 5 plates" against the
+ * name "Beef" is EMPTY, and an empty sequence is a subsequence of everything. Measured with the key
+ * added and nothing else changed: the swap was still ACCEPTED.
+ * ⚠️ So the facts key ALONE would have been a cosmetic fix - it turns the old gap assertion below red
+ * (the name is now in facts) while leaving the defect exactly where it was. That is this repo's
+ * most-recorded failure: a change that makes a hole invisible rather than absent.
+ * The other half is `namesAllPresent` in api/_insight.js and `gemNamesAllPresent` in js/app.js:
+ * presence is a SEPARATE requirement from order. Why it went unseen is worth keeping too - the
+ * two-name families hid it. Swapping BOTH names in insCategory reorders the sequence and is caught,
+ * so the rule looked like it worked; it never covered a family naming ONE subject.
+ *
+ * Each family below gets a PAIR: the swap is refused, and a faithful rewording that keeps the subject
+ * still passes - or "presence" could be satisfied by rejecting everything, which is the false-reject
+ * failure mode with no symptom (the deterministic template is always the fallback, so the feature
+ * looks like it is working while never working).
+ * ========================================================================================= */
+
+const SUBJECTS = [
+  ['insCostBase', 'costbase', 'Beef', 'Chicken', ['is most of it.', 'is the bulk of it.']],
+  ['insConcentration', 'concentration', 'Fresh Co', 'Harbour Meats', ['is in', 'features in']],
+  ['insPriceAnomaly', 'anomaly', 'Saffron', 'Cinnamon', ['worth checking', 'worth a check']],
+];
+
+for (const [fn, key, subject, impostor, [from, to]] of SUBJECTS) {
+  test(`REAL ${fn}: its subject is in FACTS, not only in the text`, () => {
+    const ins = build()[key];
+    assert.deepStrictEqual(I.factNames(ins.facts), [subject],
+      'the subject must be published, or the name check has nothing to sequence');
+    assert.ok(ins.text.includes(subject), 'and the text really does name it');
+  });
+
+  test(`REAL ${fn}: swapping the subject for another is REFUSED`, () => {
+    const ins = build()[key];
+    const swapped = ins.text.split(subject).join(impostor);
+    assert.notStrictEqual(swapped, ins.text, 'the swap actually changed the sentence');
+    assert.deepStrictEqual(
+      I.numberSkeleton(swapped), I.numberSkeleton(ins.text),
+      'every figure and symbol is UNCHANGED - the subject is the only signal left');
+    assert.strictEqual(I.polarityOf(swapped), I.polarityOf(ins.text), 'and the direction is unchanged too');
+    assert.strictEqual(
+      I.validatePhrasing(swapped, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)), null,
+      'if this goes green the owner can be pointed at the wrong subject - read the block above');
+  });
+
+  test(`REAL ${fn}: a faithful rewording that keeps the subject still passes`, () => {
+    const ins = build()[key];
+    const ok = ins.text.replace(from, to);
+    assert.notStrictEqual(ok, ins.text, 'the rewording actually changed the sentence');
+    assert.ok(I.validatePhrasing(ok, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)),
+      'presence must not be satisfiable by rejecting every rewording');
+  });
+}
+
+/* The two-name family, kept as the case that DID work and therefore hid the one above: here the swap
+   is caught by ORDER, with presence satisfied on both sides, so the two rules are visibly different
+   things rather than one rule written twice. */
+test('REAL insCategory: with TWO names the swap is caught by ORDER, presence being satisfied either way', () => {
+  const ins = build().category;
+  const names = I.factNames(ins.facts);
+  const swapped = ins.text.replace(/Salads/g, '\u0001').replace(/Mains/g, 'Salads').replace(/\u0001/g, 'Mains');
+  assert.deepStrictEqual(
+    I.nameSequence(swapped, names).slice().sort(), I.nameSequence(ins.text, names).slice().sort(),
+    'both names are still present - so presence alone could NOT catch this one');
+  assert.strictEqual(I.validatePhrasing(swapped, I.factNumbers(ins.facts), ins.text, names), null,
+    'and order catches it');
 });
