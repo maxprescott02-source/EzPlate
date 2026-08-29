@@ -22,6 +22,7 @@
 'use strict';
 
 var G = require('./_gemini.js');
+var A = require('./_auth.js');
 
 var GEMINI_TIMEOUT_MS = 15000;   // function-side budget to Gemini; client waits ~20s
 
@@ -116,6 +117,12 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 405, { status: 'unavailable', reason: 'use-post' });
     }
     if (req.method !== 'POST') return sendJson(res, 405, { status: 'unavailable', reason: 'method' });
+
+    // The caller gate. Before this, anyone on the internet could spend Max's Gemini key by POSTing
+    // here; see api/_auth.js for why it fails closed and why it is not a rate limit. It runs BEFORE
+    // the body is read, so an unauthenticated caller cannot make us buffer up to 2MB either.
+    var who = await A.verifyCaller(req);
+    if (!who.ok) return sendJson(res, 401, { status: 'unavailable', reason: 'auth' });
 
     var body = await readBody(req);
     var text = body && typeof body.text === 'string' ? body.text : '';

@@ -31,12 +31,13 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
-Blocked on: **the STAGING Supabase project is paused and only Max can restore it** (a dashboard click). Measured 27 Aug 2026: `pboidoxjghntalovzrke.supabase.co` does not resolve in DNS, every MCP query times out, and `get_advisors` returns zero lints where production returns thirteen. That is the signature of a paused free-tier project; it was last touched on 15 Aug, twelve days earlier.
-⚠️ **THE WORK IS DONE AND IS SITTING ON A BRANCH.** `feature/cafe-creation` (batch 209, ships `ezplate-v172`) carries the migration, the client, 20 new unit tests, 10 Playwright cases and a completed pre-push review whose one critical finding is fixed. What is NOT done is `docs/STAGING.md` steps 2-7: re-mirror, seed, apply to staging, verify AS THE CLIENT over PostgREST, apply to production, fingerprint-diff. **The client half must not merge before the migration is on production**, because merging is a production deploy and it would put a "Create my café" button in front of a real person with no function behind it.
-**So this is blocked on an OUTSIDE THING, not on a decision, and nothing about the item itself is in question.** When staging is back: restore it, run the seven steps, then merge the branch, and only THEN write the handover — it is write-once, and a batch whose migration has not been applied has not finished happening. Do not re-plan the item; read PR #219 and `supabase/migrations/20260827_cafe_creation.sql`'s header, whose rehearsal and production-application records are deliberately still blank.
-⚠️ **Do NOT "unblock" this by applying to production unrehearsed.** The rehearsal is the safeguard that REPLACED "Max hand-runs the query" when he reversed that rule on 8 Aug 2026 on the strength of staging existing. Skipping it silently is the trade that reversal was not.
+✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project.** DNS resolves and the database answers, so `docs/STAGING.md` steps 2-7 can run and the migration can be rehearsed. That was the whole of the block.
+✅ **And staging is READY, re-measured after Max's restore completed:** 14 tables, 9 functions, all four accounts intact with their email identities, 2 businesses, 3 memberships. **No rebuild is needed** — a first read the same hour showed an empty project and that read was real, the restore was still in flight. Step 5 can run.
+⚠️ **The one drift to know about: menus came back as 1 and dishes as 2**, against the scale seed's 12 and 429. Products (520) and plates (180) are intact. **If this rehearsal needs a populated menu structure, reload seed `03`/`04` first** — `docs/STAGING.md`'s Current state carries the measured figures.
+⚠️ **THE WORK IS BUILT AND REVIEWED — do not do it again.** Batch 209 shipped it on branch `feature/cafe-creation` as **PR #219**, which is deliberately open and must not be merged: merging is a production deploy, and the client half calls `create_business()`, which does not exist on production (confirmed absent from `pg_proc`, 27 Aug 2026). **Migration first, then merge.**
+⚠️ **THAT PR CLAIMS `ezplate-v172`, WHICH BATCH 210 HAS SINCE TAKEN.** Re-bump it to the next free version at merge time — all six spots, per the `cache-version` skill. A stale bump ships fresh code against a cached asset, which is the one failure that skill exists to prevent.
 
 
 ✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
@@ -72,7 +73,13 @@ Requirements: a café can be created and get an owner **without the Supabase das
 *(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
 ⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
 
-## next  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
+## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
+
+Blocked on: **NOTHING — Max has DEFERRED THIS INDEFINITELY (29 Aug 2026): *"im deferring indefenitly until i saw otherwise."*** It is not waiting on a console visit, a date or a reminder. **Do not surface it, do not re-propose it, and do not count it as a blocked item needing a decision** — the decision is made and the answer is "not now".
+⚠️ **It stays in the file rather than being deleted because it is DEFERRED, NOT DECLINED**, and the difference is the whole reason this item has survived three re-checks: the free tier means Google may train on café data, and the day that stops being acceptable this item is the ready-made answer. Batch 208's privacy notice is what makes the wait tolerable — a stranger is told, before an account exists, what leaves and where it goes.
+**The original block, still true whenever he takes it:** Max at the Google Cloud billing console — his card, and the assistant may not enter payment details.
+⚠️ **Set the project SPEND CAP in the same sitting.** `docs/GATE-REVIEW.md` gate 5 makes this the day the AI endpoints' rate-limit residual stops being tolerable: today abuse costs quota, and on the paid tier it costs money.
+
 
 **DEFERRED, not declined (Max, 15 Aug 2026):** *"we can sort this later post launch."*
 On the paid tier Google *"doesn't use your prompts... or responses to improve our products."* Recorded here rather than dropped, because a deferred decision that leaves no trace is indistinguishable from one nobody thought of.
@@ -84,22 +91,11 @@ No code change and no new key — enabling billing on the existing Google Cloud 
 When it ships, the policy stops saying *"Google may train on this"* and starts saying *"we pay for a tier that contractually cannot"*. The screens all stay — the acceptance, the link placements and the restatement at import are unchanged by the tier.
 ⚠️ **This line said "the screens and the acceptance RECORD all stay" until 27 Aug 2026, and there is no acceptance record.** Batch 208 shipped the notice and the tick that gates sign-up; the tick is never written anywhere, so nothing knows who accepted which version. Caught by that batch's pre-push review, which went looking for the mechanism behind the notice's own promise to re-ask people and found none. Building it is filed in `docs/MAINTENANCE.md`; **this item does not depend on it** and must not wait for it.
 
-## next  4 · Gate review before public signup  **[A — launch blocker]**
-
-Requirements: the restore function is `SECURITY INVOKER` and explicitly flagged as not a permanent answer. Anon key exposure, rate limits on the Gemini endpoint, and whose billing runs it.
-Note `GET /api/parse-invoice?probe=1` was already removed in v70; only a key-free `?health=1` remains, which never reports the key.
-⚠️ **Both of this item's standing lines are now ANSWERED, and what is left is the sign-off rather than the work.** `restore_backup` is still `SECURITY INVOKER` — verified live, 13 Aug 2026 — and under 182's policies that makes it tenant-scoped for free: a restore deletes and rewrites only the caller's own café, measured on staging. Since 187 it also refuses a non-owner outright. **The anon-key exposure is CLOSED** — 186's `20260814_mandatory_sign_in.sql` removed the anon branch from `current_business_id()`, so the key that ships in `index.html` reads nothing; verified over PostgREST on production, `null` tenant and zero rows on all four required tables. *(This paragraph said closing it was "the auth item's one-function change, and this review is where it gets signed off". The auth item is gone and the change shipped; the sign-off is still this item's.)*
-**So what remains here is genuinely a REVIEW:** read the four gates end to end and say whether they hold together — Gemini's tier, the pdf.js version, rate limits and billing on the AI endpoints, and whether open API-level signup is acceptable now that a self-made account can see nothing.
-✅ **The pdf.js gate is SETTLED and this review only has to confirm it: 195 shipped 4.10.38**, which closes CVE-2024-4367 outright rather than mitigating it, keeps `isEvalSupported:false` as a second layer, and keeps the SRI hash across the move to an ESM load. `tests/third-party-pins.test.js` now pins both scripts' version-and-hash pair and encodes both known advisory windows, so a future "bump to latest" into GHSA-hq66-cqwq-w95j (5.6.83 ≤ v < 6.2.108) fails the suite. **Read that test rather than re-deriving the version question.**
-⚠️ **Batch 191 added a FIFTH thing to read, and it is the only unauthenticated endpoint this app has ever deliberately shipped.** `invite_pending(email)` is callable by `anon` and answers whether some café has a pending invitation for an address. The disclosure is argued at length in `supabase/migrations/20260814_invitations.sql`'s header and is believed to be the smaller of the two available surfaces — but **nothing in this repo rate-limits it**, and Supabase's per-IP limits are the whole brake. Decide here whether that is acceptable, and say so either way. **192 made it REACHABLE**: the boot gate's sign-up form calls it on every attempt, so it is no longer a function nothing invokes — it is now the first thing an uninvited stranger's browser can ask this database, and the only rate limit on it is Supabase's per-IP one.
-⚠️ **AND 209 MADE IT UNREACHABLE AGAIN, WHICH CHANGES THE QUESTION RATHER THAN ANSWERING IT.** Self-service sign-up means an uninvited address is the customer, so the gate came off the form and `invite_pending` now has **no caller at all**. **Decide here whether to DROP it** — an unauthenticated endpoint that answers "has some café invited this address" with nothing needing it is pure surface. It was deliberately not dropped in 209 because the ORDER matters: an old client still cached on a phone calls it and REFUSES sign-up on an unreadable answer, so the drop has to FOLLOW the client, never lead it (186's law). By the time this item runs that condition is long satisfied. The one-statement rollback is `create or replace` from `20260814_invitations.sql`.
-
-⚠️ **209 ALSO ADDED THE THING THIS ITEM'S TITLE IS ACTUALLY ABOUT: SIGN-UP IS NOW PUBLIC.** Anyone can create an account and a café, unattended. Two consequences to rule on, both measured 27 Aug 2026 rather than assumed:
-- **Nothing in this repo rate-limits sign-up or `create_business`.** Supabase's per-IP limits and the confirmation-email quota are the whole brake. A café is one row and costs nothing, so the realistic damage is exhausting the project's email sends rather than filling the database — which locks out real customers. Decide whether that is acceptable and say so either way.
-- ⚠️ **Supabase's LEAKED PASSWORD PROTECTION is OFF** (`auth_leaked_password_protection`, WARN, in the production advisors). It checks new passwords against HaveIBeenPwned. It mattered little while the only accounts were made by hand; it matters now that strangers choose their own. It is a dashboard toggle, so it is Max's to flip, and it belongs in this review rather than in a batch.
-- **`create_business` is granted to `authenticated` only** and refuses an unconfirmed address, so the public surface it adds is behind email confirmation. Check that rather than taking it on trust: `20260827_cafe_creation.sql` states it and `tests/cafe-create.test.js` pins it.
-
 ## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
+
+✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project**, the same event that unblocked item 1.
+✅ **Staging is ready — no rebuild needed**, re-measured after the restore completed (14 tables, 9 functions, four intact accounts). ⚠️ **This item is about HISTORY SERIES, so the drift matters more here than elsewhere:** `ing_price_history` has 2862 rows and `menu_change_log` 134, but menus came back as 1 and dishes as 2 against the seed's 12 and 429. **Reload seed `03`/`04` before rehearsing a backup/restore round trip**, or the round trip will prove less than it appears to. This item's own requirements end "Rehearse on staging first per `docs/STAGING.md`, then production", and the change it needs is a replacement `restore_backup`: the disaster-recovery path, on real data, which is the last function in this project to apply unrehearsed. The client half is not split out and shipped alone on purpose — a client emitting format 4 against a server that cannot restore its new groups is exactly the intermediate state `CLAUDE.md` says to order away.
+
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
 
@@ -154,45 +150,29 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  6 · Floating layers and mobile dropdowns  **[B]**
+## next  7 · Three insight families do not put their subject in `facts`  **[B]**
 
-Dropdowns cover the search bar, cannot be scrolled, and the bounce animation is annoying. **Usable one-handed on a 380px phone** is the requirement, on the device Max actually works on.
-⚠️ **"Five independent placement implementations" is an UNVERIFIED count and looks wrong** (v119 review). `anchorDrop` / `dropPlace` / `dropBox` is ONE shared engine reused across several call sites; a first pass counts about four real position-computing paths, or six if unpositioned suggestion boxes are included loosely. **Count them properly before planning off the number** — every enumeration in this project has come back different from the guess.
-Requirements: one placement implementation.
-*(`Do after: F10` DELETED 11 Aug 2026 — F10 shipped as `ezplate-v149`, so every layout a dropdown opens over is now converted and placement can be done once.)*
+Found by batch 215's second pre-push review, running the REAL insight builders rather than the batch's own fixtures.
 
-## next  7 · Onboarding — the empty-state decisions 190 did not take  **[B]**
+215 made the phrasing validator compare a model's rewording against the deterministic template — figures in order, `%` vs `$`, direction, and the ORDER OF THE ENTITY NAMES. The name check reads `factNames(ins.facts)`, i.e. the string values in an insight's facts.
 
-**What is left of the onboarding item after batch 190**, kept as B rather than A because both are judgement calls about wording and neither blocks anyone.
+**Three families name their subject only in the rendered `text` and put no name in `facts`, so for them the name check has nothing to sequence:**
 
-⚠️ **190 measured every screen at genuine zero — nine panes, 380 and 1280, light and dark — and the headline claim was already mostly built.** The v58 empty-state system (`emptyStateHtml` / `emptySearchState`) already gives Products, Ingredients, Plates, Menu, Dashboard and Invoices a real true-empty state with a CTA; Settings and Account render fine; and at zero plates the Add-dish picker says *"No costed plates found. Build and save a plate first."* — honest, with no dead control. **Do not re-audit that; look only at what is below.**
+| Family | `facts` | what the text names |
+|---|---|---|
+| `insCostBase` | `{pts, ingPct, plates}` | the culprit **ingredient** ("Beef") |
+| `insConcentration` | `{plates, total, rise, pts}` | the **supplier** |
+| `insPriceAnomaly` | `{top, mult}` | the **product** and its unit |
 
-Two things a reader could reasonably call wrong, both cosmetic:
+⚠️ **`insCostBase` is the family the original blind audit used as its example**, so the motivating case is the one still uncovered. Measured: replacing "Beef" with "Chicken" throughout, keeping every figure and symbol identical, is ACCEPTED by both copies of the validator.
 
-- **The Menu screen offers "Existing plate" at zero plates**, and at 380 it wraps onto its own row under the header and reads as an orphan. It is not broken — the modal it opens explains itself — but it is a control offered before it can do anything.
-- **The six empty states have never been read end to end as one sequence.** Each was written by the batch that built its screen, months apart; nobody has read all six together to ask whether a new café is being told the same story in the same words, or six unrelated ones. Screenshots of all nine panes at zero are cheap to retake — see the spec named above.
+**What it costs a real person:** the cost rise is blamed on the wrong ingredient, the supplier exposure on the wrong supplier, the price anomaly on the wrong product — in the warmer voice that is supposed to mean the number was checked.
 
-## next  8 · The insight validator checks the digits, not what they mean  **[B]**
+**Requirements:** each of the three carries its subject in `facts`, so the existing name check covers it. One key per family and nothing else changes — `factNumbers` filters to `typeof === 'number'`, so a string fact cannot disturb the number law, and the name is already in the prompt via the template text.
+⚠️ **It is a change to the insight ENGINE, not the validator, which is why 215 did not do it**: `computeInsights` is a mutation target with a large existing suite, and `tests/insight-coverage.test.js` already reasons about which families have a `facts.name` (see its note about an anomaly "whose facts are only `{top, mult}`"). Read that file before adding keys.
+✅ **`tests/insight-real-templates.test.js` already pins the gap as it stands** — its `KNOWN GAP` test asserts the swap is currently accepted, so this item going in turns that test RED by design. Invert it and delete the gap note; do not weaken it.
 
-From the blind code audit, 22 Aug 2026. `api/_insight.js` states a hard law — *"any number in the model's text that isn't one of the facts we handed it ⇒ the whole phrasing is rejected"* — and enforces exactly that sentence and nothing more. `validatePhrasing` (`api/_insight.js:40-58`) is **set membership** over `/-?\d+(?:\.\d+)?/g` with a ±0.005 tolerance. Nothing checks position, adjacency, unit or sign.
-
-Run against the real function with facts `{pts:18, plates:5}`, **all of these are ACCEPTED**:
-
-```
-"Beef, up 18% across 5 plates, is most of it."          correct
-"Beef, up $18 across 5 plates, is most of it."          % became $
-"Beef, up 5% across 18 plates, is most of it."          facts swapped
-"Beef is down 18% across 5 plates."                     direction reversed
-"Beef, up 18% across 5 plates, is fine and needs no action."   advice inverted
-```
-
-The endpoint runs at `temperature: 0.4`, the toggle **defaults ON** (`js/app.js:9041`), and `api/insight.js`'s own header tells the reader this is safe: *"every number preserved (enforced by `_insight.validateInsightResponse`)"*. Number preservation is not what is enforced.
-
-**`tests/api-insight.test.js` is the other half of this item.** Its header calls this *"the HARD LAW"*; all five of its `validatePhrasing` assertions test the same half — a number NOT in the fact set is rejected. **Nothing tests meaning.** The file's own summary sentence is false about what it checks.
-
-Requirements: validate the **sequence** of numbers rather than the set, and reject a candidate whose number-adjacent unit tokens (`%`, `$`, `pts`) differ from the template's. That still permits rewording, which is all the feature needs. The test asserts the meaning half by name.
-
-## next  9 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
+## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
 
 `js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
 
@@ -202,7 +182,7 @@ The comment three lines below already reasons about exactly this hazard for the 
 
 Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
 
-## next  10 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
+## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
 
 `costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
 
@@ -212,7 +192,7 @@ Reached by a restore that `backupRefCheck` flagged as a soft problem — the con
 
 Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
 
-## next  11 · A price point is logged even when the write carrying it was rejected  **[B]**
+## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
 

@@ -3,9 +3,18 @@
  *
  * Vercel zero-config Node function. Exists only so the Gemini key stays server-side.
  * The client already computed and displayed the deterministic templates; this endpoint
- * merely returns a warmer phrasing of the SAME facts, with every number preserved
- * (enforced by _insight.validateInsightResponse). Any failure returns a clean 200
+ * merely returns a warmer phrasing of the SAME facts. Any failure returns a clean 200
  * "unavailable" and the client keeps its templates — the dashboard is never blocked.
+ *
+ * ⚠️ 215 — THIS HEADER SAID "with every number preserved (enforced by
+ * _insight.validateInsightResponse)" AND THAT WAS FALSE, which mattered because it is the
+ * sentence a reader checks INSTEAD of reading the validator. What was enforced was set
+ * membership: "up 18% across 5 plates" and "up $18 across 5 plates" and "up 5% across 18
+ * plates" all preserved every number and only one of them was true.
+ * What is enforced NOW: no figure the app did not compute, and the figures that do appear
+ * must match the deterministic template's in ORDER and in SYMBOL (% vs $), and must not
+ * reverse its direction. An inverted RECOMMENDATION is still not caught — see the note at
+ * validatePhrasing, which states the gap rather than leaving it to be rediscovered.
  *
  * Contract:
  *   GET  /api/insight?health=1        -> { ok:true, model, keyPresent }
@@ -13,12 +22,14 @@
  *                                                     | { status:'unavailable' }
  *
  * SECURITY: the insight lines are fenced as untrusted DATA in the prompt; the model's
- * output is validated hard (no number it wasn't given may appear) before returning.
+ * output is validated before returning — no number it wasn't given may appear, and the
+ * numbers it does use must carry the template's order, symbols and direction.
  */
 'use strict';
 
 var G = require('./_gemini.js');
 var I = require('./_insight.js');
+var A = require('./_auth.js');
 
 var GEMINI_TIMEOUT_MS = 12000;   // phrasing is small; keep it snappy. Client waits ~20s.
 
@@ -104,6 +115,11 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 405, { status: 'unavailable', reason: 'use-post' });
     }
     if (req.method !== 'POST') return sendJson(res, 405, { status: 'unavailable', reason: 'method' });
+
+    // Same caller gate as api/parse-invoice, and for the same reason — this endpoint spends the same
+    // key. Before the body read, so an unauthenticated caller buffers nothing.
+    var who = await A.verifyCaller(req);
+    if (!who.ok) return sendJson(res, 401, { status: 'unavailable', reason: 'auth' });
 
     var body = await readBody(req);
     var insights = body && Array.isArray(body.insights) ? body.insights : null;

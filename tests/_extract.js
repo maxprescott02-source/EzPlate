@@ -146,6 +146,13 @@ function build() {
   const invConfirmState = extractFn(src, 'invConfirmState');
   const unlinkedDishesOn = extractFn(src, 'unlinkedDishesOn');
   const publishPlan = extractFn(src, 'publishPlan');
+  /* 212: the containing block a `position:fixed` layer actually resolves against. EXTRACTED rather
+     than mirrored — CLAUDE.md's twenty-two-incident roster is entirely about stubs that agree with
+     the belief that wrote the code. It reads three DOM APIs and nothing else, so the sandbox hands
+     it fakes through setDomEnv below and the REAL function walks them. */
+  const fixedContainingBlock = extractFn(src, 'fixedContainingBlock');
+  const cbWillchange = extractVar(src, 'CB_WILLCHANGE');
+  const cbContain = extractVar(src, 'CB_CONTAIN');
 
   // eslint-disable-next-line no-new-func
   const factory = new Function(`
@@ -153,6 +160,12 @@ function build() {
     function invDbg(){}   /* stub: the app's debug logger is a no-op in tests */
     var GEM_BAND=0.5;     /* the app's default plausibility band, mirrored for the extracted merge fn */
     var DROP_MIN=140, DROP_MAX=300;   /* v86: mirror of the app's combobox list bounds for the extracted dropPlace */
+    /* 212: the three DOM APIs fixedContainingBlock reads, injected by the test rather than mirrored.
+       A fake DOM must keep apart the steps the real one keeps apart (CLAUDE.md, 195): each node here
+       carries its OWN computed style and its OWN rect, and getComputedStyle is a lookup rather than a
+       constant — collapsing either would make the walk untestable in the direction that matters. */
+    var document={documentElement:null}, window={innerHeight:0}, getComputedStyle=function(){return {};};
+    function setDomEnv(env){ document=env.document; window=env.window; getComputedStyle=env.getComputedStyle; }
     ${insightConsts}
     ${pipelineConsts}
     /* v93: the app globals computeInsights reads. A test assigns them through setAppState() and then
@@ -252,6 +265,9 @@ function build() {
     ${esc}
     ${builderNoMatchHtml}
     ${dropPlace}
+    ${cbWillchange}
+    ${cbContain}
+    ${fixedContainingBlock}
     ${invConfirmState}
     ${unlinkedDishesOn}
     ${publishPlan}
@@ -267,7 +283,7 @@ function build() {
     ${gemApplyReadings}
     ${privacyAcceptNeeded}
     return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention,
-      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, fixedContainingBlock, setDomEnv, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }

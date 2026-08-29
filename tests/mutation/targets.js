@@ -34,6 +34,11 @@ const targets = [
      with no such global in scope, pins that the importer never reaches for it. Listing one file
      would leave whichever arm it does not cover unasked, which is this list's own stated failure
      mode one level down. */
+  /* 210 — the credential on our own api/ endpoints. It is here for 184's reason rather than because
+     anything is suspected: this function decides whether Max's Gemini key is spendable by strangers,
+     and a function that is not a target has never been asked the question. Its `if(tok)` and its 5s
+     bound are both load-bearing, and both were confirmed red by hand before it was listed. */
+  { fn: 'apiAuthHeaders', tests: ['api-auth.test.js'] },
   { fn: 'invGstAdjust', tests: ['invoice-gst.test.js', 'catalogue-import.test.js'] },
   /* Both extracted from inline code DURING this batch, and both are on this list for 195's reason:
      a function that is not a target has never been asked the question, and neither of these existed
@@ -76,6 +81,30 @@ const targets = [
      function; this target is what keeps them honest, since "a function that is not a target has
      never been asked the question". */
   { fn: 'ensurePdfjs', tests: ['third-party-pins.test.js'] },
+
+  /* 212: the containing block a `position:fixed` layer resolves against. Listed for 184's reason —
+     a function that is not a target has never been asked the question — and because its failure mode
+     is the quietest one this app has: a dropdown that renders perfectly, in the wrong place, on a
+     screen nobody changed. Both directions are load-bearing and both are cheap to get wrong. If the
+     walk stops too EAGERLY (any `will-change`, any `contain`) layers anchor to arbitrary ancestors;
+     if it stops too LATE the builder's ingredient list drops 198px below its own field, which is the
+     measured defect this was written for. */
+  { fn: 'fixedContainingBlock', tests: ['layer-anchor.test.js'] },
+
+  /* 215 — the CLIENT half of the insight phrasing validator. It is listed for the reason this file
+     keeps restating: a function that is not a target has never been asked the question, and this one
+     decides whether a sentence about the café's money reaches the Dashboard.
+     ⚠️ THE SERVER HALF (`api/_insight.js`) CANNOT BE LISTED — this gate mutates `js/app.js` only. So
+     these four cover one of two copies, and what covers the OTHER one is `insight-parity.test.js`,
+     which executes both against one table and fails if they ever disagree. Mutating the client and
+     watching the parity test die is therefore also a check on the server's behaviour, indirectly.
+     That is worth knowing rather than assuming, because "the gate is green" says nothing at all
+     about `api/` and never has. */
+  { fn: 'gemPhrasingOk', tests: ['insight-parity.test.js'] },
+  { fn: 'gemNumberSkeleton', tests: ['insight-parity.test.js'] },
+  { fn: 'gemSkeletonIsSubsequence', tests: ['insight-parity.test.js'] },
+  { fn: 'gemPolarityOf', tests: ['insight-parity.test.js'] },
+  { fn: 'gemSameNumber', tests: ['insight-parity.test.js'] },
 
   // ── The invoice referee. A late Gemini answer must not be merged over a ruling the user made. ──
   { fn: 'invConfirmState', tests: ['invoice-gate.test.js'] },
@@ -300,6 +329,23 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 215 — gemPhrasingOk's fact-set loop bound. `j < allowed.length` -> `j <= allowed.length` adds one
+     iteration that reads `allowed[allowed.length]`, which is `undefined` for every input this
+     function can receive: `allowed` is built immediately above by pushing only values for which
+     `typeof facts[k] === 'number'`, so it is always dense and index `length` is always absent.
+     The loop body then asks `gemSameNumber(v, undefined)`, which is `Math.abs(v - undefined) < eps`
+     = `NaN < eps` = `false` for EVERY finite v — and v is always finite, because it came from
+     `parseFloat` on a `/-?\d+(?:\.\d+)?/` match. So the extra iteration cannot set `ok`, cannot
+     break, and cannot throw. It is a provable no-op rather than an unlikely one, which means no test
+     can kill it: this is the case the list exists for. */
+  {
+    key: "gemPhrasingOk :: for(var j=0;j<allowed.length;j++){ if(gemSameNumber(v,allowed[j])){ ok=true; break; } } :: relational <><= #0",
+    reason: 'The extra iteration reads allowed[allowed.length] === undefined; gemSameNumber(v, undefined) is '
+      + 'NaN < eps = false for every finite v, and v is always finite (parseFloat of a digit match). The array '
+      + 'is dense by construction — built by pushing only typeof-number values — so there is no input for which '
+      + 'the mutant and the original differ. Provably a no-op, so unkillable by assertion.',
+  },
+
   /* 197 — invDerivePackQty. TWO allowed, and a third was NOT: `derived > 0` -> `>= 0` is a real
      distinction (a $0.00 invoice line is a freebie or a credit, and it must derive no pack size
      rather than a pack size of zero), so invoice-gst.test.js kills it with exactly that line.

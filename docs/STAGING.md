@@ -1,5 +1,10 @@
 # Staging
 
+> ✅ **STAGING IS BACK AND USABLE (Max, 29 Aug 2026). Measured, not assumed.**
+> 14 public tables, 9 functions, 4 accounts, 2 businesses, 3 memberships. **All four accounts are intact and correct** — `a@` owner of `…0001`, `b@` owner of `…00b2`, `d@` staff of `…0001`, and `c@` still **a member of nothing**, which is the one this project cannot regenerate casually and the only way to reproduce 185's silent-empty-app case. All four are confirmed and each still has its `provider='email'` identity row, so sign-in works and step 5 can run.
+>
+> ⚠️ **A FIRST READ THE SAME HOUR RETURNED `public_tables` = 0 AND `auth.users` = 0, AND THAT MEASUREMENT WAS REAL** — the restore was evidently still in flight. It is recorded here rather than quietly dropped, because it is the more useful half of the lesson: **a staging project that answers is not necessarily a staging project that is ready, and the gap is invisible unless you count rows.** The instruction below to check DNS before trusting "it is back" is now not enough on its own. **Count tables AND `auth.users` before planning a rehearsal**, and re-count if the first answer looks like a fresh project.
+
 The second Supabase project, and the procedure that makes "rehearse before production" real.
 
 Built in batch 172 (11 Aug 2026). Before it, `.mcp.json` had carried a staging project since v121 and the MCP server answered — but the schema was **empty**, so there was nothing to rehearse against and every migration since v89 reached production unrehearsed. `CLAUDE.md` said so out loud at *Migrations — Claude applies them*. That warning is now spent; this file replaces it.
@@ -163,7 +168,9 @@ Written down because a rehearsal you over-trust is worse than none.
 
 ## Current state
 
-Left on the **scale seed** (520 products, 12 menus, 180 plates, 429 dishes) — plus, since batch 182, **a second tenant and three accounts, which are worth keeping and are the reason this section is no longer just "which seed"**.
+**Measured 29 Aug 2026, after Max's restore:** 520 products, **1 menu**, 180 plates, **2 dishes**, 2 businesses, 3 memberships, 2862 `ing_price_history` rows, 134 `menu_change_log` rows, 10 `app_settings`.
+⚠️ **The products and plates are the scale seed's; the MENUS and DISHES are not.** This section read *"scale seed (520 products, 12 menus, 180 plates, 429 dishes)"* until the restore, and two of those four numbers are now wrong — menus came back as 1 and dishes as 2. **If a rehearsal needs a populated menu structure, reload a seed (`03`/`04`) rather than trusting this paragraph or the row counts you remember.**
+Plus, since batch 182, **a second tenant and four accounts, which are worth keeping and are the reason this section is no longer just "which seed"**.
 
 | | |
 |---|---|

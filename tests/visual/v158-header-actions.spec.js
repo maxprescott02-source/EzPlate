@@ -35,9 +35,27 @@ const SCREENS = [
   { key: 'analysis', title: 'Menu', action: 'menuAddDishBtn', home: 'menuSwitchRow' },
 ];
 
+/* ⚠️ THE SEED IS LOAD-BEARING SINCE 214, AND IT IS THE PRECONDITION RATHER THAN DECORATION.
+   This file is about WHERE a rehomed action sits and whether it still works from there. It is not
+   about whether the action is OFFERED — but as of 214 the Menu screen hides `#menuAddDishBtn`
+   unless there is a menu to add to and a costed plate to add, because a button whose modal can only
+   say "No costed plates found" is a dead control.
+   With no seed at all this file booted into a café with zero menus and zero plates, so the button
+   was correctly absent and every assertion about its placement failed. The fix is to seed the state
+   the assertions are ABOUT; weakening them to tolerate an absent button would delete the only
+   coverage the rehoming has.
+   **If you remove this seed, three assertions in this file stop meaning anything.** */
+const SEED = () => {
+  localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'M1', name: 'Winter Menu' }]));
+  localStorage.setItem('cafeDB_plates', JSON.stringify([
+    { id: 'PL1', name: 'Fish & Chips', category: 'Mains', lines: [{ misc: true, label: 'Chips', cost: 6.5 }] },
+  ]));
+};
+
 async function boot(page, w, h) {
   await page.setViewportSize({ width: w, height: h || 844 });
   await installBoot(page);
+  await page.addInitScript(SEED);
   await page.goto('/');
   await page.waitForTimeout(1200);
   // fixed-position chrome that intercepts clicks in this harness (the same removal v151 does)

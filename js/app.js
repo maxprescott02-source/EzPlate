@@ -805,6 +805,48 @@ function sessionUser(res){
   return (res && !res.error && res.data && res.data.session && res.data.session.user) || null;
 }
 
+/* The credential for our own two `api/` endpoints, which spend Max's Gemini key.
+   Until batch 210 both were POSTable by anyone on the internet; `api/_auth.js` now requires a live,
+   confirmed session and refuses without one. This is the client half: the bearer token that makes
+   Max's own calls legitimate.
+
+   ⚠️ THE TOKEN IS FETCHED PER CALL AND DELIBERATELY NOT CACHED. An access token expires in an hour
+   and supabase-js rotates it; a cached copy would go stale and every AI call would then quietly get
+   a 401, which presents as the second reader "just not working any more" rather than as an error.
+   `getSession()` returns the cached session and refreshes it when it has to, so asking each time is
+   both correct and nearly free.
+
+   ⚠️ IT ALWAYS SETTLES, AND THAT IS THE POINT OF THE RACE. `getSession` can hang — it is a network
+   call in disguise — and CLAUDE.md's roster records that a promise which never settles is a third
+   outcome nothing in this codebase treats as a failure. The insight caller frees its in-flight key
+   in a `.catch` that a hang never reaches, so a hang there would wedge phrasing for that scope until
+   the scope changed. Bounding it HERE keeps that risk inside one function instead of inside two
+   call sites' control flow: on timeout we return the headers without a token, the server answers
+   401, and both callers take the ordinary "unavailable" path they already have. */
+/* ⚠️ 22s, and it was 20s until batch 210 — raised because the operation genuinely grew a step, not
+   to paper over slowness. The client budget has to CONTAIN the server's: 3s resolving the caller's
+   token + 3s verifying it server-side + 15s of Gemini = 21s, and at the old 20s a request that the
+   server would have answered could be aborted a second before it arrived. Found by the pre-push
+   review, which read the two budgets against each other rather than each on its own.
+   Both AI callers use it, so they cannot drift apart. */
+var AI_CALL_BUDGET_MS=22000;
+var AUTH_HDR_TIMEOUT_MS=3000;   /* Part of a budget that has to add up: 3s here + 3s server-side
+   verification + 15s Gemini = 21s, inside the 22s the two callers abort at. Raising it eats the
+   margin the request itself needs, and a caller aborting a request the server would have answered
+   turns a working reading into "unavailable" for nothing. `api/_auth.js` writes the arithmetic out. */
+function apiAuthHeaders(){
+  var base={'Content-Type':'application/json'};
+  if(!SUPA || !SUPA.auth || typeof SUPA.auth.getSession!=='function') return Promise.resolve(base);
+  var ask=Promise.resolve().then(function(){ return SUPA.auth.getSession(); })
+    .then(function(r){
+      var tok=r && !r.error && r.data && r.data.session && r.data.session.access_token;
+      if(tok) base.Authorization='Bearer '+tok;
+      return base;
+    });
+  var bound=new Promise(function(resolve){ setTimeout(function(){ resolve(base); },AUTH_HDR_TIMEOUT_MS); });
+  return Promise.race([ask, bound]).catch(function(){ return base; });
+}
+
 /* One line, because the form underneath it is the content. It says what signing in BUYS rather
    than that access is denied: the visitor is overwhelmingly Max on a device that has not been
    signed in yet, not an intruder being turned away. */
@@ -1456,7 +1498,7 @@ function renderDrop(){
     dropEl.setAttribute('role','group');
     dropEl.innerHTML=builderNoMatchHtml(q, plate.length>0);
     var go=dropEl.querySelector('.nomatch-go'); if(go) go.onclick=saveAndAddIngredients;
-    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); return;
+    dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl,{portal:true}); return;
   }
   dropEl.setAttribute('role','listbox');
   dropEl.innerHTML=curList.map((it,i)=>{
@@ -1465,7 +1507,16 @@ function renderDrop(){
        <span class="nm">${hl(it.name,q)} <span class="ca">${p?'\u2192 '+esc(p.description):'\u2192 (product missing)'}</span></span>
        <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
   }).join('');
-  dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true');
+  /* 212: the builder's ingredient list is placed by the ENGINE now, not by `.drop`'s CSS.
+     Two complaints of queue item 6 were this one layer. `.drop` was `position:absolute` inside
+     `.search-wrap`, so (a) any clipping ancestor cut it — the v149 defect this file's docket comment
+     still warns about — and (b) its `max-height:min(330px,45vh)` is measured against the LAYOUT
+     viewport, which does not shrink when a phone keyboard opens. Measured at 380x420 on the shipped
+     build: the list ran 35px BELOW the viewport, so the part you would scroll to was off-screen.
+     The engine's `position:fixed` escapes every clipping ancestor and caps maxHeight to the room
+     that actually exists, which is why `.cat-drop` was moved onto it in v59.
+     anchorDrop must run AFTER `.open` — a display:none element measures zero. */
+  dropEl.classList.add('open'); qEl.setAttribute('aria-expanded','true'); anchorDrop(dropEl,qEl,{portal:true});
 }
 /* v83 item 7 — the builder's no-match state is an informative DEAD END, never a creation path.
    Creating an ingredient from here was deliberately removed in v59 and STAYS removed: the fuzzy matcher
@@ -1493,7 +1544,7 @@ function saveAndAddIngredients(){
   if(!saveCurrentPlate(false)) return;
   closeDrop(); closeBuilder(); showTab('pantry');
 }
-function closeDrop(){dropEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');hiIdx=-1;}
+function closeDrop(){dropEl.classList.remove('open');qEl.setAttribute('aria-expanded','false');hiIdx=-1;resetDrop(dropEl);}   // 212: clear the inline geometry, as every engine-placed layer does on close
 qEl.addEventListener('input',renderDrop);
 qEl.addEventListener('focus',renderDrop);
 qEl.addEventListener('keydown',e=>{
@@ -3204,6 +3255,20 @@ function showTab(t){
      in the draft, and guardUnfinishedPlate offers it back at the next entry, which is exactly what
      pressing × did while it was a modal. */
   var _bp=document.getElementById('builderPage'); if(_bp) _bp.hidden=true;
+  /* 213 — HIDING THE PAGE NO LONGER HIDES ITS OPEN LAYERS, and this line is the whole of why.
+     Both builder dropdowns are reparented to <body> while open, so they are SIBLINGS of
+     `#builderPage` rather than descendants and `hidden` above does not reach them.
+     `#plateSuggest` is the one that broke: its only close trigger is a 150ms `setTimeout` on the
+     name field's blur, so tapping a nav tab with suggestions open left the list painted over the
+     tab you had just opened until the timer fired. Measured: `display:block`, 300px tall, owning
+     its own pixels over the Dashboard, with the builder already hidden.
+     It never showed before this because an in-flow descendant of a hidden ancestor is hidden too,
+     so the delay was invisible and the blur timer looked like a close. It was never a close.
+     `#drop` was not affected — the document click listener closes it synchronously in the same
+     dispatch as the nav click — and it is closed here anyway rather than left to that coincidence,
+     which is the review's second finding. */
+  if(_bp && typeof closeDrop==='function') closeDrop();
+  if(_bp && typeof hidePlateSuggest==='function') hidePlateSuggest();
   /* F4 (v140) tombstone: the `#prodFab` show/hide line lived here. The floating add is deleted —
      v3 §6.1 puts the primary action in the screen header on both platforms, so a second control for
      the same intent was §7's forbidden duplicate. Nothing replaces the line. */
@@ -3960,6 +4025,32 @@ var ICON_MENU_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="
    class `es-built` is emitted ONLY here — the route-through test asserts every tab goes through it.
    A: search/filter-empty (data exists, nothing matches) -> emptySearchState. B: true-empty (no data
    at all) -> emptyStateHtml. A tab renders exactly one, never both. */
+/* ⚠️ THE TITLE GRAMMAR IS A RULE, NOT A STYLE CHOICE — read it before writing a new empty state.
+   (Max, 28 Aug 2026, choosing option A from `docs/decisions/2026-08-28.html`. Batch 214 read all six
+   titles TOGETHER, which nobody had done, and found a new café walking Products -> Ingredients ->
+   Plates -> Menu met report, invite, invite, report.)
+
+   **ONE obvious action -> INVITE. Anything else -> REPORT.**
+
+       "Name your first ingredient"      invite   one action, you make the thing here
+       "Cost your first plate"           invite   one action, you make the thing here
+       "Create your first menu"          invite   one action, you make the thing here
+       "No products yet."                report   TWO actions (Import catalogue, New product), so
+                                                  there is no single verb to invite with
+       "Nothing on this menu yet."       report   the action that resolves it lives on ANOTHER tab
+       "Nothing to rank yet."            report   nothing is directly creatable here
+
+   The bodies and the CTA labels carry the instruction either way, and they were read and are
+   consistent; only the titles ever disagreed. So an invitation is not "warmer copy", it is a promise
+   that the single button below it is the whole of what to do next. **If a screen has two actions, or
+   its action is somewhere else, an invitation lies about that** — which is why the rule is phrased
+   on the ACTION COUNT rather than on how the screen feels.
+
+   ⚠️ SCOPE, stated because the rule is wider than where it has been applied: this covers the SIX
+   tab-level empty states the decision enumerated. `renderManageMenusZero` — the manage-menus modal
+   opened from a plate — is a seventh surface with one action that still reports, so the rule implies
+   it should invite. It was deliberately left alone as outside what was approved, and is filed in
+   `docs/MAINTENANCE.md`. Do not read its title as evidence against the rule above. */
 function emptyStateHtml(icon,title,body,actionsHtml){   // variant B: true-empty
   return '<div class="empty-state es-built">'+icon+'<h3>'+esc(title)+'</h3>'
     +(body?'<p>'+esc(body)+'</p>':'')
@@ -6234,8 +6325,83 @@ function computeInsights(scope, seed){
 function insightSig(insights){ return insights.map(function(x){ return x.text; }).join('|'); }
 /* Client re-check: the returned phrasing must not contain any number that isn't in the facts
    (defence-in-depth — the server validates too). Rejecting extra numbers is what stops the AI
-   from ever presenting a figure the app didn't compute. */
-function gemPhrasingOk(text, facts){
+   from ever presenting a figure the app didn't compute.
+   ⚠️ 215 — THIS IS THE SECOND COPY OF `api/_insight.js`'s validator AND IT ALWAYS WILL BE. There is
+   no build step, so a browser script cannot `require()` the server module; the duplication is a
+   constraint of this project rather than an oversight, and CLAUDE.md's remedy for an unavoidable
+   copy is the one applied here: `tests/insight-parity.test.js` runs one table of cases through BOTH
+   and fails if they ever disagree. **If you change either function, change both and run that test.**
+   The three checks below mirror `numberSkeleton`, `skeletonsAgree` and `polarityOf`; the reasoning
+   for each — why word units are ignored, why polarity abstains when either side is ambiguous — is
+   written out once at the server copy and is not repeated here, because two copies of a rationale
+   rot independently. */
+var GEM_UP_WORDS=/\b(up|rose|rises|rising|risen|higher|climb|climbs|climbed|climbing|increase|increased|increases|increasing|more|above|over)\b/i;
+var GEM_DOWN_WORDS=/\b(down|fell|falls|fallen|falling|lower|drop|drops|dropped|dropping|decrease|decreased|decreases|decreasing|less|fewer|below|under)\b/i;
+function gemNumberSkeleton(t){
+  var src=String(t==null?'':t), out=[], re=/(\$?)\s*(-?\d+(?:\.\d+)?)\s*(%?)/g, m;
+  while((m=re.exec(src))) out.push({v:parseFloat(m[2]), u:m[3]?'%':(m[1]?'$':''), at:m.index, end:re.lastIndex});
+  for(var i=0;i+1<out.length;i++){
+    if(out[i].u || !out[i+1].u) continue;
+    if(/^\s*(?:[-–—]|to|and)\s*$/i.test(src.slice(out[i].end, out[i+1].at))) out[i].u=out[i+1].u;
+  }
+  return out.map(function(e){ return {v:e.v, u:e.u}; });
+}
+function gemFactNames(facts){
+  var out=[]; for(var k in facts){ if(typeof facts[k]==='string' && facts[k].trim()) out.push(facts[k].trim()); }
+  return out;
+}
+function gemNameSequence(t, names){
+  var low=String(t==null?'':t).toLowerCase();
+  var sorted=(names||[]).map(String).filter(function(n){ return n.trim(); })
+    .sort(function(a,b){ return b.length-a.length; });
+  var taken=[], hits=[];
+  sorted.forEach(function(n){
+    var ln=n.toLowerCase(), i=0, at;
+    while((at=low.indexOf(ln,i))>=0){
+      var end=at+ln.length;
+      var clash=taken.some(function(r){ return at<r.e && end>r.s; });
+      if(!clash){ taken.push({s:at,e:end}); hits.push({pos:at, name:ln}); }
+      i=end;
+    }
+  });
+  hits.sort(function(a,b){ return a.pos-b.pos; });
+  return hits.map(function(h){ return h.name; });
+}
+function gemNamesAreSubsequence(cand,tpl){
+  var i=0;
+  for(var j=0;j<cand.length;j++){
+    while(i<tpl.length && tpl[i]!==cand[j]) i++;
+    if(i>=tpl.length) return false;
+    i++;
+  }
+  return true;
+}
+var GEM_NUM_EPS=0.005;                                   // 215: one epsilon, named once — mirrors NUM_EPS in api/_insight.js
+function gemSameNumber(a,b){ return Math.abs(a-b)<GEM_NUM_EPS; }
+function gemSkeletonIsSubsequence(cand,tpl){
+  var i=0;
+  for(var j=0;j<cand.length;j++){
+    while(i<tpl.length && !(tpl[i].u===cand[j].u && gemSameNumber(tpl[i].v,cand[j].v))) i++;
+    if(i>=tpl.length) return false;
+    i++;
+  }
+  return true;
+}
+var GEM_NEG_NEAR=/(?:\b(?:no|not|nothing|none|never|nobody|without)\b|n['\u2019]t\b)[^.!?]{0,14}$/i;
+var GEM_UP_G=new RegExp(GEM_UP_WORDS.source,'gi');
+var GEM_DOWN_G=new RegExp(GEM_DOWN_WORDS.source,'gi');
+function gemHasUnnegated(s,re){
+  re.lastIndex=0;
+  var m;
+  while((m=re.exec(s))){ if(!GEM_NEG_NEAR.test(s.slice(Math.max(0,m.index-28), m.index))) return true; }
+  return false;
+}
+function gemPolarityOf(t){
+  var s=String(t==null?'':t);
+  var u=gemHasUnnegated(s,GEM_UP_G), d=gemHasUnnegated(s,GEM_DOWN_G);
+  return (u&&!d)?'up':((d&&!u)?'down':null);
+}
+function gemPhrasingOk(text, facts, template){
   var t=(text==null?'':String(text)).trim(); if(!t || t.length>240) return false;
   var words=t.match(/\S+/g); if(words && words.length>24) return false;   // v74: same ~24-word scannability cap as the server (_insight.js)
   if(/[.!?]\s+\S/.test(t)) return false;                                  // v74: one sentence only (mirrors _insight.js)
@@ -6243,8 +6409,15 @@ function gemPhrasingOk(text, facts){
   var re=/-?\d+(?:\.\d+)?/g, m;
   while((m=re.exec(t))){
     var v=parseFloat(m[0]), ok=false;
-    for(var j=0;j<allowed.length;j++){ if(Math.abs(v-allowed[j])<0.005){ ok=true; break; } }
+    for(var j=0;j<allowed.length;j++){ if(gemSameNumber(v,allowed[j])){ ok=true; break; } }
     if(!ok) return false;
+  }
+  if(template!=null && String(template).trim()){
+    if(!gemSkeletonIsSubsequence(gemNumberSkeleton(t), gemNumberSkeleton(template))) return false;
+    var nm=gemFactNames(facts);
+    if(!gemNamesAreSubsequence(gemNameSequence(t,nm), gemNameSequence(template,nm))) return false;
+    var pt=gemPolarityOf(template), pc=gemPolarityOf(t);
+    if(pt && pc && pt!==pc) return false;
   }
   return true;
 }
@@ -6280,8 +6453,8 @@ function gemPhraseInsights(insights, scopeKey){
   gemInsightPhrased={key:key, lines:null, refined:false, inflight:true};
   var release=function(){ if(gemInsightPhrased && gemInsightPhrased.key===key && gemInsightPhrased.inflight) gemInsightPhrased=null; };
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);
-  fetch('/api/insight',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({insights:insights.map(function(x){return {facts:x.facts, text:x.text};})}),signal:ctrl?ctrl.signal:undefined})
+  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },AI_CALL_BUDGET_MS);
+  apiAuthHeaders().then(function(hdrs){ return fetch('/api/insight',{method:'POST',headers:hdrs,body:JSON.stringify({insights:insights.map(function(x){return {facts:x.facts, text:x.text};})}),signal:ctrl?ctrl.signal:undefined}); })
     .then(function(res){ return res.ok?res.json():null; })
     .then(function(payload){
       clearTimeout(timer);
@@ -6289,7 +6462,7 @@ function gemPhraseInsights(insights, scopeKey){
       var refined=false;                                             // v68: true only if ≥1 shown line is actually Gemini's phrasing (drives the honest credit)
       var lines=insights.map(function(ins,ix){                       // per line: accept the phrasing only if it passes the number check, else keep the template
         var cand=payload.lines[ix] && payload.lines[ix].text;
-        if(cand && gemPhrasingOk(cand, ins.facts)){ refined=true; return String(cand).trim(); }
+        if(cand && gemPhrasingOk(cand, ins.facts, ins.text)){ refined=true; return String(cand).trim(); }   // 215: ins.text is the template — the meaning to compare against
         return ins.text;
       });
       gemInsightPhrased={key:key, lines:lines, refined:refined};
@@ -6751,10 +6924,30 @@ function renderDashboard(){
   if(scopeRoot){
     scopeRoot.querySelectorAll('.mcmp-row').forEach(function(b){ b.onclick=function(){ dashMenusOpen=false; setDashScope(b.getAttribute('data-scope')); refocusScopeBtn(); }; });
     var dsb=scopeRoot.querySelector('#dashScopeBtn'); if(dsb) dsb.onclick=function(){ setDashMenusOpen(!dashMenusOpen); refocusScopeBtn(); };
+    /* 212: the scope popover joins the one placement engine. It was `position:absolute` with a
+       `right:0` and a `max-width:calc(100vw - 32px)` — a clamp on WIDTH only, so it never flipped
+       when it had no room below and never re-anchored when the page scrolled underneath it.
+       matchWidth:false because this is a 280px popover hung off a button, not a field's dropdown;
+       align:'right' preserves the right-edge anchoring the stylesheet had.
+       Placed HERE rather than in the html builder because setDashMenusOpen re-renders the whole
+       dashboard, so the element this measures is created fresh on every open. */
+    var pop=scopeRoot.querySelector('.dash-menus-pop');
+    if(pop && dsb) anchorDrop(pop, dsb, {matchWidth:false, align:'right'});
   }
   // §5's first-run CTA. openBuilderNew is the same function every "New plate" in the app runs, so
   // there is one label for one intent (§7) and no second creation path to keep in step.
   var pathCta=root.querySelector('#dashPathCta'); if(pathCta) pathCta.onclick=function(){ openBuilderNew(); };
+  /* 212 — WHY `.tp-tip` DOES NOT USE anchorDrop, which queue item 6 asked to be either folded in or
+     justified in writing. It is justified, and the difference is what it anchors TO.
+     Every other layer the engine places is anchored to a CONTROL and lives in the viewport's
+     coordinate space: the engine's whole job is to keep a list beside its field and inside the
+     screen. `.tp-tip` is anchored to a DATA POINT — a curve-riding dot at an x the user is scrubbing
+     — and is positioned in the CHART's coordinate space, scaled through TREND_GEO from viewBox units
+     (`px=vx*sx, py=vy*sy` below). Its `.below` flip is about the PLOT's top edge, not the viewport's,
+     because a tooltip that escaped the plot to stay on screen would point at nothing.
+     Folding it in would mean giving the engine a second mode, with one caller, whose reference box is
+     an SVG viewBox — which is a second engine wearing the first one's name. It stays separate on
+     purpose, and this comment is the record of that decision rather than an omission. */
   (function wireTrendScrub(){                                        // v47: free scrubbing — crosshair + curve-riding dot + snapping tooltip
     var wrap=document.getElementById('trendWrap'), tip=document.getElementById('trendTip'); if(!wrap||!tip) return;
     var svg=wrap.querySelector('svg'), g=TREND_GEO; if(!svg||!g) return;   // empty chart: TREND_GEO is null, no wiring
@@ -6871,7 +7064,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v172';
+var APP_VERSION='v178';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8407,7 +8600,7 @@ function rankLoadMatches(query){
 function renderPlateSuggest(query){
   var box=document.getElementById('plateSuggest'); if(!box) return;
   var matches=rankLoadMatches(query);
-  if(!matches.length){ box.style.display='none'; box.innerHTML=''; return; }   // no match -> treated as a new plate name
+  if(!matches.length){ box.style.display='none'; box.innerHTML=''; resetDrop(box); return; }   // no match -> treated as a new plate name
   box.innerHTML=matches.map(function(r){
     var it=r.item;
     if(r.kind==='plate'){
@@ -8421,7 +8614,19 @@ function renderPlateSuggest(query){
   box.querySelectorAll('.sug-opt').forEach(function(o){
     o.addEventListener('mousedown',function(e){ e.preventDefault(); var id=o.getAttribute('data-id'); if(o.getAttribute('data-kind')==='menu') requestLoadMenuItem(id); else requestLoadPlate(id); });
   });
+  /* 212 ROOT CAUSE — THIS LAYER NEVER FLOATED. `.suggest-drop` declared no `position` at all, so it
+     was `static`: an in-flow block. `.bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}`
+     wrote offsets that do nothing on a static box, and `.bld-namewrap{position:relative}` was added as
+     a containing block for a child that never became absolute — so the markup, the offsets and the
+     positioning context all read as a floating layer and none of it was one.
+     MEASURED 28 Aug 2026 at 380px: eight suggestions are 381px of new flow inserted into the header,
+     which pushed the ingredient search bar from top 213 to top 602 — 389px down the page, off the
+     screen entirely on a phone with the keyboard up. That is queue item 6's "dropdowns cover the
+     search bar", and it is displacement rather than overlap, which is why looking for an overlapping
+     rect found nothing.
+     Placed AFTER display:block for the same reason as `#drop`. */
   box.style.display='block';
+  anchorDrop(box, document.getElementById('plateName'), {portal:true});
 }
 function loadMenuItemBlank(id){                              // v55: cost an uncosted dish -> open its (created+linked) plate
   var m=menuById[id]; if(!m) return;
@@ -8434,7 +8639,7 @@ function requestLoadMenuItem(id){
   if(isBuilderDirty()){ askConfirm('Load menu item','Load '+m.name+'? Unsaved changes will be lost.','Load',function(){ loadMenuItemBlank(id); }); }
   else loadMenuItemBlank(id);
 }
-function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+function hidePlateSuggest(){ var b=document.getElementById('plateSuggest'); if(b){ b.style.display='none'; b.innerHTML=''; resetDrop(b); } }
 function currentLinesSig(){ return plate.map(lineSig).join('|'); }
 function isBuilderDirty(){
   var name=(document.getElementById('plateName').value||'').trim();
@@ -8612,6 +8817,12 @@ function openBuilder(){ armDraftSaves();                              // v84: th
 function closeBuilder(){
   var pg=builderPageEl(); if(pg) pg.hidden=true;
   if(typeof hidePlateSuggest==='function') hidePlateSuggest();
+  /* 213, the review's second finding: this closed ONE of the two layers and got away with the other
+     because every call site happens to sit inside a click whose target is outside `.search-wrap`,
+     so the document listener closed `#drop` in the same dispatch. That is a coincidence, not a
+     contract, and since 213 the cost of it failing is a layer stranded on <body> at z-index 79
+     rather than a dropdown that merely looks open. Close both, here, explicitly. */
+  if(typeof closeDrop==='function') closeDrop();
   showTab('builder');                                                 // back to the Plates library, the page this one is a child of
   /* Hand focus back, on the same terms closeOverlay uses: only if the opener still exists, and
      only if nothing else has claimed focus in the meantime. A row that was re-rendered by the
@@ -9911,21 +10122,124 @@ function dropBox(inp, soft){
   }
   return box;
 }
-function anchorDrop(drop){
+/* 212 ROOT CAUSE — `position:fixed` IS NOT ALWAYS VIEWPORT-RELATIVE, and anchorDrop assumed it was.
+   A fixed element's containing block is the nearest ancestor carrying `transform`, `perspective`,
+   `filter`, `backdrop-filter`, a `contain` that establishes layout/paint, or a `will-change` naming
+   one of those — and only the VIEWPORT when there is no such ancestor.
+   The comment at anchorDrop said "the modal's only transform is the open animation, long finished by
+   interaction time, so fixed is viewport-relative". That was true OF MODALS, which is all this engine
+   had ever been asked to place. 177 gave `.bld-docket` a `filter:drop-shadow` (required — the tear-off
+   edge is a zigzag, so a box-shadow would cast a straight rectangle under the teeth), and the builder's
+   ingredient search sits inside it.
+   MEASURED 28 Aug 2026, 380px, real boot: a `position:fixed;left:0;top:0` probe inside
+   `.bld-add .search-wrap` lands at (12, 198), not (0, 0). Writing viewport coordinates into a fixed
+   element there puts the list 198px BELOW its own input.
+   So the engine asks where its coordinates will actually be resolved, instead of assuming.
+   Returns the containing block in VIEWPORT coordinates: {x, y, bottom}. The offsets are the PADDING
+   box (what a fixed child resolves against), which is the border box inset by the border widths. */
+var CB_WILLCHANGE=/transform|perspective|filter/;
+var CB_CONTAIN=/\b(paint|layout|strict|content)\b/;
+function fixedContainingBlock(el){
+  var n=el&&el.parentElement;
+  while(n && n!==document.documentElement){
+    var cs=getComputedStyle(n);
+    if(cs.transform!=='none' || cs.perspective!=='none' || cs.filter!=='none' ||
+       (cs.backdropFilter&&cs.backdropFilter!=='none') ||
+       (cs.willChange&&cs.willChange!=='auto'&&CB_WILLCHANGE.test(cs.willChange)) ||
+       (cs.contain&&cs.contain!=='none'&&CB_CONTAIN.test(cs.contain))){
+      var r=n.getBoundingClientRect();
+      var bl=parseFloat(cs.borderLeftWidth)||0, bt=parseFloat(cs.borderTopWidth)||0, bb=parseFloat(cs.borderBottomWidth)||0;
+      return {x:r.left+bl, y:r.top+bt, bottom:r.bottom-bb};
+    }
+    n=n.parentElement;
+  }
+  return {x:0, y:0, bottom:window.innerHeight};
+}
+/* 212: the anchor is passed in rather than derived, so a layer that is not a combobox can use the
+   engine too. The `.cat-wrap` derivation stays as the fallback, which is what leaves the eleven
+   `.cat-drop` call sites unchanged.
+   opts.matchWidth (default true) copies the anchor's width — right for a field's dropdown, wrong for
+   `.dash-menus-pop`, which is a fixed-width popover hung off the right edge of a button.
+   opts.align 'right' pins the layer's right edge to the anchor's, for that same popover. */
+function anchorDrop(drop, anchorEl, opts){
   if(!drop) return;
-  var wrap=drop.closest('.cat-wrap'); var inp=wrap?wrap.querySelector('input'):null;
+  opts=opts||{};
+  var inp=anchorEl||null;
+  if(!inp){ var wrap=drop.closest('.cat-wrap'); inp=wrap?wrap.querySelector('input'):null; }
   if(!inp && drop.previousElementSibling && drop.previousElementSibling.tagName==='INPUT') inp=drop.previousElementSibling;
   if(!inp) return;
   var r=inp.getBoundingClientRect();
-  drop.style.position='fixed'; drop.style.left=r.left+'px'; drop.style.width=r.width+'px'; drop.style.right='auto';
+  /* 213: reparent BEFORE measuring. fixedContainingBlock walks the layer's ANCESTORS, so asking it
+     where the layer sits today would answer about the box the layer is leaving. Portaled to body,
+     the walk finds nothing and returns the viewport, which is the whole point. */
+  if(opts.portal) portalDrop(drop);
+  var cb=fixedContainingBlock(drop);
+  drop.style.position='fixed';
+  if(opts.matchWidth===false){
+    drop.style.width=''; 
+    // right-align to the anchor: measure the layer's own width AFTER the width reset, so a
+    // stylesheet width (280px) or a max-width clamp is what we align, not a stale inline one.
+    var w=drop.getBoundingClientRect().width;
+    var left=(opts.align==='right')?(r.right-w):r.left;
+    left=Math.max(8, Math.min(left, window.innerWidth-w-8));            // never off either edge
+    drop.style.left=(left-cb.x)+'px';
+  } else {
+    drop.style.width=r.width+'px';
+    drop.style.left=(r.left-cb.x)+'px';
+  }
+  drop.style.right='auto';
   var p=dropPlace(r, dropBox(inp,true), dropBox(inp,false));
-  if(p.below){ drop.style.top=(r.bottom+4)+'px'; drop.style.bottom='auto'; }
-  else { drop.style.top='auto'; drop.style.bottom=(window.innerHeight-r.top+4)+'px'; }
+  if(p.below){ drop.style.top=(r.bottom+4-cb.y)+'px'; drop.style.bottom='auto'; }
+  else { drop.style.top='auto'; drop.style.bottom=(cb.bottom-r.top+4)+'px'; }
   drop.style.maxHeight=p.maxHeight+'px';                                  // .cat-drop's overflow:auto scrolls a long list inside this
 }
-function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); }
-(function(){ var reflow=function(){ document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); }); };
-  window.addEventListener('resize',reflow); window.addEventListener('scroll',reflow,true); })();   // scroll capture=true catches the modal body scroll
+/* 213 ROOT CAUSE — `position:fixed` ESCAPES CLIPPING BUT NOT STACKING CONFINEMENT, and 212's engine
+   only fixed the first half. A z-index orders siblings WITHIN a stacking context and never across the
+   boundary of an ancestor that established one, so both builder layers were pinned at their
+   ancestor's level and lost to opaque chrome with a LOWER z-index than their own:
+     `#drop`          inside `.bld-docket`, a stacking context via `filter:drop-shadow` (z-index auto)
+     `#plateSuggest`  inside `.bld-head{position:relative;z-index:2}`
+   Measured at 380x640 with an `elementFromPoint` scan: `.bld-bar` (fixed, z-index:25, holding SAVE
+   PLATE) painted over 8 of 25 points of `#drop` and 4 of 25 of `#plateSuggest`. Visible-looking rows
+   that do not respond to a tap, with nothing on screen saying so.
+   ⚠️ THE OBVIOUS FIX IS THE WRONG ONE AND IT WAS MEASURED, NOT REASONED. This item originally
+   prescribed subtracting the fixed furniture from `dropBox`'s soft bound. Built and measured, that is
+   worse: at 380x640 the list flips upward to clear `.bld-bar` and lands under `.bld-head` instead
+   (12 of 20 points covered), and at 380x420 `dropPlace`'s documented fallback to the hard bound puts
+   it straight back under everything (20 of 25). Trading one stacking context for another is not a fix.
+   The layer has to LEAVE the confinement, so on open it is reparented to `<body>` — the root stacking
+   context, where its own z-index finally means something — and put back on close.
+   ⚠️ Only the two BUILDER layers portal. `.cat-drop` lives inside a modal whose overlay already
+   out-stacks the phone chrome, and `.dash-menus-pop` is rebuilt by every `renderDashboard` — a
+   portaled copy of an element its own renderer does not own would be orphaned at body level on the
+   next render. Neither was ever measured as covered. */
+function portalDrop(drop){
+  if(!drop || drop.__portalHome) return;
+  var parent=drop.parentElement; if(!parent || parent===document.body) return;
+  drop.__portalHome={parent:parent, next:drop.nextSibling};
+  document.body.appendChild(drop);
+}
+function unportalDrop(drop){
+  var home=drop&&drop.__portalHome; if(!home) return;
+  drop.__portalHome=null;
+  if(home.parent&&home.parent.isConnected) home.parent.insertBefore(drop, home.next&&home.next.isConnected?home.next:null);
+  else if(drop.parentElement===document.body) drop.remove();   // its home is gone: do not strand it on body
+}
+function resetDrop(drop){ if(!drop) return; ['position','left','width','right','top','bottom','maxHeight'].forEach(function(p){ drop.style[p]=''; }); unportalDrop(drop); }
+/* 212: every MANAGED layer re-anchors, not just `.cat-drop`. Each entry names how to find the layer
+   and how to find its anchor, because the engine no longer derives one for layers that are not
+   comboboxes. A layer absent from the DOM or hidden is skipped; `.drop` is class-driven rather than
+   display-driven (v61 item 7), so it is asked about its class. */
+function reanchorOpenLayers(){
+  document.querySelectorAll('.cat-drop').forEach(function(d){ if(getComputedStyle(d).display!=='none') anchorDrop(d); });
+  var q=document.getElementById('q'), dd=document.getElementById('drop');
+  if(q && dd && dd.classList.contains('open')) anchorDrop(dd, q, {portal:true});
+  var sg=document.getElementById('plateSuggest'), nm=document.getElementById('plateName');
+  if(sg && nm && sg.style.display==='block') anchorDrop(sg, nm, {portal:true});
+  var pop=document.querySelector('.dash-menus-pop'), sb=document.getElementById('dashScopeBtn');
+  if(pop && sb) anchorDrop(pop, sb, {matchWidth:false, align:'right'});
+}
+(function(){ window.addEventListener('resize',reanchorOpenLayers); window.addEventListener('scroll',reanchorOpenLayers,true); })();   // scroll capture=true catches the modal body scroll
 function makeInlineCombo(inpId, dropId, listFn){
   var inp=document.getElementById(inpId), drop=document.getElementById(dropId); if(!inp||!drop) return;
   var state={value:inp.value.trim(), isNew:false, confirmed:!!inp.value.trim()}; niCombos[inpId]=state;
@@ -10556,7 +10870,7 @@ function gemFireSecondReader(text){
   if(!aiInvoiceCheck){ gemStatus=null; if(typeof renderInvReview==='function') renderInvReview(); return; }   // v81: AI invoice check OFF — no API call at all; the deterministic parser stands and no "checking" note shows
   var token=(++gemToken);                                          // this request's identity; a newer parse/openInv invalidates it
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
-  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },20000);   // client-side ~20s; late = discarded
+  var timer=setTimeout(function(){ if(ctrl) ctrl.abort(); },AI_CALL_BUDGET_MS);   // late = discarded
   /* v113: the gate needs a floor of its own. The abort above only happens where AbortController exists,
      so a hung socket (or an environment without it) leaves gemStatus 'checking' FOREVER — harmless before
      the confirm gate, a permanent lock after it. Budgets this sits outside: api/parse-invoice.js caps
@@ -10569,7 +10883,7 @@ function gemFireSecondReader(text){
                              // arrives after the gate has already released would still be merged — and "a late
                              // response after a timeout is discarded" is the rule the whole referee rests on.
     renderInvReview();
-  },20000);
+  },AI_CALL_BUDGET_MS);
   var done=function(payload){
     clearTimeout(timer); clearTimeout(guard);
     if(token!==gemToken || gemApplied) return;                    // late/stale response loses — human ruling & fresh parses win
@@ -10580,7 +10894,7 @@ function gemFireSecondReader(text){
   };
   try{
     if(typeof fetch!=='function'){ clearTimeout(timer); clearTimeout(guard); gemSettle(token, function(){ gemStatus='unavailable'; renderInvReview(); }); return; }
-    fetch('/api/parse-invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text, categories:prodCategories()}),signal:ctrl?ctrl.signal:undefined})   // v73: send existing categories so the model reuses one rather than inventing a near-duplicate
+    apiAuthHeaders().then(function(hdrs){ return fetch('/api/parse-invoice',{method:'POST',headers:hdrs,body:JSON.stringify({text:text, categories:prodCategories()}),signal:ctrl?ctrl.signal:undefined}); })   // v73: send existing categories so the model reuses one rather than inventing a near-duplicate
       .then(function(res){ return res.ok?res.json():null; })
       .then(function(payload){ done(payload); })
       .catch(function(){ done(null); });                          // network error / abort / offline
@@ -11037,6 +11351,10 @@ function aRow(name,a,m){
     '<span class="mnu-verdict">'+vbadge(a)+'</span></button>';
 }
 function renderAnalysis(){
+  /* 214: the Menu screen's own renderer re-asks it. rebuildMenu covers a MENU changing; this covers
+     a PLATE changing, which happens on another screen entirely — save a first plate on Plates, come
+     back here, and the control has to have appeared without anything having told this screen so. */
+  if(typeof updateMenuAddDishBtn==='function') updateMenuAddDishBtn();
   var tb=document.getElementById('aBody'); if(!tb) return;
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested at '+cogsPct+'%';
   /* F5: the mock's §3.2 header sub-line is the current menu's name, and its footnote states the
@@ -11111,7 +11429,7 @@ function renderAnalysis(){
        does not exist — zero menus is a legitimate state, not a broken one, so it gets its own copy
        and the one action that resolves it. */
     var es=!menusList.length
-      ? emptyStateHtml(ICON_MENU_BIG,'No menus yet.','A menu is a set of plates with sell prices. Create one, then publish plates onto it.',
+      ? emptyStateHtml(ICON_MENU_BIG,'Create your first menu','A menu is a set of plates with sell prices. Create one, then publish plates onto it.',
           '<button class="btn primary" type="button" onclick="document.getElementById(\'menuNewBtn\').click()">New menu</button>')
       : dishesOnMenu
         ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
@@ -11147,6 +11465,7 @@ function buildMenuSelector(){
     if(currentMenuId) sel.value=currentMenuId;
   }
   updateMenuDelBtn();
+  updateMenuAddDishBtn();   // 214: menus changed, so "is there a menu to add to" may have changed
   buildMenuPills();
   buildMenuPickers();
 }
@@ -11244,6 +11563,31 @@ function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) 
 var adSelectedPlateId=null;
 function eligibleDishes(){                                         // costed plates, most useful first
   return savedPlates.filter(function(sp){ return sp && sp.lines && sp.lines.length && costFromLines(sp.lines)>0; });
+}
+/* 214 — "Existing plate" was offered before it could do anything. At zero costed plates the button
+   sat in the Menu header (and, below 768, wrapped onto its own row under it, reading as an orphan)
+   and opened a modal whose entire content was "No costed plates found. Build and save a plate
+   first." A control that can only ever explain why it is useless is one the screen should not be
+   offering; §4's own definition of done says a first-run state carries no dead control.
+   ⚠️ IT ASKS `eligibleDishes()`, THE PICKER'S OWN FUNCTION, and that is the load-bearing part rather
+   than a tidiness one. A second definition of "is there anything to add" would be a stub of this one
+   and would agree with it right up until the day it did not — the shape CLAUDE.md records twenty-two
+   times. The button's visibility and the modal's emptiness now cannot disagree, because they are the
+   same answer read twice.
+   Zero MENUS hides it too: the screen is showing "No menus yet." with its own New-menu action, and
+   an add-to-menu control beside it names a menu that does not exist. */
+/* ⚠️ `menusList.length` is a PROXY for what `submitAddDish` actually gates on, which is
+   `currentMenuId`, and the two agree only because `buildMenuSelector` corrects a stale
+   `currentMenuId` to `fallbackMenuId()` immediately BEFORE it calls this — in the same function,
+   in that order. Every path that mutates `menusList` repaints through there today, so the proxy
+   holds. If you ever reach this from a path that changes `menusList` WITHOUT running
+   `buildMenuSelector` first, the button can reappear while the modal still refuses, which is the
+   exact dead control this exists to remove. Keep the two together, or read `currentMenuId` here.
+   (Raised by the pre-push review as a fragility rather than a live bug; I could not construct a
+   reachable flow either, and the comment is the cheap half of never needing to.) */
+function updateMenuAddDishBtn(){
+  var b=document.getElementById('menuAddDishBtn'); if(!b) return;
+  b.hidden=!(menusList.length && eligibleDishes().length);
 }
 function renderDishPicker(filter){
   var box=document.getElementById('ad_list'); if(!box) return;

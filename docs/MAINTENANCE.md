@@ -228,7 +228,12 @@ Two corrections to the text below, measured rather than argued: the count was **
 Obvious next candidates, each load-bearing and each with a test file it would be uneasy to lose: `resolveMatchedPrice` and `applySupplierMemory` (read-only — `CLAUDE.md` forbids editing them, which does not forbid mutating a copy in the sandbox), `gemMergeLine`, `invRowState`'s callers in `renderInvReview`, `computeAvgFoodCost`, `bootGate`, `purgeLocalState`.
 Requirements: add them one or two at a time, triage every survivor in the same change, and keep the full run in the low tens of seconds — the gate's value is that people actually run it.
 
-### The mutation gate's full run is minutes, not seconds, and it grows with every target
+### ~~The mutation gate's full run is minutes, not seconds, and it grows with every target~~ — **the measurements were poisoned; re-measure before believing any of this (28 Aug 2026)**
+⚠️ **BOTH FIGURES BELOW WERE TAKEN ON A MACHINE FULL OF ORPHANED TEST WORKERS SPINNING AT FULL CPU, AND THE GATE IS NOT SLOW.** `node --test` runs each file in a child process; the gate SIGKILLs a hung mutant, which cannot be caught, so the parent died without tearing its workers down and they were reparented to launchd and kept running forever. `tests/mutation-gate.test.js` runs two deliberately non-terminating mutants and is part of `npm test`, so **every run of the suite leaked four permanently-spinning processes** — a leak introduced by batch 201's fix for the gate HANGING and present through every measurement this entry records.
+**Re-measured 28 Aug 2026 on a clean machine, immediately after the fix: 771 mutants, 71 targets, `96 seconds`.** The same laptop had just recorded **935s** for the same command with ~36 orphans burning its six cores. So the entry's whole premise — a cost that is roughly linear in target count and heading for a CI bound — was measuring contention, not the gate.
+**The transferable part, and the reason this is struck rather than deleted: a performance measurement is a claim about the MACHINE as much as about the code, and nothing in the number says which.** This entry twice warned that its predecessor had never been timed, added a measurement and a date, and was still wrong — because the missing control was not "did you time it" but "was anything else running". Whatever replaces it should say what else was on the box.
+*(The `0c` advice below is unaffected and still worth reading: re-running a target's whole declared file set per mutant really is the cost model. It simply is not urgent, and was never as urgent as this said.)*
+
 Filed 24 Aug 2026 by batch 202, which added ten targets and watched the number move.
 **Measured on this laptop: 306s at 54 targets, 801s at 64.** The first reading was taken during batch 201 against `main` as it stood *before* that batch merged; 201 then promoted four, so `main` was at 58 between the two readings. *(The entry first said "54 targets, on unmodified `main`", which was true when measured and false by the time it was written down — caught by the pre-push review, and a small demonstration of the rot this entry is warning about.)* CI is faster — the `unit` job came back at 3m15s — so this is not urgent, and the job's `timeout-minutes: 20` has headroom either way.
 
@@ -291,7 +296,10 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 His words: *"i wonder if we can have claude in chrome do the phone check. id imagine the phone check needs auditing first though as some stuff probably old now."* **The instinct is right and here is the measured evidence, so the next batch to take this does not have to re-derive it.**
 
-- **756 lines, 173 bullets, spanning v82 → v167.** Nothing has ever been deleted from it, only appended.
+- **868 lines, 42 sections, spanning v82 → v215.** Nothing has ever been deleted from it, only appended. *(Recorded as "756 lines, 173 bullets" until 28 Aug 2026; a second copy of this same entry said "756 lines, 38 sections" — the count drifted 15% while sitting in two places, which is AUDIT-v176's C4.)*
+- **Exactly two bullets are marked settled, one of them superseded**, over a carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked — while `skills/batch/SKILL.md` says *"Max works through it in one session."*
+- ⚠️ **NO handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and **every one came from him using the app and saying so in chat, never from working the list.** The cost that is not obvious: a standing impression that device risk is managed.
+- **The two cheap changes, from the merged copy.** A **"Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price (193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it sat *behind* a "Settled" heading telling the reader to stop). Then **cap the rest at the last three batches and delete what is older** — the handovers are write-once and hold it all.
 - **The same question is asked in FIVE places.** "Two buttons in a header, does it wrap on your phone" appears at lines 46, 199, 216, 225 and 250 (Ingredients, Products, Menu, Plates, More) — and the file itself says *"it is queued as one fix for both"* and *"answer it once for both screens"*. Max is being asked one question five times.
 - **Whole blocks are explicitly reversed but still sit there in full.** `v132-v135` says dark mode is gone; `v136` above it says the opposite and tells the reader to treat the block below as history. Both are printed at full length.
 - **It has already produced one real navigation failure**, found by AUDIT-v166 (D1): a `Settled — no phone needed` heading sat above SEVEN live sections, so a reader going top-down stopped seven sections early — including 193's carton-vs-pack question, which that file says *"makes every cost in the app wrong by the carton size."* The heading was moved; the underlying ordering (newest-first, then `Carried`, then chronological append) was not.
@@ -555,7 +563,7 @@ Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `
 ### The Playwright suite has never been audited for specs that pass against a broken app
 (Recorded 12 Aug 2026, batch 178. Declined as work in that batch because it is C by construction and the batch was already large.)
 This project has hit the vacuous-test failure **seven** times, and CLAUDE.md's own test for it is "would this test FAIL if I broke the thing it names?" - answered by breaking the thing and watching it go red.
-Nothing has ever asked that question of the 289 browser specs as a set. Two of the seven were found by accident, one batch apart, both green and both mine.
+Nothing has ever asked that question of the 399 browser tests (44 files; said "289 browser specs" until AUDIT-v176 re-counted on 28 Aug 2026, so any cost estimate below is priced off the smaller number) as a set. Two of the seven were found by accident, one batch apart, both green and both mine.
 The method is mechanical rather than clever: mutate one load-bearing thing per spec's stated subject and confirm the spec that names it goes red. A spec that survives every mutation of its own subject is the finding.
 It is also the honest answer to "is the suite carrying dead weight" - 3.8 min locally and 8.7 in CI is worth spending only on specs that can fail.
 
@@ -626,9 +634,10 @@ Reported as findings in their own right by the code audit, all of them the kind 
 - ✅ **DONE, batch 200**, and the TEST TITLE said it too — `tests/unique-ids.test.js` was titled *"so it always fits four base-36 characters"*, so the wrong claim was pinned as well as written. Both now say the BOUND rather than a width, and the test adds a one-character case so the un-padded half cannot be assumed again. **`js/app.js:163`** — `% 1679216` was commented *"36^4, so it always fits four chars"*. `_uidSeq.toString(36)` is not zero-padded, so it emits one to four characters. The bound is real; the fixed-width reading is not. Uniqueness is unaffected (the `-` separators carry it).
 - **`setCogs` vs the boot read** — `setCogs` (`js/app.js:2608`) rounds to integers; `bootstrapSync` (`js/app.js:1181`) accepts any `parseFloat` in `[1,99]`; `fmtTargetPct` (`js/app.js:6252`) renders one decimal. A fractional target is loadable and renderable but not settable, and the first Settings touch silently rounds it. Decide which of the three is right.
 
-### Resolve `screenshots.spec.js` rather than filtering it
-Red since batch 186, ten deploy versions. CI excludes it (`test.yml:379`) and `tests/ci-workflow.test.js` pins the exclusion, so **nothing anywhere goes red**. `AUDIT-v166` T1 already called it *"the single largest block of permanently-red tests in the repo"* and said it *"teaches every batch to skim past red"* — which is the same reflex that let `main` stay red for a whole batch in 172.
-`test.skip` with the reason in the message, per the decision already taken, or delete it. Either is better than a filter.
+### ~~Resolve `screenshots.spec.js` rather than filtering it~~ ✅ DONE (batch 200), struck 28 Aug 2026
+`tests/visual/screenshots.spec.js:32` carries `test.skip(true, 'needs a signed-in session; 186 made sign-in mandatory and removed the anon fallback. Restore with a test account, never a committed password.')` — which is exactly what this entry asked for, and it has been there since batch 200.
+⚠️ **This is the THIRD copy of one item, and the duplication is the finding worth keeping** (AUDIT-v176). Batches 188 and 190 filed it independently, AUDIT-v166's C3 merged those two, and the 22 Aug blind audit then filed this third copy — which batch 200 never saw when it executed the merged one, so the work was done and the record still said open.
+**The root cause is structural, not careless:** nothing checks a new C item against the existing ones, this file is long, and the duplicates were filed by different processes that could not see each other. **Before adding a C item, grep this file for its subject.**
 
 ### One magnitude check, against real data
 The process audit's highest-value new check, and the only one aimed squarely at this project's stated worst failure mode. `HANDOVER-172` already derived it and applied it only to a seed: *"a fixture can be internally consistent and still be nonsense, and the checks that would catch it are the ones about magnitude, not about shape."*
@@ -640,7 +649,177 @@ Added 13 Aug 2026 with a second worktree, a collision rule, and a five-batch tal
 Fifteen batches, zero items. **The five-batch tally has its answer.** Delete the track's section from `skills/batch/SKILL.md` and this file's header, and let C items ride batches already in the file — which is what actually happens.
 ⚠️ **This item is on the track it proposes to delete, which is the joke and also the evidence.** Whoever picks it up should note that `QUEUE.md` items 0c and 0d exist because Max declined to file two structural fixes here for exactly this reason (22 Aug 2026).
 
-### Change what `docs/PHONE.md` is for
-756 lines, 38 sections, and **exactly two bullets marked settled** — one of which is superseded. A carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked. `skills/batch/SKILL.md` says *"Max works through it in one session."*
-**No handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and every one came from him using the app and saying so in chat, never from working the list. The cost that is not obvious: a standing impression that device risk is managed.
-Two cheap changes. **A "Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price — 193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it was sitting *behind* a "Settled" heading telling the reader to stop. Then **cap the rest at the last three batches and delete what is older**; the handovers are write-once and hold it all.
+### ~~Change what `docs/PHONE.md` is for~~ — MERGED UPWARD 28 Aug 2026 (AUDIT-v176)
+**This was a second, independently-written copy of *"`docs/PHONE.md` needs a groom"* above**, ~350 lines apart, neither citing the other, both quoting "756 lines". Its distinct content is folded into that entry; only the pointer remains here so a reader arriving at this line is not left thinking something was dropped.
+⚠️ **Two audits running have now found this file recording one problem twice** — the other pair is the `screenshots.spec.js` entry above. **Grep this file for the subject before adding a C item.**
+
+---
+
+## C — from the gate review before public signup, batch 210 (27 Aug 2026)
+
+Filed here rather than in `docs/QUEUE.md` per the tier test: none of the three would stop, embarrass or hurt a paying customer at launch **as things stand today**. The first one says at its own site what would change that.
+`docs/GATE-REVIEW.md` is the sign-off these three fell out of; read it there rather than re-deriving them.
+
+### Per-account rate limiting on the AI endpoints
+Batch 210 closed the **anonymous** half of this: `api/_auth.js` requires a live, confirmed session on `api/parse-invoice` and `api/insight`, which before it were POSTable by anyone on the internet spending Max's Gemini key.
+**A signed-in caller is still unbounded.** Requiring an account raises the cost of abuse from nothing to "confirm an email address"; it caps nobody.
+⚠️ **This is C only while the tier is free, and it becomes a launch blocker the day the paid tier lands** — that is the day abuse stops costing quota and starts costing money, and `docs/QUEUE.md`'s paid-tier item says so at its own site. **The cheap half needs no code at all: set the Google Cloud SPEND CAP in the same sitting as enabling billing.**
+The reason it was not built in 210: a per-account counter must survive between serverless invocations, so it needs a table, so it needs a migration, so it needs staging — **and staging is paused**. Half-building it against production was the wrong trade.
+
+### Prove on staging that `restore_backup` is inert for `anon`
+`anon` retains `EXECUTE` on `restore_backup`, `claim_business_invite` and `business_team`. The gate review argues all three are inert from the schema — for `anon`, `current_business_id()` is NULL, `business_id = NULL` is NULL so the `delete … where true` matches nothing, and `ingredients.business_id` is `NOT NULL` defaulting to `current_business_id()` so an insert fails before RLS is consulted.
+⚠️ **That is REASONED, not run, and the reasoning is exactly the kind this repo keeps finding wrong.** It was not tested because the only place to call it is production and being wrong costs Scoopy's real data — a stop condition, not a shortcut.
+So: **call it as `anon` over PostgREST on staging, with rows present, and assert the counts are unchanged.** Then either record the proof or revoke the grants. Blocked on staging being resumed, like everything else that needs a rehearsal.
+
+### Drop `invite_pending` once no cached client calls it
+It is `SECURITY DEFINER`, granted to `anon`, and answers whether any café has a pending invitation for an address — the only unauthenticated endpoint this app has ever deliberately shipped. The gate review accepts it, on the grounds that its surface is narrow and shrinking.
+**The café-creation branch removes its last caller**: sign-up stops being invitation-gated, so once that ships nothing in the shipped client invokes it. It is deliberately not dropped in the same change — an old client still cached on a phone calls it and refuses sign-up on an unreadable answer, so **the drop must FOLLOW the client, never lead it.**
+Take this once the café-creation client has been live long enough that no cached client plausibly remains.
+
+---
+
+## `.tipbox` and `.tip` are dead — CSS, a wired handler, and a document-wide click listener
+
+Found by batch 212 while counting the app's floating layers for `docs/QUEUE.md` item 6, which listed
+`.tipbox` as one of five live layers with the note *"suggested-price tooltip, CSS only"*. It is not a
+layer at all: **nothing in `index.html` or `js/app.js` emits `class="tipbox"` or `class="tip"`.**
+
+Three things to remove together, and the second and third are why this is worth an entry rather than a
+silent deletion:
+
+- `css/style.css` §13 — `.tip`, `.tipbox`, `.tipbox::after`, `.tip:hover .tipbox`, `.num .tipbox`.
+- `js/app.js` — a `document.querySelectorAll('.tip').forEach(...)` that wires click handlers to a
+  selector matching nothing, **plus a `document.addEventListener('click', ...)` that runs on every
+  click anywhere in the app** to close a class no element carries.
+- `docs/handovers/HANDOVER-144-tokens-dark.md` records `.tipbox` being converted to `--inverse` in the
+  dark-theme pass — a batch spent styling a rule that renders nowhere, which is the cost of leaving it.
+
+⚠️ **Verify the emitter before deleting, not the selector.** `.tip` is greppable in `js/app.js` as a
+LIVE selector (the handler above), so a reader checking "is this used?" finds a hit and stops. The
+question that settles it is what puts the class ON an element, and the answer is nothing.
+
+It rides whichever batch next opens `css/style.css` §13 or that handler block. Related: the
+dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.ing-empty`,
+`.an-empty`, `.plate-noresult`, `.king-tag`) — same class, and this is a seventh.
+
+---
+
+## A REJECTED phrasing is not free, and the entry below says it is
+
+Batch 215, third review round. Recorded because it qualifies a sentence sitting a few lines down —
+*"a rejected line costs nothing because the deterministic template is always the fallback"* — which is
+true about CORRECTNESS and false about everything else.
+
+By the time the validator rejects a line, the POST has already happened: the café's plate names and
+costing figures have gone to Google's free Gemini tier, the quota is spent, and `docs/` carries a
+privacy disclosure covering exactly that transfer. What the rejection saves is only the wrong words.
+**So the false-reject rate is a real cost with no visible symptom** — the panel renders correct
+templates and looks like it is working, which is the same shape as every silent failure this repo
+records.
+
+**Measured while fixing the prompt (batch 215):** against hand-written faithful rewordings of the real
+templates, **4 of 10 were rejected, every one a clause reorder.** That was caused by the prompt telling
+the model to *"FRONT-LOAD the fact"* while the validator required the figures in template order — the
+two halves of one feature disagreeing. The prompt now asks for what the validator allows, and
+`tests/api-insight.test.js` pins the instruction.
+
+⚠️ **What is NOT known, and the honest limit of that number: those ten sentences were written by hand,
+not sampled from Gemini.** They show the check forbids a natural class of rewording; they are not a
+production reject rate, and nothing here measures one.
+
+**What would settle it** is instrumenting the real endpoint — count validated vs rejected phrasings
+over a period of Max's actual use and read the ratio. That is a small change to `api/insight.js` plus
+somewhere to put the counter, and it is C rather than B because the failure it would expose degrades to
+correct output. **Do it before anyone argues from a guess about how often this fires**, in either
+direction: the ordering rule is load-bearing (see the `insDrift` tests in
+`tests/insight-real-templates.test.js`, where order is the ONLY signal separating "from 25% to 40%"
+from "from 40% to 25%"), so a high reject rate is an argument for a better PROMPT, never for relaxing
+the check.
+
+---
+
+## The insight validator cannot see an inverted RECOMMENDATION
+
+Left open deliberately by batch 215.
+⚠️ **An earlier draft of this entry said 215 "fixed the other three cases the blind audit found", and the pre-push review was right that it overstated.** 215 fixed the audit's three *as the audit demonstrated them*, and the review then found a FOURTH shape of the same swap class — two entity NAMES with one figure each, where swapping the names preserves order and symbols perfectly. That is fixed too (the names are sequenced), so the standing gap is the one below and only the one below.
+
+`validatePhrasing` now compares a candidate against the deterministic template's figures in **order**
+and **symbol** (`%` vs `$`), and rejects a reversed **direction**. What it cannot see is advice:
+
+```
+template   "Beef, up 18% across 5 plates, is most of it."
+accepted   "Beef, up 18% across 5 plates, is fine and needs no action."
+```
+
+Same figures, same symbols, no direction word — every check passes, and the sentence tells Max to do
+nothing about the thing the dashboard raised.
+
+⚠️ **It is NOT built because the only cheap implementation is a denylist of advice phrasings, which is
+the weakest assertion shape this repo records** (`CLAUDE.md` roster entry 190: *"not the wrong value"
+is a guess about every wrong value there could be). A real fix would have to compare intent, which is
+the thing the app deliberately refuses to let a model decide.
+
+**What holds the line meanwhile:** the prompt, the one-sentence and 24-word caps, and that a rejected
+line costs nothing because the deterministic template is always the fallback. The toggle also defaults
+ON, which is why this is recorded rather than shrugged at.
+
+**`tests/insight-parity.test.js` pins the gap as it stands** — it asserts both copies currently ACCEPT
+the inverted-advice sentence, so the day someone closes it that test goes red and makes them come here
+and update this entry rather than the gap silently changing status.
+
+
+---
+
+## C — from AUDIT-v176 (28 Aug 2026)
+
+Filed here per the tier test: none of these would stop, embarrass or hurt a paying customer at launch. The first is the exception in spirit and is flagged for Max rather than queued, because it turns on a decision he owns.
+
+### ⚠️ The protected parser region has NO automated guard, and was edited once without one
+
+**FOR MAX — this is a rule of his and the audit is reporting, not deciding.**
+`CLAUDE.md` says *"Never edit anything inside it. If a fix seems to require it, stop and tell Max — solve outside the region."* **Batch 197 edited inside it** (commit `f259c5c`, PR #198): one line removed, 25 added. Verified twice by hand at AUDIT-v176.
+
+**The change was good and is not in question** — it fixed taught-pack and supplier-memory lines being stored **10% high** because the GST divisor ran on the parser's candidate price rather than the resolved one. Measured then: $5.50/kg stored where $5.00 was right. **The four never-touch functions were NOT modified** and are byte-identical to their v166 state, so the narrower rule held.
+
+**What is missing is the mechanism.** The only region check anywhere is `tests/extractfn.test.js:121`, which asserts the **anchors still slice** — not that the contents are unchanged. Every audit since v125 has compared the hash by hand, and v176 is the first time it moved. **The strongest invariant in `CLAUDE.md` is the only one with no test behind it**, and a silent crossing is indistinguishable from compliance — which is this repo's most-recorded shape, one level up from the code.
+
+Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main` at `ezplate-v176`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+
+### Two handover threads reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`
+
+Recorded because the failure is the routing, not the items: both exist only in write-once handovers, where nothing will ever action them.
+
+- **`HANDOVER-175`** — the supplier FILTER survives over a field that is **95% empty**, so it filters on data that is almost never there.
+- **`HANDOVER-197`** — the pack-to-unit-price arithmetic is written out **four times** (`derivePackPrice`, `applySupplierMemory`, the pack-teach recompute, `invPackPreviewText`), and that handover calls extracting it *"the real root cause fix"*. It was deliberately left unfiled because the author had not measured whether the four are genuinely identical. ⚠️ **Worth the measurement specifically because four copies of one formula is exactly why the GST divisor went missing from three of them** — the defect above. Two of the four are inside the protected region, so acting on it needs Max.
+
+### Two live files carry an incident count `CLAUDE.md` itself disowns
+
+`CLAUDE.md`'s stub roster explicitly records that the "ten across 165-176" figure was wrong. `.githooks/pre-push` (WHY (3)) still says *"ten instances across batches 165-176"*, and `tests/semantic-keys.test.js:21` cites *"CLAUDE.md's fourteen-incident rule"* against a roster now at 22. Neither is load-bearing; both send a reader to a number the authoritative file has disowned. **Not fixed at AUDIT-v176 because both are in files whose diff changes what runs**, which would have pulled a docs-only PR into the mandatory-review path for two comments. Ride the next batch that opens either file.
+
+### `.githooks/pre-push`'s header says "Four checks" and runs five
+
+`CLAUDE.md` is right and the hook is not, which is the inverse of the usual direction and is why it is worth a line. Same file as the entry above; take them together.
+
+### Three handover gaps have accumulated and none reached the README's gap table
+
+`docs/handovers/README.md` lists `v41`, `v65`, `v66` and `batch 189`. **Batches 196, 198 and 209 are also missing.** 196 and 198 were docs-only; 209's is deliberately unwritten and sits on the open `feature/cafe-creation` branch, which says so at its own site. The README's own argument is that *"an unrecorded gap is indistinguishable from a mislaid file"* — so the fix is three lines in the gap table, not three reconstructed handovers, which that file forbids.
+
+### `cafeCost_env` is a stamp, and Tier 2 still says there is no third category
+
+`HANDOVER-172` asked for *"one clause so the next audit does not rediscover it as a violation"*. It was not written, and AUDIT-v176 rediscovered it — the fourth audit in a row to do so for one of these. `js/app.js:43` is `var ENV_STAMP_KEY='cafeCost_env'`; `CLAUDE.md`'s Tier 2 names the constant in its grep list but never resolves the classification.
+
+### `HANDOVER-178`'s proposed rule was never applied
+
+*"A primary action must not live inside a node that re-renders."* Earned by a real defect: Save lived inside `#bFootSum`, which was replaced between touchstart and touchend, so the click was dropped. It was parked on Max's yes **the day before that requirement was reversed**, and the reversal's own justification was that a parked rule sat unapplied while the thing it warned about cost a diagnose cycle. ⚠️ **The reversal does not reach edits proposed BEFORE it** — that is the gap, and `HANDOVER-172`'s proposal is in the same state.
+
+### `renderManageMenusZero` still reports, and the rule now written down says it should invite
+
+Batch 217, filed at the moment the rule was written rather than after someone rediscovers the inconsistency.
+
+Max chose option A of `docs/decisions/2026-08-28.html` — change one title, write the rule down — and the rule is now at `emptyStateHtml`'s own site: **one obvious action → invite; anything else → report.**
+
+`renderManageMenusZero` (`js/app.js`, the manage-menus modal opened from a plate) shows **"No menus yet."** over **one** action, "Add to a new menu". By the rule as written it should invite. It was left alone because the decision enumerated six tab-level empty states and this is a seventh surface, so changing it would have gone past what was approved — and user-visible copy is Max's.
+
+⚠️ **The reason this is filed rather than shrugged at: a café creating its first plate can reach this modal BEFORE it ever opens the Menu tab**, so the two surfaces are not merely inconsistent in the abstract — one user, one session, two voices for the same underlying state (no menus, one way out). That is the exact complaint the queue item was about, one surface over.
+
+**It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.

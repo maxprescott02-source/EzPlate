@@ -634,6 +634,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   // late-discard: fire, then a newer parse bumps the token; the old response must not mutate the rows
   window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  /* 210: the request now leaves one microtask behind the call — apiAuthHeaders() resolves the
+     caller's bearer token first, because api/parse-invoice refuses an uncredentialled POST. Every
+     fire in this section therefore needs a tick before `pending` has anything in it. */
+  await tick();
   ok('fire posts to /api/parse-invoice', pending.length === 1 && /\/api\/parse-invoice/.test(pending[0].url));
   window.gemToken++;   // a newer parse/openInv invalidates the in-flight request
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
@@ -645,6 +649,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   pending = [];
   window.invRows = [matchedRow()]; window.invRows[0].unitPrice = 2.63; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  await tick();
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
     { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
@@ -654,6 +659,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   pending = [];
   window.invRows = [matchedRow()]; window.gemApplied = false; window.gemStatus = 'checking';
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  await tick();
   pending[0].reject(new Error('network down'));
   await tick(); await tick();
   ok('a failed request degrades to "AI check unavailable" (no error modal)', /AI check unavailable/.test(invSumText()));
@@ -667,6 +673,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   window.gemStatus = 'checking'; window.gemCheckStart = Date.now();   // exactly as parseInvoice stamps it
   window.renderInvReview();                                            // paint the "checking" note first
   window.gemFireSecondReader('SOME INVOICE TEXT');
+  await tick();
   pending[0].resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
     { rawText: 'CHIPS STRAIGHT CUT 6X2.5KG', description: 'CHIPS STRAIGHT CUT 6X2.5KG', derivedUnitPrice: 2.63, unitType: 'kg', packCount: 6 } ] }) });
   await tick(); await tick();
@@ -734,31 +741,54 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok('v90: the Gemini credit is present but HIDDEN while the template shows (honest attribution)',
     !!creditOf() && creditOf().hidden === true);
   ok('v90: the template numbers show verbatim', di && /1\.2 pts higher/.test(di.textContent) && /18%/.test(di.textContent));
+  /* 210: like the invoice reader, the phrasing POST now leaves one microtask behind the render —
+     apiAuthHeaders() resolves the caller's bearer token first, because api/insight refuses an
+     uncredentialled POST. */
+  await tick();
   ok('v90: a single phrasing call is posted to /api/insight', pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   // v90 quota guard: the Dashboard re-renders on every scope change and every drill-down open, and each
   // of those used to fire a SECOND identical POST while the first was still in flight.
   window.renderDashboard();
+  await tick();                      // 210: flushed, or "no duplicate" would pass merely by being deferred
   ok('v90: a re-render while the call is still IN FLIGHT does not fire a duplicate (quota guard)',
     pending.filter(p => /\/api\/insight/.test(p.url)).length === 1);
   const ip = pending.find(p => /\/api\/insight/.test(p.url));
+  /* ⚠ 215 — THIS REPHRASING USED TO REORDER THE FIGURES ("Beef is up 18% across 5 plates — that is
+     1.2 pts on your average") AND IS NOW REJECTED BY DESIGN, which is why it changed here.
+     The validator no longer checks that the numbers are a SET of the facts; it checks that they are
+     an ordered SUBSEQUENCE of the deterministic template, each keeping its own % or $. Order is the
+     only thing that can tell insDrift's "from 25% to 40%" from "from 40% to 25%" — two bare
+     percentages, no name and no unit word between them — so it is load-bearing, not fussiness.
+     The fixture therefore rewords WITHOUT moving a number past another, which is what the prompt
+     now asks the model for.
+     ⚠ AND THIS FILE DOES NOT PIN THAT — said plainly because the first draft of this comment
+     claimed it did ("the reordered form is asserted below as a REJECT"), and no such assertion was
+     ever written here. Nothing in smoke.js would notice the ordering rule being relaxed back to set
+     membership: this fixture does not reorder, so it passes either way. A comment claiming a guard
+     that is not present is worse than no comment, and is the exact shape CLAUDE.md's roster records.
+     The real pin is `tests/insight-real-templates.test.js` — "REAL insDrift: swapping the from/to
+     percentages is caught by ORDER ALONE", which was mutation-checked and does go red. What THIS
+     assertion proves is narrower and still worth having: that a valid phrasing reaches the live DOM
+     node and reveals the credit. */
   if (ip) ip.resolve({ ok: true, json: () => Promise.resolve({ status: 'ok', lines: [
-    { text: 'Beef is up 18% across 5 plates — that is 1.2 pts on your average.' },
+    { text: 'Your average food cost is 1.2 pts higher than at April prices — Beef, up 18% on 5 plates, drives it.' },
     { text: '3 plates sit within half a point of your 30% target.' } ] }) });
   await tick(); await tick();
   // re-query: the quota-guard re-render above replaced the panel, and applyPhrasedInsights resolves
   // #dashInsBody fresh at apply time precisely so it lands on the LIVE node, not a detached one.
   const dl = $('dashInsBody');
-  ok('v90: a valid rephrasing (numbers intact) swaps into the block in place', dl && /Beef is up 18% across 5 plates/.test(dl.textContent));
+  ok('v90: a valid rephrasing (numbers intact) swaps into the block in place', dl && /Beef, up 18% on 5 plates, drives it/.test(dl.textContent));
   ok('v90: once Gemini actually phrased a shown line, the credit is revealed',
     !!creditOf() && creditOf().hidden === false);
   // v69 cache: a re-render within the period must not hit Gemini again (the quota is limited)
   const fetchesBefore = pending.filter((p) => /\/api\/insight/.test(p.url)).length;
   window.renderDashboard();
+  await tick();                      // 210: same reason — prove no call went out, not that none has yet
   const dj = $('dashInsBody');
   ok('v90: a re-render within the period reuses the cache — no second Gemini call',
     pending.filter((p) => /\/api\/insight/.test(p.url)).length === fetchesBefore);
   ok('v90: the cached phrasing (and its credit) apply immediately on the cache hit',
-    dj && /Beef is up 18%/.test(dj.textContent) && !!creditOf() && creditOf().hidden === false);
+    dj && /Beef, up 18% on 5 plates/.test(dj.textContent) && !!creditOf() && creditOf().hidden === false);
 
   // the Menu tab is CLEAN — the whole v69–v81 suggestions surface is gone, not merely hidden
   ok('v90: the Menu tab has NO suggestions pill, panel or host left behind',
