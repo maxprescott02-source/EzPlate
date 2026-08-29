@@ -90,16 +90,6 @@ Found by batch 220 while closing the previous item 7, which named THREE families
 - `insNearCluster` names **0, 1 or 2** plates depending on the data, and `lead` falls back to a bare count. So the key count is conditional — the `others` remainder is the precedent for a conditionally-present fact.
 ⚠️ **Do NOT publish the UNIT anywhere while doing this.** 220 deliberately left `insPriceAnomaly`'s unit out of `facts`: every string in facts is matched against the text as a name, and `"ea"` sits inside `"dearest"` in that very template, so short unit strings generate spurious matches and reject good rewordings. The comment at that site says so.
 
-## next  8 · A plate save clears the recovery draft before the server answers  **[B — silent loss of authored work]**
-
-`js/app.js:2811`: `var _write=dbPushPlate(sp); clearPlateDraft(); …` — the draft is deleted **synchronously**, whether or not the write lands.
-
-Offline, `pushWrite` toasts *"you're offline. It has NOT been saved."* and the "Saved just now" badge correctly stays down — but `cafeDB_plateDraft` is already gone and `savedPlates` holds the new lines only in memory. Background the app, iOS discards the tab, `bootstrapSync` replaces `savedPlates` from the server, and the edit is gone with no draft to resume. **This app's stated user goes a week between uses, so the toast is long past.**
-
-The comment three lines below already reasons about exactly this hazard for the BADGE, and `authSwitchUser` (`js/app.js:6781-6789`) argues at length that the draft is *"unsaved authored work … destroying it is data loss, not tidying, and the app never does that silently anywhere else."* **This is the place it does.**
-
-Requirements: `clearPlateDraft()` moves into the success arm that already exists for `setBuilderSaved(true)`. One line.
-
 ## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
 
 `costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
