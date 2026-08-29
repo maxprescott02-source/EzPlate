@@ -1,12 +1,15 @@
 # Staging
 
-> ⚠️ **THE STAGING PROJECT IS DOWN AS OF 27 AUG 2026, AND EVERY PROCEDURE BELOW IS CURRENTLY UNRUNNABLE.**
-> `pboidoxjghntalovzrke.supabase.co` does not resolve — **NXDOMAIN**, re-measured 28 Aug 2026 — and every query times out. Production resolves normally and is unaffected.
-> **Steps 2 through 7 cannot run.** A migration written today reaches production **unrehearsed**, which is the exact state batch 172 built this file to end.
-> **Unblocking it needs Max**: the project is paused in his Supabase account and only he can resume it. `docs/QUEUE.md` items 1 and 5a are both blocked on precisely this.
+> ✅ **THE STAGING PROJECT IS BACK UP (Max, 29 Aug 2026), AND IT CAME BACK BLANK.**
+> DNS resolves and the database answers. **Measured the same minute, through the MCP: `public_tables` = 0, `auth.users` = 0.** The `public` schema exists and is empty.
 >
-> ⚠️ **This warning is here because its absence was a live hazard, not a tidiness matter** (AUDIT-v176, 28 Aug 2026). `docs/QUEUE.md` recorded the outage in two places and this file recorded it in none — while `CLAUDE.md`'s Migrations section says *"STAGING IS NOW REAL. `docs/STAGING.md` is the procedure; follow it rather than this bullet."* So the one file a batch is sent to as authoritative was the one file that read as though the rehearsal worked, and the batch would have found out when a query hung.
-> **Delete this block when the project is resumed — and check the DNS resolves before you do**, rather than on the strength of someone saying it is back.
+> ⚠️ **So "staging is back" is NOT "staging is ready", and the difference is a real piece of work.** Everything the project held is gone: the mirrored schema, whichever seed was loaded, the second tenant, and **the four hand-made accounts**. The **Current state** section below describes the scale seed and four accounts and is therefore **STALE UNTIL SOMEONE REBUILDS IT** — do not plan a rehearsal off it.
+>
+> **Rebuilding is documented and is nobody's decision — it is steps 2 and 3 plus the account recipe.** `01-schema.sql` is idempotent and recreates the schema; a seed reloads the data. **The accounts are the part a seed does NOT restore**, because they are hand-made `auth.users` + `auth.identities` rows and live in no seed file — the recipe and the two GoTrue traps are written out under **Current state**.
+>
+> ⚠️ **The accounts are not optional for the work that is queued.** Step 5 verifies AS THE CLIENT, and the multi-tenant items need the second tenant, the staff account and `c@example.com`, *"a member of nothing"* — the only way this project can reproduce 185's silent-empty-app case. **Rebuild them before claiming a migration was rehearsed.**
+>
+> **Update this block when the rebuild lands** — say what seed and which accounts, and refresh **Current state** in the same edit rather than leaving two descriptions of one database.
 
 The second Supabase project, and the procedure that makes "rehearse before production" real.
 

@@ -31,9 +31,10 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
-Blocked on: **Max resuming the STAGING Supabase project.** Its subdomain does not resolve and every query times out (re-checked 27 Aug 2026, batch 210), so `docs/STAGING.md` steps 2–7 cannot run and the migration is unrehearsed.
+✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project.** DNS resolves and the database answers, so `docs/STAGING.md` steps 2-7 can run and the migration can be rehearsed. That was the whole of the block.
+⚠️ **Staging came back BLANK, and that is the first task of this item, not a surprise to report later.** Measured on the day: `public_tables` = 0, `auth.users` = 0. The schema mirror, the seed, the second tenant and the four hand-made accounts are all gone. **Re-run `01-schema.sql`, load a seed, and rebuild the accounts** (the recipe and the two GoTrue traps are in `docs/STAGING.md`) **before claiming anything was rehearsed** — step 5 verifies as the client, which needs an account to sign in as. `docs/STAGING.md`'s **Current state** section is stale until that lands and says so at its own top.
 ⚠️ **THE WORK IS BUILT AND REVIEWED — do not do it again.** Batch 209 shipped it on branch `feature/cafe-creation` as **PR #219**, which is deliberately open and must not be merged: merging is a production deploy, and the client half calls `create_business()`, which does not exist on production (confirmed absent from `pg_proc`, 27 Aug 2026). **Migration first, then merge.**
 ⚠️ **THAT PR CLAIMS `ezplate-v172`, WHICH BATCH 210 HAS SINCE TAKEN.** Re-bump it to the next free version at merge time — all six spots, per the `cache-version` skill. A stale bump ships fresh code against a cached asset, which is the one failure that skill exists to prevent.
 
@@ -73,7 +74,9 @@ Requirements: a café can be created and get an owner **without the Supabase das
 
 ## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
-Blocked on: **Max at the Google Cloud billing console** — his card, and the assistant may not enter payment details. This was always stated in the item's body; batch 210 moved it into the status, because an item whose own text says it will be blocked "the day it is taken" was being walked past by the loop as if it were workable.
+Blocked on: **NOTHING — Max has DEFERRED THIS INDEFINITELY (29 Aug 2026): *"im deferring indefenitly until i saw otherwise."*** It is not waiting on a console visit, a date or a reminder. **Do not surface it, do not re-propose it, and do not count it as a blocked item needing a decision** — the decision is made and the answer is "not now".
+⚠️ **It stays in the file rather than being deleted because it is DEFERRED, NOT DECLINED**, and the difference is the whole reason this item has survived three re-checks: the free tier means Google may train on café data, and the day that stops being acceptable this item is the ready-made answer. Batch 208's privacy notice is what makes the wait tolerable — a stranger is told, before an account exists, what leaves and where it goes.
+**The original block, still true whenever he takes it:** Max at the Google Cloud billing console — his card, and the assistant may not enter payment details.
 ⚠️ **Set the project SPEND CAP in the same sitting.** `docs/GATE-REVIEW.md` gate 5 makes this the day the AI endpoints' rate-limit residual stops being tolerable: today abuse costs quota, and on the paid tier it costs money.
 
 
@@ -87,9 +90,10 @@ No code change and no new key — enabling billing on the existing Google Cloud 
 When it ships, the policy stops saying *"Google may train on this"* and starts saying *"we pay for a tier that contractually cannot"*. The screens all stay — the acceptance, the link placements and the restatement at import are unchanged by the tier.
 ⚠️ **This line said "the screens and the acceptance RECORD all stay" until 27 Aug 2026, and there is no acceptance record.** Batch 208 shipped the notice and the tick that gates sign-up; the tick is never written anywhere, so nothing knows who accepted which version. Caught by that batch's pre-push review, which went looking for the mechanism behind the notice's own promise to re-ask people and found none. Building it is filed in `docs/MAINTENANCE.md`; **this item does not depend on it** and must not wait for it.
 
-## blocked  5a · The backup does not carry three of the five history series  **[A — data integrity]**
+## next  5a · The backup does not carry three of the five history series  **[A — data integrity]**
 
-Blocked on: **Max resuming the STAGING Supabase project** — the same outage that blocks item 1, re-checked 27 Aug 2026. This item's own requirements end "Rehearse on staging first per `docs/STAGING.md`, then production", and the change it needs is a replacement `restore_backup`: the disaster-recovery path, on real data, which is the last function in this project to apply unrehearsed. The client half is not split out and shipped alone on purpose — a client emitting format 4 against a server that cannot restore its new groups is exactly the intermediate state `CLAUDE.md` says to order away.
+✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project**, the same event that unblocked item 1.
+⚠️ **It came back blank**, so this item inherits the same first task: re-mirror, seed and rebuild the accounts per `docs/STAGING.md` before rehearsing. **If item 1 runs first it will already have done that** — check the staging state rather than assuming either way. This item's own requirements end "Rehearse on staging first per `docs/STAGING.md`, then production", and the change it needs is a replacement `restore_backup`: the disaster-recovery path, on real data, which is the last function in this project to apply unrehearsed. The client half is not split out and shipped alone on purpose — a client emitting format 4 against a server that cannot restore its new groups is exactly the intermediate state `CLAUDE.md` says to order away.
 
 
 ⚠️ **FOUND 12 Aug 2026 while preparing the full-wipe step, by reading `restore_backup`'s body against the live tables. This is the reason that step did not run, and it must ship before it does (Max's call, 12 Aug 2026, choosing "fix the backup first, then wipe" over three alternatives).**
