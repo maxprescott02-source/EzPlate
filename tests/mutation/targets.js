@@ -274,6 +274,13 @@ const targets = [
      mode: "the day someone deletes the file named here, the guard is unpinned and nothing says so."
      A file that never ran it cannot be unpinned; it was never pinning anything. */
   { fn: 'costFromLines', tests: ['plate-cost.test.js'] },
+  /* 222 — costDetail is the real walk now (costFromLines is its cost accessor), so the target that
+     mattered would have quietly become a one-line delegation with nothing behind it. lineCost is
+     listed for the first time: `null * cost` is 0 rather than null, which is how a line with no
+     quantity became a free ingredient, and nothing had ever asked that function a question. */
+  { fn: 'costDetail', tests: ['plate-cost.test.js'] },
+  { fn: 'lineCost', tests: ['plate-cost.test.js'] },
+  { fn: 'plateFullyCosted', tests: ['plate-cost.test.js'] },
   { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'] },
   /* 0c (batch 203). buildInvRows was measured at 12 survivors in 201 and held in `pending`; the
      twelve are killed in inv-chain.test.js §5, and TWO of them were reachable only after the

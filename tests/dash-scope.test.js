@@ -33,6 +33,11 @@ function withState(MENU, menusList, cogsPct) {
     var cogsPct = COGS;
     function plateForMenuItem(m){ return m.plate || null; }
     function costFromLines(lines){ return Number(lines) || 0; }
+    /* 222: costDetail is the real implementation now and costFromLines is its cost accessor. This
+       stub is DERIVED from the stub above rather than written out again, so the two cannot drift and
+       so nothing here silently asserts a miss count this fixture never sets. Plates that cannot be
+       fully costed are covered where that is the subject: tests/plate-cost.test.js. */
+    function costDetail(lines){ return {cost:costFromLines(lines), miss:0}; }
     function esc(s){ return (s==null?'':String(s)); }
     function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
     ${extractFn(SRC, 'menuIdOf')}

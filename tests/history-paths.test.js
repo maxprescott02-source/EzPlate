@@ -109,7 +109,7 @@ function harness(opts) {
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
       'menuIdOf', 'dishOnMenu',
-      'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
+      'lineProduct', 'lineCost', 'costDetail', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'avgFoodCostForScope', 'computeAvgFoodCost',
       'ptMs', 'logHistory', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',

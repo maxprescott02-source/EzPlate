@@ -67,6 +67,11 @@ function boot(store, MENU, menusList) {
     var menusList = LIST;
     function plateForMenuItem(m){ return m.plate || null; }
     function costFromLines(lines){ return Number(lines) || 0; }
+    /* 222: costDetail is the real implementation now and costFromLines is its cost accessor. This
+       stub is DERIVED from the stub above rather than written out again, so the two cannot drift and
+       so nothing here silently asserts a miss count this fixture never sets. Plates that cannot be
+       fully costed are covered where that is the subject: tests/plate-cost.test.js. */
+    function costDetail(lines){ return {cost:costFromLines(lines), miss:0}; }
     function esc(s){ return (s==null?'':String(s)); }
     function renderDashboard(){ RENDERS.push(1); }
     function toast(m){ SURFACED.push(m); }            // anything user-visible lands here
@@ -226,6 +231,11 @@ function withRows(MENU, menusList) {
     var menusList = LIST;
     function plateForMenuItem(m){ return m.plate || null; }
     function costFromLines(lines){ return Number(lines) || 0; }
+    /* 222: costDetail is the real implementation now and costFromLines is its cost accessor. This
+       stub is DERIVED from the stub above rather than written out again, so the two cannot drift and
+       so nothing here silently asserts a miss count this fixture never sets. Plates that cannot be
+       fully costed are covered where that is the subject: tests/plate-cost.test.js. */
+    function costDetail(lines){ return {cost:costFromLines(lines), miss:0}; }
     function esc(s){ return (s==null?'':String(s)); }
     var DASH_ALL='all';
     var menuHistory = {}, priceHistory = [], cogsPct = 30;   // v115: sparklines colour by target now
@@ -370,6 +380,11 @@ function withComparisons(MENU, priceHistory) {
     var priceHistory = HIST, menuHistory = {}, cogsPct = 30;
     function plateForMenuItem(m){ return m.plate || null; }
     function costFromLines(lines){ return Number(lines) || 0; }
+    /* 222: costDetail is the real implementation now and costFromLines is its cost accessor. This
+       stub is DERIVED from the stub above rather than written out again, so the two cannot drift and
+       so nothing here silently asserts a miss count this fixture never sets. Plates that cannot be
+       fully costed are covered where that is the subject: tests/plate-cost.test.js. */
+    function costDetail(lines){ return {cost:costFromLines(lines), miss:0}; }
     function esc(s){ return (s==null?'':String(s)); }
     function menuNameById(id){ return 'Winter'; }
     function ptMs(h){ return new Date(h.t).getTime(); }

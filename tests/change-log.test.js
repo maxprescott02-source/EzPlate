@@ -125,7 +125,7 @@ function harness(opts) {
       // 221: saveCurrentPlate asks isBuilderDirty() whether the recovery draft still has anything to
       // recover. Extracted with its two signature helpers rather than stubbed.
       'lineSig', 'currentLinesSig', 'isBuilderDirty',
-      'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
+      'lineProduct', 'lineCost', 'costDetail', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'unlinkedDishesOn', 'publishPlan', 'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'dbPushMenuAfterPlate',
       'analyze', 'avgFoodCostForScope', 'computeAvgFoodCost',
