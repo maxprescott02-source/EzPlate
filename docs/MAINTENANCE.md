@@ -854,3 +854,20 @@ revoke execute on function public.business_team()        from anon;
 `auth_leaked_password_protection`, a WARN in the production advisors, checks new passwords against HaveIBeenPwned. It mattered little while every account was made by hand in the dashboard; batch 218 shipped self-service sign-up, so strangers now choose their own passwords.
 
 **It is a dashboard toggle, so it is Max's to flip** — one switch under Authentication → Policies. It is filed here rather than in the queue because nothing in the repo can do it and nothing is broken without it; `docs/GATE-REVIEW.md` (batch 210) reviewed the signup gates and did not cover this one, because the bullet naming it existed only on the unmerged café-creation branch at the time.
+
+### The café name limit is 60 in three places and only two of them count the same thing
+
+Found by batch 218's pre-push review, measured on both sides rather than reasoned:
+
+```
+'😀'.repeat(31)     JS  .length      = 62   (UTF-16 code units)
+                    PG  length()     = 31   (codepoints)
+```
+
+`cafeNameProblem` in `js/app.js` and `maxlength="60"` on `#bgCafeName` both count **UTF-16 code units**; the migration's `length(nm) > 60` counts **characters**. Every astral-plane character — emoji, and a number of historic and rare scripts — costs two on the client and one on the server, so a 31-emoji café name is refused by the client and would have been accepted by the server.
+
+⚠️ **It is filed rather than fixed, and the reason is the DIRECTION rather than the size.** The client is the STRICTER of the two, so the only thing it can produce is a **false refusal** — never a value that survives the client and is then rejected after a round trip, and never a stored name the server's guard was meant to stop. Nothing is wrong with any data.
+
+**And the obvious fix moves the mismatch rather than closing it.** Making `cafeNameProblem` count codepoints (`[...nm].length`) aligns it with the server and leaves `maxlength` as the sole binding constraint — still UTF-16, still stricter, still silent, because **HTML `maxlength` has no codepoint-counting form**. Closing it properly means dropping `maxlength` altogether and giving up a native affordance, for a case a café name will not meet. That is a real trade and it should be made deliberately by whoever next has reason to touch this form, not smuggled in as a tidy-up.
+
+**What IS pinned, in `tests/cafe-create.test.js`:** the property that actually matters — *the client may refuse more than the server and must never accept more* — across a spread of astral lengths. So the tempting direction, loosening the client to remove the false refusal, goes red by name. The equality test one above it deliberately keeps asserting the three numbers match, and now says at its own site that equal numbers in different units are not agreement.

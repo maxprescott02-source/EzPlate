@@ -135,6 +135,59 @@ test('the client and the server agree on the maximum — read from both, not res
     `silently, and it is the only one the user can feel`);
 });
 
+test('the client is never MORE PERMISSIVE than the server — including where the two count differently', () => {
+  /* ⚠️ THE THREE NUMBERS ABOVE ARE ALL 60 AND THEY ARE NOT ALL THE SAME UNIT, which the test above
+     cannot see and which its author did not know when writing it. Found by batch 218's pre-push
+     review, measured on both sides rather than reasoned:
+
+       '😀'.repeat(31)   JS `.length` = 62   (UTF-16 CODE UNITS)
+                         Postgres `length()` = 31   (CODEPOINTS)
+
+     So `cafeNameProblem` and the markup's `maxlength` both count UTF-16 units while
+     `length(nm) > 60` counts characters, and every astral-plane character — emoji, and a number of
+     historic and rare scripts — costs two on the client and one on the server. A 31-emoji name is
+     refused here and would have been accepted there.
+
+     ⚠️ IT IS DELIBERATELY NOT "FIXED", AND THE REASON IS THE DIRECTION RATHER THAN THE SIZE.
+     The client is STRICTER, so it can only ever produce a false refusal — never a value the server
+     rejects after the round trip, and never a stored name the guard was supposed to stop. Making
+     `cafeNameProblem` count codepoints would align it with the server and leave `maxlength` as the
+     sole binding constraint, still in UTF-16 units, still stricter: the mismatch would move rather
+     than close, because HTML `maxlength` has no codepoint-counting form. Closing it properly means
+     dropping `maxlength` and giving up a native affordance for a case a café name will not meet.
+     Filed in `docs/MAINTENANCE.md` with that reasoning rather than half-fixed here.
+
+     SO THIS TEST PINS THE PROPERTY THAT ACTUALLY MATTERS, which the equality above does not: the
+     client may refuse more than the server, and must never accept more. If someone later "fixes"
+     the units by loosening the client — the tempting direction, since it removes a false refusal —
+     this goes red. */
+  const body = fnBlock(MIG, 'create_business');
+  const max = Number(/length\(nm\) > (\d+)/.exec(body)[1]);
+
+  /* A name the SERVER would refuse must be refused HERE too, counted the server's way. */
+  const tooLongForServer = 'x'.repeat(max + 1);
+  assert.notEqual(api.cafeNameProblem(tooLongForServer), '',
+    'a name the server would refuse must not pass the client');
+
+  /* And the astral case, which is the one the units disagree about. The client refusing it is
+     ACCEPTABLE and asserted as the current behaviour; the client ACCEPTING something the server
+     would refuse is what must never happen. */
+  const astral = '😀'.repeat(max + 1);            // max+1 codepoints: the server refuses it
+  assert.notEqual(api.cafeNameProblem(astral), '',
+    'a name the server would refuse by codepoint count must not pass the client either');
+
+  /* The safe direction, stated as a rule over a spread of lengths rather than one example. */
+  for (const n of [1, 10, 30, 31, 59, 60, 61, 80]) {
+    const emoji = '😀'.repeat(n);
+    const serverWouldRefuse = n > max;            // Postgres counts codepoints
+    const clientRefuses = api.cafeNameProblem(emoji) !== '';
+    if (serverWouldRefuse) {
+      assert.ok(clientRefuses,
+        `${n} astral characters: the server refuses and the client must not be laxer`);
+    }
+  }
+});
+
 /* ── 2. THE ANSWER ────────────────────────────────────────────────────────────────────────────── */
 
 test('only a uuid STRING means the café exists — everything else is "could not tell"', () => {
