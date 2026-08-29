@@ -233,6 +233,13 @@ const targets = [
   { fn: 'plateToRow', tests: ['row-boundary.test.js', 'restore.test.js'] },
   { fn: 'parseBackupFile', tests: ['restore.test.js'] },
   { fn: 'backupToPayload', tests: ['restore.test.js'] },
+  /* 219 — the EXPORT half, added the day it gained three groups, for 184's reason: this list's own
+     sentence is "a function that is not a target has never been asked the question", and the item
+     this batch ran is precisely a group that was missing from buildBackup for months with a green
+     suite. It is mostly an object literal, so its mutant count is small — but `lastImportStamp()`
+     and `kingWizSkipIds()` are real calls, and a deleted call here is a settings key silently
+     exported as undefined. settings.test.js is the file that runs it with real globals. */
+  { fn: 'buildBackup', tests: ['settings.test.js'] },
 
   /* ── 0c: THE PRICING SURFACE. Four here, and the number is small ON PURPOSE — these are the ones
      that were ALREADY at zero survivors the moment they were measured. Their test files were doing

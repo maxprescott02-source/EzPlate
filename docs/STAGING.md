@@ -88,6 +88,7 @@ Applies to every migration from now on. This is what `CLAUDE.md`'s *staging firs
 
 1. **Write the migration** in `supabase/migrations/`, with its one-statement rollback stated in the header.
 2. **Re-mirror staging** — run `01-schema.sql`. It is idempotent, and it guarantees you are rehearsing against today's production schema rather than last month's.
+   ⚠️ **BEFORE you copy ANY function body forward, find the newest migration that defines it by listing the directory** — `grep -l 'create or replace function public.<name>' supabase/migrations/*.sql | sort | tail -1` — **never the one an item, a comment or your memory names.** `create or replace` replaces the whole body, so a guard some other batch added in between is deleted by omission with no diff showing a deletion. Batch 219 lost 187's owner-only guard from `restore_backup` exactly this way and shipped it to production; `CLAUDE.md` carries the rule.
    ⚠️ **If your migration replaces `restore_backup`, copy its WHOLE `create or replace` block into `01-schema.sql` section 6** — byte identical, not one hand-edited line. `functions_fp` hashes `pg_get_functiondef`, which includes the body's COMMENTS, so a mirror carrying the statements but not the comments makes this very step turn the drift detector red for a reason that is not drift. That was silently the case from 11 to 13 Aug 2026; `tests/semantic-keys.test.js` now pins the two blocks equal, because nothing else can notice.
 3. **Load a seed** that contains the case the migration is about. Empty, realistic or scale.
 4. **Apply the migration to staging.** Order the statements so the dangerous intermediate state cannot exist; keep the transaction as well.
@@ -168,9 +169,13 @@ Written down because a rehearsal you over-trust is worse than none.
 
 ## Current state
 
-**Measured 29 Aug 2026, after Max's restore:** 520 products, **1 menu**, 180 plates, **2 dishes**, 2 businesses, 3 memberships, 2862 `ing_price_history` rows, 134 `menu_change_log` rows, 10 `app_settings`.
-**Re-measured at the end of batch 218's rehearsal and unchanged** — that rehearsal created and deleted three cafés and left the counts where it found them, which is the property the accounts warning below asks for.
-⚠️ **The products and plates are the scale seed's; the MENUS and DISHES are not.** This section read *"scale seed (520 products, 12 menus, 180 plates, 429 dishes)"* until the restore, and two of those four numbers are now wrong — menus came back as 1 and dishes as 2. **If a rehearsal needs a populated menu structure, reload a seed (`03`/`04`) rather than trusting this paragraph or the row counts you remember.**
+⚠️ **BATCH 219 REHEARSED A RESTORE HERE ON 29 Aug 2026, AND A RESTORE REPLACES FIVE TABLES BY DESIGN. The catalogue is GONE and that is not damage — it is what the function under test does.**
+**Measured immediately afterwards:** **2 products, 2 menus, 2 plates, 2 dishes**, 1 supplier phrase, 270 `price_history` rows (38 with a NULL `menu_id`), 605 `menu_price_history`, 2864 `ing_price_history`, 135 `menu_change_log`, 10 `app_settings`, and — untouched, as they must be — **4 accounts, 2 businesses, 3 memberships**.
+**So: reload `03` or `04` before any rehearsal that needs volume.** That is step 3 of the procedure above and it takes one paste; nothing here is lost by the catalogue being small.
+
+**Why 219 did NOT reload a seed first, stated because it looks like a skipped step and was a measured call.** The two tables that migration is about already held 264 `price_history` rows — **35 of them with a NULL `menu_id`, which is the exact case its dedup exists for** — and 602 `menu_price_history` rows. A seed reload would have replaced real accumulated rows with generated ones and proved *less*. **Read step 3 as "make sure the case is present", not as "always run a seed"**; when the case is already there in quantity, say so and carry on.
+
+**The four numbers this section used to lead with were the scale seed's**, and they had already drifted twice before this — it read *"520 products, 12 menus, 180 plates, 429 dishes"*, then menus came back as 1 and dishes as 2 after Max's restore, and now all four have moved again. **The transferable half is the instruction, not the figures: reload a seed rather than trusting any paragraph here or the row counts you remember.**
 Plus, since batch 182, **a second tenant and four accounts, which are worth keeping and are the reason this section is no longer just "which seed"**.
 
 | | |
@@ -288,3 +293,22 @@ The migration was written in batch 209 and could not be rehearsed, because this 
 - **What the rehearsal proved that no unit test could**, all as the client with a real JWT: the 60-character boundary is inclusive (60 accepted, 61 refused); a second call returns the same uuid and does not rename; the founder comes out `owner`; the new café sees itself and neither neighbour, with 0 products against the 520 next door; and **it can WRITE** — a product and a `food_cost_target` both came back carrying the new `business_id`, which is 182's read-but-not-write defect and 183's semantic-key refusal both re-checked against a THIRD tenant.
 - ⚠️ **Proving a guard fires took two attempts, and the first one proved something else.** The owner assertion is unreachable while `set_member_role` is correct, so it was mutated. **Disabling the trigger does not reach the assertion at all** — the trigger is the only thing that sets `role`, so the insert dies on the NOT NULL first (23502). The assertion guards a trigger that is present and WRONG, so the mutation had to be a trigger returning `'staff'`. It then raised, named the café, and rolled the already-inserted business row back — zero orphans. **Mutate the thing the guard is actually about, or you have tested a different failure.**
 - **`c@example.com` was consumed and put back**, per the standing warning at the accounts table — three times over the session, since each probe made it a member. Staging finished on the 2 businesses / 3 memberships / 520 products / 180 plates / 10 settings it started with, and `set_member_role`'s `pg_get_functiondef` md5 was diffed back to production's rather than assumed restored. Its password was reset to a throwaway and is not written down.
+
+### And on 29 Aug 2026 (batch 219), `restore_backup` v5 — the rehearsal that MEASURED THE COUNTERFACTUAL
+
+Queue item 5a: the backup carried three of the five history series, so `price_history` and `menu_price_history` were in neither the export nor the restore's deletes. `20260829_restore_backup_v5.sql`'s header holds the full record; three things belong here because they are about the PROCEDURE rather than about that migration.
+
+**Step 3's seed reload was deliberately skipped, and the reason generalises.** The two tables the migration is about already held 264 and 602 rows, **35 of the first with a NULL `menu_id`** — the exact case its dedup exists for. A seed would have replaced real accumulated rows with generated ones and proved less. **Step 3 means "make sure the case is present", not "always run a seed".** Say which, and why, in the migration header.
+
+**⚠️ THE REHEARSAL MEASURED WHAT THE WRONG VERSION WOULD HAVE DONE, not just that the right one worked — and that is the half worth copying.** Proving the shipped dedup added 0 rows on a second identical restore is necessary and it is *not sufficient*: a dedup that matched nothing at all would give the same 0. So both predicates were run side by side against the same payload:
+
+```
+e.menu_id is not distinct from p.menu_id   ->  0 rows would insert   (shipped)
+e.menu_id = p.menu_id                      ->  3 rows would insert   (every restore, forever)
+```
+
+Three is exactly the all-menus points, and `=` is the spelling anyone would write. **A green rehearsal tells you the code you wrote passes; running the plausible WRONG version beside it tells you the test could have failed.** It costs one extra `select` and it is this repo's mutation discipline arriving in SQL, where `npm run mutate` cannot reach.
+
+**And the payload was built by the SHIPPED `backupToPayload`**, brace-extracted from `js/app.js` by `tests/_extractfn`, not hand-written as JSON. Hand-writing it would have rehearsed a boundary crossing the app never makes — the same stub trap `CLAUDE.md`'s roster records twenty-two times, one layer out. **If a rehearsal needs a payload, extract the real builder.**
+
+**What was left behind:** the catalogue, because a restore replaces five tables — see *Current state* above. Accounts, businesses and memberships untouched, `c@example.com` re-confirmed a member of nothing. `a@example.com`'s password was reset to a throwaway for step 5 and is not recorded anywhere, per this file's standing rule.

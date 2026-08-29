@@ -7064,7 +7064,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v178';
+var APP_VERSION='v179';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -7906,8 +7906,9 @@ function buildBackup(){
          THE CASE THIS ACCEPTS, stated so nobody has to rediscover it: a café that somehow holds an
          orphan dish, exporting on v160 and restoring on a build older than v160, would have that
          dish's null read back as 'MENU_ORIGINAL'. Nothing can create such a dish after this batch,
-         and none exist. ⚠️ Format 4 is RESERVED by the backup-history queue item, which needs it for
-         three real new groups; spending it on a field value would have taken it for nothing. */
+         and none exist. ⚠️ Format 4 was RESERVED by the backup-history queue item, which needed it
+         for three real new groups; spending it on a field value would have taken it for nothing.
+         Batch 219 ran that item and spent it on exactly those three groups. */
       /* 193 CONSIDERED BUMPING THIS AND DELIBERATELY DID NOT — the same call as 184 above, for the
          same reason, and this note is the half 193 left out. Its handover said the note was written
          and it was not, so the audit trail claimed a comment that did not exist; that is worse than
@@ -7924,8 +7925,23 @@ function buildBackup(){
              would therefore be a format change even though nothing about the JSON shape says so;
            - both directions were restored on staging and checked, not reasoned about.
          So an old file restores clean and a new file restores into an old build clean, and bumping
-         would announce a compatibility break that did not happen. Format 4 stays reserved, as above. */
-      format:3,                                                       // shape of this file, not the app
+         would announce a compatibility break that did not happen. Format 4 was reserved for the item
+         directly below, and batch 219 spent it. */
+      /* 219 — FORMAT 3 -> 4, and this one is the case the carve-out does NOT cover: three whole
+         groups are ADDED, which fails condition 1 outright. No judgement call to record.
+         WHAT WAS MISSING AND HOW MUCH IT COST. This file emitted eight groups and carried three of
+         the five history series; `price_history` (69 rows) and `menu_price_history` (79) were in
+         neither the file nor `restore_backup`'s deletes. On a LIVE database that is harmless — the
+         restore leaves them alone. After a TOTAL LOSS it is not: the app comes back with a flat
+         trend chart, no per-menu food cost and no sell-price history, and raises nothing. That is
+         the quiet-wrong-number failure, on the one path that only ever runs after a disaster.
+         Three live `app_settings` keys were missing for the same reason and are added here too.
+         `deleted_menu_ids`, `deleted_prod_ids` and `suggest_fab_hidden` are NOT added: they are
+         retired keys with no reader left, and carrying them would restore state nothing consults.
+         GROUP NAMES ARE THE SNAKE_CASE OF THE MEMORY NAME, as `ing_price_log` already is — this is
+         the FILE format, whose keys name what is in memory, not the WIRE format, whose keys name
+         tables. backupToPayload is where those two vocabularies meet, and it is the only place. */
+      format:4,                                                       // shape of this file, not the app
       app_version:APP_VERSION
     },
     products:productsById,
@@ -7933,6 +7949,12 @@ function buildBackup(){
     plates:savedPlates,
     menu_items:customMenu,
     ing_price_log:ingPriceLog,
+    /* The all-menus food-cost series. `priceHistory` is an ARRAY and the two below are objects
+       keyed by id — that asymmetry is memory's, and reproducing it rather than tidying it is what
+       lets these round-trip through the same readers bootstrapSync fills them from. */
+    price_history:priceHistory,
+    menu_history:menuHistory,
+    menu_price_log:menuPriceLog,
     change_log:changeLog,
     supplier_mem:supplierMem,
     settings:{
@@ -7940,9 +7962,22 @@ function buildBackup(){
       gst_default:gstDefault,
       king_wiz_skips:kingWizSkipIds(),
       menus:menusList,
-      current_menu_id:currentMenuId
+      current_menu_id:currentMenuId,
+      /* The three LIVE settings the export never carried. restore_backup upserts app_settings by
+         key and has always accepted keys it was given, so these need no server change and no format
+         bump of their own — the three GROUPS above are what forces format 4. */
+      ai_invoice_check:aiInvoiceCheck,
+      ai_suggestions:aiSuggestions,
+      last_invoice_import:lastImportStamp()
     }
   };
+}
+/* `last_invoice_import`'s in-memory home is a localStorage cache of the server row (bootstrapSync
+   writes it, updateLastImport reads it), so unlike the two AI toggles there is no module variable to
+   name. Read through a function because localStorage throws in a locked-down browser and an export
+   must not fail for a date stamp. */
+function lastImportStamp(){
+  try{ return localStorage.getItem('cafeDB_lastImport')||null; }catch(e){ return null; }
 }
 function exportBackup(){
   try{
@@ -8006,7 +8041,10 @@ function parseBackupFile(text){
      recovery path there is. Refusing it would cost a real disaster; accepting it costs nothing, because
      the only thing it lacks is a log that did not exist when it was written. Contrast format 1, which is
      refused precisely because the app can no longer tell a complete one from an incomplete one. */
-  if(f!==2 && f!==3)
+  /* 219 — a THIRD accepted format, for the same reason v114 gave for keeping 2: the only thing an
+     older file lacks is data that did not exist when it was written. Formats 2 and 3 stay restorable
+     forever; the newest file in existence is still a format-3 one. */
+  if(f!==2 && f!==3 && f!==4)
     return {ok:false, reason:'This backup is marked format “'+String(f)+'”, which this version of EzPlate doesn’t know how to read. It may have been made by a newer version.'};
   /* Every REPLACED group must be present. A missing one is a damaged file, not an empty dataset — and
      the difference matters, because the server would happily replace a table with nothing.
@@ -8027,6 +8065,25 @@ function parseBackupFile(text){
   }
   if(b.change_log!==undefined && !Array.isArray(b.change_log))
     return {ok:false, reason:'This backup is damaged — its record of your changes is unreadable. Nothing has been changed.'};
+  /* 219 — THE THREE NEW GROUPS ARE CHECKED WHEN PRESENT AND NEVER REQUIRED, which is the same
+     distinction the `groups` list above draws and it matters for the same reason: a format-2 or -3
+     file legitimately lacks them, exactly as it lacks change_log, and demanding them would refuse
+     the only recovery file that currently exists. They are also never DELETED by the restore, so a
+     missing one can destroy nothing — but a malformed one is a damaged file and saying so beats
+     restoring silence. `price_history` is an array and the other two are objects; asserting the
+     WRONG one of those would pass on either shape, so each states its own. */
+  var opt=[
+    ['price_history','array','record of your food cost over time'],
+    ['menu_history','object','per-menu food cost history'],
+    ['menu_price_log','object','record of your menu prices']
+  ];
+  for(var j=0;j<opt.length;j++){
+    var ok2=opt[j][0], ov2=b[ok2];
+    if(ov2===undefined) continue;
+    var oArr=Array.isArray(ov2), oObj=(ov2&&typeof ov2==='object'&&!oArr);
+    if(opt[j][1]==='array' ? !oArr : !oObj)
+      return {ok:false, reason:'This backup is damaged — its '+opt[j][2]+' is unreadable. Nothing has been changed.'};
+  }
   if(!Array.isArray(b.settings.menus))
     return {ok:false, reason:'This backup is damaged — its menus are missing or unreadable. Nothing has been changed.'};
   return {ok:true, data:b};
@@ -8091,10 +8148,43 @@ function backupToPayload(b){
       ipl.push(pointToRow(pt.t, pt.v, 'cost_per_base_unit', 'product_id', pid));
     });
   });
+  /* 219 — THE TWO SERIES THE FILE NEVER CARRIED, both through pointToRow and nothing else.
+     price_history holds BOTH the all-menus aggregate and the per-menu series, split in memory by
+     bootstrapSync on whether menu_id is set and rejoined here into the one table they came from.
+     The all-menus rows pass NO key column, so the row has no `menu_id` property at all and
+     jsonb_populate_recordset lands NULL — which is exactly what "the all-menus series" means on
+     this table. Passing 'menu_id' with a null value would have been the same thing by luck rather
+     than by construction, and pointToRow is the only place either could be decided. */
+  var ph=[];
+  (Array.isArray(b.price_history)?b.price_history:[]).forEach(function(pt){
+    if(!pt || pt.t==null || pt.v==null) return;                 // a null would restore as a real-looking 0%
+    ph.push(pointToRow(pt.t, pt.v, 'avg_food_cost_pct'));
+  });
+  Object.keys(b.menu_history||{}).forEach(function(mid){
+    (b.menu_history[mid]||[]).forEach(function(pt){
+      if(!pt || pt.t==null || pt.v==null) return;
+      ph.push(pointToRow(pt.t, pt.v, 'avg_food_cost_pct', 'menu_id', mid));
+    });
+  });
+  var mph=[];
+  Object.keys(b.menu_price_log||{}).forEach(function(iid){
+    (b.menu_price_log[iid]||[]).forEach(function(pt){
+      if(!pt || pt.t==null || pt.v==null) return;
+      mph.push(pointToRow(pt.t, pt.v, 'price', 'menu_item_id', iid));
+    });
+  });
   var s=b.settings, settings=[{key:'kitchen_ingredients', value:b.kitchen_ingredients}];
   if(s.food_cost_target!=null) settings.push({key:'food_cost_target', value:s.food_cost_target});
   if(s.gst_default!=null) settings.push({key:'gst_default', value:s.gst_default});
   if(Array.isArray(s.king_wiz_skips)) settings.push({key:'king_wiz_skips', value:s.king_wiz_skips});
+  /* 219 — the three live keys the export never carried. Sent only when PRESENT: a format-2 or -3
+     file has no opinion about them, and pushing an undefined would overwrite the user's real
+     setting with a null on the server's upsert. `typeof === 'boolean'` rather than != null for the
+     two toggles, because they are read back with a typeof check too and a stray string would be
+     silently ignored on boot after being faithfully carried through the whole restore. */
+  if(typeof s.ai_invoice_check==='boolean') settings.push({key:'ai_invoice_check', value:s.ai_invoice_check});
+  if(typeof s.ai_suggestions==='boolean') settings.push({key:'ai_suggestions', value:s.ai_suggestions});
+  if(typeof s.last_invoice_import==='string' && s.last_invoice_import) settings.push({key:'last_invoice_import', value:s.last_invoice_import});
   /* ⚠️ THE WIRE FORMAT DECLARES WHAT THE PAYLOAD CONTAINS, NOT WHICH VERSION BUILT IT — and getting
      that wrong would have broken disaster recovery for exactly as long as it took to notice.
      An earlier draft sent `format:3` unconditionally, reasoning that this object is built here and now.
@@ -8107,14 +8197,29 @@ function backupToPayload(b){
      reader cannot handle. So it says so, and the old function accepts it. The moment there is a log to
      carry, it says 3 — and by then the table exists, which means migration 1 has been run. */
   var chg=(b.change_log||[]).map(changeToRow);
+  /* 219 — 4 ONLY WHEN THERE IS SOMETHING NEW TO CARRY, extending the `chg.length?3:2` ladder rather
+     than replacing it, and for the identical reason: the deployed function is whatever was last
+     applied by hand, and one that predates this batch refuses format 4 outright. A payload with no
+     history points genuinely IS a format-3 payload — there is nothing in it a format-3 reader
+     cannot handle — so it says so and the old function accepts it.
+     ⚠️ THE THREE NEW SETTINGS DO NOT RAISE THE NUMBER, and that is not an oversight. app_settings
+     is upserted BY KEY and has always taken whatever keys it was handed, so an older function
+     restores them correctly. Only the two new GROUPS are a shape a format-3 reader would silently
+     ignore, and silently ignoring history is the failure this whole item exists to close. */
   return {
-    format:chg.length?3:2,
+    format:(ph.length||mph.length)?4:(chg.length?3:2),
     ingredients:Object.keys(b.products).map(function(id){ return ingredientToRow(b.products[id]); }),
     menus:s.menus.map(menuRecordToRow),
     plates:b.plates.map(plateToRow),
     menu_items:b.menu_items.map(menuToRow),
     supplier_phrases:Object.keys(b.supplier_mem||{}).map(function(id){ return supplierPhraseToRow(b.supplier_mem[id]); }),
     ing_price_history:ipl,
+    /* Named for the TABLES, not for the memory groups they came from — `menu_price_log` in the file
+       is `menu_price_history` on the wire. Sent even when empty, and harmless either way: the new
+       function treats an absent group as empty and an older one ignores a key it does not know.
+       Neither is ever deleted by the restore, so an absent group can destroy nothing. */
+    price_history:ph,
+    menu_price_history:mph,
     /* Mapped through changeToRow like every other group — hard rule 8 is obeyed structurally rather
        than by care: this function names no column of its own, so the camelCase/snake_case trap that
        silently unlinked 76 of 77 dishes on the 1 Aug file has nowhere to happen. Sent even when empty,

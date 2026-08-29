@@ -60,11 +60,22 @@ function buildBackupIn(state) {
         cogsPct = S.cogsPct, gstDefault = S.gstDefault,
         deletedMenuIds = S.deletedMenuIds, deletedProdIds = S.deletedProdIds,
         menusList = S.menusList, currentMenuId = S.currentMenuId;
+    /* 219 — the three history series and the two AI toggles the export gained. They are injected
+       here rather than defaulted so a test can give each series a DIFFERENT value: buildBackup
+       reads three same-shaped stores, and a fixture where they agree cannot tell you which one
+       reached which group (CLAUDE.md's roster entry 184(b)). */
+    var priceHistory = S.priceHistory, menuHistory = S.menuHistory, menuPriceLog = S.menuPriceLog,
+        aiInvoiceCheck = S.aiInvoiceCheck, aiSuggestions = S.aiSuggestions;
+    /* lastImportStamp reads localStorage, which does not exist here and THROWS in a locked-down
+       browser — both cases are the same branch and both must yield a real export. S.lastImport
+       undefined exercises the missing-key path. */
+    var localStorage = { getItem: function(k){ return (k === 'cafeDB_lastImport' && S.lastImport !== undefined) ? S.lastImport : null; } };
     var kingWizSkip = S.kingWizSkip;
     /* v108: BASE_PRODUCTS and baseProductsFingerprint are gone from the sandbox because they are gone
        from the app — the catalogue lives in the ingredients table and the export is a complete
        snapshot, so there is no literal to fingerprint. See the format-2 tests below. */
     ${extractFn(APP, 'kingWizSkipIds')}
+    ${extractFn(APP, 'lastImportStamp')}
     ${extractFn(APP, 'buildBackup')}
     return buildBackup();
   `);
@@ -82,6 +93,15 @@ const STATE = {
                 menuIds: ['MENU_ORIGINAL'], avgBefore: 34.2, avgAfter: 31.8,
                 costBefore: 5.1, costAfter: 4.7, detail: { name: 'Cod & Chips' } }],
   supplierMem: { SM1: { id: 'SM1', supplier: 'Bidfood', phrase_norm: 'chips straight cut', qty: 2.5, unit: 'kg' } },
+  /* 219 — THREE DISTINCT VALUES ON PURPOSE. All three stores hold {t,v} points and two of them are
+     objects keyed by an id, so a fixture that reused one shape across all three would pass just as
+     happily if buildBackup wired menuHistory into menu_price_log. The values (11.1 / 22.2 / 33.3)
+     and the keys (no key / M1 / MI1) are all different, so each group can only match one source. */
+  priceHistory: [{ t: 1753000000000, v: 11.1 }],
+  menuHistory: { M1: [{ t: 1753100000000, v: 22.2 }] },
+  menuPriceLog: { MI1: [{ t: 1753200000000, v: 33.3 }] },
+  aiInvoiceCheck: false, aiSuggestions: true,
+  lastImport: '2026-08-12T03:04:05.000Z',
   cogsPct: 38, gstDefault: 'inc',
   kingWizSkip: { P0005: 1 },
   deletedMenuIds: ['M9'], deletedProdIds: ['P0999'],
@@ -93,12 +113,20 @@ const STATE = {
 // v114: seven groups became EIGHT — `change_log` joined them. The count is in the title on purpose; if
 // a ninth ever arrives without this test being updated, the number in the name is the thing that reads
 // as wrong to the next person.
-test('ITEM 6: the backup serialises to real JSON and carries all eight data groups', () => {
+// 219: eight became ELEVEN — price_history, menu_history and menu_price_log. That mechanism worked
+// exactly as described: the number in the title is what read as wrong. ⚠️ AND THE LIST IS NOW AN
+// EQUALITY rather than a presence loop, because a presence loop cannot notice a group being REMOVED,
+// which is the direction this item exists to close — three groups were missing from this file for
+// months and every assertion about it was green.
+test('ITEM 6: the backup serialises to real JSON and carries all eleven data groups', () => {
   const parsed = JSON.parse(JSON.stringify(buildBackupIn(STATE)));   // must survive a real round-trip
-  ['products', 'kitchen_ingredients', 'plates', 'menu_items',
-   'ing_price_log', 'change_log', 'supplier_mem', 'settings'].forEach(k => {
-    assert.ok(k in parsed, `backup is missing the "${k}" group`);
-  });
+  const groups = ['products', 'kitchen_ingredients', 'plates', 'menu_items',
+    'ing_price_log', 'price_history', 'menu_history', 'menu_price_log',
+    'change_log', 'supplier_mem', 'settings'];
+  assert.deepEqual(Object.keys(parsed).filter(k => groups.includes(k)).sort(), [...groups].sort());
+  const extra = Object.keys(parsed).filter(k => !groups.includes(k)
+    && !['app', 'version', 'exported_at', 'stamp'].includes(k));
+  assert.deepEqual(extra, [], `the export grew a group nothing knows how to restore: ${extra.join(', ')}`);
   assert.equal(parsed.app, 'EzPlate');
   assert.equal(parsed.version, 'v35');
   assert.ok(!isNaN(Date.parse(parsed.exported_at)), 'exported_at is a real timestamp');
@@ -139,10 +167,10 @@ test('v106: the backup carries supplier memory, populated', () => {
 /* v114: the stamp moved 2 -> 3 because the file gained a group, which hard rule 9's general law makes a
    format change. What did NOT change is any of the seven existing groups, which is why parseBackupFile
    still accepts format 2 (pinned in restore.test.js) \u2014 Max's newest real backup is one. */
-test('v108/v114: the export declares format 3 and stays self-describing', () => {
+test('v108/v114/219: the export declares format 4 and stays self-describing', () => {
   const s = JSON.parse(JSON.stringify(buildBackupIn(STATE))).stamp;
   assert.ok(s, 'a file with no stamp cannot be told apart from a format-1 delta');
-  assert.equal(s.format, 3, 'format 3 == complete snapshot WITH the change log; 2 == without it; 1 == delta against a literal');
+  assert.equal(s.format, 4, 'format 4 == WITH the three history series; 3 == with the change log only; 2 == without it; 1 == delta against a literal');
   assert.equal(s.app_version, 'v35', 'the stamp is self-contained \u2014 a restore reads it without hunting the top level');
 });
 
@@ -181,6 +209,47 @@ test('ITEM 6: the backup carries every setting, including the ones added this ve
   assert.ok(!('deleted_menu_ids' in s), 'a tombstone list in a backup would restore rows as hidden-but-present');
   assert.ok(!('deleted_prod_ids' in s), 'same — the export must not carry a concept the app no longer has');
   assert.equal(s.current_menu_id, 'MENU_ORIGINAL');
+  /* 219 — three LIVE keys the export never carried. `ai_invoice_check` is deliberately FALSE in the
+     fixture: with `true` a restore that dropped it would land on the loader's default of ON and be
+     indistinguishable from having worked, which is the shape of every defect in this file's history.
+     `suggest_fab_hidden` stays out for the tombstones' reason — retired, no reader left. */
+  assert.equal(s.ai_invoice_check, false, 'restoring the AI toggles as their defaults is not restoring them');
+  assert.equal(s.ai_suggestions, true);
+  assert.equal(s.last_invoice_import, '2026-08-12T03:04:05.000Z');
+  assert.ok(!('suggest_fab_hidden' in s), 'a retired key with no reader must not be carried into a restore');
+});
+
+/* 219 — THE THREE SERIES, EACH TOLD APART FROM THE OTHER TWO.
+   The gap this closes: `price_history` (69 rows) and `menu_price_history` (79) were in neither the
+   file nor restore_backup's deletes, so on a live database their absence was invisible and only a
+   FULL WIPE would have shown it — as a flat trend chart and no sell-price history, raising nothing.
+   The assertions are on the VALUES, not on the keys: all three stores hold {t,v} points and two are
+   objects keyed by an id, so a presence check would pass with any two of them crossed over. */
+test('219: the backup carries all five history series, and each one distinguishably', () => {
+  const b = JSON.parse(JSON.stringify(buildBackupIn(STATE)));
+  assert.deepEqual(b.price_history, STATE.priceHistory);
+  assert.deepEqual(b.menu_history, STATE.menuHistory);
+  assert.deepEqual(b.menu_price_log, STATE.menuPriceLog);
+  assert.equal(b.price_history[0].v, 11.1, 'the all-menus aggregate is an ARRAY — it has no key');
+  assert.equal(b.menu_history.M1[0].v, 22.2, 'per-menu food cost is keyed by MENU id');
+  assert.equal(b.menu_price_log.MI1[0].v, 33.3, 'the sell-price log is keyed by MENU ITEM id, not by menu');
+  assert.equal(b.ing_price_log.P0108[1].v, 0.0031, 'and the two that already worked still do');
+  assert.equal(b.change_log[0].id, 'CL1');
+});
+
+test('219: an export survives localStorage being unreadable — a date stamp cannot cost the lifeboat', () => {
+  /* lastImportStamp is the export's only localStorage read. A locked-down browser throws on
+     getItem, and an export that throws is a user with no backup at the moment they wanted one. */
+  const thrower = Object.assign({}, STATE);
+  const factory = new Function('S', `
+    "use strict";
+    var localStorage = { getItem: function(){ throw new Error('SecurityError'); } };
+    ${extractFn(APP, 'lastImportStamp')}
+    return lastImportStamp();
+  `);
+  assert.equal(factory(thrower), null, 'a throwing localStorage must yield null, not propagate');
+  const noKey = JSON.parse(JSON.stringify(buildBackupIn(Object.assign({}, STATE, { lastImport: undefined }))));
+  assert.equal(noKey.settings.last_invoice_import, null, 'never imported an invoice is null, not undefined');
 });
 
 /* ---------- 3. the COGS round-trip, through the real consumer ---------- */

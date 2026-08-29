@@ -110,9 +110,14 @@ test('a malformed stamp is refused', () => {
 
 // v114: format 3 became REAL (it is what this version exports), so the unknown-format case moved to 4.
 test('an unknown format is refused and quotes what it saw', () => {
-  const r = parseBackupFile(json(fixture({ stamp: { format: 4 } })));
+  /* ⚠️ THIS PROBED WITH `format: 4` UNTIL BATCH 219, WHICH SHIPPED FORMAT 4 — so the test that proves
+     an unknown format is refused was pointed at a format that had become known. That is not a
+     re-point to do quietly: the number this test uses must be one AHEAD of the newest real format
+     forever, and using the reserved-next number is what made it rot. It now probes a number nothing
+     will plausibly reach, and says why. */
+  const r = parseBackupFile(json(fixture({ stamp: { format: 99 } })));
   assert.strictEqual(r.ok, false);
-  assert.match(r.reason, /4/);
+  assert.match(r.reason, /99/);
 });
 
 /* v114 — BOTH live formats restore, and this is the pin that matters most in this file.
@@ -126,6 +131,168 @@ test('v114: a format-3 file is accepted, and format 2 still is', () => {
   ] });
   assert.strictEqual(parseBackupFile(json(three)).ok, true, 'the format this version writes must restore');
   assert.strictEqual(parseBackupFile(json(fixture())).ok, true, 'the newest REAL backup Max holds is format 2');
+});
+
+/* ---- 219: format 4 — the three history series the file never carried ------------------------
+   THE GAP, measured against production rather than reasoned: `price_history` (69 rows) and
+   `menu_price_history` (79) were in neither the export nor `restore_backup`'s deletes. On a LIVE
+   database that is harmless, which is precisely why nobody noticed — the restore left them alone.
+   After a full wipe the app returns with a flat trend chart, no per-menu food cost and no
+   sell-price history, and raises nothing. Every test below is written against that failure.
+
+   ⚠️ THE FIXTURE GIVES ALL THREE SERIES DIFFERENT VALUES AND DIFFERENT KEYS ON PURPOSE (roster
+   184(b)). All three hold `{t,v}` points; two are objects keyed by an id; the all-menus one is a
+   bare array. A fixture that reused one shape would pass just as happily if menu_history were wired
+   into the sell-price group, which is a silent swap of "what this menu costs to make" for "what it
+   sells for" — two numbers that look alike and mean opposite things. */
+function hist(over) {
+  return fixture(Object.assign({
+    stamp: { format: 4, app_version: 'v179' },
+    price_history: [{ t: 1753000000000, v: 11.1 }, { t: 1753000001000, v: 12.2 }],
+    menu_history: { MENU_ORIGINAL: [{ t: 1753100000000, v: 22.2 }] },
+    menu_price_log: { D1: [{ t: 1753200000000, v: 33.3 }] },
+  }, over || {}));
+}
+
+test('219: a format-4 file is accepted, and 3 and 2 still are', () => {
+  assert.strictEqual(parseBackupFile(json(hist())).ok, true, 'the format this version writes must restore');
+  assert.strictEqual(parseBackupFile(json(fixture({ stamp: { format: 3, app_version: 'v114' } }))).ok, true);
+  assert.strictEqual(parseBackupFile(json(fixture())).ok, true, 'the newest REAL backup Max holds is format 2');
+});
+
+test('219: the three new groups are OPTIONAL — a format-2 file lacking them is not damaged', () => {
+  /* Same distinction the `groups` list draws for change_log, and it decides whether Max's real
+     12 Aug format-3 export is restorable at all. Absent is a true statement about an older file. */
+  const f = fixture();
+  for (const k of ['price_history', 'menu_history', 'menu_price_log']) {
+    assert.strictEqual(f[k], undefined, `the format-2 fixture must genuinely lack ${k}, or this proves nothing`);
+  }
+  assert.strictEqual(parseBackupFile(json(f)).ok, true);
+});
+
+test('219: a PRESENT-but-malformed history group is refused, and each shape is checked separately', () => {
+  /* The array/object split is the sharp half: `price_history` is an array and the other two are
+     objects, so a single "is it an object" check would pass on either shape for all three and this
+     whole test would be theatre. Each bad value below is the OTHER group's legal shape. */
+  const bad = [
+    ['price_history', { MENU_ORIGINAL: [] }, /food cost over time/],
+    ['price_history', 'nope', /food cost over time/],
+    ['menu_history', [{ t: 1, v: 2 }], /per-menu/],
+    ['menu_price_log', [{ t: 1, v: 2 }], /menu prices/],
+  ];
+  for (const [key, value, re] of bad) {
+    const r = parseBackupFile(json(hist({ [key]: value })));
+    assert.strictEqual(r.ok, false, `${key} = ${json(value)} must be refused`);
+    assert.match(r.reason, re, `the refusal must name ${key} in words the user can act on`);
+    assert.match(r.reason, /Nothing has been changed/, 'a refusal must say nothing was touched');
+  }
+});
+
+test('219: the all-menus series and the per-menu series land in ONE table, told apart by menu_id', () => {
+  /* They are one table in the database and two stores in memory — `bootstrapSync` splits them on
+     whether `menu_id` is set, and this is the only place they are rejoined.
+     ⚠️ The all-menus rows must carry NO `menu_id` PROPERTY, not a null one. Both populate as NULL,
+     so an assertion on the value alone would pass either way; the property's absence is what proves
+     pointToRow was called without a key column rather than with a null one. */
+  const p = backupToPayload(hist());
+  assert.strictEqual(p.price_history.length, 3, 'two all-menus points plus one per-menu point');
+  const all = p.price_history.filter((r) => !('menu_id' in r));
+  const perMenu = p.price_history.filter((r) => 'menu_id' in r);
+  assert.strictEqual(all.length, 2);
+  assert.strictEqual(perMenu.length, 1);
+  assert.strictEqual(all[0].avg_food_cost_pct, 11.1);
+  assert.strictEqual(perMenu[0].avg_food_cost_pct, 22.2, 'the per-menu VALUE, not the all-menus one');
+  assert.strictEqual(perMenu[0].menu_id, 'MENU_ORIGINAL');
+  assert.strictEqual(all[0].recorded_at, new Date(1753000000000).toISOString(),
+    'epoch ms becomes an ISO timestamptz at the boundary — pointToRow owns that conversion');
+});
+
+test('219: the sell-price log crosses as menu_item_id + price, never as the food-cost column', () => {
+  const p = backupToPayload(hist());
+  assert.strictEqual(p.menu_price_history.length, 1);
+  const row = p.menu_price_history[0];
+  assert.strictEqual(row.menu_item_id, 'D1', 'keyed by MENU ITEM id — a dish, not a menu');
+  assert.strictEqual(row.price, 33.3);
+  assert.strictEqual(row.avg_food_cost_pct, undefined,
+    'the two series share a shape and mean opposite things; the column is what keeps them apart');
+  assert.strictEqual(row.recorded_at, new Date(1753200000000).toISOString());
+  for (const k of ['t', 'v', 'menuItemId']) {
+    assert.strictEqual(row[k], undefined, `camelCase / in-memory ${k} must not survive into a row`);
+  }
+});
+
+test('219: a null point is DROPPED rather than restored as a real-looking zero — in ALL THREE series', () => {
+  /* `isFinite('')` is true and `Number(null)` is 0, so a blank would restore as a genuine 0% food
+     cost — an observation that never happened, in the series the dashboard draws bands from. Same
+     guard `ing_price_log` already carries, and the reason it is separate from the finite check.
+
+     ⚠️ THE THREE SERIES ARE EACH GIVEN BOTH NULL SHAPES, and the first draft of this test was not:
+     it fed a null `v` to two of the three and a null `t` to one, and the mutation gate reported
+     THREE survivors on the identical guard. That is roster 184(b)'s lesson in a new costume — the
+     guard is `!pt || t==null || v==null`, so flipping either `||` breaks exactly ONE of its three
+     arms, and a fixture exercising one arm per series cannot tell which one it just proved. A
+     null `t` is the arm that gets missed, because a null value looks like the obvious bad input
+     while a null timestamp reads as merely odd — and `new Date(null)` is 1 Jan 1970, a perfectly
+     valid timestamptz that would anchor every chart to the epoch. */
+  const bad = [{ t: 1753000000000, v: null }, { t: null, v: 9 }, null, { t: 1753000002000, v: 9.9 }];
+  const p = backupToPayload(hist({
+    price_history: bad.slice(),
+    menu_history: { MENU_ORIGINAL: bad.slice() },
+    menu_price_log: { D1: bad.slice() },
+  }));
+  assert.deepStrictEqual(p.price_history.filter((r) => !('menu_id' in r)).map((r) => r.avg_food_cost_pct), [9.9],
+    'the all-menus series admitted a point with no value or no timestamp');
+  assert.deepStrictEqual(p.price_history.filter((r) => 'menu_id' in r).map((r) => r.avg_food_cost_pct), [9.9],
+    'the per-menu series admitted a point with no value or no timestamp');
+  assert.deepStrictEqual(p.menu_price_history.map((r) => r.price), [9.9],
+    'the sell-price series admitted a point with no value or no timestamp');
+  // And nothing anchored to the epoch: `new Date(null)` is a real, valid, wrong timestamp.
+  for (const r of p.price_history.concat(p.menu_price_history)) {
+    assert.ok(!/^1970/.test(r.recorded_at), `a null timestamp reached the payload as ${r.recorded_at}`);
+  }
+});
+
+test('219: the WIRE format is 4 only when there is a history point to carry', () => {
+  /* The `chg.length?3:2` ladder, extended. The wire number declares WHAT THE PAYLOAD CONTAINS, not
+     which build sent it: the deployed function is whatever was last applied by hand, and one that
+     predates this batch refuses format 4 outright. Sending 4 for a payload a format-3 reader could
+     have handled would break every restore in the window between the deploy and the migration. */
+  assert.strictEqual(backupToPayload(fixture()).format, 2, 'no change log, no history — a format-2 payload');
+  assert.strictEqual(backupToPayload(fixture({ change_log: [
+    { id: 'CL1', t: 1754179200000, kind: 'dish_price', plateId: 'PL1', dishId: 'D1', menuIds: [],
+      avgBefore: 1, avgAfter: 2, costBefore: null, costAfter: null, detail: {} },
+  ] })).format, 3, 'a change log alone is still a format-3 payload');
+  assert.strictEqual(backupToPayload(hist()).format, 4);
+  assert.strictEqual(backupToPayload(hist({ price_history: [], menu_history: {} })).format, 4,
+    'the sell-price log alone is enough — either new group forces 4');
+  assert.strictEqual(backupToPayload(hist({ price_history: [], menu_history: {}, menu_price_log: {} })).format, 2,
+    'a format-4 FILE whose history is empty is still a format-2 PAYLOAD — the number describes the payload');
+});
+
+test('219: the three new settings are sent only when the file actually holds them', () => {
+  /* Pushing an undefined would overwrite the user's real setting with a null on the server's upsert
+     — a format-2 file has no opinion about these keys and must not be read as having one. */
+  const byKey = (p) => Object.fromEntries(p.app_settings.map((r) => [r.key, r.value]));
+  const older = byKey(backupToPayload(fixture()));
+  for (const k of ['ai_invoice_check', 'ai_suggestions', 'last_invoice_import']) {
+    assert.ok(!(k in older), `a format-2 file must not assert a value for ${k}`);
+  }
+  const now = byKey(backupToPayload(hist({ settings: Object.assign({}, fixture().settings, {
+    ai_invoice_check: false, ai_suggestions: true, last_invoice_import: '2026-08-12T03:04:05.000Z',
+  }) })));
+  assert.strictEqual(now.ai_invoice_check, false,
+    'FALSE is the case that matters: a dropped toggle lands on the loader default of ON and looks restored');
+  assert.strictEqual(now.ai_suggestions, true);
+  assert.strictEqual(now.last_invoice_import, '2026-08-12T03:04:05.000Z');
+});
+
+test('219: a non-boolean toggle is not carried — the boot read would ignore it anyway', () => {
+  const byKey = (p) => Object.fromEntries(p.app_settings.map((r) => [r.key, r.value]));
+  const p = byKey(backupToPayload(hist({ settings: Object.assign({}, fixture().settings, {
+    ai_invoice_check: 'true', last_invoice_import: '',
+  }) })));
+  assert.ok(!('ai_invoice_check' in p), 'bootstrapSync applies it only on typeof boolean; carrying a string restores a value nothing reads');
+  assert.ok(!('last_invoice_import' in p), 'an empty stamp is not a date');
 });
 
 /* The change log is the ONE group the restore never deletes, so a missing one cannot destroy anything —
@@ -405,7 +572,7 @@ test('CONDITION: the restore is ONE payload — nothing may split it into separa
   // rpc. If a future change fans these out into per-table calls, this fails.
   const p = backupToPayload(fixture());
   const groups = ['ingredients', 'menus', 'plates', 'menu_items', 'supplier_phrases', 'ing_price_history',
-                  'menu_change_log', 'app_settings'];
+                  'menu_change_log', 'price_history', 'menu_price_history', 'app_settings'];
   assert.deepStrictEqual(Object.keys(p).sort(), ['format'].concat(groups).sort());
   assert.ok(SRC.includes("SUPA.rpc('restore_backup'"), 'the restore must go through the single rpc');
   assert.strictEqual((SRC.match(/rpc\('restore_backup'/g) || []).length, 1, 'exactly one call site');
@@ -422,17 +589,46 @@ test('CONDITION: the restore repaints from the SERVER, never from the file', () 
    These pin SQL, which the rest of this suite cannot execute. They exist because both facts are
    invisible to every test that runs as a privileged role, and both were found the hard way. ---- */
 
-/* v114: this reads the CURRENT definition, not v110's. 20260806_restore_backup_v3.sql replaces the
-   function 20260803_restore_backup_fn.sql created; the older file stays in the repo as the record of
-   what ran that day, but pinning conditions against a superseded definition would assert facts about
-   SQL nobody executes any more. If a later batch replaces the function again, move this path with it. */
-const MIGRATION_RAW = fs.readFileSync(
-  path.join(__dirname, '..', 'supabase', 'migrations', '20260806_restore_backup_v3.sql'), 'utf8');
-// Strip `--` comments before matching. The comments in that file discuss both "DELETE" and
-// "SECURITY DEFINER" at length — explaining why the latter is NOT used — so matching raw text
-// asserts against prose rather than SQL. (My first version of these three tests did exactly that
-// and failed on its own documentation.)
+/* ⚠️ 219 REWROTE THIS RATHER THAN RE-POINTING IT, AND THE REWRITE IS THE FINDING.
+   v114 hardcoded `20260806_restore_backup_v3.sql` and wrote, at this very spot, "if a later batch
+   replaces the function again, move this path with it." Batch 183 then replaced it inside
+   20260813_semantic_keys.sql and did not — so for sixteen days every CONDITION below was asserted
+   against SQL NOBODY EXECUTES, which is exactly what the sentence was written to prevent. It stayed
+   green throughout, because a superseded file still says `security invoker` and still carries five
+   `where true` deletes; a stale pin does not fail, it just stops meaning anything.
+   That is `CLAUDE.md`'s stub roster one level up: a test pinned to a name is pinned to a name.
+   The invariant was never "the conditions hold in v3". It is "the conditions hold in WHATEVER
+   MIGRATION LAST DEFINED THIS FUNCTION", so the file list is read off the directory and the newest
+   one wins — the same fix, for the same reason, that 187 made to tests/semantic-keys.test.js's
+   mirror comparison. Now it cannot rot, and the next batch to replace the function gets it free. */
+const MIGRATIONS_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
+const RESTORE_SIG = 'create or replace function public.restore_backup(payload jsonb)';
+function newestRestoreMigration() {
+  // Filenames are datestamped, so a plain sort is oldest-first.
+  const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8').includes(RESTORE_SIG));
+  assert.ok(files.length >= 2, 'the function has been replaced more than once; that history is the point');
+  return files[files.length - 1];
+}
+const NEWEST_RESTORE = newestRestoreMigration();
+const MIGRATION_RAW = fs.readFileSync(path.join(MIGRATIONS_DIR, NEWEST_RESTORE), 'utf8');
+// Strip `--` comments before matching. These files discuss "DELETE", "SECURITY DEFINER" and now
+// "is not distinct from" at length in prose — explaining why each is or is not used — so matching raw
+// text asserts against the explanation rather than the statement. (v114's first version of these
+// tests did exactly that and failed on its own documentation. Roster entry 183(a).)
 const MIGRATION = MIGRATION_RAW.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+
+test('219: these conditions are pinned to the migration that is actually DEPLOYED', () => {
+  /* The guard on the guard. If this file ever again names a superseded migration, the conditions
+     below go quiet rather than red — so the thing worth asserting is that the newest definition is
+     the one being read, and that it is not one this suite has silently outgrown. */
+  const defs = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8').includes(RESTORE_SIG));
+  assert.strictEqual(NEWEST_RESTORE, defs[defs.length - 1],
+    'the CONDITION tests must read the newest migration that defines restore_backup');
+  assert.match(MIGRATION, /create or replace function public\.restore_backup/,
+    'the file read must actually contain the function');
+});
 
 test('CONDITION: every DELETE carries a WHERE clause — safeupdate rejects bare ones', () => {
   // Supabase preloads `safeupdate` for the `authenticator` role, so a bare DELETE fails with
@@ -476,10 +672,90 @@ test('CONDITION: menu_change_log is never deleted, and re-restoring the same fil
   assert.match(MIGRATION, /coalesce\(payload->'menu_change_log'/i, 'an absent group restores as empty, not as a failure');
 });
 
-test('CONDITION: both live backup formats are accepted by the server, not just the newest', () => {
+test('CONDITION: every live backup format is accepted by the server, not just the newest', () => {
   // The client refuses a bad file with an explanation; the server refuses anything that reaches it
-  // without one. Both must agree on WHICH formats are live, or Max's newest real backup is unrestorable.
-  assert.match(MIGRATION, /not in \('2','3'\)/, 'formats 2 and 3 both restore');
+  // without one. Both must agree on WHICH formats are live, or Max's newest real backup is
+  // unrestorable. 219: '4' joins them, and 2 and 3 must NOT be dropped in the process — the newest
+  // real backup in existence is a format-3 one and is the only recovery file there is.
+  const guard = (MIGRATION.match(/fmt\s+not\s+in\s*\(([^)]*)\)/i) || [])[1];
+  assert.ok(guard, 'the server must carry a format guard of its own');
+  const accepted = guard.split(',').map((x) => x.trim().replace(/'/g, '')).sort();
+  assert.deepStrictEqual(accepted, ['2', '3', '4'],
+    'the server accepts a different set of formats than the client — one of them is now unrestorable');
+  // And the two sides must AGREE. Pinned as an equality against the shipped client, not as two
+  // independent lists that could drift apart while each looked right on its own.
+  const client = extractFn(SRC, 'parseBackupFile');
+  for (const f of accepted) {
+    assert.ok(new RegExp(`f!==${f}`).test(client), `the client refuses format ${f} that the server accepts`);
+  }
+});
+
+/* ---- 219: the two additive inserts the backup never had -------------------------------------- */
+
+test('CONDITION: neither new history table is ever DELETED — they are additive, like the other two', () => {
+  /* This is the whole shape of the defect being closed, and it is worth stating as a condition
+     rather than as an insert: the reason the gap survived is that these tables were not deleted, so
+     on a live database a restore left them alone and nothing ever looked wrong. Adding a delete
+     "for symmetry" with the five replaced tables would turn a missing-data bug into a
+     destroys-data bug, and the restore would still return success with the right row counts. */
+  const deletedTables = (MIGRATION.match(/delete\s+from\s+(\w+)/gi) || [])
+    .map((d) => d.split(/\s+/).pop().toLowerCase());
+  assert.ok(!deletedTables.includes('price_history'), 'the food cost series must never be deleted by a restore');
+  assert.ok(!deletedTables.includes('menu_price_history'), 'the sell-price series must never be deleted by a restore');
+  const required = (MIGRATION.match(/required\s+text\[\]\s*:=[^;]*/i) || [''])[0];
+  for (const g of ['price_history', 'menu_price_history']) {
+    assert.ok(!new RegExp(`'${g}'`).test(required),
+      `${g} must stay OUT of the required list — a format-2 or -3 file legitimately has no such group`);
+    assert.match(MIGRATION, new RegExp(`coalesce\\(payload->'${g}'`, 'i'),
+      `an absent ${g} must restore as empty, not as a failure`);
+  }
+});
+
+test('CONDITION: price_history dedups with `is not distinct from` — `=` silently duplicates the series', () => {
+  /* THE SHARPEST LINE IN THE MIGRATION. price_history.menu_id is NULLABLE, and NULL is exactly what
+     the all-menus aggregate looks like — 45 of production's 69 rows. With `=`, the comparison is
+     NULL rather than true, so `not exists` holds for rows ALREADY IN THE TABLE and re-running a
+     restore duplicates the entire aggregate series: no error, right row counts, and every point the
+     dashboard trend line draws counted twice. The dedup is the whole safety of an additive insert.
+     Asserted POSITIVELY on the operator rather than as "does not contain `=`", because `=` appears
+     legitimately all over the same statement (190: a denylist assertion is a guess about every
+     wrong value there could be). */
+  const stmt = (MIGRATION.match(/insert into price_history[\s\S]*?;/i) || [''])[0];
+  assert.ok(stmt, 'the migration must insert into price_history');
+  assert.match(stmt, /e\.menu_id is not distinct from p\.menu_id/i,
+    '`= p.menu_id` would be NULL for every all-menus point and duplicate the series on every restore');
+  assert.match(stmt, /not exists\s*\(select 1 from price_history/i, 'inserted only where absent');
+  assert.match(stmt, /distinct on \(p\.menu_id, p\.recorded_at\)/i,
+    'DISTINCT ON guards duplicates WITHIN the payload — not-exists only sees the table');
+});
+
+test('CONDITION: both new inserts NAME their columns — price_history.id is GENERATED ALWAYS', () => {
+  /* Not a style choice on this table. `price_history.id` is `bigint generated always as identity`,
+     unlike the bigserial the other three history tables carry, so a populated recordset handing it a
+     NULL id is REJECTED rather than defaulted — `select *` would fail outright. And business_id must
+     come from the BEFORE INSERT trigger (the caller's own tenant), never from the payload: naming it
+     would let a file carrying another café's id decide where the restore lands. */
+  for (const [table, cols] of [
+    ['price_history', ['recorded_at', 'avg_food_cost_pct', 'menu_id']],
+    ['menu_price_history', ['menu_item_id', 'recorded_at', 'price']],
+  ]) {
+    const m = new RegExp(`insert into ${table}\\s*\\(([^)]*)\\)`, 'i').exec(MIGRATION);
+    assert.ok(m, `the ${table} insert must name its columns`);
+    const named = m[1].split(',').map((c) => c.trim()).sort();
+    assert.deepStrictEqual(named, [...cols].sort(),
+      `${table}'s column list changed — id and business_id must never be in it`);
+    assert.ok(!/\bid\b/.test(m[1]), `${table}: id comes from the sequence, never from the payload`);
+    assert.ok(!/business_id/.test(m[1]), `${table}: the tenant comes from the trigger, never from the payload`);
+  }
+});
+
+test('CONDITION: both new groups are type-checked when present, exactly as menu_change_log is', () => {
+  // Absent is legal; present-but-not-an-array is a damaged payload and is worth a sentence rather
+  // than a silent zero. Same distinction, same treatment.
+  for (const g of ['price_history', 'menu_price_history']) {
+    assert.match(MIGRATION, new RegExp(`payload \\? '${g}' and jsonb_typeof\\(payload->'${g}'\\) is distinct from 'array'`, 'i'),
+      `${g} must be well-formed when present`);
+  }
 });
 
 test('CONDITION: the function stays SECURITY INVOKER — it must grant no new privilege', () => {
