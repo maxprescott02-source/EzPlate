@@ -65,9 +65,11 @@
 --   is that the caller has no rows yet.
 --
 -- WHAT IT WILL NOT DO, each a refusal rather than an oversight:
---   * run for a caller with no session. `anon` is not granted execute, and the
---     body refuses as well, because a grant is a different mechanism from a
---     guard and only one of them is visible in this file.
+--   * run for a caller with no session. `anon` is REVOKED from execute BY NAME,
+--     and the body refuses as well, because a grant is a different mechanism
+--     from a guard and only one of them is visible in this file. ⚠️ The revoke
+--     had to be by name and the first draft was not — see the note at the grant
+--     statements, which is the one finding this migration's rehearsal produced.
 --   * run for an UNCONFIRMED address. Email confirmation is on, so an
 --     unconfirmed account cannot hold a session and this looks redundant. It is
 --     here for `claim_business_invite`'s reason: that is a DASHBOARD SETTING, and
@@ -93,8 +95,14 @@
 --   invite anybody — and there is no way back without the Supabase dashboard,
 --   which is the exact thing this item exists to delete. Raising rolls the whole
 --   thing back and leaves the caller able to try again. Same reasoning as the
---   `get diagnostics` check in `claim_business_invite`, and it was proved to fire
---   on staging rather than believed — see the rehearsal record below.
+--   `get diagnostics` check in `claim_business_invite`, and it WAS proved to fire
+--   on staging rather than believed — probe 11b in the rehearsal record below.
+--   ⚠️ Proving it took two attempts and the first one proved something else:
+--   DISABLING `set_member_role` does not reach this assertion at all, because
+--   the trigger is the only thing that sets `role` and the insert dies on the
+--   NOT NULL first (23502). The assertion guards a trigger that is present and
+--   WRONG, so the mutation has to be a trigger that returns 'staff'. A guard's
+--   proof has to mutate the thing the guard is actually about.
 --
 -- ---------------------------------------------------------------------------
 -- WHAT THIS DELIBERATELY DOES NOT TOUCH
@@ -125,13 +133,75 @@
 --   which returns the project to where it was on 26 Aug 2026.
 --
 -- ---------------------------------------------------------------------------
--- REHEARSED: staging (pboidoxjghntalovzrke), 27 Aug 2026 — see the record added
---   below after the run. Verified AS THE CLIENT over PostgREST with real
---   signed-in JWTs, never through the MCP, which runs as `postgres` and bypasses
---   RLS entirely.
+-- ⚠️ THE TWO LINES THAT USED TO BE HERE WERE WRITTEN BEFORE ANYTHING RAN, and
+--   they are recorded rather than quietly replaced because that is the exact
+--   thing 186's rule forbids. They read "REHEARSED: staging …, 27 Aug 2026 — see
+--   the record added below after the run" and "APPLIED TO PRODUCTION: see the
+--   record below", and there was no record below either of them: batch 209 could
+--   not rehearse, because the staging project was paused. A reader skimming for
+--   "was this rehearsed" would have found a date and a project ref. The form was
+--   a placeholder; it read as a fact. **If an application is deferred, the header
+--   has to SAY DEFERRED, with the reason** — which is what the queue item did and
+--   what this file did not.
 --
--- APPLIED TO PRODUCTION: see the record below. Written after the statements ran,
---   never before — 186's rule, and a pre-written record is the audit trail lying.
+-- REHEARSED: staging (pboidoxjghntalovzrke), 29 Aug 2026, by Claude (batch 218).
+--   Step 2 satisfied by MEASUREMENT rather than by re-running `01-schema.sql`:
+--   all seven `docs/STAGING.md` fingerprints diffed identical against production
+--   first, so the mirror was provably current. No seed was loaded — the case this
+--   migration is about is an AUTH state (a confirmed account belonging to no
+--   café, `c@example.com`) rather than a data shape, and a seed does not touch
+--   `auth.users`.
+--   Verified AS THE CLIENT over PostgREST with a real signed-in JWT, never
+--   through the MCP, which runs as `postgres` and bypasses RLS entirely:
+--     1-3  blank, whitespace-only ("   ") and 61-character names each refused by
+--          their own message.
+--     4    exactly 60 characters ACCEPTED — the boundary is inclusive on both
+--          sides, measured rather than read.
+--     5    a SECOND call with a different name returned the SAME uuid and did not
+--          rename the café. The "ensure, not create" contract, demonstrated.
+--     6    the founder came out `owner`; the new café saw ITSELF in `businesses`
+--          and neither of the other two tenants, and zero products and plates
+--          against the 520 and 180 the neighbouring café holds.
+--     7-8  and it can WRITE: a product and a `food_cost_target` both came back in
+--          the representation carrying the new `business_id`. That is 182's
+--          read-but-not-write defect and 183's semantic-key refusal both checked
+--          against a THIRD tenant, because "isolation holds" is not the same
+--          claim as "the new café works".
+--     9    "  Bean\t\tThere\n\nCafe  " stored as "Bean There Cafe".
+--     10   with `email_confirmed_at` nulled, a caller holding a valid session was
+--          refused. The guard whose premise lives in a dashboard toggle FIRES.
+--     11b  with `set_member_role` mutated to return 'staff', the owner assertion
+--          raised and named the café, and the business row it had already
+--          inserted was rolled back — zero orphans.
+--   THE ONE DEFECT IT FOUND is the anon grant, at the grant statements below.
+--   Everything created by the rehearsal was deleted: staging finished on the same
+--   2 businesses / 3 memberships / 520 products / 10 settings it started with,
+--   `c@example.com` is a member of nothing again (docs/STAGING.md's standing
+--   warning), and `set_member_role`'s `pg_get_functiondef` md5 was diffed back to
+--   production's.
+--
+-- APPLIED TO PRODUCTION: izrnptxhdylllodvglla, 29 Aug 2026, by Claude (batch
+--   218), through the `supabase` MCP's execute_sql as one transaction, with the
+--   anon revoke already in it — production has never held the one-mechanism
+--   version. Verified:
+--     * as `postgres`: `prosecdef` true, `proconfig` `search_path=""`, and the
+--       ACL `{postgres=X,authenticated=X,service_role=X}` with anon ABSENT.
+--       `has_function_privilege('anon', …, 'execute')` false, `authenticated`
+--       true. `pg_get_functiondef`'s md5 identical to staging's.
+--     * AS THE CLIENT over PostgREST, with the publishable key that ships in
+--       index.html: `rpc/create_business` → `42501 permission denied for
+--       function create_business`, HTTP 401 — refused at the grant, before the
+--       body. `GET /businesses` and `GET /ingredients` still `[]` for anon,
+--       unchanged by this migration.
+--     * Scoopy's data untouched: 1 business, 1 membership, before and after.
+--     * `docs/STAGING.md`'s seven-value fingerprint re-diffed against staging —
+--       all seven identical, `functions_fp` having moved 9 → 10 on both sides.
+--   NO café was created on production by this verification: every probe was
+--   either an anon call (refused at the grant) or a read.
+--
+--   ⚠️ ORDER, and it is this file's own rule being followed rather than restated:
+--   this ran BEFORE the client merged. Between the two, production answered a
+--   client that does not call the function, which is no change at all.
 -- ---------------------------------------------------------------------------
 
 begin;
@@ -212,7 +282,39 @@ $fn$;
 -- café with, and the body refuses anyway. Two mechanisms, because a grant is
 -- checked before the body runs and only the body is visible to a reader of this
 -- file.
+--
+-- ⚠️ AND THE FIRST DRAFT OF THIS FILE HAD ONLY ONE OF THOSE TWO MECHANISMS, WHILE
+-- SAYING IT HAD BOTH. Found by the batch 218 rehearsal, as the anon client over
+-- PostgREST, and it could not have been found by reading:
+--
+--   `revoke all ... from public` revokes the PUBLIC pseudo-role. `anon` is a
+--   REAL ROLE, and it is a different thing. Supabase ships
+--   `alter default privileges in schema public grant execute on functions to
+--   anon, authenticated, service_role` (two of them, from `postgres` and from
+--   `supabase_admin` — read them out of `pg_default_acl`), so EVERY new function
+--   in this schema is created with `anon=X/postgres` already in its ACL. The
+--   revoke above does not touch it and the grant below does not need to, so the
+--   ACL that shipped read `{postgres=X,anon=X,authenticated=X,service_role=X}`.
+--
+-- Measured before the fix: an anon POST to `rpc/create_business` returned
+--   `P0001 sign in before creating a cafe` — the BODY's raise, at HTTP 400. It
+--   was refused, so this was never a hole; but it was refused by one mechanism
+--   where this comment claimed two, and the claim is what the next reader trusts.
+-- Measured after: `42501 permission denied for function create_business` at
+--   HTTP 401, decided at the grant before the body runs, with a signed-in caller
+--   unaffected. That is what two mechanisms looks like.
+--
+-- ⚠️ THE TRANSFERABLE PART, and it is CLAUDE.md's own rule about a check proving
+-- only what it looked for: `revoke ... from public` is the idiom every migration
+-- in this repo uses, and in a database with those default privileges it is
+-- DECORATION against the three roles PostgREST actually connects as. Name the
+-- role you mean to exclude. `claim_business_invite()` and `business_team()`
+-- carry the identical gap for the identical reason — both are refused by their
+-- bodies, neither is a hole, and both are filed in `docs/MAINTENANCE.md` rather
+-- than fixed here, because a migration should not quietly re-grant functions
+-- this item does not own.
 revoke all on function public.create_business(text) from public;
+revoke execute on function public.create_business(text) from anon;
 grant execute on function public.create_business(text) to authenticated, service_role;
 
 comment on function public.create_business(text) is

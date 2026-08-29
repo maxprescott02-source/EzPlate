@@ -276,17 +276,45 @@ test('the founder is asserted to be the OWNER, with `is distinct from`', () => {
     'and it must read the row back AFTER the insert, or it is checking nothing');
 });
 
-test('anon is not granted execute — in both files', () => {
-  /* A caller with no session has no uuid to own a café with, and the body refuses anyway. Granting
-     it to anon would add a callable surface that can only ever raise. */
+test('anon is REVOKED from execute by name — in both files', () => {
+  /* ⚠️ THIS TEST USED TO ASSERT THE OPPOSITE OF WHAT IT NAMED, AND IT PASSED WHILE anon COULD CALL
+     THE FUNCTION. It checked that the word `anon` was ABSENT from the grant statement and that a
+     `revoke all ... from public` was present — both true of the shipped file, and neither of them
+     about whether `anon` holds EXECUTE. Measured on staging in batch 218, as the anon client over
+     PostgREST: the call reached the function body and was refused by its `uid is null` raise
+     (`P0001`, HTTP 400) rather than by the grant (`42501`, HTTP 401).
+
+     THE MECHANISM, because it is the whole reason a text assertion could not see this. Supabase
+     ships `alter default privileges in schema public grant execute on functions to anon,
+     authenticated, service_role`, so every new function in this schema is CREATED with `anon=X`
+     already in its ACL. `revoke all ... from public` revokes the PUBLIC pseudo-role, which is a
+     different thing from the `anon` role, so it does not touch that entry — and omitting `anon`
+     from the grant list cannot remove a privilege that was never granted by this file.
+
+     ⚠️ GENERALISE IT — this is the roster's "a denylist assertion is weaker than an equality one"
+     (190) reaching SQL. "The word anon does not appear here" is a guess about every way anon could
+     acquire the privilege; "anon is revoked by name" is a fact about this file. The negative checks
+     below are KEPT, because they still name a real mistake well — but the weight is on the
+     positive, which is the assertion that would have failed. */
   for (const [label, sql] of BOTH) {
+    assert.match(sql, /revoke execute on function public\.create_business\(text\) from anon;/,
+      `${label}: anon must be revoked BY NAME — a default privilege grants it EXECUTE at create ` +
+      `time, and neither omitting it from the grant nor revoking from PUBLIC takes that away`);
+
     const i = sql.indexOf('grant execute on function public.create_business(text) to');
     assert.ok(i > 0, `${label} does not grant create_business`);
     const stmt = sql.slice(i, sql.indexOf(';', i));
     assert.ok(!/\banon\b/.test(stmt), `${label}: create_business must not be granted to anon`);
     assert.match(stmt, /\bauthenticated\b/, `${label}: but authenticated must have it`);
     assert.match(sql, /revoke all on function public\.create_business\(text\) from public/,
-      `${label}: the default PUBLIC execute must be revoked first`);
+      `${label}: the default PUBLIC execute must be revoked too`);
+
+    /* ORDER IS LOAD-BEARING: a revoke placed above the `create or replace` would run against the
+       OLD ACL and the fresh default-privilege grant would land afterwards, putting anon straight
+       back. Both revokes must follow the function. */
+    assert.ok(sql.indexOf('revoke execute on function public.create_business(text) from anon;')
+              > sql.indexOf('create or replace function public.create_business(p_name text)'),
+      `${label}: the revoke must come AFTER the function, or the default privilege re-grants it`);
   }
 });
 

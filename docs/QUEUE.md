@@ -31,7 +31,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
+## doing  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
 
 ✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project.** DNS resolves and the database answers, so `docs/STAGING.md` steps 2-7 can run and the migration can be rehearsed. That was the whole of the block.
 ✅ **And staging is READY, re-measured after Max's restore completed:** 14 tables, 9 functions, all four accounts intact with their email identities, 2 businesses, 3 memberships. **No rebuild is needed** — a first read the same hour showed an empty project and that read was real, the restore was still in flight. Step 5 can run.

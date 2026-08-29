@@ -924,6 +924,10 @@ end;
 $fn$;
 
 revoke all on function public.create_business(text) from public;
+-- ⚠️ BY NAME. `revoke ... from public` revokes the PUBLIC pseudo-role; `anon` is a real role that
+-- Supabase's default privileges grant EXECUTE to at CREATE time, so without this line anon can call
+-- it. Measured in batch 218 — see the migration's header. This line must stay AFTER the function.
+revoke execute on function public.create_business(text) from anon;
 grant execute on function public.create_business(text) to authenticated, service_role;
 
 

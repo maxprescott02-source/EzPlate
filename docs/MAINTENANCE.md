@@ -823,3 +823,34 @@ Max chose option A of `docs/decisions/2026-08-28.html` — change one title, wri
 ⚠️ **The reason this is filed rather than shrugged at: a café creating its first plate can reach this modal BEFORE it ever opens the Menu tab**, so the two surfaces are not merely inconsistent in the abstract — one user, one session, two voices for the same underlying state (no menus, one way out). That is the exact complaint the queue item was about, one surface over.
 
 **It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.
+
+### `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise
+
+Found by batch 218 while rehearsing `create_business` on staging, then confirmed on production out of `pg_proc.proacl`. **Neither is a hole and neither is urgent** — both refuse the caller they should, `claim_business_invite()` returning `null` and `business_team()` returning `[]` for a tenant that resolves to nothing since 186. What is wrong is the *stated* mechanism.
+
+Both are written as `revoke all on function … from public;` then `grant execute … to authenticated, service_role;`, which is the idiom every migration here uses and which **does not remove `anon`**: Supabase's `alter default privileges … grant execute on functions to anon, authenticated, service_role` puts `anon=X` in the ACL at CREATE time, and `revoke … from public` revokes the PUBLIC pseudo-role, a different thing. `CLAUDE.md` now carries the mechanism in full; `20260827_cafe_creation.sql` carries the measurement.
+
+**The fix is one line each, in one migration:**
+
+```sql
+revoke execute on function public.claim_business_invite() from anon;
+revoke execute on function public.business_team()        from anon;
+```
+
+⚠️ **It was deliberately NOT done in 218**, and the reason is worth keeping: that batch's item owns `create_business` and nothing else, and a migration that quietly re-grants two functions it was not sent to touch is the kind of scope creep this repo's rules exist to stop. It is genuinely cheap for whichever batch next writes a migration — **take it then**, with the same staging-then-production rehearsal, and check `proacl` rather than the file to confirm it landed.
+
+⚠️ **`invite_pending(text)` is NOT in this list and must not be added to it** — it is granted to `anon` deliberately and by name, and that grant is argued at length in `20260814_invitations.sql`'s header. Dropping the function outright is a separate item that already exists in `docs/GATE-REVIEW.md`'s residuals.
+
+**Supabase's own linter finds this class, and `get_advisors('security')` is the cheapest way to re-check it** — lint `0028_anon_security_definer_function_executable`. Measured 29 Aug 2026 on production, it names **six**: `business_team`, `claim_business_invite`, `current_business_id`, `current_business_role`, `invite_pending`, `set_member_role`. **Only the first two are this entry.** The other four are each fine for their own reason and must not be swept up with them:
+
+- `current_business_id` and `current_business_role` are granted to `anon` **deliberately and by name** in their own migrations (`20260814_roles_part1.sql`), and 186 made the first answer null for `anon` on purpose;
+- `set_member_role` is a **trigger function** — PostgREST cannot usefully invoke it, since a trigger function called directly raises;
+- `invite_pending` is the deliberate one above.
+
+✅ **`create_business` is absent from that lint as of 29 Aug 2026**, which is the independent confirmation that batch 218's `revoke … from anon` landed — it appears only under `0029_authenticated_…`, which is what it is supposed to be.
+
+### Supabase's leaked-password protection is OFF, and sign-up is now public
+
+`auth_leaked_password_protection`, a WARN in the production advisors, checks new passwords against HaveIBeenPwned. It mattered little while every account was made by hand in the dashboard; batch 218 shipped self-service sign-up, so strangers now choose their own passwords.
+
+**It is a dashboard toggle, so it is Max's to flip** — one switch under Authentication → Policies. It is filed here rather than in the queue because nothing in the repo can do it and nothing is broken without it; `docs/GATE-REVIEW.md` (batch 210) reviewed the signup gates and did not cover this one, because the bullet naming it existed only on the unmerged café-creation branch at the time.
