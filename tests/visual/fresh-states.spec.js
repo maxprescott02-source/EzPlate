@@ -1109,7 +1109,7 @@ test('v48: tap highlight killed, keyboard focus ring kept', async ({ page }) => 
  * ⚠ THE SECOND ONE ALSO HAD A FALSE PREMISE, and F5 is what exposed it. This file seeds NO menus,
  * so it was driving "search matches nothing" (variant A) on a screen that has no menus to search —
  * the old code rendered a search box and a bare table over zero menus regardless. F5 gives zero
- * menus their own honest state ("No menus yet", with the one action that resolves it) and stands
+ * menus their own honest state ("Create your first menu", with the one action that resolves it) and stands
  * the switcher and filter rows down, because an option-less select beside a hidden Delete is a
  * control that does nothing. So the fresh-install test now pins THAT state, and variant A gets a
  * menu seeded so it is reachable at all. Two states, each tested where it actually occurs.
@@ -1215,7 +1215,14 @@ for (const size of SIZES) {
       };
     });
     expect(st.built, 'zero menus routes through the shared empty-state helper').toBe(true);
-    expect(st.copy, 'and says so in its own words, not "this menu"').toContain('No menus yet');
+    /* 217: the title changed from "No menus yet." to "Create your first menu" (Max, 28 Aug 2026,
+       option A of docs/decisions/2026-08-28.html). The ASSERTION'S INTENT is unchanged and is the
+       reason it survives the rewrite rather than being deleted: zero menus must speak in its OWN
+       words instead of borrowing "Nothing on this menu yet", which names a menu that does not
+       exist. Only the expected string moved; the negative half below still pins the borrowing. */
+    expect(st.copy, 'and says so in its own words').toContain('Create your first menu');
+    expect(st.copy, 'and does NOT borrow the empty-menu copy, which names a menu that does not exist')
+      .not.toContain('this menu');
     expect(st.copy, 'with the one action that resolves it').toContain('New menu');
     /* every control that would do nothing here is stood down — F2's true-empty defect, which was
        an option-less <select> left rendering beside an empty list.

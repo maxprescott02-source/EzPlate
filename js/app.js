@@ -3943,6 +3943,32 @@ var ICON_MENU_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="
    class `es-built` is emitted ONLY here — the route-through test asserts every tab goes through it.
    A: search/filter-empty (data exists, nothing matches) -> emptySearchState. B: true-empty (no data
    at all) -> emptyStateHtml. A tab renders exactly one, never both. */
+/* ⚠️ THE TITLE GRAMMAR IS A RULE, NOT A STYLE CHOICE — read it before writing a new empty state.
+   (Max, 28 Aug 2026, choosing option A from `docs/decisions/2026-08-28.html`. Batch 214 read all six
+   titles TOGETHER, which nobody had done, and found a new café walking Products -> Ingredients ->
+   Plates -> Menu met report, invite, invite, report.)
+
+   **ONE obvious action -> INVITE. Anything else -> REPORT.**
+
+       "Name your first ingredient"      invite   one action, you make the thing here
+       "Cost your first plate"           invite   one action, you make the thing here
+       "Create your first menu"          invite   one action, you make the thing here
+       "No products yet."                report   TWO actions (Import catalogue, New product), so
+                                                  there is no single verb to invite with
+       "Nothing on this menu yet."       report   the action that resolves it lives on ANOTHER tab
+       "Nothing to rank yet."            report   nothing is directly creatable here
+
+   The bodies and the CTA labels carry the instruction either way, and they were read and are
+   consistent; only the titles ever disagreed. So an invitation is not "warmer copy", it is a promise
+   that the single button below it is the whole of what to do next. **If a screen has two actions, or
+   its action is somewhere else, an invitation lies about that** — which is why the rule is phrased
+   on the ACTION COUNT rather than on how the screen feels.
+
+   ⚠️ SCOPE, stated because the rule is wider than where it has been applied: this covers the SIX
+   tab-level empty states the decision enumerated. `renderManageMenusZero` — the manage-menus modal
+   opened from a plate — is a seventh surface with one action that still reports, so the rule implies
+   it should invite. It was deliberately left alone as outside what was approved, and is filed in
+   `docs/MAINTENANCE.md`. Do not read its title as evidence against the rule above. */
 function emptyStateHtml(icon,title,body,actionsHtml){   // variant B: true-empty
   return '<div class="empty-state es-built">'+icon+'<h3>'+esc(title)+'</h3>'
     +(body?'<p>'+esc(body)+'</p>':'')
@@ -6956,7 +6982,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v176';
+var APP_VERSION='v177';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -11261,7 +11287,7 @@ function renderAnalysis(){
        does not exist — zero menus is a legitimate state, not a broken one, so it gets its own copy
        and the one action that resolves it. */
     var es=!menusList.length
-      ? emptyStateHtml(ICON_MENU_BIG,'No menus yet.','A menu is a set of plates with sell prices. Create one, then publish plates onto it.',
+      ? emptyStateHtml(ICON_MENU_BIG,'Create your first menu','A menu is a set of plates with sell prices. Create one, then publish plates onto it.',
           '<button class="btn primary" type="button" onclick="document.getElementById(\'menuNewBtn\').click()">New menu</button>')
       : dishesOnMenu
         ? emptySearchState(ICON_MENU_BIG,'plates','clearMenuFilters')
