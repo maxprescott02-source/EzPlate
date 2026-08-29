@@ -800,7 +800,9 @@ Recorded because the failure is the routing, not the items: both exist only in w
 
 `CLAUDE.md` is right and the hook is not, which is the inverse of the usual direction and is why it is worth a line. Same file as the entry above; take them together.
 
-### Three handover gaps have accumulated and none reached the README's gap table
+### ✅ DONE (batch 218) — Three handover gaps have accumulated and none reached the README's gap table
+
+✅ **Closed 29 Aug 2026 by batch 218**, which was writing a handover anyway and so had the file open: 196 and 198 are rows in the genuinely-missing table, and 209 is a row in the folded-into-a-neighbour table pointing at `HANDOVER-218-cafe-creation-rehearsal.md`, which documents both batches. No handover was reconstructed, per that file's rule. Left here struck rather than deleted so the next audit can see it was actioned.
 
 `docs/handovers/README.md` lists `v41`, `v65`, `v66` and `batch 189`. **Batches 196, 198 and 209 are also missing.** 196 and 198 were docs-only; 209's is deliberately unwritten and sits on the open `feature/cafe-creation` branch, which says so at its own site. The README's own argument is that *"an unrecorded gap is indistinguishable from a mislaid file"* — so the fix is three lines in the gap table, not three reconstructed handovers, which that file forbids.
 

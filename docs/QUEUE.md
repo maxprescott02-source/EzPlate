@@ -31,48 +31,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## doing  1 · A new café cannot be CREATED at all  **[A — launch blocker]**
-
-✅ **UNBLOCKED 29 Aug 2026 — Max resumed the staging project.** DNS resolves and the database answers, so `docs/STAGING.md` steps 2-7 can run and the migration can be rehearsed. That was the whole of the block.
-✅ **And staging is READY, re-measured after Max's restore completed:** 14 tables, 9 functions, all four accounts intact with their email identities, 2 businesses, 3 memberships. **No rebuild is needed** — a first read the same hour showed an empty project and that read was real, the restore was still in flight. Step 5 can run.
-⚠️ **The one drift to know about: menus came back as 1 and dishes as 2**, against the scale seed's 12 and 429. Products (520) and plates (180) are intact. **If this rehearsal needs a populated menu structure, reload seed `03`/`04` first** — `docs/STAGING.md`'s Current state carries the measured figures.
-⚠️ **THE WORK IS BUILT AND REVIEWED — do not do it again.** Batch 209 shipped it on branch `feature/cafe-creation` as **PR #219**, which is deliberately open and must not be merged: merging is a production deploy, and the client half calls `create_business()`, which does not exist on production (confirmed absent from `pg_proc`, 27 Aug 2026). **Migration first, then merge.**
-⚠️ **THAT PR CLAIMS `ezplate-v172`, WHICH BATCH 210 HAS SINCE TAKEN.** Re-bump it to the next free version at merge time — all six spots, per the `cache-version` skill. A stale bump ships fresh code against a cached asset, which is the one failure that skill exists to prevent.
-
-
-✅ **ANSWERED 14 Aug 2026 (Max): shape B — SELF-SERVICE. A stranger creates an account and names their own café, unattended.**
-He was told in writing that B reverses his own "a self-service sign-up form is still NO" call of the same day, and that it makes the privacy gate urgent, and chose it anyway. **It is a decision and may not be re-litigated.** (`docs/decisions/2026-08-14-cafe-creation.md` q1.) Options A and C — Max provisioning each café, and a founder invitation — are DECLINED; do not re-propose either.
-
-⚠️ **This line named TWO items until 15 Aug 2026 and now names one: pdf.js 4.2.67+ SHIPPED in batch 195** (`ezplate-v167`, 4.10.38), so its half is deleted per this file's own rule that a satisfied dependency is removed rather than left standing.
-⚠️ **And the remaining half stopped being a DECISION later the same day.** Max answered the privacy gate — option B, disclose it — so that item is `next` rather than `blocked` and is ordinary work again. **This item is therefore behind WORK, not behind Max.** Nothing here is waiting on a person; the disclosure simply has to ship first, because B's whole point is that a stranger is told before their invoice text reaches Google, and a stranger cannot be told if signup exists before the telling does.
-
-**Found by batch 191 while shipping invitations, by reading the policy list rather than by hitting it.** Measured against production, 14 Aug 2026:
-
-```
-businesses        → ONE policy, "members read their business",   SELECT, authenticated
-business_members  → ONE policy, "members read their own membership", SELECT, authenticated
-```
-
-**Select and nothing else.** No client role may INSERT into either table, and nothing in `js/app.js` tries. The only write path to `business_members` anywhere is 191's `claim_business_invite()`, which is `SECURITY DEFINER` and can only ever join somebody to a café that **already exists**. So:
-
-- Invitations let an owner add people to an existing café. **They do not create cafés.** *(Both halves have now SHIPPED — the server in 191, the client in 192 — so this is a statement about a live feature rather than a planned one, and it makes this item the only remaining hole in the signup story.)*
-- Every `businesses` row and every founding `business_members` row in this project has been made **by hand in the Supabase dashboard**, and there is no other way to make one today.
-- `set_member_role` already says what a founder IS — the first member of a business becomes `owner` — so the vocabulary exists; what is missing is anything that can insert the two rows.
-
-**Why this is A and not B:** a second café literally cannot come into existence without Max opening the Supabase dashboard, which is the same sentence the invitations item was written to delete, one level up. The launch story is signup → café → catalogue → plates, and this is the second step.
-
-### What B has to build
-
-**Measured against production 14 Aug 2026, not assumed:** `businesses` and `business_members` carry exactly two policies, both `SELECT` to `authenticated`, and no INSERT anywhere. ⚠️ **The GRANTS are wide open on both tables to `anon` and `authenticated`** — it is RLS's default-deny, not the grants, that stops a write today. Know that before touching either table; it is the opposite of what 191's `business_invites` does deliberately.
-
-**192 shipped a sign-up form gated by `invite_pending`**, so today the only way to get an account is to be invited, and an invitation joins you to the café that sent it. B opens a **second** sign-up path that is not invitation-gated: a confirmed account with no membership and no pending invitation reaches a first-run "name your café" screen, and naming it creates the business and the founding membership together. `set_member_role` already makes the first member an `owner`, so the café has one by construction and invitations work on it immediately.
-
-Requirements: a café can be created and get an owner **without the Supabase dashboard**, by a stranger, unattended.
-⚠️ **Do NOT open this by widening the policies on `businesses`/`business_members`.** A plain INSERT policy on `business_members` would let any signed-in account write itself a membership row for **any** business id it can name — which is every tenant policy 181-187 built, undone by one statement. The shape that fits what is already here is a `SECURITY DEFINER` function that creates the business and the founding membership together, exactly as `claim_business_invite()` creates a membership and nothing else can.
-
-*(Batch 192's A/B/C options block was struck from this item on 15 Aug 2026, by AUDIT-v166's C1. It was correct when written and superseded a day later by Max's answer, and it left this item saying **answered** in its header and **"that is the blocked question"** in its requirements — 41 lines apart, in a file whose rule is that a queued item runs without stopping. A and C are declined; the reasoning that produced the answer is in `docs/decisions/2026-08-14-cafe-creation.md`, which is where a superseded option list belongs.)*
-⚠️ **It interacts with invitations, and 192 changed what that interaction is worth:** a café created this way has an owner by construction (`set_member_role`), so invitations work on it immediately. The old note said doing this FIRST would make the invitations item testable with a real second café — **that scheduling argument is now spent, because invitations have shipped and were rehearsed against staging's second café instead.** What survives is the plainer point: this is the only way a second café can exist at all, and until it does, every invitation in the world is an invitation into Scoopy's.
-
 ## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
 Blocked on: **NOTHING — Max has DEFERRED THIS INDEFINITELY (29 Aug 2026): *"im deferring indefenitly until i saw otherwise."*** It is not waiting on a console visit, a date or a reminder. **Do not surface it, do not re-propose it, and do not count it as a blocked item needing a decision** — the decision is made and the answer is "not now".
