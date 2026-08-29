@@ -274,6 +274,13 @@ const targets = [
      mode: "the day someone deletes the file named here, the guard is unpinned and nothing says so."
      A file that never ran it cannot be unpinned; it was never pinning anything. */
   { fn: 'costFromLines', tests: ['plate-cost.test.js'] },
+  /* 222 — costDetail is the real walk now (costFromLines is its cost accessor), so the target that
+     mattered would have quietly become a one-line delegation with nothing behind it. lineCost is
+     listed for the first time: `null * cost` is 0 rather than null, which is how a line with no
+     quantity became a free ingredient, and nothing had ever asked that function a question. */
+  { fn: 'costDetail', tests: ['plate-cost.test.js'] },
+  { fn: 'lineCost', tests: ['plate-cost.test.js'] },
+  { fn: 'plateFullyCosted', tests: ['plate-cost.test.js'] },
   { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'] },
   /* 0c (batch 203). buildInvRows was measured at 12 survivors in 201 and held in `pending`; the
      twelve are killed in inv-chain.test.js §5, and TWO of them were reachable only after the
@@ -445,6 +452,26 @@ const allowedSurvivors = [
       + '⚠️ This allowance expires if the comparison ever DEREFERENCES cand[j] or tpl[i] (`.name`, `.u`, a '
       + 'method call), because that is exactly what makes the sibling mutant fatal rather than harmless. '
       + 'The `<` is correct and conventional; there is simply no input that can tell them apart.',
+  },
+  /* 222 — computeInsights' null-line guard became UNREACHABLE, and it is allowed rather than deleted.
+     This is the "a fallback that cannot fire reads as a safety net and is not one" shape this repo
+     records, arriving from the opposite direction: the guard was live and a change elsewhere retired
+     it. Keeping it is still right — it costs nothing, and the reasoning below is about the CALLER. */
+  {
+    key: 'computeInsights :: if(!l || l.misc) return; :: logical ||>&& #0',
+    reason: 'UNREACHABLE, not equivalent — and it became so in the batch that wrote this allowance. The '
+      + 'loop it guards only runs for plates that passed `!sp || !(cost>0)` a few lines above, where '
+      + '`cost` is now `costDetail(sp.lines).miss ? 0 : cost`. A null line ALWAYS increments miss '
+      + '(costDetail does `lineProduct(l)` and takes the `if(!p){miss++}` branch), so a plate carrying '
+      + 'one can no longer reach this loop at all, and the mutant `!l && l.misc` — which throws a '
+      + 'TypeError on null and empties the whole insight block through the try/catch — has no input '
+      + 'that reaches it. Before 222 it was killed by insight-coverage.test.js pushing a null line onto '
+      + 'a plate and asserting the family still fired; that test now asserts the plate is EXCLUDED, '
+      + 'which is the corrected behaviour and is why the mutant survives. '
+      + '⚠️ THE ALLOWANCE EXPIRES IF THAT EXCLUSION IS EVER RELAXED — if a partially-costed plate is '
+      + 'admitted to computeInsights again, null lines reach this line and the guard is load-bearing. '
+      + 'The SUPPLIER pass a few lines below walks savedPlates directly, is NOT narrowed by the '
+      + 'exclusion, and its own null guard is still exercised by the same test.',
   },
   /* 0c (batch 205) — computeInsights. FOUR allowed out of thirty-nine, and all four are the same
      `>` -> `>=` shape this file now carries nine times over. Three of them are UNREACHABLE rather

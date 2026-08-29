@@ -73,7 +73,7 @@ function build() {
      say". That is the gap this closure closes. The sandbox declares the app globals below; a test
      assigns them per fixture and calls computeInsights exactly as the Dashboard does. */
   const insightPipeline = [
-    'cpbu', 'perDisplayValue', 'lineCost', 'lineProduct', 'foodTarget', 'costFromLines',
+    'cpbu', 'perDisplayValue', 'lineCost', 'lineProduct', 'foodTarget', 'costDetail', 'costFromLines',
     // 184: menuIdOf is the other axis' resolver — the scope filters inside computeInsights read a
     // dish's menu through it, exactly as they read its plate through plateIdOf.
     'plateIdOf', 'menuIdOf', 'dishOnMenu', 'plateForMenuItem', 'ptMs', 'ingPriceBand', 'priceAtOrBefore', 'priceHeldSince',

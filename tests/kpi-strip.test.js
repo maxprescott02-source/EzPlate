@@ -27,6 +27,11 @@ function harness(dishes, opts = {}) {
     var plateCosts=FIX.dishes.map(function(d){ return d.cost; });
     function plateForMenuItem(m){ var ix=Number(m.id.slice(2)); return plateCosts[ix]==null?null:{id:'PL'+ix, lines:[{misc:true,cost:plateCosts[ix]}]}; }
     function costFromLines(lines){ return (lines&&lines[0])?lines[0].cost:0; }
+    /* 222: costDetail is the real implementation now and costFromLines is its cost accessor. This
+       stub is DERIVED from the stub above rather than written out again, so the two cannot drift and
+       so nothing here silently asserts a miss count this fixture never sets. Plates that cannot be
+       fully costed are covered where that is the subject: tests/plate-cost.test.js. */
+    function costDetail(lines){ return {cost:costFromLines(lines), miss:0}; }
     function foodTarget(){ return cogsPct/100; }
     ${extractFn(APP, 'fmtTargetPct')}
     ${extractFn(APP, 'menuIdOf')}

@@ -90,16 +90,6 @@ Found by batch 220 while closing the previous item 7, which named THREE families
 - `insNearCluster` names **0, 1 or 2** plates depending on the data, and `lead` falls back to a bare count. So the key count is conditional — the `others` remainder is the precedent for a conditionally-present fact.
 ⚠️ **Do NOT publish the UNIT anywhere while doing this.** 220 deliberately left `insPriceAnomaly`'s unit out of `facts`: every string in facts is matched against the text as a name, and `"ea"` sits inside `"dearest"` in that very template, so short unit strings generate spurious matches and reject good rewordings. The comment at that site says so.
 
-## next  9 · A plate with an uncostable line reads as fully costed, and healthier than it is  **[B]**
-
-`costFromLines` (`js/app.js:2851`) counts the lines it could not cost into `miss` and **returns only the partial sum**. Every cost, percentage, verdict pill and dashboard average outside the builder comes from it — `avgFoodCostForScope`, `dishesOverTarget`, `renderAnalysis`, `kpiStripHtml`, `plateCostText`, `computeInsights`. The builder is the one screen that counts missing lines itself and raises `#flag`, so **the only screen that warns is the one you must already be on.**
-
-Second way in: `lineCost(p,qty)` is `qty*c`, and `null * c` is **0**, not null — so a line with no quantity is a real line costing nothing and even the builder's flag stays down.
-
-Reached by a restore that `backupRefCheck` flagged as a soft problem — the confirm says *"Those will cost nothing until you relink them"* — or by a plate saved before the `qty<=0` rule. The Menu row then prints a reduced cost, a suggested price derived from it, and a **green** verdict pill, with nothing indicating a line is missing. `kpiStripHtml`'s comment asserts the Ingredients tab owns this surface; for a direct `pid` line **that surface does not exist**.
-
-Requirements: a plate that could not cost every line does not render as costed. `costFromLines` returns or exposes its `miss` count and the callers act on it.
-
 ## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.

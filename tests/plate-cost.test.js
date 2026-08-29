@@ -40,11 +40,14 @@ function harness() {
     ${extractFn(APP, 'cpbu')}
     ${extractFn(APP, 'lineCost')}
     ${extractFn(APP, 'lineProduct')}
+    ${extractFn(APP, 'costDetail')}
     ${extractFn(APP, 'costFromLines')}
-    return costFromLines;
+    return { costFromLines:costFromLines, costDetail:costDetail };
   `)({ PRODUCTS });
 }
-const costFromLines = harness();
+const H = harness();
+const costFromLines = H.costFromLines;
+const costDetail = H.costDetail;
 
 test('0c: the ordinary case — a plate is the sum of its lines', () => {
   // 100g barramundi at $0.08/g = $8.00, 200g potato at $0.01/g = $2.00
@@ -124,4 +127,153 @@ test('0c: a sub-cent plate cost is NOT rounded — stored costs stay exact', () 
   assert.equal(costFromLines([{ pid: 2, qty: 2.5 }, { pid: 2, qty: 2.5 }]), 0.05);
   // And an ordinary whole-cent case still comes out clean rather than carrying float dust.
   assert.equal(costFromLines([{ pid: 1, qty: 12.5 }]), 1);
+});
+
+/* ============================================================================================
+ * 222 (docs/QUEUE.md item 9) — THE MISS COUNT WAS COMPUTED AND THROWN AWAY.
+ *
+ * `costFromLines` counted the lines it could not cost into `miss` and returned only the partial sum,
+ * so a plate with a deleted product rendered as fully costed and HEALTHIER THAN IT IS: a smaller cost
+ * is a better food cost, so the verdict pill went GREEN. The builder counted its own missing lines and
+ * raised #flag, which meant the only screen that warned was the one you had to already be on.
+ *
+ * `costDetail` is the single implementation now and `costFromLines` is its cost accessor, so these
+ * tests are about the SAME walk the whole app uses rather than a second one written to agree with it.
+ * ========================================================================================= */
+
+test('222: the miss count is REPORTED, not just computed — the number and the doubt travel together', () => {
+  const base = { pid: 1, qty: 100 };                                   // 8.00
+  assert.deepEqual(costDetail([base]), { cost: 8, miss: 0 }, 'a clean plate says so');
+  assert.deepEqual(costDetail([base, { pid: 999, qty: 50 }]), { cost: 8, miss: 1 },
+    'the cost is unchanged — what is new is that the caller can now SEE it is incomplete');
+  assert.deepEqual(costDetail([base, { pid: 999, qty: 50 }, { kid: 'kGone', qty: 1 }]), { cost: 8, miss: 2 },
+    'and it counts them, so a caller can say how many');
+});
+
+test('222: costFromLines is the ACCESSOR, not a second implementation', () => {
+  /* If these ever disagree there are two walks again, which is what let the builder's flag and the
+     Menu row's verdict describe the same plate differently. */
+  const cases = [
+    [{ pid: 1, qty: 100 }],
+    [{ pid: 1, qty: 100 }, { pid: 999, qty: 50 }],
+    [{ misc: true, label: 'Box', cost: 2.5 }],
+    [],
+  ];
+  cases.forEach((lines) => assert.equal(costFromLines(lines), costDetail(lines).cost));
+});
+
+test('222: a line with NO QUANTITY is uncostable, not free — null * cost is 0 in JavaScript', () => {
+  /* THE SECOND WAY IN, and the nastier one: `lineCost` returned `qty*c` outright, and `null*c` is 0
+     rather than null. So a line whose quantity was never entered was a real ingredient costing
+     nothing, and `miss` stayed at zero because 0 is a number — even the builder's own flag stayed
+     down. Reachable from a restore, and from any plate saved before the v60 quantity rule.
+     `!(qty>0)` refuses null, undefined, 0, NaN and '' in one expression, which is CLAUDE.md's rule
+     that Number('') and Number(null) are both 0 and both sail through an isFinite guard. */
+  const base = { pid: 1, qty: 100 };                                   // 8.00
+  [null, undefined, 0, NaN, ''].forEach((q) => {
+    const d = costDetail([base, { pid: 2, qty: q }]);
+    assert.equal(d.cost, 8, 'the bad line adds nothing: ' + JSON.stringify(q));
+    assert.equal(d.miss, 1, 'and is COUNTED as uncostable rather than silently costing zero: ' + JSON.stringify(q));
+  });
+});
+
+test('222: a real quantity still costs, including a numeric string — the guard is not a blanket refusal', () => {
+  /* The counterweight. `!(qty>0)` must not start refusing live data: legacy lines carry whatever the
+     old inputs produced, and '100' > 0 is true while '100' * 0.08 is 8. */
+  assert.deepEqual(costDetail([{ pid: 1, qty: 100 }]), { cost: 8, miss: 0 });
+  assert.deepEqual(costDetail([{ pid: 1, qty: '100' }]), { cost: 8, miss: 0 }, 'a numeric string is a quantity');
+  assert.deepEqual(costDetail([{ pid: 1, qty: 0.5 }]), { cost: 0.04, miss: 0 }, 'half a gram at $0.08/g');
+});
+
+test('222: a misc line with NO cost entered is missing, but an explicit ZERO is not', () => {
+  /* ⚠️ THE FIRST DRAFT OF THIS TEST ASSERTED THE OPPOSITE and defended it — "a junk misc cost is not a
+     MISSING line, it is a line worth nothing, which is what it says". The pre-push review was right
+     that this is the isFinite('') trap one branch over from the quantity fix in the same function:
+     `Number('')` is 0 and so is `Number(null)`, so a cost that was never entered added a real $0.00
+     with `miss` at zero, and garbage was skipped just as silently.
+     ZERO stays costed on purpose — `addMiscCost` seeds a new line at 0, so it is a value someone chose
+     in a way a blank never is. That asymmetry is the whole content of this test. */
+  assert.deepEqual(costDetail([{ misc: true, label: 'Box', cost: 2.5 }]), { cost: 2.5, miss: 0 });
+  assert.deepEqual(costDetail([{ misc: true, label: 'Box', cost: 0 }]), { cost: 0, miss: 0 },
+    'an explicit zero is a real, chosen cost — the builder seeds new misc lines at exactly this');
+  assert.deepEqual(costDetail([{ misc: true, label: 'Box', cost: '3.25' }]), { cost: 3.25, miss: 0 },
+    'a numeric string still costs — restored data carries them, pinned since 0c');
+  [undefined, null, '', 'free'].forEach((v) => {
+    assert.deepEqual(costDetail([{ misc: true, label: 'Bad', cost: v }]), { cost: 0, miss: 1 },
+      'never entered, or not a number, is MISSING rather than free: ' + JSON.stringify(v));
+  });
+});
+
+/* ============================================================================================
+ * 222 — WHAT THE CALLERS DO WITH IT. The miss count is only worth computing if something acts on it,
+ * and the item's whole complaint is that the figures OUTSIDE the builder were confident and wrong.
+ *
+ * This harness runs the REAL aggregators over REAL products, because the dashboard's own test files
+ * stub the cost to inject values (correctly — they are about scoping, not costing) and therefore can
+ * never set a miss count. That is the stub roster one level up again: a file whose name is on a
+ * target list is not the same as a file that can see the defect.
+ * ========================================================================================= */
+function menuHarness(MENU) {
+  // eslint-disable-next-line no-new-func
+  return new Function('P', 'M', `
+    "use strict";
+    var PRODUCTS=P, MENU=M, cogsPct=30, DASH_ALL='all';
+    var byId={}; PRODUCTS.forEach(function(p){ byId[p.id]=p; });
+    var kById={ k1:{ id:'k1', name:'Fish', pid:1 }, kGone:{ id:'kGone', name:'Deleted product', pid:99 } };
+    function plateForMenuItem(m){ return m.plate || null; }
+    function dishOnMenu(){ return true; }
+    ${extractFn(APP, 'cpbu')}
+    ${extractFn(APP, 'lineCost')}
+    ${extractFn(APP, 'lineProduct')}
+    ${extractFn(APP, 'costDetail')}
+    ${extractFn(APP, 'costFromLines')}
+    ${extractFn(APP, 'plateFullyCosted')}
+    ${extractFn(APP, 'foodTarget')}
+    ${extractFn(APP, 'analyze')}
+    ${extractFn(APP, 'avgFoodCostForScope')}
+    ${extractFn(APP, 'dishesOverTarget')}
+    return { avg:function(){ return avgFoodCostForScope('all'); }, over:dishesOverTarget,
+             fully:plateFullyCosted };
+  `)(PRODUCTS, MENU);
+}
+
+const good = { plate: { id: 'A', lines: [{ pid: 1, qty: 100 }] }, price: 20 };          // 8.00 -> 40%
+const broken = { plate: { id: 'B', lines: [{ pid: 1, qty: 100 }, { pid: 999, qty: 500 }] }, price: 20 };
+
+test('222: a partially-costed plate is EXCLUDED from the average, not averaged in understated', () => {
+  /* The direction is what makes this a [B] rather than a nit. The missing line can only make the cost
+     too LOW, so the ratio is too low, so the average reads HEALTHIER than the menu is — the direction
+     that never prompts anyone to look. Both dishes below cost $8.00 as far as the old code could tell,
+     so including the broken one changed nothing about the number and everything about its truth. */
+  const onlyGood = menuHarness([good]);
+  const both = menuHarness([good, broken]);
+  assert.equal(onlyGood.avg(), 40, 'the honest dish alone: 8.00 / 20.00');
+  assert.equal(both.avg(), 40,
+    'and the broken one does not join it — if it did, this would still be 40 and would be a LIE, ' +
+    'because that plate has an ingredient nobody has priced');
+  assert.equal(menuHarness([broken]).avg(), null,
+    'with nothing costable the answer is "no figure", never a confident partial one');
+});
+
+test('222: a partially-costed plate is not counted as healthy by dishesOverTarget', () => {
+  /* $8.00 against a $20.00 price is 40% food cost, well over the 30% target, so the BROKEN plate
+     would be counted as over-target here — the one place its understatement happens to be harmless.
+     Priced so its partial cost reads UNDER target instead: that is the case where excluding it
+     matters, because a plate that looks fine only because a line is missing is exactly what the
+     item is about. */
+  const cheapLooking = { plate: { id: 'C', lines: [{ pid: 1, qty: 100 }, { pid: 999, qty: 5000 }] }, price: 40 };
+  assert.equal(menuHarness([cheapLooking]).over(), 0, 'it is not counted as over target...');
+  assert.equal(menuHarness([cheapLooking]).fully(cheapLooking.plate), false,
+    '...but only because it is not counted at ALL, which is the honest answer while a line has no price');
+  const honest = { plate: { id: 'D', lines: [{ pid: 1, qty: 100 }] }, price: 10 };      // 8.00/10.00 = 80%
+  assert.equal(menuHarness([honest]).over(), 1, 'a genuinely over-target dish is still counted');
+});
+
+test('222: plateFullyCosted is the one question the screens ask, and an EMPTY plate is not costed either', () => {
+  const h = menuHarness([]);
+  assert.equal(h.fully({ id: 'A', lines: [{ pid: 1, qty: 100 }] }), true);
+  assert.equal(h.fully({ id: 'B', lines: [{ pid: 1, qty: 100 }, { pid: 999, qty: 1 }] }), false, 'a missing product');
+  assert.equal(h.fully({ id: 'C', lines: [{ pid: 1, qty: null }] }), false, 'a missing quantity');
+  assert.equal(h.fully({ id: 'D', lines: [] }), false, 'an empty plate was never costed');
+  assert.equal(h.fully(null), false, 'and no plate at all is not a crash');
 });

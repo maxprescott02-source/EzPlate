@@ -1435,7 +1435,14 @@ function unitCostStr(p){const c=cpbu(p);if(c==null)return '—';
   if(p.base_unit==='ml')return '$'+(c*1000).toFixed(2)+'/L';
   if(p.base_unit==='ea')return '$'+c.toFixed(2)+'/unit';return '—';}
 function money(x){return '$'+x.toFixed(2);}
-function lineCost(p,qty){if(!p)return null;const c=cpbu(p);return c==null?null:qty*c;}
+/* ⚠️ A LINE WITH NO QUANTITY IS UNCOSTABLE, NOT FREE. This returned `qty*c` outright, and `null*c` is
+   0 in JavaScript, not null — so a line whose quantity was never entered was a real ingredient costing
+   nothing, silently, and the builder's own "no cost data" flag stayed down because 0 is a number.
+   Reachable from a restore, and from any plate saved before the v60 rule that a quantity is required.
+   `!(qty>0)` rather than a null check on purpose: it refuses null, undefined, 0, NaN and '' in one
+   expression, which is the CLAUDE.md rule that Number('') and Number(null) are both 0 and both pass an
+   isFinite guard. A numeric string still costs, because '100' > 0 and '100' * c is 100c. */
+function lineCost(p,qty){if(!p)return null;const c=cpbu(p);if(c==null)return null;return (qty>0)?qty*c:null;}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
 
 /* ============================================================
@@ -1720,8 +1727,10 @@ function renderPlate(){
 function updateLine(uid){const l=plate.find(x=>x.uid===uid);const p=lineProduct(l);const lc=lineCost(p,l.qty);
   const el=document.getElementById('lc-'+uid);if(el)el.innerHTML=lc==null?'<span class=nocost>no cost</span>':money(lc);}
 function updateTotals(){
-  let tot=0,missing=0;
-  plate.forEach(l=>{ if(l.misc){ tot+=Number(l.cost)||0; return; } const lc=lineCost(lineProduct(l),l.qty);if(lc==null)missing++;else tot+=lc;});
+  /* ⚠️ THIS WAS A SECOND COPY OF costFromLines' LOOP, kept only because that function discarded its
+     miss count. It now asks costDetail, so the builder's "no cost data" flag and every figure the rest
+     of the app derives are the same two numbers from the same walk. */
+  var _d=costDetail(plate); let tot=_d.cost, missing=_d.miss;
   /* F7 (v146): the docket's own "Total plate cost" row is GONE with the docket. The Cost card's
      #bTotal is the one on-screen total (§7 forbids the same figure twice on one screen) and
      renderBuilderCost below writes it from this very number. */
@@ -3095,7 +3104,43 @@ function saveFromBuilder(){ saveCurrentPlate(false); }
 })();
 (function(){ var amb=document.getElementById('addMiscBtn'); if(amb) amb.addEventListener('click',addMiscCost); })();
 /* menu analysis */
-function costFromLines(lines){let c=0,miss=0;(lines||[]).forEach(l=>{ if(l&&l.misc){ var mc=Number(l.cost); if(!isNaN(mc)) c+=mc; return; } const p=lineProduct(l);if(!p){miss++;return;}const lc=lineCost(p,l.qty);if(lc==null)miss++;else c+=lc;});return c;}
+/* ⚠️ `miss` USED TO BE COMPUTED HERE AND THROWN AWAY, and that is what let a plate with a line it
+   could not cost render as fully costed and HEALTHIER THAN IT IS. The partial sum was returned bare,
+   so every cost, percentage, suggested price and verdict pill outside the builder was derived from a
+   total that was missing an ingredient — and green, because a smaller cost is a better food cost.
+   The builder counted its own missing lines and raised #flag, so the ONLY screen that warned was the
+   one you had to already be on.
+   `costDetail` is now the single implementation and `costFromLines` is its cost accessor, so a caller
+   that wants the number keeps working unchanged and a caller that must not lie asks for `miss`.
+   updateTotals had a SECOND copy of this loop for the builder's flag; it calls this now, so the
+   builder's warning and the rest of the app can no longer disagree about what is missing. */
+function costDetail(lines){
+  let c=0,miss=0;
+  (lines||[]).forEach(l=>{
+    /* ⚠️ THE MISC BRANCH HAS THE SAME TRAP THE QUANTITY ONE DID, one branch over, and it read
+       `var mc=Number(l.cost); if(!isNaN(mc)) c+=mc;`. `Number('')` is 0 and so is `Number(null)`, so a
+       misc line whose cost was never entered added a real $0.00 and `miss` stayed at zero — the exact
+       isFinite('') rule CLAUDE.md says has already bitten this codebase twice. Junk ('free') was
+       skipped silently, which is the same lie by a different route.
+       An empty or absent cost is NOT ENTERED and counts as missing; garbage counts as missing. ZERO is
+       left alone deliberately — `addMiscCost` seeds a new line at 0 and it is a legitimate value for a
+       misc line in a way it never is for an ingredient quantity. A numeric STRING still costs, because
+       restored data carries them and tests/plate-cost.test.js has pinned that since 0c.
+       Found by the pre-push review, which was right that the first draft's test defended this. */
+    if(l&&l.misc){
+      var mc=(l.cost===''||l.cost==null)?NaN:Number(l.cost);
+      if(isNaN(mc)) miss++; else c+=mc;
+      return;
+    }
+    const p=lineProduct(l); if(!p){miss++;return;}
+    const lc=lineCost(p,l.qty); if(lc==null)miss++; else c+=lc;
+  });
+  return {cost:c, miss:miss};
+}
+function costFromLines(lines){ return costDetail(lines).cost; }
+/* Is every line of this plate costable? A plate that fails this must never render a cost, a
+   percentage or a verdict, because all three would be computed from an understated total. */
+function plateFullyCosted(sp){ return !!(sp && sp.lines && sp.lines.length && costDetail(sp.lines).miss===0); }
 /* v55 (many-to-many): a dish links to its plate via dish.plateId; source_plate_id is a legacy fallback.
    One plate can back MANY dishes (one per menu it's published to). These helpers are the single
    resolution path — call sites never poke the raw fields.
@@ -3843,7 +3888,8 @@ function costRangeForLines(lines){                                   // dish cos
 }
 function dishesOverTarget(){                                         // dishes whose food cost sits above the target (margin under target)
   var over=0; MENU.forEach(function(m){ if(!(m.price>0)) return; var sp=plateForMenuItem(m); if(!sp) return;
-    var c=costFromLines(sp.lines); if(!(c>0)) return; var a=analyze(c, m.price); if(a.state==='under') over++; });
+    // a partially-costed plate is excluded, not counted as healthy — see avgFoodCostForScope
+    var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return; var a=analyze(d.cost, m.price); if(a.state==='under') over++; });
   return over;
 }
 function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert(pointToRow(iso, v, 'avg_food_cost_pct')); }, 'price history'); }
@@ -3879,8 +3925,13 @@ function avgFoodCostForScope(scope){
     if(scope && scope!==DASH_ALL && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);                                        // the ONLY sanctioned resolution path (rule 6)
     if(!sp) return;
-    var c=costFromLines(sp.lines);
-    if(c>0) vals.push(c/m.price);
+    /* ⚠️ A PLATE THAT COULD NOT COST EVERY LINE IS EXCLUDED, not included at its partial sum. Its
+       total is missing an ingredient, so the ratio is too LOW and the average it drags down reads
+       healthier than the menu is — the direction that never prompts anyone to look. This is the same
+       treatment the unpriced dish above already gets: a figure the app cannot compute honestly is
+       left out rather than approximated. */
+    var d=costDetail(sp.lines);
+    if(d.miss===0 && d.cost>0) vals.push(d.cost/m.price);
   });
   if(!vals.length) return null;
   return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
@@ -5641,7 +5692,8 @@ function digData(kind, scope){
       if(!(m.price>0)) return;
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp) return;
-      var c=costFromLines(sp.lines); if(!(c>0)) return;
+      var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;   // 222: no % and no light off a partial total
+      var c=d.cost;
       rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%', light:analyze(c, m.price).light});
     });
     rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
@@ -5654,7 +5706,8 @@ function digData(kind, scope){
     MENU.forEach(function(m){
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp || seen[sp.id]) return;
-      var c=costFromLines(sp.lines); if(!(c>0)) return;
+      var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;   // 222: an understated plate cost is not a plate cost
+      var c=d.cost;
       seen[sp.id]=1;
       rows.push({name:sp.name||m.name||'Plate', val:c, disp:fmt2(c), light:(m.price>0?analyze(c, m.price).light:null)});
     });
@@ -6261,7 +6314,8 @@ function computeInsights(scope, seed){
       if(!m || !(m.price>0)) return;
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m);
-      var cost=sp?costFromLines(sp.lines):0;
+      var _cd=sp?costDetail(sp.lines):{cost:0,miss:0};
+      var cost=_cd.miss?0:_cd.cost;                                  // 222: a partial total is no cost at all here
       if(!sp || !(cost>0)) return;                                   // a priced dish with no plate / no cost has no margin read
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
@@ -6895,11 +6949,17 @@ function kpiStripHtml(scope, cmp){
   MENU.forEach(function(m){
     if(!isAll && !dishOnMenu(m, scope)) return;
     var sp=plateForMenuItem(m);
-    var c=sp?costFromLines(sp.lines):0;
-    // "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
-    // label ("not costed") sent the review hunting phantom ingredient gaps on price-less dishes.
-    // A PARTIAL cost still counts as costed — costFromLines returns the partial sum and the
-    // broken-link states on the Ingredients tab are the surface that owns that problem.
+    var d0=sp?costDetail(sp.lines):{cost:0,miss:0};
+    /* "unready" is honest about what it counts: a dish missing a cost OR a sell price. The old
+       label ("not costed") sent the review hunting phantom ingredient gaps on price-less dishes.
+       ⚠️ 222 REVERSES THE NEXT CLAUSE, which read: "A PARTIAL cost still counts as costed —
+       costFromLines returns the partial sum and the broken-link states on the Ingredients tab are the
+       surface that owns that problem." The first half was true and the second was not: a plate line
+       that points at a product DIRECTLY (`{pid, qty}`, live legacy data) has no kitchen ingredient, so
+       the Ingredients tab has no row for it and THAT SURFACE DOES NOT EXIST. The dish counted as
+       costed, over/under was judged on an understated total, and nothing anywhere said a line was
+       missing. A partially-costed dish is unready, which is what it is. */
+    var c=d0.miss?0:d0.cost;
     if(m.price>0 && c>0){ costed++; if(c/m.price*100 > cogsPct+0.05) over++; }
     else unready++;
   });
@@ -7158,7 +7218,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v181';
+var APP_VERSION='v182';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8901,7 +8961,12 @@ var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke=
 // v55: a plate can be on MANY menus. The badge summarises them; the cost cell shows "not costed" for an
 // empty plate (§B) rather than a misleading $0.00.
 function plateMenuSummary(sp){ var on=menusOfPlate(sp); if(!on.length) return null; return on.length===1?on[0].name:(on.length+' menus'); }
-function plateIsCosted(sp){ return !!(sp && sp.lines && sp.lines.length); }
+/* 222 TOMBSTONE: `plateFullyCosted(sp)` stood here as `!!(sp && sp.lines && sp.lines.length)`.
+   "Has lines" was never the same question as "can be costed", and it said the first while the column
+   it feeds says "not costed" — so a plate whose product was deleted, or whose line lost its quantity,
+   printed a confident figure and a GREEN verdict pill built from a total missing an ingredient.
+   It is GONE rather than delegating to plateFullyCosted: two names for one question is how the
+   builder's flag and the Menu row came to describe the same plate differently in the first place. */
 /* F2 (v138) — the row's three facts as PLAIN TEXT, one function each, so desktop columns and the
    mobile meta line render the SAME string (§6.1: same names, same reading direction on both).
    platePubText keeps its leading capital for the desktop column; the mobile meta lowercases the
@@ -8910,13 +8975,13 @@ function platePubText(sp){ var s=plateMenuSummary(sp); return s?('On '+s):'Unpub
 /* R1: the mock's word is "not costed"; the pre-v138 cell said "—" plus a "not costed yet" caption.
    ONE string on both breakpoints — the mock's own mobile row renders it "-", which would leave a
    bare dash carrying the meaning on the smaller screen. */
-function plateCostText(sp){ return plateIsCosted(sp)?fmt2(costFromLines(sp.lines)):'not costed'; }
+function plateCostText(sp){ return plateFullyCosted(sp)?fmt2(costFromLines(sp.lines)):'not costed'; }
 /* the mock's §3.3 header subtitle, computed rather than decorative: it counts the WHOLE library,
    not the filtered view, because it is a summary of what you own and not of what you searched. */
 function plateHeadSummary(list){
   var n=list.length; if(!n) return '';
   var un=0, nc=0;
-  list.forEach(function(sp){ if(!plateIsCosted(sp)) nc++; if(!menusOfPlate(sp).length) un++; });
+  list.forEach(function(sp){ if(!plateFullyCosted(sp)) nc++; if(!menusOfPlate(sp).length) un++; });
   var bits=[n+' '+(n===1?'plate':'plates')];
   if(nc) bits.push(nc+' not costed');
   if(un) bits.push(un+' unpublished');
@@ -8969,7 +9034,7 @@ function renderPlatesTab(){
       +'<span class="plib-id"><span class="plib-name">'+esc(sp.name||'Unnamed plate')+'</span>'
       +(sp.category?'<span class="plib-cat">'+esc(sp.category)+'</span>':'')+'</span>'
       +'<span class="plib-pub'+(on?' is-on':'')+'">'+esc(pub)+'</span>'
-      +'<span class="plib-cost'+(plateIsCosted(sp)?'':' is-nil')+'">'+esc(plateCostText(sp))+'</span>'
+      +'<span class="plib-cost'+(plateFullyCosted(sp)?'':' is-nil')+'">'+esc(plateCostText(sp))+'</span>'
       +'</button>';
   }).join('');
   /* R2, and F7 changes this consciously: the row opens the ACTION CHOOSER, not the builder. The
@@ -9394,7 +9459,10 @@ function marginLightWord(light){ return light==='green'?'Healthy margin':light==
 function renderMenuMarginPreview(){
   var box=document.getElementById('mi_preview'); if(!box) return;
   var sp=savedPlates.find(function(s){return s.id===pubPlateId;});
-  var cost=sp?costFromLines(sp.lines):0;
+  /* 222: a plate with a line it cannot cost previews NOTHING rather than a suggested price and a
+     verdict built from an understated total — this dialog is where a sell price gets set. */
+  var _cd=sp?costDetail(sp.lines):{cost:0,miss:0};
+  var cost=_cd.miss?0:_cd.cost;
   if(!(cost>0)){ box.className='margin-preview'; box.textContent=''; return; }   // uncosted plate → nothing to preview yet
   var priceV=parseFloat((document.getElementById('mi_price')||{}).value);
   var mp=menuMarginPreview(cost, priceV);
@@ -11610,7 +11678,12 @@ function renderAnalysis(){
     if(catSel && sec!==catSel) return;   // v59: category filter narrows to one section
     var items=MENU.filter(function(m){return inMenu(m) && secOf(m)===sec && hit(m.name,sec);}).slice().sort(byName)
       .map(function(m){                                               // v68: precompute each dish's analysis so the margin-light chips can filter on it
-        var sp=plateForMenuItem(m); var costed=!!(sp && sp.lines && sp.lines.length);   // v55: the dish's plate via plate_id
+        /* v55: the dish's plate via plate_id. §B: an EMPTY plate is "not costed yet", not a $0.00 cost —
+           and since 222 a plate with a line it CANNOT cost is not costed either, for the same reason
+           one level down: its total is missing an ingredient, so the cost, the suggested price and the
+           verdict pill would all be computed from an understated figure and the pill would be GREEN.
+           This reuses the screen's existing not-costed rendering rather than inventing a state. */
+        var sp=plateForMenuItem(m); var costed=plateFullyCosted(sp);
         return {m:m, sp:sp, costed:costed, a:costed?analyze(costFromLines(sp.lines),m.price):{light:'none'}};   // §B: an EMPTY plate is "not costed yet", not a $0.00 cost
       })
       .filter(function(it){ return lightFilterPass(menuLightFilter, it.a.light); });   // v68: active chips narrow to those margin lights
@@ -11773,7 +11846,8 @@ function updateMenuDelBtn(){ var b=document.getElementById('menuDelBtn'); if(b) 
 /* ---- reuse an existing costed dish on another menu (shares the source plate) ---- */
 var adSelectedPlateId=null;
 function eligibleDishes(){                                         // costed plates, most useful first
-  return savedPlates.filter(function(sp){ return sp && sp.lines && sp.lines.length && costFromLines(sp.lines)>0; });
+  // 222: "costed" here is the same question the Plates library and the Menu row now ask
+  return savedPlates.filter(function(sp){ return plateFullyCosted(sp) && costFromLines(sp.lines)>0; });
 }
 /* 214 — "Existing plate" was offered before it could do anything. At zero costed plates the button
    sat in the Menu header (and, below 768, wrapped onto its own row under it, reading as an orphan)
