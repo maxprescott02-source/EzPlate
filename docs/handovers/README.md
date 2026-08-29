@@ -25,6 +25,8 @@ would quietly become the record.
 | **v65** | Widened the AI wrong-match detection (`gemMatchSuspect` decoupled from parser confidence). Described only in CLAUDE.md's old "State as of" text, now retired. | No record of the thresholds' reasoning. |
 | **v66** | **Reversed a money-handling rule** — the AI no longer overrules the parser's price (`gemMergeLine` never writes Gemini's price when the parser has one). Also added the per-ingredient price log later relied on by v67's insights. | The most consequential gap. A rule about money changed direction with no diary entry; the reasoning survives only in `tests/inv-gemini-merge.test.js` and CLAUDE.md's retired log text. |
 | **batch 189** | Docs-only, so it shipped **no deploy version** — which is why it is a batch number here and not a `v`. Commit `1cb623b`, *"189: invitations is blocked, and its stated hard part was the wrong one"*: 25 insertions and 11 deletions to `docs/QUEUE.md`, blocking the invitations item, correcting its premise and renumbering the file. | Nothing was lost technically — the commit message carries the finding and the diff is the change. It is listed because **189 reshaped the item that then decided the next four batches**, and this table's own argument is that an unrecorded gap is indistinguishable from a mislaid file. Added 15 Aug 2026 by AUDIT-v166 (T2). **Do not reconstruct a handover for it**; read the commit. |
+| **batch 196** | Docs-only, so it shipped **no deploy version**. | Nothing technical was lost; the commit carries the change. Listed because this table's own argument is that an unrecorded gap is indistinguishable from a mislaid file. Added 29 Aug 2026 (batch 218), from `docs/MAINTENANCE.md`. **Do not reconstruct one**; read the commit. |
+| **batch 198** | Docs-only, so it shipped **no deploy version**. | Same as 196, and added at the same time for the same reason. |
 
 ### Documented, but folded into a neighbour's file rather than their own
 
@@ -34,6 +36,7 @@ These are not lost — look in the file named, usually under a
 | Version | Documented in |
 |---|---|
 | **v64** | `HANDOVER-v63.md` (titled "HANDOVER v63/v64" — the two shipped together) |
+| **batch 209** | `HANDOVER-218-cafe-creation-rehearsal.md`. 209 built the café-creation feature and **deliberately wrote no handover**, because its migration could not be rehearsed (staging was paused) and this folder's rule is that a batch whose migration has not been applied has not finished happening. Batch 218 resumed the same branch, applied it, and documented both. |
 | **v76** | `HANDOVER-v75.md` § "v76 follow-up (same branch/PR)" |
 | **v78** | `HANDOVER-v77.md` § "v78 follow-up (same branch/PR)" |
 | **v80** | `HANDOVER-v79.md` § "v80 follow-up (same branch/PR)" |

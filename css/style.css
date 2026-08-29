@@ -3601,6 +3601,15 @@ html{scrollbar-gutter:stable}
 #bootGate .bg-alt a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:3px}
 #bootGate .bg-alt a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 #bootGate .bg-done{margin:0;width:100%;text-align:left;font-size:var(--fs-sm);line-height:1.5;color:var(--good);font-weight:600}
+/* 209 — the one-café-per-account warning under the "name your café" form.
+   ⚠️ NO `display` RULE, and that is checked rather than incidental: it is a <p>, it is toggled with
+   `hidden` by bootGate, and a `display` rule here would beat the UA's `[hidden]` on ORIGIN and
+   leave it sitting under the sign-in form on every other state of this screen. CLAUDE.md's
+   `[hidden]` corollary. `text-align` is not `display`, so it needs no `:not([hidden])` guard.
+   LEFT for the same reason `.acct-accept span` is: #bootGate centres its text, and a three-line
+   sentence centred under a form reads as a caption rather than as a warning about the button above
+   it. --text2 rather than --muted because it is copy someone is meant to act on. */
+#bootGate .bg-note{margin:0;width:100%;text-align:left;font-size:var(--fs-sm);line-height:1.5;color:var(--text2)}
 #bootGate .bg-spin{
   width:28px; height:28px; border-radius:50%;
   border:2.5px solid var(--line); border-top-color:var(--accent);   /* v115: --accent head (was --text2) — one ring language across boot, pull-to-refresh and the invoice wait, which all wait on the same Supabase */

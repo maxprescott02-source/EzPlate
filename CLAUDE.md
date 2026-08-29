@@ -241,6 +241,29 @@ Two of 187's restrictions name a command on a table — "staff may not delete a 
 - **NULL refuses.** `current_business_role() = 'owner'` is NULL for a caller with no membership, and a policy evaluating to NULL denies — which is what you want on the server, and is the exact OPPOSITE of the client-side rule two sections up. **The server refuses when it cannot establish permission; the client must not lock anyone out when it cannot tell.** Same expression shape, opposite correct default, because the consequences are not symmetrical.
   In PL/pgSQL the same NULL is a trap rather than a help: `if role <> 'owner' then raise` never fires for a NULL role, so a guard written that way lets exactly the caller it was written for straight through. Use `is distinct from`.
 
+## `revoke … from public` DOES NOT REVOKE `anon`, and every migration in this repo is written as if it does
+
+(Batch 218, 29 Aug 2026, rehearsing `create_business` on staging. Measured as the anon client over PostgREST; it could not have been found by reading, and a test written to forbid it was green.)
+
+**Supabase ships `alter default privileges in schema public grant execute on functions to anon, authenticated, service_role`** — two of them, from `postgres` and from `supabase_admin`; read them out of `pg_default_acl`. So **every function created in `public` is born with `anon=X` already in its ACL**, before any `grant` in your file runs.
+
+`revoke all on function … from public` revokes the **PUBLIC pseudo-role**. `anon` is a **real role**. They are different things, and the revoke does not touch the default-privilege grant. Omitting `anon` from your own `grant execute … to authenticated, service_role` cannot help either — **you cannot decline a privilege you were never the one to give.**
+
+The measured difference, and it is the whole tell:
+
+```
+before:  P0001  "sign in before creating a cafe"          HTTP 400   ← the BODY refused
+after:   42501  "permission denied for function …"        HTTP 401   ← the GRANT refused
+```
+
+**Both are a refusal, which is exactly why this survives.** The function was never callable-and-harmful; it was callable-and-raising, so nothing looked wrong from any screen, and the file's own comment claimed *"two mechanisms, because a grant is checked before the body runs"* while shipping one.
+
+**The remedy is one line, and it must name the role and follow the function:** `revoke execute on function public.f(args) from anon;`. Placed **above** the `create or replace` it runs against the old ACL and the fresh default grant lands afterwards, putting `anon` straight back.
+
+⚠️ **`claim_business_invite()` and `business_team()` carry the identical gap** — both written the same way, both refused by their bodies, neither a hole. They are filed in `docs/MAINTENANCE.md` rather than fixed on sight, because a migration should not quietly re-grant functions the item does not own. **Check `proacl`, never the file**, when you want to know who can call something.
+
+**The transferable rule is this file's oldest one arriving in SQL: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** `tests/cafe-create.test.js` asserted that the word `anon` was ABSENT from the grant statement and that a `revoke … from public` was PRESENT. Both true; both about the file's text; neither about whether `anon` holds EXECUTE. That is roster entry 190 — a denylist assertion is weaker than an equality one — reaching a language where the privilege can arrive from outside the file entirely. **Assert the revoke BY NAME.**
+
 ## A PRIMARY KEY's column list is a contract with every `ON CONFLICT` that names it — and with the client that names none
 
 (Batch 183, 13 Aug 2026, widening `app_settings` to `(business_id, key)` and `supplier_phrases` to `(business_id, id)`.)

@@ -114,11 +114,25 @@ test('the message still works with no email, and does not print an empty one', (
   assert.ok(/this account/.test(m), 'falls back to naming no account at all: ' + m);
 });
 
-test('the message says nothing has been lost, and says what to do', () => {
+test('the message says nothing has been lost, and points at an action the screen offers', () => {
+  /* ⚠️ THE SECOND HALF OF THIS USED TO BE `/sign out/i`, and 209 changed what it should say rather
+     than merely how it says it. While a café could only be created BY HAND in the Supabase
+     dashboard, the honest advice to a memberless account was "ask the owner, or sign out" — and the
+     assertion was really pinning "this is not a dead end". It is not a dead end for a better reason
+     now: the screen carries a form that makes a café, so the message points at that.
+     The dead-end property is still what is being pinned; it has simply moved from the wording to
+     the markup, so BOTH halves are asserted — the sentence names the action, and the two controls
+     that perform it are still on the screen. Pinning only the sentence would let a batch delete the
+     form and leave copy pointing at nothing, which is the shape 208's review found in the privacy
+     notice's own promise. */
   const m = nonMemberMessage('a@b.com');
   assert.ok(/No data has been lost/i.test(m),
     'the failure it is replacing is indistinguishable from data loss — saying so is the point');
-  assert.ok(/sign out/i.test(m), 'a dead end with no way out is the same trap in different words');
+  assert.ok(/name your caf/i.test(m), 'it names the action this screen offers: ' + m);
+
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /id="bgCafeForm"/, 'and the form it points at is really there');
+  assert.match(html, /id="bootGateOut"/, 'with sign out still available as the other way out');
 });
 
 test('the message never invents a fifth object noun', () => {

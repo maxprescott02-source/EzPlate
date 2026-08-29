@@ -155,12 +155,16 @@ const targets = [
   // 200 having changed NOTHING (191's rehearsal, as staff), so `!res.error` is not a landing — a
   // mutant that loosens this reports a revoke that did not happen, with the row still live.
   { fn: 'teamWriteLanded', tests: ['invites-client.test.js'] },
-  // authSignUpGated: the ONE thing standing between "invited people may sign up" and self-service
-  // sign-up, which Max declined. Flipping its `!g.data` opens the gate to every address.
-  { fn: 'authSignUpGated', tests: ['auth.test.js'] },
-  // authInvitePending: and the narrowing underneath it. `=== true` is what stops a truthy shape
-  // change — a row object, a string — reading as an invitation.
-  { fn: 'authInvitePending', tests: ['auth.test.js'] },
+  /* ⚠️ TWO TARGETS WERE DELETED HERE IN 209 AND THIS NOTE IS WHY, because a shorter list looks like
+     a weakened gate. `authSignUpGated` and `authInvitePending` were the invitation gate on sign-up,
+     described here as "the ONE thing standing between invited people may sign up and self-service
+     sign-up, which Max declined". ⚠️ HE REVERSED THAT ON THE SAME DAY (14 Aug 2026), choosing shape
+     B — self-service — so the functions are gone and nothing was loosened: what they gated is now
+     the feature. `authSignUp` needs no entry of its own; it has no decision in it, and the one
+     property worth keeping from the pair (a missing client RETURNS an error rather than throwing,
+     which this gate found in the first place) is asserted in auth.test.js and cafe-create.test.js.
+     `invite_pending` the SQL function is still deployed and still pinned by tests/invites.test.js —
+     see the migration header for why it outlives its caller by a batch. */
   // loadTeam: its owner check is what keeps a list read as owner from surviving into a staff
   // session, and its error branch is what stops half a card painting as "nobody is invited".
   { fn: 'loadTeam', tests: ['invites-client.test.js'] },
@@ -299,6 +303,17 @@ const targets = [
      pre-push review. A guard that decides whether a stranger is shown what leaves their café before
      it leaves belongs on this list. */
   { fn: 'privacyAcceptNeeded', tests: ['privacy-disclosure.test.js'] },
+  /* 209 — the three decisions behind "name your own café", which is the ONLY way a café can now come
+     into existence outside the Supabase dashboard.
+     `createBusinessState` is `claimState`'s sibling and is on this list for the same recorded
+     reason: a wrong 'made' boots the app as a member of a café that does not exist, and a wrong
+     'unknown' leaves a person who HAS just made one staring at the screen that says they have not.
+     `cafeNameProblem` and `cafeNameClean` are here because they are half of a rule the server
+     states separately — the client cannot call the server's guard across a wire — and a boundary
+     that drifts by one either refuses a name the server would take or sends one it will not. */
+  { fn: 'createBusinessState', tests: ['cafe-create.test.js'] },
+  { fn: 'cafeNameProblem', tests: ['cafe-create.test.js'] },
+  { fn: 'cafeNameClean', tests: ['cafe-create.test.js'] },
 ];
 
 /*

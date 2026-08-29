@@ -800,7 +800,9 @@ Recorded because the failure is the routing, not the items: both exist only in w
 
 `CLAUDE.md` is right and the hook is not, which is the inverse of the usual direction and is why it is worth a line. Same file as the entry above; take them together.
 
-### Three handover gaps have accumulated and none reached the README's gap table
+### ✅ DONE (batch 218) — Three handover gaps have accumulated and none reached the README's gap table
+
+✅ **Closed 29 Aug 2026 by batch 218**, which was writing a handover anyway and so had the file open: 196 and 198 are rows in the genuinely-missing table, and 209 is a row in the folded-into-a-neighbour table pointing at `HANDOVER-218-cafe-creation-rehearsal.md`, which documents both batches. No handover was reconstructed, per that file's rule. Left here struck rather than deleted so the next audit can see it was actioned.
 
 `docs/handovers/README.md` lists `v41`, `v65`, `v66` and `batch 189`. **Batches 196, 198 and 209 are also missing.** 196 and 198 were docs-only; 209's is deliberately unwritten and sits on the open `feature/cafe-creation` branch, which says so at its own site. The README's own argument is that *"an unrecorded gap is indistinguishable from a mislaid file"* — so the fix is three lines in the gap table, not three reconstructed handovers, which that file forbids.
 
@@ -823,3 +825,51 @@ Max chose option A of `docs/decisions/2026-08-28.html` — change one title, wri
 ⚠️ **The reason this is filed rather than shrugged at: a café creating its first plate can reach this modal BEFORE it ever opens the Menu tab**, so the two surfaces are not merely inconsistent in the abstract — one user, one session, two voices for the same underlying state (no menus, one way out). That is the exact complaint the queue item was about, one surface over.
 
 **It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.
+
+### `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise
+
+Found by batch 218 while rehearsing `create_business` on staging, then confirmed on production out of `pg_proc.proacl`. **Neither is a hole and neither is urgent** — both refuse the caller they should, `claim_business_invite()` returning `null` and `business_team()` returning `[]` for a tenant that resolves to nothing since 186. What is wrong is the *stated* mechanism.
+
+Both are written as `revoke all on function … from public;` then `grant execute … to authenticated, service_role;`, which is the idiom every migration here uses and which **does not remove `anon`**: Supabase's `alter default privileges … grant execute on functions to anon, authenticated, service_role` puts `anon=X` in the ACL at CREATE time, and `revoke … from public` revokes the PUBLIC pseudo-role, a different thing. `CLAUDE.md` now carries the mechanism in full; `20260827_cafe_creation.sql` carries the measurement.
+
+**The fix is one line each, in one migration:**
+
+```sql
+revoke execute on function public.claim_business_invite() from anon;
+revoke execute on function public.business_team()        from anon;
+```
+
+⚠️ **It was deliberately NOT done in 218**, and the reason is worth keeping: that batch's item owns `create_business` and nothing else, and a migration that quietly re-grants two functions it was not sent to touch is the kind of scope creep this repo's rules exist to stop. It is genuinely cheap for whichever batch next writes a migration — **take it then**, with the same staging-then-production rehearsal, and check `proacl` rather than the file to confirm it landed.
+
+⚠️ **`invite_pending(text)` is NOT in this list and must not be added to it** — it is granted to `anon` deliberately and by name, and that grant is argued at length in `20260814_invitations.sql`'s header. Dropping the function outright is a separate item that already exists in `docs/GATE-REVIEW.md`'s residuals.
+
+**Supabase's own linter finds this class, and `get_advisors('security')` is the cheapest way to re-check it** — lint `0028_anon_security_definer_function_executable`. Measured 29 Aug 2026 on production, it names **six**: `business_team`, `claim_business_invite`, `current_business_id`, `current_business_role`, `invite_pending`, `set_member_role`. **Only the first two are this entry.** The other four are each fine for their own reason and must not be swept up with them:
+
+- `current_business_id` and `current_business_role` are granted to `anon` **deliberately and by name** in their own migrations (`20260814_roles_part1.sql`), and 186 made the first answer null for `anon` on purpose;
+- `set_member_role` is a **trigger function** — PostgREST cannot usefully invoke it, since a trigger function called directly raises;
+- `invite_pending` is the deliberate one above.
+
+✅ **`create_business` is absent from that lint as of 29 Aug 2026**, which is the independent confirmation that batch 218's `revoke … from anon` landed — it appears only under `0029_authenticated_…`, which is what it is supposed to be.
+
+### Supabase's leaked-password protection is OFF, and sign-up is now public
+
+`auth_leaked_password_protection`, a WARN in the production advisors, checks new passwords against HaveIBeenPwned. It mattered little while every account was made by hand in the dashboard; batch 218 shipped self-service sign-up, so strangers now choose their own passwords.
+
+**It is a dashboard toggle, so it is Max's to flip** — one switch under Authentication → Policies. It is filed here rather than in the queue because nothing in the repo can do it and nothing is broken without it; `docs/GATE-REVIEW.md` (batch 210) reviewed the signup gates and did not cover this one, because the bullet naming it existed only on the unmerged café-creation branch at the time.
+
+### The café name limit is 60 in three places and only two of them count the same thing
+
+Found by batch 218's pre-push review, measured on both sides rather than reasoned:
+
+```
+'😀'.repeat(31)     JS  .length      = 62   (UTF-16 code units)
+                    PG  length()     = 31   (codepoints)
+```
+
+`cafeNameProblem` in `js/app.js` and `maxlength="60"` on `#bgCafeName` both count **UTF-16 code units**; the migration's `length(nm) > 60` counts **characters**. Every astral-plane character — emoji, and a number of historic and rare scripts — costs two on the client and one on the server, so a 31-emoji café name is refused by the client and would have been accepted by the server.
+
+⚠️ **It is filed rather than fixed, and the reason is the DIRECTION rather than the size.** The client is the STRICTER of the two, so the only thing it can produce is a **false refusal** — never a value that survives the client and is then rejected after a round trip, and never a stored name the server's guard was meant to stop. Nothing is wrong with any data.
+
+**And the obvious fix moves the mismatch rather than closing it.** Making `cafeNameProblem` count codepoints (`[...nm].length`) aligns it with the server and leaves `maxlength` as the sole binding constraint — still UTF-16, still stricter, still silent, because **HTML `maxlength` has no codepoint-counting form**. Closing it properly means dropping `maxlength` altogether and giving up a native affordance, for a case a café name will not meet. That is a real trade and it should be made deliberately by whoever next has reason to touch this form, not smuggled in as a tidy-up.
+
+**What IS pinned, in `tests/cafe-create.test.js`:** the property that actually matters — *the client may refuse more than the server and must never accept more* — across a spread of astral lengths. So the tempting direction, loosening the client to remove the false refusal, goes red by name. The equality test one above it deliberately keeps asserting the three numbers match, and now says at its own site that equal numbers in different units are not agreement.

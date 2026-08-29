@@ -39,12 +39,31 @@ for (const { w, h, name } of WIDTHS) {
       const lum = (bg.match(/\d+/g) || []).slice(0, 3).reduce((a, n) => a + Number(n), 0) / 3;
       if (theme === 'dark') expect(lum, `dark gate background was ${bg}`).toBeLessThan(110);
       else expect(lum, `light gate background was ${bg}`).toBeGreaterThan(160);
-      await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+      await expect(page.locator('#bootGateMsg')).toContainText('isn’t part of a café');
       await expect(page.locator('#bootGateMsg')).toContainText('No data has been lost');
 
-      // The one action, and the one that must NOT be offered.
+      /* ⚠️ 209 GAVE THIS SCREEN A SECOND ACTION, and the comment that used to read "the one action"
+         was the whole point of the screen when 185 built it: nothing a client could do turned a
+         non-member into a member, so being somebody else was the only thing that changed the
+         outcome. There is now something — naming a café — and it is the PRIMARY one, so it is
+         checked first and Sign out becomes the escape hatch. Try again is still hidden for 185's
+         reason: it would ask the same question and get the same answer. */
+      await expect(page.locator('#bgCafeForm')).toBeVisible();
+      await expect(page.locator('#bgCafeNote')).toBeVisible();
       await expect(page.locator('#bootGateOut')).toBeVisible();
       await expect(page.locator('#bootGateRetry')).toBeHidden();
+
+      /* ⚠️ AND THE PRIMARY BUTTON GETS THE SAME ON-SCREEN CHECK the Sign out button gets below,
+         because it is now LAST in flow and therefore the part that goes off the bottom first. The
+         old test measured the last control on the screen; after this batch that is a different
+         element, so measuring the old one would quietly stop covering the case it was written for.
+         A `max-width` box centred in a fixed overlay is exactly the shape that overflows a short
+         viewport once the copy grows. */
+      const cbox = await page.locator('#bgCafeBtn').boundingBox();
+      expect(cbox).not.toBeNull();
+      expect(cbox.y).toBeGreaterThanOrEqual(0);
+      expect(cbox.y + cbox.height).toBeLessThanOrEqual(h);
+      expect(cbox.height).toBeGreaterThanOrEqual(40);
 
       /* The message and the button must both be ON SCREEN — not merely in the DOM. A `max-width`
          box centred in a fixed overlay is exactly the shape that overflows a short viewport once
@@ -102,14 +121,14 @@ test('a re-sync whose tenant lookup fails does NOT reopen the silent empty app',
   await page.goto('/');
 
   await expect(page.locator('#bootGate')).toBeVisible();
-  await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+  await expect(page.locator('#bootGateMsg')).toContainText('isn’t part of a café');
 
   // The blip: the browser comes back online, the app re-syncs, and this time the tenant lookup fails.
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForTimeout(600);
 
   await expect(page.locator('#bootGate')).toBeVisible();
-  await expect(page.locator('#bootGateMsg')).toContainText('isn’t linked to a café');
+  await expect(page.locator('#bootGateMsg')).toContainText('isn’t part of a café');
   await expect(page.locator('#bootGateOut')).toBeVisible();
   // and the app underneath must not have been repainted as an empty café
   const counts = await page.evaluate(() => ({
