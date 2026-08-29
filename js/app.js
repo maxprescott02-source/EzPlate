@@ -2983,7 +2983,7 @@ function saveCurrentPlate(asNew){
   if(!asNew && loadedPlateId){ sp=savedPlates.find(function(s){return s.id===loadedPlateId;}); if(sp){ sp.name=name; sp.lines=lines; if(cat!==null) sp.category=(cat||null); } else loadedPlateId=null; }
   if(asNew || !loadedPlateId){ var id=uid('SP'); sp={id:id,name:name,lines:lines,category:(cat||null)}; savedPlates.push(sp); loadedPlateId=id; }
   var _isNew=(_costBefore==null);
-  var _write=dbPushPlate(sp); clearPlateDraft(); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();   // v82 D1: a saved plate is no longer a draft
+  var _write=dbPushPlate(sp); updateEditTag(); toast(asNew?'Saved as a new plate':'Plate saved'); renderAnalysis(); if(typeof renderPlatesTab==='function') renderPlatesTab();
   /* F7 (v146) — "Saved just now" waits for the SERVER, and for the plate to still BE what was
      pushed. pushWrite resolves to the result or to {error} and never to null (CLAUDE.md Tier 2),
      so `!r || !r.error` is the ok test and an offline drop lands in the else branch, where
@@ -2994,10 +2994,28 @@ function saveCurrentPlate(asNew){
      the push, not the moment of the answer.
      The rest of this function stays optimistic on purpose - the library, the Menu tab and the log
      all repaint immediately - because it is only the WORDING that must wait. */
+  /* ⚠️ AND THE DRAFT IS DESTROYED ON THE SAME ANSWER, FOR THE SAME REASON. `clearPlateDraft()` stood
+     on the dispatch line above, so the recovery draft was deleted SYNCHRONOUSLY whether or not the
+     write landed. Offline that is silent loss of authored work: pushWrite honestly toasts "it has NOT
+     been saved" and this badge correctly stays down, but `cafeDB_plateDraft` was already gone and the
+     new lines existed only in `savedPlates` in memory. Background the app, iOS discards the tab,
+     bootstrapSync replaces `savedPlates` from the server, and the edit is gone with nothing to resume
+     — and THIS APP'S USER GOES A WEEK BETWEEN USES, so the toast is long past.
+     `authSwitchUser` already argues that the draft is "unsaved authored work … destroying it is data
+     loss, not tidying, and the app never does that silently anywhere else". This was the place it did.
+     BOTH arms go through ONE function so the badge and the draft can never disagree about whether the
+     save succeeded — a second copy of the condition is a stub of this one, and would drift.
+     The `_builderEdits` guard earns its keep twice over here: if the user edited AFTER the push, the
+     draft holds work newer than what was sent, so not clearing it is correct rather than merely safe.
+     ⚠️ There is no race with the debounced draft writer. `clearPlateDraft` cancels `_draftT` before
+     removing the slot, so a save pending from before the push is cancelled; one that already fired is
+     removed. A save scheduled AFTER this point can only come from an edit, which moves `_builderEdits`
+     and stops us clearing at all. */
   var _editsAtPush=_builderEdits;
+  function _plateLanded(){ setBuilderSaved(true); clearPlateDraft(); }
   if(_write && typeof _write.then==='function'){
-    _write.then(function(r){ if((!r || !r.error) && _builderEdits===_editsAtPush) setBuilderSaved(true); });
-  } else if(_builderEdits===_editsAtPush){ setBuilderSaved(true); }
+    _write.then(function(r){ if((!r || !r.error) && _builderEdits===_editsAtPush) _plateLanded(); });
+  } else if(_builderEdits===_editsAtPush){ _plateLanded(); }
   syncBuilderPlateActions();                                         // a saved plate can now be duplicated and deleted
   renderBuilderCost(costFromLines(sp.lines));                        // the Publishing card becomes usable the moment the plate has an id
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
@@ -7086,7 +7104,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v180';
+var APP_VERSION='v181';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

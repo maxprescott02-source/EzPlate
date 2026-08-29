@@ -241,6 +241,18 @@ Filed 24 Aug 2026 by batch 202, which added ten targets and watched the number m
 The obvious lever is that the gate re-runs a target's whole declared test-file set for every single mutant, so a target with four declared files pays four times over. Nothing here needs it yet — write it down, watch the number in each 0c batch, and act if a CI job starts approaching its bound.
 ⚠️ **Its predecessor entry claimed "low tens of seconds" and had never been timed.** Whatever replaces this one should carry a measurement and the date it was taken, or it will rot the same way.
 
+### Bring `saveCurrentPlate` under the mutation gate
+
+**Measured 29 Aug 2026, batch 221 (queue item 8), which added it as a target, read the result and took it back out.**
+`saveCurrentPlate` is **not** a mutation target, and it is *"THE ONE PLACE A PLATE'S RECIPE CHANGES"* by its own comment - a line added, removed, re-portioned or re-pointed, a rename, a recategorisation, all of it arrives there and nowhere else.
+
+**The numbers, so nobody has to re-derive them:** listed against `plate-draft-save.test.js` + `change-log.test.js` it leaves **17 survivors**; widening to six files (adding `plate-draft.test.js`, `builder-page.test.js`, `builder-nomatch.test.js`, `plates-independence.test.js`) leaves **12**. They cluster on the name/quantity validation, the `asNew || !loadedPlateId` branch, and the change-log "before" figures - none of which any current test can distinguish from broken.
+
+**Why it was taken back out rather than shipped with allowances:** they are genuine coverage gaps, not equivalent mutants, so the honest close is twelve assertions and that is a batch, not a ride-along on an item about one line. This is the `gemApplyReadings` precedent exactly - filed here, promoted to `docs/QUEUE.md` when someone picks it up, shipped as its own batch (206).
+⚠️ **Do NOT add the target without doing the work.** A target with twelve written allowances is worse than no target: it reads as covered.
+
+**What 221 DID pin, so this entry is not mistaken for total silence:** `tests/plate-draft-save.test.js` executes the real function and pins the draft-versus-write contract, proved by reverting the fix and watching three of its five tests go red.
+
 ### An eval harness for the invoice reader
 The invoice path is the app's highest-stakes surface and its only AI one, and **there is no way to tell whether a parser or prompt change made it better or worse.** `tests/invoice-gate.test.js` and `tests/inv-gemini-merge.test.js` pin specific decisions on hand-written inputs; neither measures accuracy over a corpus. So every change to `resolveMatchedPrice`, the taught-pack precedence or the Gemini prompt is judged by whether the unit tests still pass and whether one invoice looked right.
 Requirements: a set of real invoices with expected line/price/pack outcomes, and a score comparable across two commits. It must run **offline against stored model responses** — re-calling Gemini per run would make the score non-deterministic and cost money.
