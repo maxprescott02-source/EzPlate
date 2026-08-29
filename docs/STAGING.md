@@ -1,15 +1,9 @@
 # Staging
 
-> ✅ **THE STAGING PROJECT IS BACK UP (Max, 29 Aug 2026), AND IT CAME BACK BLANK.**
-> DNS resolves and the database answers. **Measured the same minute, through the MCP: `public_tables` = 0, `auth.users` = 0.** The `public` schema exists and is empty.
+> ✅ **STAGING IS BACK AND USABLE (Max, 29 Aug 2026). Measured, not assumed.**
+> 14 public tables, 9 functions, 4 accounts, 2 businesses, 3 memberships. **All four accounts are intact and correct** — `a@` owner of `…0001`, `b@` owner of `…00b2`, `d@` staff of `…0001`, and `c@` still **a member of nothing**, which is the one this project cannot regenerate casually and the only way to reproduce 185's silent-empty-app case. All four are confirmed and each still has its `provider='email'` identity row, so sign-in works and step 5 can run.
 >
-> ⚠️ **So "staging is back" is NOT "staging is ready", and the difference is a real piece of work.** Everything the project held is gone: the mirrored schema, whichever seed was loaded, the second tenant, and **the four hand-made accounts**. The **Current state** section below describes the scale seed and four accounts and is therefore **STALE UNTIL SOMEONE REBUILDS IT** — do not plan a rehearsal off it.
->
-> **Rebuilding is documented and is nobody's decision — it is steps 2 and 3 plus the account recipe.** `01-schema.sql` is idempotent and recreates the schema; a seed reloads the data. **The accounts are the part a seed does NOT restore**, because they are hand-made `auth.users` + `auth.identities` rows and live in no seed file — the recipe and the two GoTrue traps are written out under **Current state**.
->
-> ⚠️ **The accounts are not optional for the work that is queued.** Step 5 verifies AS THE CLIENT, and the multi-tenant items need the second tenant, the staff account and `c@example.com`, *"a member of nothing"* — the only way this project can reproduce 185's silent-empty-app case. **Rebuild them before claiming a migration was rehearsed.**
->
-> **Update this block when the rebuild lands** — say what seed and which accounts, and refresh **Current state** in the same edit rather than leaving two descriptions of one database.
+> ⚠️ **A FIRST READ THE SAME HOUR RETURNED `public_tables` = 0 AND `auth.users` = 0, AND THAT MEASUREMENT WAS REAL** — the restore was evidently still in flight. It is recorded here rather than quietly dropped, because it is the more useful half of the lesson: **a staging project that answers is not necessarily a staging project that is ready, and the gap is invisible unless you count rows.** The instruction below to check DNS before trusting "it is back" is now not enough on its own. **Count tables AND `auth.users` before planning a rehearsal**, and re-count if the first answer looks like a fresh project.
 
 The second Supabase project, and the procedure that makes "rehearse before production" real.
 
@@ -174,7 +168,9 @@ Written down because a rehearsal you over-trust is worse than none.
 
 ## Current state
 
-Left on the **scale seed** (520 products, 12 menus, 180 plates, 429 dishes) — plus, since batch 182, **a second tenant and three accounts, which are worth keeping and are the reason this section is no longer just "which seed"**.
+**Measured 29 Aug 2026, after Max's restore:** 520 products, **1 menu**, 180 plates, **2 dishes**, 2 businesses, 3 memberships, 2862 `ing_price_history` rows, 134 `menu_change_log` rows, 10 `app_settings`.
+⚠️ **The products and plates are the scale seed's; the MENUS and DISHES are not.** This section read *"scale seed (520 products, 12 menus, 180 plates, 429 dishes)"* until the restore, and two of those four numbers are now wrong — menus came back as 1 and dishes as 2. **If a rehearsal needs a populated menu structure, reload a seed (`03`/`04`) rather than trusting this paragraph or the row counts you remember.**
+Plus, since batch 182, **a second tenant and four accounts, which are worth keeping and are the reason this section is no longer just "which seed"**.
 
 | | |
 |---|---|
