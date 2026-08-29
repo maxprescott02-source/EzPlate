@@ -145,33 +145,6 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## blocked  6 · The six empty states speak in two voices  **[B]**
-
-Blocked on: **Max choosing the voice.** It is user-visible copy, so it is his, and `docs/decisions/` carries the rendered options.
-
-**What is left of the onboarding item after batch 214**, which shipped the other half (the Menu screen no longer offers "Existing plate" before there is a plate to add).
-
-⚠️ **190 measured every screen at genuine zero and found the empty-state system already built. 214 read the six TOGETHER, which is what the item actually asked for, and there is a real inconsistency.** Do not re-audit the system; the finding is below and it is the whole of what is left.
-
-**Two title grammars, and a new café meets them in this order:**
-
-| Screen | Title | Grammar |
-|---|---|---|
-| Products | "No products yet." | status |
-| Ingredients | "Name your first ingredient" | invitation |
-| Plates | "Cost your first plate" | invitation |
-| Menu, no menus | "No menus yet." | status |
-| Menu, empty menu | "Nothing on this menu yet." | status |
-| Dashboard, Dig in | "Nothing to rank yet." | status |
-
-So the walk through the app reads **report, invite, invite, report** — and the bodies and CTAs are all fine, it is only the titles that disagree.
-
-⚠️ **The split is NOT arbitrary, which is why this is a decision rather than a bug.** Five of the six fit a real rule: a screen where you create the thing yourself, with ONE obvious action, invites; a screen showing derived or dependent state reports. "Nothing on this menu yet." reports because its action lives on another screen; "Nothing to rank yet." reports because nothing is directly creatable there; Products reports and offers TWO actions (Import catalogue, New product), so there is no single verb to invite with.
-**The one that does not fit is "No menus yet.", which has exactly one action and still reports.** So the smallest honest change is one line, and the largest is a deliberate house style.
-
-**Requirements:** the six titles are one voice, or the rule that makes them differ is written down where the next person adding a screen will read it.
-**Out of scope:** the bodies and the CTA labels, which were read and are consistent. The four object nouns are fixed by `tests/terminology.test.js` and none of the options may invent a fifth.
-
 ## next  7 · Three insight families do not put their subject in `facts`  **[B]**
 
 Found by batch 215's second pre-push review, running the REAL insight builders rather than the batch's own fixtures.
