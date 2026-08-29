@@ -98,6 +98,7 @@ function harness(opts) {
     function updateTotals(){} function scheduleDraftSave(){} function parkRepointedProduct(){}
     function setBuilderSaved(){} function renderBuilderCost(){}   // F7 (v146): the builder page's own paint
     var _builderEdits=0;   // F7 (v146): the builder's edit counter — real state, the logic that moves it is extracted
+    var _platePushPending=0;   // 221: saveCurrentPlate keeps the recovery draft alive across the write
     function syncBuilderPlateActions(){}
     function saveKingWizSkips(){} function unitCatWord(){ return 'weight'; }
     function menuCats(){ return ['Mains']; } function setCurrentMenuId(id){ currentMenuId=id; }
@@ -121,6 +122,9 @@ function harness(opts) {
     ${[
       'rowToChange', 'changeToRow', 'nextChangeId', 'changeEntry', 'logChange', 'logChangeIfSaved',
       'menuIdOf', 'dishOnMenu',
+      // 221: saveCurrentPlate asks isBuilderDirty() whether the recovery draft still has anything to
+      // recover. Extracted with its two signature helpers rather than stubbed.
+      'lineSig', 'currentLinesSig', 'isBuilderDirty',
       'lineProduct', 'lineCost', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'unlinkedDishesOn', 'publishPlan', 'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'dbPushMenuAfterPlate',

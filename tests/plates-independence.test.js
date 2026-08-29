@@ -111,8 +111,13 @@ function makeSaveHarness(opts) {
        closing a modal. Both are pure UI paint — no contract this file pins goes through them. */
     function setBuilderSaved(){}
     var _builderEdits=0;   // F7 (v146): the builder's edit counter — real state, the logic that moves it is extracted
+    var _platePushPending=0;   // 221: saveCurrentPlate keeps the recovery draft alive across the write
     function syncBuilderPlateActions(){}
     function renderBuilderCost(){}
+    // 221: saveCurrentPlate asks isBuilderDirty() whether the recovery draft still has anything to recover
+    ${extractFn(SRC, 'lineSig')}
+    ${extractFn(SRC, 'currentLinesSig')}
+    ${extractFn(SRC, 'isBuilderDirty')}
     ${extractFn(SRC, 'saveCurrentPlate')}
     return function(){ var ok=saveCurrentPlate(false); return { ok:ok, savedPlates: savedPlates, calls:S.calls }; };
   `);

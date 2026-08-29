@@ -55,6 +55,11 @@ function savedState(opts) {
     function dbPushPlate(){ return S.resolve; }
     var _draftArmed=false, _draftT=null;
     var _builderEdits=0;   // F7 (v146): the builder's edit counter — real state, the logic that moves it is extracted
+    /* 221: saveCurrentPlate now also decides the DRAFT's fate, on a different question from the badge's.
+       Both dependencies are real state here rather than stubs — isBuilderDirty is EXTRACTED, because a
+       hand-rolled dirt check would agree with a broken one and these tests are about the badge, which
+       must keep answering to the counter while the draft answers to the dirt. */
+    var _platePushPending=0;
     /* 173: uid() is a shared dependency of every id-minting path below. Extracted, not stubbed:
        a hand-rolled counter here would agree with a broken generator and hide exactly the
        collision it exists to prevent (CLAUDE.md, "a stub that mirrors a real function must
@@ -68,6 +73,9 @@ function savedState(opts) {
     function savePlateDraft(){}
     ${extractFn(SRC, 'setBuilderSaved')}
     ${extractFn(SRC, 'scheduleDraftSave')}
+    ${extractFn(SRC, 'lineSig')}
+    ${extractFn(SRC, 'currentLinesSig')}
+    ${extractFn(SRC, 'isBuilderDirty')}
     ${extractFn(SRC, 'saveCurrentPlate')}
     return { save:function(){ return saveCurrentPlate(false); }, edit:function(){ scheduleDraftSave(); } };
   `);

@@ -2881,6 +2881,17 @@ function armDraftSaves(){ _draftArmed=true; }
    So the save captures this counter and refuses to claim success if it has moved. The counter is
    bumped by the one function every builder mutation already funnels through. */
 var _builderEdits=0;
+/* 221 — a plate write that has been SENT and not yet ANSWERED. Since 221 the recovery draft is kept
+   alive across that window (saveCurrentPlate), and while it is alive it is not abandoned work: it is
+   the safety copy of a save in progress. `unfinishedPlateWaiting` consults this, because the most
+   natural next action in the builder is Save then "+ New plate", and without it that meets "You were
+   building X. Resume it, or discard?" about the plate being saved at that very moment — whose
+   Discard would delete the only local copy of it and reinstate the exact defect 221 fixed, by a
+   different door. Found by the pre-push review.
+   It is a COUNT rather than a flag because two saves can be in flight, and it is decremented on
+   EVERY settle path including the rejection arm: leaking it would suppress the prompt for the rest
+   of the session, which is a silent loss of the guard rather than of data. */
+var _platePushPending=0;
 /* debounced: builder mutations funnel through renderPlate/updateTotals.
    This is also the one place that knows "the builder just changed", so it is where "Saved just
    now" is retracted. Leaving it up after an edit would be the same lie as showing it before the
@@ -3012,10 +3023,30 @@ function saveCurrentPlate(asNew){
      removed. A save scheduled AFTER this point can only come from an edit, which moves `_builderEdits`
      and stops us clearing at all. */
   var _editsAtPush=_builderEdits;
-  function _plateLanded(){ setBuilderSaved(true); clearPlateDraft(); }
+  _platePushPending++;
+  function _plateLanded(ok){
+    _platePushPending--;
+    if(!ok) return;                                                  // rejected or {error}: the draft is the only copy, so it stays
+    if(_builderEdits===_editsAtPush) setBuilderSaved(true);
+    /* ⚠️ THE DRAFT ASKS `isBuilderDirty()`, NOT THE EDIT COUNTER, AND THE TWO ARE DIFFERENT QUESTIONS.
+       The first draft of this fix gated both on `_builderEdits`, which was wrong the moment it
+       decided something durable: `scheduleDraftSave` bumps that counter, `renderPlate` calls it on
+       its FIRST LINE, and renderPlate is called from flows with nothing to do with this plate — a
+       product re-priced on the Products tab, an invoice applied, and bootstrapSync's own repaint,
+       which needs no user action at all. Any of those landing inside the write's round trip left the
+       draft behind for a plate that saved perfectly, and the next builder entry then offered to
+       resume it. The counter is honest about what it measures (the builder repainted) and that is
+       simply not the question here. Caught by the pre-push review.
+       `isBuilderDirty()` IS the question — does what is on screen still differ from what is saved —
+       and it is the same call `savePlateDraft` already makes to decide whether a draft should exist
+       at all. One function answers it for both, so the writer and the clearer cannot disagree about
+       whether there is anything worth keeping. The badge keeps the counter: it is claiming something
+       about the PUSH, which is what that counter was built for. */
+    if(!isBuilderDirty()) clearPlateDraft();
+  }
   if(_write && typeof _write.then==='function'){
-    _write.then(function(r){ if((!r || !r.error) && _builderEdits===_editsAtPush) _plateLanded(); });
-  } else if(_builderEdits===_editsAtPush){ _plateLanded(); }
+    _write.then(function(r){ _plateLanded(!r || !r.error); }, function(){ _plateLanded(false); });
+  } else { _plateLanded(true); }
   syncBuilderPlateActions();                                         // a saved plate can now be duplicated and deleted
   renderBuilderCost(costFromLines(sp.lines));                        // the Publishing card becomes usable the moment the plate has an id
   logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
@@ -9012,7 +9043,9 @@ function syncBuilderPlateActions(){
    other two builder entries this way (requestLoadPlate / requestLoadMenuItem, via isBuilderDirty);
    these two simply never got it. Same Resume/Discard choice as the boot offer, so the question reads
    the same wherever it's asked, and a stray dismiss does nothing. */
-function unfinishedPlateWaiting(){ return isBuilderDirty() || draftHasContent(readPlateDraft()); }   // this session, or a draft whose boot offer was dismissed
+// this session, or a draft whose boot offer was dismissed — but NOT the safety copy of a save that is
+// still in flight (see _platePushPending). A dirty builder is still unfinished work either way.
+function unfinishedPlateWaiting(){ return isBuilderDirty() || (!_platePushPending && draftHasContent(readPlateDraft())); }
 function unfinishedPlateLabel(){
   var el=document.getElementById('plateName'), nm=(el?el.value:'')||'';
   if(!nm.trim()){ var d=readPlateDraft(); nm=(d&&d.name)||''; }

@@ -36,12 +36,12 @@ function harness() {
     var localStorage={ getItem:function(k){ return (k in store)?store[k]:null; },
                        setItem:function(k,v){ store[k]=String(v); },
                        removeItem:function(k){ delete store[k]; } };
-    var _draftT=null, _builderEdits=0, _draftArmed=true;
+    var _draftT=null, _builderEdits=0, _draftArmed=true, _platePushPending=0;
     var plate=[], savedPlates=[], loadedPlateId=null;
-    var _name='Barra Basket';
+    var _name='Barra Basket', _cat='';
 
-    function el(id){ return { value:(id==='plateName'?_name:''), style:{}, textContent:'',
-                              focus:function(){}, querySelectorAll:function(){ return []; } }; }
+    function el(id){ return { value:(id==='plateName'?_name:(id==='plateCat'?_cat:'')), style:{},
+                              textContent:'', focus:function(){}, querySelectorAll:function(){ return []; } }; }
     var document={ getElementById:el, querySelector:function(){ return {focus:function(){}}; } };
 
     /* pushWrite's contract: always resolves, to the result or to {error}, never to null. */
@@ -59,15 +59,25 @@ function harness() {
     function syncBuilderPlateActions(){} function renderBuilderCost(){} function logHistory(){}
     function logChangeIfSaved(){}
 
-    ${extractFn(SRC, 'clearPlateDraft')}
-    ${extractFn(SRC, 'saveCurrentPlate')}
+    /* EXTRACTED, never hand-rolled: isBuilderDirty is now HALF of what decides the draft's fate, and
+       a stub of it would agree with a broken version. draftHasContent / readPlateDraft /
+       unfinishedPlateWaiting come along because the guard is what a leaked draft actually costs. */
+    ${['clearPlateDraft', 'readPlateDraft', 'draftHasContent', 'lineSig', 'currentLinesSig',
+       'isBuilderDirty', 'unfinishedPlateWaiting', 'saveCurrentPlate'].map((n) => extractFn(SRC, n)).join('\n')}
 
     return {
       save:function(asNew){ return saveCurrentPlate(!!asNew); },
       addLine:function(){ plate.push({uid:'u1', kid:'K1', qty:2}); },
       seedDraft:function(){ store[DRAFTKEY]=JSON.stringify({name:'Barra Basket', lines:[{kid:'K1',qty:2}]}); },
       draft:function(){ return store[DRAFTKEY]===undefined?null:store[DRAFTKEY]; },
-      edit:function(){ _builderEdits++; },
+      /* a REAL edit: it changes what is on screen, so isBuilderDirty() becomes true. */
+      edit:function(){ plate.push({uid:'u2', kid:'K2', qty:5}); _builderEdits++; },
+      /* a repaint from somewhere else in the app - a product re-priced, an invoice applied,
+         bootstrapSync's own pass. renderPlate() calls scheduleDraftSave() on its first line, which
+         bumps this counter, and NOTHING about this plate has changed. */
+      unrelatedRepaint:function(){ _builderEdits++; },
+      unfinishedPrompts:function(){ return unfinishedPlateWaiting(); },
+      dirty:function(){ return isBuilderDirty(); },
       /* the debounced writer, armed the way scheduleDraftSave arms it, so the RACE is testable:
          a draft save pending from before the push must not outlive the clear. */
       armPendingDraftSave:function(){ _draftT=setTimeout(function(){ S.draftWrites++;
@@ -134,4 +144,58 @@ test('item 8: a draft save pending from BEFORE the push does not outlive the cle
   api.save(false);
   await settle();
   assert.strictEqual(api.draft(), null, 'no resurrected draft for a plate that saved cleanly');
+});
+
+/* ============================================================================================
+ * THE PRE-PUSH REVIEW'S TWO, both defects in 221's OWN first draft rather than in the shipped app.
+ * The first draft gated the draft clear on `_builderEdits`, reusing the guard the "Saved just now"
+ * badge already used. That guard is honest about what it measures - the builder repainted - and that
+ * is not the question the draft is asking.
+ * ========================================================================================= */
+
+test('REVIEW 1: a repaint from ELSEWHERE in the app must not strand the draft of a plate that saved', { timeout: 5000 }, async () => {
+  /* `renderPlate()` calls `scheduleDraftSave()` on its first line and that bumps `_builderEdits`.
+     renderPlate is called by a product re-price on the Products tab, by an applied invoice, and by
+     bootstrapSync's own repaint - which needs no user action at all. Any of those landing inside the
+     write's round trip moved the counter, so the first draft of this fix left the draft behind for a
+     plate that had saved perfectly, and the next builder entry offered to resume it.
+     `isBuilderDirty()` cannot be fooled this way: nothing about the plate changed. */
+  const { S, api } = harness();
+  api.addLine(); api.seedDraft();
+  api.save(false);
+  api.unrelatedRepaint();
+  await settle();
+  assert.strictEqual(api.dirty(), false, 'the plate on screen still matches the one that was saved');
+  assert.strictEqual(api.draft(), null,
+    'so there is nothing to recover, and the draft must not survive a successful save');
+  assert.strictEqual(api.unfinishedPrompts(), false,
+    'and the next builder entry must NOT offer to resume a plate that is already saved');
+  assert.deepStrictEqual(S.badge, [], 'the BADGE still declines, which is what its counter is for');
+});
+
+test('REVIEW 2: while the write is in flight the draft is not offered as abandoned work', { timeout: 5000 }, async () => {
+  /* Save, then "+ New plate" is the most natural next action in this screen. The draft is deliberately
+     alive across the round trip now, so without `_platePushPending` the guard fires "You were building
+     X. Resume it, or discard?" about the plate being saved at that moment - and Discard runs
+     clearPlateDraft() on the only local copy, reinstating 221's own defect by a different door. */
+  const { api } = harness();
+  api.addLine(); api.seedDraft();
+  api.save(false);
+  assert.notStrictEqual(api.draft(), null, 'the draft IS still there, which is the whole point');
+  assert.strictEqual(api.unfinishedPrompts(), false,
+    'but it is a save in progress, not abandoned work, so nothing offers to discard it');
+  await settle();
+});
+
+test('REVIEW 2b: once a FAILED write settles, the draft is offered again', { timeout: 5000 }, async () => {
+  /* The counterweight, or the suppression above would be a new way to lose the prompt entirely.
+     The pending count must come back down on the failure path too. */
+  const h = harness(); h.S.fail = true;
+  h.api.addLine(); h.api.seedDraft();
+  h.api.save(false);
+  assert.strictEqual(h.api.unfinishedPrompts(), false, 'suppressed while in flight');
+  await settle();
+  assert.notStrictEqual(h.api.draft(), null, 'the write failed, so the draft is the only copy');
+  assert.strictEqual(h.api.unfinishedPrompts(), true,
+    'and it must be offered again the moment the answer is in — a leaked pending count would hide it forever');
 });

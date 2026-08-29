@@ -361,9 +361,22 @@ test('v85: the guard offers Resume/Discard and only the explicit Discard clears'
 });
 
 test('v85: the guard fires for this session OR a draft whose boot offer was dismissed', () => {
-  assert.match(extractFn(SRC, 'unfinishedPlateWaiting'),
-    /isBuilderDirty\(\) \|\| draftHasContent\(readPlateDraft\(\)\)/,
-    'in-memory dirt and a stored draft both count as work worth protecting');
+  /* ⚠️ 221 ADDED A THIRD TERM AND THIS ASSERTION IS DELIBERATELY REWRITTEN RATHER THAN LOOSENED.
+     `_platePushPending` suppresses the STORED-DRAFT half while a plate write is in flight, because
+     since 221 the draft is kept alive across the round trip and is then the safety copy of a save in
+     progress rather than abandoned work. Without it, Save followed by "+ New plate" — the most
+     natural pair of actions on this screen — asks "resume or discard?" about the plate being saved,
+     and Discard deletes the only local copy. Found by 221's pre-push review.
+     The IN-MEMORY half is deliberately NOT suppressed: a dirty builder is unfinished work whatever
+     the network is doing. Both halves are asserted, so relaxing either one is visible here.
+     ⚠️ This is a SOURCE match and therefore weak on its own (CLAUDE.md roster 167/195): what proves
+     the behaviour is `tests/plate-draft-save.test.js`, which runs the guard against a real in-flight
+     save on both the success and failure paths. */
+  const fn = extractFn(SRC, 'unfinishedPlateWaiting');
+  assert.match(fn, /isBuilderDirty\(\) \|\|/,
+    'in-memory dirt still counts as work worth protecting, whatever the network is doing');
+  assert.match(fn, /!_platePushPending && draftHasContent\(readPlateDraft\(\)\)/,
+    'a stored draft counts too — unless it is the safety copy of a write still in flight');
 });
 
 test('v85: resume prefers the still-loaded session state over re-reading storage', () => {
