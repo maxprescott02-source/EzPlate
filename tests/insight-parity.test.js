@@ -342,6 +342,40 @@ test('223: the trailing edge stays open, so an inflected name still counts as pr
   assert.deepStrictEqual(client.gemNameSequence('Tomato\u2019s cost is up 18%.', names), ['tomato']);
 });
 
+/* ⚠️ KNOWN GAP, PINNED RATHER THAN LEFT TO BE REDISCOVERED — the SECOND one in this file, and it
+   is a different mechanism from the inverted recommendation below.
+   A name is still matched when it is the PREFIX of a longer name: `Rice` is found in "Rice Noodles",
+   so a candidate can name a different real product that merely starts with the same word. Found by
+   223's pre-push review, which proposed closing the trailing edge as the fix.
+   ⚠️ THAT REMEDY IS WRONG AND THE ASSERTIONS BELOW ARE WHAT SAY SO, because a rule this file might
+   otherwise "restore" later costs a real class of good sentence: the character after "Rice" is a
+   SPACE, which satisfies a trailing boundary exactly as it satisfies a leading one — so a strict
+   trailing edge does not reject "Rice Noodles", and it DOES reject "Tomatoes". Both measured.
+   It also PRE-DATES 223: `insCostBase` has published a bare name since 220, and "Beef" -> "Beef
+   Mince" was accepted before any of this. A real fix needs the builders to publish WHERE the name
+   sits rather than only what it is, which is one item across all eight families.
+   These assert the CURRENT truth, so the day someone closes it this goes red and makes them come
+   here and update docs/MAINTENANCE.md, rather than the gap quietly changing status. */
+test('KNOWN GAP: a name that is a PREFIX of a longer name is accepted by both, and that is recorded not fixed', () => {
+  const tpl = 'Chowder swings 24–38% with Rice prices — your least predictable plate.';
+  const facts = { name: 'Chowder', loPct: 24, hiPct: 38, volatileIng: 'Rice' };
+  const names = ['Chowder', 'Rice'];
+  const longer = 'Chowder swings 24–38% with Rice Noodles prices — your least predictable plate.';
+  assert.ok(server.validatePhrasing(longer, [24, 38], tpl, names),
+    'if this went red the gap was closed — update docs/MAINTENANCE.md and this test');
+  assert.strictEqual(client.gemPhrasingOk(longer, facts, tpl), true,
+    'if this went red the gap was closed — update docs/MAINTENANCE.md and this test');
+
+  /* The half that makes the obvious remedy the wrong one, asserted so it is not re-argued: a
+     trailing boundary would not have caught the line above, because a space ends the match either
+     way — and it would throw away the inflected rewording that the open edge exists to keep. */
+  assert.deepStrictEqual(server.nameSequence(longer, names), ['chowder', 'rice'],
+    'the space after "Rice" is a boundary on BOTH edges, so no edge rule separates these two');
+  assert.ok(server.validatePhrasing('Tomatoes are up 18% across 5 plates.', [18, 5],
+    'Tomato, up 18% across 5 plates, is most of it.', ['Tomato']),
+    'and this is what a strict trailing edge would cost');
+});
+
 test('223: a name that OPENS with a non-word character carries its own boundary', () => {
   /* The rule is skipped when the name's first character is not a word character — "(Battered)" can
      never be preceded by a boundary of its own making, and demanding one would match nothing. */

@@ -767,6 +767,82 @@ The direction is the safe one — a reject falls back to the deterministic templ
 right subject — but it is still a reject, and the entry above is the argument for measuring rather
 than guessing which way it moved.
 
+⚠️ **AND 223 MOVED THE RATE IN BOTH DIRECTIONS AT ONCE, WHICH IS WHY IT IS RECORDED RATHER THAN
+ASSUMED TO BE NEUTRAL.** It made a name match only at a word boundary, and that:
+- **removes** a class of false reject — where a template contained a spurious substring hit (`Rice`
+  inside "prices"), a candidate that reworded that prose away DROPPED a name the template "used" and
+  was refused for it;
+- **adds** a stricter presence test — a name is now only present where it stands as its own word.
+It also gave `insVolatility` and `insNearCluster` a published subject, and **measured after the
+change, all EIGHT families publish at least one name**, so every one of them is now covered by
+`namesAllPresent`. (`insNearCluster` was the only family publishing NONE; `insVolatility` published
+the plate and not the ingredient the sentence blamed.)
+Nothing here is measured against real Gemini output, which is the whole point of the entry above.
+
+---
+
+## Two ways a name check can be satisfied by the wrong entity, neither fixed
+
+Found and left open by batch 223, which closed the neighbouring case and could not close this one.
+
+223 made `nameSequence` require a match to START at a word boundary, because a name matched INSIDE a
+longer word appears on both sides of the comparison and lets the real subject be swapped out
+unnoticed — an ingredient called `Rice` was being found inside the template's own word "prices".
+
+**That fixes the substring case and not the whole-word case.** A plate literally named **"Point"**,
+against `insNearCluster`'s "…sit within half a **point** of your 30% target", produces a template
+name sequence of `[point, cheeseburger, point]` — one real mention and one from the prose. A
+rewording that replaces the real "Point" with another plate still leaves the prose "point" standing,
+so `namesAllPresent` is satisfied and the swap is ACCEPTED. Measured on the real builder.
+
+⚠️ **It is not specific to the two families 223 touched** — `insCostBase` ships "across 5 **plates**"
+and would behave the same way for a plate named "Plates". The exposure is bounded by how odd the
+name has to be, which is why this is C: the collider must be an ordinary English word that already
+appears in that family's fixed prose.
+
+**Why it is not half-fixed on sight.** Distinguishing "the name the sentence is ABOUT" from "the same
+letters appearing in the boilerplate" needs the builder to publish WHERE the name sits, not just what
+it is — an offset or a marked slot in the template — which is a change to all eight families and to
+the shape of `facts`. That is a real piece of work, not a tightening, and it should be one item with
+its own measurement rather than a rider on someone else's.
+**Do not reach for a denylist of prose words.** `CLAUDE.md` roster entry 190: "not the wrong value"
+is a guess about every wrong value there could be, and the prose differs per family.
+
+**What holds meanwhile:** the deterministic template is always the fallback and always names the
+right subject, so the failure needs the model to produce a swap AND the café to have named a plate
+after a word in the boilerplate.
+
+### The second one, and it is the WIDER of the two: a name that is a PREFIX of a longer name
+
+Raised by 223's pre-push review. `Rice` is matched inside **"Rice Noodles"**, so a rephrasing can
+name a *different real product* that merely starts with the same word, and every figure, symbol and
+direction check passes. `Cream` → `Cream Cheese`, `Beef` → `Beef Mince`, `Tomato` → `Tomato Paste`
+are all the same shape, and they are ordinary compound names in a real supplier catalogue.
+
+⚠️ **It is wider than the boilerplate case above because it needs nothing unusual of the café** — no
+oddly-named plate, just a model that elaborates a product name. That is the reason to rank it first
+if these are ever worked.
+
+⚠️ **TWO CLAIMS THE REVIEW MADE ABOUT IT ARE WRONG, AND BOTH ARE RECORDED BECAUSE THEY POINT AT THE
+WRONG REMEDY**, which is the expensive kind of error to leave in a file people act on:
+
+- **It is NOT caused by 223's open trailing edge, and closing that edge does not fix it.** The
+  character after "Rice" is a **space**, which satisfies a trailing boundary exactly as it satisfies
+  a leading one. Measured: with a strict trailing edge, "Rice Noodles" is *still* matched — and
+  "Tomatoes" stops matching `Tomato`, so the only thing a strict edge buys is a class of false
+  reject. `tests/insight-parity.test.js` asserts both halves so this is not re-argued from scratch.
+- **It is NOT new in 223.** Measured on `main` before that branch: `insCostBase` has published a bare
+  name since 220, and "Beef" → "Beef Mince" was accepted then. It affects every family that
+  publishes a name, which is now all eight.
+
+**The real fix is the same one the boilerplate case needs** — the builders publishing WHERE a name
+sits rather than only what it is — which is why the two are filed together: one item, all eight
+families, its own measurement. Neither is worth a partial fix, and a denylist is not available here
+for the reason given above.
+
+**What holds meanwhile** is unchanged: the deterministic template is the fallback and names the right
+product, and the prompt already demands names be kept exactly.
+
 ---
 
 ## The insight validator cannot see an inverted RECOMMENDATION

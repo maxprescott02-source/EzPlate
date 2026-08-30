@@ -6516,8 +6516,10 @@ function gemFactNames(facts){
    INSIDE a longer word ("Rice" in the template's own "prices") appears on both sides of the
    comparison and satisfies the presence check, so the real subject can be swapped out unnoticed.
    The leading edge is required and the trailing edge deliberately is not — "tomatoes" must still
-   match `Tomato`. Change this and change the server copy in the same commit. */
-var GEM_NAME_WORD_CHAR=/[0-9a-z\u00c0-\u024f]/i;
+   match `Tomato`. That leaves `Rice` matching inside "Rice Noodles", which closing the trailing edge
+   would NOT fix (a space satisfies either edge) and which is filed in docs/MAINTENANCE.md; the
+   server copy has the measurement. Change this and change the server copy in the same commit. */
+var GEM_NAME_WORD_CHAR=/[0-9a-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f]/i;   // × and ÷ excluded: Latin-1 LETTERS only, see the server copy
 function gemStartsAtWordBoundary(low,at,ln){
   if(!GEM_NAME_WORD_CHAR.test(ln.charAt(0))) return true;
   return at===0 || !GEM_NAME_WORD_CHAR.test(low.charAt(at-1));

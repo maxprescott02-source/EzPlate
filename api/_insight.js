@@ -123,15 +123,26 @@ function factNames(facts) {
    warmer rewording legitimately writes "tomatoes" for an ingredient named `Tomato`, and requiring a
    trailing boundary would reject it — a FALSE REJECT, which is the failure mode with no symptom
    (docs/MAINTENANCE.md, "A REJECTED phrasing is not free"). English does not inflect at the FRONT,
-   so a leading boundary costs nothing and removes the whole substring class.
+   so a leading boundary removes the whole mid-word class at no cost to inflection.
+   ⚠️ A FIRST DRAFT OF THIS COMMENT SAID THE OPEN TRAILING EDGE "COSTS NOTHING", AND THE PRE-PUSH
+   REVIEW WAS RIGHT THAT IT DOES NOT. `Rice` is still matched inside "Rice Noodles", so a candidate
+   can name a DIFFERENT real product that merely starts with the same word. What the review had
+   backwards is the CAUSE, and it matters because it decides the remedy: closing the trailing edge
+   does NOT fix that — the character after "Rice" is a SPACE, which satisfies a trailing boundary
+   just as it satisfies a leading one — while it DOES reject "Tomatoes". Measured both ways.
+   So the prefix case is not a cost of this decision; it is a limit of matching a bag of names
+   against free text, it pre-dates this change (measured on `insCostBase` before it), and it is
+   filed with its sibling in docs/MAINTENANCE.md.
    The rule is skipped when the name itself begins with a non-word character ("(Battered)"), because
    such a name carries its own boundary and demanding a second one would never match.
-   Latin-1 and Latin Extended letters count as word characters: `Crème` must not be split.
+   Latin-1 and Latin Extended LETTERS count as word characters, so `Crème` is not split. The two
+   holes punched in that range are deliberate: U+00D7 (×) and U+00F7 (÷) sit inside the Latin-1
+   block and are MATH SYMBOLS rather than letters, so a name butted against one is at a boundary.
    ⚠️ WHAT THIS STILL DOES NOT CATCH, so nobody reads it as more than it is: a name IDENTICAL to a
    word in the template's own prose — a plate literally called "Point" against insNearCluster's
    "half a point of your". That is inherent to matching a bag of names against a sentence, it
    pre-dates this change, and it is filed in docs/MAINTENANCE.md rather than half-fixed here. */
-var NAME_WORD_CHAR = /[0-9a-z\u00c0-\u024f]/i;
+var NAME_WORD_CHAR = /[0-9a-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f]/i;
 function startsAtWordBoundary(low, at, ln) {
   if (!NAME_WORD_CHAR.test(ln.charAt(0))) return true;     // the name opens with its own boundary
   return at === 0 || !NAME_WORD_CHAR.test(low.charAt(at - 1));
