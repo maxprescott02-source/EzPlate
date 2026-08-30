@@ -5959,8 +5959,20 @@ function insVolatility(dishes){
     var lo=Math.round(d.costMin/d.menuPrice*100), hi=Math.round(d.costMax/d.menuPrice*100);
     var swing=hi-lo; if(swing<4 || swing<=bestSwing) return;
     bestSwing=swing;
+    /* 223: the VOLATILE INGREDIENT is published too, because the sentence names it and nothing
+       defended it — rewriting "cream" to "beef" kept every figure, symbol and direction, so the
+       owner was pointed at the wrong ingredient with the plate name still correct. Two names now.
+       ⚠️ PUBLISHED ONLY WHEN A REAL INGREDIENT IS KNOWN. The template falls back to the literal
+       'ingredient', and publishing THAT would require the ordinary English word "ingredient" to
+       survive every rewording of a sentence about ingredients — a false-reject generator, which is
+       the failure mode with no symptom (the deterministic template appears and the feature looks
+       like it is working). No name known → no key, and the line is as protected as it was before.
+       The key is `volatileIng`, mirroring the dish field it comes from, and deliberately NOT `ing`:
+       CLAUDE.md's naming inversion makes `ing*` mean SUPPLIER PRODUCT throughout this codebase. */
+    var vf={name:d.name, loPct:lo, hiPct:hi};
+    if(d.volatileIng) vf.volatileIng=d.volatileIng;
     best={kind:'volatility', dims:['distribution','comparison'], score:insightScore('volatility', 0.5+swing/24),
-      facts:{name:d.name, loPct:lo, hiPct:hi},
+      facts:vf,
       text:d.name+' swings '+lo+'–'+hi+'% with '+(d.volatileIng||'ingredient')+' prices — your least predictable plate.'};
   });
   return best?[best]:[];
@@ -6007,6 +6019,17 @@ function insNearCluster(dishes, targetFrac){
   else { lead=show.join(' and '); }
   var facts={count:n, targetPct:tp};
   if(extra!=null) facts.others=extra;
+  /* 223: publish the plate names the line PRINTS, so a rewording cannot send the owner to look at
+     two plates that are not the ones near target. Rewriting "Barra & Chips, Cheeseburger" to two
+     other plates kept every figure and symbol identical, and nothing rejected it.
+     ⚠️ EXACTLY THE NAMES IN `show`, AND NEVER MORE. The key count is CONDITIONAL — 0, 1 or 2
+     depending on the data — for the same reason `others` above is: a fact that is not in the
+     sentence must not be published. `namesAllPresent` requires every published name the TEMPLATE
+     uses to survive the rewording, so publishing a name from the counted remainder (which the
+     text does not print) would be inert here but is exactly the habit that breaks the next
+     family; and in the no-names case the lead is a bare count, so there is nothing to name. */
+  if(show[0]) facts.name=show[0];
+  if(show[1]) facts.name2=show[1];
   return [{kind:'nearcluster', dims:['aggregation','distribution'], score:insightScore('nearcluster', 0.7+n*0.1),
     facts:facts,
     text:lead+' sit within half a point of your '+tp+'% target.'}];
@@ -6489,6 +6512,16 @@ function gemFactNames(facts){
   var out=[]; for(var k in facts){ if(typeof facts[k]==='string' && facts[k].trim()) out.push(facts[k].trim()); }
   return out;
 }
+/* Mirrors startsAtWordBoundary in api/_insight.js, which carries the reasoning: a name matched
+   INSIDE a longer word ("Rice" in the template's own "prices") appears on both sides of the
+   comparison and satisfies the presence check, so the real subject can be swapped out unnoticed.
+   The leading edge is required and the trailing edge deliberately is not — "tomatoes" must still
+   match `Tomato`. Change this and change the server copy in the same commit. */
+var GEM_NAME_WORD_CHAR=/[0-9a-z\u00c0-\u024f]/i;
+function gemStartsAtWordBoundary(low,at,ln){
+  if(!GEM_NAME_WORD_CHAR.test(ln.charAt(0))) return true;
+  return at===0 || !GEM_NAME_WORD_CHAR.test(low.charAt(at-1));
+}
 function gemNameSequence(t, names){
   var low=String(t==null?'':t).toLowerCase();
   var sorted=(names||[]).map(String).filter(function(n){ return n.trim(); })
@@ -6499,7 +6532,7 @@ function gemNameSequence(t, names){
     while((at=low.indexOf(ln,i))>=0){
       var end=at+ln.length;
       var clash=taken.some(function(r){ return at<r.e && end>r.s; });
-      if(!clash){ taken.push({s:at,e:end}); hits.push({pos:at, name:ln}); }
+      if(!clash && gemStartsAtWordBoundary(low,at,ln)){ taken.push({s:at,e:end}); hits.push({pos:at, name:ln}); }
       i=end;
     }
   });
@@ -7218,7 +7251,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v182';
+var APP_VERSION='v183';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

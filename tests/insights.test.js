@@ -187,6 +187,31 @@ test('F4: no logged range, or a swing under 4 pts, says nothing', () => {
   assert.deepEqual(insVolatility([dish('A', 5, 15, { hasRange: true, costMin: 4.9, costMax: 5.1 })]), []);
 });
 
+/* ⚠️ 223 — THE ENTRY GUARD AND THE TIE-BREAK, PINNED BECAUSE THE MUTATION GATE ASKED AND NOTHING
+   ANSWERED. This family was listed as a target for the first time in 223 (its `facts` gained the
+   volatile ingredient, and a mutant that drops a facts key leaves every validator test green), and
+   four mutants in its first two lines survived the whole suite. None of them is new code: they had
+   simply never been asked, which is this repo's stated reason for the target list existing at all.
+   The costs below are what the guard is FOR — an uncosted or unpriced plate divides into a band of
+   Infinity, and the family would name it as the least predictable plate on the menu. */
+test('F4: a plate with no cost, or no price, is not the widest swinger — it is not a swinger at all', () => {
+  const band = { hasRange: true, costMin: 3.9, costMax: 5.7 };
+  assert.deepEqual(insVolatility([dish('Barra & Chips', 0, 15, band)]), [],
+    'no cost: the band is real but there is nothing to express it as a share of');
+  assert.deepEqual(insVolatility([dish('Barra & Chips', 5, 0, band)]), [],
+    'no price: dividing by it gives an Infinity band and a NaN swing, which passes both thresholds');
+});
+
+test('F4: on a TIE the first plate keeps the title, so the line does not flicker between equals', () => {
+  /* `swing<=bestSwing` returns on an equal swing; `swing<bestSwing` would let every later equal
+     plate take the title. Two plates with identical bands is not a contrived case — a café with two
+     variants of one dish has exactly this — and the whole difference is which name the owner reads. */
+  const band = { hasRange: true, costMin: 3.9, costMax: 5.7, volatileIng: 'cream' };
+  const [c] = insVolatility([dish('Alpha', 5, 15, band), dish('Beta', 5, 15, band)]);
+  assert.equal(c.facts.name, 'Alpha', 'the first of two equal swings holds it');
+  assert.ok(c.text.startsWith('Alpha swings'));
+});
+
 /* ================================================================ F5 — long-standing problem */
 
 const LS = { name: 'Barra & Chips', months: 4, sinceLabel: 'April', priceHeld: false };
@@ -264,6 +289,34 @@ test('F6: framed as an opportunity, never as a deficit, and with no trailing fil
 
 test('F6: one plate near target is not a cluster', () => {
   assert.deepEqual(insNearCluster([dish('A', 4.5, 15), dish('B', 7, 15)], 0.3), []);
+});
+
+/* ⚠️ 223 — THE WINDOW EDGE AND THE ENTRY GUARD, for the reason given at F4 above: this family became
+   a mutation target in 223 and three mutants in its first two lines had never been asked anything.
+   ⚠️ THE TARGET IS 0 HERE AND THAT IS NOT LAZINESS — it is the only place the edge is REACHABLE.
+   `Math.abs(cost/price - target)*100` can equal exactly 0.5 only when the subtraction is exact, and
+   a percentage target is not a dyadic rational: at a 30% target the nearest a cent-grid plate gets
+   is 0.5000000000000004, which `<=` and `<` both reject, so the two operators cannot be told apart
+   there at all. This is the same floating-point trap `tests/insight-parity.test.js` records at the
+   NUM_EPS boundary, where the "obvious" pair (20, 20.005) could not distinguish the operators and
+   (0, 0.005) could. Pick the pair where the arithmetic is exact, or the test is decoration. */
+test('F6: half a point is INCLUSIVE — a plate exactly on the edge is in the cluster', () => {
+  const onEdge = [dish('Barra & Chips', 0.01, 2), dish('Cheeseburger', 0.01, 2)];
+  assert.equal(Math.abs(0.01 / 2 - 0) * 100, 0.5, 'the fixture really does sit exactly on the edge');
+  const [c] = insNearCluster(onEdge, 0);
+  assert.ok(c, 'exactly half a point away is WITHIN half a point');
+  assert.equal(c.facts.count, 2);
+});
+
+test('F6: an UNCOSTED plate never joins the cluster, however close the target is to zero', () => {
+  /* The arithmetic hides this guard at every realistic target — an uncosted plate reads as 0% food
+     cost, which is nowhere near 30% — so the only place it is observable is where the guard would
+     actually be load-bearing: a target low enough that "no cost at all" would qualify. Without it a
+     plate the app cannot cost is reported as one of the plates sitting closest to target. */
+  const c = insNearCluster(
+    [dish('Barra & Chips', 0.01, 2), dish('Cheeseburger', 0.01, 2), dish('Uncosted', 0, 15)], 0);
+  assert.equal(c[0].facts.count, 2, 'the uncosted plate is not counted');
+  assert.ok(!c[0].text.includes('Uncosted'), 'and it is not named');
 });
 
 /* ================================================================ F7 — supplier concentration

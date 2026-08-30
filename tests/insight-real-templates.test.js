@@ -42,6 +42,10 @@ function build() {
   out.concentration = X.insConcentration(
     { name: 'Fresh Co', plates: 11, total: 14, suppliers: 3, coverage: 0.8, ptsPer10: 1.4 })[0];
   out.anomaly = X.insPriceAnomaly({ name: 'Saffron', unit: 'kg', top: 55.2, next: 13.1, count: 9 })[0];
+  out.volatility = X.insVolatility(
+    [{ name: 'Barra & Chips', cost: 5, menuPrice: 15, hasRange: true, costMin: 3.9, costMax: 5.7, volatileIng: 'cream' }])[0];
+  out.nearcluster = X.insNearCluster(
+    [{ name: 'Barra & Chips', cost: 4.5, menuPrice: 15 }, { name: 'Cheeseburger', cost: 4.52, menuPrice: 15 }], 0.3)[0];
   return out;
 }
 
@@ -139,18 +143,33 @@ test('REAL insLongStanding: a faithful rewording of it still passes', () => {
  * looks like it is working while never working).
  * ========================================================================================= */
 
+/* ⚠️ THE ROW CARRIES THE WHOLE EXPECTED NAME LIST, NOT JUST THE SWAPPED ONE (223). It was
+   `[fn, key, subject, ...]` with a `deepStrictEqual(factNames, [subject])` baked in, which asserted
+   two different things in one breath: that the subject is published, AND that it is the ONLY name
+   the family publishes. True of the first three families and false of the two added here — the two
+   that name more than one entity are exactly the ones this table did not cover.
+   So `names` is the full published list in key order, and `subject` is the one the swap targets.
+   Listing the whole list is the stronger assertion anyway: it fails if a family quietly starts
+   publishing a name its text does not print, which would reject every rewording forever. */
 const SUBJECTS = [
-  ['insCostBase', 'costbase', 'Beef', 'Chicken', ['is most of it.', 'is the bulk of it.']],
-  ['insConcentration', 'concentration', 'Fresh Co', 'Harbour Meats', ['is in', 'features in']],
-  ['insPriceAnomaly', 'anomaly', 'Saffron', 'Cinnamon', ['worth checking', 'worth a check']],
+  ['insCostBase', 'costbase', ['Beef'], 'Beef', 'Chicken', ['is most of it.', 'is the bulk of it.']],
+  ['insConcentration', 'concentration', ['Fresh Co'], 'Fresh Co', 'Harbour Meats', ['is in', 'features in']],
+  ['insPriceAnomaly', 'anomaly', ['Saffron'], 'Saffron', 'Cinnamon', ['worth checking', 'worth a check']],
+  /* 223 — the two families the previous item's enumeration missed. insVolatility names the PLATE and
+     the volatile INGREDIENT and published only the plate, so "swings 24–38% with cream prices" could
+     be rewritten to blame beef. insNearCluster named up to two PLATES and published no name at all. */
+  ['insVolatility', 'volatility', ['Barra & Chips', 'cream'], 'cream', 'beef', ['swings', 'moves']],
+  ['insNearCluster', 'nearcluster', ['Barra & Chips', 'Cheeseburger'], 'Cheeseburger', 'Toastie',
+    ['of your 30% target', 'of the 30% target']],
 ];
 
-for (const [fn, key, subject, impostor, [from, to]] of SUBJECTS) {
+for (const [fn, key, names, subject, impostor, [from, to]] of SUBJECTS) {
   test(`REAL ${fn}: its subject is in FACTS, not only in the text`, () => {
     const ins = build()[key];
-    assert.deepStrictEqual(I.factNames(ins.facts), [subject],
+    assert.deepStrictEqual(I.factNames(ins.facts), names,
       'the subject must be published, or the name check has nothing to sequence');
-    assert.ok(ins.text.includes(subject), 'and the text really does name it');
+    assert.ok(names.includes(subject), 'the swapped name is one of the published ones');
+    names.forEach((n) => assert.ok(ins.text.includes(n), `and the text really does name ${n}`));
   });
 
   test(`REAL ${fn}: swapping the subject for another is REFUSED`, () => {
@@ -174,6 +193,80 @@ for (const [fn, key, subject, impostor, [from, to]] of SUBJECTS) {
       'presence must not be satisfiable by rejecting every rewording');
   });
 }
+
+/* ============================================================================================
+ * 223 — THE CONDITIONAL HALF. Both families added above publish a name only SOMETIMES, and each
+ * "sometimes" is a decision with a cost on the other side, so each gets its own assertion.
+ * ========================================================================================= */
+
+test('REAL insVolatility: with NO ingredient known, the literal fallback is NOT published as a name', () => {
+  /* The template falls back to the bare word "ingredient". Publishing that would require the
+     ordinary English word "ingredient" to survive every rewording of a sentence ABOUT ingredients —
+     a false-reject generator, and a false reject has no symptom: the deterministic template appears
+     and the feature looks like it is working. So: no name known, no key. */
+  const ins = X.insVolatility(
+    [{ name: 'Barra & Chips', cost: 5, menuPrice: 15, hasRange: true, costMin: 3.9, costMax: 5.7 }])[0];
+  assert.ok(ins.text.includes('with ingredient prices'), 'the fallback really is the bare literal');
+  assert.deepStrictEqual(I.factNames(ins.facts), ['Barra & Chips'],
+    'only the plate is published — "ingredient" must not become a required name');
+  const ok = ins.text.replace('with ingredient prices', 'on ingredient cost');
+  assert.notStrictEqual(ok, ins.text);
+  assert.ok(I.validatePhrasing(ok, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)),
+    'a rewording that moves the fallback word must still pass');
+});
+
+test('REAL insNearCluster: the published names are exactly the ones the sentence PRINTS', () => {
+  /* The lead shows at most two names and counts the rest. A name from the counted remainder must
+     never be published: `namesAllPresent` requires every published name the TEMPLATE uses to
+     survive, and a name the template never printed cannot survive anything. */
+  const d = (name, cost) => ({ name: name, cost: cost, menuPrice: 15 });
+  const ins = X.insNearCluster(
+    [d('Barra & Chips', 4.5), d('Cheeseburger', 4.52), d('Toastie', 4.5), d('Wrap', 4.51)], 0.3)[0];
+  assert.ok(ins.text.includes('and 2 others'), 'this really is the remainder shape');
+  assert.deepStrictEqual(I.factNames(ins.facts), ['Barra & Chips', 'Cheeseburger'],
+    'the two shown names, and not the two counted ones');
+  assert.strictEqual(ins.facts.others, 2, 'the remainder is still a figure, as it always was');
+  for (const hidden of ['Toastie', 'Wrap']) {
+    assert.ok(!ins.text.includes(hidden), `${hidden} is counted, not printed`);
+    assert.ok(!I.factNames(ins.facts).includes(hidden), `so ${hidden} must not be published either`);
+  }
+});
+
+test('REAL insNearCluster: ONE name publishes one key, and NO names publishes none', () => {
+  const one = X.insNearCluster(
+    [{ name: 'Barra & Chips', cost: 4.5, menuPrice: 15 }, { name: '', cost: 4.52, menuPrice: 15 }], 0.3)[0];
+  assert.ok(one.text.startsWith('Barra & Chips and 1 other'), 'the one-name lead shape');
+  assert.deepStrictEqual(I.factNames(one.facts), ['Barra & Chips']);
+
+  /* The no-name case is not hypothetical padding: the lead falls back to a bare count ("2 plates"),
+     and there is then genuinely nothing to name. A key here would be a name absent from the text. */
+  const none = X.insNearCluster(
+    [{ name: '', cost: 4.5, menuPrice: 15 }, { name: '', cost: 4.52, menuPrice: 15 }], 0.3)[0];
+  assert.ok(none.text.startsWith('2 plates'), 'the counted-lead shape');
+  assert.deepStrictEqual(I.factNames(none.facts), [], 'no name in the sentence, no name in facts');
+});
+
+test('REAL insVolatility: an ingredient named inside the template prose is still defended', () => {
+  /* THE CASE THAT MAKES THE FACTS KEY WORTH ANYTHING, and it is why 223 is not a one-line change.
+     This template contains "prices" and "swings". Before the word-boundary rule, an ingredient
+     named `Rice` was found inside p|rice|s and `Wings` inside s|wings — in the template's OWN prose —
+     so the spurious hit sat on both sides of the comparison, presence was satisfied by it, and the
+     swap was ACCEPTED with the key published. Measured, on two ordinary café ingredients. */
+  for (const [ing, impostor] of [['Rice', 'Beef'], ['Wings', 'Beef']]) {
+    const ins = X.insVolatility(
+      [{ name: 'Barra & Chips', cost: 5, menuPrice: 15, hasRange: true, costMin: 3.9, costMax: 5.7, volatileIng: ing }])[0];
+    assert.ok(ins.text.includes(' ' + ing + ' prices'), `${ing} really is in the sentence`);
+    assert.deepStrictEqual(I.nameSequence(ins.text, I.factNames(ins.facts)), ['barra & chips', ing.toLowerCase()],
+      `${ing} must be found ONCE, not again inside a longer word`);
+    const swapped = ins.text.replace(' ' + ing + ' prices', ' ' + impostor + ' prices');
+    assert.notStrictEqual(swapped, ins.text);
+    assert.deepStrictEqual(I.numberSkeleton(swapped), I.numberSkeleton(ins.text),
+      'every figure and symbol is unchanged — the subject is the only signal left');
+    assert.strictEqual(
+      I.validatePhrasing(swapped, I.factNumbers(ins.facts), ins.text, I.factNames(ins.facts)), null,
+      `if this goes green the owner is sent after ${impostor} when ${ing} is what moved`);
+  }
+});
 
 /* The two-name family, kept as the case that DID work and therefore hid the one above: here the swap
    is caught by ORDER, with presence satisfied on both sides, so the two rules are visibly different
