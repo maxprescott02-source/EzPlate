@@ -70,7 +70,11 @@ function harness(opts) {
     /* 193: the plural boundary, because setProducts is the implementation now and calls this. It
        records one write per product exactly as the singular stub did, so every assertion below still
        counts what it counted. */
-    function dbPushIngredients(ids){ (ids||[]).forEach(function(id){ S.writes.push('ingredient:'+id); }); return res('ingredient'); }
+    /* 224: it resolves the "saved" manifest the real one does, because setProducts' price-log gate
+       reads that rather than the error. A stub without it condemns every write as unsaved, which is
+       silently the opposite of what this file is asserting about. */
+    function dbPushIngredients(ids){ (ids||[]).forEach(function(id){ S.writes.push('ingredient:'+id); });
+      return res('ingredient').then(function(r){ return Object.assign({}, r, {saved:(r&&r.error)?[]:(ids||[]).slice()}); }); }
     function dbPushChange(e){ S.pushed.push(changeToRow(e));
       return Promise.resolve(S.fail.changelog ? {error:{message:'42501'}} : {ok:true})
         .then(function(r){ if(!r || r.error) changeLogSupported=false; return r; }); }
@@ -135,7 +139,12 @@ function harness(opts) {
       // 188: deletePlate and doDeleteEverything open with a role guard now. EXTRACTED, not stubbed.
       'isOwner', 'ownerOnly',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
-      'setProducts', 'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog', 'confirmGuardedRepoints', 'kingRepointGuard',
+      'setProducts', 'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog',
+      // 224: the price log's flush is gated on the product write, exactly as logChangeIfSaved gates
+      // this one. Extracted rather than stubbed — the census below asserts these paths never name
+      // the change log, and a stub could not tell you whether the real ones do.
+      'confirmedPrice', 'confirmPrices', 'unlogIngPrices', 'writeSaved',
+      'confirmGuardedRepoints', 'kingRepointGuard',
       'mergeChangeLog', 'linkDishToPlate', 'deleteKitchenIngredient', 'saveKingModal',
       'kingValid', 'kingRenameCheck', 'kingNameExists', 'nextKid',
       // READ, never edited — CLAUDE.md hard rule 2 forbids changing unitCatCategory, not slicing it in.
@@ -143,7 +152,7 @@ function harness(opts) {
     ].map((n) => extractFn(SRC, n)).join('\n')}
 
     var CHANGE_KINDS=${JSON.stringify(kindsFromSource())};
-    var ingPriceLog={}, _ingLogPending=[], productsById=byId, DASH_ALL='__all__', cogsPct=30;
+    var ingPriceLog={}, _ingLogPending=[], _priceSeen={}, _priceSeq=0, productsById=byId, DASH_ALL='__all__', cogsPct=30;
     rebuildMenu(); rebuildKById();
     return {
       changeLog:function(){ return changeLog; },
