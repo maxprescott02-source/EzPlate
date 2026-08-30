@@ -8204,6 +8204,13 @@ function buildBackup(){
          GROUP NAMES ARE THE SNAKE_CASE OF THE MEMORY NAME, as `ing_price_log` already is — this is
          the FILE format, whose keys name what is in memory, not the WIRE format, whose keys name
          tables. backupToPayload is where those two vocabularies meet, and it is the only place. */
+      /* 224 — NO BUMP, AND THIS NOTE IS THE RULE BEING HONOURED RATHER THAN SKIPPED. That batch gated
+         `ing_price_log`'s writes on the product write landing and rolls a refused point back out of
+         memory, so what this file CONTAINS can differ from what it would have contained before. The
+         SHAPE does not: no group added, removed or renamed, no key removed or retyped, still
+         `{pid:[{t,v}]}`, and bootstrapSync's read of it is untouched. The number declares what the
+         payload contains, not which build wrote it — and a file written either side of 224 restores
+         into a build from either side of it identically. */
       format:4,                                                       // shape of this file, not the app
       app_version:APP_VERSION
     },

@@ -71,16 +71,6 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
-
-`setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.
-
-Café phone, one bar, invoice import: the product upsert times out, the smaller history insert lands. `pushWrite` honestly toasts the product failure. Next boot, the product's price comes back correct from the server — and `ingPriceLog` also comes back from the server carrying **a point for a price that was never stored.**
-
-That phantom point is then read by `ingPriceBand` (the builder's "recent range" and the Menu cost band), `ingLastMovePct` (the Ingredients drift chip), and `ingPriceAt`/`costAtLines`, which is what the Dashboard's *"N pts higher than at June prices"* sentence is built from. All of them describe a movement that did not happen. **The change log applies exactly this discipline for interventions via `logChangeIfSaved`; the price log does not.**
-
-Requirements: the price point is written only if the write that carries it succeeded, or is reconciled on the next boot.
-
 ---
 
 # Multi-tenant phase — the [A] items above are its gates
