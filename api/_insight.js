@@ -112,6 +112,41 @@ function factNames(facts) {
    the sequence say what it means: which entity is mentioned, in what order.
    `indexOf`, never a regex — a section named "Fish (Battered)" is a legal name and an illegal
    pattern, and building a regex out of user data would throw on it. */
+/* ⚠️ A MATCH MUST START AT A WORD BOUNDARY, AND THE TRAILING EDGE MUST NOT (batch 223, measured).
+   `indexOf` alone matches a name inside a longer word, and `insVolatility`'s own template contains
+   the words "prices" and "swings". An ingredient named `Rice` is therefore found inside p|rice|s and
+   one named `Wings` inside s|wings — IN THE TEMPLATE'S OWN PROSE — so the spurious hit appears on
+   both sides of the comparison, `namesAllPresent` is satisfied by it, and swapping the real
+   ingredient for another is ACCEPTED with every figure, symbol and direction intact. Both measured
+   before the fix; both are ordinary café ingredients.
+   THE ASYMMETRY IS THE POINT AND IS NOT AN OVERSIGHT: English inflects at the END of a word, so a
+   warmer rewording legitimately writes "tomatoes" for an ingredient named `Tomato`, and requiring a
+   trailing boundary would reject it — a FALSE REJECT, which is the failure mode with no symptom
+   (docs/MAINTENANCE.md, "A REJECTED phrasing is not free"). English does not inflect at the FRONT,
+   so a leading boundary removes the whole mid-word class at no cost to inflection.
+   ⚠️ A FIRST DRAFT OF THIS COMMENT SAID THE OPEN TRAILING EDGE "COSTS NOTHING", AND THE PRE-PUSH
+   REVIEW WAS RIGHT THAT IT DOES NOT. `Rice` is still matched inside "Rice Noodles", so a candidate
+   can name a DIFFERENT real product that merely starts with the same word. What the review had
+   backwards is the CAUSE, and it matters because it decides the remedy: closing the trailing edge
+   does NOT fix that — the character after "Rice" is a SPACE, which satisfies a trailing boundary
+   just as it satisfies a leading one — while it DOES reject "Tomatoes". Measured both ways.
+   So the prefix case is not a cost of this decision; it is a limit of matching a bag of names
+   against free text, it pre-dates this change (measured on `insCostBase` before it), and it is
+   filed with its sibling in docs/MAINTENANCE.md.
+   The rule is skipped when the name itself begins with a non-word character ("(Battered)"), because
+   such a name carries its own boundary and demanding a second one would never match.
+   Latin-1 and Latin Extended LETTERS count as word characters, so `Crème` is not split. The two
+   holes punched in that range are deliberate: U+00D7 (×) and U+00F7 (÷) sit inside the Latin-1
+   block and are MATH SYMBOLS rather than letters, so a name butted against one is at a boundary.
+   ⚠️ WHAT THIS STILL DOES NOT CATCH, so nobody reads it as more than it is: a name IDENTICAL to a
+   word in the template's own prose — a plate literally called "Point" against insNearCluster's
+   "half a point of your". That is inherent to matching a bag of names against a sentence, it
+   pre-dates this change, and it is filed in docs/MAINTENANCE.md rather than half-fixed here. */
+var NAME_WORD_CHAR = /[0-9a-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f]/i;
+function startsAtWordBoundary(low, at, ln) {
+  if (!NAME_WORD_CHAR.test(ln.charAt(0))) return true;     // the name opens with its own boundary
+  return at === 0 || !NAME_WORD_CHAR.test(low.charAt(at - 1));
+}
 function nameSequence(t, names) {
   var low = String(t == null ? '' : t).toLowerCase();
   var sorted = (names || []).map(String).filter(function (n) { return n.trim(); })
@@ -122,7 +157,7 @@ function nameSequence(t, names) {
     while ((at = low.indexOf(ln, i)) >= 0) {
       var end = at + ln.length;
       var clash = taken.some(function (r) { return at < r.e && end > r.s; });
-      if (!clash) { taken.push({ s: at, e: end }); hits.push({ pos: at, name: ln }); }
+      if (!clash && startsAtWordBoundary(low, at, ln)) { taken.push({ s: at, e: end }); hits.push({ pos: at, name: ln }); }
       i = end;
     }
   });

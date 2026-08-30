@@ -71,25 +71,6 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
 
-## next  7 · Two more insight families name a subject that is not in `facts`  **[B]**
-
-Found by batch 220 while closing the previous item 7, which named THREE families. It named three because the pre-push review that found them demonstrated three; the enumeration was never checked. **There are five, and the other two are the same defect with the same cost.** (`CLAUDE.md` Tier 3: *"If a brief's list looks complete, check it anyway."*)
-
-| Family | `facts` | what the text names and nothing defends |
-|---|---|---|
-| `insVolatility` | `{name, loPct, hiPct}` | the **volatile INGREDIENT** — "swings 24–38% with **cream** prices". The PLATE is published; the ingredient driving it is not. |
-| `insNearCluster` | `{count, targetPct, others}` | up to **two PLATE names** — "Barra & Chips, Cheeseburger and 1 other sit within…". No name at all is published. |
-
-**Measured 29 Aug 2026, against the real builders and the shipped validator:** rewriting "cream" to "beef", and "Barra & Chips, Cheeseburger" to two other plates, are both still **ACCEPTED** — every figure, symbol and direction identical. The owner is pointed at the wrong ingredient, or told to go and look at two plates that are not the ones near target.
-
-**What is already built and is why this is small:** 220 shipped `namesAllPresent` / `gemNamesAllPresent`, so a subject published in `facts` is now *required* to survive a rephrasing. These two families simply do not publish one. The mechanism is done; this is the data.
-
-**Requirements:** each names its subject in `facts`, and `tests/insight-real-templates.test.js`'s `SUBJECTS` table grows two rows (it is already a loop — a row is a family). One string key per subject and nothing else changes.
-⚠️ **Neither is a one-liner, and that is why 220 did not just do them** — each carries a real design question, and answering it is the work:
-- `insVolatility` falls back to the literal `'ingredient'` when `volatileIng` is absent. **Publishing that fallback as a name would require the word "ingredient" to survive every rewording**, which is a normal English word in a sentence about ingredients. Publish the key only when a real ingredient is known.
-- `insNearCluster` names **0, 1 or 2** plates depending on the data, and `lead` falls back to a bare count. So the key count is conditional — the `others` remainder is the precedent for a conditionally-present fact.
-⚠️ **Do NOT publish the UNIT anywhere while doing this.** 220 deliberately left `insPriceAnomaly`'s unit out of `facts`: every string in facts is matched against the text as a name, and `"ea"` sits inside `"dearest"` in that very template, so short unit strings generate spurious matches and reject good rewordings. The comment at that site says so.
-
 ## next  10 · A price point is logged even when the write carrying it was rejected  **[B]**
 
 `setProducts` (`js/app.js:1279-1299`) fires the `ingredients` upsert and the `ing_price_history` insert independently and gates neither on the other — `var write=dbPushIngredients(…)` is never awaited before `logIngPrice` and `saveIngLog()` run.

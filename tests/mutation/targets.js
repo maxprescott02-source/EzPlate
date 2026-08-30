@@ -110,6 +110,16 @@ const targets = [
      name walk a question. Both are listed now, not just the new one. */
   { fn: 'gemNamesAreSubsequence', tests: ['insight-parity.test.js'] },
   { fn: 'gemNamesAllPresent', tests: ['insight-parity.test.js'] },
+  /* 223 — the word-boundary rule, and the two BUILDERS whose facts it defends. The helper is listed
+     for the same reason 220 listed the name walk: it is the only thing standing between an
+     ingredient named `Rice` and a swap hidden inside the template's own word "prices", and a
+     function that is not a target has never been asked the question.
+     The builders are listed because this item's defect was in the DATA, not the validator — a
+     mutant that drops a facts key leaves every validator test green and re-opens the hole, which is
+     exactly the shape 220's item proposed and measuring refused. */
+  { fn: 'gemStartsAtWordBoundary', tests: ['insight-parity.test.js'] },
+  { fn: 'insVolatility', tests: ['insight-real-templates.test.js', 'insights.test.js'] },
+  { fn: 'insNearCluster', tests: ['insight-real-templates.test.js', 'insights.test.js'] },
 
   // ── The invoice referee. A late Gemini answer must not be merged over a ruling the user made. ──
   { fn: 'invConfirmState', tests: ['invoice-gate.test.js'] },
@@ -434,6 +444,26 @@ const allowedSurvivors = [
       + '(console present, console absent): the two operators agree on both. '
       + 'The `||` on the same line is a DIFFERENT mutant and is killed — inv-referee.test.js asserts the '
       + 'diagnostic names the row, which is what that operand decides.',
+  },
+  /* 223 — insNearCluster's PRICE guard, the one mutant of the eight that its first mutation run
+     produced which no honest assertion can kill. The other seven are killed in insights.test.js;
+     this one is allowed because it is equivalent, and the proof is arithmetic rather than an
+     argument about likelihood. Contrast it with the COST guard on the same line, which IS killed:
+     the two halves of one condition, one observable and one not, decided entirely by what the
+     divisor does. */
+  {
+    key: 'insNearCluster :: if(!(d.cost>0)||!(d.menuPrice>0)) return; :: relational >>>= #1',
+    reason: 'EQUIVALENT. The mutant newly admits exactly one value — menuPrice === 0 — because every other '
+      + 'value answers `>` and `>=` alike, and a negative price answers both false. The FIRST clause is '
+      + 'unmutated, so any plate reaching the divide has cost > 0, and `cost/0` is therefore +Infinity for '
+      + 'every such plate. The window is `Math.abs(ratio - targetFrac)*100 <= 0.5`, and Infinity minus any '
+      + 'finite target is Infinity, so the plate is never counted and never named — the two versions produce '
+      + 'the same `n`, the same `named`, and the same sentence. PROVED by RUNNING it over the cross product '
+      + 'of five costs spanning 0.0001 to 999999 and six targets from 0 to 1: zero cases counted. '
+      + 'THE CONDITION THAT EXPIRES THIS: it holds only while the first clause guarantees a positive cost '
+      + 'and the window compares against a FINITE target. If either changes — a target that can be Infinity '
+      + 'or NaN, or a cost guard that admits zero — delete this allowance and re-run, because Infinity would '
+      + 'then be comparable and the mutant becomes observable.',
   },
   /* 220 — gemNamesAreSubsequence, listed as a target for the first time. ONE allowed, and it is worth
      contrasting with its SIBLING: the identical mutation in gemSkeletonIsSubsequence is KILLED, because

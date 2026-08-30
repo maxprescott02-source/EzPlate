@@ -826,6 +826,15 @@ That has happened twice and both were worth acting on.
 The finding and the explanation are separate claims - disprove the explanation and you have disproved nothing.
 **Go and look at what it was pointing at.**
 
+⚠️ **AND THE SAME SPLIT APPLIES TO THE REMEDY, WHICH IS THE HALF THIS RULE DID NOT COVER** (batch 223).
+A finding carries up to THREE claims - the defect, the mechanism, and the fix it implies - and they fail independently.
+The rule above stops you under-reacting by dismissing a real defect; nothing stopped you OVER-reacting by applying a fix the finding reasoned its way to.
+**Measured instance:** the review correctly found that a name is matched inside a longer one (`Rice` inside "Rice Noodles", so a rephrasing can blame a different product), and attributed it to a deliberately open trailing word boundary.
+Closing that boundary **fixes nothing** - the character after `Rice` is a SPACE, which satisfies a trailing edge exactly as it satisfies a leading one - and it **rejects "Tomatoes" for an ingredient named `Tomato`**, which is a false reject, the failure mode with no symptom.
+So the honest outcome was: defect real and recorded, mechanism wrong, remedy actively harmful, and the overclaiming comment the finding also caught fixed on the spot.
+**Run the finding's own repro, then run its FIX, before you apply it.** A fix that is reasoned rather than measured is exactly the input this repo has found wrong most often, and a review is not exempt from that just because it is right about the bug.
+**And when you decline the remedy, PIN why** - `tests/insight-parity.test.js` asserts the two facts that rule it out, so the next reader cannot re-derive the wrong answer from the same finding.
+
 Every finding gets a decision Max can see: fixed, or explained as intentional, or noted as considered and skipped.
 **Silence is not a pass.** Neither review overrides this file's rules or the tests.
 

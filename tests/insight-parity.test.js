@@ -39,6 +39,8 @@ const client = new Function(`
   ${extractFn(src, 'gemNumberSkeleton')}
   ${extractFn(src, 'gemSkeletonIsSubsequence')}
   ${extractFn(src, 'gemFactNames')}
+  ${extractVar(src, 'GEM_NAME_WORD_CHAR')}
+  ${extractFn(src, 'gemStartsAtWordBoundary')}
   ${extractFn(src, 'gemNameSequence')}
   ${extractFn(src, 'gemNamesAreSubsequence')}
   ${extractFn(src, 'gemNamesAllPresent')}
@@ -287,6 +289,105 @@ test('nested section names are counted once, at their longest match', () => {
   assert.strictEqual(client.gemPhrasingOk(legit, facts, tpl), true);
   assert.strictEqual(server.validatePhrasing(swapped, [20, 35], tpl, names), null, 'the swap is still caught');
   assert.strictEqual(client.gemPhrasingOk(swapped, facts, tpl), false);
+});
+
+/* ============================================================================================
+ * 223 — A MATCH MUST START AT A WORD BOUNDARY, AND MUST NOT HAVE TO END AT ONE.
+ *
+ * This is not a tidy-up. `indexOf` alone finds a name INSIDE a longer word, and `insVolatility`'s
+ * shipping template contains the words "prices" and "swings" — so an ingredient named `Rice` is
+ * found inside p|rice|s and one named `Wings` inside s|wings, IN THE TEMPLATE'S OWN PROSE. The
+ * spurious hit then appears on BOTH sides of the comparison, `namesAllPresent` is satisfied by it,
+ * and swapping the real ingredient for another is ACCEPTED with every figure, symbol and direction
+ * intact. Measured before the fix, on two ordinary café ingredients.
+ * ⚠️ THE TRAILING EDGE IS DELIBERATELY LEFT OPEN and the pair below is why: English inflects at the
+ * END of a word, so a warmer rewording writes "tomatoes" for an ingredient named `Tomato`, and
+ * requiring a trailing boundary would REJECT it. A false reject has no symptom — the deterministic
+ * template appears and the feature looks like it is working (docs/MAINTENANCE.md, "A REJECTED
+ * phrasing is not free"). English does not inflect at the front, so the leading edge costs nothing.
+ * The two tests are a matched pair on purpose: one proves the substring is refused, the other proves
+ * the rule is not satisfiable by refusing everything.
+ * ========================================================================================= */
+test('223: a name is NOT matched inside a longer word, so the template\'s own prose cannot shield a swap', () => {
+  const tpl = 'Chowder swings 24–38% with Rice prices — your least predictable plate.';
+  const names = ['Chowder', 'Rice'];
+  // the spurious hit is the whole mechanism: assert it is GONE, not merely that the verdict changed
+  assert.deepStrictEqual(server.nameSequence(tpl, names), ['chowder', 'rice'],
+    '"rice" inside "prices" must not be a second hit');
+  assert.deepStrictEqual(client.gemNameSequence(tpl, names), server.nameSequence(tpl, names));
+  assert.deepStrictEqual(server.nameSequence('Chowder swings 24–38% with Wings prices.', ['Chowder', 'Wings']),
+    ['chowder', 'wings'], '"wings" inside "swings" must not be a second hit either');
+
+  const facts = { name: 'Chowder', loPct: 24, hiPct: 38, volatileIng: 'Rice' };
+  const swapped = 'Chowder swings 24–38% with Beef prices — your least predictable plate.';
+  assert.deepStrictEqual(server.numberSkeleton(swapped), server.numberSkeleton(tpl),
+    'every figure and symbol is unchanged — the subject is the only signal left');
+  assert.strictEqual(server.validatePhrasing(swapped, [24, 38], tpl, names), null,
+    'if this goes green the owner is pointed at an ingredient that is not the volatile one');
+  assert.strictEqual(client.gemPhrasingOk(swapped, facts, tpl), false);
+});
+
+test('223: the trailing edge stays open, so an inflected name still counts as present', () => {
+  const tpl = 'Tomato, up 18% across 5 plates, is most of it.';
+  const names = ['Tomato'];
+  const facts = { name: 'Tomato', pts: 18, plates: 5 };
+  const inflected = 'Tomatoes are up 18% across 5 plates.';
+  assert.deepStrictEqual(server.nameSequence(inflected, names), ['tomato'],
+    'a plural must still find the name, or every such rewording is thrown away');
+  assert.deepStrictEqual(client.gemNameSequence(inflected, names), server.nameSequence(inflected, names));
+  assert.ok(server.validatePhrasing(inflected, [18, 5], tpl, names));
+  assert.strictEqual(client.gemPhrasingOk(inflected, facts, tpl), true);
+  // a possessive is the same shape and is the form the app's own copy uses
+  assert.deepStrictEqual(server.nameSequence('Tomato\u2019s cost is up 18%.', names), ['tomato']);
+  assert.deepStrictEqual(client.gemNameSequence('Tomato\u2019s cost is up 18%.', names), ['tomato']);
+});
+
+/* ⚠️ KNOWN GAP, PINNED RATHER THAN LEFT TO BE REDISCOVERED — the SECOND one in this file, and it
+   is a different mechanism from the inverted recommendation below.
+   A name is still matched when it is the PREFIX of a longer name: `Rice` is found in "Rice Noodles",
+   so a candidate can name a different real product that merely starts with the same word. Found by
+   223's pre-push review, which proposed closing the trailing edge as the fix.
+   ⚠️ THAT REMEDY IS WRONG AND THE ASSERTIONS BELOW ARE WHAT SAY SO, because a rule this file might
+   otherwise "restore" later costs a real class of good sentence: the character after "Rice" is a
+   SPACE, which satisfies a trailing boundary exactly as it satisfies a leading one — so a strict
+   trailing edge does not reject "Rice Noodles", and it DOES reject "Tomatoes". Both measured.
+   It also PRE-DATES 223: `insCostBase` has published a bare name since 220, and "Beef" -> "Beef
+   Mince" was accepted before any of this. A real fix needs the builders to publish WHERE the name
+   sits rather than only what it is, which is one item across all eight families.
+   These assert the CURRENT truth, so the day someone closes it this goes red and makes them come
+   here and update docs/MAINTENANCE.md, rather than the gap quietly changing status. */
+test('KNOWN GAP: a name that is a PREFIX of a longer name is accepted by both, and that is recorded not fixed', () => {
+  const tpl = 'Chowder swings 24–38% with Rice prices — your least predictable plate.';
+  const facts = { name: 'Chowder', loPct: 24, hiPct: 38, volatileIng: 'Rice' };
+  const names = ['Chowder', 'Rice'];
+  const longer = 'Chowder swings 24–38% with Rice Noodles prices — your least predictable plate.';
+  assert.ok(server.validatePhrasing(longer, [24, 38], tpl, names),
+    'if this went red the gap was closed — update docs/MAINTENANCE.md and this test');
+  assert.strictEqual(client.gemPhrasingOk(longer, facts, tpl), true,
+    'if this went red the gap was closed — update docs/MAINTENANCE.md and this test');
+
+  /* The half that makes the obvious remedy the wrong one, asserted so it is not re-argued: a
+     trailing boundary would not have caught the line above, because a space ends the match either
+     way — and it would throw away the inflected rewording that the open edge exists to keep. */
+  assert.deepStrictEqual(server.nameSequence(longer, names), ['chowder', 'rice'],
+    'the space after "Rice" is a boundary on BOTH edges, so no edge rule separates these two');
+  assert.ok(server.validatePhrasing('Tomatoes are up 18% across 5 plates.', [18, 5],
+    'Tomato, up 18% across 5 plates, is most of it.', ['Tomato']),
+    'and this is what a strict trailing edge would cost');
+});
+
+test('223: a name that OPENS with a non-word character carries its own boundary', () => {
+  /* The rule is skipped when the name's first character is not a word character — "(Battered)" can
+     never be preceded by a boundary of its own making, and demanding one would match nothing. */
+  assert.deepStrictEqual(server.nameSequence('Fish (Battered) is 20%', ['(Battered)']), ['(battered)']);
+  assert.deepStrictEqual(client.gemNameSequence('Fish (Battered) is 20%', ['(Battered)']), ['(battered)']);
+  // and an accented letter is a word character, so a name is not split at one
+  assert.deepStrictEqual(server.nameSequence('Cr\u00e8mefra\u00eeche is 20%', ['Fra\u00eeche']), [],
+    'a name buried after an accented letter is NOT a match');
+  assert.deepStrictEqual(client.gemNameSequence('Cr\u00e8mefra\u00eeche is 20%', ['Fra\u00eeche']),
+    server.nameSequence('Cr\u00e8mefra\u00eeche is 20%', ['Fra\u00eeche']));
+  assert.deepStrictEqual(server.nameSequence('Cr\u00e8me Fra\u00eeche is 20%', ['Fra\u00eeche']), ['fra\u00eeche'],
+    'and IS one when the boundary is real');
 });
 
 test('a name that is not a valid regex is matched literally, not compiled', () => {
