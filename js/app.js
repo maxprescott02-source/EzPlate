@@ -465,19 +465,35 @@ function rowsToSeries(rows, valueCol, keyCol){
    the import (which updates rather than duplicates, by construction), whereas firing all of them and
    reporting the last error would leave nobody able to say what landed.
    RETURNS the write, per CLAUDE.md — a helper that swallows its promise cannot be sequenced, and the
-   importer genuinely needs to know whether the catalogue reached the server before it says so. */
+   importer genuinely needs to know whether the catalogue reached the server before it says so.
+   ⚠️ 224 — AND IT RESOLVES WITH A `saved` MANIFEST, BECAUSE A CHUNKED WRITE HAS NO SINGLE VERDICT.
+   The fold below stops at the first failing chunk, so a refusal means "the chunks before this one
+   LANDED and the rest were never sent" — and the single error it resolves with cannot say which.
+   That was harmless while callers only asked "did it all save"; it stops being harmless the moment
+   anything acts per PRODUCT on the answer, which the price-log gate does. Without the manifest a
+   412-row import whose second chunk blips deletes the first 200 products' real price history, for
+   prices the server genuinely stored. `saved` names the ids that reached the server, and it is
+   present on every exit, including the refusal. Found by the pre-push review, reproduced. */
 var ING_PUSH_CHUNK=200;
 function dbPushIngredients(ids){
   var rows=(ids||[]).map(function(id){ return byId[id]; }).filter(Boolean).map(ingredientToRow);
-  if(!rows.length) return Promise.resolve({data:[], error:null});
+  if(!rows.length) return Promise.resolve({data:[], error:null, saved:[]});
   var chunks=[]; for(var i=0;i<rows.length;i+=ING_PUSH_CHUNK) chunks.push(rows.slice(i,i+ING_PUSH_CHUNK));
   var label=(rows.length===1?'ingredient':'products');
+  var saved=[];
   return chunks.reduce(function(prev, chunk){
     return prev.then(function(res){
       if(res && res.error) return res;                              // stop at the first failure; do not pile more toasts on
-      return pushWrite(function(){ return SUPA.from('ingredients').upsert(chunk); }, label);
+      return pushWrite(function(){ return SUPA.from('ingredients').upsert(chunk); }, label).then(function(r){
+        if(!(r && r.error)) chunk.forEach(function(row){ saved.push(row.id); });
+        return r;
+      });
     });
-  }, Promise.resolve({data:[], error:null}));
+  }, Promise.resolve({data:[], error:null})).then(function(res){
+    // A COPY rather than a field grafted onto the settled result: pushWrite hands back what the
+    // client returned, and nothing downstream should find one of ours attached to that object.
+    return {data:(res?res.data:null), error:(res?res.error:null), saved:saved};
+  });
 }
 function dbPushIngredient(id){ return dbPushIngredients([id]); }
 // v55: write plate_id (canonical) and MIRROR it to source_plate_id, so a device still running v54 keeps
@@ -1418,20 +1434,26 @@ function setProducts(entries){
     if(p.had==null || !samePrice(p.had, p.now)) logIngPrice(p.id, p.now);
   });
   /* 224 — THE FLUSH TAKES THE WRITE THAT CARRIES THE POINTS, and pushes them only if the server
-     accepted it. It used to fire independently of `write` and gate on nothing, so on a café phone
-     with one bar the product upsert could time out while the smaller history insert landed: pushWrite
-     honestly toasted the product failure, and the next boot read back a point for a price that was
-     never stored. ingPriceBand, ingLastMovePct and ingPriceAt — the builder's recent range, the
-     Ingredients drift chip and the Dashboard's "N pts higher than at June prices" — then all described
-     a movement that did not happen. This is the discipline logChangeIfSaved already applies to the
-     change log, arriving on the series it was measuring against.
+     accepted it. (No backticks in this comment: it is sliced into a template literal by the tests.)
+     It used to fire independently of the write and gate on nothing, so on a café phone with one bar
+     the product upsert could time out while the smaller history insert landed: pushWrite honestly
+     toasted the product failure, and the next boot read back a point for a price that was never
+     stored. ingPriceBand, ingLastMovePct and ingPriceAt — the builder's recent range, the Ingredients
+     drift chip and the Dashboard's "N pts higher than at June prices" — then all described a movement
+     that did not happen. This is the discipline logChangeIfSaved already applies to the change log,
+     arriving on the series it was measuring against.
      STILL UNCONDITIONAL, and for the reason the old comment gave: the empty-queue guard lives inside
      saveIngLog, and anything a previous caller left pending is flushed rather than stranded.
-     `confirmPrices` is the SECOND half of the same verdict and is deliberately a separate call — it
+     confirmPrices is the SECOND half of the same verdict and is deliberately a separate call — it
      answers "what does the server hold now", which is not the same question as "were the points
-     pushed", and it has to walk every id rather than only the priced ones. */
+     pushed", and it has to walk every id rather than only the priced ones.
+     BOTH read the write's "saved" manifest rather than its error, because a chunked write has no
+     single verdict, and confirmPrices is stamped so a LATE refusal cannot overwrite what a
+     later-issued write already confirmed. The stamp is taken here, at ISSUE time, which is the only
+     place that knows the order the writes were sent in. */
+  var seq=++_priceSeq;
   saveIngLog(write);
-  confirmPrices(write, entries, priced);
+  confirmPrices(write, entries, priced, seq);
   return write;                                       // unchanged: callers still await the PRODUCT write
 }
 function setProduct(id, patch){ return setProducts([{id:id, patch:patch}]); }
@@ -3670,33 +3692,53 @@ var _ingLogPending=[];                                              // points ad
    confirmed. Deliberately NOT persisted and deliberately not cleared at boot: a reload re-reads both
    the price and the log from the server, so a stale entry can only ever hold the value the server
    already has, and that re-read IS the reconciliation. */
-var _unconfirmedPrice={};
+var _priceSeen={};
+var _priceSeq=0;
+/* A null price means "the server holds whatever memory holds", which is the state a CONFIRM leaves
+   behind, so only a refusal ever puts a figure here to read. */
 function confirmedPrice(id){
-  if(Object.prototype.hasOwnProperty.call(_unconfirmedPrice, id)) return _unconfirmedPrice[id];
+  var s=_priceSeen[id];
+  if(s && s.price!=null) return s.price;
   return productsById[id]?productsById[id].cost_per_base_unit:undefined;
 }
-/* Kept in step with what the server has ACCEPTED, which is a different question from whether the
-   points were pushed — which is why it is its own function rather than folded into saveIngLog.
-   ⚠️ A CONFIRMED WRITE CONFIRMS THE PRICE WHETHER OR NOT ITS PATCH MENTIONED ONE. `dbPushIngredients`
-   upserts the WHOLE row through `ingredientToRow`, not the patch, so an invoice's pack teach landing
-   after that product's price write was refused stores the optimistic price anyway. Clearing only the
-   PRICED ids would leave a baseline claiming the server holds a figure it no longer does — so the
-   clear walks every id in the write and only the refusal arm cares which of them carried a price. */
-function confirmPrices(write, entries, priced){
-  var refuse=function(){
-    // The OLDEST refusal wins: it names the last price the server actually confirmed, and a second
-    // failed attempt must not overwrite it with the first attempt's optimistic value.
+/* ⚠️ ONE VERDICT PER PRODUCT, NOT PER CALL, AND JUDGED BY WRITE ORDER. Both halves came from the
+   pre-push review, which reproduced each against the real functions.
+   (No backticks in this comment: it is sliced into a template literal by the tests.)
+   PER PRODUCT, because dbPushIngredients CHUNKS: a refusal means the chunks before it landed, so a
+   verdict read off the single resolved error condemns products the server really stored. It reads
+   the saved manifest instead, which names them.
+   BY WRITE ORDER, because two writes for one product can be in flight at once — applyInvoice issues
+   a price write and a pack teach for the same row without awaiting either — and they need not settle
+   in the order they were sent. A late refusal of an EARLY write knows nothing a later confirmed one
+   has not already superseded, so seq is compared before anything is recorded: only a refusal newer
+   than the last thing learned about that product may name the server's price, and among refusals the
+   OLDEST wins, because its "had" is the one the server still holds.
+   A CONFIRMED WRITE CONFIRMS THE PRICE WHETHER OR NOT ITS PATCH MENTIONED ONE: dbPushIngredients
+   upserts the WHOLE row through ingredientToRow, so a pack teach landing after that product's price
+   write was refused stores the optimistic price anyway. That is why the confirm walks every SAVED id
+   and only the refusal arm cares which of them carried a price. */
+function confirmPrices(write, entries, priced, seq){
+  var settle=function(saved){
+    var ok={}; saved.forEach(function(id){ ok[id]=1; });
+    (entries||[]).forEach(function(e){
+      if(!ok[e.id]) return;
+      var s=_priceSeen[e.id];
+      if(!s || s.seq<=seq) _priceSeen[e.id]={seq:seq, price:null};
+    });
     (priced||[]).forEach(function(p){
-      if(!Object.prototype.hasOwnProperty.call(_unconfirmedPrice, p.id)) _unconfirmedPrice[p.id]=p.had;
+      if(ok[p.id]) return;                                          // this one landed; nothing to remember
+      var s=_priceSeen[p.id];
+      if(s && s.seq>seq) return;                                    // something newer already settled
+      if(s && s.price!=null && s.seq<=seq) return;                  // an older refusal already named it
+      _priceSeen[p.id]={seq:seq, price:p.had};
     });
   };
-  // `entries` is setProducts' own already-filtered list, so no null/id-less guard is repeated here —
-  // a second copy of that condition is a line no test can make fail, which the gate says out loud.
-  return Promise.resolve(write).then(function(r){
-    if(!r || r.error) return refuse();
-    (entries||[]).forEach(function(e){ delete _unconfirmedPrice[e.id]; });
-  }, refuse);
+  return Promise.resolve(write).then(function(r){ settle(writeSaved(r)); }, function(){ settle([]); });
 }
+/* The ids a write is known to have landed. A result carrying no manifest confirms NOTHING, because
+   dbPushIngredients attaches one on every exit it has, so its absence means the promise never
+   reached that function at all — the rejection arm, which is not evidence of a save. */
+function writeSaved(r){ return (r && Array.isArray(r.saved)) ? r.saved : []; }
 /* Undo a batch the server never got. logIngPrice writes in TWO places — the in-memory series and the
    pending queue — so gating the queue alone would leave the session showing a movement that was
    refused: ingLastMovePct (the Ingredients drift chip) and ingPriceBand read the series, not the
@@ -3724,10 +3766,14 @@ function unlogIngPrices(batch){
    test that only drives the common path never sees. */
 function saveIngLog(write){
   var batch=_ingLogPending; _ingLogPending=[];
-  return Promise.resolve(write).then(function(r){
-    if(!r || r.error) return unlogIngPrices(batch);
-    return batch.length ? dbPushIngPrices(batch) : {data:[], error:null};
-  }, function(){ return unlogIngPrices(batch); });
+  var settle=function(saved){
+    var ok={}; saved.forEach(function(id){ ok[id]=1; });
+    var keep=batch.filter(function(p){ return ok[p.pid]; });
+    unlogIngPrices(batch.filter(function(p){ return !ok[p.pid]; }));
+    return keep.length ? dbPushIngPrices(keep) : {data:[], error:null};
+  };
+  return Promise.resolve(write).then(function(r){ return settle(writeSaved(r)); },
+                                     function(){ return settle([]); });
 }
 var ING_LOG_CHUNK=200;
 function dbPushIngPrices(points){

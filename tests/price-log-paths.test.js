@@ -31,7 +31,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -53,14 +53,14 @@ function sandbox(seed) {
      here on purpose — supabase-js resolves with {error} rather than rejecting, so 'error' is the one
      a real timeout takes and 'throw' is the arm CLAUDE.md roster 184(a) is about: a promise has two
      settle paths and a test that only takes the common one has pinned half a contract. */
-  const ctl = { mode: 'ok', held: [] };
+  const ctl = { mode: 'ok', held: [], landed: null };
   // eslint-disable-next-line no-new-func
   const factory = new Function('SEED', 'PUSHED_P', 'PUSHED_H', 'CTL', `
     "use strict";
     var productsById = JSON.parse(JSON.stringify(SEED || {}));
     var ingPriceLog = {};
     var _ingLogPending = [];
-    var _unconfirmedPrice = {};
+    var _priceSeen = {};
     function saveProductCache(){}
     function rebuild(){}
     /* 193: the stubs moved DOWN to the plural boundary, because that is where the real chain now
@@ -68,14 +68,20 @@ function sandbox(seed) {
        would have left two functions nothing calls while the real writers ran for real. They flatten
        back to one entry per product and per point, so every assertion below still means exactly what
        it meant: this product was pushed, and this point was flushed rather than stranded. */
+    /* Stubbed at the NETWORK boundary and nowhere further in: it resolves the "saved" manifest the
+       real dbPushIngredients resolves, because that manifest is the whole subject of the gate. A
+       stub answering only with an error would have agreed with the gate about a question the real
+       chunked function cannot answer, which is CLAUDE.md's oldest defect class. CTL.landed, when
+       set, names the ids a PARTIAL write got through: what a failing second chunk looks like.
+       (No backticks in this comment - it sits inside a template literal.) */
     function dbPushIngredients(ids){
-      (ids||[]).forEach(function(id){ PUSHED_P.push(id); });
-      if(CTL.mode==='error') return Promise.resolve({error:{message:'timeout'}});
+      ids=(ids||[]); ids.forEach(function(id){ PUSHED_P.push(id); });
+      if(CTL.mode==='error') return Promise.resolve({error:{message:'timeout'}, saved:(CTL.landed||[])});
       if(CTL.mode==='throw') return Promise.reject(new Error('network'));
       // 'hold' parks the write so a LATER save for the same product can land while it is in flight —
       // the only way to reach the case the rollback's (t, v) pair exists for.
-      if(CTL.mode==='hold') return new Promise(function(res){ CTL.held.push(res); });
-      return Promise.resolve({error:null});
+      if(CTL.mode==='hold') return new Promise(function(res){ CTL.held.push({res:res, ids:ids.slice()}); });
+      return Promise.resolve({error:null, saved:ids.slice()});
     }
     function dbPushIngPrices(pts){ (pts||[]).forEach(function(p){ PUSHED_H.push({pid:p.pid, t:p.t, v:p.v}); }); return Promise.resolve({error:null}); }
     ${extractFn(SRC, 'setProducts')}
@@ -86,6 +92,8 @@ function sandbox(seed) {
     ${extractFn(SRC, 'confirmedPrice')}
     ${extractFn(SRC, 'confirmPrices')}
     ${extractFn(SRC, 'unlogIngPrices')}
+    ${extractFn(SRC, 'writeSaved')}
+    ${extractVar(SRC, '_priceSeq')}
     ${extractFn(SRC, 'ptMs')}
     ${extractFn(SRC, 'ingPriceAt')}
     ${extractFn(SRC, 'ingLastMovePct')}
@@ -95,6 +103,7 @@ function sandbox(seed) {
     ${extractFn(SRC, 'packToUnitCost')}
     return {
       setProduct: setProduct,
+      setProducts: setProducts,                                 // 224: the partial-chunk case needs a multi-id call
       logIngPrice: logIngPrice,                                 // 180: exposed so the SECOND guard can be driven directly — see [7]
       newProductRecord: newProductRecord,
       invUnitToBase: invUnitToBase,
@@ -103,6 +112,7 @@ function sandbox(seed) {
       ingPriceAt: ingPriceAt,
       ingLastMovePct: ingLastMovePct,
       confirmedPrice: confirmedPrice,
+      writeSaved: writeSaved,
       points: function(pid){ return (ingPriceLog[pid] || []).slice(); },
       logged: function(pid){ return Object.prototype.hasOwnProperty.call(ingPriceLog, pid); },
       product: function(pid){ return productsById[pid]; },
@@ -112,8 +122,11 @@ function sandbox(seed) {
   const api = factory(seed, pushedProducts, pushedPoints, ctl);
   api.pushedProducts = pushedProducts;
   api.pushedPoints = pushedPoints;
-  api.fail = (mode) => { ctl.mode = mode; };                    // 'error' | 'throw' | 'hold' | 'ok'
-  api.release = (i, ok) => { ctl.held[i](ok ? { error: null } : { error: { message: 'timeout' } }); };
+  api.fail = (mode, landed) => { ctl.mode = mode; ctl.landed = landed || null; };   // 'error' | 'throw' | 'hold' | 'ok'
+  api.release = (i, ok) => {
+    const h = ctl.held[i];
+    h.res(ok ? { error: null, saved: h.ids } : { error: { message: 'timeout' }, saved: [] });
+  };
   return api;
 }
 
@@ -496,20 +509,50 @@ test('[8] a CONFIRMED write clears the baseline even when its own patch carried 
   assert.deepEqual(s.pushedPoints, [], 'and a pack teach still fabricates no point');
 });
 
-test('[8] two refusals in a row keep the OLDEST baseline — the server never moved', async () => {
+test('[8] two refusals OVERLAPPING keep the OLDEST baseline — the server never moved', async () => {
+  /* Both are held before either settles, so B is ISSUED while A is still in flight and reads the
+     OPTIMISTIC 0.0130 as its own starting point. That is what makes the two candidate baselines
+     different figures and the test able to tell them apart: a version that lets the later refusal
+     win records 0.0130, a price the server refused twice and never held. Settling them in order
+     first would make B read 0.0122 from A's own record and the assertion could not fail. */
   const s = sandbox(SEEDED);
-  s.fail('error');
-  await s.setProduct('P0004', { cost_per_base_unit: 0.0130 });
-  await settle();
-  await s.setProduct('P0004', { cost_per_base_unit: 0.0140 });
+  s.fail('hold');
+  s.setProduct('P0004', { cost_per_base_unit: 0.0130 });        // A
+  s.setProduct('P0004', { cost_per_base_unit: 0.0140 });        // B, issued before A has an answer
+  s.release(0, false);
+  s.release(1, false);
   await settle();
   assert.equal(s.confirmedPrice('P0004'), 0.0122,
-    'not 0.0130 — that was the first attempt’s optimistic value, which the server refused');
+    'not 0.0130 — that was A’s optimistic value, which the server refused');
 
   s.fail('ok');
   await s.setProduct('P0004', { cost_per_base_unit: 0.0140 });
   await settle();
   assert.deepEqual(s.pushedPoints.map((p) => p.v), [0.0140], 'one point, for the price that landed');
+});
+
+test('[8] the SAME product patched twice in ONE refused call keeps the FIRST baseline', async () => {
+  /* The second entry's `had` is read AFTER the first has patched memory, so it is already an
+     optimistic figure. Only the first names what the server holds. */
+  const s = sandbox(SEEDED);
+  s.fail('error');
+  await s.setProducts([
+    { id: 'P0004', patch: { cost_per_base_unit: 0.0130 } },
+    { id: 'P0004', patch: { cost_per_base_unit: 0.0140 } },
+  ]);
+  await settle();
+  assert.equal(s.confirmedPrice('P0004'), 0.0122, 'not 0.0130, which was never stored either');
+});
+
+test('[8] a result carrying no manifest confirms NOTHING, and does not throw', async () => {
+  /* writeSaved's whole contract. dbPushIngredients attaches a manifest on every exit it has, so a
+     result without one never reached it — the rejection arm — and that is not evidence of a save.
+     Asserted directly because the sandbox stubs all carry a manifest, so nothing else can reach it. */
+  const s = sandbox(SEEDED);
+  assert.deepEqual(s.writeSaved({ data: [], error: null }), [], 'a clean result with no manifest confirms nothing');
+  assert.deepEqual(s.writeSaved(null), [], 'and neither does no result at all');
+  assert.deepEqual(s.writeSaved({ saved: ['P0004'] }), ['P0004'], 'a manifest is passed through as itself');
+  assert.deepEqual(s.writeSaved({ saved: 'P0004' }), [], 'a non-array is not a manifest');
 });
 
 test('[8] the happy path is UNCHANGED: the memory point is there synchronously', async () => {
@@ -564,4 +607,32 @@ test('[8] a refusal removes ITS OWN point, not whichever point happens to be las
   assert.deepEqual(s.points('P0004').map((p) => p.v), [0.0140, 0.0130],
     'A’s point is gone and C’s — same value, different moment — is untouched');
   assert.deepEqual(s.pushedPoints.map((p) => p.v), [0.0140, 0.0130], 'and only B and C ever reached the server');
+  /* AND THE BASELINE MUST NOT MOVE, which this test did not check when it was written and which the
+     pre-push review reproduced as a live defect. A's refusal arrives after B and C have both landed,
+     so it knows nothing they have not already superseded: the server holds C's price. Recording A's
+     `had` here would name a figure two confirmed writes ago, and every later "did the price move"
+     question for this product would be asked against it. */
+  assert.equal(s.confirmedPrice('P0004'), 0.0130,
+    'the server holds C’s price, not the value A was refused from');
+});
+
+test('[8] a PARTIAL write keeps the points for the products that landed', async () => {
+  /* FOUND BY THE PRE-PUSH REVIEW AND REPRODUCED: the first cut of this gate read the write's single
+     ERROR, and dbPushIngredients chunks at 200 and stops at the first failing chunk — so a refusal
+     means the chunks before it LANDED. On Scoopy's ~400-product catalogue import that is three
+     chunks, and condemning the whole call deleted 200 products' real price history for prices the
+     server had genuinely stored, while telling the user "nothing is lost". Worse than the defect
+     this batch set out to fix, because a missing point is invisible and a phantom one is not. */
+  const s = sandbox(SEEDED);
+  s.fail('error', ['P0004']);                                   // P0004's chunk landed; P0277's did not
+  await s.setProducts([
+    { id: 'P0004', patch: { cost_per_base_unit: 0.0130 } },
+    { id: 'P0277', patch: { cost_per_base_unit: 0.6 } },
+  ]);
+  await settle();
+  assert.deepEqual(s.pushedPoints.map((p) => p.pid), ['P0004'], 'the landed product keeps its point');
+  assert.deepEqual(s.points('P0004').map((p) => p.v), [0.0130], 'in memory too');
+  assert.equal(s.logged('P0277'), false, 'and the refused one has no series at all');
+  assert.equal(s.confirmedPrice('P0004'), 0.0130, 'the landed price is confirmed');
+  assert.equal(s.confirmedPrice('P0277'), 0.5, 'and only the refused one keeps a baseline');
 });

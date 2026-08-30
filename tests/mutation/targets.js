@@ -78,10 +78,11 @@ const targets = [
      truth after a failed save, and every one of their branches is on a path a green suite never
      takes. `unlogIngPrices` is the rollback, `confirmPrices` the baseline the retry is measured
      against, `confirmedPrice` the one-line read that chooses between them. */
-  { fn: 'saveIngLog', tests: ['price-log-paths.test.js'] },
+  { fn: 'saveIngLog', tests: ['price-log-paths.test.js', 'bulk-product-writes.test.js'] },
   { fn: 'unlogIngPrices', tests: ['price-log-paths.test.js'] },
-  { fn: 'confirmPrices', tests: ['price-log-paths.test.js'] },
+  { fn: 'confirmPrices', tests: ['price-log-paths.test.js', 'bulk-product-writes.test.js'] },
   { fn: 'confirmedPrice', tests: ['price-log-paths.test.js'] },
+  { fn: 'writeSaved', tests: ['price-log-paths.test.js', 'bulk-product-writes.test.js'] },
 
   /* 195: the pdf.js loader, added because its pre-push review found the batch's OWN new tests
      could not fail. Every assertion written for it was a source grep, so deleting `res()` from the
@@ -703,6 +704,31 @@ const allowedSurvivors = [
       + 'real and mutated functions were run against 12 inputs including an unterminated quote, a bare trailing '
       + 'CR, a BOM, a CRLF file with no final newline and a quoted embedded newline, and returned deep-equal '
       + 'results on all 12. The `<` is correct and conventional; there is simply no input that can tell them apart.',
+  },
+  /* 224 — TWO EQUAL-SEQ BOUNDARIES IN confirmPrices, both genuinely unreachable rather than merely
+     unlikely. `seq` is minted once per setProducts CALL, and every id in a call gets exactly one
+     verdict (an id is either in the saved manifest or it is not), so two records for one id at the
+     SAME seq can only come from that id appearing twice in one call's `entries`/`priced`. The two
+     mutants below differ from the shipped code only at that equality, and in that case both arrive
+     at the same stored record. The neighbouring boundaries that ARE reachable are killed by tests:
+     "the SAME product patched twice in ONE refused call keeps the FIRST baseline" (the `<=` on the
+     refusal arm) and "two refusals OVERLAPPING keep the OLDEST baseline" (the `!=null`). */
+  {
+    key: 'confirmPrices :: if(!s || s.seq<=seq) _priceSeen[e.id]={seq:seq, price:null}; :: relational <=>< #0',
+    reason: 'The CONFIRM arm. At an equal seq the mutant skips the assignment and the shipped code performs '
+      + 'it — and the value assigned, {seq, price:null}, is byte-identical to the record already there, '
+      + 'because the only way to reach an equal seq is a second entry for the same id in the same call, '
+      + 'which took this same branch a moment earlier. Nothing can observe the difference. The `<=` is kept '
+      + 'because the guard it is half of ("do not overwrite something NEWER") reads correctly that way.',
+  },
+  {
+    key: 'confirmPrices :: if(s && s.seq>seq) return;                                    // something newer already settled :: relational >>>= #0',
+    reason: 'The REFUSAL arm. At an equal seq the mutant returns here; the shipped code falls through to the '
+      + 'very next line, `if(s && s.price!=null && s.seq<=seq) return;`, which returns too — an equal seq '
+      + 'only happens for a second entry of the same id in one call, and the first entry left a refusal '
+      + 'record, so price is non-null. Same exit, same state, one line apart. The reachable half of this '
+      + 'guard (a strictly NEWER record blocking a late refusal) is killed by "a refusal removes ITS OWN '
+      + 'point, not whichever point happens to be last", which asserts confirmedPrice after a late refusal.',
   },
   {
     key: 'logIngPrice :: a.push({t:now, v:cpbuVal}); if(a.length>60) ingPriceLog[pid]=a.slice(-60); :: relational >>>= #0',

@@ -42,21 +42,25 @@ function sandbox(seed) {
     var PRODUCTS, byId;
     var ingPriceLog = {};
     var _ingLogPending = [];
-    var _unconfirmedPrice = {};
+    var _priceSeen = {};
     ${extractFn(SRC, 'rebuild')}
     /* Records what byId could resolve AT CALL TIME. A deleted rebuild() shows up here as a null
        description for a product that certainly has one. */
     function dbPushIngredients(ids){
       PP.push((ids||[]).map(function(id){ return byId[id] ? (byId[id].description || '(no description)') : null; }));
-      return Promise.resolve({error:null});
+      // 224: the manifest is part of this function's resolved shape, so the stub carries it. Section
+      // 8 below runs the REAL one against the REAL chunking, which is what proves the shape here.
+      return Promise.resolve({error:null, saved:(ids||[]).slice()});
     }
     function dbPushIngPrices(pts){ HP.push((pts||[]).slice()); return Promise.resolve({error:null}); }
     ${extractFn(SRC, 'samePrice')}
     ${extractFn(SRC, 'logIngPrice')}
+    ${extractFn(SRC, 'unlogIngPrices')}
+    ${extractFn(SRC, 'writeSaved')}
     ${extractFn(SRC, 'saveIngLog')}
     ${extractFn(SRC, 'confirmedPrice')}
     ${extractFn(SRC, 'confirmPrices')}
-    ${extractFn(SRC, 'unlogIngPrices')}
+    ${extractVar(SRC, '_priceSeq')}
     ${extractFn(SRC, 'setProducts')}
     ${extractFn(SRC, 'setProduct')}
     rebuild();
@@ -321,4 +325,110 @@ test('an empty id list makes no request at all and still resolves to a result sh
   const res = await w.dbPushIngredients([]);
   assert.deepStrictEqual(w.calls, []);
   assert.strictEqual(res.error, null);
+});
+
+/* ---------------------------------------------------------------------------
+ * 8. THE CHUNK BOUNDARY MEETS THE PRICE LOG (224). The two halves of this file were independent
+ * until the price log's flush was gated on the product write: chunking was tested with no price
+ * log, and the gate was tested with a write that was one atomic call. Between them sat the case
+ * that is neither, and the pre-push review found it by running exactly this combination.
+ *
+ * `dbPushIngredients` stops at the first failing chunk, so a refusal means the chunks BEFORE it
+ * reached the server. Judging the whole call on that one error deleted the real price history of
+ * every product in the landed chunks — on the 412-product catalogue import, 200 of them — while
+ * `catImportApply` told the user "Nothing is lost". This runs the REAL chunking, the REAL fold and
+ * the REAL price-log chain together, because a stub for either end agrees with whichever belief
+ * built it.
+ * ------------------------------------------------------------------------- */
+function chunkedSandbox(failAtCall) {
+  const upserts = [];         // the row-id arrays that actually reached the "server"
+  const pointPushes = [];
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('UPS', 'HP', 'FAIL_AT', `
+    "use strict";
+    var productsById = {};
+    for (var i = 0; i < 5; i++) productsById['IMP' + i] = { id:'IMP' + i, description:'p' + i,
+      base_unit:'g', cost_basis:'$/g', cost_per_base_unit:0.01, is_food:true };
+    var PRODUCTS, byId;
+    var ingPriceLog = {}, _ingLogPending = [], _priceSeen = {};
+    ${extractFn(SRC, 'rebuild')}
+    ${extractFn(SRC, 'ingredientToRow')}
+    var SUPA = { from: function(){ return { upsert: function(rows){
+      UPS.push(rows.map(function(r){ return r.id; }));
+      return Promise.resolve(UPS.length === FAIL_AT ? { error:{ message:'boom' } } : { data:rows, error:null });
+    } }; } };
+    function pushWrite(builder, label){
+      return Promise.resolve().then(builder).then(function(res){ return (res && res.error) ? { error:res.error } : res; });
+    }
+    function dbPushIngPrices(pts){ HP.push((pts||[]).slice()); return Promise.resolve({error:null}); }
+    /* ING_PUSH_CHUNK is deliberately overridden to 2 AFTER the real declaration is sliced in, so the
+       chunking under test is the shipped fold and only the boundary is moved. Five products at a
+       chunk of 2 is three chunks, which is the catalogue import's shape without 412 rows of setup. */
+    ${extractVar(SRC, 'ING_PUSH_CHUNK')}
+    ING_PUSH_CHUNK = 2;
+    ${extractFn(SRC, 'dbPushIngredients')}
+    ${extractFn(SRC, 'samePrice')}
+    ${extractFn(SRC, 'logIngPrice')}
+    ${extractFn(SRC, 'unlogIngPrices')}
+    ${extractFn(SRC, 'writeSaved')}
+    ${extractFn(SRC, 'saveIngLog')}
+    ${extractFn(SRC, 'confirmedPrice')}
+    ${extractFn(SRC, 'confirmPrices')}
+    ${extractVar(SRC, '_priceSeq')}
+    ${extractFn(SRC, 'setProducts')}
+    rebuild();
+    return {
+      setProducts: setProducts,
+      confirmedPrice: confirmedPrice,
+      points: function(id){ return (ingPriceLog[id] || []).slice(); },
+      pending: function(){ return _ingLogPending.slice(); }
+    };
+  `);
+  const api = factory(upserts, pointPushes, failAtCall || 0);
+  api.upserts = upserts;
+  api.pointPushes = pointPushes;
+  return api;
+}
+
+const REPRICE = ['IMP0', 'IMP1', 'IMP2', 'IMP3', 'IMP4']
+  .map((id, i) => ({ id: id, patch: { cost_per_base_unit: 0.02 + i / 1000 } }));
+
+test('all chunks land: every point is flushed, in one insert', async () => {
+  const s = chunkedSandbox();
+  await s.setProducts(REPRICE);
+  await settle();
+  assert.deepStrictEqual(s.upserts, [['IMP0', 'IMP1'], ['IMP2', 'IMP3'], ['IMP4']], 'three real chunks');
+  assert.strictEqual(s.pointPushes.length, 1, 'one history insert for the whole call');
+  assert.deepStrictEqual(s.pointPushes[0].map((p) => p.pid), REPRICE.map((e) => e.id));
+});
+
+test('the SECOND chunk fails: the first chunk keeps its price history, the rest is rolled back', async () => {
+  const s = chunkedSandbox(2);                                  // upsert call 2 of 3 errors
+  const res = await s.setProducts(REPRICE);
+  await settle();
+
+  assert.ok(res && res.error, 'the caller is still told the import did not finish');
+  assert.deepStrictEqual(s.upserts, [['IMP0', 'IMP1'], ['IMP2', 'IMP3']], 'chunk 3 was never sent');
+
+  assert.strictEqual(s.pointPushes.length, 1, 'the landed chunk still writes its history');
+  assert.deepStrictEqual(s.pointPushes[0].map((p) => p.pid), ['IMP0', 'IMP1'],
+    'exactly the products the server stored — no more, and crucially no fewer');
+
+  assert.deepStrictEqual(s.points('IMP0').map((p) => p.v), [0.02], 'and they keep their memory series');
+  assert.deepStrictEqual(s.points('IMP2'), [], 'while a product in the failed chunk has none');
+  assert.deepStrictEqual(s.points('IMP4'), [], 'nor does one whose chunk was never sent');
+  assert.deepStrictEqual(s.pending(), [], 'nothing is stranded for a later caller to flush');
+
+  assert.strictEqual(s.confirmedPrice('IMP0'), 0.02, 'the landed price is what the server holds');
+  assert.strictEqual(s.confirmedPrice('IMP2'), 0.01, 'and the refused ones still name the old one');
+  assert.strictEqual(s.confirmedPrice('IMP4'), 0.01);
+});
+
+test('the FIRST chunk fails: nothing landed, so nothing is logged', async () => {
+  const s = chunkedSandbox(1);
+  await s.setProducts(REPRICE);
+  await settle();
+  assert.deepStrictEqual(s.upserts, [['IMP0', 'IMP1']], 'it stopped immediately');
+  assert.strictEqual(s.pointPushes.length, 0, 'and no history insert was attempted at all');
+  assert.deepStrictEqual(s.points('IMP0'), []);
 });
