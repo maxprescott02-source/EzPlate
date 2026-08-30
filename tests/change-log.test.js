@@ -135,7 +135,12 @@ function harness(opts) {
       // 188: deletePlate and doDeleteEverything open with a role guard now. EXTRACTED, not stubbed.
       'isOwner', 'ownerOnly',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
-      'setProducts', 'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog', 'confirmGuardedRepoints', 'kingRepointGuard',
+      'setProducts', 'setProduct', 'logIngPrice', 'samePrice', 'saveIngLog',
+      // 224: the price log's flush is gated on the product write, exactly as logChangeIfSaved gates
+      // this one. Extracted rather than stubbed — the census below asserts these paths never name
+      // the change log, and a stub could not tell you whether the real ones do.
+      'confirmedPrice', 'confirmPrices', 'unlogIngPrices',
+      'confirmGuardedRepoints', 'kingRepointGuard',
       'mergeChangeLog', 'linkDishToPlate', 'deleteKitchenIngredient', 'saveKingModal',
       'kingValid', 'kingRenameCheck', 'kingNameExists', 'nextKid',
       // READ, never edited — CLAUDE.md hard rule 2 forbids changing unitCatCategory, not slicing it in.
@@ -143,7 +148,7 @@ function harness(opts) {
     ].map((n) => extractFn(SRC, n)).join('\n')}
 
     var CHANGE_KINDS=${JSON.stringify(kindsFromSource())};
-    var ingPriceLog={}, _ingLogPending=[], productsById=byId, DASH_ALL='__all__', cogsPct=30;
+    var ingPriceLog={}, _ingLogPending=[], _unconfirmedPrice={}, productsById=byId, DASH_ALL='__all__', cogsPct=30;
     rebuildMenu(); rebuildKById();
     return {
       changeLog:function(){ return changeLog; },

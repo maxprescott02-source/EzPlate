@@ -160,7 +160,11 @@ test('v111: every deleted name is gone from app.js entirely — definition AND c
 test('v111: the survivors are the two `save*` names that are NOT no-ops', () => {
   // Deleting these by pattern-matching the prefix would drop a real flush (saveIngLog pushes the
   // pending ing_price_history points) and a real settings write.
-  assert.ok(/function saveIngLog\(\)\{/.test(SRC.replace(/\s+/g, m => m.includes('\n') ? '\n' : ' ')) || /function saveIngLog\(\)/.test(SRC), 'saveIngLog still exists');
+  // 224: the arity is deliberately NOT pinned here. It was `saveIngLog()` and became
+  // `saveIngLog(write)` when the flush was gated on the product write, and this assertion — which is
+  // about a name surviving a delete-by-prefix sweep — went red for a reason that has nothing to do
+  // with what it is guarding. The gate itself is pinned behaviourally in price-log-paths.test.js [8].
+  assert.ok(/function saveIngLog\(/.test(SRC), 'saveIngLog still exists');
   assert.ok(/function saveKitchenIngredients\(\)/.test(SRC), 'saveKitchenIngredients still exists');
   assert.ok(/_ingLogPending/.test(SRC), 'and saveIngLog still has a real body to flush');
 });

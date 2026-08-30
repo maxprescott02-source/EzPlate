@@ -72,6 +72,16 @@ const targets = [
   { fn: 'dbPushIngredients', tests: ['bulk-product-writes.test.js'] },
   { fn: 'logIngPrice', tests: ['price-log-paths.test.js'] },
   { fn: 'samePrice', tests: ['price-log-paths.test.js'] },
+  /* 224: the gate that stops a price point being written for a product write the server refused,
+     and the two functions it is made of. CLAUDE.md's roster keeps finding that "a function that is
+     not a target has never been asked the question" — these three decide whether the log tells the
+     truth after a failed save, and every one of their branches is on a path a green suite never
+     takes. `unlogIngPrices` is the rollback, `confirmPrices` the baseline the retry is measured
+     against, `confirmedPrice` the one-line read that chooses between them. */
+  { fn: 'saveIngLog', tests: ['price-log-paths.test.js'] },
+  { fn: 'unlogIngPrices', tests: ['price-log-paths.test.js'] },
+  { fn: 'confirmPrices', tests: ['price-log-paths.test.js'] },
+  { fn: 'confirmedPrice', tests: ['price-log-paths.test.js'] },
 
   /* 195: the pdf.js loader, added because its pre-push review found the batch's OWN new tests
      could not fail. Every assertion written for it was a source grep, so deleting `res()` from the

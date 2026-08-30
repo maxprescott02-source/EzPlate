@@ -27,6 +27,11 @@ const SRC = loadApp();
 
 /* The real chain, with only the two network writers stubbed — at the PLURAL boundary, which is where
    the chain now ends. `rebuild` is the real one, so PRODUCTS/byId are really rebuilt. */
+/* 224: the history flush is GATED on the product write, so it lands one macrotask later than the
+   memory point. A real timer boundary rather than a count of awaits — the chain's length is an
+   implementation detail, and a test that counted ticks would go vacuous the day one moved. */
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
 function sandbox(seed) {
   const productPushes = [];   // one entry per dbPushIngredients CALL, not per product
   const pointPushes = [];     // one entry per dbPushIngPrices CALL
@@ -37,6 +42,7 @@ function sandbox(seed) {
     var PRODUCTS, byId;
     var ingPriceLog = {};
     var _ingLogPending = [];
+    var _unconfirmedPrice = {};
     ${extractFn(SRC, 'rebuild')}
     /* Records what byId could resolve AT CALL TIME. A deleted rebuild() shows up here as a null
        description for a product that certainly has one. */
@@ -48,6 +54,9 @@ function sandbox(seed) {
     ${extractFn(SRC, 'samePrice')}
     ${extractFn(SRC, 'logIngPrice')}
     ${extractFn(SRC, 'saveIngLog')}
+    ${extractFn(SRC, 'confirmedPrice')}
+    ${extractFn(SRC, 'confirmPrices')}
+    ${extractFn(SRC, 'unlogIngPrices')}
     ${extractFn(SRC, 'setProducts')}
     ${extractFn(SRC, 'setProduct')}
     rebuild();
@@ -83,7 +92,7 @@ const SEED = {
  * no copy, and this is what says so. Drive both entry points with the same patch and require the
  * resulting state to be indistinguishable.
  * ------------------------------------------------------------------------- */
-test('setProduct(id, patch) and setProducts([{id, patch}]) are the same operation', () => {
+test('setProduct(id, patch) and setProducts([{id, patch}]) are the same operation', async () => {
   const patch = { cost_per_base_unit: 0.0130, base_unit: 'g', cost_basis: '$/g' };
 
   const single = sandbox(SEED);
@@ -91,6 +100,12 @@ test('setProduct(id, patch) and setProducts([{id, patch}]) are the same operatio
 
   const plural = sandbox(SEED);
   plural.setProducts([{ id: 'P0004', patch: patch }]);
+
+  /* 224: the settle is what keeps the two flush assertions below from comparing 0 against 0 — the
+     shape CLAUDE.md's roster records at 205, where "these two agree about X" is silently satisfied
+     when neither has an X. The literal on the next line is the other half of that remedy. */
+  await settle();
+  assert.strictEqual(plural.pointPushes.length, 1, 'a flush really happened, so the comparison below has something to compare');
 
   assert.deepStrictEqual(plural.product('P0004'), single.product('P0004'), 'the stored product must be identical');
   assert.deepStrictEqual(plural.points('P0004'), single.points('P0004').map((p, i) => ({ ...p, t: plural.points('P0004')[i].t })),
@@ -133,13 +148,14 @@ test('rebuild() runs BEFORE the push, so a brand-new product is visible to the w
  * 4. N PRODUCTS ARE ONE WRITE AND ONE FLUSH. This is the whole reason the plural exists: a 412-row
  * catalogue import must not be 412 requests.
  * ------------------------------------------------------------------------- */
-test('three products with three price changes are ONE product write and ONE history flush', () => {
+test('three products with three price changes are ONE product write and ONE history flush', async () => {
   const s = sandbox(SEED);
   s.setProducts([
     { id: 'P0004', patch: { cost_per_base_unit: 0.0130 } },
     { id: 'P0009', patch: { cost_per_base_unit: 0.0105 } },
     { id: 'IMPnew2', patch: { id: 'IMPnew2', description: 'Squid Tubes', base_unit: 'g', cost_per_base_unit: 0.021 } },
   ]);
+  await settle();
   assert.strictEqual(s.productPushes.length, 1, 'ONE product write, not three');
   assert.strictEqual(s.productPushes[0].length, 3, 'carrying all three products');
   assert.strictEqual(s.pointPushes.length, 1, 'ONE history flush, not three');
@@ -147,24 +163,26 @@ test('three products with three price changes are ONE product write and ONE hist
   assert.deepStrictEqual(s.pending(), [], 'nothing is left pending — a point that never flushes is the v91 failure');
 });
 
-test('only the products whose price actually MOVED contribute a point', () => {
+test('only the products whose price actually MOVED contribute a point', async () => {
   const s = sandbox(SEED);
   s.setProducts([
     { id: 'P0004', patch: { cost_per_base_unit: 0.0122 } },          // unchanged
     { id: 'P0009', patch: { cost_per_base_unit: 0.0105 } },          // moved
     { id: 'P0004', patch: { category: 'Frozen Goods' } },            // not a price patch at all
   ]);
+  await settle();
   assert.strictEqual(s.pointPushes.length, 1, 'one flush');
   assert.deepStrictEqual(s.pointPushes[0].map((p) => p.pid), ['P0009'], 'only the mover');
   assert.deepStrictEqual(s.points('P0004'), [], 'the unchanged product logged nothing');
 });
 
-test('a batch in which NOTHING moved flushes no history at all', () => {
+test('a batch in which NOTHING moved flushes no history at all', async () => {
   const s = sandbox(SEED);
   s.setProducts([
     { id: 'P0004', patch: { category: 'Frozen Goods' } },
     { id: 'P0009', patch: { brand: 'Bega' } },
   ]);
+  await settle();
   assert.strictEqual(s.productPushes.length, 1, 'the products still save');
   assert.strictEqual(s.pointPushes.length, 0, 'and saveIngLog, called unconditionally, pushed nothing');
 });
@@ -212,9 +230,10 @@ test("a blank or null price in a BATCH fabricates no point — isFinite('') is T
   assert.deepStrictEqual(s.points('P0009'), []);
 });
 
-test('zero IS a price in a batch, and it is logged', () => {
+test('zero IS a price in a batch, and it is logged', async () => {
   const s = sandbox(SEED);
   s.setProducts([{ id: 'IMPzero', patch: { id: 'IMPzero', description: 'Comped item', base_unit: 'ea', cost_per_base_unit: 0 } }]);
+  await settle();
   assert.strictEqual(s.pointPushes.length, 1);
   assert.strictEqual(s.pointPushes[0][0].v, 0);
 });

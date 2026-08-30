@@ -421,8 +421,10 @@ Requirements: a rule comes out only when nothing emits its class — grep both f
 ### `ing_price_history` needs its unique index reconsidered
 Same-millisecond writes for one product would collide on `unique (product_id, recorded_at)`. Not reachable in practice (a human cannot re-price one product twice in a millisecond, and `applyInvoice` touches a different product each pass), but it constrains the normal price-logging path, so it needs its own brief. 0 duplicate pairs as of 4 Aug 2026, so a change would still apply cleanly.
 
-### `saveIngLog`'s `_ingLogPending` buffer
-Exactly one producer and one consumer on adjacent lines, so it holds at most one point. A real simplification, but it sits on the price-log path — not housekeeping.
+### ~~`saveIngLog`'s `_ingLogPending` buffer~~ — ✅ CLOSED 31 Aug 2026, batch 224. **The premise was falsified twice.**
+It read: *"Exactly one producer and one consumer on adjacent lines, so it holds at most one point. A real simplification, but it sits on the price-log path — not housekeeping."* Both halves are now wrong, and neither batch that falsified it had any reason to open this file — which is the transferable part.
+**Batch 193** made the product write plural: a catalogue import logs a point for every product it re-prices, so the buffer holds up to a whole catalogue (412 at Scoopy's size) and the flush exists precisely to make that ONE insert rather than 412. **Batch 224** then gave it a second job — the batch is drained SYNCHRONOUSLY so that one `setProducts` call's points cannot join a later call's batch and inherit a verdict about a different write.
+So the buffer is load-bearing in two directions and there is nothing left to simplify. Left struck rather than deleted because the shape is worth keeping: **a C item's stated reason has an expiry the item itself cannot notice.**
 
 ### `ingredients.updated_at` is stale and means nothing
 It is NOT history and must never be read as such. Either make it honest or drop it — the reason it is recorded here is so nobody builds on it. (The Tier 1 trap in `CLAUDE.md` is the live protection; this item is the cleanup.)
