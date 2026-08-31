@@ -1490,7 +1490,11 @@ function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;'
    suggested $5.78" on Menu, ", in 9 plates" on Ingredients), css/style.css stands this copy down
    below 768 so nothing is announced twice. A new cell the phone labels visibly must be added there
    too, and a cell whose own text already names its subject ("no cost", "not costed") takes none. */
-function srLabel(t){ return '<span class="sr-only">'+t+' </span>'; }
+/* esc() on an argument every caller passes a literal to: this emits into innerHTML, and the one
+   plausible future caller is a live column heading (the Menu band's "Suggested at 40%" is written
+   from `cogsPct`). Escaping now costs a function call on a string that never changes and removes
+   the whole class; adding it later means noticing first. */
+function srLabel(t){ return '<span class="sr-only">'+esc(t)+' </span>'; }
 
 /* ============================================================
    Phase 2 — "kitchen words": a kitchen ingredient is a name that
