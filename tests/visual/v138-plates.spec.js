@@ -84,6 +84,9 @@ test('desktop: published-when-live is the accent, unpublished is muted, and mone
     const row = (name) => [...document.querySelectorAll('#plateList > .plib-row')]
       .find((r) => r.querySelector('.plib-name').textContent === name);
     const cs = (e) => getComputedStyle(e);
+    const seen = (el) => [...el.childNodes]
+      .filter((n) => !(n.nodeType === 1 && n.classList.contains('sr-only')))
+      .map((n) => n.textContent).join('');
     return {
       onColor: cs(row('Toastie').querySelector('.plib-pub')).color,
       onText: row('Toastie').querySelector('.plib-pub').textContent,
@@ -92,8 +95,13 @@ test('desktop: published-when-live is the accent, unpublished is muted, and mone
       mutedText: cs(document.querySelector('.plib-band')).color,
       costFamily: cs(row('Toastie').querySelector('.plib-cost')).fontFamily,
       costNumeric: cs(row('Toastie').querySelector('.plib-cost')).fontVariantNumeric,
-      costText: row('Toastie').querySelector('.plib-cost').textContent,
-      nilText: row('Soup').querySelector('.plib-cost').textContent,
+      /* 225: `.plib-cost` carries a spoken "plate cost " label the band cannot give it (the band is
+         aria-hidden). It is never visible, so the pins below stay assertions about what is SEEN —
+         strip it rather than widen them, which would have let the caption onto the screen. */
+      costText: seen(row('Toastie').querySelector('.plib-cost')),
+      costSpoken: (row('Toastie').querySelector('.plib-cost .sr-only') || {}).textContent,
+      nilText: seen(row('Soup').querySelector('.plib-cost')),
+      nilSpoken: !!row('Soup').querySelector('.plib-cost .sr-only'),
       nilColor: cs(row('Soup').querySelector('.plib-cost')).color,
     };
   });
@@ -103,9 +111,11 @@ test('desktop: published-when-live is the accent, unpublished is muted, and mone
   expect(paint.offColor, 'unpublished reads muted, the same muted the band uses').toBe(paint.mutedText);
   expect(paint.costFamily, '§4: Geist Mono on every figure').toMatch(/Geist Mono/);
   expect(paint.costNumeric).toBe('tabular-nums');
-  expect(paint.costText).toBe('$3.00');
+  expect(paint.costText, 'the cell still SHOWS the bare figure — the caption is spoken only').toBe('$3.00');
+  expect(paint.costSpoken, 'and says which column it is, because the band is aria-hidden').toBe('plate cost ');
   // §B survives the rebuild: an uncosted plate says so; it never shows a misleading $0.00
   expect(paint.nilText).toBe('not costed');
+  expect(paint.nilSpoken, '"not costed" already names its subject, so it takes no spoken label').toBe(false);
   expect(paint.nilColor).toBe(paint.mutedText);
 });
 

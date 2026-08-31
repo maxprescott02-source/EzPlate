@@ -172,6 +172,44 @@ test('the uncosted row lands in the same columns — dashes on desktop, one hone
   expect(m.sug, 'or "suggested —"').toBe(false);
 });
 
+/* 225. THE POINT OF THE WHOLE CHANGE, AND IT EXISTS NOWHERE BUT IN A BROWSER.
+   The row is one button, so its accessible name is its cells concatenated — which made
+   "Roast $3.00 $10.00 $7.00 food cost 42.9% — well over your target" out of four figures that mean
+   four different things. The band above the rows is `aria-hidden` and correctly so: announcing a
+   floating header row of five words before every row labels nothing.
+   Chromium computes this name for real, including generated content, which is why the assertion is
+   here rather than in the unit suite: `npm test` can read the emitted HTML and CANNOT tell you what
+   is spoken. The mobile half is the one no other check can reach — below 768 the meta line PRINTS
+   " cost, " and "suggested " through `::after`/`::before`, so if the spoken copy did not stand down
+   the row would say "cost" twice, silently, on a phone. */
+test('DESKTOP: the row announces WHICH figure is which', async ({ page }) => {
+  await boot(page, 1360);
+  const row = page.locator('#aBody .mnu-row', { hasText: 'Roast' }).first();
+  const name = await row.evaluate((el) => el.ariaLabel || null);
+  expect(name, 'no aria-label — the name must come from the cells, or the figures go silent').toBe(null);
+  await expect(row, 'name, then each figure behind the word for its column')
+    .toHaveAccessibleName(/Roast\s+cost\s+\$3\.00\s+suggested\s+\$10\.00\s+price\s+\$7\.00\s+food cost/);
+});
+
+test('MOBILE: the phone PRINTS two of those words, so the spoken copy must not repeat them', async ({ page }) => {
+  await boot(page, 380);
+  const row = page.locator('#aBody .mnu-row', { hasText: 'Roast' }).first();
+  const spoken = await page.evaluate(() => {
+    const r = [...document.querySelectorAll('#aBody .mnu-row')].find((x) => /Roast/.test(x.textContent));
+    return { cost: getComputedStyle(r.querySelector('.mnu-cost'), '::after').content,
+             hidden: getComputedStyle(r.querySelector('.mnu-cost .sr-only')).display };
+  });
+  expect(spoken.cost, 'the phone prints the word').toMatch(/cost/);
+  expect(spoken.hidden, 'so the spoken copy stands down').toBe('none');
+  /* and the DOM half: "cost" is in the row's TEXT exactly once (the suppressed label). The printed
+     copy is generated content, which textContent cannot see — so one here plus one printed is the
+     two the row is allowed, and a second in the text would be the doubling this rule forbids. */
+  const acc = await row.evaluate((el) => el.textContent);
+  expect((acc.match(/cost/g) || []).length, 'exactly one "cost" in the row text — the label, not a duplicate').toBe(1);
+  await expect(row, 'price is spoken here too: nothing else ever labels that cell')
+    .toHaveAccessibleName(/price\s+\$7\.00/);
+});
+
 test('the whole row is ONE button: Enter opens the editor, and the focus ring is not clipped away', async ({ page }) => {
   await boot(page, 1280);
   const row = page.locator('#aBody .mnu-row').first();

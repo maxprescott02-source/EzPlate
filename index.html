@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=184">
+<link rel="stylesheet" href="css/style.css?v=185">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -581,7 +581,10 @@
         <!-- the mock's column band. R1: its headings are "Suggested at 40%" and "Price"; the app said
              "Suggested (40%)" and "Menu price". "Margin"/"Variance" stay forbidden — a food-cost % is
              not a margin (27.2% food cost is a 72.8% margin), which is why Q3 (v122) named the column
-             for the number it shows. The live target % is written into #aSuggestedTh by renderAnalysis. -->
+             for the number it shows. The live target % is written into #aSuggestedTh by renderAnalysis.
+             ⚠ `aria-hidden` is now CORRECT rather than a gap: each figure cell carries its column's
+             name as an `srLabel` span (js/app.js), so the row says which number is which without a
+             floating header row being announced before every one of them. Add a cell, add its label. -->
         <div class="mnu-band" id="menuBand" aria-hidden="true">
           <span>Plate</span><span class="mb-num">Cost</span><span class="mb-num" id="aSuggestedTh">Suggested at 40%</span><span class="mb-num">Price</span><span class="mb-num">Food cost</span>
         </div>
@@ -1735,7 +1738,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=184"></script>
+<script src="js/app.js?v=185"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

@@ -2651,6 +2651,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .pack-teach{display:inline-flex;align-items:center;gap:8px;margin-top:0;flex-wrap:nowrap}
 .pack-teach.hidden{display:none}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* THE SPOKEN COLUMN LABELS (`srLabel` in js/app.js), and the three cells where the PHONE already
+   prints the same word so the spoken copy must stand down or it is said twice.
+   Below 768 the meta line's own grammar carries them — `.mnu-cost::after` " cost, ",
+   `.mnu-sug::before` "suggested ", `.king-used-n::before` ", in " — and those are VISIBLE text a
+   sighted user reads, not decoration, so they stay exactly as they are and this copy hides.
+   At 768 and up every one of those three pseudo-elements is cancelled to `content:none`, and the
+   figure is a bare number in a column whose band is `aria-hidden`; that is where the copy speaks.
+   ⚠ THE PAIR IS WRITTEN AT THE SAME SPECIFICITY ON PURPOSE (0,2,0 both), so the media rule wins on
+   SOURCE ORDER and not on weight — a `@media` block does not win by being later, and this exact
+   pair of screens is where F3 got that wrong five times in one batch. Keep them adjacent: splitting
+   them is how the second one drifts to a different selector shape and silently stops applying.
+   ⚠ `display` and not `visibility`/`clip`: only `display:none` takes an element out of the
+   accessible name. A merely invisible label is still announced, which is the thing being avoided. */
+.mnu-cost .sr-only,.mnu-sug .sr-only,.king-used-n .sr-only{display:none}
+@media (min-width:768px){
+  .mnu-cost .sr-only,.mnu-sug .sr-only,.king-used-n .sr-only{display:inline}
+}
 .pt-preview{flex-basis:auto;min-height:0;margin:0;white-space:nowrap}
 .pt-done{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid var(--accent);background:var(--accent-weak);color:var(--accent-ink);font-size:14px;line-height:1;cursor:pointer}
 .pt-done:hover{background:var(--accent);color:var(--on-accent)}
