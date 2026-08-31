@@ -64,33 +64,12 @@ These passed the launch test and lost on priority against the 20-item cap. They 
 ⚠️ **AND THIS ENTRY WAS WRONG ABOUT ONE OF THE FOUR SCREENS, which is why the batch took a fifth change nobody had written down.** It said all four rows concatenate their cells. **The Ingredients row carried `aria-label="Edit <name>"`, and an aria-label REPLACES the contents in the accessible name** — so its figures were not announced unlabelled, they were not announced at all, and per-cell labels there were dead text until the row label went. Measured in Chromium, not reasoned: `tests/visual/fresh-states.spec.js` now asserts the row's real accessible name, and restoring the old attribute turns it red at both widths. The renderer's own comment had recorded the override years ago and filed it as "gains nothing here and loses nothing".
 **The mobile half is a two-file coupling and is the part that will rot:** three cells already PRINT their column's name on the phone (`::after` " cost, ", `::before` "suggested ", ", in "), so the spoken copy stands down below 768 or the row says it twice — inaudibly, with nothing on screen changing. `tests/row-figure-labels.test.js` derives both sets from source and compares them, so adding a label to a phone-labelled cell fails by name.
 
-### `.flag-review` text sits below the AA body-text floor, in BOTH themes — measured
-Filed 23 Aug 2026 by batch 200, which added an explanation to the invoice review and measured whether a user could read it.
-**Measured in a real browser, at the computed colour against the surface it is actually painted on: 4.17:1 in light, 4.32:1 in dark.** The WCAG AA floor for body text is 4.5:1. Both miss, and dark misses by less, which is the opposite of the usual guess.
-
-`.flag-review` is the app's own review-flag colour and is worn by **every** explain line on the invoice review — the parser unit-mismatch message, the "Set the pack, or type the price" prompt, and now 0b's re-base explanation. So this is not one screen's copy being faint; it is a token.
-**Why 201 did not fix it:** raising it is an app-wide palette change, and `CLAUDE.md` requires visual changes to be surgical and one screen at a time — a previous density pass was rolled back wholesale for exactly this. It also sits next to the two `1.4:1` control-boundary readings below and is plausibly the same question about the same palette, which is an argument for answering them together rather than nudging one hex.
-`tests/visual/200-pack-unit.spec.js` MEASURES it every run and asserts a floor of **3.0** — the AA floor for large text and UI components — with the shortfall written out at the assertion. That is deliberate: asserting 4.5 leaves a permanently red test that says nothing new, and asserting 4.17 pins the defect as though it were intended. Raise the number in that spec as part of the fix.
-
-### Control BOUNDARIES sit near 1.4:1, in two places, and it is ONE question
-WCAG 1.4.11 wants 3:1 for the visual boundary of a control. Measured 10 Aug 2026: the toggle's off-track is **1.36:1**, and F5's "Delete this menu" button is **1.40:1 light / 1.38:1 dark** — its border is `--danger-border`, used exactly as the mock's §2 specifies for a destructive button.
-Neither was fixed, for the same reason: the control's own TEXT carries the identification (the Delete label measures 5.43 light / 5.92 dark, clear of AA), so the boundary reinforces rather than identifies.
-The toggle half is older and worse: a white knob on a `--border-2` `#E3DCCF` track, carried entirely by the knob's drop shadow, track-against-card ~1.35:1. v136 fixed the DARK case (`--knob` when off, `--on-accent` when on) and left light as it has always rendered.
-Requirements: decide ONCE for every bordered control whether this app's boundaries clear 3:1, and if yes do it **in the token**, not per control — a per-control fix is how two became a pattern nobody can see. Candidates: darken the off-track, or add a hairline border to track and knob.
-Note the palette block already carries three MEASURED DEVIATIONS from the mock on exactly this basis (`--text-3` twice, `--danger` once), so deviating is established practice and not a fight with R1; what is missing is the decision, not the permission.
-
 ### Retry on a failed write needs a write queue first, and that is the feature
 Found by the v144 batch, which refused to ship the mock's Retry button rather than ship a dead one.
 §5's error banner carries a **Retry**. On a failed WRITE there is nothing to retry: `pushWrite` does not keep the builder after it fails, and `CLAUDE.md` records the absence as a known gap. A button would either need a queue or would reload and lose the edit anyway. The one path where Retry is honest is a failed BOOT, and `#bootGate` already owns that.
 Requirements: this is the WRITE QUEUE item, and Retry is its UI. Trigger: a write that fails while the app is open. Data: the pending builders are **closures**, so the queue must be built from serialisable intent — that is the design problem. State: a queued write must be visible, re-orderable against later edits of the same row, and must not resurrect a delete that succeeded. Error: a retry that fails again must not loop.
 ⚠️ If this ships, `css/style.css`'s `.sync-banner{pointer-events:none}` comes out in the same change and the placement is re-measured — the comment at the site says so.
 Note the standing rule this does NOT change: offline already toasts *"you're offline. It has NOT been saved."* The user is told today; what they cannot do is act on it.
-
-### `ensurePlateForDish` heals: relink when ONE plate matches, ask when several (DECIDED 9 Aug 2026)
-Correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one. Flagged in v113, unchanged.
-Requirements (Max's answer, 9 Aug 2026): the heal looks for an existing library plate by the dish's name BEFORE creating an empty one; exactly one match → relink automatically; several → ask; none → today's behaviour.
-Note **no path creates an unlinked row**: the class arrives only from history or a restore, and production has **0** of them (verified 7 Aug 2026).
-Build it with the both-sides lesson in mind — a relink heals kid-lines only (see `kingMissingImpact`'s v124 history).
 
 ### "Synced N min ago" — the §3.1 quiet channel needs a last-sync timestamp
 Found by the v144 batch, which decided the sync treatment and could not build this half of it.
@@ -125,22 +104,11 @@ F8 (v147) was told to ship the mock's mobile "Take a photo" with `capture` on th
 Requirements, if this is ever wanted: Trigger: a camera button on the upload sheet. Data: an image has no text layer, so this needs OCR or a vision model call — **a genuinely new capability, not a wiring change.** State: the same three steps; the scanning step is where the extra latency lands, and it is much larger than a PDF's. Error: an unreadable photo must say so as specifically as the image-only-PDF path does.
 ⚠️ **A vision call reopens the privacy gate** — `CLAUDE.md`'s standing precondition binds any endpoint shipping user data to a third-party model, and an invoice photo is strictly more than the text the app sends today.
 
-### "Slightly under" is the one verdict phrase that does not carry its own subject
-F8 (v147) answered the queue's three-vocabularies question: the split IS deliberate — the Menu cell judges COST against target ("over"/"well over"), `marginLightWord` judges PRICE against suggested ("Slightly under"/"Underpriced"), and the filter chips say what you would DO ("Watch"/"Rework"). Three subjects, one shared LIGHT from `analyze()`. Written out at `vbadge` in `js/app.js`, with pointers at the other two sites.
-**The residual:** of the nine phrases, "Slightly under" alone names no subject, so it is the only one a user can read as being about cost when it is about price. "Underpriced", "Healthy margin", "over", "Watch" and the rest all carry theirs.
-Requirements: one word or two, at one site, that names the subject without lengthening the row — and it must not turn into a re-litigation of the split, which is decided. Out of scope: colour, `analyze()`, and the other eight phrases.
-
 ### CSV export (Settings → Data) — behaviour spec, §11.5
 Trigger: the Data-section button. Data: which objects and columns, to decide. State: a download; nothing else changes.
 **CSV is an export for humans and NEVER an import path** — the JSON backup stays the restore format and the backup-format law is untouched.
 
-### The toast and the install banner overlap each other at desktop
-Found 10 Aug 2026 while measuring a free slot for the sync banner; the same class as the defect v141 fixed — two pieces of `position:fixed` bottom chrome whose owners never met.
-Measured at 1024 with both showing: `.toast` x431-817 / y770-816, `.install-banner` x600-1000 / y787-876 — they share x600-817, y787-816. The same overlap holds at 1280, 1440 and 1920 (both anchored to the bottom, one centred and one right-aligned, so widening does not separate them).
-The toast is `pointer-events:none` so nothing is BLOCKED, but the install banner's "Install" button and its ✕ sit under a pill of text. Only reachable pre-install (`beforeinstallprompt`), so Max on an installed PWA never sees it — **it is a new café's first ten minutes.**
-Requirements: one owner for the bottom stack. v141 established the three-way split (left: sync banner, centre: toast, right: install banner) and this is the one pair that split does not separate, so the fix is vertical — stack the toast above the install banner when both are up, or move one. `tests/visual/v141-sync-corner.spec.js` already measures the banner against both and would extend to cover this pair.
-
----
+**Five items were PROMOTED to `docs/QUEUE.md` on 31 Aug 2026 (batch 225)** — the toast/install-banner overlap, `ensurePlateForDish`, the two contrast entries merged into one, and the "Slightly under" subject. The cap that displaced them had freed up and nothing re-checks it, so they had been invisible to `/batch` for weeks. **This section's trigger is a free slot; check it when the queue shrinks, because nothing else will.**
 
 ## C — tests and CI
 

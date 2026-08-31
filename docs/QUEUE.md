@@ -76,7 +76,55 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 ✅ **REHEARSED ON STAGING, 172.** The step itself has now been performed somewhere: staging was emptied with `02-seed-empty.sql` and `restore_backup` was called into it **as the anon client over PostgREST**, returning identical counts to the populated case, every dish linked to its plate, plates inserted with `menu_id` null, and **zero rows with a null plate link** — the signature of the failure that once cost 76 of 77 dishes. Both refusal paths fired by name (format `1`; a missing `ing_price_history`).
 **This does NOT discharge the item and must not be read as doing so.** It was synthetic data in a different project, and what is still untested is the half that only production has: a real 412-product export, the real file size through the RPC's 30s `statement_timeout`, and how the boot gate reads mid-restore. What it does mean is that the step is no longer being attempted for the first time on real data.
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
-*(`Blocked on: Max's go on the day` DELETED 12 Aug 2026 — given. Nothing about this item is now waiting on a person.)*
+*(`Blocked on: Max's go on the day` was DELETED here on 12 Aug 2026 with the words "nothing about this item is now waiting on a person". **That line is REINSTATED at the top of this item and this note is kept as the record of the mistake**, not struck: the go was given, and the same item goes on to say the window is a condition of the day and to ask again on the day. Both readings were in this file at once and the header is what `/batch` acts on. **A go that must be re-asked is a block.**)*
+
+## next  6 · The bottom-of-screen chrome has no single owner, and two pieces overlap  **[B]**
+
+Promoted from `docs/MAINTENANCE.md`'s displaced-B list on 31 Aug 2026 by batch 225, under that file's own rule — these five passed the launch test and sat there only because this file was at its 20-item cap. It is not: the cap freed up long ago and nobody re-checked, so approved B work was sitting where `/batch` cannot see it. **The trigger is a slot, and the slot has been open for weeks.**
+
+Found 10 Aug 2026 while measuring a free slot for the sync banner; the same class as the defect v141 fixed — two pieces of `position:fixed` bottom chrome whose owners never met.
+Measured at 1024 with both showing: `.toast` x431-817 / y770-816, `.install-banner` x600-1000 / y787-876 — they share x600-817, y787-816. The same overlap holds at 1280, 1440 and 1920 (both anchored to the bottom, one centred and one right-aligned, so widening does not separate them).
+The toast is `pointer-events:none` so nothing is BLOCKED, but the install banner's "Install" button and its ✕ sit under a pill of text. Only reachable pre-install (`beforeinstallprompt`), so Max on an installed PWA never sees it — **it is a new café's first ten minutes.**
+Requirements: one owner for the bottom stack. v141 established the three-way split (left: sync banner, centre: toast, right: install banner) and this is the one pair that split does not separate, so the fix is vertical — stack the toast above the install banner when both are up, or move one. `tests/visual/v141-sync-corner.spec.js` already measures the banner against both and would extend to cover this pair.
+
+## next  7 · `ensurePlateForDish` starts a second empty recipe instead of relinking the real one  **[B]**
+
+Promoted 31 Aug 2026, same reason. **Max already answered the design question on 9 Aug 2026**, so nothing here is open — the requirements below are settled, not candidates.
+
+Correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one. Flagged in v113, unchanged.
+Requirements (Max's answer, 9 Aug 2026): the heal looks for an existing library plate by the dish's name BEFORE creating an empty one; exactly one match → relink automatically; several → ask; none → today's behaviour.
+Note **no path creates an unlinked row**: the class arrives only from history or a restore, and production has **0** of them (verified 7 Aug 2026).
+Build it with the both-sides lesson in mind — a relink heals kid-lines only (see `kingMissingImpact`'s v124 history).
+
+## next  8 · Contrast: body text and control boundaries, decided ONCE in the tokens  **[B]**
+
+Promoted 31 Aug 2026, and **the two maintenance entries below are merged into ONE item on their own advice** — each says the pair is plausibly the same question about the same palette, and that answering them together beats nudging one hex. Keeping them apart is what produced two entries measuring one palette.
+**Both halves are MEASURED, in a real browser, against the surface each is actually painted on**, so this needs a decision about the tokens and a surgical change, not an investigation.
+⚠️ `tests/visual/200-pack-unit.spec.js` asserts a floor of **3.0** with the shortfall written out at the assertion; raising the token means raising that number in the same change, and the first half below says why it is not already 4.5.
+⚠️ **`CLAUDE.md` requires visual changes to be surgical and one screen at a time, and this is deliberately NOT that** — it is a token change, which is the one shape that cannot be done per screen without becoming the per-control pattern the second half warns about. Say so in the handover.
+
+### The body-text half
+Filed 23 Aug 2026 by batch 200, which added an explanation to the invoice review and measured whether a user could read it.
+**Measured in a real browser, at the computed colour against the surface it is actually painted on: 4.17:1 in light, 4.32:1 in dark.** The WCAG AA floor for body text is 4.5:1. Both miss, and dark misses by less, which is the opposite of the usual guess.
+
+`.flag-review` is the app's own review-flag colour and is worn by **every** explain line on the invoice review — the parser unit-mismatch message, the "Set the pack, or type the price" prompt, and now 0b's re-base explanation. So this is not one screen's copy being faint; it is a token.
+**Why 201 did not fix it:** raising it is an app-wide palette change, and `CLAUDE.md` requires visual changes to be surgical and one screen at a time — a previous density pass was rolled back wholesale for exactly this. It also sits next to the two `1.4:1` control-boundary readings below and is plausibly the same question about the same palette, which is an argument for answering them together rather than nudging one hex.
+`tests/visual/200-pack-unit.spec.js` MEASURES it every run and asserts a floor of **3.0** — the AA floor for large text and UI components — with the shortfall written out at the assertion. That is deliberate: asserting 4.5 leaves a permanently red test that says nothing new, and asserting 4.17 pins the defect as though it were intended. Raise the number in that spec as part of the fix.
+
+### The control-boundary half
+WCAG 1.4.11 wants 3:1 for the visual boundary of a control. Measured 10 Aug 2026: the toggle's off-track is **1.36:1**, and F5's "Delete this menu" button is **1.40:1 light / 1.38:1 dark** — its border is `--danger-border`, used exactly as the mock's §2 specifies for a destructive button.
+Neither was fixed, for the same reason: the control's own TEXT carries the identification (the Delete label measures 5.43 light / 5.92 dark, clear of AA), so the boundary reinforces rather than identifies.
+The toggle half is older and worse: a white knob on a `--border-2` `#E3DCCF` track, carried entirely by the knob's drop shadow, track-against-card ~1.35:1. v136 fixed the DARK case (`--knob` when off, `--on-accent` when on) and left light as it has always rendered.
+Requirements: decide ONCE for every bordered control whether this app's boundaries clear 3:1, and if yes do it **in the token**, not per control — a per-control fix is how two became a pattern nobody can see. Candidates: darken the off-track, or add a hairline border to track and knob.
+Note the palette block already carries three MEASURED DEVIATIONS from the mock on exactly this basis (`--text-3` twice, `--danger` once), so deviating is established practice and not a fight with R1; what is missing is the decision, not the permission.
+
+## next  9 · "Slightly under" is the one verdict phrase that does not carry its own subject  **[B]**
+
+Promoted 31 Aug 2026. One site, one or two words. **The three-vocabulary split it sits inside is DECIDED** — this must not turn into re-litigating it.
+
+F8 (v147) answered the queue's three-vocabularies question: the split IS deliberate — the Menu cell judges COST against target ("over"/"well over"), `marginLightWord` judges PRICE against suggested ("Slightly under"/"Underpriced"), and the filter chips say what you would DO ("Watch"/"Rework"). Three subjects, one shared LIGHT from `analyze()`. Written out at `vbadge` in `js/app.js`, with pointers at the other two sites.
+**The residual:** of the nine phrases, "Slightly under" alone names no subject, so it is the only one a user can read as being about cost when it is about price. "Underpriced", "Healthy margin", "over", "Watch" and the rest all carry theirs.
+Requirements: one word or two, at one site, that names the subject without lengthening the row — and it must not turn into a re-litigation of the split, which is decided. Out of scope: colour, `analyze()`, and the other eight phrases.
 
 ---
 
